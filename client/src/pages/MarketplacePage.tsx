@@ -1,6 +1,6 @@
 import { trpc } from "@/lib/trpc";
 import { useState } from "react";
-import { ShoppingBag, Search, Star, MapPin, Phone, Globe, Plus, CheckCircle2 } from "lucide-react";
+import { ShoppingBag, Search, Star, MapPin, Phone, Plus, CheckCircle2, MessageSquare } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +11,80 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
+
+function StarRating({ value, onChange }: { value: number; onChange: (v: number) => void }) {
+  return (
+    <div className="flex gap-1">
+      {[1, 2, 3, 4, 5].map((star) => (
+        <button key={star} type="button" onClick={() => onChange(star)}>
+          <Star size={20} className={star <= value ? "text-amber-400 fill-amber-400" : "text-muted-foreground"} />
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function ReviewDialog({ booking, onSuccess }: { booking: any; onSuccess: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [rating, setRating] = useState(5);
+  const [review, setReview] = useState("");
+
+  const submitReview = trpc.marketplace.submitReview.useMutation({
+    onSuccess: () => {
+      toast.success("Review submitted!");
+      setOpen(false);
+      onSuccess();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  if (booking.rating) {
+    return (
+      <div className="flex items-center gap-1">
+        {[1, 2, 3, 4, 5].map((s) => (
+          <Star key={s} size={13} className={s <= (booking.rating ?? 0) ? "text-amber-400 fill-amber-400" : "text-muted-foreground"} />
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="outline" className="gap-1 text-xs h-7">
+          <MessageSquare size={12} /> Review
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Rate this Service</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 mt-2">
+          <div>
+            <Label className="text-sm mb-2 block">Your Rating</Label>
+            <StarRating value={rating} onChange={setRating} />
+          </div>
+          <div>
+            <Label className="text-sm mb-1 block">Review (optional)</Label>
+            <Textarea
+              placeholder="Share your experience..."
+              value={review}
+              onChange={(e) => setReview(e.target.value)}
+              rows={3}
+            />
+          </div>
+          <Button
+            className="w-full"
+            onClick={() => submitReview.mutate({ bookingId: booking.id, rating, review: review || undefined })}
+            disabled={submitReview.isPending}
+          >
+            {submitReview.isPending ? "Submitting..." : "Submit Review"}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 function BookingDialog({ provider, onSuccess }: { provider: any; onSuccess: () => void }) {
   const [open, setOpen] = useState(false);
@@ -214,6 +288,7 @@ export default function MarketplacePage() {
                       <th className="text-left px-4 py-3 font-medium text-muted-foreground">Provider</th>
                       <th className="text-left px-4 py-3 font-medium text-muted-foreground">Status</th>
                       <th className="text-left px-4 py-3 font-medium text-muted-foreground">Scheduled</th>
+                      <th className="text-left px-4 py-3 font-medium text-muted-foreground">Review</th>
                       <th className="text-left px-4 py-3 font-medium text-muted-foreground">Created</th>
                     </tr>
                   </thead>
@@ -223,12 +298,23 @@ export default function MarketplacePage() {
                         <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{booking.bookingNumber}</td>
                         <td className="px-4 py-3 font-medium">Provider #{booking.providerId}</td>
                         <td className="px-4 py-3">
-                          <Badge className={`text-xs ${booking.status === "confirmed" ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"}`} variant="outline">
+                          <Badge className={`text-xs ${
+                            booking.status === "completed" ? "bg-green-100 text-green-700" :
+                            booking.status === "confirmed" ? "bg-blue-100 text-blue-700" :
+                            booking.status === "cancelled" ? "bg-red-100 text-red-700" :
+                            "bg-amber-100 text-amber-700"
+                          }`} variant="outline">
                             {booking.status}
                           </Badge>
                         </td>
                         <td className="px-4 py-3 text-xs text-muted-foreground">
                           {booking.scheduledAt ? new Date(booking.scheduledAt).toLocaleString() : "TBD"}
+                        </td>
+                        <td className="px-4 py-3">
+                          {booking.status === "completed"
+                            ? <ReviewDialog booking={booking} onSuccess={refetch} />
+                            : <span className="text-xs text-muted-foreground">—</span>
+                          }
                         </td>
                         <td className="px-4 py-3 text-xs text-muted-foreground">
                           {new Date(booking.createdAt).toLocaleDateString()}

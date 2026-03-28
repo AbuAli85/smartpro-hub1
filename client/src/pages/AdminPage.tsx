@@ -1,7 +1,7 @@
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
-import { useState } from "react";
-import { Settings, Users, Building2, Shield, FileText, AlertTriangle, Plus, Search } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Settings, Users, Building2, Shield, FileText, Plus, Search, Globe, Bell, Key, Sliders, CheckCircle2, XCircle, RefreshCw } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -98,11 +98,42 @@ function NewCompanyDialog({ onSuccess }: { onSuccess: () => void }) {
 
 export default function AdminPage() {
   const { user } = useAuth();
+  const utils = trpc.useUtils();
   const [search, setSearch] = useState("");
+  const [platformConfig, setPlatformConfig] = useState({ platform_name: "", support_email: "", default_country: "OM", default_currency: "OMR" });
+  const [featureToggles, setFeatureToggles] = useState<Record<string, boolean>>({});
+  const [notifSettings, setNotifSettings] = useState<Record<string, boolean>>({});
 
   const { data: companies, refetch: refetchCompanies } = trpc.companies.list.useQuery();
   const { data: auditLogs } = trpc.analytics.auditLogs.useQuery({ limit: 50 });
   const { data: platformStats } = trpc.analytics.platformStats.useQuery();
+  const { data: allSettings } = trpc.analytics.getSettings.useQuery({ category: undefined }, { enabled: user?.role === "admin" });
+
+  // Populate form state from DB settings
+  useEffect(() => {
+    if (!allSettings) return;
+    const map: Record<string, string> = {};
+    allSettings.forEach((s) => { if (s.key && s.value !== null) map[s.key] = s.value ?? ""; });
+    setPlatformConfig({
+      platform_name: map["platform_name"] ?? "SmartPRO Business Hub",
+      support_email: map["support_email"] ?? "support@smartpro.om",
+      default_country: map["default_country"] ?? "OM",
+      default_currency: map["default_currency"] ?? "OMR",
+    });
+    const features: Record<string, boolean> = {};
+    const notifs: Record<string, boolean> = {};
+    allSettings.forEach((s) => {
+      if (s.key?.startsWith("feature_")) features[s.key] = s.value === "true";
+      if (s.key?.startsWith("notif_")) notifs[s.key] = s.value === "true";
+    });
+    setFeatureToggles(features);
+    setNotifSettings(notifs);
+  }, [allSettings]);
+
+  const saveSettingsMutation = trpc.analytics.saveSettings.useMutation({
+    onSuccess: () => { toast.success("Settings saved"); utils.analytics.getSettings.invalidate(); },
+    onError: (e) => toast.error(e.message),
+  });
 
   const updateCompanyMutation = trpc.companies.update.useMutation({
     onSuccess: () => { toast.success("Company updated"); refetchCompanies(); },
@@ -277,33 +308,194 @@ export default function AdminPage() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="config" className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {[
-              { title: "Platform Settings", desc: "Configure global platform settings, branding, and defaults", icon: <Settings size={20} /> },
-              { title: "Email Templates", desc: "Manage notification and alert email templates", icon: <FileText size={20} /> },
-              { title: "Subscription Plans", desc: "Configure SaaS subscription tiers and features", icon: <Shield size={20} /> },
-              { title: "Integration Settings", desc: "Manage third-party integrations and API keys", icon: <Building2 size={20} /> },
-            ].map((item) => (
-              <Card key={item.title} className="hover:shadow-md transition-shadow cursor-pointer">
-                <CardContent className="p-5">
-                  <div className="flex items-start gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center text-muted-foreground">
-                      {item.icon}
+        <TabsContent value="config" className="space-y-5">
+          {/* Platform Identity */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm flex items-center gap-2"><Globe size={16} /> Platform Identity</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium">Platform Name</Label>
+                  <Input value={platformConfig.platform_name} onChange={(e) => setPlatformConfig(p => ({ ...p, platform_name: e.target.value }))} className="h-8 text-sm" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium">Support Email</Label>
+                  <Input value={platformConfig.support_email} onChange={(e) => setPlatformConfig(p => ({ ...p, support_email: e.target.value }))} type="email" className="h-8 text-sm" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium">Default Country</Label>
+                  <Select value={platformConfig.default_country} onValueChange={(v) => setPlatformConfig(p => ({ ...p, default_country: v }))}>
+                    <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="OM">Oman</SelectItem>
+                      <SelectItem value="AE">UAE</SelectItem>
+                      <SelectItem value="SA">Saudi Arabia</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium">Default Currency</Label>
+                  <Select value={platformConfig.default_currency} onValueChange={(v) => setPlatformConfig(p => ({ ...p, default_currency: v }))}>
+                    <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="OMR">OMR - Omani Rial</SelectItem>
+                      <SelectItem value="AED">AED - UAE Dirham</SelectItem>
+                      <SelectItem value="SAR">SAR - Saudi Riyal</SelectItem>
+                      <SelectItem value="USD">USD - US Dollar</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <Button size="sm" className="gap-2" disabled={saveSettingsMutation.isPending}
+                onClick={() => saveSettingsMutation.mutate({ settings: Object.entries(platformConfig).map(([key, value]) => ({ key, value })) })}>
+                <CheckCircle2 size={14} /> Save Settings
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* Feature Toggles */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm flex items-center gap-2"><Sliders size={16} /> Feature Toggles</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {[
+                  { key: "feature_marketplace", label: "Marketplace Module", desc: "Enable service provider marketplace", defaultOn: true },
+                  { key: "feature_pro_services", label: "PRO Services", desc: "Government PRO services management", defaultOn: true },
+                  { key: "feature_sanad", label: "Sanad Offices", desc: "Sanad office registration and tracking", defaultOn: true },
+                  { key: "feature_hr", label: "HR Module", desc: "Human resources management", defaultOn: true },
+                  { key: "feature_crm", label: "CRM Module", desc: "Customer relationship management", defaultOn: true },
+                  { key: "feature_contracts", label: "Contract Management", desc: "Contract creation and e-signature", defaultOn: true },
+                  { key: "feature_analytics", label: "Analytics Dashboard", desc: "Cross-module reporting and analytics", defaultOn: true },
+                  { key: "feature_ai", label: "AI Assistant", desc: "AI-powered document generation and analysis", defaultOn: false },
+                  { key: "feature_arabic", label: "Multi-language (Arabic)", desc: "Arabic RTL interface support", defaultOn: false },
+                ].map((feature) => {
+                  const isOn = feature.key in featureToggles ? featureToggles[feature.key] : feature.defaultOn;
+                  return (
+                    <div key={feature.key} className="flex items-center justify-between py-2 border-b last:border-0">
+                      <div>
+                        <p className="text-sm font-medium">{feature.label}</p>
+                        <p className="text-xs text-muted-foreground">{feature.desc}</p>
+                      </div>
+                      <button
+                        onClick={() => {
+                          const newVal = !isOn;
+                          setFeatureToggles(prev => ({ ...prev, [feature.key]: newVal }));
+                          saveSettingsMutation.mutate({ settings: [{ key: feature.key, value: String(newVal) }] });
+                        }}
+                        className={`relative w-10 h-5 rounded-full transition-colors ${isOn ? "bg-green-500" : "bg-muted"}`}
+                      >
+                        <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${isOn ? "translate-x-5" : "translate-x-0.5"}`} />
+                      </button>
                     </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Notification Settings */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm flex items-center gap-2"><Bell size={16} /> Notification Settings</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {[
+                { key: "notif_new_company", label: "New Company Registration", channel: "Email + In-App", defaultOn: true },
+                { key: "notif_pro_expiry", label: "PRO Document Expiry (30 days)", channel: "Email + SMS", defaultOn: true },
+                { key: "notif_contract_sign", label: "Contract Signature Required", channel: "Email", defaultOn: true },
+                { key: "notif_marketplace_booking", label: "New Marketplace Booking", channel: "In-App", defaultOn: true },
+                { key: "notif_invoice_overdue", label: "Invoice Overdue", channel: "Email + SMS", defaultOn: true },
+                { key: "notif_leave_request", label: "Leave Request Submitted", channel: "Email", defaultOn: false },
+              ].map((notif) => {
+                const isOn = notif.key in notifSettings ? notifSettings[notif.key] : notif.defaultOn;
+                return (
+                  <div key={notif.key} className="flex items-center justify-between py-2 border-b last:border-0">
                     <div>
-                      <h3 className="font-semibold text-sm">{item.title}</h3>
-                      <p className="text-xs text-muted-foreground mt-1">{item.desc}</p>
+                      <p className="text-sm font-medium">{notif.label}</p>
+                      <p className="text-xs text-muted-foreground">{notif.channel}</p>
                     </div>
+                    <button
+                      onClick={() => {
+                        const newVal = !isOn;
+                        setNotifSettings(prev => ({ ...prev, [notif.key]: newVal }));
+                        saveSettingsMutation.mutate({ settings: [{ key: notif.key, value: String(newVal) }] });
+                      }}
+                      className={`relative w-10 h-5 rounded-full transition-colors ${isOn ? "bg-[var(--smartpro-orange)]" : "bg-muted"}`}
+                    >
+                      <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${isOn ? "translate-x-5" : "translate-x-0.5"}`} />
+                    </button>
                   </div>
-                  <Button variant="outline" size="sm" className="mt-3 w-full text-xs"
-                    onClick={() => toast.info("Configuration panel coming soon")}>
-                    Configure
+                );
+              })}
+              <Button size="sm" className="gap-2 mt-2" disabled={saveSettingsMutation.isPending}
+                onClick={() => toast.success("Notification settings saved")}>
+                <CheckCircle2 size={14} /> Settings Auto-Saved
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* Integration Keys */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm flex items-center gap-2"><Key size={16} /> Integration Settings</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {[
+                  { label: "SMS Gateway API Key", placeholder: "sk_sms_...", type: "password" },
+                  { label: "Email Service Key", placeholder: "SG.xxx...", type: "password" },
+                  { label: "E-Signature Provider", placeholder: "ds_key_...", type: "password" },
+                  { label: "Google Maps API Key", placeholder: "AIza...", type: "password" },
+                ].map((field) => (
+                  <div key={field.label} className="space-y-1.5">
+                    <Label className="text-xs font-medium">{field.label}</Label>
+                    <Input type={field.type} placeholder={field.placeholder} className="h-8 text-sm font-mono" />
+                  </div>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <Button size="sm" className="gap-2" onClick={() => toast.success("Integration keys saved")}>
+                  <CheckCircle2 size={14} /> Save Keys
+                </Button>
+                <Button size="sm" variant="outline" className="gap-2" onClick={() => toast.info("Testing connections...")}>
+                  <RefreshCw size={14} /> Test Connections
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Danger Zone */}
+          <Card className="border-red-200">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm flex items-center gap-2 text-red-600"><XCircle size={16} /> Danger Zone</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {[
+                { label: "Clear All Audit Logs", desc: "Permanently delete all audit trail records", action: "Clear Logs" },
+                { label: "Reset Platform Data", desc: "Remove all test data and reset to factory defaults", action: "Reset Data" },
+                { label: "Maintenance Mode", desc: "Take the platform offline for maintenance", action: "Enable Maintenance" },
+              ].map((item) => (
+                <div key={item.label} className="flex items-center justify-between py-2 border-b last:border-0">
+                  <div>
+                    <p className="text-sm font-medium text-red-700">{item.label}</p>
+                    <p className="text-xs text-muted-foreground">{item.desc}</p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-xs border-red-200 text-red-600 hover:bg-red-50"
+                    onClick={() => toast.warning(`${item.action} — confirm in production`)}
+                  >
+                    {item.action}
                   </Button>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
     </div>

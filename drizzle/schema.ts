@@ -808,8 +808,29 @@ export const analyticsReports = mysqlTable("analytics_reports", {
   name: varchar("name", { length: 255 }).notNull(),
   type: varchar("type", { length: 100 }).notNull(),
   config: json("config"),
-  schedule: varchar("schedule", { length: 100 }),
+  frequency: mysqlEnum("frequency", ["daily", "weekly", "monthly", "quarterly"]).default("weekly"),
+  channel: mysqlEnum("channel", ["email", "dashboard", "email_dashboard"]).default("dashboard"),
+  recipients: text("recipients"),
+  nextRunAt: timestamp("nextRunAt"),
   lastRunAt: timestamp("lastRunAt"),
+  status: mysqlEnum("status", ["active", "paused"]).default("active").notNull(),
   isActive: boolean("isActive").default(true),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
+
+export type AnalyticsReport = typeof analyticsReports.$inferSelect;
+
+// ─── SYSTEM SETTINGS ─────────────────────────────────────────────────────────
+
+export const systemSettings = mysqlTable("system_settings", {
+  id: int("id").autoincrement().primaryKey(),
+  key: varchar("key", { length: 100 }).notNull().unique(),
+  value: text("value"),
+  category: varchar("category", { length: 50 }).default("general").notNull(),
+  description: text("description"),
+  updatedBy: int("updatedBy"),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type SystemSetting = typeof systemSettings.$inferSelect;

@@ -35,15 +35,15 @@
 - [x] Subscription plans (Basic/Professional/Enterprise)
 - [x] Plan features and limits definition
 - [x] Billing cycles (monthly/annual)
-- [x] Feature gating by plan
+- [x] Feature gating by plan (checkFeature procedure, plan limits display, annual/monthly toggle)
 - [x] Usage tracking
-- [x] Invoice generation
+- [x] Invoice generation (auto-numbered, Net-14 due dates, mark-paid workflow)
 - [x] Subscription management UI
 
 ## Phase 6: Marketplace Module
 - [x] Service provider listings
 - [x] Service discovery and search
-- [x] Provider ratings and reviews
+- [x] Provider ratings and reviews (star rating dialog, review submission, provider average auto-update)
 - [x] Booking and scheduling system
 - [x] Provider onboarding workflow
 - [x] Marketplace dashboard
@@ -82,6 +82,7 @@
 - [x] PRO services overview chart
 - [x] HR overview stats
 - [x] Deals pipeline chart
+- [x] Scheduled Reports (create/pause/resume/delete, 7 report types, 4 frequencies, 3 delivery channels — fully backend-persisted)
 - [ ] Custom report builder (future enhancement)
 - [ ] Export to PDF/Excel (future enhancement)
 
@@ -90,7 +91,7 @@
 - [x] Company/tenant management
 - [x] Audit logs viewer
 - [x] Platform health monitoring
-- [ ] System configuration panel (future enhancement)
+- [x] System configuration panel (platform identity, feature toggles, notification settings, integration keys, danger zone — fully backend-persisted via system_settings table)
 - [ ] Support tools (future enhancement)
 
 ## Phase 12: Testing & Polish

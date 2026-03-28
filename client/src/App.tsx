@@ -15,6 +15,7 @@ import MarketplacePage from "./pages/MarketplacePage";
 import ContractsPage from "./pages/ContractsPage";
 import HREmployeesPage from "./pages/HREmployeesPage";
 import HRRecruitmentPage from "./pages/HRRecruitmentPage";
+import HRLeavePage from "./pages/HRLeavePage";
 import CRMPage from "./pages/CRMPage";
 import AnalyticsPage from "./pages/AnalyticsPage";
 import SubscriptionsPage from "./pages/SubscriptionsPage";
@@ -32,6 +33,7 @@ function AppRoutes() {
         <Route path="/contracts" component={ContractsPage} />
         <Route path="/hr/employees" component={HREmployeesPage} />
         <Route path="/hr/recruitment" component={HRRecruitmentPage} />
+        <Route path="/hr/leave" component={HRLeavePage} />
         <Route path="/crm" component={CRMPage} />
         <Route path="/analytics" component={AnalyticsPage} />
         <Route path="/subscriptions" component={SubscriptionsPage} />

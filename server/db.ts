@@ -722,3 +722,54 @@ export async function getAnalyticsReports(companyId: number) {
     .where(eq(analyticsReports.companyId, companyId))
     .orderBy(desc(analyticsReports.createdAt));
 }
+
+export async function createAnalyticsReport(data: typeof analyticsReports.$inferInsert) {
+  const db = await getDb();
+  if (!db) throw new Error("DB unavailable");
+  await db.insert(analyticsReports).values(data);
+}
+
+export async function updateAnalyticsReport(id: number, data: Partial<typeof analyticsReports.$inferInsert>) {
+  const db = await getDb();
+  if (!db) throw new Error("DB unavailable");
+  await db.update(analyticsReports).set(data).where(eq(analyticsReports.id, id));
+}
+
+export async function deleteAnalyticsReport(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("DB unavailable");
+  await db.delete(analyticsReports).where(eq(analyticsReports.id, id));
+}
+
+// ─── SYSTEM SETTINGS ─────────────────────────────────────────────────────────
+
+export async function getSystemSettings(category?: string) {
+  const db = await getDb();
+  if (!db) return [];
+  const { systemSettings } = await import("../drizzle/schema");
+  const q = db.select().from(systemSettings);
+  if (category) return q.where(eq(systemSettings.category, category));
+  return q;
+}
+
+export async function upsertSystemSetting(key: string, value: string, updatedBy?: number) {
+  const db = await getDb();
+  if (!db) throw new Error("DB unavailable");
+  const { systemSettings } = await import("../drizzle/schema");
+  await db
+    .insert(systemSettings)
+    .values({ key, value, updatedBy })
+    .onDuplicateKeyUpdate({ set: { value, updatedBy } });
+}
+
+export async function upsertSystemSettings(settings: { key: string; value: string }[], updatedBy?: number) {
+  const db = await getDb();
+  if (!db) throw new Error("DB unavailable");
+  const { systemSettings } = await import("../drizzle/schema");
+  for (const s of settings) {
+    await db
+      .insert(systemSettings)
+      .values({ key: s.key, value: s.value, updatedBy })
+      .onDuplicateKeyUpdate({ set: { value: s.value, updatedBy } });
+  }
+}

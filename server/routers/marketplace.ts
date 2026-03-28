@@ -118,4 +118,75 @@ export const marketplaceRouter = router({
       "Real Estate",
     ];
   }),
+
+  // Submit a review for a completed booking
+  submitReview: protectedProcedure
+    .input(z.object({
+      bookingId: z.number(),
+      rating: z.number().min(1).max(5),
+      review: z.string().max(1000).optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const { getDb } = await import("../db");
+      const { marketplaceBookings, marketplaceProviders } = await import("../../drizzle/schema");
+      const { eq, sql } = await import("drizzle-orm");
+      const db = await getDb();
+      if (!db) throw new Error("Database unavailable");
+
+      // Get booking and verify ownership
+      const bookings = await db.select().from(marketplaceBookings)
+        .where(eq(marketplaceBookings.id, input.bookingId)).limit(1);
+      if (!bookings.length) throw new Error("Booking not found");
+      const booking = bookings[0];
+      if (booking.clientId !== ctx.user.id) throw new Error("Not authorized");
+      if (booking.status !== "completed") throw new Error("Can only review completed bookings");
+      if (booking.rating) throw new Error("Already reviewed");
+
+      // Save review on booking
+      await db.update(marketplaceBookings)
+        .set({ rating: input.rating, review: input.review ?? null })
+        .where(eq(marketplaceBookings.id, input.bookingId));
+
+      // Update provider average rating
+      const allRatings = await db.select({ rating: marketplaceBookings.rating })
+        .from(marketplaceBookings)
+        .where(eq(marketplaceBookings.providerId, booking.providerId));
+      const validRatings = allRatings.filter(r => r.rating !== null);
+      const avgRating = validRatings.length
+        ? validRatings.reduce((s, r) => s + (r.rating ?? 0), 0) / validRatings.length
+        : 0;
+
+      await db.update(marketplaceProviders)
+        .set({
+          rating: String(avgRating.toFixed(2)),
+          reviewCount: validRatings.length,
+        })
+        .where(eq(marketplaceProviders.id, booking.providerId));
+
+      return { success: true };
+    }),
+
+  // Get reviews for a provider (from completed bookings)
+  getProviderReviews: publicProcedure
+    .input(z.object({ providerId: z.number() }))
+    .query(async ({ input }) => {
+      const { getDb } = await import("../db");
+      const { marketplaceBookings } = await import("../../drizzle/schema");
+      const { eq, and, isNotNull } = await import("drizzle-orm");
+      const db = await getDb();
+      if (!db) return [];
+      return db.select({
+        id: marketplaceBookings.id,
+        rating: marketplaceBookings.rating,
+        review: marketplaceBookings.review,
+        completedAt: marketplaceBookings.completedAt,
+        bookingNumber: marketplaceBookings.bookingNumber,
+      })
+        .from(marketplaceBookings)
+        .where(and(
+          eq(marketplaceBookings.providerId, input.providerId),
+          isNotNull(marketplaceBookings.rating)
+        ))
+        .limit(20);
+    }),
 });

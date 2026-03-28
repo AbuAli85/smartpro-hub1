@@ -1,6 +1,6 @@
 import { trpc } from "@/lib/trpc";
 import { useState } from "react";
-import { FileText, Plus, Search, CheckCircle2, Clock, AlertTriangle, PenLine } from "lucide-react";
+import { FileText, Plus, Search, CheckCircle2, Clock, AlertTriangle, PenLine, Sparkles, Download, Printer } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -132,6 +132,175 @@ function NewContractDialog({ onSuccess }: { onSuccess: () => void }) {
   );
 }
 
+function AIGenerateContractDialog({ onSuccess }: { onSuccess: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [step, setStep] = useState<"form" | "preview">("form");
+  const [generatedContent, setGeneratedContent] = useState("");
+  const [form, setForm] = useState({
+    type: "employment" as const,
+    partyAName: "",
+    partyBName: "",
+    value: "",
+    currency: "OMR",
+    startDate: "",
+    endDate: "",
+    jurisdiction: "Oman",
+    additionalClauses: "",
+  });
+
+  const generateMutation = trpc.contracts.generateFromTemplate.useMutation({
+    onSuccess: (data) => {
+      setGeneratedContent(typeof data.content === "string" ? data.content : "");
+      setStep("preview");
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const createMutation = trpc.contracts.create.useMutation({
+    onSuccess: (data) => {
+      toast.success(`Contract created: ${data.contractNumber}`);
+      setOpen(false);
+      setStep("form");
+      setGeneratedContent("");
+      onSuccess();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const handleGenerate = () => {
+    if (!form.partyAName || !form.partyBName) { toast.error("Both party names are required"); return; }
+    generateMutation.mutate({ ...form, value: form.value ? Number(form.value) : undefined });
+  };
+
+  const handleSave = () => {
+    createMutation.mutate({
+      title: `${form.type.charAt(0).toUpperCase() + form.type.slice(1)} Agreement — ${form.partyAName} & ${form.partyBName}`,
+      type: form.type,
+      partyAName: form.partyAName,
+      partyBName: form.partyBName,
+      value: form.value ? Number(form.value) : undefined,
+      currency: form.currency,
+      startDate: form.startDate || undefined,
+      endDate: form.endDate || undefined,
+      content: generatedContent,
+    });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setStep("form"); setGeneratedContent(""); } }}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="outline" className="gap-2 border-purple-200 text-purple-700 hover:bg-purple-50">
+          <Sparkles size={14} /> AI Generate
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Sparkles size={18} className="text-purple-600" /> AI Contract Generator
+          </DialogTitle>
+        </DialogHeader>
+        {step === "form" ? (
+          <div className="space-y-4 mt-2">
+            <p className="text-sm text-muted-foreground">Fill in the details and our AI will generate a complete, professional contract following GCC legal standards.</p>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-sm">Contract Type *</Label>
+                <Select value={form.type} onValueChange={(v) => setForm({ ...form, type: v as typeof form.type })}>
+                  <SelectTrigger className="text-sm"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {["employment","service","nda","partnership","vendor","lease","other"].map(t => (
+                      <SelectItem key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-sm">Jurisdiction</Label>
+                <Select value={form.jurisdiction} onValueChange={(v) => setForm({ ...form, jurisdiction: v })}>
+                  <SelectTrigger className="text-sm"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Oman">Oman</SelectItem>
+                    <SelectItem value="UAE">UAE</SelectItem>
+                    <SelectItem value="Saudi Arabia">Saudi Arabia</SelectItem>
+                    <SelectItem value="Bahrain">Bahrain</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-sm">Party A (Client/Employer) *</Label>
+                <Input placeholder="Company or individual name" value={form.partyAName} onChange={(e) => setForm({ ...form, partyAName: e.target.value })} className="text-sm" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-sm">Party B (Provider/Employee) *</Label>
+                <Input placeholder="Company or individual name" value={form.partyBName} onChange={(e) => setForm({ ...form, partyBName: e.target.value })} className="text-sm" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-sm">Contract Value</Label>
+                <div className="flex gap-2">
+                  <Input placeholder="0.000" value={form.value} onChange={(e) => setForm({ ...form, value: e.target.value })} className="text-sm" />
+                  <Select value={form.currency} onValueChange={(v) => setForm({ ...form, currency: v })}>
+                    <SelectTrigger className="w-24 text-sm"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="OMR">OMR</SelectItem>
+                      <SelectItem value="AED">AED</SelectItem>
+                      <SelectItem value="SAR">SAR</SelectItem>
+                      <SelectItem value="USD">USD</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-sm">Start Date</Label>
+                <Input type="date" value={form.startDate} onChange={(e) => setForm({ ...form, startDate: e.target.value })} className="text-sm" />
+              </div>
+              <div className="col-span-2 space-y-1.5">
+                <Label className="text-sm">Additional Requirements / Special Clauses</Label>
+                <Textarea placeholder="e.g. Include non-compete clause, specify probation period, add IP ownership clause..." value={form.additionalClauses} onChange={(e) => setForm({ ...form, additionalClauses: e.target.value })} rows={3} className="text-sm" />
+              </div>
+            </div>
+            <Button className="w-full gap-2 bg-purple-600 hover:bg-purple-700" disabled={generateMutation.isPending} onClick={handleGenerate}>
+              {generateMutation.isPending ? (
+                <><span className="animate-spin">⟳</span> Generating contract (15-30s)...</>
+              ) : (
+                <><Sparkles size={14} /> Generate Contract with AI</>
+              )}
+            </Button>
+          </div>
+        ) : (
+          <div className="space-y-4 mt-2">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-medium text-green-700 flex items-center gap-1"><CheckCircle2 size={14} /> Contract generated successfully</p>
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" className="gap-1 text-xs" onClick={() => setStep("form")}>
+                  ← Edit Details
+                </Button>
+                <Button size="sm" variant="outline" className="gap-1 text-xs" onClick={() => { const w = window.open("","_blank"); w?.document.write(`<pre style="font-family:serif;padding:40px;max-width:800px;margin:auto;line-height:1.8">${generatedContent}</pre>`); w?.print(); }}>
+                  <Printer size={12} /> Print
+                </Button>
+              </div>
+            </div>
+            <div className="border rounded-lg p-4 bg-muted/20 max-h-80 overflow-y-auto">
+              <pre className="text-xs whitespace-pre-wrap font-mono leading-relaxed">{generatedContent}</pre>
+            </div>
+            <div className="flex gap-2">
+              <Button className="flex-1 gap-2 bg-purple-600 hover:bg-purple-700" disabled={createMutation.isPending} onClick={handleSave}>
+                {createMutation.isPending ? "Saving..." : "Save as Contract"}
+              </Button>
+              <Button variant="outline" className="gap-2" onClick={() => {
+                const blob = new Blob([generatedContent], { type: "text/plain" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a"); a.href = url; a.download = `contract-${Date.now()}.txt`; a.click();
+              }}>
+                <Download size={14} /> Download
+              </Button>
+            </div>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function ContractsPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -170,7 +339,10 @@ export default function ContractsPage() {
           </h1>
           <p className="text-muted-foreground text-sm mt-1">Create, manage and track all business contracts</p>
         </div>
-        <NewContractDialog onSuccess={refetch} />
+        <div className="flex gap-2">
+          <AIGenerateContractDialog onSuccess={refetch} />
+          <NewContractDialog onSuccess={refetch} />
+        </div>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

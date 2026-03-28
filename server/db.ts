@@ -27,6 +27,8 @@ import {
   sanadOffices,
   subscriptionInvoices,
   subscriptionPlans,
+  systemSettings,
+  attendance,
   users,
 } from "../drizzle/schema";
 
@@ -76,9 +78,9 @@ export async function upsertUser(user: InsertUser): Promise<void> {
 
 export async function getUserByOpenId(openId: string) {
   const db = await getDb();
-  if (!db) return undefined;
+  if (!db) return null;
   const result = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
-  return result[0];
+  return result[0] ?? null;
 }
 
 export async function getAllUsers(companyId?: number) {
@@ -104,16 +106,16 @@ export async function getCompanies() {
 
 export async function getCompanyById(id: number) {
   const db = await getDb();
-  if (!db) return undefined;
+  if (!db) return null;
   const result = await db.select().from(companies).where(eq(companies.id, id)).limit(1);
-  return result[0];
+  return result[0] ?? null;
 }
 
 export async function createCompany(data: typeof companies.$inferInsert) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   const result = await db.insert(companies).values(data);
-  return result[0];
+  return result[0] ?? null;
 }
 
 export async function updateCompany(id: number, data: Partial<typeof companies.$inferInsert>) {
@@ -124,14 +126,14 @@ export async function updateCompany(id: number, data: Partial<typeof companies.$
 
 export async function getUserCompany(userId: number) {
   const db = await getDb();
-  if (!db) return undefined;
+  if (!db) return null;
   const result = await db
     .select({ company: companies, member: companyMembers })
     .from(companyMembers)
     .innerJoin(companies, eq(companies.id, companyMembers.companyId))
     .where(and(eq(companyMembers.userId, userId), eq(companyMembers.isActive, true)))
     .limit(1);
-  return result[0];
+  return result[0] ?? null;
 }
 
 // ─── SUBSCRIPTION PLANS ───────────────────────────────────────────────────────
@@ -144,14 +146,14 @@ export async function getSubscriptionPlans() {
 
 export async function getCompanySubscription(companyId: number) {
   const db = await getDb();
-  if (!db) return undefined;
+  if (!db) return null;
   const result = await db
     .select({ subscription: companySubscriptions, plan: subscriptionPlans })
     .from(companySubscriptions)
     .innerJoin(subscriptionPlans, eq(subscriptionPlans.id, companySubscriptions.planId))
     .where(and(eq(companySubscriptions.companyId, companyId), eq(companySubscriptions.status, "active")))
     .limit(1);
-  return result[0];
+  return result[0] ?? null;
 }
 
 export async function getCompanyInvoices(companyId: number) {
@@ -182,7 +184,7 @@ export async function createSanadOffice(data: typeof sanadOffices.$inferInsert) 
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   const result = await db.insert(sanadOffices).values(data);
-  return result[0];
+  return result[0] ?? null;
 }
 
 export async function updateSanadOffice(id: number, data: Partial<typeof sanadOffices.$inferInsert>) {
@@ -217,7 +219,7 @@ export async function createSanadApplication(data: typeof sanadApplications.$inf
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   const result = await db.insert(sanadApplications).values(data);
-  return result[0];
+  return result[0] ?? null;
 }
 
 export async function updateSanadApplication(id: number, data: Partial<typeof sanadApplications.$inferInsert>) {
@@ -264,7 +266,7 @@ export async function createProService(data: typeof proServices.$inferInsert) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   const result = await db.insert(proServices).values(data);
-  return result[0];
+  return result[0] ?? null;
 }
 
 export async function updateProService(id: number, data: Partial<typeof proServices.$inferInsert>) {
@@ -291,16 +293,16 @@ export async function getMarketplaceProviders(filters?: { category?: string; sea
 
 export async function getProviderById(id: number) {
   const db = await getDb();
-  if (!db) return undefined;
+  if (!db) return null;
   const result = await db.select().from(marketplaceProviders).where(eq(marketplaceProviders.id, id)).limit(1);
-  return result[0];
+  return result[0] ?? null;
 }
 
 export async function createProvider(data: typeof marketplaceProviders.$inferInsert) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   const result = await db.insert(marketplaceProviders).values(data);
-  return result[0];
+  return result[0] ?? null;
 }
 
 export async function updateProvider(id: number, data: Partial<typeof marketplaceProviders.$inferInsert>) {
@@ -329,7 +331,7 @@ export async function createMarketplaceBooking(data: typeof marketplaceBookings.
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   const result = await db.insert(marketplaceBookings).values(data);
-  return result[0];
+  return result[0] ?? null;
 }
 
 // ─── CONTRACTS ────────────────────────────────────────────────────────────────
@@ -356,16 +358,16 @@ export async function getAllContracts(filters?: { status?: string }) {
 
 export async function getContractById(id: number) {
   const db = await getDb();
-  if (!db) return undefined;
+  if (!db) return null;
   const result = await db.select().from(contracts).where(eq(contracts.id, id)).limit(1);
-  return result[0];
+  return result[0] ?? null;
 }
 
 export async function createContract(data: typeof contracts.$inferInsert) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   const result = await db.insert(contracts).values(data);
-  return result[0];
+  return result[0] ?? null;
 }
 
 export async function updateContract(id: number, data: Partial<typeof contracts.$inferInsert>) {
@@ -396,16 +398,16 @@ export async function getEmployees(companyId: number, filters?: { status?: strin
 
 export async function getEmployeeById(id: number) {
   const db = await getDb();
-  if (!db) return undefined;
+  if (!db) return null;
   const result = await db.select().from(employees).where(eq(employees.id, id)).limit(1);
-  return result[0];
+  return result[0] ?? null;
 }
 
 export async function createEmployee(data: typeof employees.$inferInsert) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   const result = await db.insert(employees).values(data);
-  return result[0];
+  return result[0] ?? null;
 }
 
 export async function updateEmployee(id: number, data: Partial<typeof employees.$inferInsert>) {
@@ -426,7 +428,7 @@ export async function createJobPosting(data: typeof jobPostings.$inferInsert) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   const result = await db.insert(jobPostings).values(data);
-  return result[0];
+  return result[0] ?? null;
 }
 
 export async function updateJobPosting(id: number, data: Partial<typeof jobPostings.$inferInsert>) {
@@ -452,7 +454,7 @@ export async function createJobApplication(data: typeof jobApplications.$inferIn
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   const result = await db.insert(jobApplications).values(data);
-  return result[0];
+  return result[0] ?? null;
 }
 
 export async function updateJobApplication(id: number, data: Partial<typeof jobApplications.$inferInsert>) {
@@ -475,7 +477,7 @@ export async function createLeaveRequest(data: typeof leaveRequests.$inferInsert
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   const result = await db.insert(leaveRequests).values(data);
-  return result[0];
+  return result[0] ?? null;
 }
 
 export async function updateLeaveRequest(id: number, data: Partial<typeof leaveRequests.$inferInsert>) {
@@ -499,7 +501,7 @@ export async function createPayrollRecord(data: typeof payrollRecords.$inferInse
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   const result = await db.insert(payrollRecords).values(data);
-  return result[0];
+  return result[0] ?? null;
 }
 
 export async function updatePayrollRecord(id: number, data: Partial<typeof payrollRecords.$inferInsert>) {
@@ -520,7 +522,7 @@ export async function createPerformanceReview(data: typeof performanceReviews.$i
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   const result = await db.insert(performanceReviews).values(data);
-  return result[0];
+  return result[0] ?? null;
 }
 
 // ─── CRM: CONTACTS ────────────────────────────────────────────────────────────
@@ -548,7 +550,7 @@ export async function createCrmContact(data: typeof crmContacts.$inferInsert) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   const result = await db.insert(crmContacts).values(data);
-  return result[0];
+  return result[0] ?? null;
 }
 
 export async function updateCrmContact(id: number, data: Partial<typeof crmContacts.$inferInsert>) {
@@ -571,7 +573,7 @@ export async function createCrmDeal(data: typeof crmDeals.$inferInsert) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   const result = await db.insert(crmDeals).values(data);
-  return result[0];
+  return result[0] ?? null;
 }
 
 export async function updateCrmDeal(id: number, data: Partial<typeof crmDeals.$inferInsert>) {
@@ -594,7 +596,7 @@ export async function createCrmCommunication(data: typeof crmCommunications.$inf
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   const result = await db.insert(crmCommunications).values(data);
-  return result[0];
+  return result[0] ?? null;
 }
 
 // ─── NOTIFICATIONS ────────────────────────────────────────────────────────────
@@ -772,4 +774,31 @@ export async function upsertSystemSettings(settings: { key: string; value: strin
       .values({ key: s.key, value: s.value, updatedBy })
       .onDuplicateKeyUpdate({ set: { value: s.value, updatedBy } });
   }
+}
+
+// ─── ATTENDANCE ───────────────────────────────────────────────────────────────
+export async function getAttendance(companyId: number, month?: string) {
+  const db = await getDb();
+  if (!db) return [];
+  const records = await db.select().from(attendance).where(eq(attendance.companyId, companyId));
+  if (!month) return records;
+  return records.filter((r) => {
+    const d = new Date(r.date);
+    const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    return ym === month;
+  });
+}
+
+export async function createAttendanceRecord(data: {
+  companyId: number;
+  employeeId: number;
+  date: Date;
+  checkIn?: Date;
+  checkOut?: Date;
+  status: "present" | "absent" | "late" | "half_day" | "remote";
+  notes?: string;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.insert(attendance).values(data);
 }

@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE IF NOT EXISTS `attendance` (\n  `id` int AUTO_INCREMENT PRIMARY KEY,\n  `companyId` int NOT NULL,\n  `employeeId` int NOT NULL,\n  `date` timestamp NOT NULL,\n  `checkIn` timestamp,\n  `checkOut` timestamp,\n  `status` enum('present','absent','late','half_day','remote') NOT NULL DEFAULT 'present',\n  `notes` text,\n  `createdAt` timestamp NOT NULL DEFAULT NOW(),\n  `updatedAt` timestamp NOT NULL DEFAULT NOW() ON UPDATE NOW()\n);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ihzfUTY3fkQrUHE.881d021b3ccf --database Q4QjnxJVGSNRVMesYiE8Gm --execute CREATE TABLE IF NOT EXISTS `attendance` (\n  `id` int AUTO_INCREMENT PRIMARY KEY,\n  `companyId` int NOT NULL,\n  `employeeId` int NOT NULL,\n  `date` timestamp NOT NULL,\n  `checkIn` timestamp,\n  `checkOut` timestamp,\n  `status` enum('present','absent','late','half_day','remote') NOT NULL DEFAULT 'present',\n  `notes` text,\n  `createdAt` timestamp NOT NULL DEFAULT NOW(),\n  `updatedAt` timestamp NOT NULL DEFAULT NOW() ON UPDATE NOW()\n);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1735
+}

@@ -1,11 +1,13 @@
 import { z } from "zod";
 import {
+  createAttendanceRecord,
   createEmployee,
   createJobApplication,
   createJobPosting,
   createLeaveRequest,
   createPayrollRecord,
   createPerformanceReview,
+  getAttendance,
   getEmployeeById,
   getEmployees,
   getJobApplications,
@@ -294,4 +296,37 @@ export const hrRouter = router({
     const depts = Array.from(new Set(emps.map((e) => e.department).filter(Boolean)));
     return depts;
   }),
+
+  // ── Attendance ──────────────────────────────────────────────────────────────
+  listAttendance: protectedProcedure
+    .input(z.object({ month: z.string().optional() }))
+    .query(async ({ input, ctx }) => {
+      const membership = await getUserCompany(ctx.user.id);
+      if (!membership) return [];
+      return getAttendance(membership.company.id, input.month);
+    }),
+
+  createAttendance: protectedProcedure
+    .input(z.object({
+      employeeId: z.number(),
+      date: z.string(),
+      checkIn: z.string().optional(),
+      checkOut: z.string().optional(),
+      status: z.enum(["present", "absent", "late", "half_day", "remote"]),
+      notes: z.string().optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const membership = await getUserCompany(ctx.user.id);
+      const companyId = membership?.company.id ?? 1;
+      await createAttendanceRecord({
+        companyId,
+        employeeId: input.employeeId,
+        date: new Date(input.date),
+        checkIn: input.checkIn ? new Date(input.checkIn) : undefined,
+        checkOut: input.checkOut ? new Date(input.checkOut) : undefined,
+        status: input.status,
+        notes: input.notes,
+      });
+      return { success: true };
+    }),
 });

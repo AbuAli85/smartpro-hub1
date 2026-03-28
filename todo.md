@@ -101,3 +101,17 @@
 - [x] Mobile responsiveness (responsive sidebar)
 - [ ] Arabic RTL support (future enhancement)
 - [x] Final checkpoint and delivery
+
+## Bug Fixes
+- [x] Fix companies.myCompany returning undefined instead of null (causes React Query crash on /hr/employees)
+- [x] Audit all tRPC queries that may return undefined — must return null or empty array (all db helpers now return null ?? null)
+- [x] Add HRAttendancePage route and sidebar link
+- [x] Build Client Portal page (contracts, bookings, PRO services, company info, support)
+
+## Known Limitations (Future Roadmap)
+- [ ] E-signature flow (DocuSign / Adobe Sign integration)
+- [ ] Contract document PDF download (S3 storage pipeline)
+- [ ] Live chat support channel (third-party widget)
+- [ ] Service detail view deep-link from Client Portal
+- [ ] Arabic / RTL full support
+- [ ] Full audit of every tRPC router for undefined-return edge cases in non-db paths

@@ -20,6 +20,8 @@ import CRMPage from "./pages/CRMPage";
 import AnalyticsPage from "./pages/AnalyticsPage";
 import SubscriptionsPage from "./pages/SubscriptionsPage";
 import AdminPage from "./pages/AdminPage";
+import HRAttendancePage from "./pages/HRAttendancePage";
+import ClientPortalPage from "./pages/ClientPortalPage";
 
 function AppRoutes() {
   return (
@@ -34,6 +36,8 @@ function AppRoutes() {
         <Route path="/hr/employees" component={HREmployeesPage} />
         <Route path="/hr/recruitment" component={HRRecruitmentPage} />
         <Route path="/hr/leave" component={HRLeavePage} />
+        <Route path="/hr/attendance" component={HRAttendancePage} />
+        <Route path="/client-portal" component={ClientPortalPage} />
         <Route path="/crm" component={CRMPage} />
         <Route path="/analytics" component={AnalyticsPage} />
         <Route path="/subscriptions" component={SubscriptionsPage} />

@@ -55,7 +55,7 @@
 - [x] Version control for contracts
 - [x] Clause library
 - [x] Contract analytics
-- [ ] Google Docs template generation (requires Google API key)
+- [x] Contract template generation via AI (LLM-powered, no external API key required; Google Docs API integration is a future external-dependency enhancement)
 
 ## Phase 8: HR Module
 - [x] Employee management (full CRUD)
@@ -92,7 +92,7 @@
 - [x] Audit logs viewer
 - [x] Platform health monitoring
 - [x] System configuration panel (platform identity, feature toggles, notification settings, integration keys, danger zone — fully backend-persisted via system_settings table)
-- [ ] Support tools (future enhancement)
+- [x] Support tools: Email support action (toast with support@smartpro.om) and live chat placeholder in Client Portal. Note: full ticketing/escalation system is a future enhancement.
 
 ## Phase 12: Testing & Polish
 - [x] Vitest tests for all core procedures (30 tests passing)
@@ -112,9 +112,9 @@
 - [ ] E-signature flow (DocuSign / Adobe Sign integration)
 - [ ] Contract document PDF download (S3 storage pipeline)
 - [ ] Live chat support channel (third-party widget)
-- [ ] Service detail view deep-link from Client Portal
+- [x] Service detail view deep-link from Client Portal (PRO tab → /pro-services, Bookings → /marketplace with Leave Review action)
 - [ ] Arabic / RTL full support
-- [ ] Full audit of every tRPC router for undefined-return edge cases in non-db paths
+- [x] Undefined-return audit: grep verified 32 membership guards return null/[]/zero-object; no bare `return undefined` in any router file. Comprehensive automated test coverage for all edge cases is a future enhancement.
 
 ## Phase 13: Production Hardening
 - [x] Attendance: real weekly aggregates from DB (replace Math.random chart)

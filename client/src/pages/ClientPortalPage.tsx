@@ -1,4 +1,5 @@
 import { trpc } from "@/lib/trpc";
+import { useLocation } from "wouter";
 import { useState } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import {
@@ -27,6 +28,9 @@ const statusColors: Record<string, string> = {
 export default function ClientPortalPage() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState("overview");
+  const [, navigate] = useLocation();
+  const [exportingId, setExportingId] = useState<number | null>(null);
+  const utils = trpc.useUtils();
 
   const { data: myCompany } = trpc.companies.myCompany.useQuery();
   const { data: contracts } = trpc.contracts.list.useQuery({});
@@ -246,8 +250,18 @@ export default function ClientPortalPage() {
                             </Button>
                           )}
                           <Button size="sm" variant="outline" className="gap-1 text-xs h-7"
-                            onClick={() => toast.info("Document download coming soon")}>
-                            <Download size={12} /> Download
+                            disabled={exportingId === c.id}
+                            onClick={async () => {
+                              setExportingId(c.id);
+                              try {
+                                const result = await utils.contracts.exportHtml.fetch({ id: c.id });
+                                const win = window.open("", "_blank");
+                                if (win) { win.document.write(result.html); win.document.close(); win.print(); }
+                                else toast.error("Pop-up blocked — please allow pop-ups for this site");
+                              } catch { toast.error("Export failed"); }
+                              finally { setExportingId(null); }
+                            }}>
+                            <Download size={12} /> {exportingId === c.id ? "Exporting…" : "Export / Print"}
                           </Button>
                         </div>
                       </div>
@@ -288,8 +302,8 @@ export default function ClientPortalPage() {
                           <Badge className={`text-xs ${statusColors[b.status ?? "pending"] ?? ""}`}>{b.status}</Badge>
                           {b.status === "completed" && (
                             <Button size="sm" variant="outline" className="gap-1 text-xs h-7"
-                              onClick={() => toast.info("Review submitted — thank you!")}>
-                              <Star size={12} /> Review
+                              onClick={() => navigate("/marketplace")}>
+                              <Star size={12} /> Leave Review
                             </Button>
                           )}
                         </div>
@@ -337,7 +351,7 @@ export default function ClientPortalPage() {
                           )}
                         </div>
                         <Button size="sm" variant="outline" className="gap-1 text-xs h-7"
-                          onClick={() => toast.info("Service details view coming soon")}>
+                          onClick={() => navigate("/pro-services")}>
                           View Details
                         </Button>
                       </div>

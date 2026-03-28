@@ -1,0 +1,25 @@
+{
+  "query": "SHOW TABLES;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ihzfUTY3fkQrUHE.881d021b3ccf --database Q4QjnxJVGSNRVMesYiE8Gm --execute SHOW TABLES;",
+  "rows": [
+    {
+      "Tables_in_Q4QjnxJVGSNRVMesYiE8Gm": "__drizzle_migrations"
+    },
+    {
+      "Tables_in_Q4QjnxJVGSNRVMesYiE8Gm": "analytics_reports"
+    },
+    {
+      "Tables_in_Q4QjnxJVGSNRVMesYiE8Gm": "audit_logs"
+    },
+    {
+      "Tables_in_Q4QjnxJVGSNRVMesYiE8Gm": "companies"
+    },
+    {
+      "Tables_in_Q4QjnxJVGSNRVMesYiE8Gm": "users"
+    }
+  ],
+  "messages": [],
+  "stdout": "Tables_in_Q4QjnxJVGSNRVMesYiE8Gm\n__drizzle_migrations\nanalytics_reports\naudit_logs\ncompanies\nusers\n",
+  "stderr": "",
+  "execution_time_ms": 1526
+}

@@ -1,0 +1,8 @@
+{
+  "query": "CREATE TABLE IF NOT EXISTS `company_members` (`id` int AUTO_INCREMENT NOT NULL, `companyId` int NOT NULL, `userId` int NOT NULL, `role` enum('company_admin','company_member','reviewer','client') NOT NULL DEFAULT 'company_member', `permissions` json DEFAULT ('[]'), `isActive` boolean NOT NULL DEFAULT true, `invitedBy` int, `joinedAt` timestamp NOT NULL DEFAULT (now()), `createdAt` timestamp NOT NULL DEFAULT (now()), CONSTRAINT `company_members_id` PRIMARY KEY(`id`));",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ihzfUTY3fkQrUHE.881d021b3ccf --database Q4QjnxJVGSNRVMesYiE8Gm --execute CREATE TABLE IF NOT EXISTS `company_members` (`id` int AUTO_INCREMENT NOT NULL, `companyId` int NOT NULL, `userId` int NOT NULL, `role` enum('company_admin','company_member','reviewer','client') NOT NULL DEFAULT 'company_member', `permissions` json DEFAULT ('[]'), `isActive` boolean NOT NULL DEFAULT true, `invitedBy` int, `joinedAt` timestamp NOT NULL DEFAULT (now()), `createdAt` timestamp NOT NULL DEFAULT (now()), CONSTRAINT `company_members_id` PRIMARY KEY(`id`));",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1064 (42000) at line 1: You have an error in your SQL syntax; check the manual that corresponds to your TiDB version for the right syntax to use line 1 column 262 near \"'[]'), `isActive` boolean NOT NULL DEFAULT true, `invitedBy` int, `joinedAt` timestamp NOT NULL DEFAULT (now()), `createdAt` timestamp NOT NULL DEFAULT (now()), CONSTRAINT `company_members_id` PRIMARY KEY(`id`))\""
+  ]
+}

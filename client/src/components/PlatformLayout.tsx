@@ -92,6 +92,7 @@ const navGroups = [
   {
     label: "Platform",
     items: [
+      { label: "Company Admin", href: "/company-admin", icon: <Building2 size={18} /> },
       { label: "Client Portal", href: "/client-portal", icon: <UserCircle size={18} /> },
       { label: "Subscriptions", href: "/subscriptions", icon: <Zap size={18} /> },
       { label: "Admin Panel", href: "/admin", icon: <Settings size={18} /> },

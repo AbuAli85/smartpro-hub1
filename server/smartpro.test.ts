@@ -467,3 +467,77 @@ describe("companies.onboarding", () => {
     expect(Array.isArray(result)).toBe(true);
   });
 });
+
+// ─── Company Member Management Tests ─────────────────────────────────────────
+describe("companies.memberManagement", () => {
+  it("members returns empty array when user has no company", async () => {
+    const caller = appRouter.createCaller(makeCtx());
+    const result = await caller.companies.members();
+    expect(Array.isArray(result)).toBe(true);
+    expect(result.length).toBe(0);
+  });
+
+  it("members requires authentication", async () => {
+    const caller = appRouter.createCaller(makePublicCtx());
+    await expect(caller.companies.members()).rejects.toThrow();
+  });
+
+  it("updateMemberRole requires authentication", async () => {
+    const caller = appRouter.createCaller(makePublicCtx());
+    await expect(
+      caller.companies.updateMemberRole({ memberId: 1, role: "company_member" })
+    ).rejects.toThrow();
+  });
+
+  it("updateMemberRole throws when user has no company (no DB in test env)", async () => {
+    const caller = appRouter.createCaller(makeCtx());
+    await expect(
+      caller.companies.updateMemberRole({ memberId: 1, role: "company_member" })
+    ).rejects.toThrow();
+  });
+
+  it("removeMember requires authentication", async () => {
+    const caller = appRouter.createCaller(makePublicCtx());
+    await expect(caller.companies.removeMember({ memberId: 1 })).rejects.toThrow();
+  });
+
+  it("removeMember throws when user has no company (no DB in test env)", async () => {
+    const caller = appRouter.createCaller(makeCtx());
+    await expect(
+      caller.companies.removeMember({ memberId: 1 })
+    ).rejects.toThrow();
+  });
+
+  it("addMemberByEmail requires authentication", async () => {
+    const caller = appRouter.createCaller(makePublicCtx());
+    await expect(
+      caller.companies.addMemberByEmail({ email: "test@example.com", role: "company_member" })
+    ).rejects.toThrow();
+  });
+
+  it("addMemberByEmail throws when user has no company (no DB in test env)", async () => {
+    const caller = appRouter.createCaller(makeCtx());
+    await expect(
+      caller.companies.addMemberByEmail({ email: "test@example.com", role: "company_member" })
+    ).rejects.toThrow();
+  });
+
+  it("reactivateMember requires authentication", async () => {
+    const caller = appRouter.createCaller(makePublicCtx());
+    await expect(caller.companies.reactivateMember({ memberId: 1 })).rejects.toThrow();
+  });
+
+  it("reactivateMember throws when user has no company (no DB in test env)", async () => {
+    const caller = appRouter.createCaller(makeCtx());
+    await expect(
+      caller.companies.reactivateMember({ memberId: 1 })
+    ).rejects.toThrow();
+  });
+
+  it("update requires authentication", async () => {
+    const caller = appRouter.createCaller(makePublicCtx());
+    await expect(
+      caller.companies.update({ id: 1, name: "New Name" })
+    ).rejects.toThrow();
+  });
+});

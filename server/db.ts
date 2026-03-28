@@ -802,3 +802,38 @@ export async function createAttendanceRecord(data: {
   if (!db) throw new Error("Database not available");
   await db.insert(attendance).values(data);
 }
+
+export async function getAttendanceStats(companyId: number, month?: string) {
+  const db = await getDb();
+  if (!db) return { present: 0, absent: 0, late: 0, half_day: 0, remote: 0, byDay: [] as { day: string; present: number; absent: number; late: number }[] };
+  const records = await getAttendance(companyId, month);
+  const counts = { present: 0, absent: 0, late: 0, half_day: 0, remote: 0 };
+  const dayMap: Record<string, { present: number; absent: number; late: number }> = {};
+  for (const r of records) {
+    const s = r.status as keyof typeof counts;
+    if (s in counts) counts[s]++;
+    const d = new Date(r.date);
+    const dayKey = d.toLocaleDateString("en-US", { weekday: "short" });
+    if (!dayMap[dayKey]) dayMap[dayKey] = { present: 0, absent: 0, late: 0 };
+    if (r.status === "present" || r.status === "remote" || r.status === "half_day") dayMap[dayKey].present++;
+    else if (r.status === "absent") dayMap[dayKey].absent++;
+    else if (r.status === "late") dayMap[dayKey].late++;
+  }
+  const byDay = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day) => ({
+    day,
+    ...(dayMap[day] ?? { present: 0, absent: 0, late: 0 }),
+  }));
+  return { ...counts, byDay };
+}
+
+export async function updateAttendanceRecord(id: number, data: Partial<{ status: "present" | "absent" | "late" | "half_day" | "remote"; checkIn: Date; checkOut: Date; notes: string }>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(attendance).set(data).where(eq(attendance.id, id));
+}
+
+export async function deleteAttendanceRecord(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(attendance).where(eq(attendance.id, id));
+}

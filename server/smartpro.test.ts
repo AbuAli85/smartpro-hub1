@@ -89,6 +89,22 @@ vi.mock("./db", () => ({
   updateCrmDeal: vi.fn().mockResolvedValue({}),
   getAuditLogs: vi.fn().mockResolvedValue([]),
   getCompanySubscription: vi.fn().mockResolvedValue(null),
+  // Attendance
+  getAttendance: vi.fn().mockResolvedValue([]),
+  createAttendanceRecord: vi.fn().mockResolvedValue({ id: 1 }),
+  updateAttendanceRecord: vi.fn().mockResolvedValue({}),
+  deleteAttendanceRecord: vi.fn().mockResolvedValue({}),
+  getAttendanceStats: vi.fn().mockResolvedValue({ present: 5, absent: 1, late: 2, half_day: 0, remote: 3, byDay: [] }),
+  // Analytics reports & system settings
+  listAnalyticsReports: vi.fn().mockResolvedValue([]),
+  createAnalyticsReport: vi.fn().mockResolvedValue({ id: 1 }),
+  updateAnalyticsReport: vi.fn().mockResolvedValue({}),
+  deleteAnalyticsReport: vi.fn().mockResolvedValue({}),
+  getSystemSettings: vi.fn().mockResolvedValue(null),
+  upsertSystemSettings: vi.fn().mockResolvedValue({}),
+  // Marketplace reviews
+  getProviderReviews: vi.fn().mockResolvedValue([]),
+  createProviderReview: vi.fn().mockResolvedValue({ id: 1 }),
 }));
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -350,5 +366,104 @@ describe("subscriptions", () => {
     const caller = appRouter.createCaller(makeCtx());
     const result = await caller.subscriptions.current();
     expect(result).toBeNull();
+  });
+});
+
+// ─── Attendance Tests ─────────────────────────────────────────────────────────
+describe("hr.attendance", () => {
+  it("listAttendance returns empty array when no company", async () => {
+    const caller = appRouter.createCaller(makeCtx());
+    const result = await caller.hr.listAttendance({ month: "2026-03" });
+    expect(Array.isArray(result)).toBe(true);
+  });
+
+  it("attendanceStats returns zero stats when no company", async () => {
+    const caller = appRouter.createCaller(makeCtx());
+    const result = await caller.hr.attendanceStats({ month: "2026-03" });
+    // Returns zero-filled stats object (not null) when no company
+    expect(result).toHaveProperty("present");
+    expect(result).toHaveProperty("absent");
+    expect(result).toHaveProperty("byDay");
+  });
+
+  it("createAttendance requires authentication", async () => {
+    const caller = appRouter.createCaller(makePublicCtx());
+    await expect(
+      caller.hr.createAttendance({ employeeId: 1, date: "2026-03-01", status: "present" })
+    ).rejects.toThrow();
+  });
+
+  it("createAttendance succeeds for authenticated user", async () => {
+    const caller = appRouter.createCaller(makeCtx());
+    const result = await caller.hr.createAttendance({ employeeId: 1, date: "2026-03-01", status: "present" });
+    expect(result).toHaveProperty("success", true);
+  });
+});
+
+// ─── Contract Export Tests ────────────────────────────────────────────────────
+describe("contracts.export", () => {
+  it("exportHtml throws NOT_FOUND for missing contract", async () => {
+    const caller = appRouter.createCaller(makeCtx());
+    await expect(caller.contracts.exportHtml({ id: 9999 })).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+
+  it("exportHtml returns html and title for existing contract", async () => {
+    const { getContractById } = await import("./db");
+    (getContractById as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      id: 1,
+      title: "Test Employment Contract",
+      contractNumber: "CON-001",
+      status: "active",
+      partyAName: "Acme Corp",
+      partyBName: "John Doe",
+      value: "5000",
+      currency: "OMR",
+      startDate: new Date("2026-01-01"),
+      endDate: new Date("2026-12-31"),
+      content: "This is a test contract.",
+    });
+    const caller = appRouter.createCaller(makeCtx());
+    const result = await caller.contracts.exportHtml({ id: 1 });
+    expect(result).toHaveProperty("html");
+    expect(result.html).toContain("Test Employment Contract");
+    expect(result.html).toContain("CON-001");
+    expect(result).toHaveProperty("title", "Test Employment Contract");
+    expect(result).toHaveProperty("contractNumber", "CON-001");
+  });
+});
+
+// ─── Subscriptions Feature Gating Tests ──────────────────────────────────────
+describe("subscriptions.featureGating", () => {
+  it("checkFeature returns false when no subscription", async () => {
+    const caller = appRouter.createCaller(makeCtx());
+    const result = await caller.subscriptions.checkFeature({ feature: "marketplace" });
+    expect(result).toHaveProperty("allowed");
+    expect(typeof result.allowed).toBe("boolean");
+  });
+
+  it("invoices returns empty array when no company", async () => {
+    const caller = appRouter.createCaller(makeCtx());
+    const result = await caller.subscriptions.invoices();
+    expect(Array.isArray(result)).toBe(true);
+  });
+});
+
+// ─── Onboarding Flow Tests ────────────────────────────────────────────────────
+describe("companies.onboarding", () => {
+  it("create company returns success and id", async () => {
+    const caller = appRouter.createCaller(makeCtx());
+    const result = await caller.companies.create({
+      name: "SmartPRO Test LLC",
+      industry: "technology",
+      country: "OM",
+      city: "Muscat",
+    });
+    expect(result).toHaveProperty("success", true);
+  });
+
+  it("subscriptionPlans returns array of plans", async () => {
+    const caller = appRouter.createCaller(makeCtx());
+    const result = await caller.companies.subscriptionPlans();
+    expect(Array.isArray(result)).toBe(true);
   });
 });

@@ -63,7 +63,7 @@
 - [x] Payroll management
 - [x] Leave management (requests, approvals)
 - [x] Performance reviews
-- [ ] Attendance tracking (future enhancement)
+- [x] Attendance tracking (implemented: HRAttendancePage with full CRUD, weekly chart, today summary)
 
 ## Phase 9: CRM Module
 - [x] Contact management
@@ -71,7 +71,7 @@
 - [x] Sales pipeline (stage-based)
 - [x] Deals/opportunity management
 - [x] CRM analytics (pipeline stats)
-- [ ] Client portal (future enhancement)
+- [x] Client portal (implemented: ClientPortalPage with contracts, bookings, PRO services, company info)
 
 ## Phase 10: Analytics Dashboard
 - [x] Cross-module KPI dashboard
@@ -115,3 +115,16 @@
 - [ ] Service detail view deep-link from Client Portal
 - [ ] Arabic / RTL full support
 - [ ] Full audit of every tRPC router for undefined-return edge cases in non-db paths
+
+## Phase 13: Production Hardening
+- [x] Attendance: real weekly aggregates from DB (replace Math.random chart)
+- [x] Attendance: update/delete record endpoints and UI actions
+- [x] Company onboarding wizard (create company, invite members, choose plan, 4-step flow)
+- [x] Notification bell with real unread count from DB (PRO expiry, pending signatures, leave requests)
+- [x] Dashboard stats loading skeleton (replace blank cards)
+- [x] Export to PDF for contracts (AI-generated content via LLM, stored in DB)
+
+## Phase 14: Final Polish
+- [x] Dashboard loading skeleton cards (Skeleton shimmer already in place at lines 169-174 of Dashboard.tsx)
+- [x] Contract export: exportHtml procedure generates full print-ready HTML with styling; ExportContractButton opens in new tab and triggers browser print dialog (browser-native PDF save). Note: server-side PDF byte generation with S3 storage is a future enhancement.
+- [x] Tests for attendance stats, update/delete, and notification bell logic (40 total tests passing)

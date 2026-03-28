@@ -301,6 +301,34 @@ function AIGenerateContractDialog({ onSuccess }: { onSuccess: () => void }) {
   );
 }
 
+function ExportContractButton({ contractId, contractNumber }: { contractId: number; contractNumber: string }) {
+  const [loading, setLoading] = useState(false);
+  const utils = trpc.useUtils();
+
+  const handleExport = async () => {
+    setLoading(true);
+    try {
+      const result = await utils.contracts.exportHtml.fetch({ id: contractId });
+      const w = window.open("", "_blank");
+      if (w) {
+        w.document.write(result.html);
+        w.document.close();
+        setTimeout(() => w.print(), 500);
+      }
+    } catch (e) {
+      toast.error("Export failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Button size="sm" variant="ghost" className="h-7 gap-1 text-xs" disabled={loading} onClick={handleExport}>
+      <Printer size={12} /> {loading ? "..." : "PDF"}
+    </Button>
+  );
+}
+
 export default function ContractsPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -454,6 +482,7 @@ export default function ContractsPage() {
                         <SelectItem value="terminated">Terminate</SelectItem>
                       </SelectContent>
                     </Select>
+                    <ExportContractButton contractId={contract.id} contractNumber={contract.contractNumber ?? ""} />
                   </td>
                 </tr>
               ))}

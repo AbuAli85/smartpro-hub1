@@ -22,6 +22,7 @@ import SubscriptionsPage from "./pages/SubscriptionsPage";
 import AdminPage from "./pages/AdminPage";
 import HRAttendancePage from "./pages/HRAttendancePage";
 import ClientPortalPage from "./pages/ClientPortalPage";
+import OnboardingPage from "./pages/OnboardingPage";
 
 function AppRoutes() {
   return (
@@ -38,6 +39,7 @@ function AppRoutes() {
         <Route path="/hr/leave" component={HRLeavePage} />
         <Route path="/hr/attendance" component={HRAttendancePage} />
         <Route path="/client-portal" component={ClientPortalPage} />
+        <Route path="/onboarding" component={OnboardingPage} />
         <Route path="/crm" component={CRMPage} />
         <Route path="/analytics" component={AnalyticsPage} />
         <Route path="/subscriptions" component={SubscriptionsPage} />

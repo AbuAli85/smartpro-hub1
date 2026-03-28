@@ -22,7 +22,7 @@ import {
   X,
   Zap,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Link, useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
@@ -183,10 +183,81 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
   );
 }
 
+function NotificationBell() {
+  const [open, setOpen] = useState(false);
+  const { data: proServices } = trpc.pro.list.useQuery({ status: "expiring_soon" });
+  const { data: contracts } = trpc.contracts.list.useQuery({ status: "pending_signature" });
+  const { data: leaveRequests } = trpc.hr.listLeave.useQuery({});
+
+  const notifications = useMemo(() => {
+    const items: { id: string; title: string; desc: string; type: "warning" | "info" | "action" }[] = [];
+    (proServices ?? []).slice(0, 3).forEach((s) => {
+      if (s.expiryDate) {
+        const days = Math.ceil((new Date(s.expiryDate).getTime() - Date.now()) / 86400000);
+        if (days <= 30) items.push({ id: `pro-${s.id}`, title: "Document Expiring", desc: `${s.serviceType} expires in ${days}d`, type: "warning" });
+      }
+    });
+    (contracts ?? []).slice(0, 3).forEach((c) => {
+      items.push({ id: `contract-${c.id}`, title: "Signature Required", desc: `${c.title} awaiting signature`, type: "action" });
+    });
+    (leaveRequests ?? []).slice(0, 3).forEach((l) => {
+      items.push({ id: `leave-${l.id}`, title: "Leave Request", desc: `Leave request pending approval`, type: "info" });
+    });
+    return items;
+  }, [proServices, contracts, leaveRequests]);
+
+  const unread = notifications.length;
+
+  return (
+    <div className="relative">
+      <Button variant="ghost" size="icon" className="relative" onClick={() => setOpen(!open)}>
+        <Bell size={18} />
+        {unread > 0 && (
+          <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+            {unread > 9 ? "9+" : unread}
+          </span>
+        )}
+      </Button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="absolute right-0 top-10 z-50 w-80 bg-card border border-border rounded-xl shadow-xl overflow-hidden">
+            <div className="px-4 py-3 border-b flex items-center justify-between">
+              <span className="font-semibold text-sm">Notifications</span>
+              {unread > 0 && <span className="text-xs text-muted-foreground">{unread} unread</span>}
+            </div>
+            <div className="max-h-80 overflow-y-auto">
+              {notifications.length === 0 ? (
+                <div className="py-8 text-center text-muted-foreground">
+                  <Bell size={24} className="mx-auto mb-2 opacity-30" />
+                  <p className="text-sm">All caught up!</p>
+                </div>
+              ) : (
+                notifications.map((n) => (
+                  <div key={n.id} className="px-4 py-3 border-b last:border-0 hover:bg-muted/30 transition-colors">
+                    <div className="flex items-start gap-3">
+                      <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${
+                        n.type === "warning" ? "bg-amber-500" : n.type === "action" ? "bg-blue-500" : "bg-green-500"
+                      }`} />
+                      <div>
+                        <p className="text-xs font-medium">{n.title}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">{n.desc}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 export default function PlatformLayout({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, loading } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  // notifications placeholder
 
   if (loading) {
     return (
@@ -267,9 +338,7 @@ export default function PlatformLayout({ children }: { children: React.ReactNode
             <Menu size={20} />
           </button>
           <div className="flex-1" />
-          <Button variant="ghost" size="icon" className="relative">
-            <Bell size={18} />
-          </Button>
+          <NotificationBell />
         </header>
 
         {/* Content */}

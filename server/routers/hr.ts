@@ -1,6 +1,9 @@
 import { z } from "zod";
 import {
   createAttendanceRecord,
+  deleteAttendanceRecord,
+  getAttendanceStats,
+  updateAttendanceRecord,
   createEmployee,
   createJobApplication,
   createJobPosting,
@@ -328,5 +331,38 @@ export const hrRouter = router({
         notes: input.notes,
       });
       return { success: true };
+    }),
+
+  updateAttendance: protectedProcedure
+    .input(z.object({
+      id: z.number(),
+      status: z.enum(["present", "absent", "late", "half_day", "remote"]).optional(),
+      checkIn: z.string().optional(),
+      checkOut: z.string().optional(),
+      notes: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const { id, checkIn, checkOut, ...rest } = input;
+      await updateAttendanceRecord(id, {
+        ...rest,
+        checkIn: checkIn ? new Date(checkIn) : undefined,
+        checkOut: checkOut ? new Date(checkOut) : undefined,
+      });
+      return { success: true };
+    }),
+
+  deleteAttendance: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      await deleteAttendanceRecord(input.id);
+      return { success: true };
+    }),
+
+  attendanceStats: protectedProcedure
+    .input(z.object({ month: z.string().optional() }))
+    .query(async ({ input, ctx }) => {
+      const membership = await getUserCompany(ctx.user.id);
+      if (!membership) return { present: 0, absent: 0, late: 0, half_day: 0, remote: 0, byDay: [] };
+      return getAttendanceStats(membership.company.id, input.month);
     }),
 });

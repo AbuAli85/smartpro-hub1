@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE IF NOT EXISTS `company_branches` (\n  `id` int NOT NULL AUTO_INCREMENT PRIMARY KEY,\n  `companyId` int NOT NULL,\n  `governmentBranchCode` varchar(100),\n  `branchNameEn` varchar(255),\n  `branchNameAr` varchar(255),\n  `governorate` varchar(100),\n  `wilayat` varchar(100),\n  `locality` varchar(255),\n  `phone` varchar(32),\n  `address` text,\n  `isHeadquarters` boolean NOT NULL DEFAULT false,\n  `status` enum('active','inactive') NOT NULL DEFAULT 'active',\n  `createdAt` timestamp NOT NULL DEFAULT NOW(),\n  `updatedAt` timestamp NOT NULL DEFAULT NOW() ON UPDATE NOW(),\n  INDEX `idx_branches_company` (`companyId`),\n  INDEX `idx_branches_governorate` (`governorate`)\n);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ihzfUTY3fkQrUHE.881d021b3ccf --database Q4QjnxJVGSNRVMesYiE8Gm --execute CREATE TABLE IF NOT EXISTS `company_branches` (\n  `id` int NOT NULL AUTO_INCREMENT PRIMARY KEY,\n  `companyId` int NOT NULL,\n  `governmentBranchCode` varchar(100),\n  `branchNameEn` varchar(255),\n  `branchNameAr` varchar(255),\n  `governorate` varchar(100),\n  `wilayat` varchar(100),\n  `locality` varchar(255),\n  `phone` varchar(32),\n  `address` text,\n  `isHeadquarters` boolean NOT NULL DEFAULT false,\n  `status` enum('active','inactive') NOT NULL DEFAULT 'active',\n  `createdAt` timestamp NOT NULL DEFAULT NOW(),\n  `updatedAt` timestamp NOT NULL DEFAULT NOW() ON UPDATE NOW(),\n  INDEX `idx_branches_company` (`companyId`),\n  INDEX `idx_branches_governorate` (`governorate`)\n);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1596
+}

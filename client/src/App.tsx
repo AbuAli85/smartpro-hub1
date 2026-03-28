@@ -23,6 +23,16 @@ import AdminPage from "./pages/AdminPage";
 import HRAttendancePage from "./pages/HRAttendancePage";
 import ClientPortalPage from "./pages/ClientPortalPage";
 import OnboardingPage from "./pages/OnboardingPage";
+import WorkforceDashboard from "./pages/WorkforceDashboard";
+import WorkforceEmployeesPage from "./pages/WorkforceEmployeesPage";
+import WorkforcePermitsPage from "./pages/WorkforcePermitsPage";
+import WorkforceCasesPage from "./pages/WorkforceCasesPage";
+import WorkforceDocumentsPage from "./pages/WorkforceDocumentsPage";
+import WorkforceSyncPage from "./pages/WorkforceSyncPage";
+import WorkforcePermitUploadPage from "./pages/WorkforcePermitUploadPage";
+import WorkforcePermitDetailPage from "./pages/WorkforcePermitDetailPage";
+import WorkforceEmployeeDetailPage from "./pages/WorkforceEmployeeDetailPage";
+import WorkforceCaseNewPage from "./pages/WorkforceCaseNewPage";
 
 function AppRoutes() {
   return (
@@ -44,6 +54,17 @@ function AppRoutes() {
         <Route path="/analytics" component={AnalyticsPage} />
         <Route path="/subscriptions" component={SubscriptionsPage} />
         <Route path="/admin" component={AdminPage} />
+        {/* Workforce Hub */}
+        <Route path="/workforce" component={WorkforceDashboard} />
+        <Route path="/workforce/employees" component={WorkforceEmployeesPage} />
+        <Route path="/workforce/permits" component={WorkforcePermitsPage} />
+        <Route path="/workforce/cases" component={WorkforceCasesPage} />
+        <Route path="/workforce/documents" component={WorkforceDocumentsPage} />
+        <Route path="/workforce/sync" component={WorkforceSyncPage} />
+        <Route path="/workforce/permits/upload" component={WorkforcePermitUploadPage} />
+        <Route path="/workforce/permits/:id" component={WorkforcePermitDetailPage} />
+        <Route path="/workforce/employees/:id" component={WorkforceEmployeeDetailPage} />
+        <Route path="/workforce/cases/new" component={WorkforceCaseNewPage} />
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />
       </Switch>

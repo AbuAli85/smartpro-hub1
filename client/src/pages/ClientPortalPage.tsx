@@ -351,7 +351,7 @@ export default function ClientPortalPage() {
                           )}
                         </div>
                         <Button size="sm" variant="outline" className="gap-1 text-xs h-7"
-                          onClick={() => navigate("/pro-services")}>
+                          onClick={() => navigate("/pro")}>
                           View Details
                         </Button>
                       </div>

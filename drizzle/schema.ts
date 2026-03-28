@@ -850,3 +850,369 @@ export const attendance = mysqlTable("attendance", {
 });
 export type Attendance = typeof attendance.$inferSelect;
 export type InsertAttendance = typeof attendance.$inferInsert;
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// WORKFORCE & GOVERNMENT SERVICES HUB (MOL-Aligned)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ─── COMPANY BRANCHES ────────────────────────────────────────────────────────
+export const companyBranches = mysqlTable(
+  "company_branches",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    companyId: int("companyId").notNull(),
+    governmentBranchCode: varchar("governmentBranchCode", { length: 100 }),
+    branchNameEn: varchar("branchNameEn", { length: 255 }),
+    branchNameAr: varchar("branchNameAr", { length: 255 }),
+    governorate: varchar("governorate", { length: 100 }),
+    wilayat: varchar("wilayat", { length: 100 }),
+    locality: varchar("locality", { length: 255 }),
+    phone: varchar("phone", { length: 32 }),
+    address: text("address"),
+    isHeadquarters: boolean("isHeadquarters").default(false).notNull(),
+    status: mysqlEnum("status", ["active", "inactive"]).default("active").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (t) => [
+    index("idx_branches_company").on(t.companyId),
+    index("idx_branches_governorate").on(t.governorate),
+  ]
+);
+export type CompanyBranch = typeof companyBranches.$inferSelect;
+export type InsertCompanyBranch = typeof companyBranches.$inferInsert;
+
+// ─── COMPANY GOVERNMENT ACCESS ────────────────────────────────────────────────
+export const companyGovernmentAccess = mysqlTable(
+  "company_government_access",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    companyId: int("companyId").notNull(),
+    provider: varchar("provider", { length: 50 }).default("mol").notNull(), // 'mol' | 'rcm' | 'rop'
+    accessMode: mysqlEnum("accessMode", ["api", "rpa", "manual"]).default("manual").notNull(),
+    credentialRef: varchar("credentialRef", { length: 255 }), // vault reference, never raw secret
+    authorizedSignatoryName: varchar("authorizedSignatoryName", { length: 255 }),
+    authorizedSignatoryCivilId: varchar("authorizedSignatoryCivilId", { length: 50 }),
+    establishmentNumber: varchar("establishmentNumber", { length: 100 }),
+    status: mysqlEnum("status", ["active", "inactive", "pending_verification", "suspended"]).default("pending_verification").notNull(),
+    lastVerifiedAt: timestamp("lastVerifiedAt"),
+    notes: text("notes"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (t) => [
+    index("idx_gov_access_company").on(t.companyId),
+    index("idx_gov_access_provider").on(t.provider),
+  ]
+);
+export type CompanyGovernmentAccess = typeof companyGovernmentAccess.$inferSelect;
+export type InsertCompanyGovernmentAccess = typeof companyGovernmentAccess.$inferInsert;
+
+// ─── EMPLOYEE GOVERNMENT PROFILES ─────────────────────────────────────────────
+export const employeeGovernmentProfiles = mysqlTable(
+  "employee_government_profiles",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    employeeId: int("employeeId").notNull(),
+    provider: varchar("provider", { length: 50 }).default("mol").notNull(),
+    // Civil / Residency
+    civilId: varchar("civilId", { length: 50 }),
+    // Visa
+    visaNumber: varchar("visaNumber", { length: 100 }),
+    visaIssueDate: timestamp("visaIssueDate"),
+    visaExpiryDate: timestamp("visaExpiryDate"),
+    visaType: varchar("visaType", { length: 100 }),
+    // Resident card
+    residentCardNumber: varchar("residentCardNumber", { length: 100 }),
+    residentCardExpiryDate: timestamp("residentCardExpiryDate"),
+    // Labour card
+    labourCardNumber: varchar("labourCardNumber", { length: 100 }),
+    labourCardExpiryDate: timestamp("labourCardExpiryDate"),
+    // Raw government payload (JSON snapshot)
+    rawPayload: json("rawPayload"),
+    lastSyncedAt: timestamp("lastSyncedAt"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (t) => [
+    index("idx_egp_employee").on(t.employeeId),
+    index("idx_egp_provider").on(t.provider),
+    index("idx_egp_civil_id").on(t.civilId),
+  ]
+);
+export type EmployeeGovernmentProfile = typeof employeeGovernmentProfiles.$inferSelect;
+export type InsertEmployeeGovernmentProfile = typeof employeeGovernmentProfiles.$inferInsert;
+
+// ─── WORK PERMITS ─────────────────────────────────────────────────────────────
+export const workPermits = mysqlTable(
+  "work_permits",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    companyId: int("companyId").notNull(),
+    employeeId: int("employeeId").notNull(),
+    branchId: int("branchId"),
+    provider: varchar("provider", { length: 50 }).default("mol").notNull(),
+    // MOL canonical identifiers
+    workPermitNumber: varchar("workPermitNumber", { length: 100 }).notNull().unique(),
+    labourAuthorisationNumber: varchar("labourAuthorisationNumber", { length: 100 }),
+    // Dates
+    issueDate: timestamp("issueDate"),
+    expiryDate: timestamp("expiryDate"),
+    graceDate: timestamp("graceDate"),
+    statusDate: timestamp("statusDate"),
+    durationMonths: int("durationMonths"),
+    // Normalized status (PermitLifecycleStatus)
+    permitStatus: mysqlEnum("permitStatus", [
+      "active",
+      "expiring_soon",
+      "expired",
+      "in_grace",
+      "cancelled",
+      "transferred",
+      "pending_update",
+      "unknown",
+    ]).default("unknown").notNull(),
+    transferStatus: varchar("transferStatus", { length: 100 }),
+    skillLevel: varchar("skillLevel", { length: 100 }),
+    // Occupation
+    occupationCode: varchar("occupationCode", { length: 50 }),
+    occupationTitleEn: varchar("occupationTitleEn", { length: 255 }),
+    occupationTitleAr: varchar("occupationTitleAr", { length: 255 }),
+    occupationClass: varchar("occupationClass", { length: 100 }),
+    // Establishment activity
+    activityCode: varchar("activityCode", { length: 50 }),
+    activityNameEn: varchar("activityNameEn", { length: 255 }),
+    activityNameAr: varchar("activityNameAr", { length: 255 }),
+    // Work location
+    workLocationGovernorate: varchar("workLocationGovernorate", { length: 100 }),
+    workLocationWilayat: varchar("workLocationWilayat", { length: 100 }),
+    workLocationArea: varchar("workLocationArea", { length: 255 }),
+    // Government snapshot
+    governmentSnapshot: json("governmentSnapshot"),
+    lastSyncedAt: timestamp("lastSyncedAt"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (t) => [
+    index("idx_wp_company").on(t.companyId),
+    index("idx_wp_employee").on(t.employeeId),
+    index("idx_wp_expiry").on(t.expiryDate),
+    index("idx_wp_status").on(t.permitStatus),
+    index("idx_wp_permit_number").on(t.workPermitNumber),
+  ]
+);
+export type WorkPermit = typeof workPermits.$inferSelect;
+export type InsertWorkPermit = typeof workPermits.$inferInsert;
+
+// ─── EMPLOYEE DOCUMENTS (VAULT) ───────────────────────────────────────────────
+export const employeeDocuments = mysqlTable(
+  "employee_documents",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    companyId: int("companyId").notNull(),
+    employeeId: int("employeeId").notNull(),
+    workPermitId: int("workPermitId"),
+    documentType: mysqlEnum("documentType", [
+      "mol_work_permit_certificate",
+      "passport",
+      "visa",
+      "resident_card",
+      "labour_card",
+      "employment_contract",
+      "civil_id",
+      "medical_certificate",
+      "photo",
+      "other",
+    ]).notNull(),
+    fileUrl: text("fileUrl").notNull(),   // S3 CDN URL
+    fileKey: varchar("fileKey", { length: 500 }).notNull(), // S3 key
+    fileName: varchar("fileName", { length: 500 }).notNull(),
+    mimeType: varchar("mimeType", { length: 100 }),
+    fileSizeBytes: int("fileSizeBytes"),
+    issuedAt: timestamp("issuedAt"),
+    expiresAt: timestamp("expiresAt"),
+    verificationStatus: mysqlEnum("verificationStatus", [
+      "pending",
+      "verified",
+      "rejected",
+      "expired",
+    ]).default("pending").notNull(),
+    source: mysqlEnum("source", ["uploaded", "government", "smartpro"]).default("uploaded").notNull(),
+    metadata: json("metadata"),
+    createdBy: int("createdBy"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (t) => [
+    index("idx_edoc_company").on(t.companyId),
+    index("idx_edoc_employee").on(t.employeeId),
+    index("idx_edoc_work_permit").on(t.workPermitId),
+    index("idx_edoc_expires").on(t.expiresAt),
+    index("idx_edoc_type").on(t.documentType),
+  ]
+);
+export type EmployeeDocument = typeof employeeDocuments.$inferSelect;
+export type InsertEmployeeDocument = typeof employeeDocuments.$inferInsert;
+
+// ─── GOVERNMENT SERVICE CASES ─────────────────────────────────────────────────
+export const governmentServiceCases = mysqlTable(
+  "government_service_cases",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    companyId: int("companyId").notNull(),
+    employeeId: int("employeeId"),
+    workPermitId: int("workPermitId"),
+    branchId: int("branchId"),
+    // Case classification
+    caseType: mysqlEnum("caseType", [
+      "renewal",
+      "amendment",
+      "cancellation",
+      "contract_registration",
+      "employee_update",
+      "document_update",
+      "new_permit",
+      "transfer",
+    ]).notNull(),
+    // Operational status (CaseStatus)
+    caseStatus: mysqlEnum("caseStatus", [
+      "draft",
+      "awaiting_documents",
+      "ready_for_submission",
+      "submitted",
+      "in_review",
+      "action_required",
+      "approved",
+      "rejected",
+      "completed",
+      "cancelled",
+    ]).default("draft").notNull(),
+    priority: mysqlEnum("priority", ["low", "normal", "high", "urgent"]).default("normal").notNull(),
+    provider: varchar("provider", { length: 50 }).default("mol").notNull(),
+    governmentReference: varchar("governmentReference", { length: 255 }),
+    requestedBy: int("requestedBy"),
+    assignedTo: int("assignedTo"),
+    submittedAt: timestamp("submittedAt"),
+    completedAt: timestamp("completedAt"),
+    dueDate: timestamp("dueDate"),
+    notes: text("notes"),
+    metadata: json("metadata"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (t) => [
+    index("idx_gsc_company").on(t.companyId),
+    index("idx_gsc_employee").on(t.employeeId),
+    index("idx_gsc_work_permit").on(t.workPermitId),
+    index("idx_gsc_status").on(t.caseStatus),
+    index("idx_gsc_type").on(t.caseType),
+  ]
+);
+export type GovernmentServiceCase = typeof governmentServiceCases.$inferSelect;
+export type InsertGovernmentServiceCase = typeof governmentServiceCases.$inferInsert;
+
+// ─── CASE TASKS ───────────────────────────────────────────────────────────────
+export const caseTasks = mysqlTable(
+  "case_tasks",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    caseId: int("caseId").notNull(),
+    taskType: varchar("taskType", { length: 100 }).notNull(),
+    taskStatus: mysqlEnum("taskStatus", ["pending", "in_progress", "completed", "skipped", "blocked"]).default("pending").notNull(),
+    title: varchar("title", { length: 255 }).notNull(),
+    description: text("description"),
+    ownerUserId: int("ownerUserId"),
+    dueAt: timestamp("dueAt"),
+    completedAt: timestamp("completedAt"),
+    sortOrder: int("sortOrder").default(0),
+    metadata: json("metadata"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (t) => [
+    index("idx_ct_case").on(t.caseId),
+    index("idx_ct_status").on(t.taskStatus),
+  ]
+);
+export type CaseTask = typeof caseTasks.$inferSelect;
+export type InsertCaseTask = typeof caseTasks.$inferInsert;
+
+// ─── GOVERNMENT SYNC JOBS ─────────────────────────────────────────────────────
+export const governmentSyncJobs = mysqlTable(
+  "government_sync_jobs",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    companyId: int("companyId").notNull(),
+    provider: varchar("provider", { length: 50 }).default("mol").notNull(),
+    jobType: mysqlEnum("jobType", ["full_sync", "delta_sync", "single_permit", "employee_sync"]).notNull(),
+    syncStatus: mysqlEnum("syncStatus", ["pending", "running", "success", "partial_success", "failed"]).default("pending").notNull(),
+    mode: mysqlEnum("mode", ["full", "delta", "single"]).default("delta").notNull(),
+    startedAt: timestamp("startedAt"),
+    finishedAt: timestamp("finishedAt"),
+    recordsFetched: int("recordsFetched").default(0).notNull(),
+    recordsChanged: int("recordsChanged").default(0).notNull(),
+    recordsFailed: int("recordsFailed").default(0).notNull(),
+    errorCode: varchar("errorCode", { length: 100 }),
+    errorMessage: text("errorMessage"),
+    triggeredBy: int("triggeredBy"),
+    metadata: json("metadata"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  (t) => [
+    index("idx_gsj_company").on(t.companyId),
+    index("idx_gsj_status").on(t.syncStatus),
+    index("idx_gsj_provider").on(t.provider),
+  ]
+);
+export type GovernmentSyncJob = typeof governmentSyncJobs.$inferSelect;
+export type InsertGovernmentSyncJob = typeof governmentSyncJobs.$inferInsert;
+
+// ─── AUDIT EVENTS ─────────────────────────────────────────────────────────────
+export const auditEvents = mysqlTable(
+  "audit_events",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    companyId: int("companyId").notNull(),
+    actorUserId: int("actorUserId"),
+    entityType: varchar("entityType", { length: 100 }).notNull(), // 'work_permit' | 'employee' | 'case' | ...
+    entityId: int("entityId").notNull(),
+    action: varchar("action", { length: 100 }).notNull(), // 'created' | 'updated' | 'certificate_ingested' | ...
+    beforeState: json("beforeState"),
+    afterState: json("afterState"),
+    ipAddress: varchar("ipAddress", { length: 64 }),
+    userAgent: text("userAgent"),
+    metadata: json("metadata"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  (t) => [
+    index("idx_ae_company").on(t.companyId),
+    index("idx_ae_entity").on(t.entityType, t.entityId),
+    index("idx_ae_actor").on(t.actorUserId),
+    index("idx_ae_action").on(t.action),
+  ]
+);
+export type AuditEvent = typeof auditEvents.$inferSelect;
+export type InsertAuditEvent = typeof auditEvents.$inferInsert;
+
+// ─── WORKFORCE PERMIT STATUS TYPES (for type safety across app) ───────────────
+export type PermitLifecycleStatus =
+  | "active"
+  | "expiring_soon"
+  | "expired"
+  | "in_grace"
+  | "cancelled"
+  | "transferred"
+  | "pending_update"
+  | "unknown";
+
+export type CaseStatusType =
+  | "draft"
+  | "awaiting_documents"
+  | "ready_for_submission"
+  | "submitted"
+  | "in_review"
+  | "action_required"
+  | "approved"
+  | "rejected"
+  | "completed"
+  | "cancelled";

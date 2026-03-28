@@ -1,0 +1,21 @@
+{
+  "query": "\nSELECT u.id, u.name, u.email, u.role, u.platformRole, cm.companyId, cm.role as member_role, cm.isActive, c.name as company_name\nFROM users u\nLEFT JOIN company_members cm ON cm.userId = u.id\nLEFT JOIN companies c ON c.id = cm.companyId\nWHERE u.email = 'luxsess2001@gmail.com';\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ihzfUTY3fkQrUHE.881d021b3ccf --database Q4QjnxJVGSNRVMesYiE8Gm --execute \nSELECT u.id, u.name, u.email, u.role, u.platformRole, cm.companyId, cm.role as member_role, cm.isActive, c.name as company_name\nFROM users u\nLEFT JOIN company_members cm ON cm.userId = u.id\nLEFT JOIN companies c ON c.id = cm.companyId\nWHERE u.email = 'luxsess2001@gmail.com';\n",
+  "rows": [
+    {
+      "id": "1",
+      "name": "Abu Ali",
+      "email": "luxsess2001@gmail.com",
+      "role": "admin",
+      "platformRole": "client",
+      "companyId": "NULL",
+      "member_role": "NULL",
+      "isActive": "NULL",
+      "company_name": "NULL"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\temail\trole\tplatformRole\tcompanyId\tmember_role\tisActive\tcompany_name\n1\tAbu Ali\tluxsess2001@gmail.com\tadmin\tclient\tNULL\tNULL\tNULL\tNULL\n",
+  "stderr": "",
+  "execution_time_ms": 1563
+}

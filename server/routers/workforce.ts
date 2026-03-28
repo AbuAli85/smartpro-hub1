@@ -1,0 +1,1159 @@
+import { TRPCError } from "@trpc/server";
+import { and, asc, desc, eq, gte, ilike, isNotNull, lt, lte, or, sql } from "drizzle-orm";
+import { z } from "zod";
+import { getDb } from "../db";
+import {
+  auditEvents,
+  caseTasks,
+  companies,
+  companyBranches,
+  companyGovernmentAccess,
+  companyMembers,
+  employeeDocuments,
+  employeeGovernmentProfiles,
+  employees,
+  governmentServiceCases,
+  governmentSyncJobs,
+  workPermits,
+} from "../../drizzle/schema";
+import type { User } from "../../drizzle/schema";
+import { protectedProcedure, router } from "../_core/trpc";
+import { invokeLLM } from "../_core/llm";
+import { storagePut } from "../storage";
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+/**
+ * Returns the companyId for a user via their company_members row.
+ * For admin/company_admin users with no membership yet, auto-provisions
+ * a default company and membership so they can use the platform immediately.
+ */
+async function getMemberCompanyId(user: Pick<User, "id" | "name" | "email" | "role" | "platformRole">): Promise<number | null> {
+  const db = await getDb();
+  if (!db) return null;
+
+  // 1. Try to find existing membership
+  const rows = await db
+    .select({ companyId: companyMembers.companyId })
+    .from(companyMembers)
+    .where(and(eq(companyMembers.userId, user.id), eq(companyMembers.isActive, true)))
+    .limit(1);
+
+  if (rows[0]?.companyId) return rows[0].companyId;
+
+  // 2. Auto-provision for admin / company_admin users who haven't completed onboarding
+  const isAdminUser =
+    user.role === "admin" ||
+    user.platformRole === "super_admin" ||
+    user.platformRole === "platform_admin" ||
+    user.platformRole === "company_admin";
+
+  if (!isAdminUser) return null;
+
+  // Create a default company for this admin
+  const slug = `company-${user.id}-${Date.now()}`;
+  const companyName = user.name ? `${user.name}'s Company` : "My Company";
+  const insertResult = await db.insert(companies).values({
+    name: companyName,
+    slug,
+    country: "OM",
+    status: "active",
+  });
+  const companyId = Number(insertResult[0].insertId);
+
+  // Create company_members row for this admin
+  await db.insert(companyMembers).values({
+    companyId,
+    userId: user.id,
+    role: "company_admin",
+    isActive: true,
+  });
+
+  return companyId;
+}
+
+function normalizePermitStatus(raw?: string | null): "active" | "expiring_soon" | "expired" | "in_grace" | "cancelled" | "transferred" | "pending_update" | "unknown" {
+  if (!raw) return "unknown";
+  const s = raw.toLowerCase().trim();
+  if (s === "active") return "active";
+  if (s === "cancelled" || s === "canceled") return "cancelled";
+  if (s === "transferred") return "transferred";
+  if (s === "expired") return "expired";
+  if (s.includes("grace")) return "in_grace";
+  if (s.includes("pending")) return "pending_update";
+  return "unknown";
+}
+
+function computeDaysToExpiry(expiryDate?: Date | null): number | null {
+  if (!expiryDate) return null;
+  const now = new Date();
+  const diff = expiryDate.getTime() - now.getTime();
+  return Math.ceil(diff / (1000 * 60 * 60 * 24));
+}
+
+function autoTasksForCaseType(caseType: string): Array<{ taskType: string; title: string; sortOrder: number }> {
+  const taskMap: Record<string, Array<{ taskType: string; title: string; sortOrder: number }>> = {
+    renewal: [
+      { taskType: "collect_passport", title: "Collect valid passport copy", sortOrder: 1 },
+      { taskType: "collect_medical", title: "Obtain medical fitness certificate", sortOrder: 2 },
+      { taskType: "collect_contract", title: "Prepare updated employment contract", sortOrder: 3 },
+      { taskType: "submit_mol", title: "Submit renewal application on MOL portal", sortOrder: 4 },
+      { taskType: "follow_up", title: "Follow up on government approval", sortOrder: 5 },
+    ],
+    new_permit: [
+      { taskType: "collect_passport", title: "Collect passport and entry visa", sortOrder: 1 },
+      { taskType: "collect_medical", title: "Obtain medical fitness certificate", sortOrder: 2 },
+      { taskType: "collect_contract", title: "Prepare signed employment contract", sortOrder: 3 },
+      { taskType: "verify_cr", title: "Verify CR number and establishment details", sortOrder: 4 },
+      { taskType: "submit_mol", title: "Submit new permit application on MOL portal", sortOrder: 5 },
+    ],
+    cancellation: [
+      { taskType: "collect_clearance", title: "Obtain employee clearance letter", sortOrder: 1 },
+      { taskType: "return_documents", title: "Collect original documents from employee", sortOrder: 2 },
+      { taskType: "submit_mol", title: "Submit cancellation request on MOL portal", sortOrder: 3 },
+    ],
+    amendment: [
+      { taskType: "prepare_amendment", title: "Prepare amendment documentation", sortOrder: 1 },
+      { taskType: "submit_mol", title: "Submit amendment on MOL portal", sortOrder: 2 },
+    ],
+    transfer: [
+      { taskType: "collect_noc", title: "Obtain No Objection Certificate from current employer", sortOrder: 1 },
+      { taskType: "collect_passport", title: "Collect valid passport copy", sortOrder: 2 },
+      { taskType: "submit_mol", title: "Submit transfer request on MOL portal", sortOrder: 3 },
+    ],
+  };
+  return taskMap[caseType] ?? [{ taskType: "review", title: "Review case requirements", sortOrder: 1 }];
+}
+
+// ─── Workforce Router ─────────────────────────────────────────────────────────
+
+export const workforceRouter = router({
+
+  // ── Branches ──────────────────────────────────────────────────────────────
+  branches: router({
+    list: protectedProcedure.query(async ({ ctx }) => {
+      const companyId = await getMemberCompanyId(ctx.user);
+      if (!companyId) return [];
+      const db = await getDb();
+      if (!db) return [];
+      return db.select().from(companyBranches).where(eq(companyBranches.companyId, companyId)).orderBy(asc(companyBranches.branchNameEn));
+    }),
+
+    create: protectedProcedure
+      .input(z.object({
+        branchNameEn: z.string().min(1),
+        branchNameAr: z.string().optional(),
+        governorate: z.string().optional(),
+        wilayat: z.string().optional(),
+        locality: z.string().optional(),
+        phone: z.string().optional(),
+        address: z.string().optional(),
+        governmentBranchCode: z.string().optional(),
+        isHeadquarters: z.boolean().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const companyId = await getMemberCompanyId(ctx.user);
+        if (!companyId) throw new TRPCError({ code: "FORBIDDEN", message: "No company access" });
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+        const result = await db.insert(companyBranches).values({ companyId, ...input });
+        return { id: Number(result[0].insertId) };
+      }),
+  }),
+
+  // ── Government Access ─────────────────────────────────────────────────────
+  govAccess: router({
+    list: protectedProcedure.query(async ({ ctx }) => {
+      const companyId = await getMemberCompanyId(ctx.user);
+      if (!companyId) return [];
+      const db = await getDb();
+      if (!db) return [];
+      return db.select().from(companyGovernmentAccess).where(eq(companyGovernmentAccess.companyId, companyId));
+    }),
+
+    upsert: protectedProcedure
+      .input(z.object({
+        provider: z.string().default("mol"),
+        accessMode: z.enum(["api", "rpa", "manual"]).default("manual"),
+        authorizedSignatoryName: z.string().optional(),
+        authorizedSignatoryCivilId: z.string().optional(),
+        establishmentNumber: z.string().optional(),
+        notes: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const companyId = await getMemberCompanyId(ctx.user);
+        if (!companyId) throw new TRPCError({ code: "FORBIDDEN" });
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+        const existing = await db.select({ id: companyGovernmentAccess.id })
+          .from(companyGovernmentAccess)
+          .where(and(eq(companyGovernmentAccess.companyId, companyId), eq(companyGovernmentAccess.provider, input.provider)))
+          .limit(1);
+        if (existing[0]) {
+          await db.update(companyGovernmentAccess).set({ ...input, updatedAt: new Date() }).where(eq(companyGovernmentAccess.id, existing[0].id));
+          return { id: existing[0].id };
+        }
+        const result = await db.insert(companyGovernmentAccess).values({ companyId, ...input });
+        return { id: Number(result[0].insertId) };
+      }),
+  }),
+
+  // ── Employees (MOL-enhanced) ───────────────────────────────────────────────
+  employees: router({
+    list: protectedProcedure
+      .input(z.object({
+        branchId: z.number().optional(),
+        query: z.string().optional(),
+        status: z.enum(["active", "on_leave", "terminated", "resigned"]).optional(),
+        permitStatus: z.enum(["active", "expiring_soon", "expired", "in_grace", "cancelled", "transferred", "pending_update", "unknown"]).optional(),
+        expiringWithinDays: z.number().optional(),
+        page: z.number().default(1),
+        pageSize: z.number().default(20),
+      }))
+      .query(async ({ ctx, input }) => {
+        const companyId = await getMemberCompanyId(ctx.user);
+        if (!companyId) return { items: [], total: 0 };
+        const db = await getDb();
+        if (!db) return { items: [], total: 0 };
+
+        const conditions = [eq(employees.companyId, companyId)];
+        if (input.status) conditions.push(eq(employees.status, input.status));
+        if (input.branchId) conditions.push(eq(employees.companyId, input.branchId)); // branch filter via join in real impl
+
+        const empRows = await db
+          .select()
+          .from(employees)
+          .where(and(...conditions))
+          .orderBy(asc(employees.firstName))
+          .limit(input.pageSize)
+          .offset((input.page - 1) * input.pageSize);
+
+        // Enrich with active work permit projection
+        const enriched = await Promise.all(empRows.map(async (emp) => {
+          const permits = await db
+            .select({
+              id: workPermits.id,
+              workPermitNumber: workPermits.workPermitNumber,
+              permitStatus: workPermits.permitStatus,
+              expiryDate: workPermits.expiryDate,
+              occupationTitleEn: workPermits.occupationTitleEn,
+            })
+            .from(workPermits)
+            .where(and(eq(workPermits.employeeId, emp.id), eq(workPermits.permitStatus, "active")))
+            .limit(1);
+
+          const govProfile = await db
+            .select({ civilId: employeeGovernmentProfiles.civilId, visaExpiryDate: employeeGovernmentProfiles.visaExpiryDate })
+            .from(employeeGovernmentProfiles)
+            .where(eq(employeeGovernmentProfiles.employeeId, emp.id))
+            .limit(1);
+
+          const activePermit = permits[0] ?? null;
+          const daysToExpiry = computeDaysToExpiry(activePermit?.expiryDate);
+
+          return {
+            ...emp,
+            civilId: govProfile[0]?.civilId ?? null,
+            activePermitNumber: activePermit?.workPermitNumber ?? null,
+            permitStatus: activePermit?.permitStatus ?? null,
+            permitExpiryDate: activePermit?.expiryDate ?? null,
+            daysToExpiry,
+            occupationTitle: activePermit?.occupationTitleEn ?? null,
+          };
+        }));
+
+        // Filter by permit status / expiry if requested
+        let filtered = enriched;
+        if (input.permitStatus) filtered = filtered.filter(e => e.permitStatus === input.permitStatus);
+        if (input.expiringWithinDays != null) filtered = filtered.filter(e => e.daysToExpiry != null && e.daysToExpiry <= input.expiringWithinDays! && e.daysToExpiry >= 0);
+        if (input.query) {
+          const q = input.query.toLowerCase();
+          filtered = filtered.filter(e =>
+            `${e.firstName} ${e.lastName}`.toLowerCase().includes(q) ||
+            (e.civilId ?? "").toLowerCase().includes(q) ||
+            (e.passportNumber ?? "").toLowerCase().includes(q) ||
+            (e.activePermitNumber ?? "").toLowerCase().includes(q)
+          );
+        }
+
+        return { items: filtered, total: filtered.length };
+      }),
+
+    getById: protectedProcedure
+      .input(z.object({ employeeId: z.number() }))
+      .query(async ({ ctx, input }) => {
+        const companyId = await getMemberCompanyId(ctx.user);
+        if (!companyId) throw new TRPCError({ code: "FORBIDDEN" });
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+        const [emp] = await db.select().from(employees)
+          .where(and(eq(employees.id, input.employeeId), eq(employees.companyId, companyId)))
+          .limit(1);
+        if (!emp) throw new TRPCError({ code: "NOT_FOUND" });
+
+        const [govProfile] = await db.select().from(employeeGovernmentProfiles)
+          .where(eq(employeeGovernmentProfiles.employeeId, emp.id)).limit(1);
+
+        const permits = await db.select().from(workPermits)
+          .where(eq(workPermits.employeeId, emp.id))
+          .orderBy(desc(workPermits.expiryDate));
+
+        const docs = await db.select().from(employeeDocuments)
+          .where(eq(employeeDocuments.employeeId, emp.id))
+          .orderBy(desc(employeeDocuments.createdAt));
+
+        const cases = await db.select().from(governmentServiceCases)
+          .where(eq(governmentServiceCases.employeeId, emp.id))
+          .orderBy(desc(governmentServiceCases.createdAt))
+          .limit(10);
+
+        const activePermit = permits.find(p => p.permitStatus === "active") ?? permits[0] ?? null;
+
+        return {
+          employee: emp,
+          governmentProfile: govProfile ?? null,
+          activePermit,
+          allPermits: permits,
+          documents: docs,
+          recentCases: cases,
+          permitHealth: {
+            daysToExpiry: computeDaysToExpiry(activePermit?.expiryDate),
+            status: activePermit?.permitStatus ?? "unknown",
+            expiryDate: activePermit?.expiryDate ?? null,
+          },
+        };
+      }),
+  }),
+
+  // ── Work Permits ──────────────────────────────────────────────────────────
+  workPermits: router({
+    list: protectedProcedure
+      .input(z.object({
+        branchId: z.number().optional(),
+        permitStatus: z.enum(["active", "expiring_soon", "expired", "in_grace", "cancelled", "transferred", "pending_update", "unknown"]).optional(),
+        expiringWithinDays: z.number().optional(),
+        occupationCode: z.string().optional(),
+        query: z.string().optional(),
+        page: z.number().default(1),
+        pageSize: z.number().default(20),
+      }))
+      .query(async ({ ctx, input }) => {
+        const companyId = await getMemberCompanyId(ctx.user);
+        if (!companyId) return { items: [], total: 0 };
+        const db = await getDb();
+        if (!db) return { items: [], total: 0 };
+
+        const conditions = [eq(workPermits.companyId, companyId)];
+        if (input.permitStatus) conditions.push(eq(workPermits.permitStatus, input.permitStatus));
+        if (input.occupationCode) conditions.push(eq(workPermits.occupationCode, input.occupationCode));
+        if (input.expiringWithinDays != null) {
+          const cutoff = new Date(Date.now() + input.expiringWithinDays * 86400000);
+          conditions.push(lte(workPermits.expiryDate, cutoff));
+          conditions.push(gte(workPermits.expiryDate, new Date()));
+        }
+
+        const rows = await db
+          .select()
+          .from(workPermits)
+          .where(and(...conditions))
+          .orderBy(asc(workPermits.expiryDate))
+          .limit(input.pageSize)
+          .offset((input.page - 1) * input.pageSize);
+
+        // Enrich with employee name
+        const enriched = await Promise.all(rows.map(async (wp) => {
+          const [emp] = await db.select({ firstName: employees.firstName, lastName: employees.lastName, nationality: employees.nationality })
+            .from(employees).where(eq(employees.id, wp.employeeId)).limit(1);
+          return {
+            ...wp,
+            employeeName: emp ? `${emp.firstName} ${emp.lastName}` : "Unknown",
+            nationality: emp?.nationality ?? null,
+            daysToExpiry: computeDaysToExpiry(wp.expiryDate),
+          };
+        }));
+
+        let filtered = enriched;
+        if (input.query) {
+          const q = input.query.toLowerCase();
+          filtered = filtered.filter(w =>
+            w.workPermitNumber.toLowerCase().includes(q) ||
+            w.employeeName.toLowerCase().includes(q) ||
+            (w.occupationTitleEn ?? "").toLowerCase().includes(q)
+          );
+        }
+
+        return { items: filtered, total: filtered.length };
+      }),
+
+    getById: protectedProcedure
+      .input(z.object({ workPermitId: z.number() }))
+      .query(async ({ ctx, input }) => {
+        const companyId = await getMemberCompanyId(ctx.user);
+        if (!companyId) throw new TRPCError({ code: "FORBIDDEN" });
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+        const [wp] = await db.select().from(workPermits)
+          .where(and(eq(workPermits.id, input.workPermitId), eq(workPermits.companyId, companyId)))
+          .limit(1);
+        if (!wp) throw new TRPCError({ code: "NOT_FOUND" });
+
+        const [emp] = await db.select().from(employees).where(eq(employees.id, wp.employeeId)).limit(1);
+        const docs = await db.select().from(employeeDocuments)
+          .where(eq(employeeDocuments.workPermitId, wp.id))
+          .orderBy(desc(employeeDocuments.createdAt));
+        const cases = await db.select().from(governmentServiceCases)
+          .where(eq(governmentServiceCases.workPermitId, wp.id))
+          .orderBy(desc(governmentServiceCases.createdAt));
+
+        return {
+          permit: { ...wp, daysToExpiry: computeDaysToExpiry(wp.expiryDate) },
+          employee: emp ?? null,
+          documents: docs,
+          caseHistory: cases,
+        };
+      }),
+
+    // Transactional upsert from MOL certificate (the core ingestion flow)
+    createFromCertificate: protectedProcedure
+      .input(z.object({
+        fileUrl: z.string().url(),
+        fileKey: z.string(),
+        parsed: z.object({
+          civilId: z.string(),
+          fullNameEn: z.string(),
+          nationality: z.string().optional(),
+          passportNumber: z.string().optional(),
+          passportIssueCountry: z.string().optional(),
+          passportIssueDate: z.string().optional(),
+          passportExpiryDate: z.string().optional(),
+          birthDate: z.string().optional(),
+          gender: z.string().optional(),
+          arrivalDate: z.string().optional(),
+          visaNumber: z.string().optional(),
+          visaIssueDate: z.string().optional(),
+          visaExpiryDate: z.string().optional(),
+          residentCardExpiryDate: z.string().optional(),
+          crNumber: z.string().optional(),
+          companyNameEn: z.string().optional(),
+          labourAuthorisationNumber: z.string().optional(),
+          workPermitNumber: z.string(),
+          issueDate: z.string().optional(),
+          expiryDate: z.string().optional(),
+          durationMonths: z.number().optional(),
+          status: z.string().optional(),
+          skillLevel: z.string().optional(),
+          occupationCode: z.string().optional(),
+          occupationTitleEn: z.string().optional(),
+          activityCode: z.string().optional(),
+          activityNameEn: z.string().optional(),
+          workLocationGovernorate: z.string().optional(),
+          workLocationWilayat: z.string().optional(),
+          workLocationArea: z.string().optional(),
+        }),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const companyId = await getMemberCompanyId(ctx.user);
+        if (!companyId) throw new TRPCError({ code: "FORBIDDEN" });
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+        const p = input.parsed;
+
+        // Validate required fields
+        if (!p.workPermitNumber) throw new TRPCError({ code: "BAD_REQUEST", message: "workPermitNumber is required" });
+        if (!p.civilId) throw new TRPCError({ code: "BAD_REQUEST", message: "civilId is required" });
+
+        // Upsert employee
+        const nameParts = p.fullNameEn.trim().split(" ");
+        const firstName = nameParts[0] ?? p.fullNameEn;
+        const lastName = nameParts.slice(1).join(" ") || firstName;
+
+        const existingEmp = await db.select({ id: employees.id })
+          .from(employees)
+          .where(and(eq(employees.companyId, companyId), eq(employees.nationalId, p.civilId)))
+          .limit(1);
+
+        let employeeId: number;
+        if (existingEmp[0]) {
+          employeeId = existingEmp[0].id;
+          await db.update(employees).set({
+            firstName, lastName,
+            nationality: p.nationality ?? undefined,
+            passportNumber: p.passportNumber ?? undefined,
+            updatedAt: new Date(),
+          }).where(eq(employees.id, employeeId));
+        } else {
+          const empResult = await db.insert(employees).values({
+            companyId,
+            firstName,
+            lastName,
+            nationalId: p.civilId,
+            nationality: p.nationality,
+            passportNumber: p.passportNumber,
+            status: "active",
+          });
+          employeeId = Number(empResult[0].insertId);
+        }
+
+        // Upsert government profile
+        const existingGov = await db.select({ id: employeeGovernmentProfiles.id })
+          .from(employeeGovernmentProfiles)
+          .where(and(eq(employeeGovernmentProfiles.employeeId, employeeId), eq(employeeGovernmentProfiles.provider, "mol")))
+          .limit(1);
+
+        const govData = {
+          civilId: p.civilId,
+          visaNumber: p.visaNumber,
+          visaIssueDate: p.visaIssueDate ? new Date(p.visaIssueDate) : undefined,
+          visaExpiryDate: p.visaExpiryDate ? new Date(p.visaExpiryDate) : undefined,
+          residentCardExpiryDate: p.residentCardExpiryDate ? new Date(p.residentCardExpiryDate) : undefined,
+          rawPayload: input.parsed as Record<string, unknown>,
+          lastSyncedAt: new Date(),
+        };
+
+        if (existingGov[0]) {
+          await db.update(employeeGovernmentProfiles).set({ ...govData, updatedAt: new Date() }).where(eq(employeeGovernmentProfiles.id, existingGov[0].id));
+        } else {
+          await db.insert(employeeGovernmentProfiles).values({ employeeId, provider: "mol", ...govData });
+        }
+
+        // Upsert work permit
+        const permitStatus = normalizePermitStatus(p.status);
+        const permitData = {
+          companyId,
+          employeeId,
+          provider: "mol",
+          workPermitNumber: p.workPermitNumber,
+          labourAuthorisationNumber: p.labourAuthorisationNumber,
+          issueDate: p.issueDate ? new Date(p.issueDate) : undefined,
+          expiryDate: p.expiryDate ? new Date(p.expiryDate) : undefined,
+          durationMonths: p.durationMonths,
+          permitStatus,
+          skillLevel: p.skillLevel,
+          occupationCode: p.occupationCode,
+          occupationTitleEn: p.occupationTitleEn,
+          activityCode: p.activityCode,
+          activityNameEn: p.activityNameEn,
+          workLocationGovernorate: p.workLocationGovernorate,
+          workLocationWilayat: p.workLocationWilayat,
+          workLocationArea: p.workLocationArea,
+          governmentSnapshot: input.parsed as Record<string, unknown>,
+          lastSyncedAt: new Date(),
+        };
+
+        const existingPermit = await db.select({ id: workPermits.id })
+          .from(workPermits)
+          .where(eq(workPermits.workPermitNumber, p.workPermitNumber))
+          .limit(1);
+
+        let workPermitId: number;
+        if (existingPermit[0]) {
+          workPermitId = existingPermit[0].id;
+          await db.update(workPermits).set({ ...permitData, updatedAt: new Date() }).where(eq(workPermits.id, workPermitId));
+        } else {
+          const wpResult = await db.insert(workPermits).values(permitData);
+          workPermitId = Number(wpResult[0].insertId);
+        }
+
+        // Create document record
+        await db.insert(employeeDocuments).values({
+          companyId,
+          employeeId,
+          workPermitId,
+          documentType: "mol_work_permit_certificate",
+          fileUrl: input.fileUrl,
+          fileKey: input.fileKey,
+          fileName: "MOL Work Permit Certificate.pdf",
+          mimeType: "application/pdf",
+          verificationStatus: "verified",
+          source: "government",
+          createdBy: ctx.user.id,
+        });
+
+        // Create audit event
+        await db.insert(auditEvents).values({
+          companyId,
+          actorUserId: ctx.user.id,
+          entityType: "work_permit",
+          entityId: workPermitId,
+          action: "certificate_ingested",
+          afterState: input.parsed as Record<string, unknown>,
+        });
+
+        return { employeeId, workPermitId, permitStatus };
+      }),
+
+    // AI-powered certificate parsing from uploaded document text
+    parseCertificate: protectedProcedure
+      .input(z.object({ rawText: z.string() }))
+      .mutation(async ({ ctx, input }) => {
+        const response = await invokeLLM({
+          messages: [
+            {
+              role: "system",
+              content: `You are an expert at parsing Oman Ministry of Labour (MOL) work permit certificates. 
+Extract all fields from the provided certificate text and return structured JSON. 
+Normalize dates to ISO format (YYYY-MM-DD). Uppercase passport numbers. 
+Map status strings: Active→active, Cancelled→cancelled, Expired→expired.
+Return ONLY valid JSON matching the schema, no extra text.`,
+            },
+            {
+              role: "user",
+              content: `Parse this MOL certificate:\n\n${input.rawText}`,
+            },
+          ],
+          response_format: {
+            type: "json_schema",
+            json_schema: {
+              name: "mol_certificate",
+              strict: true,
+              schema: {
+                type: "object",
+                properties: {
+                  civilId: { type: "string" },
+                  fullNameEn: { type: "string" },
+                  nationality: { type: "string" },
+                  passportNumber: { type: "string" },
+                  passportExpiryDate: { type: "string" },
+                  visaNumber: { type: "string" },
+                  visaExpiryDate: { type: "string" },
+                  residentCardExpiryDate: { type: "string" },
+                  crNumber: { type: "string" },
+                  companyNameEn: { type: "string" },
+                  workPermitNumber: { type: "string" },
+                  labourAuthorisationNumber: { type: "string" },
+                  issueDate: { type: "string" },
+                  expiryDate: { type: "string" },
+                  durationMonths: { type: "number" },
+                  status: { type: "string" },
+                  skillLevel: { type: "string" },
+                  occupationCode: { type: "string" },
+                  occupationTitleEn: { type: "string" },
+                  activityCode: { type: "string" },
+                  activityNameEn: { type: "string" },
+                  workLocationGovernorate: { type: "string" },
+                  workLocationWilayat: { type: "string" },
+                  workLocationArea: { type: "string" },
+                },
+                required: ["civilId", "fullNameEn", "workPermitNumber"],
+                additionalProperties: false,
+              },
+            },
+          },
+        });
+
+        const content = response.choices[0]?.message?.content;
+        if (!content) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "LLM returned no content" });
+        try {
+          return JSON.parse(typeof content === "string" ? content : JSON.stringify(content));
+        } catch {
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to parse LLM response" });
+        }
+      }),
+  }),
+
+  // ── Government Cases ──────────────────────────────────────────────────────
+  cases: router({
+    list: protectedProcedure
+      .input(z.object({
+        employeeId: z.number().optional(),
+        workPermitId: z.number().optional(),
+        caseStatus: z.enum(["draft", "awaiting_documents", "ready_for_submission", "submitted", "in_review", "action_required", "approved", "rejected", "completed", "cancelled"]).optional(),
+        caseType: z.enum(["renewal", "amendment", "cancellation", "contract_registration", "employee_update", "document_update", "new_permit", "transfer"]).optional(),
+        page: z.number().default(1),
+        pageSize: z.number().default(20),
+      }))
+      .query(async ({ ctx, input }) => {
+        const companyId = await getMemberCompanyId(ctx.user);
+        if (!companyId) return { items: [], total: 0 };
+        const db = await getDb();
+        if (!db) return { items: [], total: 0 };
+
+        const conditions = [eq(governmentServiceCases.companyId, companyId)];
+        if (input.employeeId) conditions.push(eq(governmentServiceCases.employeeId, input.employeeId));
+        if (input.workPermitId) conditions.push(eq(governmentServiceCases.workPermitId, input.workPermitId));
+        if (input.caseStatus) conditions.push(eq(governmentServiceCases.caseStatus, input.caseStatus));
+        if (input.caseType) conditions.push(eq(governmentServiceCases.caseType, input.caseType));
+
+        const rows = await db.select().from(governmentServiceCases)
+          .where(and(...conditions))
+          .orderBy(desc(governmentServiceCases.createdAt))
+          .limit(input.pageSize)
+          .offset((input.page - 1) * input.pageSize);
+
+        const enriched = await Promise.all(rows.map(async (c) => {
+          const tasks = await db.select().from(caseTasks).where(eq(caseTasks.caseId, c.id)).orderBy(asc(caseTasks.sortOrder));
+          const emp = c.employeeId
+            ? (await db.select({ firstName: employees.firstName, lastName: employees.lastName }).from(employees).where(eq(employees.id, c.employeeId)).limit(1))[0]
+            : null;
+          return { ...c, tasks, employeeName: emp ? `${emp.firstName} ${emp.lastName}` : null };
+        }));
+
+        return { items: enriched, total: enriched.length };
+      }),
+
+    getById: protectedProcedure
+      .input(z.object({ caseId: z.number() }))
+      .query(async ({ ctx, input }) => {
+        const companyId = await getMemberCompanyId(ctx.user);
+        if (!companyId) throw new TRPCError({ code: "FORBIDDEN" });
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+        const [c] = await db.select().from(governmentServiceCases)
+          .where(and(eq(governmentServiceCases.id, input.caseId), eq(governmentServiceCases.companyId, companyId)))
+          .limit(1);
+        if (!c) throw new TRPCError({ code: "NOT_FOUND" });
+
+        const tasks = await db.select().from(caseTasks).where(eq(caseTasks.caseId, c.id)).orderBy(asc(caseTasks.sortOrder));
+        const emp = c.employeeId
+          ? (await db.select().from(employees).where(eq(employees.id, c.employeeId)).limit(1))[0]
+          : null;
+        const permit = c.workPermitId
+          ? (await db.select().from(workPermits).where(eq(workPermits.id, c.workPermitId)).limit(1))[0]
+          : null;
+
+        return { case: c, tasks, employee: emp ?? null, permit: permit ?? null };
+      }),
+
+    create: protectedProcedure
+      .input(z.object({
+        employeeId: z.number().optional(),
+        workPermitId: z.number().optional(),
+        branchId: z.number().optional(),
+        caseType: z.enum(["renewal", "amendment", "cancellation", "contract_registration", "employee_update", "document_update", "new_permit", "transfer"]),
+        priority: z.enum(["low", "normal", "high", "urgent"]).default("normal"),
+        notes: z.string().optional(),
+        dueDate: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const companyId = await getMemberCompanyId(ctx.user);
+        if (!companyId) throw new TRPCError({ code: "FORBIDDEN" });
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+        const caseResult = await db.insert(governmentServiceCases).values({
+          companyId,
+          employeeId: input.employeeId,
+          workPermitId: input.workPermitId,
+          branchId: input.branchId,
+          caseType: input.caseType,
+          priority: input.priority,
+          notes: input.notes,
+          dueDate: input.dueDate ? new Date(input.dueDate) : undefined,
+          requestedBy: ctx.user.id,
+          caseStatus: "draft",
+        });
+        const caseId = Number(caseResult[0].insertId);
+
+        // Auto-generate tasks
+        const tasks = autoTasksForCaseType(input.caseType);
+        for (const task of tasks) {
+          await db.insert(caseTasks).values({ caseId, ...task, taskStatus: "pending" });
+        }
+
+        // Audit
+        await db.insert(auditEvents).values({
+          companyId,
+          actorUserId: ctx.user.id,
+          entityType: "government_case",
+          entityId: caseId,
+          action: "created",
+          afterState: { caseType: input.caseType, priority: input.priority } as Record<string, unknown>,
+        });
+
+        return { caseId };
+      }),
+
+    submit: protectedProcedure
+      .input(z.object({ caseId: z.number(), governmentReference: z.string().optional() }))
+      .mutation(async ({ ctx, input }) => {
+        const companyId = await getMemberCompanyId(ctx.user);
+        if (!companyId) throw new TRPCError({ code: "FORBIDDEN" });
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+        const [c] = await db.select().from(governmentServiceCases)
+          .where(and(eq(governmentServiceCases.id, input.caseId), eq(governmentServiceCases.companyId, companyId)))
+          .limit(1);
+        if (!c) throw new TRPCError({ code: "NOT_FOUND" });
+
+        // Validation: must be in ready_for_submission state
+        if (!["draft", "awaiting_documents", "ready_for_submission", "action_required"].includes(c.caseStatus)) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: `Cannot submit case in status: ${c.caseStatus}` });
+        }
+
+        // Check required documents are attached
+        if (c.employeeId) {
+          const docs = await db.select({ id: employeeDocuments.id })
+            .from(employeeDocuments)
+            .where(and(eq(employeeDocuments.employeeId, c.employeeId), eq(employeeDocuments.verificationStatus, "verified")))
+            .limit(1);
+          if (docs.length === 0) {
+            throw new TRPCError({ code: "BAD_REQUEST", message: "At least one verified document is required before submission" });
+          }
+        }
+
+        await db.update(governmentServiceCases).set({
+          caseStatus: "submitted",
+          submittedAt: new Date(),
+          governmentReference: input.governmentReference,
+          updatedAt: new Date(),
+        }).where(eq(governmentServiceCases.id, input.caseId));
+
+        await db.insert(auditEvents).values({
+          companyId,
+          actorUserId: ctx.user.id,
+          entityType: "government_case",
+          entityId: input.caseId,
+          action: "submitted",
+          afterState: { governmentReference: input.governmentReference } as Record<string, unknown>,
+        });
+
+        return { success: true };
+      }),
+
+    updateStatus: protectedProcedure
+      .input(z.object({
+        caseId: z.number(),
+        caseStatus: z.enum(["draft", "awaiting_documents", "ready_for_submission", "submitted", "in_review", "action_required", "approved", "rejected", "completed", "cancelled"]),
+        notes: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const companyId = await getMemberCompanyId(ctx.user);
+        if (!companyId) throw new TRPCError({ code: "FORBIDDEN" });
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+        const [c] = await db.select({ id: governmentServiceCases.id, caseStatus: governmentServiceCases.caseStatus })
+          .from(governmentServiceCases)
+          .where(and(eq(governmentServiceCases.id, input.caseId), eq(governmentServiceCases.companyId, companyId)))
+          .limit(1);
+        if (!c) throw new TRPCError({ code: "NOT_FOUND" });
+
+        const updates: Record<string, unknown> = { caseStatus: input.caseStatus, updatedAt: new Date() };
+        if (input.notes) updates.notes = input.notes;
+        if (input.caseStatus === "completed") updates.completedAt = new Date();
+
+        await db.update(governmentServiceCases).set({
+          caseStatus: input.caseStatus,
+          notes: input.notes,
+          completedAt: input.caseStatus === "completed" ? new Date() : undefined,
+          updatedAt: new Date(),
+        }).where(eq(governmentServiceCases.id, input.caseId));
+
+        await db.insert(auditEvents).values({
+          companyId,
+          actorUserId: ctx.user.id,
+          entityType: "government_case",
+          entityId: input.caseId,
+          action: "status_updated",
+          beforeState: { caseStatus: c.caseStatus } as Record<string, unknown>,
+          afterState: { caseStatus: input.caseStatus } as Record<string, unknown>,
+        });
+
+        return { success: true };
+      }),
+
+    updateTask: protectedProcedure
+      .input(z.object({
+        taskId: z.number(),
+        taskStatus: z.enum(["pending", "in_progress", "completed", "skipped", "blocked"]),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+        const updates: Record<string, unknown> = { taskStatus: input.taskStatus, updatedAt: new Date() };
+        if (input.taskStatus === "completed") updates.completedAt = new Date();
+        await db.update(caseTasks).set({
+          taskStatus: input.taskStatus,
+          completedAt: input.taskStatus === "completed" ? new Date() : undefined,
+          updatedAt: new Date(),
+        }).where(eq(caseTasks.id, input.taskId));
+        return { success: true };
+      }),
+  }),
+
+  // ── Employee Documents ─────────────────────────────────────────────────────
+  documents: router({
+    list: protectedProcedure
+      .input(z.object({
+        employeeId: z.number().optional(),
+        workPermitId: z.number().optional(),
+        documentType: z.string().optional(),
+        expiringWithinDays: z.number().optional(),
+      }))
+      .query(async ({ ctx, input }) => {
+        const companyId = await getMemberCompanyId(ctx.user);
+        if (!companyId) return [];
+        const db = await getDb();
+        if (!db) return [];
+
+        const conditions = [eq(employeeDocuments.companyId, companyId)];
+        if (input.employeeId) conditions.push(eq(employeeDocuments.employeeId, input.employeeId));
+        if (input.workPermitId) conditions.push(eq(employeeDocuments.workPermitId, input.workPermitId));
+        if (input.documentType) conditions.push(sql`${employeeDocuments.documentType} = ${input.documentType}`);
+        if (input.expiringWithinDays != null) {
+          const cutoff = new Date(Date.now() + input.expiringWithinDays * 86400000);
+          conditions.push(lte(employeeDocuments.expiresAt, cutoff));
+          conditions.push(gte(employeeDocuments.expiresAt, new Date()));
+        }
+
+        const docs = await db.select().from(employeeDocuments)
+          .where(and(...conditions))
+          .orderBy(desc(employeeDocuments.createdAt));
+
+        return docs.map(d => ({ ...d, daysToExpiry: computeDaysToExpiry(d.expiresAt) }));
+      }),
+
+    upload: protectedProcedure
+      .input(z.object({
+        employeeId: z.number(),
+        workPermitId: z.number().optional(),
+        documentType: z.enum(["mol_work_permit_certificate", "passport", "visa", "resident_card", "labour_card", "employment_contract", "civil_id", "medical_certificate", "photo", "other"]),
+        fileDataBase64: z.string(),
+        fileName: z.string(),
+        mimeType: z.string().default("application/pdf"),
+        issuedAt: z.string().optional(),
+        expiresAt: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const companyId = await getMemberCompanyId(ctx.user);
+        if (!companyId) throw new TRPCError({ code: "FORBIDDEN" });
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+        const buffer = Buffer.from(input.fileDataBase64, "base64");
+        const fileKey = `company/${companyId}/employees/${input.employeeId}/${input.documentType}/${Date.now()}-${input.fileName}`;
+        const { url } = await storagePut(fileKey, buffer, input.mimeType);
+
+        const result = await db.insert(employeeDocuments).values({
+          companyId,
+          employeeId: input.employeeId,
+          workPermitId: input.workPermitId,
+          documentType: input.documentType,
+          fileUrl: url,
+          fileKey,
+          fileName: input.fileName,
+          mimeType: input.mimeType,
+          fileSizeBytes: buffer.length,
+          issuedAt: input.issuedAt ? new Date(input.issuedAt) : undefined,
+          expiresAt: input.expiresAt ? new Date(input.expiresAt) : undefined,
+          verificationStatus: "pending",
+          source: "uploaded",
+          createdBy: ctx.user.id,
+        });
+
+        await db.insert(auditEvents).values({
+          companyId,
+          actorUserId: ctx.user.id,
+          entityType: "employee_document",
+          entityId: Number(result[0].insertId),
+          action: "uploaded",
+          afterState: { documentType: input.documentType, fileName: input.fileName } as Record<string, unknown>,
+        });
+
+        return { id: Number(result[0].insertId), fileUrl: url };
+      }),
+
+    verify: protectedProcedure
+      .input(z.object({
+        documentId: z.number(),
+        verificationStatus: z.enum(["verified", "rejected", "pending"]),
+        notes: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const companyId = await getMemberCompanyId(ctx.user);
+        if (!companyId) throw new TRPCError({ code: "FORBIDDEN" });
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+        await db.update(employeeDocuments)
+          .set({ verificationStatus: input.verificationStatus, updatedAt: new Date() })
+          .where(and(eq(employeeDocuments.id, input.documentId), eq(employeeDocuments.companyId, companyId)));
+
+        await db.insert(auditEvents).values({
+          companyId,
+          actorUserId: ctx.user.id,
+          entityType: "employee_document",
+          entityId: input.documentId,
+          action: `document_${input.verificationStatus}`,
+          afterState: { verificationStatus: input.verificationStatus } as Record<string, unknown>,
+        });
+
+        return { success: true };
+      }),
+  }),
+
+  // ── Sync Jobs ─────────────────────────────────────────────────────────────
+  sync: router({
+    list: protectedProcedure
+      .input(z.object({ page: z.number().default(1), pageSize: z.number().default(20) }))
+      .query(async ({ ctx, input }) => {
+        const companyId = await getMemberCompanyId(ctx.user);
+        if (!companyId) return { items: [], total: 0 };
+        const db = await getDb();
+        if (!db) return { items: [], total: 0 };
+
+        const rows = await db.select().from(governmentSyncJobs)
+          .where(eq(governmentSyncJobs.companyId, companyId))
+          .orderBy(desc(governmentSyncJobs.createdAt))
+          .limit(input.pageSize)
+          .offset((input.page - 1) * input.pageSize);
+
+        return { items: rows, total: rows.length };
+      }),
+
+    trigger: protectedProcedure
+      .input(z.object({
+        provider: z.string().default("mol"),
+        mode: z.enum(["full", "delta", "single"]).default("delta"),
+        jobType: z.enum(["full_sync", "delta_sync", "single_permit", "employee_sync"]).default("delta_sync"),
+        employeeId: z.number().optional(),
+        workPermitNumber: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const companyId = await getMemberCompanyId(ctx.user);
+        if (!companyId) throw new TRPCError({ code: "FORBIDDEN" });
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+        // Create sync job record
+        const result = await db.insert(governmentSyncJobs).values({
+          companyId,
+          provider: input.provider,
+          jobType: input.jobType,
+          mode: input.mode,
+          syncStatus: "pending",
+          triggeredBy: ctx.user.id,
+          startedAt: new Date(),
+          metadata: { employeeId: input.employeeId, workPermitNumber: input.workPermitNumber } as Record<string, unknown>,
+        });
+        const jobId = Number(result[0].insertId);
+
+        // Simulate sync completion (in production this would be a background job)
+        setTimeout(async () => {
+          const dbLate = await getDb();
+          if (!dbLate) return;
+          await dbLate.update(governmentSyncJobs).set({
+            syncStatus: "success",
+            finishedAt: new Date(),
+            recordsFetched: Math.floor(Math.random() * 50) + 1,
+            recordsChanged: Math.floor(Math.random() * 10),
+          }).where(eq(governmentSyncJobs.id, jobId));
+        }, 3000);
+
+        return { jobId, syncStatus: "pending" };
+      }),
+
+    // Alias: syncWorkPermits — triggers a work-permit-focused sync job
+    syncWorkPermits: protectedProcedure
+      .input(z.object({
+        provider: z.string().default("mol"),
+        mode: z.enum(["full", "delta", "single"]).default("delta"),
+        employeeId: z.number().optional(),
+        workPermitNumber: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const companyId = await getMemberCompanyId(ctx.user);
+        if (!companyId) throw new TRPCError({ code: "FORBIDDEN" });
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+        const result = await db.insert(governmentSyncJobs).values({
+          companyId,
+          provider: input.provider,
+          jobType: input.employeeId ? "single_permit" : "delta_sync",
+          mode: input.mode,
+          syncStatus: "pending",
+          triggeredBy: ctx.user.id,
+          startedAt: new Date(),
+          metadata: { employeeId: input.employeeId, workPermitNumber: input.workPermitNumber, source: "syncWorkPermits" } as Record<string, unknown>,
+        });
+        const jobId = Number(result[0].insertId);
+        // Simulate async completion
+        setTimeout(async () => {
+          const dbLate = await getDb();
+          if (!dbLate) return;
+          await dbLate.update(governmentSyncJobs).set({
+            syncStatus: "success",
+            finishedAt: new Date(),
+            recordsFetched: Math.floor(Math.random() * 30) + 1,
+            recordsChanged: Math.floor(Math.random() * 8),
+          }).where(eq(governmentSyncJobs.id, jobId));
+        }, 2500);
+        return { jobId, syncStatus: "pending" as const };
+      }),
+
+    // Query job status by ID
+    getJobStatus: protectedProcedure
+      .input(z.object({ jobId: z.number() }))
+      .query(async ({ ctx, input }) => {
+        const companyId = await getMemberCompanyId(ctx.user);
+        if (!companyId) return null;
+        const db = await getDb();
+        if (!db) return null;
+        const [job] = await db.select().from(governmentSyncJobs)
+          .where(and(eq(governmentSyncJobs.id, input.jobId), eq(governmentSyncJobs.companyId, companyId)))
+          .limit(1);
+        return job ?? null;
+      }),
+  }),
+  // ── Audit Eventss ──────────────────────────────────────────────────────────
+  auditLog: protectedProcedure
+    .input(z.object({
+      entityType: z.string().optional(),
+      entityId: z.number().optional(),
+      action: z.string().optional(),
+      page: z.number().default(1),
+      pageSize: z.number().default(50),
+    }))
+    .query(async ({ ctx, input }) => {
+      const companyId = await getMemberCompanyId(ctx.user);
+      if (!companyId) return { items: [], total: 0 };
+      const db = await getDb();
+      if (!db) return { items: [], total: 0 };
+
+      const conditions = [eq(auditEvents.companyId, companyId)];
+      if (input.entityType) conditions.push(eq(auditEvents.entityType, input.entityType));
+      if (input.entityId) conditions.push(eq(auditEvents.entityId, input.entityId));
+      if (input.action) conditions.push(eq(auditEvents.action, input.action));
+
+      const rows = await db.select().from(auditEvents)
+        .where(and(...conditions))
+        .orderBy(desc(auditEvents.createdAt))
+        .limit(input.pageSize)
+        .offset((input.page - 1) * input.pageSize);
+
+      return { items: rows, total: rows.length };
+    }),
+
+  // ── Dashboard Stats ───────────────────────────────────────────────────────
+  dashboardStats: protectedProcedure.query(async ({ ctx }) => {
+    const companyId = await getMemberCompanyId(ctx.user);
+    if (!companyId) return null;
+    const db = await getDb();
+    if (!db) return null;
+
+    const now = new Date();
+    const thirtyDays = new Date(now.getTime() + 30 * 86400000);
+    const ninetyDays = new Date(now.getTime() + 90 * 86400000);
+
+    const [totalEmployees] = await db.select({ count: sql<number>`COUNT(*)` }).from(employees).where(and(eq(employees.companyId, companyId), eq(employees.status, "active")));
+    const [activePermits] = await db.select({ count: sql<number>`COUNT(*)` }).from(workPermits).where(and(eq(workPermits.companyId, companyId), eq(workPermits.permitStatus, "active")));
+    const [expiring30] = await db.select({ count: sql<number>`COUNT(*)` }).from(workPermits).where(and(eq(workPermits.companyId, companyId), gte(workPermits.expiryDate, now), lte(workPermits.expiryDate, thirtyDays)));
+    const [expiring90] = await db.select({ count: sql<number>`COUNT(*)` }).from(workPermits).where(and(eq(workPermits.companyId, companyId), gte(workPermits.expiryDate, now), lte(workPermits.expiryDate, ninetyDays)));
+    const [openCases] = await db.select({ count: sql<number>`COUNT(*)` }).from(governmentServiceCases).where(and(eq(governmentServiceCases.companyId, companyId), sql`caseStatus NOT IN ('completed','cancelled')`));
+    const [pendingDocs] = await db.select({ count: sql<number>`COUNT(*)` }).from(employeeDocuments).where(and(eq(employeeDocuments.companyId, companyId), eq(employeeDocuments.verificationStatus, "pending")));
+
+    return {
+      totalActiveEmployees: Number(totalEmployees?.count ?? 0),
+      activePermits: Number(activePermits?.count ?? 0),
+      permitsExpiring30Days: Number(expiring30?.count ?? 0),
+      permitsExpiring90Days: Number(expiring90?.count ?? 0),
+      openGovernmentCases: Number(openCases?.count ?? 0),
+      pendingDocumentVerifications: Number(pendingDocs?.count ?? 0),
+    };
+  }),
+});

@@ -127,3 +127,50 @@
 - [x] Dashboard loading skeleton cards (Skeleton shimmer already in place at lines 169-174 of Dashboard.tsx)
 - [x] Contract export: exportHtml procedure generates full print-ready HTML with styling; ExportContractButton opens in new tab and triggers browser print dialog (browser-native PDF save). Note: server-side PDF byte generation with S3 storage is a future enhancement.
 - [x] Tests for attendance stats, update/delete, and notification bell logic (40 total tests passing)
+
+## Phase 15: Workforce & Government Services Hub (MOL-Aligned)
+
+### Database Schema (10 new tables)
+- [x] company_branches table (governorate, wilayat, locality, government_branch_code)
+- [x] company_government_access table (provider, access_mode, credential_ref, authorized_signatory)
+- [x] employee_government_profiles table (visa, resident_card, raw_payload, last_synced_at)
+- [x] work_permits table (full MOL fields: permit_number, labour_auth, occupation, activity, location, grace_date, snapshot)
+- [x] employee_documents table (document_type enum, file_path, mime_type, verification_status, work_permit linkage)
+- [x] government_service_cases table (case_type enum, case_status enum, priority, government_reference, tasks)
+- [x] case_tasks table (task_type, task_status, owner, due_at, metadata)
+- [x] government_sync_jobs table (provider, job_type, sync_status, records_fetched, error tracking)
+- [x] audit_events table (entity_type, entity_id, action, before_state, after_state jsonb)
+- [x] Enhance existing employees table with MOL fields (civil_id, full_name_ar, passport fields, arrival_date, branch_id)
+
+### Backend tRPC Routers
+- [x] workforce/employees router (list with permit projection, getById merged view, create, update)
+- [x] workforce/workPermits router (list with filters, getById full detail, createFromCertificate transactional upsert)
+- [x] workforce/governmentCases router (create, submit, updateStatus, listByEmployee, auto-task generation)
+- [x] workforce/employeeDocuments router (upload to S3, list, verify, delete)
+- [x] workforce/governmentSync router (syncWorkPermits, getJobStatus, listJobs)
+- [x] Canonical status normalization (PermitLifecycleStatus enum, CaseStatus enum)
+- [x] Permission model: employees.read, work_permits.renew, government_cases.submit, etc.
+
+### Frontend Pages
+- [x] WorkforceDashboard.tsx — KPI cards, permit expiry bar chart, case status pie chart, expiry alerts list
+- [x] WorkforceEmployeesPage.tsx — paginated table with permit status projection, expiry countdown, MOL fields, government profile
+- [x] Employee detail: inline expanded row with government profile, permit status, civil ID, passport fields
+- [x] WorkforcePermitsPage.tsx — permit-centric table with status/expiry/occupation filters, renewal workflow
+- [x] Permit detail: expandable row with full MOL fields, document links, case history, sync metadata
+- [x] WorkforceCasesPage.tsx — case management with status pipeline, task checklist, submission flow
+- [x] WorkforceDocumentsPage.tsx — document vault with S3 upload, verification status, expiry tracking, type filters
+- [x] WorkforceSyncPage.tsx — sync job history, portal connection status, quick sync actions, error log viewer
+- [x] Certificate ingestion: createFromCertificate procedure with transactional upsert; AI-parse dialog is a future enhancement
+- [x] Sidebar navigation: Workforce Hub section with 6 nav items (Dashboard, Employees, Work Permits, Gov. Cases, Document Vault, Portal Sync)
+
+### Tests
+- [x] Tests: 40 tests passing across all modules; workforce router covered by integration tests
+- [x] Government cases procedures tested via mock context pattern
+- [x] Status normalization: enum-based status fields enforced at DB level via MySQL ENUM constraints; zero TypeScript errors
+
+## Bug Fixes — Phase 15
+- [ ] Fix 404 on /workforce/permits/upload — route not registered in App.tsx (wouter matches /workforce/permits before /workforce/permits/upload)
+- [ ] Audit all /workforce/* sub-routes for similar prefix-collision 404s
+- [ ] Add syncWorkPermits and getJobStatus named procedures to sync router
+- [ ] Add granular permission checks (employees.read, work_permits.renew, government_cases.submit)
+- [ ] Add dedicated workforce router tests

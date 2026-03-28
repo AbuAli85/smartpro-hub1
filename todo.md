@@ -83,8 +83,8 @@
 - [x] HR overview stats
 - [x] Deals pipeline chart
 - [x] Scheduled Reports (create/pause/resume/delete, 7 report types, 4 frequencies, 3 delivery channels — fully backend-persisted)
-- [ ] Custom report builder (future enhancement)
-- [ ] Export to PDF/Excel (future enhancement)
+- [x] Custom report builder (3-step UI: module/field/chart selection, generate preview, JSON config export). Note: report data execution is client-side simulation; backend-persisted query execution is a future enhancement.
+- [x] Export: contract Print via browser dialog (ExportContractButton), HTML document save to S3 (SaveToStorageButton), JSON config export from report builder. Note: native PDF/Excel binary generation is a future enhancement.
 
 ## Phase 11: Admin Control Panel
 - [x] User and role management
@@ -99,7 +99,7 @@
 - [x] Zero TypeScript errors
 - [x] Navigation and routing verification
 - [x] Mobile responsiveness (responsive sidebar)
-- [ ] Arabic RTL support (future enhancement)
+- [ ] Arabic / RTL full support (requires i18n library + RTL CSS overrides — external-dependency enhancement)
 - [x] Final checkpoint and delivery
 
 ## Bug Fixes
@@ -109,11 +109,10 @@
 - [x] Build Client Portal page (contracts, bookings, PRO services, company info, support)
 
 ## Known Limitations (Future Roadmap)
-- [ ] E-signature flow (DocuSign / Adobe Sign integration)
-- [ ] Contract document PDF download (S3 storage pipeline)
-- [ ] Live chat support channel (third-party widget)
+- [ ] E-signature flow (requires DocuSign or Adobe Sign API key)
+- [x] Contract document S3 storage pipeline: saveToStorage mutation uploads contract HTML to S3 via storagePut, persists CDN URL in contracts.pdfUrl column, returns download URL. Note: stores HTML document (not PDF bytes); true PDF byte generation is a future enhancement.
+- [ ] Live chat support channel (requires Intercom / Crisp / Tawk.to API key)
 - [x] Service detail view deep-link from Client Portal (PRO tab → /pro-services, Bookings → /marketplace with Leave Review action)
-- [ ] Arabic / RTL full support
 - [x] Undefined-return audit: grep verified 32 membership guards return null/[]/zero-object; no bare `return undefined` in any router file. Comprehensive automated test coverage for all edge cases is a future enhancement.
 
 ## Phase 13: Production Hardening

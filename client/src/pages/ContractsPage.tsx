@@ -324,7 +324,31 @@ function ExportContractButton({ contractId, contractNumber }: { contractId: numb
 
   return (
     <Button size="sm" variant="ghost" className="h-7 gap-1 text-xs" disabled={loading} onClick={handleExport}>
-      <Printer size={12} /> {loading ? "..." : "PDF"}
+      <Printer size={12} /> {loading ? "..." : "Print"}
+    </Button>
+  );
+}
+
+function SaveToStorageButton({ contractId }: { contractId: number }) {
+  const saveToStorage = trpc.contracts.saveToStorage.useMutation({
+    onSuccess: (data) => {
+      toast.success(
+        <span>
+          Saved to cloud storage.{" "}
+          <a href={data.url} target="_blank" rel="noreferrer" className="underline font-medium">Open document</a>
+        </span>
+      );
+    },
+    onError: () => toast.error("Failed to save to storage"),
+  });
+
+  return (
+    <Button
+      size="sm" variant="ghost" className="h-7 gap-1 text-xs"
+      disabled={saveToStorage.isPending}
+      onClick={() => saveToStorage.mutate({ id: contractId })}
+    >
+      <Download size={12} /> {saveToStorage.isPending ? "Saving..." : "Save"}
     </Button>
   );
 }
@@ -483,6 +507,7 @@ export default function ContractsPage() {
                       </SelectContent>
                     </Select>
                     <ExportContractButton contractId={contract.id} contractNumber={contract.contractNumber ?? ""} />
+                    <SaveToStorageButton contractId={contract.id} />
                   </td>
                 </tr>
               ))}

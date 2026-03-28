@@ -288,6 +288,11 @@ export default function AnalyticsPage() {
         <TabsContent value="reports" className="space-y-5">
           <ScheduledReportsTab />
         </TabsContent>
+
+        {/* ── Custom Report Builder Tab ── */}
+        <TabsContent value="builder" className="space-y-5">
+          <CustomReportBuilder />
+        </TabsContent>
       </Tabs>
     </div>
   );
@@ -516,6 +521,228 @@ function ScheduledReportsTab() {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+// ── Custom Report Builder ────────────────────────────────────────────────────
+
+const BUILDER_MODULES = [
+  { id: "contracts", label: "Contracts", fields: ["status", "type", "value", "party", "date_range"] },
+  { id: "pro", label: "PRO Services", fields: ["service_type", "status", "expiry", "assignee"] },
+  { id: "hr", label: "HR", fields: ["department", "leave_type", "payroll_period", "attendance_date"] },
+  { id: "crm", label: "CRM", fields: ["deal_stage", "contact_status", "pipeline", "close_date"] },
+  { id: "marketplace", label: "Marketplace", fields: ["provider_category", "booking_status", "rating", "date_range"] },
+  { id: "sanad", label: "Sanad Offices", fields: ["office_emirate", "service_type", "application_status"] },
+];
+
+const AGGREGATIONS = ["Count", "Sum", "Average", "Min", "Max"];
+const CHART_TYPES = ["Bar Chart", "Line Chart", "Pie Chart", "Table"];
+
+function CustomReportBuilder() {
+  const [selectedModule, setSelectedModule] = useState("");
+  const [selectedFields, setSelectedFields] = useState<string[]>([]);
+  const [aggregation, setAggregation] = useState("Count");
+  const [chartType, setChartType] = useState("Bar Chart");
+  const [reportName, setReportName] = useState("");
+  const [dateRange, setDateRange] = useState("last_30_days");
+  const [generated, setGenerated] = useState(false);
+  const [generating, setGenerating] = useState(false);
+
+  const module = BUILDER_MODULES.find(m => m.id === selectedModule);
+
+  const toggleField = (field: string) => {
+    setSelectedFields(prev =>
+      prev.includes(field) ? prev.filter(f => f !== field) : [...prev, field]
+    );
+  };
+
+  const handleGenerate = async () => {
+    if (!selectedModule || selectedFields.length === 0) {
+      toast.error("Please select a module and at least one field");
+      return;
+    }
+    setGenerating(true);
+    // Simulate report generation (real implementation would call a tRPC procedure)
+    await new Promise(r => setTimeout(r, 1200));
+    setGenerating(false);
+    setGenerated(true);
+    toast.success("Report generated successfully");
+  };
+
+  const handleExport = () => {
+    const reportData = {
+      name: reportName || `${selectedModule}_report`,
+      module: selectedModule,
+      fields: selectedFields,
+      aggregation,
+      chartType,
+      dateRange,
+      generatedAt: new Date().toISOString(),
+    };
+    const blob = new Blob([JSON.stringify(reportData, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `${reportData.name}-${Date.now()}.json`; a.click();
+    URL.revokeObjectURL(url);
+    toast.success("Report configuration exported");
+  };
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-semibold">Custom Report Builder</h2>
+          <p className="text-sm text-muted-foreground">Build ad-hoc reports by selecting modules, fields, and visualisation type</p>
+        </div>
+        {generated && (
+          <Button variant="outline" className="gap-2" onClick={handleExport}>
+            <Download size={14} /> Export Config
+          </Button>
+        )}
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        {/* Step 1: Module & Config */}
+        <div className="lg:col-span-1 space-y-4">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wide">1. Configure</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Report Name</Label>
+                <Input placeholder="e.g. Monthly Contracts" value={reportName} onChange={e => setReportName(e.target.value)} className="h-8 text-sm" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Data Module</Label>
+                <Select value={selectedModule} onValueChange={v => { setSelectedModule(v); setSelectedFields([]); setGenerated(false); }}>
+                  <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Select module..." /></SelectTrigger>
+                  <SelectContent>
+                    {BUILDER_MODULES.map(m => <SelectItem key={m.id} value={m.id}>{m.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Date Range</Label>
+                <Select value={dateRange} onValueChange={setDateRange}>
+                  <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="last_7_days">Last 7 Days</SelectItem>
+                    <SelectItem value="last_30_days">Last 30 Days</SelectItem>
+                    <SelectItem value="last_90_days">Last 90 Days</SelectItem>
+                    <SelectItem value="this_year">This Year</SelectItem>
+                    <SelectItem value="all_time">All Time</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Aggregation</Label>
+                <Select value={aggregation} onValueChange={setAggregation}>
+                  <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {AGGREGATIONS.map(a => <SelectItem key={a} value={a}>{a}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Chart Type</Label>
+                <Select value={chartType} onValueChange={setChartType}>
+                  <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {CHART_TYPES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Step 2: Field Selection */}
+        <div className="lg:col-span-1 space-y-4">
+          <Card className="h-full">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wide">2. Select Fields</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {!module ? (
+                <div className="flex items-center justify-center h-32 text-sm text-muted-foreground">Select a module first</div>
+              ) : (
+                <div className="space-y-2">
+                  {module.fields.map(field => (
+                    <label key={field} className="flex items-center gap-2 cursor-pointer p-2 rounded hover:bg-muted/50 transition-colors">
+                      <input
+                        type="checkbox"
+                        checked={selectedFields.includes(field)}
+                        onChange={() => toggleField(field)}
+                        className="rounded"
+                      />
+                      <span className="text-sm capitalize">{field.replace(/_/g, " ")}</span>
+                    </label>
+                  ))}
+                  {selectedFields.length > 0 && (
+                    <p className="text-xs text-muted-foreground pt-2 border-t">{selectedFields.length} field{selectedFields.length > 1 ? "s" : ""} selected</p>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Step 3: Preview */}
+        <div className="lg:col-span-1 space-y-4">
+          <Card className="h-full">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wide">3. Preview</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {!generated ? (
+                <div className="space-y-3">
+                  <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+                    Configure your report and click Generate to preview results
+                  </div>
+                  <Button className="w-full gap-2" onClick={handleGenerate} disabled={generating || !selectedModule || selectedFields.length === 0}>
+                    {generating ? (
+                      <><span className="animate-spin">⟳</span> Generating...</>
+                    ) : (
+                      <><TrendingUp size={14} /> Generate Report</>
+                    )}
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="rounded-lg bg-muted/30 p-4 space-y-2">
+                    <p className="text-xs font-medium text-muted-foreground uppercase">Report Summary</p>
+                    <p className="text-sm font-semibold">{reportName || `${module?.label} Report`}</p>
+                    <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
+                      <span>Module: <strong className="text-foreground">{module?.label}</strong></span>
+                      <span>Fields: <strong className="text-foreground">{selectedFields.length}</strong></span>
+                      <span>Aggregation: <strong className="text-foreground">{aggregation}</strong></span>
+                      <span>Chart: <strong className="text-foreground">{chartType}</strong></span>
+                    </div>
+                    <div className="flex flex-wrap gap-1 pt-1">
+                      {selectedFields.map(f => (
+                        <Badge key={f} variant="secondary" className="text-xs capitalize">{f.replace(/_/g, " ")}</Badge>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button className="flex-1 gap-1 text-xs h-8" onClick={handleGenerate} disabled={generating}>
+                      <TrendingUp size={12} /> Regenerate
+                    </Button>
+                    <Button variant="outline" className="flex-1 gap-1 text-xs h-8" onClick={handleExport}>
+                      <Download size={12} /> Export
+                    </Button>
+                  </div>
+                  <Button variant="outline" className="w-full gap-1 text-xs h-8" onClick={() => { setGenerated(false); setSelectedModule(""); setSelectedFields([]); setReportName(""); }}>
+                    Start New Report
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     </div>
   );
 }

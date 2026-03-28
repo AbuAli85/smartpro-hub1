@@ -1,0 +1,9 @@
+{
+  "query": "\nUPDATE sanad_applications SET referenceNumber = CONCAT('SAN-MIGR-', id) WHERE referenceNumber IS NULL;\n\nCREATE UNIQUE INDEX idx_sanad_ref ON sanad_applications (referenceNumber);\n\nCREATE INDEX idx_sanad_provider ON sanad_applications (providerId);\n\nCREATE INDEX idx_sanad_service_type ON sanad_applications (serviceType);\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ihzfUTY3fkQrUHE.881d021b3ccf --database Q4QjnxJVGSNRVMesYiE8Gm --execute \nUPDATE sanad_applications SET referenceNumber = CONCAT('SAN-MIGR-', id) WHERE referenceNumber IS NULL;\n\nCREATE UNIQUE INDEX idx_sanad_ref ON sanad_applications (referenceNumber);\n\nCREATE INDEX idx_sanad_provider ON sanad_applications (providerId);\n\nCREATE INDEX idx_sanad_service_type ON sanad_applications (serviceType);\n",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 2704
+}

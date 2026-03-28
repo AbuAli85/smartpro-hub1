@@ -168,10 +168,11 @@ export async function getCompanyInvoices(companyId: number) {
 
 // ─── SANAD OFFICES ────────────────────────────────────────────────────────────
 
-export async function getSanadOffices(companyId: number) {
+export async function getSanadOffices(_companyId: number) {
+  // sanad_offices are now a global provider registry (no per-company ownership)
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(sanadOffices).where(eq(sanadOffices.companyId, companyId)).orderBy(desc(sanadOffices.createdAt));
+  return db.select().from(sanadOffices).where(eq(sanadOffices.status, "active")).orderBy(desc(sanadOffices.createdAt));
 }
 
 export async function getAllSanadOffices() {
@@ -200,7 +201,7 @@ export async function getSanadApplications(companyId: number, filters?: { status
   if (!db) return [];
   const conditions = [eq(sanadApplications.companyId, companyId)];
   if (filters?.status) conditions.push(eq(sanadApplications.status, filters.status as any));
-  if (filters?.type) conditions.push(eq(sanadApplications.type, filters.type as any));
+  if (filters?.type) conditions.push(eq(sanadApplications.serviceType, filters.type as any));
   return db.select().from(sanadApplications).where(and(...conditions)).orderBy(desc(sanadApplications.createdAt));
 }
 

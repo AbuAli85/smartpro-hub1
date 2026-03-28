@@ -204,24 +204,41 @@ export const subscriptionInvoices = mysqlTable(
 
 export const sanadOffices = mysqlTable("sanad_offices", {
   id: int("id").autoincrement().primaryKey(),
-  companyId: int("companyId").notNull(),
+  // Provider type — what kind of service bureau this is
+  providerType: mysqlEnum("providerType", [
+    "pro_office",       // Public Relations Officer services
+    "typing_centre",    // Document typing & translation
+    "admin_bureau",     // General admin & government liaison
+    "legal_services",   // Legal & notary services
+    "attestation",      // Document attestation & legalisation
+    "visa_services",    // Visa processing specialists
+    "business_setup",   // Company formation & licensing
+    "other",
+  ]).default("pro_office").notNull(),
   name: varchar("name", { length: 255 }).notNull(),
   nameAr: varchar("nameAr", { length: 255 }),
+  description: text("description"),
   licenseNumber: varchar("licenseNumber", { length: 100 }),
   location: varchar("location", { length: 255 }),
   city: varchar("city", { length: 100 }),
   governorate: varchar("governorate", { length: 100 }),
   phone: varchar("phone", { length: 32 }),
   email: varchar("email", { length: 320 }),
-  managerId: int("managerId"),
-  status: mysqlEnum("status", ["active", "inactive", "pending_approval", "suspended"]).default("pending_approval").notNull(),
-  openingHours: json("openingHours"),
+  website: varchar("website", { length: 255 }),
+  contactPerson: varchar("contactPerson", { length: 255 }),
+  status: mysqlEnum("status", ["active", "inactive", "pending_approval", "suspended"]).default("active").notNull(),
+  // Services offered by this provider (e.g. ["work_permit", "visa", "labor_card"])
   services: json("services").$type<string[]>().default([]),
+  // Rating 1-5 (average of work order ratings)
+  rating: decimal("rating", { precision: 3, scale: 2 }).default("0"),
+  totalOrders: int("totalOrders").default(0),
+  openingHours: varchar("openingHours", { length: 255 }),
+  isVerified: boolean("isVerified").default(false),
+  notes: text("notes"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
-
-export type SanadOffice = typeof sanadOffices.$inferSelect;
+export type SanadOffice = typeof sanadOffices.$inferSelect;;
 
 // ─── SANAD APPLICATIONS ───────────────────────────────────────────────────────
 
@@ -230,43 +247,62 @@ export const sanadApplications = mysqlTable(
   {
     id: int("id").autoincrement().primaryKey(),
     companyId: int("companyId").notNull(),
-    officeId: int("officeId"),
-    applicantId: int("applicantId").notNull(),
+    // The service provider (Sanad office) handling this work order
+    providerId: int("providerId"),
+    requestedById: int("requestedById").notNull(),
     assignedToId: int("assignedToId"),
-    applicationNumber: varchar("applicationNumber", { length: 50 }).notNull().unique(),
-    type: mysqlEnum("type", [
-      "visa",
-      "labor_card",
-      "commercial_registration",
+    // Unique reference number for tracking
+    referenceNumber: varchar("referenceNumber", { length: 50 }).notNull().unique(),
+    // Type of government service being requested
+    serviceType: mysqlEnum("serviceType", [
       "work_permit",
-      "residence_permit",
+      "work_permit_renewal",
+      "work_permit_cancellation",
+      "labor_card",
+      "labor_card_renewal",
+      "residence_visa",
+      "residence_visa_renewal",
+      "visit_visa",
+      "exit_reentry",
+      "commercial_registration",
+      "commercial_registration_renewal",
       "business_license",
+      "document_typing",
+      "document_translation",
+      "document_attestation",
+      "pasi_registration",
+      "omanisation_report",
       "other",
     ]).notNull(),
+    title: varchar("title", { length: 255 }),
     status: mysqlEnum("status", [
       "draft",
       "submitted",
-      "under_review",
+      "in_progress",
       "awaiting_documents",
-      "processing",
-      "approved",
-      "rejected",
+      "awaiting_payment",
       "completed",
+      "rejected",
       "cancelled",
     ])
       .default("draft")
       .notNull(),
     priority: mysqlEnum("priority", ["low", "normal", "high", "urgent"]).default("normal"),
-    applicantName: varchar("applicantName", { length: 255 }),
-    applicantNameAr: varchar("applicantNameAr", { length: 255 }),
+    // The person / employee this service is for
+    beneficiaryName: varchar("beneficiaryName", { length: 255 }),
+    beneficiaryNameAr: varchar("beneficiaryNameAr", { length: 255 }),
     nationality: varchar("nationality", { length: 100 }),
     passportNumber: varchar("passportNumber", { length: 50 }),
+    employeeId: int("employeeId"),
     notes: text("notes"),
+    providerNotes: text("providerNotes"),
     rejectionReason: text("rejectionReason"),
     submittedAt: timestamp("submittedAt"),
     completedAt: timestamp("completedAt"),
     dueDate: timestamp("dueDate"),
     fees: decimal("fees", { precision: 10, scale: 2 }),
+    rating: int("rating"),  // 1-5 star rating given after completion
+    ratingComment: text("ratingComment"),
     documents: json("documents").$type<{ name: string; url: string; status: string }[]>().default([]),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
@@ -274,11 +310,11 @@ export const sanadApplications = mysqlTable(
   (t) => [
     index("idx_sanad_company").on(t.companyId),
     index("idx_sanad_status").on(t.status),
-    index("idx_sanad_type").on(t.type),
+    index("idx_sanad_service_type").on(t.serviceType),
+    index("idx_sanad_provider").on(t.providerId),
   ]
 );
-
-export type SanadApplication = typeof sanadApplications.$inferSelect;
+export type SanadApplication = typeof sanadApplications.$inferSelect;;
 
 // ─── PRO SERVICES ─────────────────────────────────────────────────────────────
 

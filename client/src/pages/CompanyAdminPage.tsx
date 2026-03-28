@@ -41,7 +41,7 @@ import {
   Building2, Users, Shield, Settings, Save, UserPlus, UserMinus,
   RefreshCw, Crown, Eye, Loader2, CheckCircle2, AlertCircle,
   Mail, Globe, Phone, MapPin, Hash, FileText, Edit3, UserCheck,
-  ChevronRight, BarChart3
+  ChevronRight, BarChart3, Search, X as XIcon
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -176,6 +176,9 @@ export default function CompanyAdminPage() {
 
   const [removeDialog, setRemoveDialog] = useState<{ memberId: number; name: string } | null>(null);
 
+  // ── Search state ────────────────────────────────────────────────────────────
+  const [memberSearch, setMemberSearch] = useState("");
+
   const addMember = trpc.companies.addMemberByEmail.useMutation({
     onSuccess: (data) => {
       toast.success(data.action === "reactivated" ? "Member reactivated successfully" : "Member added successfully");
@@ -214,8 +217,24 @@ export default function CompanyAdminPage() {
   });
 
   const isAdmin = user?.role === "admin" || myMembership?.role === "company_admin";
-  const activeMembers = (members ?? []).filter((m) => m.isActive);
-  const inactiveMembers = (members ?? []).filter((m) => !m.isActive);
+  const allActiveMembers = (members ?? []).filter((m) => m.isActive);
+  const allInactiveMembers = (members ?? []).filter((m) => !m.isActive);
+
+  const searchLower = memberSearch.toLowerCase().trim();
+  const activeMembers = searchLower
+    ? allActiveMembers.filter(
+        (m) =>
+          (m.name ?? "").toLowerCase().includes(searchLower) ||
+          (m.email ?? "").toLowerCase().includes(searchLower)
+      )
+    : allActiveMembers;
+  const inactiveMembers = searchLower
+    ? allInactiveMembers.filter(
+        (m) =>
+          (m.name ?? "").toLowerCase().includes(searchLower) ||
+          (m.email ?? "").toLowerCase().includes(searchLower)
+      )
+    : allInactiveMembers;
 
   // ── Loading state ───────────────────────────────────────────────────────────
   if (companyLoading) {
@@ -540,12 +559,33 @@ export default function CompanyAdminPage() {
                   </CardTitle>
                   <CardDescription>Users with active access to this company</CardDescription>
                 </div>
-                {isAdmin && (
-                  <Button onClick={() => setAddMemberDialog(true)} className="gap-2" size="sm">
-                    <UserPlus className="w-4 h-4" />
-                    Add Member
-                  </Button>
-                )}
+                <div className="flex items-center gap-2">
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+                    <input
+                      type="text"
+                      value={memberSearch}
+                      onChange={(e) => setMemberSearch(e.target.value)}
+                      placeholder="Search by name or email…"
+                      className="h-8 pl-8 pr-7 text-sm rounded-md border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1 w-52"
+                    />
+                    {memberSearch && (
+                      <button
+                        onClick={() => setMemberSearch("")}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                        aria-label="Clear search"
+                      >
+                        <XIcon className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                  {isAdmin && (
+                    <Button onClick={() => setAddMemberDialog(true)} className="gap-2" size="sm">
+                      <UserPlus className="w-4 h-4" />
+                      Add Member
+                    </Button>
+                  )}
+                </div>
               </CardHeader>
               <CardContent className="p-0">
                 {membersLoading ? (
@@ -555,7 +595,17 @@ export default function CompanyAdminPage() {
                 ) : activeMembers.length === 0 ? (
                   <div className="text-center py-12 text-muted-foreground">
                     <Users className="w-8 h-8 mx-auto mb-2 opacity-40" />
-                    <p className="text-sm">No active members yet</p>
+                    <p className="text-sm">
+                      {searchLower ? `No members match "${memberSearch}"` : "No active members yet"}
+                    </p>
+                    {searchLower && (
+                      <button
+                        onClick={() => setMemberSearch("")}
+                        className="mt-2 text-xs text-primary hover:underline"
+                      >
+                        Clear search
+                      </button>
+                    )}
                   </div>
                 ) : (
                   <Table>

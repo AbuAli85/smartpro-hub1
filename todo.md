@@ -579,7 +579,7 @@ As a business services provider in Oman/GCC, here is what I need every single da
 - [x] UI: ClientPortalPage — "New Service Request" tab with form and reference number
 - [x] UI: ClientPortalPage — "My Documents" tab with download links
 - [x] UI: ClientPortalPage — "Upcoming Renewals" tab with 90-day expiry list
-- [ ] UI: ClientPortalPage — enhance PRO Services tab with step-by-step progress tracker (5 stages with icons)
+- [x] UI: ClientPortalPage — PRO Services tab: 5-stage visual progress tracker with icons, ETA labels, progress bar, and orange/green accent rings
 - [x] tRPC: clientPortal.submitServiceRequest — client submits new request, creates sanad work order
 - [x] tRPC: clientPortal.listMyDocuments — company's documents from employee_documents + contracts
 - [x] tRPC: clientPortal.getUpcomingRenewals — expiring items for this company in next 90 days
@@ -596,11 +596,11 @@ As a business services provider in Oman/GCC, here is what I need every single da
 
 ### PRIORITY 7 — Smart Enhancements
 
-- [ ] UI: Dashboard — replace hardcoded "Recent Activity" with real audit_events feed (last 10 events from DB)
-- [ ] UI: Dashboard — add "AI Insight" card: top 3 actionable alerts (e.g. "5 work permits expire in 14 days — click to trigger renewals")
-- [ ] UI: Dashboard — add "Today's Tasks" panel: cases due today, pending approvals, unread messages count
-- [ ] UI: ProServicesPage — add "Bulk Actions" toolbar: select multiple services → bulk assign officer / bulk update status
-- [ ] UI: HREmployeesPage — add "Omanisation Gauge" widget: circular gauge showing current % vs target
-- [ ] UI: OfficerAssignmentPage — add "Smart Assign" button: suggest best officer by workload + specialization + governorate
-- [ ] tRPC: operations.getAiInsights — top 3 AI-generated actionable insights from current data state
-- [ ] tRPC: operations.getTodaysTasks — tasks due today across all modules for current user
+- [x] UI: Dashboard — real audit_events feed (last 10 events from DB) replacing hardcoded activity
+- [x] UI: Dashboard — AI Insight card: top 3 actionable alerts from current data state
+- [x] UI: Dashboard — Today's Tasks panel: cases due today, pending approvals, unread messages count
+- [x] UI: ProServicesPage — Bulk Actions toolbar: checkbox selection, bulk assign officer / bulk update status
+- [x] UI: HREmployeesPage — Omanisation Gauge widget: circular gauge showing current % vs target
+- [x] UI: OfficerAssignmentPage — Smart Assign button: selects officer with most available capacity
+- [x] tRPC: operations.getAiInsights — top 3 AI-generated actionable insights from current data state
+- [x] tRPC: operations.getTodaysTasks — tasks due today across all modules for current user

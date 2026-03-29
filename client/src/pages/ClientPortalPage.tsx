@@ -635,43 +635,87 @@ export default function ClientPortalPage() {
             ) : (
               <div className="space-y-3">
                 {(proServicesData?.items ?? []).map(svc => {
-                  const steps = ["pending", "assigned", "in_progress", "awaiting_documents", "submitted_to_authority", "approved", "completed"];
-                  const currentIdx = steps.indexOf(svc.status ?? "pending");
+                  const PRO_STAGES = [
+                    { key: "pending",                 label: "Received",         icon: "📋", desc: "Request received by SmartPRO",          eta: "Same day" },
+                    { key: "assigned",                label: "Officer Assigned", icon: "👤", desc: "PRO officer assigned to your case",       eta: "1 business day" },
+                    { key: "in_progress",             label: "Processing",       icon: "⚙️", desc: "Officer is processing your application",  eta: "2–5 business days" },
+                    { key: "submitted_to_authority",  label: "Submitted",        icon: "🏛️", desc: "Submitted to government authority",        eta: "3–10 business days" },
+                    { key: "approved",                label: "Approved",         icon: "✅", desc: "Application approved — collecting docs",   eta: "1–2 business days" },
+                  ];
+                  const allSteps = ["pending", "assigned", "in_progress", "awaiting_documents", "submitted_to_authority", "approved", "completed"];
+                  const currentIdx = allSteps.indexOf(svc.status ?? "pending");
+                  const isCompleted = ["completed", "approved"].includes(svc.status ?? "");
+                  const isRejected = ["rejected", "cancelled"].includes(svc.status ?? "");
+                  const progressPct = isCompleted ? 100 : isRejected ? 0 : Math.round((currentIdx / (allSteps.length - 1)) * 100);
+                  const activeStageIdx = PRO_STAGES.findIndex(s => s.key === svc.status);
+                  const displayStageIdx = activeStageIdx >= 0 ? activeStageIdx
+                    : Math.min(Math.floor(currentIdx * PRO_STAGES.length / allSteps.length), PRO_STAGES.length - 1);
                   return (
-                    <Card key={svc.id} className="border-0 shadow-sm">
+                    <Card key={svc.id} className="border-0 shadow-sm overflow-hidden">
+                      {/* Top accent bar */}
+                      <div className={`h-1 w-full ${isCompleted ? "bg-emerald-500" : isRejected ? "bg-red-400" : "bg-gradient-to-r from-orange-400 to-orange-600"}`}
+                        style={isCompleted || isRejected ? undefined : { backgroundSize: `${progressPct}% 100%`, backgroundRepeat: "no-repeat" }} />
                       <CardContent className="p-5">
-                        <div className="flex items-start justify-between gap-4">
+                        {/* Header row */}
+                        <div className="flex items-start justify-between gap-4 mb-4">
                           <div className="flex-1">
                             <div className="flex items-center gap-2 mb-1 flex-wrap">
-                              <h3 className="font-semibold">{svc.serviceType?.replace(/_/g, " ") ?? "PRO Service"}</h3>
+                              <h3 className="font-semibold text-base">{svc.serviceType?.replace(/_/g, " ") ?? "PRO Service"}</h3>
                               <Badge className={`text-xs ${statusBadge(svc.status ?? "pending")}`}>
                                 {(svc.status ?? "pending").replace(/_/g, " ")}
                               </Badge>
                             </div>
-                            <div className="flex items-center gap-4 text-sm text-muted-foreground flex-wrap mb-3">
-                              {svc.employeeName && <span>Employee: {svc.employeeName}</span>}
-                              {svc.dueDate && <span>Due: {fmtDate(svc.dueDate)}</span>}
-                              <span>Ref: #{svc.id}</span>
-                            </div>
-                            {/* Progress dots */}
-                            <div className="flex flex-wrap items-center gap-1">
-                              {steps.slice(0, 6).map((step, i) => {
-                                const done = i < currentIdx;
-                                const active = i === currentIdx;
-                                return (
-                                  <div key={step} className="flex flex-wrap items-center gap-1">
-                                    <div className={`w-2.5 h-2.5 rounded-full transition-colors ${done ? "bg-emerald-500" : active ? "bg-blue-500 ring-2 ring-blue-200" : "bg-muted"}`} />
-                                    {i < 5 && <div className={`h-0.5 w-5 transition-colors ${done ? "bg-emerald-500" : "bg-muted"}`} />}
-                                  </div>
-                                );
-                              })}
-                              <span className="text-xs text-muted-foreground ml-2 capitalize">
-                                {(svc.status ?? "pending").replace(/_/g, " ")}
-                              </span>
+                            <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
+                              {svc.employeeName && <span>👤 {svc.employeeName}</span>}
+                              {svc.dueDate && <span>📅 Due: {fmtDate(svc.dueDate)}</span>}
+                              <span className="font-mono">Ref: SP-{String(svc.id).padStart(5, "0")}</span>
                             </div>
                           </div>
                           <CaseIcon status={svc.status ?? "pending"} />
                         </div>
+
+                        {/* Progress bar */}
+                        <div className="mb-4">
+                          <div className="flex items-center justify-between text-xs text-muted-foreground mb-1.5">
+                            <span>Application Progress</span>
+                            <span className="font-semibold">{progressPct}%</span>
+                          </div>
+                          <Progress value={progressPct} className="h-2" />
+                        </div>
+
+                        {/* 5-stage tracker */}
+                        {!isRejected && (
+                          <div className="grid grid-cols-5 gap-1">
+                            {PRO_STAGES.map((stage, i) => {
+                              const done = i < displayStageIdx || isCompleted;
+                              const active = i === displayStageIdx && !isCompleted;
+                              return (
+                                <div key={stage.key} className="flex flex-col items-center gap-1 text-center">
+                                  <div className={`w-9 h-9 rounded-full flex items-center justify-center text-base transition-all ${
+                                    done ? "bg-emerald-100 ring-2 ring-emerald-400"
+                                    : active ? "bg-orange-100 ring-2 ring-orange-400 shadow-md"
+                                    : "bg-muted"
+                                  }`}>
+                                    {done ? "✅" : stage.icon}
+                                  </div>
+                                  <span className={`text-[10px] font-medium leading-tight ${
+                                    done ? "text-emerald-700" : active ? "text-orange-700" : "text-muted-foreground"
+                                  }`}>{stage.label}</span>
+                                  {active && (
+                                    <span className="text-[9px] text-orange-600 bg-orange-50 px-1.5 py-0.5 rounded-full border border-orange-200 leading-tight">
+                                      {stage.eta}
+                                    </span>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                        {!isCompleted && !isRejected && (
+                          <p className="text-xs text-muted-foreground mt-3 bg-muted/50 rounded-lg px-3 py-2">
+                            {PRO_STAGES[displayStageIdx]?.desc ?? "Processing your request"}
+                          </p>
+                        )}
                       </CardContent>
                     </Card>
                   );

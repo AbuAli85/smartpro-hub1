@@ -708,14 +708,14 @@ As a business services provider in Oman/GCC, here is what I need every single da
 
 ## Phase 27: Invite Pipeline & Admin Owner Email
 
-- [ ] Schema: add company_invites table (token, companyId, email, role, invitedBy, expiresAt, acceptedAt)
-- [ ] Migration: apply company_invites table via webdev_execute_sql
-- [ ] Backend: companies.createInvite procedure (generates token, stores invite, sends notification email)
-- [ ] Backend: companies.acceptInvite procedure (validates token, creates user if needed, adds to company_members)
-- [ ] Backend: companies.listInvites procedure (show pending invites in Company Admin)
-- [ ] Backend: companies.revokeInvite procedure
-- [ ] Frontend: AcceptInvitePage at /invite/:token (sign-in gate + accept button)
-- [ ] Frontend: Update OnboardingPage to call createInvite for unknown emails
-- [ ] Frontend: Update Company Admin members tab to show pending invites + revoke action
-- [ ] Admin "New Company": add ownerEmail field, wire to companies.create to auto-add owner as company_admin
-- [ ] Tests: createInvite, acceptInvite, duplicate-accept guard, expired-token guard, ownerEmail flow
+- [x] Schema: add company_invites table (token, companyId, email, role, invitedBy, expiresAt, acceptedAt)
+- [x] Migration: apply company_invites table via webdev_execute_sql
+- [x] Backend: companies.createInvite procedure (generates token, stores invite, sends notification email)
+- [x] Backend: companies.acceptInvite procedure (validates token, creates user if needed, adds to company_members)
+- [x] Backend: companies.listInvites procedure (show pending invites in Company Admin)
+- [x] Backend: companies.revokeInvite procedure
+- [x] Frontend: AcceptInvitePage at /invite/:token (sign-in gate + accept button)
+- [x] Frontend: Update OnboardingPage to call createInvite for unknown emails
+- [x] Frontend: Update Company Admin members tab to show pending invites + revoke action
+- [x] Admin "New Company": add ownerEmail field, wire to companies.create to auto-add owner as company_admin
+- [x] Tests: createInvite, acceptInvite, duplicate-accept guard, expired-token guard, ownerEmail flow

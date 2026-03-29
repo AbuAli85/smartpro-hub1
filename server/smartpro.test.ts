@@ -459,6 +459,26 @@ describe("subscriptions", () => {
     const result = await caller.subscriptions.current();
     expect(result).toBeNull();
   });
+
+  it("subscribe throws FORBIDDEN without active company membership", async () => {
+    vi.mocked(db.getUserCompany).mockResolvedValueOnce(null);
+    const caller = appRouter.createCaller(
+      makeCtx({ role: "user", platformRole: "company_member" }),
+    );
+    await expect(caller.subscriptions.subscribe({ planId: 1 })).rejects.toMatchObject({
+      code: "FORBIDDEN",
+    });
+  });
+
+  it("generateInvoice throws FORBIDDEN without active company membership", async () => {
+    vi.mocked(db.getUserCompany).mockResolvedValueOnce(null);
+    const caller = appRouter.createCaller(
+      makeCtx({ role: "user", platformRole: "company_member" }),
+    );
+    await expect(caller.subscriptions.generateInvoice()).rejects.toMatchObject({
+      code: "FORBIDDEN",
+    });
+  });
 });
 
 // ─── Attendance Tests ─────────────────────────────────────────────────────────

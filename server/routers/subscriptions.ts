@@ -1,10 +1,11 @@
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { protectedProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
 import { subscriptionPlans, companySubscriptions, subscriptionInvoices } from "../../drizzle/schema";
 import { eq, desc, and } from "drizzle-orm";
-import { getUserCompany } from "../db";
 import { nanoid } from "nanoid";
+import { getActiveCompanyMembership, requireActiveCompanyMembership } from "../_core/membership";
 
 export const subscriptionsRouter = router({
   plans: protectedProcedure.query(async () => {
@@ -14,15 +15,15 @@ export const subscriptionsRouter = router({
   }),
 
   current: protectedProcedure.query(async ({ ctx }) => {
-    const membership = await getUserCompany(ctx.user.id);
-    if (!membership) return null;
+    const m = await getActiveCompanyMembership(ctx.user.id);
+    if (!m) return null;
     const db = await getDb();
     if (!db) return null;
     const subs = await db
       .select({ sub: companySubscriptions, plan: subscriptionPlans })
       .from(companySubscriptions)
       .leftJoin(subscriptionPlans, eq(companySubscriptions.planId, subscriptionPlans.id))
-      .where(eq(companySubscriptions.companyId, membership.company.id))
+      .where(eq(companySubscriptions.companyId, m.companyId))
       .orderBy(desc(companySubscriptions.createdAt))
       .limit(1);
     if (!subs.length) return null;
@@ -35,13 +36,16 @@ export const subscriptionsRouter = router({
       billingCycle: z.enum(["monthly", "annual"]).default("monthly"),
     }))
     .mutation(async ({ input, ctx }) => {
-      const membership = await getUserCompany(ctx.user.id);
-      if (!membership) throw new Error("No company found");
+      const { companyId } = await requireActiveCompanyMembership(ctx.user.id);
       const db = await getDb();
-      if (!db) throw new Error("Database unavailable");
+      if (!db) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      }
 
       const plan = await db.select().from(subscriptionPlans).where(eq(subscriptionPlans.id, input.planId)).limit(1);
-      if (!plan.length) throw new Error("Plan not found");
+      if (!plan.length) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Plan not found" });
+      }
 
       const now = new Date();
       const periodEnd = new Date(now);
@@ -51,14 +55,12 @@ export const subscriptionsRouter = router({
         periodEnd.setFullYear(periodEnd.getFullYear() + 1);
       }
 
-      // Deactivate existing subscriptions
       await db.update(companySubscriptions)
         .set({ status: "cancelled" })
-        .where(eq(companySubscriptions.companyId, membership.company.id));
+        .where(eq(companySubscriptions.companyId, companyId));
 
-      // Create new subscription
       await db.insert(companySubscriptions).values({
-        companyId: membership.company.id,
+        companyId,
         planId: input.planId,
         status: "active",
         billingCycle: input.billingCycle,
@@ -70,60 +72,61 @@ export const subscriptionsRouter = router({
     }),
 
   cancel: protectedProcedure.mutation(async ({ ctx }) => {
-    const membership = await getUserCompany(ctx.user.id);
-    if (!membership) throw new Error("No company found");
+    const { companyId } = await requireActiveCompanyMembership(ctx.user.id);
     const db = await getDb();
-    if (!db) throw new Error("Database unavailable");
+    if (!db) {
+      throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+    }
 
     await db.update(companySubscriptions)
       .set({ status: "cancelled" })
-      .where(eq(companySubscriptions.companyId, membership.company.id));
+      .where(eq(companySubscriptions.companyId, companyId));
 
     return { success: true };
   }),
 
-  // List invoices for current company
   invoices: protectedProcedure.query(async ({ ctx }) => {
-    const membership = await getUserCompany(ctx.user.id);
-    if (!membership) return [];
+    const m = await getActiveCompanyMembership(ctx.user.id);
+    if (!m) return [];
     const db = await getDb();
     if (!db) return [];
     return db
       .select()
       .from(subscriptionInvoices)
-      .where(eq(subscriptionInvoices.companyId, membership.company.id))
+      .where(eq(subscriptionInvoices.companyId, m.companyId))
       .orderBy(desc(subscriptionInvoices.createdAt))
       .limit(20);
   }),
 
-  // Generate invoice for current subscription period
   generateInvoice: protectedProcedure.mutation(async ({ ctx }) => {
-    const membership = await getUserCompany(ctx.user.id);
-    if (!membership) throw new Error("No company found");
+    const { companyId } = await requireActiveCompanyMembership(ctx.user.id);
     const db = await getDb();
-    if (!db) throw new Error("Database unavailable");
+    if (!db) {
+      throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+    }
 
-    // Get active subscription with plan
     const subs = await db
       .select({ sub: companySubscriptions, plan: subscriptionPlans })
       .from(companySubscriptions)
       .leftJoin(subscriptionPlans, eq(companySubscriptions.planId, subscriptionPlans.id))
       .where(and(
-        eq(companySubscriptions.companyId, membership.company.id),
-        eq(companySubscriptions.status, "active")
+        eq(companySubscriptions.companyId, companyId),
+        eq(companySubscriptions.status, "active"),
       ))
       .limit(1);
 
-    if (!subs.length || !subs[0].plan) throw new Error("No active subscription found");
+    if (!subs.length || !subs[0].plan) {
+      throw new TRPCError({ code: "BAD_REQUEST", message: "No active subscription found" });
+    }
 
     const { sub, plan } = subs[0];
     const amount = sub.billingCycle === "annual" ? plan.priceAnnual : plan.priceMonthly;
     const invoiceNumber = `INV-${new Date().getFullYear()}-${nanoid(6).toUpperCase()}`;
     const dueDate = new Date();
-    dueDate.setDate(dueDate.getDate() + 14); // Net 14
+    dueDate.setDate(dueDate.getDate() + 14);
 
     await db.insert(subscriptionInvoices).values({
-      companyId: membership.company.id,
+      companyId,
       subscriptionId: sub.id,
       invoiceNumber,
       amount,
@@ -135,31 +138,30 @@ export const subscriptionsRouter = router({
     return { success: true, invoiceNumber };
   }),
 
-  // Mark invoice as paid
   markInvoicePaid: protectedProcedure
     .input(z.object({ invoiceId: z.number() }))
     .mutation(async ({ input, ctx }) => {
-      const membership = await getUserCompany(ctx.user.id);
-      if (!membership) throw new Error("No company found");
+      const { companyId } = await requireActiveCompanyMembership(ctx.user.id);
       const db = await getDb();
-      if (!db) throw new Error("Database unavailable");
+      if (!db) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      }
 
       await db.update(subscriptionInvoices)
         .set({ status: "paid", paidAt: new Date() })
         .where(and(
           eq(subscriptionInvoices.id, input.invoiceId),
-          eq(subscriptionInvoices.companyId, membership.company.id)
+          eq(subscriptionInvoices.companyId, companyId),
         ));
 
       return { success: true };
     }),
 
-  // Check if a feature is available on current plan
   checkFeature: protectedProcedure
     .input(z.object({ feature: z.string() }))
     .query(async ({ input, ctx }) => {
-      const membership = await getUserCompany(ctx.user.id);
-      if (!membership) return { allowed: false, reason: "No company" };
+      const m = await getActiveCompanyMembership(ctx.user.id);
+      if (!m) return { allowed: false, reason: "No company" };
       const db = await getDb();
       if (!db) return { allowed: false, reason: "DB unavailable" };
 
@@ -168,8 +170,8 @@ export const subscriptionsRouter = router({
         .from(companySubscriptions)
         .leftJoin(subscriptionPlans, eq(companySubscriptions.planId, subscriptionPlans.id))
         .where(and(
-          eq(companySubscriptions.companyId, membership.company.id),
-          eq(companySubscriptions.status, "active")
+          eq(companySubscriptions.companyId, m.companyId),
+          eq(companySubscriptions.status, "active"),
         ))
         .limit(1);
 
@@ -180,4 +182,3 @@ export const subscriptionsRouter = router({
       return { allowed, planName: subs[0].plan.name, features };
     }),
 });
-

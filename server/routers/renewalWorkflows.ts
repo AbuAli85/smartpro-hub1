@@ -14,7 +14,7 @@
 import { z } from "zod";
 import { canAccessGlobalAdminProcedures } from "@shared/rbac";
 import { and, asc, desc, eq, gte, isNull, lte, or, sql } from "drizzle-orm";
-import { getDb, getUserCompany } from "../db";
+import { getDb } from "../db";
 import {
   renewalWorkflowRules,
   renewalWorkflowRuns,
@@ -28,19 +28,10 @@ import {
 import { protectedProcedure, router } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { notifyOwner } from "../_core/notification";
+import { resolvePlatformOrCompanyScope } from "../_core/tenant";
+import type { User } from "../../drizzle/schema";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
-
-/** Company scope for renewal rules/runs: null = platform staff (all tenants). */
-async function resolveWorkflowCompanyScope(user: {
-  id: number;
-  role?: string | null;
-  platformRole?: string | null;
-}): Promise<number | null> {
-  if (canAccessGlobalAdminProcedures(user)) return null;
-  const membership = await getUserCompany(user.id);
-  return membership?.company.id ?? null;
-}
 
 function requireDb(db: Awaited<ReturnType<typeof getDb>>) {
   if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
@@ -133,7 +124,7 @@ export const renewalWorkflowsRouter = router({
     }).optional())
     .query(async ({ ctx, input }) => {
       const db = requireDb(await getDb());
-      const companyId = await resolveWorkflowCompanyScope(ctx.user);
+      const companyId = await resolvePlatformOrCompanyScope(ctx.user as User);
       const rows = await db
         .select()
         .from(renewalWorkflowRules)
@@ -166,8 +157,8 @@ export const renewalWorkflowsRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       const db = requireDb(await getDb());
-      const memberCompanyId = await resolveWorkflowCompanyScope(ctx.user);
-      const effectiveCompanyId = canAccessGlobalAdminProcedures(ctx.user) ? (input.companyId ?? null) : memberCompanyId;
+      const scope = await resolvePlatformOrCompanyScope(ctx.user as User);
+      const effectiveCompanyId = scope === null ? (input.companyId ?? null) : scope;
 
       const [result] = await db.insert(renewalWorkflowRules).values({
         companyId: effectiveCompanyId,
@@ -206,9 +197,11 @@ export const renewalWorkflowsRouter = router({
       const [rule] = await db.select().from(renewalWorkflowRules).where(eq(renewalWorkflowRules.id, id)).limit(1);
       if (!rule) throw new TRPCError({ code: "NOT_FOUND" });
 
-      const companyId = await resolveWorkflowCompanyScope(ctx.user);
-      if (companyId && rule.companyId !== null && rule.companyId !== companyId) {
-        throw new TRPCError({ code: "FORBIDDEN" });
+      const companyScope = await resolvePlatformOrCompanyScope(ctx.user as User);
+      if (companyScope !== null) {
+        if (rule.companyId === null || rule.companyId !== companyScope) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Rule not found" });
+        }
       }
       await db.update(renewalWorkflowRules).set(rest).where(eq(renewalWorkflowRules.id, id));
       return { success: true };
@@ -221,9 +214,11 @@ export const renewalWorkflowsRouter = router({
       const db = requireDb(await getDb());
       const [rule] = await db.select().from(renewalWorkflowRules).where(eq(renewalWorkflowRules.id, input.id)).limit(1);
       if (!rule) throw new TRPCError({ code: "NOT_FOUND" });
-      const companyId = await resolveWorkflowCompanyScope(ctx.user);
-      if (companyId && rule.companyId !== null && rule.companyId !== companyId) {
-        throw new TRPCError({ code: "FORBIDDEN" });
+      const companyScope = await resolvePlatformOrCompanyScope(ctx.user as User);
+      if (companyScope !== null) {
+        if (rule.companyId === null || rule.companyId !== companyScope) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Rule not found" });
+        }
       }
       await db.delete(renewalWorkflowRules).where(eq(renewalWorkflowRules.id, input.id));
       return { success: true };
@@ -238,7 +233,7 @@ export const renewalWorkflowsRouter = router({
     }).optional())
     .query(async ({ ctx, input }) => {
       const db = requireDb(await getDb());
-      const companyId = await resolveWorkflowCompanyScope(ctx.user);
+      const companyId = await resolvePlatformOrCompanyScope(ctx.user as User);
       const limit = input?.pageSize ?? 50;
       const offset = ((input?.page ?? 1) - 1) * limit;
 
@@ -484,7 +479,7 @@ export const renewalWorkflowsRouter = router({
   // ── Dashboard stats ────────────────────────────────────────────────────────
   getDashboard: protectedProcedure.query(async ({ ctx }) => {
     const db = requireDb(await getDb());
-    const companyId = await resolveWorkflowCompanyScope(ctx.user);
+    const companyId = await resolvePlatformOrCompanyScope(ctx.user as User);
 
     const totalRulesRows = await db
       .select({ count: sql<number>`count(*)` })

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { canAccessGlobalAdminProcedures } from "@shared/rbac";
 import { protectedProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
 import { TRPCError } from "@trpc/server";
@@ -13,7 +14,10 @@ import type { User } from "../../drizzle/schema";
 
 export const slaRouter = router({
   // ── List Rules ───────────────────────────────────────────────────────────────
-  listRules: protectedProcedure.query(async () => {
+  listRules: protectedProcedure.query(async ({ ctx }) => {
+    if (!canAccessGlobalAdminProcedures(ctx.user)) {
+      throw new TRPCError({ code: "FORBIDDEN", message: "Platform access required" });
+    }
     const db = await getDb();
     if (!db) return [];
     return db.select().from(serviceSlaRules).orderBy(serviceSlaRules.serviceType, serviceSlaRules.priority);
@@ -32,7 +36,10 @@ export const slaRouter = router({
         isActive: z.boolean().default(true),
       }),
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      if (!canAccessGlobalAdminProcedures(ctx.user)) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Platform access required" });
+      }
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
@@ -69,7 +76,10 @@ export const slaRouter = router({
   // ── Delete Rule ──────────────────────────────────────────────────────────────
   deleteRule: protectedProcedure
     .input(z.object({ id: z.number() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      if (!canAccessGlobalAdminProcedures(ctx.user)) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Platform access required" });
+      }
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       await db.delete(serviceSlaRules).where(eq(serviceSlaRules.id, input.id));

@@ -879,3 +879,29 @@ describe("sanad.addCatalogueItem", () => {
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 });
+
+describe("sla service rule management", () => {
+  it("rejects company users for listRules", async () => {
+    const ctx = makeCtx({ role: "user", platformRole: "company_member" });
+    await expect(appRouter.createCaller(ctx).sla.listRules()).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("rejects company users for upsertRule", async () => {
+    const ctx = makeCtx({ role: "user", platformRole: "company_member" });
+    await expect(
+      appRouter.createCaller(ctx).sla.upsertRule({
+        serviceType: "work_permit",
+        priority: "normal",
+        targetHours: 24,
+        escalationHours: 48,
+        breachAction: "notify",
+        isActive: true,
+      }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("rejects company users for deleteRule", async () => {
+    const ctx = makeCtx({ role: "user", platformRole: "company_member" });
+    await expect(appRouter.createCaller(ctx).sla.deleteRule({ id: 1 })).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+});

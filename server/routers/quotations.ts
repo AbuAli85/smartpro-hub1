@@ -302,7 +302,9 @@ Terms: ${quotation.terms ?? "Payment due within 30 days. All prices in Omani Ria
       const rawContent = htmlResponse.choices[0]?.message?.content;
       const htmlContent = typeof rawContent === "string" ? rawContent : "<html><body>Quotation</body></html>";
       const htmlBuffer = Buffer.from(htmlContent, "utf-8");
-      const fileKey = `quotations/${quotation.referenceNumber}-${Date.now()}.html`;
+      const tenantSeg =
+        quotation.companyId != null ? String(quotation.companyId) : `creator-${quotation.createdBy}`;
+      const fileKey = `quotations/${tenantSeg}/${quotation.referenceNumber}-${Date.now()}.html`;
       const { url: pdfUrl } = await storagePut(fileKey, htmlBuffer, "text/html");
 
       await db

@@ -6,7 +6,7 @@
 import { z } from "zod";
 import { canAccessGlobalAdminProcedures } from "@shared/rbac";
 import { router, protectedProcedure } from "../_core/trpc";
-import { getDb, getUserCompany } from "../db";
+import { getDb } from "../db";
 import { TRPCError } from "@trpc/server";
 import {
   companies, contracts, proServices,
@@ -16,14 +16,17 @@ import {
   sanadApplications, sanadOffices,
 } from "../../drizzle/schema";
 import { eq, and, desc, asc, lte, gte, or, isNotNull } from "drizzle-orm";
+import { requireActiveCompanyId } from "../_core/tenant";
+import type { User } from "../../drizzle/schema";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-/** Active company for portal routes; platform staff use admin surfaces, not this helper. */
-async function getClientCompanyId(user: { id: number; role: string; platformRole?: string | null }): Promise<number | null> {
-  if (canAccessGlobalAdminProcedures(user)) return null;
-  const m = await getUserCompany(user.id);
-  return m?.company?.id ?? null;
+/** Client portal is company-only; platform staff must use admin routers. */
+async function requirePortalCompanyId(user: User): Promise<number> {
+  if (canAccessGlobalAdminProcedures(user)) {
+    throw new TRPCError({ code: "FORBIDDEN", message: "Client portal is for company accounts" });
+  }
+  return requireActiveCompanyId(user.id);
 }
 
 // ─── Router ───────────────────────────────────────────────────────────────────
@@ -34,8 +37,7 @@ export const clientPortalRouter = router({
    * Dashboard KPI summary for the client's company
    */
   getDashboard: protectedProcedure.query(async ({ ctx }) => {
-    const companyId = await getClientCompanyId(ctx.user);
-    if (!companyId) throw new TRPCError({ code: "FORBIDDEN", message: "No company associated with your account" });
+    const companyId = await requirePortalCompanyId(ctx.user as User);
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
@@ -117,8 +119,7 @@ export const clientPortalRouter = router({
       pageSize: z.number().default(20),
     }))
     .query(async ({ ctx, input }) => {
-      const companyId = await getClientCompanyId(ctx.user);
-      if (!companyId) throw new TRPCError({ code: "FORBIDDEN" });
+      const companyId = await requirePortalCompanyId(ctx.user as User);
       const db = await getDb();
       if (!db) return { items: [], total: 0 };
 
@@ -151,8 +152,7 @@ export const clientPortalRouter = router({
       pageSize: z.number().default(20),
     }))
     .query(async ({ ctx, input }) => {
-      const companyId = await getClientCompanyId(ctx.user);
-      if (!companyId) throw new TRPCError({ code: "FORBIDDEN" });
+      const companyId = await requirePortalCompanyId(ctx.user as User);
       const db = await getDb();
       if (!db) return { items: [], total: 0 };
 
@@ -191,8 +191,7 @@ export const clientPortalRouter = router({
       pageSize: z.number().default(20),
     }))
     .query(async ({ ctx, input }) => {
-      const companyId = await getClientCompanyId(ctx.user);
-      if (!companyId) throw new TRPCError({ code: "FORBIDDEN" });
+      const companyId = await requirePortalCompanyId(ctx.user as User);
       const db = await getDb();
       if (!db) return { items: [], total: 0 };
 
@@ -219,8 +218,7 @@ export const clientPortalRouter = router({
       pageSize: z.number().default(20),
     }))
     .query(async ({ ctx, input }) => {
-      const companyId = await getClientCompanyId(ctx.user);
-      if (!companyId) throw new TRPCError({ code: "FORBIDDEN" });
+      const companyId = await requirePortalCompanyId(ctx.user as User);
       const db = await getDb();
       if (!db) return { items: [], total: 0 };
 
@@ -256,8 +254,7 @@ export const clientPortalRouter = router({
       pageSize: z.number().default(20),
     }))
     .query(async ({ ctx, input }) => {
-      const companyId = await getClientCompanyId(ctx.user);
-      if (!companyId) throw new TRPCError({ code: "FORBIDDEN" });
+      const companyId = await requirePortalCompanyId(ctx.user as User);
       const db = await getDb();
       if (!db) return { items: [], total: 0 };
 
@@ -288,8 +285,7 @@ export const clientPortalRouter = router({
   getExpiryAlerts: protectedProcedure
     .input(z.object({ daysAhead: z.number().default(90) }))
     .query(async ({ ctx, input }) => {
-      const companyId = await getClientCompanyId(ctx.user);
-      if (!companyId) throw new TRPCError({ code: "FORBIDDEN" });
+      const companyId = await requirePortalCompanyId(ctx.user as User);
       const db = await getDb();
       if (!db) return { items: [] };
 
@@ -365,8 +361,7 @@ export const clientPortalRouter = router({
       category: z.enum(["general", "billing", "contract", "pro_service", "government_case", "technical"]).default("general"),
     }))
     .mutation(async ({ ctx, input }) => {
-      const companyId = await getClientCompanyId(ctx.user);
-      if (!companyId) throw new TRPCError({ code: "FORBIDDEN" });
+      const companyId = await requirePortalCompanyId(ctx.user as User);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
@@ -442,20 +437,21 @@ export const clientPortalRouter = router({
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      const companyId = await getClientCompanyId(ctx.user);
+      const companyId = await requirePortalCompanyId(ctx.user as User);
       let companyName = "Unknown Company";
       let companyCr: string | undefined;
-      if (companyId) {
-        const [co] = await db.select({ name: companies.name, regNumber: companies.registrationNumber })
-          .from(companies).where(eq(companies.id, companyId)).limit(1);
-        if (co) { companyName = co.name; companyCr = co.regNumber ?? undefined; }
+      const [co] = await db.select({ name: companies.name, regNumber: companies.registrationNumber })
+        .from(companies).where(eq(companies.id, companyId)).limit(1);
+      if (co) {
+        companyName = co.name;
+        companyCr = co.regNumber ?? undefined;
       }
       const [office] = await db.select({ id: sanadOffices.id }).from(sanadOffices).limit(1);
       if (!office) throw new TRPCError({ code: "NOT_FOUND", message: "No Sanad office configured" });
       const { sanadServiceRequests } = await import("../../drizzle/schema");
       const [result] = await db.insert(sanadServiceRequests).values({
         officeId: office.id,
-        requesterCompanyId: companyId ?? undefined,
+        requesterCompanyId: companyId,
         requesterUserId: ctx.user.id,
         serviceType: input.serviceType,
         contactName: input.contactName,
@@ -476,8 +472,7 @@ export const clientPortalRouter = router({
   listMyDocuments: protectedProcedure.query(async ({ ctx }) => {
     const db = await getDb();
     if (!db) return [];
-    const companyId = await getClientCompanyId(ctx.user);
-    if (!companyId) return [];
+    const companyId = await requirePortalCompanyId(ctx.user as User);
     const contractDocs = await db.select({
       id: contracts.id,
       type: contracts.type,
@@ -509,8 +504,7 @@ export const clientPortalRouter = router({
   getUpcomingRenewals: protectedProcedure.query(async ({ ctx }) => {
     const db = await getDb();
     if (!db) return [];
-    const companyId = await getClientCompanyId(ctx.user);
-    if (!companyId) return [];
+    const companyId = await requirePortalCompanyId(ctx.user as User);
     const now = new Date();
     const in90 = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000);
     const permits = await db.select({

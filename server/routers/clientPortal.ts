@@ -4,6 +4,7 @@
  * All procedures are scoped to the authenticated user's company.
  */
 import { z } from "zod";
+import { canAccessGlobalAdminProcedures } from "@shared/rbac";
 import { router, protectedProcedure } from "../_core/trpc";
 import { getDb } from "../db";
 import { TRPCError } from "@trpc/server";
@@ -22,7 +23,7 @@ async function getClientCompanyId(user: { id: number; role: string; platformRole
   const db = await getDb();
   if (!db) return null;
   // Platform admins can see all — return null to indicate "all companies"
-  if (user.role === "admin") return null;
+  if (canAccessGlobalAdminProcedures(user)) return null;
   const [member] = await db
     .select({ companyId: companyMembers.companyId })
     .from(companyMembers)

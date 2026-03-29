@@ -560,6 +560,9 @@ function CustomReportBuilder() {
   const [dateRange, setDateRange] = useState("last_30_days");
   const [generated, setGenerated] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [serverSpec, setServerSpec] = useState<Record<string, unknown> | null>(null);
+
+  const buildSpecMutation = trpc.analytics.buildAdHocReportSpec.useMutation();
 
   const module = BUILDER_MODULES.find(m => m.id === selectedModule);
 
@@ -575,27 +578,35 @@ function CustomReportBuilder() {
       return;
     }
     setGenerating(true);
-    // Simulate report generation (real implementation would call a tRPC procedure)
-    await new Promise(r => setTimeout(r, 1200));
-    setGenerating(false);
-    setGenerated(true);
-    toast.success("Report generated successfully");
+    try {
+      const spec = await buildSpecMutation.mutateAsync({
+        name: reportName || undefined,
+        module: selectedModule as "contracts" | "pro" | "hr" | "crm" | "marketplace" | "sanad",
+        fields: selectedFields,
+        aggregation: aggregation as "Count" | "Sum" | "Average" | "Min" | "Max",
+        chartType: chartType as "Bar Chart" | "Line Chart" | "Pie Chart" | "Table",
+        dateRange: dateRange as "last_7_days" | "last_30_days" | "last_90_days" | "this_year" | "all_time",
+      });
+      setServerSpec(spec);
+      setGenerated(true);
+      toast.success("Report specification validated on server");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not generate report spec");
+    } finally {
+      setGenerating(false);
+    }
   };
 
   const handleExport = () => {
-    const reportData = {
-      name: reportName || `${selectedModule}_report`,
-      module: selectedModule,
-      fields: selectedFields,
-      aggregation,
-      chartType,
-      dateRange,
-      generatedAt: new Date().toISOString(),
-    };
-    const blob = new Blob([JSON.stringify(reportData, null, 2)], { type: "application/json" });
+    if (!serverSpec) {
+      toast.error("Generate the report first");
+      return;
+    }
+    const blob = new Blob([JSON.stringify(serverSpec, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url; a.download = `${reportData.name}-${Date.now()}.json`; a.click();
+    const name = typeof serverSpec.name === "string" ? serverSpec.name : "report";
+    a.href = url; a.download = `${name}-${Date.now()}.json`; a.click();
     URL.revokeObjectURL(url);
     toast.success("Report configuration exported");
   };
@@ -746,7 +757,7 @@ function CustomReportBuilder() {
                       <Download size={12} /> Export
                     </Button>
                   </div>
-                  <Button variant="outline" className="w-full gap-1 text-xs h-8" onClick={() => { setGenerated(false); setSelectedModule(""); setSelectedFields([]); setReportName(""); }}>
+                  <Button variant="outline" className="w-full gap-1 text-xs h-8" onClick={() => { setGenerated(false); setServerSpec(null); setSelectedModule(""); setSelectedFields([]); setReportName(""); }}>
                     Start New Report
                   </Button>
                 </div>

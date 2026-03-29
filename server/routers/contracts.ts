@@ -3,6 +3,7 @@ import { eq, asc } from "drizzle-orm";
 import { storagePut } from "../storage";
 import { nanoid } from "nanoid";
 import { z } from "zod";
+import { canAccessGlobalAdminProcedures } from "@shared/rbac";
 import {
   createContract,
   getAllContracts,
@@ -21,7 +22,7 @@ export const contractsRouter = router({
   list: protectedProcedure
     .input(z.object({ status: z.string().optional(), type: z.string().optional() }))
     .query(async ({ input, ctx }) => {
-      if (ctx.user.role === "admin") return getAllContracts({ status: input.status });
+      if (canAccessGlobalAdminProcedures(ctx.user)) return getAllContracts({ status: input.status });
       const membership = await getUserCompany(ctx.user.id);
       if (!membership) return [];
       return getContracts(membership.company.id, input);

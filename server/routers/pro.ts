@@ -1,5 +1,6 @@
 import { nanoid } from "nanoid";
 import { z } from "zod";
+import { canAccessGlobalAdminProcedures } from "@shared/rbac";
 import {
   createProService,
   getAllProServices,
@@ -29,7 +30,7 @@ export const proRouter = router({
   list: protectedProcedure
     .input(z.object({ status: z.string().optional(), serviceType: z.string().optional() }))
     .query(async ({ input, ctx }) => {
-      if (ctx.user.role === "admin") return getAllProServices({ status: input.status });
+      if (canAccessGlobalAdminProcedures(ctx.user)) return getAllProServices({ status: input.status });
       const membership = await getUserCompany(ctx.user.id);
       if (!membership) return [];
       return getProServices(membership.company.id, input);
@@ -44,7 +45,7 @@ export const proRouter = router({
   getStats: protectedProcedure.query(async ({ ctx }) => {
     const membership = await getUserCompany(ctx.user.id);
     const all =
-      ctx.user.role === "admin"
+      canAccessGlobalAdminProcedures(ctx.user)
         ? await getAllProServices({})
         : membership
           ? await getProServices(membership.company.id, {})

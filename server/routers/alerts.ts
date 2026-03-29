@@ -1,6 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import { and, asc, eq, gte, lte, or, sql } from "drizzle-orm";
 import { z } from "zod";
+import { canAccessGlobalAdminProcedures } from "@shared/rbac";
 import { getDb } from "../db";
 import {
   companies,
@@ -99,7 +100,7 @@ export const alertsRouter = router({
           lte(workPermits.expiryDate, cutoff),
         ];
         if (input?.companyId) conditions.push(eq(workPermits.companyId, input.companyId));
-        if (ctx.user.role !== "admin" && !input?.companyId) {
+        if (!canAccessGlobalAdminProcedures(ctx.user) && !input?.companyId) {
           // Non-admin: scope to their company
           const [member] = await db
             .select({ companyId: companies.id })

@@ -12,8 +12,9 @@
  */
 
 import { z } from "zod";
+import { canAccessGlobalAdminProcedures } from "@shared/rbac";
 import { and, asc, desc, eq, gte, isNull, lte, or, sql } from "drizzle-orm";
-import { getDb } from "../db";
+import { getDb, getUserCompany } from "../db";
 import {
   renewalWorkflowRules,
   renewalWorkflowRuns,
@@ -30,15 +31,15 @@ import { notifyOwner } from "../_core/notification";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-type Ctx = { user: { id: number; role: string; companyId?: number | null } };
-
-function getMemberCompanyId(ctx: Ctx) {
-  if (ctx.user.role === "platform_admin" || ctx.user.role === "super_admin") return null;
-  return ctx.user.companyId ?? null;
-}
-
-function isAdmin(ctx: Ctx) {
-  return ctx.user.role === "platform_admin" || ctx.user.role === "super_admin";
+/** Company scope for renewal rules/runs: null = platform staff (all tenants). */
+async function resolveWorkflowCompanyScope(user: {
+  id: number;
+  role?: string | null;
+  platformRole?: string | null;
+}): Promise<number | null> {
+  if (canAccessGlobalAdminProcedures(user)) return null;
+  const membership = await getUserCompany(user.id);
+  return membership?.company.id ?? null;
 }
 
 function requireDb(db: Awaited<ReturnType<typeof getDb>>) {
@@ -132,7 +133,7 @@ export const renewalWorkflowsRouter = router({
     }).optional())
     .query(async ({ ctx, input }) => {
       const db = requireDb(await getDb());
-      const companyId = getMemberCompanyId(ctx);
+      const companyId = await resolveWorkflowCompanyScope(ctx.user);
       const rows = await db
         .select()
         .from(renewalWorkflowRules)
@@ -165,8 +166,8 @@ export const renewalWorkflowsRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       const db = requireDb(await getDb());
-      const memberCompanyId = getMemberCompanyId(ctx);
-      const effectiveCompanyId = isAdmin(ctx) ? (input.companyId ?? null) : memberCompanyId;
+      const memberCompanyId = await resolveWorkflowCompanyScope(ctx.user);
+      const effectiveCompanyId = canAccessGlobalAdminProcedures(ctx.user) ? (input.companyId ?? null) : memberCompanyId;
 
       const [result] = await db.insert(renewalWorkflowRules).values({
         companyId: effectiveCompanyId,
@@ -205,7 +206,7 @@ export const renewalWorkflowsRouter = router({
       const [rule] = await db.select().from(renewalWorkflowRules).where(eq(renewalWorkflowRules.id, id)).limit(1);
       if (!rule) throw new TRPCError({ code: "NOT_FOUND" });
 
-      const companyId = getMemberCompanyId(ctx);
+      const companyId = await resolveWorkflowCompanyScope(ctx.user);
       if (companyId && rule.companyId !== null && rule.companyId !== companyId) {
         throw new TRPCError({ code: "FORBIDDEN" });
       }
@@ -220,7 +221,7 @@ export const renewalWorkflowsRouter = router({
       const db = requireDb(await getDb());
       const [rule] = await db.select().from(renewalWorkflowRules).where(eq(renewalWorkflowRules.id, input.id)).limit(1);
       if (!rule) throw new TRPCError({ code: "NOT_FOUND" });
-      const companyId = getMemberCompanyId(ctx);
+      const companyId = await resolveWorkflowCompanyScope(ctx.user);
       if (companyId && rule.companyId !== null && rule.companyId !== companyId) {
         throw new TRPCError({ code: "FORBIDDEN" });
       }
@@ -237,7 +238,7 @@ export const renewalWorkflowsRouter = router({
     }).optional())
     .query(async ({ ctx, input }) => {
       const db = requireDb(await getDb());
-      const companyId = getMemberCompanyId(ctx);
+      const companyId = await resolveWorkflowCompanyScope(ctx.user);
       const limit = input?.pageSize ?? 50;
       const offset = ((input?.page ?? 1) - 1) * limit;
 
@@ -264,7 +265,7 @@ export const renewalWorkflowsRouter = router({
       companyId: z.number().optional(),
     }).optional())
     .mutation(async ({ ctx, input }) => {
-      if (!isAdmin(ctx)) throw new TRPCError({ code: "FORBIDDEN", message: "Only platform admins can run the workflow engine" });
+      if (!canAccessGlobalAdminProcedures(ctx.user)) throw new TRPCError({ code: "FORBIDDEN", message: "Only platform admins can run the workflow engine" });
 
       const db = requireDb(await getDb());
       const dryRun = input?.dryRun ?? false;
@@ -483,7 +484,7 @@ export const renewalWorkflowsRouter = router({
   // ── Dashboard stats ────────────────────────────────────────────────────────
   getDashboard: protectedProcedure.query(async ({ ctx }) => {
     const db = requireDb(await getDb());
-    const companyId = getMemberCompanyId(ctx);
+    const companyId = await resolveWorkflowCompanyScope(ctx.user);
 
     const totalRulesRows = await db
       .select({ count: sql<number>`count(*)` })

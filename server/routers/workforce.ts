@@ -17,6 +17,7 @@ import {
   workPermits,
 } from "../../drizzle/schema";
 import type { User } from "../../drizzle/schema";
+import { isCompanyProvisioningAdmin, canAccessGlobalAdminProcedures } from "@shared/rbac";
 import { protectedProcedure, router } from "../_core/trpc";
 import { invokeLLM } from "../_core/llm";
 import { storagePut } from "../storage";
@@ -42,13 +43,7 @@ async function getMemberCompanyId(user: Pick<User, "id" | "name" | "email" | "ro
   if (rows[0]?.companyId) return rows[0].companyId;
 
   // 2. Auto-provision for admin / company_admin users who haven't completed onboarding
-  const isAdminUser =
-    user.role === "admin" ||
-    user.platformRole === "super_admin" ||
-    user.platformRole === "platform_admin" ||
-    user.platformRole === "company_admin";
-
-  if (!isAdminUser) return null;
+  if (!isCompanyProvisioningAdmin(user)) return null;
 
   // Create a default company for this admin
   const slug = `company-${user.id}-${Date.now()}`;
@@ -91,11 +86,7 @@ async function hasPermission(
   permission: string
 ): Promise<boolean> {
   // Platform-level admins bypass all permission checks
-  if (
-    user.role === "admin" ||
-    user.platformRole === "super_admin" ||
-    user.platformRole === "platform_admin"
-  ) return true;
+  if (canAccessGlobalAdminProcedures(user)) return true;
 
   const db = await getDb();
   if (!db) return false;

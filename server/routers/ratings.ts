@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { canAccessGlobalAdminProcedures } from "@shared/rbac";
 import { protectedProcedure, publicProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
 import {
@@ -299,7 +300,7 @@ export const ratingsRouter = router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
 
-      if (ctx.user.role !== "admin") {
+      if (!canAccessGlobalAdminProcedures(ctx.user)) {
         throw new TRPCError({ code: "FORBIDDEN", message: "Admin access required" });
       }
 
@@ -337,7 +338,7 @@ export const ratingsRouter = router({
       const db = await getDb();
       if (!db) return { ratings: [], total: 0 };
 
-      if (ctx.user.role !== "admin") {
+      if (!canAccessGlobalAdminProcedures(ctx.user)) {
         throw new TRPCError({ code: "FORBIDDEN", message: "Admin access required" });
       }
 

@@ -1,6 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import { and, desc, eq, sql, sum } from "drizzle-orm";
 import { z } from "zod";
+import { canAccessGlobalAdminProcedures } from "@shared/rbac";
 import { getDb } from "../db";
 import {
   officerCompanyAssignments,
@@ -37,7 +38,7 @@ export const billingRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
-      if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      if (!canAccessGlobalAdminProcedures(ctx.user)) throw new TRPCError({ code: "FORBIDDEN" });
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
@@ -91,7 +92,7 @@ export const billingRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
-      if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      if (!canAccessGlobalAdminProcedures(ctx.user)) throw new TRPCError({ code: "FORBIDDEN" });
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       await db
@@ -113,7 +114,7 @@ export const billingRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
-      if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      if (!canAccessGlobalAdminProcedures(ctx.user)) throw new TRPCError({ code: "FORBIDDEN" });
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       const updateData: Record<string, unknown> = {
@@ -143,7 +144,7 @@ export const billingRouter = router({
       }).optional()
     )
     .query(async ({ input, ctx }) => {
-      if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      if (!canAccessGlobalAdminProcedures(ctx.user)) throw new TRPCError({ code: "FORBIDDEN" });
       const db = await getDb();
       if (!db) return { invoices: [], summary: { total: 0, pending: 0, paid: 0, overdue: 0, totalOmr: 0, paidOmr: 0, pendingOmr: 0, overdueOmr: 0 } };
 
@@ -214,7 +215,7 @@ export const billingRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
-      if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      if (!canAccessGlobalAdminProcedures(ctx.user)) throw new TRPCError({ code: "FORBIDDEN" });
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
@@ -309,7 +310,7 @@ export const billingRouter = router({
       }).optional()
     )
     .query(async ({ input, ctx }) => {
-      if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      if (!canAccessGlobalAdminProcedures(ctx.user)) throw new TRPCError({ code: "FORBIDDEN" });
       const db = await getDb();
       if (!db) return [];
 
@@ -360,7 +361,7 @@ export const billingRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
-      if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      if (!canAccessGlobalAdminProcedures(ctx.user)) throw new TRPCError({ code: "FORBIDDEN" });
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       const updateData: Record<string, unknown> = { status: input.status, updatedAt: new Date() };
@@ -374,7 +375,7 @@ export const billingRouter = router({
    * Aged Receivables — group overdue invoices into age buckets
    */
   getAgedReceivables: protectedProcedure.query(async ({ ctx }) => {
-    if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+    if (!canAccessGlobalAdminProcedures(ctx.user)) throw new TRPCError({ code: "FORBIDDEN" });
     const db = await getDb();
     if (!db) return [];
     const now = new Date();
@@ -402,7 +403,7 @@ export const billingRouter = router({
    * Revenue Trend — last 6 months invoiced vs collected (OMR)
    */
   getRevenueTrend: protectedProcedure.query(async ({ ctx }) => {
-    if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+    if (!canAccessGlobalAdminProcedures(ctx.user)) throw new TRPCError({ code: "FORBIDDEN" });
     const db = await getDb();
     if (!db) return [];
     const now = new Date();
@@ -424,7 +425,7 @@ export const billingRouter = router({
    * Top Clients by Revenue — top 10 companies by total invoiced OMR
    */
   getTopClients: protectedProcedure.query(async ({ ctx }) => {
-    if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+    if (!canAccessGlobalAdminProcedures(ctx.user)) throw new TRPCError({ code: "FORBIDDEN" });
     const db = await getDb();
     if (!db) return [];
     const rows = await db
@@ -448,7 +449,7 @@ export const billingRouter = router({
    * Mark overdue invoices — any pending invoice past due date becomes overdue.
    */
   markOverdueInvoices: protectedProcedure.mutation(async ({ ctx }) => {
-    if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+    if (!canAccessGlobalAdminProcedures(ctx.user)) throw new TRPCError({ code: "FORBIDDEN" });
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
     const now = new Date();

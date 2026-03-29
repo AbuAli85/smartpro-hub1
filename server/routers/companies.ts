@@ -2,6 +2,7 @@ import { TRPCError } from "@trpc/server";
 import { and, desc, eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { z } from "zod";
+import { canAccessGlobalAdminProcedures } from "@shared/rbac";
 import {
   createCompany,
   getCompanies,
@@ -11,8 +12,8 @@ import {
   getSubscriptionPlans,
   getUserCompany,
   updateCompany,
+  getDb,
 } from "../db";
-import { getDb } from "../db";
 import { companyMembers, users } from "../../drizzle/schema";
 import { protectedProcedure, router } from "../_core/trpc";
 
@@ -32,7 +33,7 @@ async function assertCompanyAdmin(userId: number, companyId: number) {
 
 export const companiesRouter = router({
   list: protectedProcedure.query(async ({ ctx }) => {
-    if (ctx.user.role !== "admin") {
+    if (!canAccessGlobalAdminProcedures(ctx.user)) {
       const membership = await getUserCompany(ctx.user.id);
       return membership ? [membership.company] : [];
     }
@@ -96,7 +97,7 @@ export const companiesRouter = router({
     .mutation(async ({ input, ctx }) => {
       const { id, ...data } = input;
       // Must be company_admin or platform admin
-      if (ctx.user.role !== "admin") await assertCompanyAdmin(ctx.user.id, id);
+      if (!canAccessGlobalAdminProcedures(ctx.user)) await assertCompanyAdmin(ctx.user.id, id);
       await updateCompany(id, data);
       return { success: true };
     }),
@@ -152,7 +153,7 @@ export const companiesRouter = router({
       // Verify the member belongs to the caller's company
       const membership = await getUserCompany(ctx.user.id);
       if (!membership) throw new TRPCError({ code: "FORBIDDEN" });
-      if (ctx.user.role !== "admin") await assertCompanyAdmin(ctx.user.id, membership.company.id);
+      if (!canAccessGlobalAdminProcedures(ctx.user)) await assertCompanyAdmin(ctx.user.id, membership.company.id);
       // Prevent self-demotion if last admin
       const [target] = await db
         .select({ userId: companyMembers.userId, role: companyMembers.role })
@@ -180,7 +181,7 @@ export const companiesRouter = router({
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       const membership = await getUserCompany(ctx.user.id);
       if (!membership) throw new TRPCError({ code: "FORBIDDEN" });
-      if (ctx.user.role !== "admin") await assertCompanyAdmin(ctx.user.id, membership.company.id);
+      if (!canAccessGlobalAdminProcedures(ctx.user)) await assertCompanyAdmin(ctx.user.id, membership.company.id);
       const [target] = await db
         .select({ userId: companyMembers.userId })
         .from(companyMembers)
@@ -200,7 +201,7 @@ export const companiesRouter = router({
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       const membership = await getUserCompany(ctx.user.id);
       if (!membership) throw new TRPCError({ code: "FORBIDDEN" });
-      if (ctx.user.role !== "admin") await assertCompanyAdmin(ctx.user.id, membership.company.id);
+      if (!canAccessGlobalAdminProcedures(ctx.user)) await assertCompanyAdmin(ctx.user.id, membership.company.id);
       const [target] = await db
         .select({ id: companyMembers.id })
         .from(companyMembers)
@@ -222,7 +223,7 @@ export const companiesRouter = router({
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       const membership = await getUserCompany(ctx.user.id);
       if (!membership) throw new TRPCError({ code: "FORBIDDEN" });
-      if (ctx.user.role !== "admin") await assertCompanyAdmin(ctx.user.id, membership.company.id);
+      if (!canAccessGlobalAdminProcedures(ctx.user)) await assertCompanyAdmin(ctx.user.id, membership.company.id);
       // Find user by email
       const [targetUser] = await db
         .select({ id: users.id, name: users.name })

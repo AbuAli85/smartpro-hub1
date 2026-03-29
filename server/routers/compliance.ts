@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { canAccessGlobalAdminProcedures } from "@shared/rbac";
 import { protectedProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
 import { TRPCError } from "@trpc/server";
@@ -11,10 +12,10 @@ import {
 } from "../../drizzle/schema";
 import { eq, and, gte, lte, count, sum, sql, desc } from "drizzle-orm";
 
-async function resolveCompanyId(user: { id: number; role: string }): Promise<number | null> {
+async function resolveCompanyId(user: { id: number; role: string; platformRole?: string | null }): Promise<number | null> {
   const db = await getDb();
   if (!db) return null;
-  if (user.role === "admin") return null;
+  if (canAccessGlobalAdminProcedures(user)) return null;
   const { companyMembers: cm } = await import("../../drizzle/schema");
   const [member] = await db
     .select({ companyId: cm.companyId })

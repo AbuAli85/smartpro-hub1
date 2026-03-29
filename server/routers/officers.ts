@@ -2,6 +2,7 @@ import { TRPCError } from "@trpc/server";
 import { nanoid } from "nanoid";
 import { and, count, desc, eq, like, or, sql } from "drizzle-orm";
 import { z } from "zod";
+import { canAccessGlobalAdminProcedures } from "@shared/rbac";
 import { getDb } from "../db";
 import {
   companies,
@@ -501,7 +502,7 @@ export const officersRouter = router({
   generateMonthlyCertificates: protectedProcedure
     .input(z.object({ month: z.number().min(1).max(12), year: z.number().min(2024) }))
     .mutation(async ({ input, ctx }) => {
-      if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      if (!canAccessGlobalAdminProcedures(ctx.user)) throw new TRPCError({ code: "FORBIDDEN" });
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 

@@ -1,8 +1,8 @@
 import { z } from "zod";
+import { canAccessGlobalAdminProcedures } from "@shared/rbac";
 import {
   getAuditLogs,
   getCompanyStats,
-  getCompanySubscription,
   getCrmDeals,
   getEmployees,
   getPlatformStats,
@@ -22,9 +22,21 @@ import {
 import { protectedProcedure, router } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 
+async function assertScheduledReportInCompany(reportId: number, companyId: number): Promise<void> {
+  const reports = await getAnalyticsReports(companyId);
+  if (!reports.some((r) => r.id === reportId)) {
+    throw new TRPCError({ code: "NOT_FOUND", message: "Report not found" });
+  }
+}
+
+const adHocModuleSchema = z.enum(["contracts", "pro", "hr", "crm", "marketplace", "sanad"]);
+const adHocAggregationSchema = z.enum(["Count", "Sum", "Average", "Min", "Max"]);
+const adHocChartSchema = z.enum(["Bar Chart", "Line Chart", "Pie Chart", "Table"]);
+const adHocDateRangeSchema = z.enum(["last_7_days", "last_30_days", "last_90_days", "this_year", "all_time"]);
+
 export const analyticsRouter = router({
   platformStats: protectedProcedure.query(async ({ ctx }) => {
-    if (ctx.user.role !== "admin") return null;
+    if (!canAccessGlobalAdminProcedures(ctx.user)) return null;
     return getPlatformStats();
   }),
 
@@ -104,7 +116,7 @@ export const analyticsRouter = router({
   auditLogs: protectedProcedure
     .input(z.object({ limit: z.number().default(50) }))
     .query(async ({ input, ctx }) => {
-      if (ctx.user.role !== "admin") {
+      if (!canAccessGlobalAdminProcedures(ctx.user)) {
         const membership = await getUserCompany(ctx.user.id);
         return getAuditLogs(membership?.company.id, input.limit);
       }
@@ -152,33 +164,75 @@ export const analyticsRouter = router({
 
   updateReportStatus: protectedProcedure
     .input(z.object({ id: z.number(), status: z.enum(["active", "paused"]) }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      const membership = await getUserCompany(ctx.user.id);
+      if (!membership) throw new TRPCError({ code: "FORBIDDEN" });
+      await assertScheduledReportInCompany(input.id, membership.company.id);
       await updateAnalyticsReport(input.id, { status: input.status });
       return { success: true };
     }),
 
   deleteReport: protectedProcedure
     .input(z.object({ id: z.number() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      const membership = await getUserCompany(ctx.user.id);
+      if (!membership) throw new TRPCError({ code: "FORBIDDEN" });
+      await assertScheduledReportInCompany(input.id, membership.company.id);
       await deleteAnalyticsReport(input.id);
       return { success: true };
     }),
 
   runReportNow: protectedProcedure
     .input(z.object({ id: z.number() }))
-    .mutation(async ({ input }) => {
-      // Mark lastRunAt = now and recalculate nextRunAt
-      const reports = await getAnalyticsReports(0); // will get by id below
-      void reports; // just update lastRunAt
+    .mutation(async ({ input, ctx }) => {
+      const membership = await getUserCompany(ctx.user.id);
+      if (!membership) throw new TRPCError({ code: "FORBIDDEN" });
+      await assertScheduledReportInCompany(input.id, membership.company.id);
       await updateAnalyticsReport(input.id, { lastRunAt: new Date() });
       return { success: true };
+    }),
+
+  /**
+   * Server-validated ad-hoc report specification (export + preview metadata).
+   * Row execution against warehouse/DB is a future enhancement.
+   */
+  buildAdHocReportSpec: protectedProcedure
+    .input(
+      z.object({
+        name: z.string().max(200).optional(),
+        module: adHocModuleSchema,
+        fields: z.array(z.string().min(1).max(64)).min(1).max(32),
+        aggregation: adHocAggregationSchema,
+        chartType: adHocChartSchema,
+        dateRange: adHocDateRangeSchema,
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      const membership = await getUserCompany(ctx.user.id);
+      if (!membership) throw new TRPCError({ code: "FORBIDDEN" });
+      const trimmedName = input.name?.trim();
+      const generatedAt = new Date().toISOString();
+      return {
+        version: 1 as const,
+        name: trimmedName && trimmedName.length > 0 ? trimmedName : `${input.module}_report`,
+        module: input.module,
+        fields: input.fields,
+        aggregation: input.aggregation,
+        chartType: input.chartType,
+        dateRange: input.dateRange,
+        generatedAt,
+        companyId: membership.company.id,
+        generatedByUserId: ctx.user.id,
+        executionNote:
+          "Server-validated specification only; aggregated row data is not executed in this version.",
+      };
     }),
 
   // ── System Settings ────────────────────────────────────────────────────────
   getSettings: protectedProcedure
     .input(z.object({ category: z.string().optional() }))
     .query(async ({ input, ctx }) => {
-      if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      if (!canAccessGlobalAdminProcedures(ctx.user)) throw new TRPCError({ code: "FORBIDDEN" });
       return getSystemSettings(input.category);
     }),
 
@@ -187,7 +241,7 @@ export const analyticsRouter = router({
       settings: z.array(z.object({ key: z.string(), value: z.string() })),
     }))
     .mutation(async ({ input, ctx }) => {
-      if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      if (!canAccessGlobalAdminProcedures(ctx.user)) throw new TRPCError({ code: "FORBIDDEN" });
       await upsertSystemSettings(input.settings, ctx.user.id);
       return { success: true };
     }),

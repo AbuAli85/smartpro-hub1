@@ -2,6 +2,7 @@ import { TRPCError } from "@trpc/server";
 import { nanoid } from "nanoid";
 import { and, avg, count, desc, eq, gte, sql } from "drizzle-orm";
 import { z } from "zod";
+import { canAccessGlobalAdminProcedures } from "@shared/rbac";
 import { getDb } from "../db";
 import {
   companies,
@@ -81,7 +82,7 @@ export const sanadRouter = router({
       }).optional()
     )
     .query(async ({ ctx, input }) => {
-      const offices = ctx.user.role === "admin"
+      const offices = canAccessGlobalAdminProcedures(ctx.user)
         ? await getAllSanadOffices()
         : await getSanadOffices(0);
       let results = offices as any[];
@@ -132,7 +133,7 @@ export const sanadRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
-      if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN", message: "Only admins can register service providers" });
+      if (!canAccessGlobalAdminProcedures(ctx.user)) throw new TRPCError({ code: "FORBIDDEN", message: "Only admins can register service providers" });
       await createSanadOffice({ ...input } as any);
       return { success: true };
     }),
@@ -161,7 +162,7 @@ export const sanadRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
-      if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      if (!canAccessGlobalAdminProcedures(ctx.user)) throw new TRPCError({ code: "FORBIDDEN" });
       const { id, ...data } = input;
       await updateSanadOffice(id, data as any);
       return { success: true };
@@ -179,7 +180,7 @@ export const sanadRouter = router({
       }).optional()
     )
     .query(async ({ input, ctx }) => {
-      if (ctx.user.role === "admin") {
+      if (canAccessGlobalAdminProcedures(ctx.user)) {
         return getAllSanadApplications({ status: input?.status });
       }
       const membership = await getUserCompany(ctx.user.id);
@@ -673,7 +674,7 @@ export const sanadRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
-      if (ctx.user.role !== "admin") throw new Error("FORBIDDEN");
+      if (!canAccessGlobalAdminProcedures(ctx.user)) throw new Error("FORBIDDEN");
       const db = await getDb();
       if (!db) throw new Error("DB unavailable");
       const { officeId, ...fields } = input;
@@ -722,7 +723,7 @@ export const sanadRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
-      if (ctx.user.role !== "admin") throw new Error("FORBIDDEN");
+      if (!canAccessGlobalAdminProcedures(ctx.user)) throw new Error("FORBIDDEN");
       const db = await getDb();
       if (!db) throw new Error("DB unavailable");
       if (input.id) {
@@ -759,7 +760,7 @@ export const sanadRouter = router({
   deleteServiceItem: protectedProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input, ctx }) => {
-      if (ctx.user.role !== "admin") throw new Error("FORBIDDEN");
+      if (!canAccessGlobalAdminProcedures(ctx.user)) throw new Error("FORBIDDEN");
       const db = await getDb();
       if (!db) throw new Error("DB unavailable");
       await db.delete(sanadServiceCatalogue).where(eq(sanadServiceCatalogue.id, input.id));
@@ -804,7 +805,7 @@ export const sanadRouter = router({
   listServiceRequests: protectedProcedure
     .input(z.object({ officeId: z.number(), status: z.string().optional() }))
     .query(async ({ input, ctx }) => {
-      if (ctx.user.role !== "admin") throw new Error("FORBIDDEN");
+      if (!canAccessGlobalAdminProcedures(ctx.user)) throw new Error("FORBIDDEN");
       const db = await getDb();
       if (!db) return [];
       const conditions = [eq(sanadServiceRequests.officeId, input.officeId)];
@@ -825,7 +826,7 @@ export const sanadRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
-      if (ctx.user.role !== "admin") throw new Error("FORBIDDEN");
+      if (!canAccessGlobalAdminProcedures(ctx.user)) throw new Error("FORBIDDEN");
       const db = await getDb();
       if (!db) throw new Error("DB unavailable");
       await db
@@ -1004,12 +1005,12 @@ export const sanadRouter = router({
 
   // ─── Legacy aliases (backward compat) ────────────────────────────────────
   listOffices: protectedProcedure.query(async ({ ctx }) => {
-    return ctx.user.role === "admin" ? getAllSanadOffices() : getSanadOffices(0);
+    return canAccessGlobalAdminProcedures(ctx.user) ? getAllSanadOffices() : getSanadOffices(0);
   }),
   listApplications: protectedProcedure
     .input(z.object({ status: z.string().optional(), type: z.string().optional() }).optional())
     .query(async ({ input, ctx }) => {
-      if (ctx.user.role === "admin") return getAllSanadApplications({ status: input?.status });
+      if (canAccessGlobalAdminProcedures(ctx.user)) return getAllSanadApplications({ status: input?.status });
       const membership = await getUserCompany(ctx.user.id);
       if (!membership) return [];
       return getSanadApplications(membership.company.id, input ?? {});

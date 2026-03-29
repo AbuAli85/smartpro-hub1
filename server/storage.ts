@@ -1,6 +1,13 @@
-// Preconfigured storage helpers for Manus WebDev templates
-// Uses the Biz-provided storage proxy (Authorization: Bearer <token>)
-
+/**
+ * Forge storage proxy helpers (`BUILT_IN_FORGE_API_URL` / `BUILT_IN_FORGE_API_KEY`).
+ *
+ * **Access model:** `storagePut` returns a URL minted by the proxy; routers must only return
+ * that URL (or DB-persisted copies) after normal tenant/RBAC checks on the owning row.
+ * `storageGet` requests a fresh signed download URL for a key — it is **not** used by any
+ * tRPC router today; any future caller must re-validate tenant ownership of the key/path
+ * before invoking it. Treat returned URLs as sensitive; TTL/expiration is defined by the
+ * Forge proxy, not this repo.
+ */
 import { ENV } from './_core/env';
 
 type StorageConfig = { baseUrl: string; apiKey: string };
@@ -49,6 +56,26 @@ function normalizeKey(relKey: string): string {
   return relKey.replace(/^\/+/, "");
 }
 
+/**
+ * When Forge is configured, client-supplied URLs that claim to point at uploaded objects
+ * should share the same origin as `forgeApiUrl` (the storage API base). Skip when unset
+ * (e.g. tests) so offline flows keep working.
+ */
+export function fileUrlMatchesConfiguredStorage(
+  fileUrl: string,
+  forgeApiUrl: string | undefined
+): boolean {
+  const base = forgeApiUrl?.trim();
+  if (!base) return true;
+  try {
+    const normalized = base.endsWith("/") ? base : `${base}/`;
+    const expectedOrigin = new URL(normalized).origin;
+    return new URL(fileUrl).origin === expectedOrigin;
+  } catch {
+    return false;
+  }
+}
+
 function toFormData(
   data: Buffer | Uint8Array | string,
   contentType: string,
@@ -67,6 +94,7 @@ function buildAuthHeaders(apiKey: string): HeadersInit {
   return { Authorization: `Bearer ${apiKey}` };
 }
 
+/** Upload bytes; returns proxy-issued URL. Caller must enforce tenant scope before exposing the URL. */
 export async function storagePut(
   relKey: string,
   data: Buffer | Uint8Array | string,
@@ -92,6 +120,11 @@ export async function storagePut(
   return { key, url };
 }
 
+/**
+ * Mint a signed download URL for `relKey` via the storage proxy.
+ * **Do not** expose to end users without proving the active principal may access that key
+ * (e.g. join to a tenant-scoped row whose stored path matches).
+ */
 export async function storageGet(relKey: string): Promise<{ key: string; url: string; }> {
   const { baseUrl, apiKey } = getStorageConfig();
   const key = normalizeKey(relKey);

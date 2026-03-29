@@ -64,7 +64,43 @@ See `.env.example` at the repo root.
 - **Renewal workflows:** Company scope uses `resolvePlatformOrCompanyScope` (same as operations). Users without active membership can no longer list all rules or mutate arbitrary rules. Tenant **update/delete** is allowed only when `rule.companyId` matches their company (global template rules with `companyId` null are **not** mutable by tenants); cross-tenant id probes return **NOT_FOUND**.
 - **Client portal:** `requirePortalCompanyId` uses `requireActiveCompanyId` and rejects platform accounts with a clear `FORBIDDEN` (portal is company-only).
 - **Quotations:** Generated quotation HTML uploads use storage keys under `quotations/{companyId|creator-{userId}}/…` so objects are partitioned by tenant or legacy creator.
-- **Storage:** `storagePut` / `storageGet` are server-only; there is **no** authenticated download API in-repo yet—any future wrapper must re-check tenant before returning signed URLs. Keys should embed tenant (or platform-only namespaces): **contracts** use `contracts/{companyId}/…` and **signatures** `signatures/{companyId}/{contractId}/…`; **compliance certificates** from officers use `certificates/{companyId}/{year}/{month}/…`; payroll WPS/payslips and reports already prefix with company where applicable. Forge **`generateImage`** uploads use `generated/{uuid}.png` (no tenant until a call site passes user/company context). **`officers.generateCertificate`** is callable by **platform** or **company members for their own `companyId` only** (`assertRowBelongsToActiveCompany`); dedicated PRO-officer accounts without company membership may need a future assignment-based rule. **`officers.listCertificates`:** company users are scoped to the active company; optional `companyId` must match or the API returns **NOT_FOUND**; platform users may filter by `companyId` or list all.
+- **Storage / downloads:** See **Storage and download access policy** below. Summary: `storagePut` / `storageGet` are server-only; routers do not import `storageGet` today. **`officers.listCertificates`** scopes tenants as documented earlier; **`officers.generateCertificate`** uses `assertRowBelongsToActiveCompany` for non-platform callers.
+
+## Storage and download access policy
+
+### Paths that surface stored artifacts
+
+- **Upload + return URL:** Authorized procedures call `storagePut`, then return the proxy-issued `url` and/or persist it on tenant-scoped rows (`pdfUrl`, `letterUrl`, `payslipUrl`, `fileUrl`, etc.). Callers must complete RBAC/tenant checks *before* upload and before returning the URL.
+- **Inline export:** `contracts.exportHtml` returns generated HTML in the response body (no storage read).
+- **Metadata lists:** e.g. client portal `listMyDocuments` returns URLs only for rows already filtered by `requirePortalCompanyId` and `companyId` joins.
+- **`storageGet`:** Requests a fresh signed URL from Forge `v1/storage/downloadUrl`. **No tRPC route uses it.** Any future authenticated download wrapper must: resolve the owning row in the DB, enforce tenant/RBAC (prefer shared helpers), verify the stored key/path belongs to that row, then call `storageGet`.
+
+### Key partitioning (classification)
+
+| Pattern | Classification |
+|---------|----------------|
+| `company/{companyId}/…` | Tenant — workforce documents; MOL ingestion requires `fileKey` under this prefix and, when Forge is configured, `fileUrl` origin must match `BUILT_IN_FORGE_API_URL` (`fileUrlMatchesConfiguredStorage`). |
+| `contracts/{companyId}/…`, `signatures/{companyId}/…` | Tenant — contract HTML/PDF exports and signature images. |
+| `certificates/{companyId}/…` | Tenant — officer-generated compliance certificate HTML. |
+| `quotations/{companyId\|creator-{userId}}/…` | Tenant or legacy creator-scoped quotation exports. |
+| `offer-letters/{companyId}/…` | Tenant — recruitment offer letters. |
+| `payslips/{companyId}/…`, `wps/{companyId}/…` | Tenant — payroll artifacts. |
+| `reports/billing/…`, `reports/payslips/…`, `reports/workforce/…`, `reports/compliance/…` (with `{companyId}`) | Tenant — company-user PDF reports. |
+| `reports/officer-payouts/{officerId}-…` | **Platform-only** — `generateOfficerPayoutReport` (platform gate). |
+| `generated/{uuid}.png` | Shared namespace — Forge image helper; UUID reduces guessability; **no tenant prefix** until a router supplies context. |
+
+Avoid fallback tenant segments such as `0` for real tenant data; contract paths rely on `assertRowBelongsToActiveCompany` so `companyId` is never null for scoped exports.
+
+### Signed URLs and TTL
+
+- URLs are minted by the Forge storage proxy (`v1/storage/upload` response and `v1/storage/downloadUrl`). **TTL, revocation, and CDN behavior are not defined in this repo** — treat returned URLs as sensitive; do not use them as cross-tenant capability tokens.
+- Prefer returning URLs only immediately after an authorized action, or loading them from DB fields that are already protected by scoped queries.
+
+### Intentional platform / global exceptions
+
+- Platform-only report keys under `reports/officer-payouts/…`.
+- `officers.listCertificates` without `companyId` for platform staff lists certificate rows across tenants (ops visibility).
+- `generated/{uuid}.png` is not tenant-scoped (see table).
 
 ## Production startup
 

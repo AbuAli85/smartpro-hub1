@@ -1,4 +1,5 @@
 import { TRPCError } from "@trpc/server";
+import { ENV } from "../_core/env";
 import { and, asc, desc, eq, gte, ilike, isNotNull, lt, lte, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { getDb, getUserCompany } from "../db";
@@ -20,7 +21,7 @@ import type { User } from "../../drizzle/schema";
 import { isCompanyProvisioningAdmin, canAccessGlobalAdminProcedures } from "@shared/rbac";
 import { protectedProcedure, router } from "../_core/trpc";
 import { invokeLLM } from "../_core/llm";
-import { storagePut } from "../storage";
+import { fileUrlMatchesConfiguredStorage, storagePut } from "../storage";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -527,6 +528,12 @@ export const workforceRouter = router({
           throw new TRPCError({
             code: "BAD_REQUEST",
             message: "Certificate must be uploaded to your company storage path before ingestion",
+          });
+        }
+        if (!fileUrlMatchesConfiguredStorage(input.fileUrl, ENV.forgeApiUrl)) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "fileUrl must use the configured storage host (same origin as BUILT_IN_FORGE_API_URL)",
           });
         }
 

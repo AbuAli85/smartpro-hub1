@@ -14,9 +14,13 @@ vi.mock("../_core/llm", () => ({
   invokeLLM: vi.fn().mockResolvedValue({ choices: [{ message: { content: "{}" } }] }),
 }));
 
-vi.mock("./storage", () => ({
-  storagePut: vi.fn().mockResolvedValue({ url: "https://cdn.example.com/test.pdf", key: "test.pdf" }),
-}));
+vi.mock("./storage", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./storage")>();
+  return {
+    ...actual,
+    storagePut: vi.fn().mockResolvedValue({ url: "https://cdn.example.com/test.pdf", key: "test.pdf" }),
+  };
+});
 
 import { getDb } from "./db";
 

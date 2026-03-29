@@ -688,3 +688,13 @@ As a business services provider in Oman/GCC, here is what I need every single da
 - [x] A11y: Add aria-hidden="true" to all decorative spinner/loading icons inside buttons
 - [x] A11y: Add skip-to-main-content link in PlatformLayout for keyboard users
 - [x] A11y: Add alt="" to decorative img in ManusDialog component
+
+## Phase 25: Role-Based Navigation
+
+- [x] Create shared/clientNav.ts with nav visibility rules per platformRole
+- [x] Create shared/clientNav.test.ts with unit tests for nav rules
+- [x] Create client/src/lib/navVisibility.ts for localStorage preferences
+- [x] Create client/src/pages/CompanyHubPage.tsx (department launchpad)
+- [x] Create client/src/pages/PreferencesPage.tsx (optional module toggles)
+- [x] Update PlatformLayout.tsx to filter sidebar by role + prefs + badges
+- [x] Update App.tsx to add /company/hub and /preferences routes

@@ -12,6 +12,7 @@ import { marketplaceRouter } from "./routers/marketplace";
 import { proRouter } from "./routers/pro";
 import { sanadRouter } from "./routers/sanad";
 import { workforceRouter } from "./routers/workforce";
+import { officersRouter } from "./routers/officers";
 
 export const appRouter = router({
   system: systemRouter,
@@ -35,6 +36,7 @@ export const appRouter = router({
   analytics: analyticsRouter,
   subscriptions: subscriptionsRouter,
   workforce: workforceRouter,
+  officers: officersRouter,
 });
 
 export type AppRouter = typeof appRouter;

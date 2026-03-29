@@ -34,6 +34,8 @@ import WorkforcePermitDetailPage from "./pages/WorkforcePermitDetailPage";
 import WorkforceEmployeeDetailPage from "./pages/WorkforceEmployeeDetailPage";
 import WorkforceCaseNewPage from "./pages/WorkforceCaseNewPage";
 import CompanyAdminPage from "./pages/CompanyAdminPage";
+import OmaniOfficersPage from "./pages/OmaniOfficersPage";
+import OfficerAssignmentPage from "./pages/OfficerAssignmentPage";
 
 function AppRoutes() {
   return (
@@ -68,6 +70,8 @@ function AppRoutes() {
         <Route path="/workforce/cases/new" component={WorkforceCaseNewPage} />
         {/* Company Admin */}
         <Route path="/company-admin" component={CompanyAdminPage} />
+        <Route path="/omani-officers" component={OmaniOfficersPage} />
+        <Route path="/officer-assignments" component={OfficerAssignmentPage} />
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />
       </Switch>

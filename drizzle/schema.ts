@@ -1252,3 +1252,77 @@ export type CaseStatusType =
   | "rejected"
   | "completed"
   | "cancelled";
+
+// ─── SHARED OMANI PRO — OFFICER REGISTRY ─────────────────────────────────────
+export const omaniProOfficers = mysqlTable(
+  "omani_pro_officers",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    fullName: varchar("full_name", { length: 255 }).notNull(),
+    fullNameAr: varchar("full_name_ar", { length: 255 }),
+    civilId: varchar("civil_id", { length: 50 }),
+    pasiNumber: varchar("pasi_number", { length: 100 }),
+    phone: varchar("phone", { length: 30 }),
+    email: varchar("email", { length: 255 }),
+    sanadOfficeId: int("sanad_office_id"),
+    employmentTrack: mysqlEnum("employment_track", ["platform", "sanad"]).notNull().default("platform"),
+    monthlySalary: decimal("monthly_salary", { precision: 10, scale: 3 }).notNull().default("500.000"),
+    maxCompanies: int("max_companies").notNull().default(10),
+    status: mysqlEnum("status", ["active", "inactive", "on_leave", "terminated"]).notNull().default("active"),
+    qualifications: text("qualifications"),
+    notes: text("notes"),
+    hiredAt: timestamp("hired_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  },
+  (t) => [index("idx_opo_status").on(t.status), index("idx_opo_track").on(t.employmentTrack)]
+);
+export type OmaniProOfficer = typeof omaniProOfficers.$inferSelect;
+export type InsertOmaniProOfficer = typeof omaniProOfficers.$inferInsert;
+
+// ─── SHARED OMANI PRO — COMPANY ASSIGNMENTS ───────────────────────────────────
+export const officerCompanyAssignments = mysqlTable(
+  "officer_company_assignments",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    officerId: int("officer_id").notNull(),
+    companyId: int("company_id").notNull(),
+    monthlyFee: decimal("monthly_fee", { precision: 10, scale: 3 }).notNull().default("100.000"),
+    status: mysqlEnum("status", ["active", "suspended", "terminated"]).notNull().default("active"),
+    assignedAt: timestamp("assigned_at").defaultNow().notNull(),
+    terminatedAt: timestamp("terminated_at"),
+    notes: text("notes"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  },
+  (t) => [
+    index("idx_oca_officer").on(t.officerId),
+    index("idx_oca_company").on(t.companyId),
+    index("idx_oca_status").on(t.status),
+  ]
+);
+export type OfficerCompanyAssignment = typeof officerCompanyAssignments.$inferSelect;
+export type InsertOfficerCompanyAssignment = typeof officerCompanyAssignments.$inferInsert;
+
+// ─── SHARED OMANI PRO — COMPLIANCE CERTIFICATES ──────────────────────────────
+export const complianceCertificates = mysqlTable(
+  "compliance_certificates",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    companyId: int("company_id").notNull(),
+    officerId: int("officer_id").notNull(),
+    periodMonth: int("period_month").notNull(),
+    periodYear: int("period_year").notNull(),
+    pdfUrl: varchar("pdf_url", { length: 1024 }),
+    certificateNumber: varchar("certificate_number", { length: 100 }),
+    workOrderCount: int("work_order_count").notNull().default(0),
+    generatedAt: timestamp("generated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("idx_cc_company").on(t.companyId),
+    index("idx_cc_officer").on(t.officerId),
+  ]
+);
+export type ComplianceCertificate = typeof complianceCertificates.$inferSelect;
+export type InsertComplianceCertificate = typeof complianceCertificates.$inferInsert;

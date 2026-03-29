@@ -19,6 +19,7 @@ import {
   Settings,
   Shield,
   ShoppingBag,
+  UserCheck,
   UserCircle,
   Users,
   X,
@@ -87,6 +88,13 @@ const navGroups = [
       { label: "Gov. Cases", href: "/workforce/cases", icon: <Briefcase size={18} /> },
       { label: "Document Vault", href: "/workforce/documents", icon: <FolderOpen size={18} /> },
       { label: "Portal Sync", href: "/workforce/sync", icon: <RefreshCw size={18} /> },
+    ],
+  },
+  {
+    label: "Shared Omani PRO",
+    items: [
+      { label: "Officer Registry", href: "/omani-officers", icon: <UserCheck size={18} /> },
+      { label: "Assignments", href: "/officer-assignments", icon: <Building2 size={18} /> },
     ],
   },
   {

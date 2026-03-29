@@ -174,3 +174,35 @@
 - [ ] Add syncWorkPermits and getJobStatus named procedures to sync router
 - [ ] Add granular permission checks (employees.read, work_permits.renew, government_cases.submit)
 - [ ] Add dedicated workforce router tests
+
+## Phase 16: Shared Omani PRO — National Omanisation Platform
+
+### Module 1 — Omani PRO Officer Registry
+- [x] DB: omani_pro_officers table (name, PASI number, sanad_office_id, employment track A/B, salary, capacity, status)
+- [x] DB: officer_company_assignments table (officer_id, company_id, monthly_fee, start_date, status)
+- [x] tRPC: officers router (create, list, getById, update, deactivate)
+- [x] tRPC: officers.assignCompany (capacity check, enforce 10-company cap, auto-create subscription)
+- [x] tRPC: officers.removeCompany (soft-remove assignment, cancel subscription)
+- [x] tRPC: officers.getCapacityStats (available slots, utilisation rate)
+- [x] UI: OmaniOfficersPage.tsx — officer registry with capacity bars, stats, and management dialogs
+- [x] UI: OfficerAssignmentPage.tsx — company assignment interface with capacity visualisation
+
+### Module 2 — Billing & Compliance Certificate
+- [x] tRPC: officers.generateCertificate (PDF certificate of Omani employment per company per month)
+- [x] DB: compliance_certificates table (company_id, officer_id, month, pdf_url, generated_at)
+- [x] UI: Certificate download button on company dashboard (on OfficerAssignmentPage)
+
+### Module 3 — Sanad Centre Services Marketplace (Public Directory)
+- [ ] DB: extend sanad_offices with isPublicListed, licenceNumber, licenceExpiry, verifiedAt, languages
+- [ ] DB: sanad_service_catalogue table (office_id, service_type, price, processing_days, description)
+- [ ] tRPC: sanad.listPublicProviders (public, no auth, searchable by governorate/service type)
+- [ ] tRPC: sanad.getPublicProfile (full centre profile with services and ratings)
+- [ ] tRPC: sanad.updateServiceCatalogue (admin: manage services list)
+- [ ] UI: SanadMarketplacePage.tsx — public directory searchable by governorate and service type
+- [ ] UI: SanadCentreProfilePage.tsx — full public profile with services, ratings, request button
+
+### Module 4 — Platform Operations Dashboard (Admin)
+- [ ] Extend platformRole enum: regional_manager, client_services, finance_admin, hr_admin
+- [ ] UI: PlatformOpsPage.tsx — role-based internal management dashboard
+- [ ] UI: Finance view — monthly revenue, Sanad centre payments, EBITDA
+- [ ] UI: Regional view — Sanad centres map, officer capacity by governorate

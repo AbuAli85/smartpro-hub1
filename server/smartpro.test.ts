@@ -541,3 +541,87 @@ describe("companies.memberManagement", () => {
     ).rejects.toThrow();
   });
 });
+
+// ─── Officers Router Tests ────────────────────────────────────────────────────
+describe("officers router", () => {
+  it("list requires authentication", async () => {
+    const caller = appRouter.createCaller(makePublicCtx());
+    await expect(caller.officers.list({})).rejects.toThrow();
+  });
+
+  it("list returns empty array when DB is unavailable (test env)", async () => {
+    const caller = appRouter.createCaller(makeCtx());
+    const result = await caller.officers.list({});
+    expect(Array.isArray(result)).toBe(true);
+  });
+
+  it("stats requires authentication", async () => {
+    const caller = appRouter.createCaller(makePublicCtx());
+    await expect(caller.officers.stats()).rejects.toThrow();
+  });
+
+  it("stats returns null when DB is unavailable (test env)", async () => {
+    const caller = appRouter.createCaller(makeCtx());
+    const result = await caller.officers.stats();
+    expect(result).toBeNull();
+  });
+
+  it("register requires authentication", async () => {
+    const caller = appRouter.createCaller(makePublicCtx());
+    await expect(
+      caller.officers.register({
+        fullName: "Ahmed Al-Rashdi",
+        nationalId: "12345678",
+        employmentTrack: "platform",
+        monthlySalary: 500,
+      })
+    ).rejects.toThrow();
+  });
+
+  it("register throws when DB is unavailable (test env)", async () => {
+    const caller = appRouter.createCaller(makeCtx());
+    await expect(
+      caller.officers.register({
+        fullName: "Ahmed Al-Rashdi",
+        nationalId: "12345678",
+        employmentTrack: "platform",
+        monthlySalary: 500,
+      })
+    ).rejects.toThrow();
+  });
+
+  it("assignCompany requires authentication", async () => {
+    const caller = appRouter.createCaller(makePublicCtx());
+    await expect(
+      caller.officers.assignCompany({ officerId: 1, companyId: 1, monthlyFee: 100 })
+    ).rejects.toThrow();
+  });
+
+  it("assignCompany throws when DB is unavailable (test env)", async () => {
+    const caller = appRouter.createCaller(makeCtx());
+    await expect(
+      caller.officers.assignCompany({ officerId: 1, companyId: 1, monthlyFee: 100 })
+    ).rejects.toThrow();
+  });
+
+  it("removeCompany requires authentication", async () => {
+    const caller = appRouter.createCaller(makePublicCtx());
+    await expect(
+      caller.officers.removeCompany({ officerId: 1, companyId: 1 })
+    ).rejects.toThrow();
+  });
+
+  it("generateCertificate requires authentication", async () => {
+    const caller = appRouter.createCaller(makePublicCtx());
+    await expect(
+      caller.officers.generateCertificate({ companyId: 1, month: 3, year: 2026 })
+    ).rejects.toThrow();
+  });
+
+  it("generateCertificate throws when DB is unavailable (test env)", async () => {
+    const caller = appRouter.createCaller(makeCtx());
+    await expect(
+      caller.officers.generateCertificate({ companyId: 1, month: 3, year: 2026 })
+    ).rejects.toThrow();
+  });
+});

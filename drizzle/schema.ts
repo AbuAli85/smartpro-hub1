@@ -26,6 +26,10 @@ export const users = mysqlTable("users", {
   platformRole: mysqlEnum("platformRole", [
     "super_admin",
     "platform_admin",
+    "regional_manager",
+    "client_services",
+    "finance_admin",
+    "hr_admin",
     "company_admin",
     "company_member",
     "reviewer",

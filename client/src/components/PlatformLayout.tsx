@@ -111,6 +111,7 @@ const navGroups = [
       { label: "Client Portal", href: "/client-portal", icon: <UserCircle size={18} /> },
       { label: "Subscriptions", href: "/subscriptions", icon: <Zap size={18} /> },
       { label: "Expiry Alerts", href: "/alerts", icon: <Bell size={18} /> },
+      { label: "Platform Ops", href: "/platform-ops", icon: <Globe size={18} /> },
       { label: "Admin Panel", href: "/admin", icon: <Settings size={18} /> },
     ],
   },

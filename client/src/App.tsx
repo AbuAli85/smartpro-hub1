@@ -42,6 +42,7 @@ import SanadCentreProfilePage from "./pages/SanadCentreProfilePage";
 import SanadCatalogueAdminPage from "./pages/SanadCatalogueAdminPage";
 import BillingEnginePage from "./pages/BillingEnginePage";
 import ExpiryAlertsPage from "./pages/ExpiryAlertsPage";
+import PlatformOpsPage from "./pages/PlatformOpsPage";
 
 function AppRoutes() {
   return (
@@ -84,6 +85,7 @@ function AppRoutes() {
         <Route path="/sanad/catalogue-admin" component={SanadCatalogueAdminPage} />
         <Route path="/billing" component={BillingEnginePage} />
         <Route path="/alerts" component={ExpiryAlertsPage} />
+        <Route path="/platform-ops" component={PlatformOpsPage} />
         <Route path="/sanad/centre/:id" component={SanadCentreProfilePage} />
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />

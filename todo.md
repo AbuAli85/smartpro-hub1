@@ -202,10 +202,21 @@
 - [x] UI: SanadCentreProfilePage.tsx — full public profile with services, ratings, request button
 
 ### Module 4 — Platform Operations Dashboard (Admin)
-- [ ] Extend platformRole enum: regional_manager, client_services, finance_admin, hr_admin
-- [ ] UI: PlatformOpsPage.tsx — role-based internal management dashboard
-- [ ] UI: Finance view — monthly revenue, Sanad centre payments, EBITDA
-- [ ] UI: Regional view — Sanad centres map, officer capacity by governorate
+- [x] Extend platformRole enum: added regional_manager, client_services, finance_admin, hr_admin to DB enum (ALTER TABLE applied)
+- [x] UI: PlatformOpsPage.tsx — role-based internal management dashboard with 3 tabs; ROLE_TAB_ACCESS map gates Finance/Regional/Users tabs by platformRole; access-denied screen for company roles
+- [x] UI: Finance view — monthly revenue trend chart, Sanad centre payments table, EBITDA calculator, top companies by billing
+- [x] UI: Regional view — officer capacity by governorate with utilisation bars, capacity vs. active bar chart, work order pie chart
+- [x] UI: Users view — platform user stats by role with distribution bars
+- [x] tRPC: platformOps.getPlatformSummary — KPI summary (revenue, companies, officers, utilisiation)
+- [x] tRPC: platformOps.getMonthlyRevenueTrend — last 12 months revenue breakdown
+- [x] tRPC: platformOps.getSanadCentrePayments — per-centre billing summary
+- [x] tRPC: platformOps.getEBITDA — monthly EBITDA estimate with overhead calculation
+- [x] tRPC: platformOps.getRegionalCapacity — officer capacity by governorate
+- [x] tRPC: platformOps.getUserStats — user count by platform role
+- [x] tRPC: platformOps.getTopCompaniesByRevenue — top 10 companies by billing volume
+- [x] tRPC: platformOps.getWorkOrderVolume — work order count by service type
+- [x] Route: /platform-ops registered in App.tsx
+- [x] Nav: "Platform Ops" link added under Platform section in PlatformLayout
 
 ## Phase 17: Sanad Office Performance Dashboard
 

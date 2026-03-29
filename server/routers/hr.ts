@@ -365,4 +365,31 @@ export const hrRouter = router({
       if (!membership) return { present: 0, absent: 0, late: 0, half_day: 0, remote: 0, byDay: [] };
       return getAttendanceStats(membership.company.id, input.month);
     }),
+
+  getStats: protectedProcedure.query(async ({ ctx }) => {
+    const membership = await getUserCompany(ctx.user.id);
+    if (!membership) return { total: 0, active: 0, onLeave: 0, terminated: 0, omani: 0, expat: 0, omanisationRate: 0, departments: 0, avgSalary: 0, totalPayroll: 0 };
+    const emps = await getEmployees(membership.company.id);
+    const active = emps.filter((e) => e.status === "active");
+    const onLeave = emps.filter((e) => e.status === "on_leave");
+    const terminated = emps.filter((e) => ["terminated", "resigned"].includes(e.status ?? ""));
+    const omani = active.filter((e) => (e.nationality ?? "").toLowerCase().includes("oman"));
+    const expat = active.filter((e) => !(e.nationality ?? "").toLowerCase().includes("oman"));
+    const depts = new Set(active.map((e) => e.department).filter(Boolean));
+    const salaries = active.filter((e) => e.salary).map((e) => parseFloat(e.salary ?? "0"));
+    const avgSalary = salaries.length ? salaries.reduce((a, b) => a + b, 0) / salaries.length : 0;
+    const totalPayroll = salaries.reduce((a, b) => a + b, 0);
+    return {
+      total: emps.length,
+      active: active.length,
+      onLeave: onLeave.length,
+      terminated: terminated.length,
+      omani: omani.length,
+      expat: expat.length,
+      omanisationRate: active.length > 0 ? Math.round((omani.length / active.length) * 100) : 0,
+      departments: depts.size,
+      avgSalary: Math.round(avgSalary * 1000) / 1000,
+      totalPayroll: Math.round(totalPayroll * 1000) / 1000,
+    };
+  }),
 });

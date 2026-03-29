@@ -402,7 +402,7 @@ export default function ContractsPage() {
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
         <div>
           <div className="flex items-center gap-3 mb-1">
-            <div className="w-10 h-10 rounded-xl bg-teal-600 flex items-center justify-center shadow-sm">
+            <div className="w-10 h-10 rounded-xl bg-[var(--smartpro-orange)] flex items-center justify-center shadow-sm">
               <FileText size={20} className="text-white" />
             </div>
             <div>
@@ -430,7 +430,7 @@ export default function ContractsPage() {
           { label: "Total Contracts", value: stats.total,   bg: "stat-gradient-1" },
           { label: "Active / Signed", value: stats.active,  bg: "stat-gradient-4" },
           { label: "Pending",         value: stats.pending, bg: "stat-gradient-gold" },
-          { label: "Expired",         value: stats.expired, bg: "stat-gradient-2" },
+          { label: "Expiring in 30d", value: contracts?.filter((c) => { if (!c.endDate || c.status !== "active") return false; const days = (new Date(c.endDate).getTime() - Date.now()) / 86400000; return days >= 0 && days <= 30; }).length ?? 0, bg: "stat-gradient-2" },
         ].map((s) => (
           <div key={s.label} className={`${s.bg} rounded-2xl p-4 text-white shadow-sm`}>
             <p className="text-2xl font-black">{s.value}</p>

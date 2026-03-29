@@ -4,11 +4,26 @@ import {
   createProService,
   getAllProServices,
   getExpiringDocuments,
+  getProServiceById,
   getProServices,
   getUserCompany,
   updateProService,
 } from "../db";
 import { protectedProcedure, router } from "../_core/trpc";
+
+const SERVICE_TYPE_ENUM = z.enum([
+  "visa_processing",
+  "work_permit",
+  "labor_card",
+  "emirates_id",
+  "oman_id",
+  "residence_renewal",
+  "visa_renewal",
+  "permit_renewal",
+  "document_attestation",
+  "company_registration",
+  "other",
+]);
 
 export const proRouter = router({
   list: protectedProcedure
@@ -20,6 +35,47 @@ export const proRouter = router({
       return getProServices(membership.company.id, input);
     }),
 
+  getById: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .query(async ({ input }) => {
+      return getProServiceById(input.id);
+    }),
+
+  getStats: protectedProcedure.query(async ({ ctx }) => {
+    const membership = await getUserCompany(ctx.user.id);
+    const all =
+      ctx.user.role === "admin"
+        ? await getAllProServices({})
+        : membership
+          ? await getProServices(membership.company.id, {})
+          : [];
+    const now = new Date();
+    const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    return {
+      total: all.length,
+      pending: all.filter((s) => s.status === "pending").length,
+      inProgress: all.filter((s) =>
+        ["assigned", "in_progress", "awaiting_documents"].includes(s.status ?? "")
+      ).length,
+      submittedToAuthority: all.filter((s) => s.status === "submitted_to_authority").length,
+      completedThisMonth: all.filter(
+        (s) => s.status === "completed" && s.completedAt && s.completedAt >= thisMonthStart
+      ).length,
+      rejected: all.filter((s) => s.status === "rejected").length,
+      urgent: all.filter(
+        (s) =>
+          s.priority === "urgent" &&
+          !["completed", "cancelled", "rejected"].includes(s.status ?? "")
+      ).length,
+      totalFeesCollected: all
+        .filter((s) => s.status === "completed")
+        .reduce((sum, s) => sum + parseFloat(s.fees ?? "0"), 0),
+      feesPending: all
+        .filter((s) => !["completed", "cancelled"].includes(s.status ?? ""))
+        .reduce((sum, s) => sum + parseFloat(s.fees ?? "0"), 0),
+    };
+  }),
+
   expiringDocuments: protectedProcedure
     .input(z.object({ daysAhead: z.number().default(30) }))
     .query(async ({ input }) => {
@@ -29,19 +85,7 @@ export const proRouter = router({
   create: protectedProcedure
     .input(
       z.object({
-        serviceType: z.enum([
-          "visa_processing",
-          "work_permit",
-          "labor_card",
-          "emirates_id",
-          "oman_id",
-          "residence_renewal",
-          "visa_renewal",
-          "permit_renewal",
-          "document_attestation",
-          "company_registration",
-          "other",
-        ]),
+        serviceType: SERVICE_TYPE_ENUM,
         employeeName: z.string().min(2),
         employeeNameAr: z.string().optional(),
         nationality: z.string().optional(),
@@ -95,6 +139,10 @@ export const proRouter = router({
         notes: z.string().optional(),
         priority: z.enum(["low", "normal", "high", "urgent"]).optional(),
         expiryDate: z.string().optional(),
+        fees: z.number().optional(),
+        permitNumber: z.string().optional(),
+        visaNumber: z.string().optional(),
+        dueDate: z.string().optional(),
       })
     )
     .mutation(async ({ input }) => {
@@ -102,6 +150,8 @@ export const proRouter = router({
       const updateData: any = { ...data };
       if (data.status === "completed") updateData.completedAt = new Date();
       if (data.expiryDate) updateData.expiryDate = new Date(data.expiryDate);
+      if (data.dueDate) updateData.dueDate = new Date(data.dueDate);
+      if (data.fees !== undefined) updateData.fees = String(data.fees);
       await updateProService(id, updateData);
       return { success: true };
     }),

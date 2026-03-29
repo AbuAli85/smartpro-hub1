@@ -270,6 +270,13 @@ export async function createProService(data: typeof proServices.$inferInsert) {
   return result[0] ?? null;
 }
 
+export async function getProServiceById(id: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const [row] = await db.select().from(proServices).where(eq(proServices.id, id)).limit(1);
+  return row ?? null;
+}
+
 export async function updateProService(id: number, data: Partial<typeof proServices.$inferInsert>) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");

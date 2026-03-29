@@ -604,3 +604,66 @@ As a business services provider in Oman/GCC, here is what I need every single da
 - [x] UI: OfficerAssignmentPage — Smart Assign button: selects officer with most available capacity
 - [x] tRPC: operations.getAiInsights — top 3 AI-generated actionable insights from current data state
 - [x] tRPC: operations.getTodaysTasks — tasks due today across all modules for current user
+
+## Phase 21: Module Rebuild — Every Module as a Real Business Instrument
+
+### PRO Services — Full Lifecycle
+- [ ] UI: ProServicesPage — service detail side panel with full timeline, document checklist, officer notes, fee tracking, and "Next Action" prompt
+- [ ] UI: ProServicesPage — KPI bar: Pending / In Progress / Submitted to Authority / Completed this month / OMR collected
+- [ ] UI: ProServicesPage — 3-step intake wizard: employee info → service type + docs → fees + due date
+
+### Sanad — Work Order Lifecycle
+- [ ] UI: SanadPage — work order detail drawer with full timeline, document checklist, fee breakdown, and status history
+- [ ] UI: SanadPage — KPI bar: Open Orders / Awaiting Docs / Completed This Month / Total Fees Collected (OMR)
+
+### Workforce Cases — Case Management
+- [ ] UI: WorkforceCasesPage — case detail panel with task checklist, document uploads, officer notes, MOL reference number
+- [ ] UI: WorkforceCasesPage — KPI bar: Open / Urgent / Due Today / Completed This Month
+
+### CRM — Pipeline with Business Value
+- [ ] UI: CRMPage — Kanban pipeline view (Lead → Qualified → Proposal → Negotiation → Won/Lost) with OMR value per column
+- [ ] UI: CRMPage — contact detail panel with activity log, linked deals, next follow-up date
+- [ ] UI: CRMPage — pipeline summary bar: total pipeline value (OMR), weighted forecast, win rate %
+
+### Contracts — Document Lifecycle
+- [ ] UI: ContractsPage — contract detail panel with parties, payment schedule, linked invoices, signature status
+- [ ] UI: ContractsPage — KPI bar: Active / Expiring in 30 Days / Pending Signature / Total Contract Value (OMR)
+
+### Billing — Payment Lifecycle
+- [ ] UI: BillingEnginePage — invoice detail panel with line items, payment history, send reminder button, mark paid action
+- [ ] UI: BillingEnginePage — payment recording dialog: amount, date, method (bank transfer/cash/cheque), reference
+
+### HR Employees — Full Employee Profile
+- [ ] UI: HREmployeesPage — employee profile card with passport/visa expiry countdown, PASI number, salary band
+- [ ] UI: HREmployeesPage — employee detail panel: personal info, documents tab, leave balance tab, payslips tab
+
+### Payroll — WPS-Ready Payslips
+- [ ] UI: PayrollEnginePage — payslip detail view: basic + allowances + deductions + net, PASI contribution, WPS reference
+- [ ] UI: PayrollEnginePage — WPS file generation button: download CSV in Oman bank WPS format
+- [ ] UI: PayrollEnginePage — payroll run approval workflow: draft → reviewed → approved → paid
+
+### Operations Centre — Real-Time Command Center
+- [ ] UI: OperationsDashboardPage — "Today's Priorities" panel: top 5 urgent items sorted by SLA breach risk
+- [ ] UI: OperationsDashboardPage — officer workload matrix: each officer's open cases count with color-coded capacity
+
+### Client Portal — Self-Service Hub
+- [ ] UI: ClientPortalPage — case tracker with real-time status, assigned officer name, and estimated completion date
+- [ ] UI: ClientPortalPage — invoice history with payment status and download PDF button
+
+## Phase 22: Module Rebuild — Business Instrument Upgrade (Completed)
+- [x] PRO Services: KPI bar (Pending / In Progress / Submitted / Completed / OMR collected), case detail side panel with timeline, officer notes, document checklist, intake wizard
+- [x] HR Employees: KPI bar (total / Omani / expiring docs / active), employee detail panel with personal info, document expiry, leave balance, payslips tab, Omanisation gauge
+- [x] Payroll: Header brand alignment (SmartPRO orange), existing WPS/PASI/payslip workflow preserved and verified
+- [x] CRM: Contact detail side panel with communication log (call/email/meeting/note), 6-KPI bar (contacts/leads/deals/pipeline/won value/win rate), pipeline kanban with deal cards showing close date, table view with inline status move
+- [x] Contracts: Header brand alignment, "Expiring in 30d" KPI replacing raw expired count (proactive alert), existing AI drafting/e-signature/audit trail preserved
+- [x] All 152 tests passing (billing, workforce, auth, smartpro)
+- [x] Zero TypeScript errors across all modules
+
+## Phase 22: Module Rebuild — Business Instrument Upgrade (Completed)
+- [x] PRO Services: KPI bar (Pending / In Progress / Submitted / Completed / OMR collected), case detail side panel with timeline, officer notes, document checklist, intake wizard
+- [x] HR Employees: KPI bar (total / Omani / expiring docs / active), employee detail panel with personal info, document expiry, leave balance, payslips tab, Omanisation gauge
+- [x] Payroll: Header brand alignment (SmartPRO orange), existing WPS/PASI/payslip workflow preserved and verified
+- [x] CRM: Contact detail side panel with communication log (call/email/meeting/note), 6-KPI bar (contacts/leads/deals/pipeline/won value/win rate), pipeline kanban with deal cards showing close date, table view with inline status move
+- [x] Contracts: Header brand alignment, "Expiring in 30d" KPI replacing raw expired count (proactive alert), existing AI drafting/e-signature/audit trail preserved
+- [x] All 152 tests passing (billing, workforce, auth, smartpro)
+- [x] Zero TypeScript errors across all modules

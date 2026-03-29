@@ -32,6 +32,14 @@ See `.env.example` at the repo root.
 
 **Decision:** `cross-env` sets `NODE_ENV` in `dev` / `start` so Windows shells behave the same as Unix.
 
+## Access-control responses: `NOT_FOUND` vs `FORBIDDEN`
+
+**Decision:** Responses are chosen to limit cross-tenant enumeration and to signal authorization clearly within a tenant.
+
+- **`NOT_FOUND`:** The referenced id does not exist **or** it exists under another company than the caller’s active membership (treat as “not visible”). Optional `companyId` filters that do not match the caller’s tenant follow the same rule where the API would otherwise leak existence.
+- **`FORBIDDEN`:** The caller is authenticated but lacks permission for the operation, has no active company membership, or is not allowed to use a platform-only path (e.g. Sanad licence renewal for non–platform users).
+- **Platform staff** (`canAccessGlobalAdminProcedures`): May omit company filters where the product intentionally aggregates across tenants; explicit `companyId` in inputs is still validated where required (e.g. creating tenant-bound renewal cases).
+
 ## Tenant boundaries (`server/_core/tenant.ts`)
 
 **Decision:** Shared helpers enforce company scope on row reads/updates:
@@ -47,6 +55,8 @@ See `.env.example` at the repo root.
 - **Workforce:** `caseTasks` updates require a join to `governmentServiceCases` and the caller’s company. Document uploads validate `employeeId` / optional `workPermitId` against the same company. MOL certificate ingestion scopes permit upserts by `companyId` + `workPermitNumber` so permit numbers cannot hijack another tenant’s row. `employees.getById` requires `employees.read` and scopes nested permits, documents, and cases by `companyId`.
 - **Payroll:** `company_members` resolution for payroll uses `isActive`; `getRun` line items are filtered by `companyId` as well as `payrollRunId`.
 - **Reports / client portal:** Company-scoped PDF reports resolve the tenant via `getUserCompany()` (active membership). `generateOfficerPayoutReport` is platform-only. Client portal company context uses the same `getUserCompany` helper.
+- **Alerts:** Expiry queries resolve the active company via `getUserCompany`; company users cannot pass another tenant’s `companyId`. Work permits, government profile expiries, PRO services, and vault documents are scoped to that company. Sanad office licence alerts are shown only to platform operators. `triggerRenewal` binds `companyId` from membership (or explicit platform `companyId` with entity validation) and never inserts `companyId = 0`. Badge counts for work permits respect the same company scope for non-platform users.
+- **Membership helpers:** `server/_core/membership.ts` (`getActiveCompanyMembership` / `requireActiveCompanyMembership`) delegates to `getUserCompany` so routers do not reimplement `company_members` queries with divergent `isActive` rules.
 
 ## Production startup
 

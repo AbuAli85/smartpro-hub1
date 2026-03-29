@@ -7,23 +7,11 @@ import {
   payrollRuns,
   payrollLineItems,
   employees,
-  companyMembers,
   employeeSalaryConfigs,
   salaryLoans,
 } from "../../drizzle/schema";
 import { storagePut } from "../storage";
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-async function getMemberCompanyId(userId: number) {
-  const db = await getDb();
-  if (!db) return null;
-  const [m] = await db
-    .select({ companyId: companyMembers.companyId, role: companyMembers.role })
-    .from(companyMembers)
-    .where(and(eq(companyMembers.userId, userId), eq(companyMembers.isActive, true)))
-    .limit(1);
-  return m ?? null;
-}
+import { getActiveCompanyMembership } from "../_core/membership";
 
 /** PASI contribution: 7% employee, 11.5% employer for Omani nationals */
 function calcPasi(basicSalary: number, isOmani: boolean) {
@@ -157,7 +145,7 @@ export const payrollRouter = router({
     .query(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-      const m = await getMemberCompanyId(ctx.user.id);
+      const m = await getActiveCompanyMembership(ctx.user.id);
       if (!m) throw new TRPCError({ code: "FORBIDDEN", message: "Not a company member" });
       const conditions = [eq(payrollRuns.companyId, m.companyId)];
       if (input.year) conditions.push(eq(payrollRuns.periodYear, input.year));
@@ -176,7 +164,7 @@ export const payrollRouter = router({
     .query(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-      const m = await getMemberCompanyId(ctx.user.id);
+      const m = await getActiveCompanyMembership(ctx.user.id);
       if (!m) throw new TRPCError({ code: "FORBIDDEN", message: "Not a company member" });
       const [run] = await db.select().from(payrollRuns).where(and(eq(payrollRuns.id, input.runId), eq(payrollRuns.companyId, m.companyId))).limit(1);
       if (!run) throw new TRPCError({ code: "NOT_FOUND", message: "Payroll run not found" });
@@ -201,7 +189,7 @@ export const payrollRouter = router({
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-      const m = await getMemberCompanyId(ctx.user.id);
+      const m = await getActiveCompanyMembership(ctx.user.id);
       if (!m) throw new TRPCError({ code: "FORBIDDEN", message: "Not a company member" });
       // Check for duplicate run
       const [existing] = await db.select({ id: payrollRuns.id }).from(payrollRuns)
@@ -277,7 +265,7 @@ export const payrollRouter = router({
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-      const m = await getMemberCompanyId(ctx.user.id);
+      const m = await getActiveCompanyMembership(ctx.user.id);
       if (!m) throw new TRPCError({ code: "FORBIDDEN", message: "Not a company member" });
       const [line] = await db.select().from(payrollLineItems).where(and(eq(payrollLineItems.id, input.lineId), eq(payrollLineItems.companyId, m.companyId))).limit(1);
       if (!line) throw new TRPCError({ code: "NOT_FOUND", message: "Line item not found" });
@@ -319,7 +307,7 @@ export const payrollRouter = router({
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-      const m = await getMemberCompanyId(ctx.user.id);
+      const m = await getActiveCompanyMembership(ctx.user.id);
       if (!m) throw new TRPCError({ code: "FORBIDDEN", message: "Not a company member" });
       if (m.role !== "company_admin") throw new TRPCError({ code: "FORBIDDEN", message: "Only admins can approve payroll" });
       await db.update(payrollRuns).set({ status: "approved", approvedByUserId: ctx.user.id, approvedAt: new Date() })
@@ -333,7 +321,7 @@ export const payrollRouter = router({
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-      const m = await getMemberCompanyId(ctx.user.id);
+      const m = await getActiveCompanyMembership(ctx.user.id);
       if (!m) throw new TRPCError({ code: "FORBIDDEN", message: "Not a company member" });
       if (m.role !== "company_admin") throw new TRPCError({ code: "FORBIDDEN", message: "Only admins can mark payroll paid" });
       await db.update(payrollRuns).set({ status: "paid", paidAt: new Date() })
@@ -350,7 +338,7 @@ export const payrollRouter = router({
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-      const m = await getMemberCompanyId(ctx.user.id);
+      const m = await getActiveCompanyMembership(ctx.user.id);
       if (!m) throw new TRPCError({ code: "FORBIDDEN", message: "Not a company member" });
       const [row] = await db
         .select({
@@ -401,7 +389,7 @@ export const payrollRouter = router({
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-      const m = await getMemberCompanyId(ctx.user.id);
+      const m = await getActiveCompanyMembership(ctx.user.id);
       if (!m) throw new TRPCError({ code: "FORBIDDEN", message: "Not a company member" });
       const [run] = await db.select().from(payrollRuns).where(and(eq(payrollRuns.id, input.runId), eq(payrollRuns.companyId, m.companyId))).limit(1);
       if (!run) throw new TRPCError({ code: "NOT_FOUND", message: "Run not found" });
@@ -434,7 +422,7 @@ export const payrollRouter = router({
     .query(async ({ ctx }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-      const m = await getMemberCompanyId(ctx.user.id);
+      const m = await getActiveCompanyMembership(ctx.user.id);
       if (!m) throw new TRPCError({ code: "FORBIDDEN", message: "Not a company member" });
       const runs = await db.select().from(payrollRuns).where(eq(payrollRuns.companyId, m.companyId)).orderBy(desc(payrollRuns.periodYear), desc(payrollRuns.periodMonth)).limit(12);
       const totalPaidYTD = runs.filter(r => r.status === "paid").reduce((s, r) => s + Number(r.totalNet ?? 0), 0);
@@ -449,7 +437,7 @@ export const payrollRouter = router({
     .query(async ({ ctx }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-      const m = await getMemberCompanyId(ctx.user.id);
+      const m = await getActiveCompanyMembership(ctx.user.id);
       if (!m) throw new TRPCError({ code: "FORBIDDEN", message: "Not a company member" });
       const configs = await db
         .select({
@@ -492,7 +480,7 @@ export const payrollRouter = router({
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-      const m = await getMemberCompanyId(ctx.user.id);
+      const m = await getActiveCompanyMembership(ctx.user.id);
       if (!m) throw new TRPCError({ code: "FORBIDDEN", message: "Not a company member" });
       // verify employee belongs to company
       const [emp] = await db.select({ id: employees.id }).from(employees)
@@ -529,7 +517,7 @@ export const payrollRouter = router({
     .query(async ({ ctx }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-      const m = await getMemberCompanyId(ctx.user.id);
+      const m = await getActiveCompanyMembership(ctx.user.id);
       if (!m) throw new TRPCError({ code: "FORBIDDEN", message: "Not a company member" });
       const loans = await db
         .select({
@@ -566,7 +554,7 @@ export const payrollRouter = router({
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-      const m = await getMemberCompanyId(ctx.user.id);
+      const m = await getActiveCompanyMembership(ctx.user.id);
       if (!m) throw new TRPCError({ code: "FORBIDDEN", message: "Not a company member" });
       const [emp] = await db.select({ id: employees.id }).from(employees)
         .where(and(eq(employees.id, input.employeeId), eq(employees.companyId, m.companyId)));
@@ -595,7 +583,7 @@ export const payrollRouter = router({
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-      const m = await getMemberCompanyId(ctx.user.id);
+      const m = await getActiveCompanyMembership(ctx.user.id);
       if (!m) throw new TRPCError({ code: "FORBIDDEN", message: "Not a company member" });
       const [loan] = await db.select().from(salaryLoans)
         .where(and(eq(salaryLoans.id, input.loanId), eq(salaryLoans.companyId, m.companyId)));
@@ -614,7 +602,7 @@ export const payrollRouter = router({
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-      const m = await getMemberCompanyId(ctx.user.id);
+      const m = await getActiveCompanyMembership(ctx.user.id);
       if (!m) throw new TRPCError({ code: "FORBIDDEN", message: "Not a company member" });
       await db.update(salaryLoans)
         .set({ status: "cancelled" })

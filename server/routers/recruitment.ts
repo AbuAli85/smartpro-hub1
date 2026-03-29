@@ -4,20 +4,18 @@ import { protectedProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
 import {
   jobPostings, jobApplications, interviewSchedules, offerLetters,
-  companyMembers, employees,
+  employees,
 } from "../../drizzle/schema";
 import { eq, and, desc, asc, inArray, sql, count } from "drizzle-orm";
 import { storagePut } from "../storage";
 import { invokeLLM } from "../_core/llm";
 import { publicProcedure } from "../_core/trpc";
+import { getActiveCompanyMembership } from "../_core/membership";
 
 function randomSuffix() { return Math.random().toString(36).slice(2, 8).toUpperCase(); }
 
 async function getMemberCompanyId(userId: number) {
-  const db = await getDb();
-  if (!db) return null;
-  const [m] = await db.select({ companyId: companyMembers.companyId })
-    .from(companyMembers).where(eq(companyMembers.userId, userId)).limit(1);
+  const m = await getActiveCompanyMembership(userId);
   return m?.companyId ?? null;
 }
 

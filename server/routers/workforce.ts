@@ -1,7 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import { and, asc, desc, eq, gte, ilike, isNotNull, lt, lte, or, sql } from "drizzle-orm";
 import { z } from "zod";
-import { getDb } from "../db";
+import { getDb, getUserCompany } from "../db";
 import {
   auditEvents,
   caseTasks,
@@ -30,19 +30,13 @@ import { storagePut } from "../storage";
  * a default company and membership so they can use the platform immediately.
  */
 async function getMemberCompanyId(user: Pick<User, "id" | "name" | "email" | "role" | "platformRole">): Promise<number | null> {
+  const existing = await getUserCompany(user.id);
+  if (existing?.company?.id) return existing.company.id;
+
   const db = await getDb();
   if (!db) return null;
 
-  // 1. Try to find existing membership
-  const rows = await db
-    .select({ companyId: companyMembers.companyId })
-    .from(companyMembers)
-    .where(and(eq(companyMembers.userId, user.id), eq(companyMembers.isActive, true)))
-    .limit(1);
-
-  if (rows[0]?.companyId) return rows[0].companyId;
-
-  // 2. Auto-provision for admin / company_admin users who haven't completed onboarding
+  // Auto-provision for admin / company_admin users who haven't completed onboarding
   if (!isCompanyProvisioningAdmin(user)) return null;
 
   // Create a default company for this admin
@@ -723,6 +717,9 @@ Return ONLY valid JSON matching the schema, no extra text.`,
       .query(async ({ ctx, input }) => {
         const companyId = await getMemberCompanyId(ctx.user);
         if (!companyId) return { items: [], total: 0 };
+        if (!(await hasPermission(ctx.user, companyId, "government_cases.read"))) {
+          return { items: [], total: 0 };
+        }
         const db = await getDb();
         if (!db) return { items: [], total: 0 };
 
@@ -741,7 +738,13 @@ Return ONLY valid JSON matching the schema, no extra text.`,
         const enriched = await Promise.all(rows.map(async (c) => {
           const tasks = await db.select().from(caseTasks).where(eq(caseTasks.caseId, c.id)).orderBy(asc(caseTasks.sortOrder));
           const emp = c.employeeId
-            ? (await db.select({ firstName: employees.firstName, lastName: employees.lastName }).from(employees).where(eq(employees.id, c.employeeId)).limit(1))[0]
+            ? (
+                await db
+                  .select({ firstName: employees.firstName, lastName: employees.lastName })
+                  .from(employees)
+                  .where(and(eq(employees.id, c.employeeId), eq(employees.companyId, companyId)))
+                  .limit(1)
+              )[0]
             : null;
           return { ...c, tasks, employeeName: emp ? `${emp.firstName} ${emp.lastName}` : null };
         }));
@@ -754,6 +757,9 @@ Return ONLY valid JSON matching the schema, no extra text.`,
       .query(async ({ ctx, input }) => {
         const companyId = await getMemberCompanyId(ctx.user);
         if (!companyId) throw new TRPCError({ code: "FORBIDDEN" });
+        if (!(await hasPermission(ctx.user, companyId, "government_cases.read"))) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "You do not have permission to view government cases" });
+        }
         const db = await getDb();
         if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
@@ -764,10 +770,22 @@ Return ONLY valid JSON matching the schema, no extra text.`,
 
         const tasks = await db.select().from(caseTasks).where(eq(caseTasks.caseId, c.id)).orderBy(asc(caseTasks.sortOrder));
         const emp = c.employeeId
-          ? (await db.select().from(employees).where(eq(employees.id, c.employeeId)).limit(1))[0]
+          ? (
+              await db
+                .select()
+                .from(employees)
+                .where(and(eq(employees.id, c.employeeId), eq(employees.companyId, companyId)))
+                .limit(1)
+            )[0]
           : null;
         const permit = c.workPermitId
-          ? (await db.select().from(workPermits).where(eq(workPermits.id, c.workPermitId)).limit(1))[0]
+          ? (
+              await db
+                .select()
+                .from(workPermits)
+                .where(and(eq(workPermits.id, c.workPermitId), eq(workPermits.companyId, companyId)))
+                .limit(1)
+            )[0]
           : null;
 
         return { case: c, tasks, employee: emp ?? null, permit: permit ?? null };
@@ -869,7 +887,13 @@ Return ONLY valid JSON matching the schema, no extra text.`,
         if (c.employeeId) {
           const docs = await db.select({ id: employeeDocuments.id })
             .from(employeeDocuments)
-            .where(and(eq(employeeDocuments.employeeId, c.employeeId), eq(employeeDocuments.verificationStatus, "verified")))
+            .where(
+              and(
+                eq(employeeDocuments.employeeId, c.employeeId),
+                eq(employeeDocuments.companyId, companyId),
+                eq(employeeDocuments.verificationStatus, "verified"),
+              ),
+            )
             .limit(1);
           if (docs.length === 0) {
             throw new TRPCError({ code: "BAD_REQUEST", message: "At least one verified document is required before submission" });
@@ -949,6 +973,9 @@ Return ONLY valid JSON matching the schema, no extra text.`,
       .mutation(async ({ ctx, input }) => {
         const companyId = await getMemberCompanyId(ctx.user);
         if (!companyId) throw new TRPCError({ code: "FORBIDDEN" });
+        if (!(await hasPermission(ctx.user, companyId, "government_cases.manage"))) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "You do not have permission to update case tasks" });
+        }
         const db = await getDb();
         if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
@@ -981,6 +1008,9 @@ Return ONLY valid JSON matching the schema, no extra text.`,
       .query(async ({ ctx, input }) => {
         const companyId = await getMemberCompanyId(ctx.user);
         if (!companyId) return [];
+        if (!(await hasPermission(ctx.user, companyId, "documents.read"))) {
+          return [];
+        }
         const db = await getDb();
         if (!db) return [];
 
@@ -1015,6 +1045,9 @@ Return ONLY valid JSON matching the schema, no extra text.`,
       .mutation(async ({ ctx, input }) => {
         const companyId = await getMemberCompanyId(ctx.user);
         if (!companyId) throw new TRPCError({ code: "FORBIDDEN" });
+        if (!(await hasPermission(ctx.user, companyId, "documents.upload"))) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "You do not have permission to upload documents" });
+        }
         const db = await getDb();
         if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
@@ -1081,6 +1114,9 @@ Return ONLY valid JSON matching the schema, no extra text.`,
       .mutation(async ({ ctx, input }) => {
         const companyId = await getMemberCompanyId(ctx.user);
         if (!companyId) throw new TRPCError({ code: "FORBIDDEN" });
+        if (!(await hasPermission(ctx.user, companyId, "documents.upload"))) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "You do not have permission to verify documents" });
+        }
         const db = await getDb();
         if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 

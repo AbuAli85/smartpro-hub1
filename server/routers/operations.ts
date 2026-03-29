@@ -16,20 +16,14 @@ import {
   officerCompanyAssignments,
   renewalWorkflowRuns,
   serviceQuotations,
-  companyMembers,
 } from "../../drizzle/schema";
 import { and, eq, gte, lte, lt, count, sum, desc, isNull, ne } from "drizzle-orm";
+import { getActiveCompanyMembership } from "../_core/membership";
 
 async function resolveCompanyId(user: { id: number; role: string; platformRole?: string | null }): Promise<number | null> {
-  const db = await getDb();
-  if (!db) return null;
   if (canAccessGlobalAdminProcedures(user)) return null; // platform staff sees all tenants
-  const [member] = await db
-    .select({ companyId: companyMembers.companyId })
-    .from(companyMembers)
-    .where(eq(companyMembers.userId, user.id))
-    .limit(1);
-  return member?.companyId ?? null;
+  const m = await getActiveCompanyMembership(user.id);
+  return m?.companyId ?? null;
 }
 
 export const operationsRouter = router({

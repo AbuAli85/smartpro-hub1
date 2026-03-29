@@ -8,21 +8,14 @@ import {
   workPermits,
   payrollRuns,
   payrollLineItems,
-  companyMembers,
 } from "../../drizzle/schema";
 import { eq, and, gte, lte, count, sum, sql, desc } from "drizzle-orm";
+import { getActiveCompanyMembership } from "../_core/membership";
 
 async function resolveCompanyId(user: { id: number; role: string; platformRole?: string | null }): Promise<number | null> {
-  const db = await getDb();
-  if (!db) return null;
   if (canAccessGlobalAdminProcedures(user)) return null;
-  const { companyMembers: cm } = await import("../../drizzle/schema");
-  const [member] = await db
-    .select({ companyId: cm.companyId })
-    .from(cm)
-    .where(eq(cm.userId, user.id))
-    .limit(1);
-  return member?.companyId ?? null;
+  const m = await getActiveCompanyMembership(user.id);
+  return m?.companyId ?? null;
 }
 
 export const complianceRouter = router({

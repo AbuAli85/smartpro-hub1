@@ -2,13 +2,12 @@ import { TRPCError } from "@trpc/server";
 import { and, asc, eq, gte, lte, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { canAccessGlobalAdminProcedures } from "@shared/rbac";
-import { getDb } from "../db";
+import { getDb, getUserCompany } from "../db";
 import {
   companies,
   employeeDocuments,
   employeeGovernmentProfiles,
   employees,
-  omaniProOfficers,
   proServices,
   sanadOffices,
   workPermits,
@@ -88,6 +87,21 @@ export const alertsRouter = router({
       const db = await getDb();
       if (!db) return { alerts: [], summary: { critical: 0, high: 0, medium: 0, low: 0, total: 0 } };
 
+      const isGlobal = canAccessGlobalAdminProcedures(ctx.user);
+      const tenant = await getUserCompany(ctx.user.id);
+      const tenantCompanyId = tenant?.company?.id ?? null;
+
+      if (!isGlobal && input?.companyId != null && input.companyId !== tenantCompanyId) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Alerts not found" });
+      }
+
+      if (!isGlobal && tenantCompanyId == null) {
+        return { alerts: [], summary: { critical: 0, high: 0, medium: 0, low: 0, total: 0 } };
+      }
+
+      /** When set, restrict rows to this company. When undefined, platform sees all tenants (no company filter). */
+      const effectiveCompanyFilter: number | undefined = isGlobal ? input?.companyId : tenantCompanyId ?? undefined;
+
       const maxDays = input?.maxDays ?? 90;
       const now = new Date();
       const cutoff = new Date(now.getTime() + maxDays * 24 * 60 * 60 * 1000);
@@ -99,14 +113,8 @@ export const alertsRouter = router({
           gte(workPermits.expiryDate, now),
           lte(workPermits.expiryDate, cutoff),
         ];
-        if (input?.companyId) conditions.push(eq(workPermits.companyId, input.companyId));
-        if (!canAccessGlobalAdminProcedures(ctx.user) && !input?.companyId) {
-          // Non-admin: scope to their company
-          const [member] = await db
-            .select({ companyId: companies.id })
-            .from(companies)
-            .limit(1);
-          if (member) conditions.push(eq(workPermits.companyId, member.companyId));
+        if (effectiveCompanyFilter != null) {
+          conditions.push(eq(workPermits.companyId, effectiveCompanyFilter));
         }
 
         const permits = await db
@@ -149,50 +157,52 @@ export const alertsRouter = router({
         ["visa", "resident_card", "labour_card"].includes(input.category)
       ) {
         const govConditions: ReturnType<typeof eq>[] = [];
-        if (input?.companyId) govConditions.push(eq(employees.companyId, input.companyId));
-
-      const govProfiles = await db
-        .select({
-          profile: employeeGovernmentProfiles,
-          empFirstName: employees.firstName,
-          empLastName: employees.lastName,
-          empCompanyId: employees.companyId,
-          companyName: companies.name,
-        })
-        .from(employeeGovernmentProfiles)
-        .leftJoin(employees, eq(employees.id, employeeGovernmentProfiles.employeeId))
-        .leftJoin(companies, eq(companies.id, employees.companyId))
-        .where(govConditions.length ? and(...govConditions) : undefined)
-        .limit(500);
-
-      for (const { profile, empFirstName, empLastName, empCompanyId, companyName } of govProfiles) {
-        const empName = empFirstName && empLastName ? `${empFirstName} ${empLastName}` : null;
-        const checks: Array<{ date: Date | null; cat: AlertCategory; label: string }> = [
-          { date: profile.visaExpiryDate, cat: "visa", label: "Visa" },
-          { date: profile.residentCardExpiryDate, cat: "resident_card", label: "Resident Card" },
-          { date: profile.labourCardExpiryDate, cat: "labour_card", label: "Labour Card" },
-        ];
-
-        for (const { date, cat, label } of checks) {
-          if (!date) continue;
-          if (input?.category && input.category !== cat) continue;
-          if (date <= now || date > cutoff) continue;
-          const days = daysFromNow(date);
-          allAlerts.push({
-            id: `gov-${profile.id}-${cat}`,
-            category: cat,
-            severity: getSeverity(days),
-            daysUntilExpiry: days,
-            expiryDate: date,
-            entityId: profile.id,
-            entityName: empName ?? `Employee #${profile.employeeId}`,
-            companyId: empCompanyId ?? undefined,
-            companyName: companyName ?? undefined,
-            description: `${label} for ${empName ?? "employee"} expires in ${days} day${days !== 1 ? "s" : ""}`,
-            actionUrl: "/workforce/employees",
-          });
+        if (effectiveCompanyFilter != null) {
+          govConditions.push(eq(employees.companyId, effectiveCompanyFilter));
         }
-      }
+
+        const govProfiles = await db
+          .select({
+            profile: employeeGovernmentProfiles,
+            empFirstName: employees.firstName,
+            empLastName: employees.lastName,
+            empCompanyId: employees.companyId,
+            companyName: companies.name,
+          })
+          .from(employeeGovernmentProfiles)
+          .leftJoin(employees, eq(employees.id, employeeGovernmentProfiles.employeeId))
+          .leftJoin(companies, eq(companies.id, employees.companyId))
+          .where(govConditions.length ? and(...govConditions) : undefined)
+          .limit(500);
+
+        for (const { profile, empFirstName, empLastName, empCompanyId, companyName } of govProfiles) {
+          const empName = empFirstName && empLastName ? `${empFirstName} ${empLastName}` : null;
+          const checks: Array<{ date: Date | null; cat: AlertCategory; label: string }> = [
+            { date: profile.visaExpiryDate, cat: "visa", label: "Visa" },
+            { date: profile.residentCardExpiryDate, cat: "resident_card", label: "Resident Card" },
+            { date: profile.labourCardExpiryDate, cat: "labour_card", label: "Labour Card" },
+          ];
+
+          for (const { date, cat, label } of checks) {
+            if (!date) continue;
+            if (input?.category && input.category !== cat) continue;
+            if (date <= now || date > cutoff) continue;
+            const days = daysFromNow(date);
+            allAlerts.push({
+              id: `gov-${profile.id}-${cat}`,
+              category: cat,
+              severity: getSeverity(days),
+              daysUntilExpiry: days,
+              expiryDate: date,
+              entityId: profile.id,
+              entityName: empName ?? `Employee #${profile.employeeId}`,
+              companyId: empCompanyId ?? undefined,
+              companyName: companyName ?? undefined,
+              description: `${label} for ${empName ?? "employee"} expires in ${days} day${days !== 1 ? "s" : ""}`,
+              actionUrl: "/workforce/employees",
+            });
+          }
+        }
       }
 
       // ── 3. PRO Services ────────────────────────────────────────────────────
@@ -201,7 +211,9 @@ export const alertsRouter = router({
           gte(proServices.expiryDate, now),
           lte(proServices.expiryDate, cutoff),
         ];
-        if (input?.companyId) proConditions.push(eq(proServices.companyId, input.companyId));
+        if (effectiveCompanyFilter != null) {
+          proConditions.push(eq(proServices.companyId, effectiveCompanyFilter));
+        }
 
         const pros = await db
           .select({
@@ -233,8 +245,8 @@ export const alertsRouter = router({
         }
       }
 
-      // ── 4. Sanad Office Licences ───────────────────────────────────────────
-      if (!input?.category || input.category === "sanad_licence") {
+      // ── 4. Sanad Office Licences (platform operators only) ─────────────────
+      if (isGlobal && (!input?.category || input.category === "sanad_licence")) {
         const sanadRows = await db
           .select()
           .from(sanadOffices)
@@ -272,7 +284,9 @@ export const alertsRouter = router({
           gte(employeeDocuments.expiresAt, now),
           lte(employeeDocuments.expiresAt, cutoff),
         ];
-        if (input?.companyId) docConditions.push(eq(employeeDocuments.companyId, input.companyId));
+        if (effectiveCompanyFilter != null) {
+          docConditions.push(eq(employeeDocuments.companyId, effectiveCompanyFilter));
+        }
 
         const docs = await db
           .select({
@@ -359,39 +373,135 @@ export const alertsRouter = router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
-      // Map alert category to a government case type
-      const caseTypeMap: Record<string, string> = {
-        work_permit: "work_permit_renewal",
-        visa: "visa_renewal",
-        resident_card: "resident_card_renewal",
-        labour_card: "labour_card_renewal",
-        pro_service: "pro_service_renewal",
-        sanad_licence: "licence_renewal",
-        officer_document: "document_renewal",
-        employee_document: "document_renewal",
-      };
-      const caseType = caseTypeMap[input.category] ?? "general_renewal";
+      const isGlobal = canAccessGlobalAdminProcedures(ctx.user);
+      const tenant = await getUserCompany(ctx.user.id);
+      const tenantCompanyId = tenant?.company?.id ?? null;
 
-      // Import government_service_cases table dynamically to avoid circular imports
+      if (!isGlobal) {
+        if (tenantCompanyId == null) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "No company membership" });
+        }
+        if (input.companyId != null && input.companyId !== tenantCompanyId) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Resource not found" });
+        }
+      }
+
+      const companyScopedCategories = [
+        "work_permit",
+        "visa",
+        "resident_card",
+        "labour_card",
+        "pro_service",
+        "employee_document",
+      ] as const;
+
+      let effectiveCompanyId: number;
+      if (input.category === "officer_document") {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Officer document renewal is not supported yet" });
+      }
+
+      if (!isGlobal && input.category === "sanad_licence") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Sanad licence renewals are managed by platform staff" });
+      }
+
+      if (isGlobal) {
+        if (companyScopedCategories.includes(input.category as (typeof companyScopedCategories)[number])) {
+          if (input.companyId == null) {
+            throw new TRPCError({ code: "BAD_REQUEST", message: "companyId is required for this alert category" });
+          }
+          effectiveCompanyId = input.companyId;
+        } else if (input.category === "sanad_licence") {
+          if (input.companyId == null) {
+            throw new TRPCError({ code: "BAD_REQUEST", message: "companyId is required to attach a renewal case" });
+          }
+          effectiveCompanyId = input.companyId;
+        } else {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Unknown category" });
+        }
+      } else {
+        effectiveCompanyId = tenantCompanyId!;
+      }
+
+      let employeeId: number | null = null;
+      let workPermitId: number | null = null;
+
+      switch (input.category) {
+        case "work_permit": {
+          const [permit] = await db
+            .select()
+            .from(workPermits)
+            .where(and(eq(workPermits.id, input.entityId), eq(workPermits.companyId, effectiveCompanyId)))
+            .limit(1);
+          if (!permit) throw new TRPCError({ code: "NOT_FOUND", message: "Work permit not found" });
+          workPermitId = permit.id;
+          employeeId = permit.employeeId ?? null;
+          break;
+        }
+        case "visa":
+        case "resident_card":
+        case "labour_card": {
+          const [row] = await db
+            .select({ empId: employees.id })
+            .from(employeeGovernmentProfiles)
+            .innerJoin(employees, eq(employees.id, employeeGovernmentProfiles.employeeId))
+            .where(
+              and(
+                eq(employeeGovernmentProfiles.id, input.entityId),
+                eq(employees.companyId, effectiveCompanyId),
+              ),
+            )
+            .limit(1);
+          if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Government profile not found" });
+          employeeId = row.empId;
+          break;
+        }
+        case "pro_service": {
+          const [pro] = await db
+            .select()
+            .from(proServices)
+            .where(and(eq(proServices.id, input.entityId), eq(proServices.companyId, effectiveCompanyId)))
+            .limit(1);
+          if (!pro) throw new TRPCError({ code: "NOT_FOUND", message: "PRO service not found" });
+          break;
+        }
+        case "employee_document": {
+          const [doc] = await db
+            .select()
+            .from(employeeDocuments)
+            .where(and(eq(employeeDocuments.id, input.entityId), eq(employeeDocuments.companyId, effectiveCompanyId)))
+            .limit(1);
+          if (!doc) throw new TRPCError({ code: "NOT_FOUND", message: "Document not found" });
+          employeeId = doc.employeeId ?? null;
+          break;
+        }
+        case "sanad_licence": {
+          const [office] = await db.select().from(sanadOffices).where(eq(sanadOffices.id, input.entityId)).limit(1);
+          if (!office) throw new TRPCError({ code: "NOT_FOUND", message: "Sanad office not found" });
+          break;
+        }
+        default:
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Unsupported category" });
+      }
+
       const { governmentServiceCases } = await import("../../drizzle/schema");
 
-      // Map to valid caseType enum values
-      const validCaseType = ["renewal", "amendment", "cancellation", "contract_registration", "employee_update", "document_update", "new_permit", "transfer"].includes(caseType)
-        ? caseType as "renewal"
-        : "renewal";
-
-      const [result] = await db.insert(governmentServiceCases).values({
-        companyId: input.companyId ?? 0,
-        caseType: validCaseType,
+      const caseResult = await db.insert(governmentServiceCases).values({
+        companyId: effectiveCompanyId,
+        employeeId,
+        workPermitId,
+        caseType: "renewal",
         caseStatus: "draft",
         priority: "high",
         requestedBy: ctx.user.id,
         notes: input.notes ?? `Auto-created renewal case from expiry alert for ${input.category} entity ${input.entityId}`,
       });
 
+      const insertRow = caseResult[0] as { insertId?: number };
+      const caseId = Number(insertRow?.insertId ?? 0);
+
       return {
         success: true,
-        caseId: (result as { insertId?: number })?.insertId ?? 0,
+        caseId,
         message: `Renewal case created for ${input.category} — navigate to Government Cases to track progress.`,
       };
     }),
@@ -404,21 +514,38 @@ export const alertsRouter = router({
     const db = await getDb();
     if (!db) return { count: 0, critical: 0 };
 
+    const isGlobal = canAccessGlobalAdminProcedures(ctx.user);
+    const tenant = await getUserCompany(ctx.user.id);
+    const tenantCompanyId = tenant?.company?.id ?? null;
+
+    if (!isGlobal && tenantCompanyId == null) {
+      return { count: 0, critical: 0 };
+    }
+
     const now = new Date();
     const cutoff30 = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
     const cutoff7 = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
-    // Count work permits expiring within 30 days
+    const scope30 = [
+      gte(workPermits.expiryDate, now),
+      lte(workPermits.expiryDate, cutoff30),
+      ...(tenantCompanyId != null && !isGlobal ? [eq(workPermits.companyId, tenantCompanyId)] : []),
+    ];
+    const scope7 = [
+      gte(workPermits.expiryDate, now),
+      lte(workPermits.expiryDate, cutoff7),
+      ...(tenantCompanyId != null && !isGlobal ? [eq(workPermits.companyId, tenantCompanyId)] : []),
+    ];
+
     const [{ wpCount }] = await db
       .select({ wpCount: sql<number>`COUNT(*)` })
       .from(workPermits)
-      .where(and(gte(workPermits.expiryDate, now), lte(workPermits.expiryDate, cutoff30)));
+      .where(and(...scope30));
 
-    // Count critical (within 7 days)
     const [{ wpCritical }] = await db
       .select({ wpCritical: sql<number>`COUNT(*)` })
       .from(workPermits)
-      .where(and(gte(workPermits.expiryDate, now), lte(workPermits.expiryDate, cutoff7)));
+      .where(and(...scope7));
 
     return {
       count: Number(wpCount ?? 0),

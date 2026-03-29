@@ -7,27 +7,18 @@ import {
   sanadRatingReplies,
   sanadOffices,
   companies,
-  companyMembers,
   users,
   sanadServiceRequests,
 } from "../../drizzle/schema";
 import { and, avg, count, desc, eq, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { notifyOwner } from "../_core/notification";
+import { getActiveCompanyMembership } from "../_core/membership";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function clampRating(v: number) {
   return Math.max(1, Math.min(5, Math.round(v)));
-}
-
-async function getMemberCompanyId(db: NonNullable<Awaited<ReturnType<typeof getDb>>>, userId: number): Promise<number | null> {
-  const [row] = await db
-    .select({ companyId: companyMembers.companyId })
-    .from(companyMembers)
-    .where(and(eq(companyMembers.userId, userId), eq(companyMembers.isActive, true)))
-    .limit(1);
-  return row?.companyId ?? null;
 }
 
 async function recomputeOfficeScore(db: NonNullable<Awaited<ReturnType<typeof getDb>>>, officeId: number) {
@@ -77,7 +68,7 @@ export const ratingsRouter = router({
         .where(eq(sanadOffices.id, input.officeId));
       if (!office) throw new TRPCError({ code: "NOT_FOUND", message: "Sanad centre not found" });
 
-      const companyId = await getMemberCompanyId(db, ctx.user.id);
+      const companyId = (await getActiveCompanyMembership(ctx.user.id))?.companyId ?? null;
       if (!companyId) throw new TRPCError({ code: "FORBIDDEN", message: "No company associated with your account" });
 
       // Prevent duplicate review per company per office
@@ -387,7 +378,7 @@ export const ratingsRouter = router({
       const db = await getDb();
       if (!db) return null;
 
-      const companyId = await getMemberCompanyId(db, ctx.user.id);
+      const companyId = (await getActiveCompanyMembership(ctx.user.id))?.companyId ?? null;
       if (!companyId) return null;
 
       const [rating] = await db

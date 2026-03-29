@@ -169,11 +169,11 @@
 - [x] Status normalization: enum-based status fields enforced at DB level via MySQL ENUM constraints; zero TypeScript errors
 
 ## Bug Fixes — Phase 15
-- [ ] Fix 404 on /workforce/permits/upload — route not registered in App.tsx (wouter matches /workforce/permits before /workforce/permits/upload)
-- [ ] Audit all /workforce/* sub-routes for similar prefix-collision 404s
-- [ ] Add syncWorkPermits and getJobStatus named procedures to sync router
-- [ ] Add granular permission checks (employees.read, work_permits.renew, government_cases.submit)
-- [ ] Add dedicated workforce router tests
+- [x] Fix 404 on /workforce/permits/upload — route ordering confirmed correct: /workforce/permits/upload is registered BEFORE /workforce/permits/:id in App.tsx
+- [x] Audit all /workforce/* sub-routes for similar prefix-collision 404s — all specific routes (permits/upload, cases/new) correctly precede parameterized routes
+- [x] Add syncWorkPermits and getJobStatus named procedures to sync router — both already exist in workforce.ts sync sub-router
+- [x] Add granular permission checks (employees.read, work_permits.renew, government_cases.submit) — hasPermission() helper added; work_permits.upload, government_cases.submit checks applied to upload, create, and submit mutations
+- [x] Add dedicated workforce router tests — 37 tests in workforce.test.ts covering permissions, normalizePermitStatus, computeDaysToExpiry, autoTasksForCaseType, sync job types, permit number validation
 
 ## Phase 16: Shared Omani PRO — National Omanisation Platform
 

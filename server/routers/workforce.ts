@@ -72,6 +72,50 @@ async function getMemberCompanyId(user: Pick<User, "id" | "name" | "email" | "ro
   return companyId;
 }
 
+/**
+ * Checks whether a user has a specific granular permission for their company.
+ * Platform admins and company_admin role bypass all permission checks.
+ * For company_member/reviewer roles, the permission must be explicitly listed
+ * in the companyMembers.permissions JSON array.
+ *
+ * Built-in permission strings:
+ *   employees.read, employees.write, employees.delete
+ *   work_permits.read, work_permits.renew, work_permits.upload
+ *   government_cases.read, government_cases.submit, government_cases.manage
+ *   documents.read, documents.upload
+ *   sync.trigger
+ */
+async function hasPermission(
+  user: Pick<User, "id" | "role" | "platformRole">,
+  companyId: number,
+  permission: string
+): Promise<boolean> {
+  // Platform-level admins bypass all permission checks
+  if (
+    user.role === "admin" ||
+    user.platformRole === "super_admin" ||
+    user.platformRole === "platform_admin"
+  ) return true;
+
+  const db = await getDb();
+  if (!db) return false;
+
+  const [member] = await db
+    .select({ role: companyMembers.role, permissions: companyMembers.permissions })
+    .from(companyMembers)
+    .where(and(eq(companyMembers.userId, user.id), eq(companyMembers.companyId, companyId), eq(companyMembers.isActive, true)))
+    .limit(1);
+
+  if (!member) return false;
+
+  // company_admin has all permissions within their company
+  if (member.role === "company_admin") return true;
+
+  // For other roles, check explicit permission list
+  const perms: string[] = Array.isArray(member.permissions) ? member.permissions : [];
+  return perms.includes(permission) || perms.includes("*");
+}
+
 function normalizePermitStatus(raw?: string | null): "active" | "expiring_soon" | "expired" | "in_grace" | "cancelled" | "transferred" | "pending_update" | "unknown" {
   if (!raw) return "unknown";
   const s = raw.toLowerCase().trim();
@@ -213,6 +257,10 @@ export const workforceRouter = router({
       .query(async ({ ctx, input }) => {
         const companyId = await getMemberCompanyId(ctx.user);
         if (!companyId) return { items: [], total: 0 };
+        // Permission check: employees.read
+        if (!(await hasPermission(ctx.user, companyId, "employees.read"))) {
+          return { items: [], total: 0 }; // Return empty rather than error for read operations
+        }
         const db = await getDb();
         if (!db) return { items: [], total: 0 };
 
@@ -341,6 +389,10 @@ export const workforceRouter = router({
       .query(async ({ ctx, input }) => {
         const companyId = await getMemberCompanyId(ctx.user);
         if (!companyId) return { items: [], total: 0 };
+        // Permission check: work_permits.read
+        if (!(await hasPermission(ctx.user, companyId, "work_permits.read"))) {
+          return { items: [], total: 0 };
+        }
         const db = await getDb();
         if (!db) return { items: [], total: 0 };
 
@@ -456,6 +508,10 @@ export const workforceRouter = router({
       .mutation(async ({ ctx, input }) => {
         const companyId = await getMemberCompanyId(ctx.user);
         if (!companyId) throw new TRPCError({ code: "FORBIDDEN" });
+        // Permission check: work_permits.upload
+        if (!(await hasPermission(ctx.user, companyId, "work_permits.upload"))) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "You do not have permission to upload work permits" });
+        }
         const db = await getDb();
         if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
@@ -731,6 +787,10 @@ Return ONLY valid JSON matching the schema, no extra text.`,
       .mutation(async ({ ctx, input }) => {
         const companyId = await getMemberCompanyId(ctx.user);
         if (!companyId) throw new TRPCError({ code: "FORBIDDEN" });
+        // Permission check: government_cases.submit
+        if (!(await hasPermission(ctx.user, companyId, "government_cases.submit"))) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "You do not have permission to create government cases" });
+        }
         const db = await getDb();
         if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
@@ -772,6 +832,10 @@ Return ONLY valid JSON matching the schema, no extra text.`,
       .mutation(async ({ ctx, input }) => {
         const companyId = await getMemberCompanyId(ctx.user);
         if (!companyId) throw new TRPCError({ code: "FORBIDDEN" });
+        // Permission check: government_cases.submit
+        if (!(await hasPermission(ctx.user, companyId, "government_cases.submit"))) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "You do not have permission to submit government cases" });
+        }
         const db = await getDb();
         if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
@@ -824,6 +888,10 @@ Return ONLY valid JSON matching the schema, no extra text.`,
       .mutation(async ({ ctx, input }) => {
         const companyId = await getMemberCompanyId(ctx.user);
         if (!companyId) throw new TRPCError({ code: "FORBIDDEN" });
+        // Permission check: government_cases.manage (required to update case status)
+        if (!(await hasPermission(ctx.user, companyId, "government_cases.manage"))) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "You do not have permission to manage government cases" });
+        }
         const db = await getDb();
         if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 

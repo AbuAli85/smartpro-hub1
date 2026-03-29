@@ -117,6 +117,16 @@ describe("Permission logic", () => {
 
 // ─── Permit status normalisation ─────────────────────────────────────────────
 
+describe("MOL certificate storage key policy", () => {
+  it("requires fileKey under company/{companyId}/ prefix", () => {
+    const companyId = 42;
+    const prefix = `company/${companyId}/`;
+    expect(`company/${companyId}/employees/1/mol/x.pdf`.startsWith(prefix)).toBe(true);
+    expect(`other/${companyId}/x.pdf`.startsWith(prefix)).toBe(false);
+    expect(`company/99/x.pdf`.startsWith(prefix)).toBe(false);
+  });
+});
+
 describe("normalizePermitStatus", () => {
   const normalize = (raw: string | null | undefined): string => {
     if (!raw) return "unknown";

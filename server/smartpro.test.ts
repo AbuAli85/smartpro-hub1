@@ -1,6 +1,7 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { appRouter } from "./routers";
 import type { TrpcContext } from "./_core/context";
+import * as db from "./db";
 
 // ─── Mock DB ─────────────────────────────────────────────────────────────────
 vi.mock("./db", () => ({
@@ -877,6 +878,22 @@ describe("sanad.addCatalogueItem", () => {
         processingDays: 3,
       }),
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+});
+
+describe("officers.generateCertificate tenant guard", () => {
+  beforeEach(() => {
+    vi.mocked(db.getUserCompany).mockResolvedValue({ company: { id: 5 }, member: {} } as any);
+  });
+  afterEach(() => {
+    vi.mocked(db.getUserCompany).mockResolvedValue(null);
+  });
+
+  it("returns NOT_FOUND when company user targets another company", async () => {
+    const ctx = makeCtx({ role: "user", platformRole: "company_member" });
+    await expect(
+      appRouter.createCaller(ctx).officers.generateCertificate({ companyId: 99, month: 1, year: 2026 }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
   });
 });
 

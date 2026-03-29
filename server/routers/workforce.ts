@@ -444,11 +444,20 @@ export const workforceRouter = router({
           .from(employees)
           .where(and(eq(employees.id, wp.employeeId), eq(employees.companyId, companyId)))
           .limit(1);
-        const docs = await db.select().from(employeeDocuments)
-          .where(eq(employeeDocuments.workPermitId, wp.id))
+        const docs = await db
+          .select()
+          .from(employeeDocuments)
+          .where(and(eq(employeeDocuments.workPermitId, wp.id), eq(employeeDocuments.companyId, companyId)))
           .orderBy(desc(employeeDocuments.createdAt));
-        const cases = await db.select().from(governmentServiceCases)
-          .where(eq(governmentServiceCases.workPermitId, wp.id))
+        const cases = await db
+          .select()
+          .from(governmentServiceCases)
+          .where(
+            and(
+              eq(governmentServiceCases.workPermitId, wp.id),
+              eq(governmentServiceCases.companyId, companyId),
+            ),
+          )
           .orderBy(desc(governmentServiceCases.createdAt));
 
         return {
@@ -512,6 +521,14 @@ export const workforceRouter = router({
         // Validate required fields
         if (!p.workPermitNumber) throw new TRPCError({ code: "BAD_REQUEST", message: "workPermitNumber is required" });
         if (!p.civilId) throw new TRPCError({ code: "BAD_REQUEST", message: "civilId is required" });
+
+        const expectedKeyPrefix = `company/${companyId}/`;
+        if (!input.fileKey.startsWith(expectedKeyPrefix)) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Certificate must be uploaded to your company storage path before ingestion",
+          });
+        }
 
         // Upsert employee
         const nameParts = p.fullNameEn.trim().split(" ");

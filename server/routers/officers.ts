@@ -14,6 +14,8 @@ import {
 } from "../../drizzle/schema";
 import { adminProcedure, protectedProcedure, router } from "../_core/trpc";
 import { storagePut } from "../storage";
+import { assertRowBelongsToActiveCompany } from "../_core/tenant";
+import type { User } from "../../drizzle/schema";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -418,7 +420,10 @@ export const officersRouter = router({
   // ── Generate compliance certificate ───────────────────────────────────────
   generateCertificate: protectedProcedure
     .input(z.object({ companyId: z.number(), month: z.number().min(1).max(12), year: z.number().min(2024) }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      if (!canAccessGlobalAdminProcedures(ctx.user)) {
+        await assertRowBelongsToActiveCompany(ctx.user as User, input.companyId, "Company");
+      }
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
@@ -463,7 +468,7 @@ export const officersRouter = router({
       // Upload to S3
       let pdfUrl: string | undefined;
       try {
-        const fileKey = `certificates/${input.year}/${String(input.month).padStart(2, "0")}/${certNumber}.html`;
+        const fileKey = `certificates/${input.companyId}/${input.year}/${String(input.month).padStart(2, "0")}/${certNumber}.html`;
         const { url } = await storagePut(fileKey, Buffer.from(certHtml, "utf-8"), "text/html");
         pdfUrl = url;
       } catch {

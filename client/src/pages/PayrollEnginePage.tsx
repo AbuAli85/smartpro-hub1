@@ -20,6 +20,26 @@ import {
 
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 const fmt = (n: number | string | null | undefined) => `OMR ${Number(n ?? 0).toFixed(3)}`;
+
+function PayrollReportButton() {
+  const now = new Date();
+  const generateReport = trpc.reports.generateWorkforceReport.useMutation({
+    onSuccess: (data) => {
+      toast.success("Workforce report generated!");
+      window.open(data.url, "_blank");
+    },
+    onError: (e) => toast.error(e.message),
+  });
+  return (
+    <Button variant="outline" size="sm"
+      onClick={() => generateReport.mutate({})}
+      disabled={generateReport.isPending}
+      className="gap-1">
+      {generateReport.isPending ? <RefreshCw size={13} className="animate-spin" /> : <Download size={13} />}
+      Workforce PDF
+    </Button>
+  );
+}
 const statusColor: Record<string, string> = {
   draft: "bg-yellow-100 text-yellow-800",
   processing: "bg-blue-100 text-blue-800",
@@ -171,9 +191,12 @@ export default function PayrollEnginePage() {
           <h1 className="text-2xl font-bold text-foreground">Payroll Engine</h1>
           <p className="text-muted-foreground text-sm mt-1">Manage payroll cycles, salary configurations, loans, and WPS submissions</p>
         </div>
-        <Button onClick={() => setCreateOpen(true)} className="gap-2">
-          <Plus size={16} /> New Payroll Run
-        </Button>
+        <div className="flex gap-2">
+          <PayrollReportButton />
+          <Button onClick={() => setCreateOpen(true)} className="gap-2">
+            <Plus size={16} /> New Payroll Run
+          </Button>
+        </div>
       </div>
 
       {/* KPI Cards */}

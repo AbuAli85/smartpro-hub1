@@ -1773,3 +1773,31 @@ export const salaryLoans = mysqlTable("salary_loans", {
 });
 export type SalaryLoan = typeof salaryLoans.$inferSelect;
 export type InsertSalaryLoan = typeof salaryLoans.$inferInsert;
+
+// ─── CLIENT PORTAL TOKENS ─────────────────────────────────────────────────────
+export const clientPortalTokens = mysqlTable("client_portal_tokens", {
+  id: int("id").autoincrement().primaryKey(),
+  companyId: int("company_id").notNull(),
+  token: varchar("token", { length: 128 }).notNull().unique(),
+  label: varchar("label", { length: 255 }),
+  createdBy: int("created_by").notNull(),
+  expiresAt: timestamp("expires_at"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export type ClientPortalToken = typeof clientPortalTokens.$inferSelect;
+export type InsertClientPortalToken = typeof clientPortalTokens.$inferInsert;
+
+// ─── CLIENT MESSAGES ──────────────────────────────────────────────────────────
+export const clientMessages = mysqlTable("client_messages", {
+  id: int("id").autoincrement().primaryKey(),
+  companyId: int("company_id").notNull(),
+  senderUserId: int("sender_user_id"),
+  senderName: varchar("sender_name", { length: 255 }),
+  message: text("message").notNull(),
+  isRead: boolean("is_read").notNull().default(false),
+  isFromClient: boolean("is_from_client").notNull().default(false),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export type ClientMessage = typeof clientMessages.$inferSelect;
+export type InsertClientMessage = typeof clientMessages.$inferInsert;

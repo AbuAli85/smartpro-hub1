@@ -50,11 +50,12 @@ import ReportsPage from "./pages/ReportsPage";
 import AuditLogPage from "./pages/AuditLogPage";
 import PublicJobBoardPage from "./pages/PublicJobBoardPage";
 import WorkflowDetailPage from "./pages/WorkflowDetailPage";
-
+import ContractSignPage from "./pages/ContractSignPage";
 function PublicRoutes() {
   return (
     <Switch>
       <Route path="/jobs" component={PublicJobBoardPage} />
+      <Route path="/contracts/:id/sign" component={ContractSignPage} />
       <Route component={AppRoutes} />
     </Switch>
   );

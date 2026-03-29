@@ -389,10 +389,39 @@ export default function PlatformLayout({ children }: { children: React.ReactNode
         </header>
 
         {/* Content */}
-        <main className="flex-1 overflow-y-auto">
+        <main className="flex-1 overflow-y-auto pb-16 lg:pb-0">
           {children}
         </main>
       </div>
+      {/* Mobile bottom navigation */}
+      <MobileBottomNav />
     </div>
+  );
+}
+
+function MobileBottomNav() {
+  const [location] = useLocation();
+  const tabs = [
+    { href: "/dashboard", icon: <LayoutDashboard size={20} />, label: "Home" },
+    { href: "/alerts", icon: <Bell size={20} />, label: "Alerts" },
+    { href: "/contracts", icon: <FileText size={20} />, label: "Contracts" },
+    { href: "/hr/employees", icon: <Users size={20} />, label: "HR" },
+    { href: "/crm", icon: <Briefcase size={20} />, label: "CRM" },
+  ];
+  return (
+    <nav className="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-card border-t border-border flex items-center justify-around h-16">
+      {tabs.map((tab) => {
+        const active = location === tab.href || (tab.href !== "/dashboard" && location.startsWith(tab.href));
+        return (
+          <Link key={tab.href} href={tab.href}
+            className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg transition-colors ${
+              active ? "text-primary" : "text-muted-foreground hover:text-foreground"
+            }`}>
+            {tab.icon}
+            <span className="text-[10px] font-medium">{tab.label}</span>
+          </Link>
+        );
+      })}
+    </nav>
   );
 }

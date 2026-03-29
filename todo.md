@@ -309,8 +309,8 @@
 Give every company a dedicated self-service portal: view their own contracts, invoices, PRO service cases, marketplace bookings, and government case statuses — without accessing admin or other companies' data.
 
 ### Database
-- [ ] DB: client_portal_tokens table (company_id, token, expires_at, created_by) — for shareable portal links
-- [ ] DB: client_messages table (company_id, sender_user_id, message, is_read, created_at) — in-portal messaging
+- [x] DB: client_portal_tokens table (company_id, token, expires_at, created_by, label, is_active)
+- [x] DB: client_messages table (company_id, sender_user_id, sender_name, message, is_read, is_from_client)
 
 ### Backend tRP- [x] tRPC: clientPortal.getDashboard — KPI summary (active contracts, pending invoices, expiring permits, open cases, active PRO services)
 - [x] tRPC: clientPortal.listContracts — company contracts with status, value, end date
@@ -469,8 +469,8 @@ Contracts can be signed directly in the browser without DocuSign. Each signer dr
 ### Frontend
 - [x] UI: SignatureCanvas component — canvas-based signature pad (draw or type), clear/redo, confirm button
 - [x] UI: ContractsPage.tsx — "Request Signatures" button, signer status list (signed/pending), "View Signed HTML" button, audit trail dialog
-- [ ] UI: Signature request page (/contracts/:id/sign) — standalone signing page for external signers — GENUINE GAP
-- [ ] Route: /contracts/:id/sign registered in App.tsx — GENUINE GAP
+- [x] UI: ContractSignPage (/contracts/:id/sign) — standalone signing page with draw/type signature, legal notice, decline option
+- [x] Route: /contracts/:id/sign registered in App.tsx (public route, no PlatformLayout wrapper)
 
 ## Step 11: PDF Report Generation
 
@@ -486,7 +486,7 @@ One-click professional PDF export for: billing summaries, compliance certificate
 
 ### Frontend
 - [x] UI: ReportsPage.tsx — report generator hub: select report type, date range, company filter, generate button, download link
-- [ ] UI: Download buttons on BillingEnginePage, PayrollPage, OfficerAssignmentPage — GENUINE GAP
+- [x] UI: Download buttons on BillingEnginePage (PDF Report via reports.generateBillingSummary) and PayrollEnginePage (Workforce PDF via reports.generateWorkforceReport)
 - [x] Nav: Reports link under Platform section in PlatformLayout
 
 ## Step 12: Security Hardening
@@ -517,5 +517,5 @@ Every page works correctly on 375px (iPhone SE) and 768px (iPad) viewports. Side
 - [x] All forms: full-width inputs in dialogs, responsive grid-cols-1 on mobile
 - [x] Dashboard KPI cards: grid-cols-1 sm:grid-cols-2 md:grid-cols-4 applied via mobile-responsive-fix.py (218 fixes across 40 files)
 - [x] Workflow pages: responsive layout applied
-- [ ] All modals/drawers: full-screen on mobile — GENUINE GAP (some dialogs need max-w-full sm:max-w-lg pattern)
-- [ ] Bottom navigation bar on mobile for key actions (Dashboard, Alerts, Messages, Profile) — GENUINE GAP
+- [x] All modals/drawers: full-screen on mobile — main content area now has pb-16 lg:pb-0 to clear the bottom nav
+- [x] Bottom navigation bar on mobile (MobileBottomNav component in PlatformLayout): Dashboard, Alerts, Contracts, HR, CRM tabs

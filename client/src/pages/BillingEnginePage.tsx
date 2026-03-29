@@ -31,6 +31,7 @@ import {
   Clock,
   CreditCard,
   DollarSign,
+  Download,
   FileText,
   RefreshCw,
   TrendingUp,
@@ -67,6 +68,25 @@ function formatOMR(val: string | number | null | undefined) {
 function currentMonth() {
   const d = new Date();
   return { month: d.getMonth() + 1, year: d.getFullYear() };
+}
+
+function BillingReportButton({ month, year }: { month: number; year: number }) {
+  const generateReport = trpc.reports.generateBillingSummary.useMutation({
+    onSuccess: (data) => {
+      toast.success("Report generated!");
+      window.open(data.url, "_blank");
+    },
+    onError: (e) => toast.error(e.message),
+  });
+  return (
+    <Button variant="outline" size="sm"
+      onClick={() => generateReport.mutate({ month, year })}
+      disabled={generateReport.isPending}
+      className="gap-1">
+      {generateReport.isPending ? <RefreshCw size={13} className="animate-spin" /> : <Download size={13} />}
+      PDF Report
+    </Button>
+  );
 }
 
 export default function BillingEnginePage() {
@@ -195,6 +215,7 @@ export default function BillingEnginePage() {
             <FileText size={14} className="mr-1.5" />
             Generate Invoices
           </Button>
+          <BillingReportButton month={Number(filterMonth) || now.month} year={Number(filterYear) || now.year} />
         </div>
       </div>
 

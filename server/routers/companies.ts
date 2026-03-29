@@ -17,6 +17,74 @@ import {
 import { companyMembers, users } from "../../drizzle/schema";
 import { protectedProcedure, router } from "../_core/trpc";
 
+function companyIdFromCreateResult(row: unknown): number {
+  if (row && typeof row === "object") {
+    const r = row as { insertId?: unknown; id?: unknown };
+    if (r.insertId != null) {
+      const n = Number(r.insertId);
+      if (Number.isFinite(n) && n > 0) return n;
+    }
+    if (r.id != null) {
+      const n = Number(r.id);
+      if (Number.isFinite(n) && n > 0) return n;
+    }
+  }
+  throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to resolve new company id" });
+}
+
+/** Adds existing platform users as company_member (no email invites for users not yet registered). */
+async function addExistingUsersAsMembers(
+  db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
+  companyId: number,
+  inviterUserId: number,
+  inviteEmails: string[],
+  inviterEmail: string | null | undefined,
+): Promise<number> {
+  let count = 0;
+  const seen = new Set<string>();
+  const inviterNorm = inviterEmail?.trim().toLowerCase() ?? "";
+  for (const raw of inviteEmails) {
+    const email = raw.trim().toLowerCase();
+    if (!email || seen.has(email)) continue;
+    seen.add(email);
+    if (email === inviterNorm) continue;
+
+    const [targetUser] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.email, email))
+      .limit(1);
+    if (!targetUser) continue;
+
+    const [existing] = await db
+      .select({ id: companyMembers.id, isActive: companyMembers.isActive })
+      .from(companyMembers)
+      .where(and(eq(companyMembers.userId, targetUser.id), eq(companyMembers.companyId, companyId)))
+      .limit(1);
+
+    if (existing?.isActive) continue;
+
+    if (existing && !existing.isActive) {
+      await db
+        .update(companyMembers)
+        .set({ isActive: true, role: "company_member", invitedBy: inviterUserId })
+        .where(eq(companyMembers.id, existing.id));
+      count++;
+      continue;
+    }
+
+    await db.insert(companyMembers).values({
+      companyId,
+      userId: targetUser.id,
+      role: "company_member",
+      isActive: true,
+      invitedBy: inviterUserId,
+    });
+    count++;
+  }
+  return count;
+}
+
 // ─── Guard: caller must be company_admin or platform admin ───────────────────
 async function assertCompanyAdmin(userId: number, companyId: number) {
   const db = await getDb();
@@ -69,12 +137,49 @@ export const companiesRouter = router({
         email: z.string().email().optional(),
         website: z.string().optional(),
         registrationNumber: z.string().optional(),
+        /** Emails of users who already have SmartPRO accounts — they are added as company members. */
+        inviteEmails: z.array(z.string().email()).max(50).optional(),
       })
     )
-    .mutation(async ({ input }) => {
-      const slug = input.name.toLowerCase().replace(/\s+/g, "-") + "-" + nanoid(6);
-      await createCompany({ ...input, slug, subscriptionPlanId: 1 });
-      return { success: true };
+    .mutation(async ({ input, ctx }) => {
+      const existingMembership = await getUserCompany(ctx.user.id);
+      if (existingMembership && !canAccessGlobalAdminProcedures(ctx.user)) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: "You already belong to a company. Use Company Admin to invite teammates.",
+        });
+      }
+
+      const { inviteEmails = [], ...companyFields } = input;
+      const slug = companyFields.name.toLowerCase().replace(/\s+/g, "-") + "-" + nanoid(6);
+      const insertResult = await createCompany({ ...companyFields, slug, subscriptionPlanId: 1 });
+      const companyId = companyIdFromCreateResult(insertResult);
+
+      let teammatesAdded = 0;
+      const db = await getDb();
+      if (db) {
+        // Tenant onboarding: creator becomes company admin. Platform users who already have a
+        // workspace can still provision another company (e.g. Admin UI) without a second self-membership.
+        if (!existingMembership) {
+          await db.insert(companyMembers).values({
+            companyId,
+            userId: ctx.user.id,
+            role: "company_admin",
+            isActive: true,
+          });
+        }
+        if (inviteEmails.length > 0) {
+          teammatesAdded = await addExistingUsersAsMembers(
+            db,
+            companyId,
+            ctx.user.id,
+            inviteEmails,
+            ctx.user.email,
+          );
+        }
+      }
+
+      return { success: true, id: companyId, teammatesAdded };
     }),
 
   update: protectedProcedure

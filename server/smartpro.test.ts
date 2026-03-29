@@ -578,6 +578,19 @@ describe("companies.onboarding", () => {
       city: "Muscat",
     });
     expect(result).toHaveProperty("success", true);
+    expect(result).toHaveProperty("id", 1);
+    expect(result).toHaveProperty("teammatesAdded", 0);
+  });
+
+  it("create company rejects tenant users who already have a workspace", async () => {
+    vi.mocked(db.getUserCompany).mockResolvedValueOnce({
+      company: { id: 99 },
+      member: {},
+    } as any);
+    const caller = appRouter.createCaller(makeCtx({ role: "user", platformRole: "company_member" }));
+    await expect(caller.companies.create({ name: "Another LLC", country: "OM" })).rejects.toThrow(
+      /already belong to a company/,
+    );
   });
 
   it("subscriptionPlans returns array of plans", async () => {

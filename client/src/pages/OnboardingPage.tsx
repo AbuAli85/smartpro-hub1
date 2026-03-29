@@ -24,6 +24,19 @@ const INDUSTRIES = [
 
 const COUNTRIES = ["Oman", "UAE", "Saudi Arabia", "Kuwait", "Bahrain", "Qatar"];
 
+function parseInviteEmails(raw: string): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const part of raw.split(/[\n,;]+/)) {
+    const t = part.trim().toLowerCase();
+    if (!t || !t.includes("@")) continue;
+    if (seen.has(t)) continue;
+    seen.add(t);
+    out.push(t);
+  }
+  return out;
+}
+
 export default function OnboardingPage() {
   const [, navigate] = useLocation();
   const [step, setStep] = useState(1);
@@ -37,8 +50,13 @@ export default function OnboardingPage() {
 
   const { data: plans } = trpc.companies.subscriptionPlans.useQuery();
   const createCompanyMutation = trpc.companies.create.useMutation({
-    onSuccess: (data: { id?: number; success?: boolean }) => {
+    onSuccess: (data: { id?: number; success?: boolean; teammatesAdded?: number }) => {
       if (data.id) setCompanyId(data.id);
+      if (data.teammatesAdded && data.teammatesAdded > 0) {
+        toast.success(`${data.teammatesAdded} teammate(s) with existing accounts were added to your workspace.`);
+      } else if (parseInviteEmails(inviteEmails).length > 0) {
+        toast.message("Invite list saved for reference — teammates must have a SmartPRO account before they can be added automatically. Use Company Admin → Members to add them later.");
+      }
       setStep(3);
     },
     onError: (e) => toast.error(e.message),
@@ -52,6 +70,7 @@ export default function OnboardingPage() {
   const handleCompanySubmit = () => {
     if (!company.name.trim()) { toast.error("Company name is required"); return; }
     if (!company.industry) { toast.error("Please select an industry"); return; }
+    const inviteList = parseInviteEmails(inviteEmails);
     createCompanyMutation.mutate({
       name: company.name,
       industry: company.industry,
@@ -59,6 +78,7 @@ export default function OnboardingPage() {
       phone: company.phone || undefined,
       email: company.email || undefined,
       website: company.website || undefined,
+      inviteEmails: inviteList.length > 0 ? inviteList : undefined,
     });
   };
 
@@ -171,7 +191,9 @@ export default function OnboardingPage() {
                     value={inviteEmails}
                     onChange={(e) => setInviteEmails(e.target.value)}
                   />
-                  <p className="text-xs text-muted-foreground">Invitations will be sent after your workspace is created</p>
+                  <p className="text-xs text-muted-foreground">
+                    Users who already have a SmartPRO account are added to your company immediately. Others can be invited from Company Admin after they sign up.
+                  </p>
                 </div>
                 <div className="bg-muted/50 rounded-lg p-4 text-sm">
                   <p className="font-medium mb-2">Creating workspace for:</p>

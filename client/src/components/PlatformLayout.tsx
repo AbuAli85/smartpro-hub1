@@ -43,7 +43,9 @@ import {
   seesPlatformOperatorNav,
   isPortalClientNav,
   isCompanyOwnerNav,
+  shouldUsePortalOnlyShell,
 } from "@shared/clientNav";
+import { ClientAccessGate } from "@/components/ClientAccessGate";
 import { getHiddenNavHrefs } from "@/lib/navVisibility";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -144,7 +146,7 @@ const navGroups = [
 function SidebarContent({ onClose }: { onClose?: () => void }) {
   const [location] = useLocation();
   const { user, logout } = useAuth();
-  const { data: myCompany } = trpc.companies.myCompany.useQuery();
+  const { data: myCompany, isLoading: myCompanyLoading } = trpc.companies.myCompany.useQuery();
   const [navPrefsEpoch, setNavPrefsEpoch] = useState(0);
 
   useEffect(() => {
@@ -164,11 +166,12 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
         items: group.items.filter((item) =>
           clientNavItemVisible(item.href, user, hiddenOptional, {
             hasCompanyWorkspace: Boolean(myCompany?.company?.id),
+            companyWorkspaceLoading: myCompanyLoading,
           }),
         ),
       }))
       .filter((g) => g.items.length > 0);
-  }, [user, navPrefsEpoch, myCompany?.company?.id]);
+  }, [user, navPrefsEpoch, myCompany?.company?.id, myCompanyLoading]);
 
   return (
     <div className="flex flex-col h-full sidebar-nav">
@@ -451,7 +454,7 @@ export default function PlatformLayout({ children }: { children: React.ReactNode
 
         {/* Content */}
         <main id="main-content" className="flex-1 overflow-y-auto pb-16 lg:pb-0" role="main">
-          {children}
+          <ClientAccessGate>{children}</ClientAccessGate>
         </main>
       </div>
       {/* Mobile bottom navigation */}
@@ -465,8 +468,10 @@ function MobileBottomNav() {
   const { user } = useAuth();
   const { data: myCompany, isLoading: companyLoading } = trpc.companies.myCompany.useQuery();
   const platform = seesPlatformOperatorNav(user);
-  const portalShell =
-    isPortalClientNav(user) && !companyLoading && !myCompany?.company?.id;
+  const portalShell = shouldUsePortalOnlyShell(user, {
+    hasCompanyWorkspace: Boolean(myCompany?.company?.id),
+    companyWorkspaceLoading: companyLoading,
+  });
 
   const tabs = useMemo(() => {
     if (platform) {

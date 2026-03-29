@@ -7,7 +7,7 @@ import {
   toggleNavHrefHidden,
   notifyNavPreferencesChanged,
 } from "@/lib/navVisibility";
-import { isPortalClientNav, OPTIONAL_NAV_HREFS } from "@shared/clientNav";
+import { OPTIONAL_NAV_HREFS, shouldUsePortalOnlyShell } from "@shared/clientNav";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 
@@ -21,15 +21,17 @@ const OPTIONAL_LABELS: Record<string, string> = {
 
 export default function PreferencesPage() {
   const { user } = useAuth();
-  const { data: myCompany } = trpc.companies.myCompany.useQuery();
+  const { data: myCompany, isLoading: myCompanyLoading } = trpc.companies.myCompany.useQuery();
   const [hidden, setHidden] = useState<Set<string>>(() => getHiddenNavHrefs());
 
   useEffect(() => {
     setHidden(getHiddenNavHrefs());
   }, []);
 
-  const portalOnly =
-    isPortalClientNav(user) && !myCompany?.company?.id;
+  const portalOnly = shouldUsePortalOnlyShell(user, {
+    hasCompanyWorkspace: Boolean(myCompany?.company?.id),
+    companyWorkspaceLoading: myCompanyLoading,
+  });
 
   const onToggle = (href: string, checked: boolean) => {
     toggleNavHrefHidden(href, !checked);

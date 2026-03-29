@@ -68,7 +68,19 @@ export function isPortalClientNav(user: { platformRole?: string | null } | null)
 export type ClientNavOptions = {
   /** When true, `platformRole: client` still gets full company nav (not the minimal portal shell). */
   hasCompanyWorkspace?: boolean;
+  /** While company membership is loading, do not treat portal users as “no company” (avoids nav flash). */
+  companyWorkspaceLoading?: boolean;
 };
+
+/** Exported for mobile nav / layout parity with sidebar. */
+export function shouldUsePortalOnlyShell(
+  user: { platformRole?: string | null } | null,
+  options?: ClientNavOptions,
+): boolean {
+  if (!isPortalClientNav(user)) return false;
+  if (options?.companyWorkspaceLoading) return false;
+  return options?.hasCompanyWorkspace !== true;
+}
 
 /**
  * Whether a sidebar item should render for this user.
@@ -84,8 +96,7 @@ export function clientNavItemVisible(
     return false;
   }
 
-  const portalShell = isPortalClientNav(user) && options?.hasCompanyWorkspace !== true;
-  if (portalShell) {
+  if (shouldUsePortalOnlyShell(user, options)) {
     return PORTAL_CLIENT_HREFS.has(href);
   }
 
@@ -99,6 +110,67 @@ export function clientNavItemVisible(
 
   if (COMPANY_LEADERSHIP_HREFS.has(href)) {
     return seesPlatformOperatorNav(user) || seesLeadershipCompanyNav(user);
+  }
+
+  return true;
+}
+
+/** Strip query string and trailing slash (except `/`). */
+export function normalizeClientPath(path: string): string {
+  let p = path.split("?")[0] ?? "/";
+  if (p.length > 1 && p.endsWith("/")) p = p.slice(0, -1);
+  return p || "/";
+}
+
+function pathMatchesRestrictedPrefix(path: string, baseHref: string): boolean {
+  return path === baseHref || path.startsWith(`${baseHref}/`);
+}
+
+/** Portal-only users (no company): allowed path prefixes / exact entries. */
+function portalShellPathAllowed(path: string): boolean {
+  if (PORTAL_CLIENT_HREFS.has(path)) return true;
+  if (path.startsWith("/contracts")) return true;
+  return false;
+}
+
+/**
+ * Full URL path access (for route guard + deep links). Uses the same rules as the sidebar.
+ */
+export function clientRouteAccessible(
+  pathname: string,
+  user: { role?: string | null; platformRole?: string | null } | null,
+  hiddenOptional: Set<string>,
+  options?: ClientNavOptions,
+): boolean {
+  const path = normalizeClientPath(pathname);
+
+  for (const opt of Array.from(OPTIONAL_NAV_HREFS)) {
+    if (!hiddenOptional.has(opt)) continue;
+    if (path === opt || path.startsWith(`${opt}/`)) {
+      return false;
+    }
+  }
+
+  if (shouldUsePortalOnlyShell(user, options)) {
+    return portalShellPathAllowed(path);
+  }
+
+  for (const href of Array.from(PLATFORM_ONLY_HREFS)) {
+    if (pathMatchesRestrictedPrefix(path, href) && !seesPlatformOperatorNav(user)) {
+      return false;
+    }
+  }
+
+  for (const href of Array.from(COMPANY_OWNER_HREFS)) {
+    if (pathMatchesRestrictedPrefix(path, href) && !seesPlatformOperatorNav(user) && !isCompanyOwnerNav(user)) {
+      return false;
+    }
+  }
+
+  for (const href of Array.from(COMPANY_LEADERSHIP_HREFS)) {
+    if (pathMatchesRestrictedPrefix(path, href) && !seesPlatformOperatorNav(user) && !seesLeadershipCompanyNav(user)) {
+      return false;
+    }
   }
 
   return true;

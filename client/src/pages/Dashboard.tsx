@@ -1,5 +1,8 @@
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
+import { getHiddenNavHrefs } from "@/lib/navVisibility";
+import { clientNavItemVisible, normalizeClientPath, seesPlatformOperatorNav } from "@shared/clientNav";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle, ArrowRight, ArrowUpRight, BarChart3,
   Briefcase, Building2, CheckCircle2, Clock, FileText,
@@ -97,7 +100,28 @@ function ComplianceRow({ label, status, pct }: { label: string; status: "ok" | "
 export default function Dashboard() {
   const { user } = useAuth();
   const { data: stats, isLoading } = trpc.companies.myStats.useQuery();
-  const { data: myCompany } = trpc.companies.myCompany.useQuery();
+  const { data: myCompany, isLoading: myCompanyLoading } = trpc.companies.myCompany.useQuery();
+  const [navPrefsEpoch, setNavPrefsEpoch] = useState(0);
+
+  useEffect(() => {
+    const fn = () => setNavPrefsEpoch((n) => n + 1);
+    window.addEventListener("smartpro-nav-prefs-changed", fn);
+    return () => window.removeEventListener("smartpro-nav-prefs-changed", fn);
+  }, []);
+
+  const navOpts = useMemo(
+    () => ({
+      hasCompanyWorkspace: Boolean(myCompany?.company?.id),
+      companyWorkspaceLoading: myCompanyLoading,
+    }),
+    [myCompany?.company?.id, myCompanyLoading],
+  );
+
+  const showHref = useMemo(() => {
+    const hidden = getHiddenNavHrefs();
+    return (href: string) => clientNavItemVisible(href, user, hidden, navOpts);
+  }, [user, navOpts, navPrefsEpoch]);
+
   const { data: expiringDocs } = trpc.pro.expiringDocuments.useQuery({ daysAhead: 30 });
   const { data: platformStats } = trpc.analytics.platformStats.useQuery();
   const { data: alertBadge } = trpc.alerts.getAlertBadgeCount.useQuery();
@@ -105,7 +129,103 @@ export default function Dashboard() {
   const { data: todaysTasks } = trpc.operations.getTodaysTasks.useQuery();
   const { data: auditFeed } = trpc.analytics.auditLogs.useQuery({ limit: 8 });
 
-  const isAdmin = user?.role === "admin";
+  const quickAccessModules = useMemo(() => {
+    const items = [
+      {
+        key: "sanad",
+        href: "/sanad",
+        title: "Sanad Office Management",
+        description: "Government service centres — applications, staff, and performance tracking",
+        icon: <Building2 size={18} />,
+        count: stats?.sanadApplications,
+        tag: "Government",
+        tagColor: "module-chip-gov",
+      },
+      {
+        key: "pro",
+        href: "/pro",
+        title: "PRO & Visa Services",
+        description: "Work permits, residence visas, labour cards, PASI, and MHRSD filings",
+        icon: <Shield size={18} />,
+        count: stats?.proServices,
+        tag: "Compliance",
+        tagColor: "module-chip-legal",
+      },
+      {
+        key: "hr",
+        href: "/hr/employees",
+        title: "HR & Workforce Hub",
+        description: "Employees, leave management, payroll, WPS, and Omanisation tracking",
+        icon: <Briefcase size={18} />,
+        count: stats?.pendingLeave,
+        tag: "Human Resources",
+        tagColor: "module-chip-hr",
+      },
+      {
+        key: "contracts",
+        href: "/contracts",
+        title: "Smart Contracts",
+        description: "Draft, negotiate, and digitally sign contracts with full audit trail",
+        icon: <FileText size={18} />,
+        count: stats?.contracts,
+        tag: "Legal",
+        tagColor: "module-chip-legal",
+      },
+      {
+        key: "marketplace",
+        href: "/marketplace",
+        title: "Service Marketplace",
+        description: "Connect with verified PRO service providers across Oman and GCC",
+        icon: <ShoppingBag size={18} />,
+        tag: "Marketplace",
+        tagColor: "module-chip-biz",
+      },
+      {
+        key: "crm",
+        href: "/crm",
+        title: "CRM & Pipeline",
+        description: "Manage clients, deals, and business development pipeline",
+        icon: <Users size={18} />,
+        count: stats?.deals,
+        tag: "Business",
+        tagColor: "module-chip-biz",
+      },
+      {
+        key: "payroll",
+        href: "/payroll",
+        title: "Payroll Engine",
+        description: "WPS-compliant payroll, PASI deductions, salary loans, and payslips",
+        icon: <Banknote size={18} />,
+        tag: "Finance",
+        tagColor: "module-chip-fin",
+      },
+      {
+        key: "alerts",
+        href: "/alerts",
+        title: "Expiry Alerts",
+        description: "Real-time alerts for visas, permits, contracts, and compliance deadlines",
+        icon: <Bell size={18} />,
+        count: alertBadge?.count,
+        tag: "Compliance",
+        tagColor: "module-chip-legal",
+      },
+    ];
+    return items.filter((m) => showHref(m.href));
+  }, [showHref, stats, alertBadge]);
+
+  const platformToolLinks = useMemo(() => {
+    const items = [
+      { href: "/renewal-workflows", icon: <RefreshCw size={13} />, label: "Renewal Workflows" },
+      { href: "/billing", icon: <Banknote size={13} />, label: "Billing Engine" },
+      { href: "/omani-officers", icon: <Users size={13} />, label: "Omani PRO Officers" },
+      { href: "/workforce", icon: <BarChart3 size={13} />, label: "Workforce Dashboard" },
+      { href: "/reports", icon: <FileText size={13} />, label: "PDF Reports" },
+      { href: "/audit-log", icon: <Shield size={13} />, label: "Audit Log" },
+    ];
+    return items.filter((item) => showHref(item.href));
+  }, [showHref]);
+
+  const showPlatformOverview = seesPlatformOperatorNav(user);
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
   const dateStr = new Date().toLocaleDateString("en-OM", {
@@ -136,7 +256,7 @@ export default function Dashboard() {
           </p>
         </div>
         <div className="flex gap-2 flex-wrap">
-          {alertBadge && alertBadge.critical > 0 && (
+          {showHref("/alerts") && alertBadge && alertBadge.critical > 0 && (
             <Link href="/alerts">
               <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-3 py-2 cursor-pointer hover:bg-red-100 transition-colors">
                 <AlertTriangle size={15} className="text-red-600" />
@@ -147,7 +267,7 @@ export default function Dashboard() {
               </div>
             </Link>
           )}
-          {expiringDocs && expiringDocs.length > 0 && (
+          {showHref("/pro") && expiringDocs && expiringDocs.length > 0 && (
             <Link href="/pro">
               <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 cursor-pointer hover:bg-amber-100 transition-colors">
                 <Clock size={15} className="text-amber-600" />
@@ -162,7 +282,7 @@ export default function Dashboard() {
       </div>
 
       {/* ── Admin Platform Stats ── */}
-      {isAdmin && platformStats && (
+      {showPlatformOverview && platformStats && (
         <div>
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
@@ -184,7 +304,7 @@ export default function Dashboard() {
       )}
 
       {/* ── Company KPI Stats ── */}
-      {!isAdmin && (
+      {!showPlatformOverview && (
         <div>
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
@@ -213,7 +333,7 @@ export default function Dashboard() {
                 <Building2 size={32} className="mx-auto text-muted-foreground mb-3" />
                 <h3 className="font-bold mb-1">No company linked</h3>
                 <p className="text-sm text-muted-foreground mb-4">Create or join a company to access all features.</p>
-                <Button asChild size="sm"><Link href="/admin">Set up company</Link></Button>
+                <Button asChild size="sm"><Link href="/onboarding">Set up company</Link></Button>
               </CardContent>
             </Card>
           )}
@@ -228,76 +348,18 @@ export default function Dashboard() {
             <Zap size={13} /> Quick Access
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <ModuleCard
-              title="Sanad Office Management"
-              description="Government service centres — applications, staff, and performance tracking"
-              href="/sanad"
-              icon={<Building2 size={18} />}
-              count={stats?.sanadApplications}
-              tag="Government"
-              tagColor="module-chip-gov"
-            />
-            <ModuleCard
-              title="PRO & Visa Services"
-              description="Work permits, residence visas, labour cards, PASI, and MHRSD filings"
-              href="/pro"
-              icon={<Shield size={18} />}
-              count={stats?.proServices}
-              tag="Compliance"
-              tagColor="module-chip-legal"
-            />
-            <ModuleCard
-              title="HR & Workforce Hub"
-              description="Employees, leave management, payroll, WPS, and Omanisation tracking"
-              href="/hr/employees"
-              icon={<Briefcase size={18} />}
-              count={stats?.pendingLeave}
-              tag="Human Resources"
-              tagColor="module-chip-hr"
-            />
-            <ModuleCard
-              title="Smart Contracts"
-              description="Draft, negotiate, and digitally sign contracts with full audit trail"
-              href="/contracts"
-              icon={<FileText size={18} />}
-              count={stats?.contracts}
-              tag="Legal"
-              tagColor="module-chip-legal"
-            />
-            <ModuleCard
-              title="Service Marketplace"
-              description="Connect with verified PRO service providers across Oman and GCC"
-              href="/marketplace"
-              icon={<ShoppingBag size={18} />}
-              tag="Marketplace"
-              tagColor="module-chip-biz"
-            />
-            <ModuleCard
-              title="CRM & Pipeline"
-              description="Manage clients, deals, and business development pipeline"
-              href="/crm"
-              icon={<Users size={18} />}
-              count={stats?.deals}
-              tag="Business"
-              tagColor="module-chip-biz"
-            />
-            <ModuleCard
-              title="Payroll Engine"
-              description="WPS-compliant payroll, PASI deductions, salary loans, and payslips"
-              href="/payroll"
-              icon={<Banknote size={18} />}
-              tag="Finance"
-              tagColor="module-chip-fin"
-            />
-            <ModuleCard
-              title="Expiry Alerts"
-              description="Real-time alerts for visas, permits, contracts, and compliance deadlines"
-              href="/alerts"
-              icon={<Bell size={18} />}
-              count={alertBadge?.count}
-              tag="Compliance"
-              tagColor="module-chip-legal"
-            />
+            {quickAccessModules.map((m) => (
+              <ModuleCard
+                key={m.key}
+                title={m.title}
+                description={m.description}
+                href={m.href}
+                icon={m.icon}
+                count={m.count}
+                tag={m.tag}
+                tagColor={m.tagColor}
+              />
+            ))}
           </div>
         </div>
 
@@ -317,18 +379,20 @@ export default function Dashboard() {
               <ComplianceRow label="Omanisation Quota" status="ok" pct={85} />
               <ComplianceRow label="WPS Salary Transfers" status="ok" pct={100} />
               <ComplianceRow label="Labour Law Filings" status="ok" pct={94} />
-              <div className="mt-3 pt-3 border-t border-border">
-                <Link href="/reports">
-                  <Button variant="outline" size="sm" className="w-full text-xs gap-1">
-                    View Compliance Report <ArrowRight size={11} />
-                  </Button>
-                </Link>
-              </div>
+              {showHref("/reports") && (
+                <div className="mt-3 pt-3 border-t border-border">
+                  <Link href="/reports">
+                    <Button variant="outline" size="sm" className="w-full text-xs gap-1">
+                      View Compliance Report <ArrowRight size={11} />
+                    </Button>
+                  </Link>
+                </div>
+              )}
             </CardContent>
           </Card>
 
           {/* Expiring Documents */}
-          {expiringDocs && expiringDocs.length > 0 && (
+          {showHref("/pro") && expiringDocs && expiringDocs.length > 0 && (
             <Card className="border-amber-200 bg-amber-50/30">
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm flex items-center gap-2 text-amber-800">
@@ -361,32 +425,27 @@ export default function Dashboard() {
           )}
 
           {/* Platform Links */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm flex items-center gap-2">
-                <Globe size={15} className="text-[var(--smartpro-teal)]" />
-                Platform Tools
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-0 space-y-1">
-              {[
-                { href: "/renewal-workflows", icon: <RefreshCw size={13} />, label: "Renewal Workflows" },
-                { href: "/billing", icon: <Banknote size={13} />, label: "Billing Engine" },
-                { href: "/omani-officers", icon: <Users size={13} />, label: "Omani PRO Officers" },
-                { href: "/workforce", icon: <BarChart3 size={13} />, label: "Workforce Dashboard" },
-                { href: "/reports", icon: <FileText size={13} />, label: "PDF Reports" },
-                { href: "/audit-log", icon: <Shield size={13} />, label: "Audit Log" },
-              ].map((item) => (
-                <Link key={item.href} href={item.href}>
-                  <div className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-muted transition-colors cursor-pointer">
-                    <span className="text-muted-foreground">{item.icon}</span>
-                    <span className="text-xs font-medium text-foreground">{item.label}</span>
-                    <ChevronRight size={11} className="ml-auto text-muted-foreground" />
-                  </div>
-                </Link>
-              ))}
-            </CardContent>
-          </Card>
+          {platformToolLinks.length > 0 && (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Globe size={15} className="text-[var(--smartpro-teal)]" />
+                  Platform Tools
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-0 space-y-1">
+                {platformToolLinks.map((item) => (
+                  <Link key={item.href} href={item.href}>
+                    <div className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-muted transition-colors cursor-pointer">
+                      <span className="text-muted-foreground">{item.icon}</span>
+                      <span className="text-xs font-medium text-foreground">{item.label}</span>
+                      <ChevronRight size={11} className="ml-auto text-muted-foreground" />
+                    </div>
+                  </Link>
+                ))}
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
 
@@ -409,7 +468,9 @@ export default function Dashboard() {
               }`}>
                 <p className="text-xs font-semibold text-foreground">{ins.title}</p>
                 <p className="text-xs text-muted-foreground mt-0.5">{ins.description}</p>
-                {ins.actionUrl && (
+                {ins.actionUrl &&
+                  (!ins.actionUrl.startsWith("/") ||
+                    showHref(normalizeClientPath(ins.actionUrl))) && (
                   <Link href={ins.actionUrl}>
                     <Button variant="link" size="sm" className="h-5 p-0 text-xs mt-1 gap-1">
                       {ins.actionLabel} <ArrowRight size={10} />
@@ -469,11 +530,13 @@ export default function Dashboard() {
               <CardTitle className="text-sm font-semibold flex items-center gap-2">
                 <Activity size={14} className="text-blue-500" /> Recent Activity
               </CardTitle>
-              <Link href="/audit-log">
-                <Button variant="ghost" size="sm" className="text-xs gap-1 h-6">
-                  All <ArrowUpRight size={10} />
-                </Button>
-              </Link>
+              {showHref("/audit-log") && (
+                <Link href="/audit-log">
+                  <Button variant="ghost" size="sm" className="text-xs gap-1 h-6">
+                    All <ArrowUpRight size={10} />
+                  </Button>
+                </Link>
+              )}
             </div>
           </CardHeader>
           <CardContent className="space-y-2">

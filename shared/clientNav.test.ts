@@ -1,8 +1,10 @@
 import { describe, it, expect } from "vitest";
 import {
   clientNavItemVisible,
+  clientRouteAccessible,
   OPTIONAL_NAV_HREFS,
   PLATFORM_ONLY_HREFS,
+  shouldUsePortalOnlyShell,
 } from "./clientNav";
 
 const member = { role: "user" as const, platformRole: "company_member" as const };
@@ -59,5 +61,47 @@ describe("clientNavItemVisible", () => {
   it("lets platformRole client use company nav when they have a company workspace", () => {
     expect(clientNavItemVisible("/hr/employees", portalClient, new Set(), { hasCompanyWorkspace: true })).toBe(true);
     expect(clientNavItemVisible("/payroll", portalClient, new Set(), { hasCompanyWorkspace: true })).toBe(false);
+  });
+
+  it("does not apply portal-only shell while company workspace is loading", () => {
+    expect(
+      clientNavItemVisible("/hr/employees", portalClient, new Set(), {
+        hasCompanyWorkspace: false,
+        companyWorkspaceLoading: true,
+      }),
+    ).toBe(true);
+    expect(shouldUsePortalOnlyShell(portalClient, { companyWorkspaceLoading: true })).toBe(false);
+  });
+});
+
+describe("shouldUsePortalOnlyShell", () => {
+  it("is false for non-portal users", () => {
+    expect(shouldUsePortalOnlyShell(member, { hasCompanyWorkspace: false })).toBe(false);
+  });
+
+  it("is true for portal client without company when not loading", () => {
+    expect(shouldUsePortalOnlyShell(portalClient, { hasCompanyWorkspace: false })).toBe(true);
+  });
+
+  it("is false when client has company workspace", () => {
+    expect(shouldUsePortalOnlyShell(portalClient, { hasCompanyWorkspace: true })).toBe(false);
+  });
+});
+
+describe("clientRouteAccessible", () => {
+  it("matches sidebar rules for platform-only prefixes", () => {
+    expect(clientRouteAccessible("/billing/invoices", member, new Set())).toBe(false);
+    expect(clientRouteAccessible("/billing/invoices", platform, new Set())).toBe(true);
+  });
+
+  it("blocks disallowed paths under portal shell", () => {
+    expect(clientRouteAccessible("/hr/employees", portalClient, new Set(), { hasCompanyWorkspace: false })).toBe(false);
+    expect(clientRouteAccessible("/contracts/123", portalClient, new Set(), { hasCompanyWorkspace: false })).toBe(true);
+  });
+
+  it("respects hidden optional nav subtrees", () => {
+    const hidden = new Set(["/analytics"]);
+    expect(clientRouteAccessible("/analytics/overview", owner, hidden)).toBe(false);
+    expect(clientRouteAccessible("/dashboard", owner, hidden)).toBe(true);
   });
 });

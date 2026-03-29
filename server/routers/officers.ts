@@ -12,6 +12,7 @@ import {
   sanadOffices,
 } from "../../drizzle/schema";
 import { adminProcedure, protectedProcedure, router } from "../_core/trpc";
+import { storagePut } from "../storage";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -454,6 +455,20 @@ export const officersRouter = router({
       const certNumber = `SPRO-${input.year}${String(input.month).padStart(2, "0")}-${nanoid(8).toUpperCase()}`;
       const monthNames = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
+      // Build certificate HTML for S3 storage
+      const monthName = monthNames[input.month - 1];
+      const certHtml = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>MoL Compliance Certificate ${certNumber}</title><style>body{font-family:Arial,sans-serif;padding:40px;max-width:800px;margin:0 auto}h1{color:#1a3c5e}table{width:100%;border-collapse:collapse}td{padding:8px 12px;border:1px solid #ddd}.header{text-align:center;border-bottom:3px solid #1a3c5e;padding-bottom:20px;margin-bottom:30px}.cert-number{font-size:14px;color:#666}.footer{margin-top:40px;font-size:12px;color:#888;text-align:center}</style></head><body><div class="header"><h1>SmartPRO Business Services Hub</h1><h2>Ministry of Labour Compliance Certificate</h2><p class="cert-number">Certificate No: ${certNumber}</p></div><table><tr><td><strong>Company Name</strong></td><td>${row.company.name}${row.company.nameAr ? ` / ${row.company.nameAr}` : ""}</td></tr><tr><td><strong>Commercial Registration</strong></td><td>${row.company.registrationNumber ?? "N/A"}</td></tr><tr><td><strong>Omani PRO Officer</strong></td><td>${row.officer.fullName}${row.officer.fullNameAr ? ` / ${row.officer.fullNameAr}` : ""}</td></tr><tr><td><strong>PASI Number</strong></td><td>${row.officer.pasiNumber ?? "N/A"}</td></tr><tr><td><strong>Employment Track</strong></td><td>${row.officer.employmentTrack === "sanad" ? "Track B — Sanad Centre" : "Track A — Independent"}</td></tr><tr><td><strong>Period</strong></td><td>${monthName} ${input.year}</td></tr><tr><td><strong>Work Orders Completed</strong></td><td>${Number(woCount)}</td></tr><tr><td><strong>Generated At</strong></td><td>${new Date().toISOString()}</td></tr></table><div class="footer"><p>This certificate is issued by SmartPRO Business Services Hub in compliance with Ministry of Labour regulations.</p></div></body></html>`;
+
+      // Upload to S3
+      let pdfUrl: string | undefined;
+      try {
+        const fileKey = `certificates/${input.year}/${String(input.month).padStart(2, "0")}/${certNumber}.html`;
+        const { url } = await storagePut(fileKey, Buffer.from(certHtml, "utf-8"), "text/html");
+        pdfUrl = url;
+      } catch {
+        // S3 upload failure is non-fatal — certificate record still saved
+      }
+
       // Upsert certificate record
       await db.insert(complianceCertificates).values({
         companyId: input.companyId,
@@ -462,8 +477,8 @@ export const officersRouter = router({
         periodYear: input.year,
         certificateNumber: certNumber,
         workOrderCount: Number(woCount),
+        pdfUrl: pdfUrl ?? null,
       });
-
       return {
         certificateNumber: certNumber,
         month: monthNames[input.month - 1],
@@ -479,6 +494,82 @@ export const officersRouter = router({
         sanadOfficeName: row.sanadOfficeName,
         workOrderCount: Number(woCount),
         generatedAt: new Date().toISOString(),
+      };
+    }),
+
+  // ── Bulk generate monthly certificates for all active assignments ─────────
+  generateMonthlyCertificates: protectedProcedure
+    .input(z.object({ month: z.number().min(1).max(12), year: z.number().min(2024) }))
+    .mutation(async ({ input, ctx }) => {
+      if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      const monthNames = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+
+      // Get all active assignments with officer and company details
+      const assignments = await db
+        .select({
+          assignment: officerCompanyAssignments,
+          officer: omaniProOfficers,
+          company: companies,
+        })
+        .from(officerCompanyAssignments)
+        .innerJoin(omaniProOfficers, eq(omaniProOfficers.id, officerCompanyAssignments.officerId))
+        .innerJoin(companies, eq(companies.id, officerCompanyAssignments.companyId))
+        .where(eq(officerCompanyAssignments.status, "active"));
+
+      let created = 0;
+      let skipped = 0;
+      const results: Array<{ companyName: string; certificateNumber: string }> = [];
+
+      for (const { assignment, officer, company } of assignments) {
+        // Skip if already generated for this period
+        const [existing] = await db
+          .select({ id: complianceCertificates.id })
+          .from(complianceCertificates)
+          .where(and(
+            eq(complianceCertificates.companyId, assignment.companyId),
+            eq(complianceCertificates.officerId, assignment.officerId),
+            eq(complianceCertificates.periodMonth, input.month),
+            eq(complianceCertificates.periodYear, input.year)
+          ))
+          .limit(1);
+
+        if (existing) { skipped++; continue; }
+
+        // Count work orders for this company/month
+        const [{ woCount }] = await db
+          .select({ woCount: count() })
+          .from(sanadApplications)
+          .where(and(
+            eq(sanadApplications.companyId, assignment.companyId),
+            sql`MONTH(${sanadApplications.createdAt}) = ${input.month}`,
+            sql`YEAR(${sanadApplications.createdAt}) = ${input.year}`
+          ));
+
+        const certNumber = `SPRO-${input.year}${String(input.month).padStart(2, "0")}-${nanoid(8).toUpperCase()}`;
+
+        await db.insert(complianceCertificates).values({
+          companyId: assignment.companyId,
+          officerId: assignment.officerId,
+          periodMonth: input.month,
+          periodYear: input.year,
+          certificateNumber: certNumber,
+          workOrderCount: Number(woCount),
+        });
+
+        results.push({ companyName: company.name, certificateNumber: certNumber });
+        created++;
+      }
+
+      return {
+        success: true,
+        created,
+        skipped,
+        total: assignments.length,
+        period: `${monthNames[input.month - 1]} ${input.year}`,
+        certificates: results,
       };
     }),
 

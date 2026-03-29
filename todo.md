@@ -193,13 +193,13 @@
 - [x] UI: Certificate download button on company dashboard (on OfficerAssignmentPage)
 
 ### Module 3 — Sanad Centre Services Marketplace (Public Directory)
-- [ ] DB: extend sanad_offices with isPublicListed, licenceNumber, licenceExpiry, verifiedAt, languages
-- [ ] DB: sanad_service_catalogue table (office_id, service_type, price, processing_days, description)
-- [ ] tRPC: sanad.listPublicProviders (public, no auth, searchable by governorate/service type)
-- [ ] tRPC: sanad.getPublicProfile (full centre profile with services and ratings)
-- [ ] tRPC: sanad.updateServiceCatalogue (admin: manage services list)
-- [ ] UI: SanadMarketplacePage.tsx — public directory searchable by governorate and service type
-- [ ] UI: SanadCentreProfilePage.tsx — full public profile with services, ratings, request button
+- [x] DB: extend sanad_offices with isPublicListed, licenceNumber, licenceExpiry, verifiedAt, languages
+- [x] DB: sanad_service_catalogue table (office_id, service_type, price, processing_days, description)
+- [x] tRPC: sanad.listPublicProviders (public, no auth, searchable by governorate/service type)
+- [x] tRPC: sanad.getPublicProfile (full centre profile with services and ratings)
+- [x] tRPC: sanad.updateServiceCatalogue (admin: manage services list)
+- [x] UI: SanadMarketplacePage.tsx — public directory searchable by governorate and service type
+- [x] UI: SanadCentreProfilePage.tsx — full public profile with services, ratings, request button
 
 ### Module 4 — Platform Operations Dashboard (Admin)
 - [ ] Extend platformRole enum: regional_manager, client_services, finance_admin, hr_admin
@@ -221,33 +221,73 @@
 ## Phase 18: Sanad Centre Public Marketplace
 
 ### Database
-- [ ] DB: extend sanad_offices with isPublicListed, licenceNumber, licenceExpiry, verifiedAt, languages, governorate, logo_url, description_ar
-- [ ] DB: sanad_service_catalogue table (office_id, service_type, service_name_ar, price_omr, processing_days, description, is_active)
-- [ ] DB: sanad_service_requests table (requester_company_id, office_id, service_type, message, contact_name, contact_phone, status, created_at)
+- [x] DB: extend sanad_offices with isPublicListed, licenceNumber, licenceExpiry, verifiedAt, languages, governorate, logo_url, description_ar
+- [x] DB: sanad_service_catalogue table (office_id, service_type, service_name_ar, price_omr, processing_days, description, is_active)
+- [x] DB: sanad_service_requests table (requester_company_id, office_id, service_type, message, contact_name, contact_phone, status, created_at)
 
 ### Backend tRPC Procedures
-- [ ] tRPC: sanad.listPublicProviders (public, no auth — filter by governorate, service type, language, min rating, search)
-- [ ] tRPC: sanad.getPublicProfile (public — full centre profile with services catalogue and ratings)
-- [ ] tRPC: sanad.updatePublicProfile (protected — Sanad centre admin updates their public profile)
-- [ ] tRPC: sanad.listServiceCatalogue (protected — list own services)
-- [ ] tRPC: sanad.upsertServiceCatalogue (protected — add/edit service in catalogue)
-- [ ] tRPC: sanad.deleteServiceItem (protected — remove service from catalogue)
-- [ ] tRPC: sanad.submitServiceRequest (public — any company submits a service request to a centre)
-- [ ] tRPC: sanad.listServiceRequests (protected — Sanad centre sees incoming requests)
-- [ ] tRPC: sanad.updateServiceRequestStatus (protected — accept/decline/complete a request)
+- [x] tRPC: sanad.listPublicProviders (public, no auth — filter by governorate, service type, language, min rating, search)
+- [x] tRPC: sanad.getPublicProfile (public — full centre profile with services catalogue and ratings)
+- [x] tRPC: sanad.updatePublicProfile (protected — Sanad centre admin updates their public profile)
+- [x] tRPC: sanad.listServiceCatalogue (protected — list own services)
+- [x] tRPC: sanad.upsertServiceCatalogue (protected — add/edit service in catalogue)
+- [x] tRPC: sanad.deleteServiceItem (protected — remove service from catalogue)
+- [x] tRPC: sanad.submitServiceRequest (protected — any company submits a service request to a centre)
+- [x] tRPC: sanad.listServiceRequests (protected — Sanad centre sees incoming requests)
+- [x] tRPC: sanad.updateServiceRequestStatus (protected — accept/decline/complete a request)
 
 ### Frontend Pages
-- [ ] UI: SanadMarketplacePage.tsx — public directory with hero, filter bar (governorate, service type, language, rating), centre cards grid, empty state
-- [ ] UI: SanadCentreProfilePage.tsx — full public profile: header with logo/name/verified badge, services catalogue table, ratings, contact info, Request Service dialog
-- [ ] UI: SanadCatalogueAdminPage.tsx — service catalogue management: add/edit/delete services, toggle active/inactive, update public profile fields
-- [ ] UI: Incoming Requests tab in SanadCatalogueAdminPage — view, accept, decline incoming service requests
+- [x] UI: SanadMarketplacePage.tsx — public directory with hero, filter bar (governorate, service type, language, rating), centre cards grid, empty state
+- [x] UI: SanadCentreProfilePage.tsx — full public profile: header with logo/name/verified badge, services catalogue table, ratings, contact info, Request Service dialog
+- [x] UI: SanadCatalogueAdminPage.tsx — service catalogue management: add/edit/delete services, toggle active/inactive, update public profile fields
+- [x] UI: Incoming Requests tab in SanadCatalogueAdminPage — view, accept, decline incoming service requests
 
 ### Routes & Navigation
-- [ ] Route: /sanad/marketplace registered in App.tsx (public, no auth required)
-- [ ] Route: /sanad/centre/:id registered in App.tsx (public profile page)
-- [ ] Route: /sanad/catalogue-admin registered in App.tsx (protected)
-- [ ] Nav: "Marketplace" link added under Government Services in PlatformLayout
-- [ ] Nav: "Manage Catalogue" link added under Government Services in PlatformLayout
+- [x] Route: /sanad/marketplace registered in App.tsx (public, no auth required)
+- [x] Route: /sanad/centre/:id registered in App.tsx (public profile page)
+- [x] Route: /sanad/catalogue-admin registered in App.tsx (protected)
+- [x] Nav: "Marketplace" link added under Government Services in PlatformLayout
+- [x] Nav: "Manage Catalogue" link added under Government Services in PlatformLayout
 
 ### Tests
-- [ ] Vitest tests for all new sanad marketplace procedures
+- [x] Vitest tests for all new sanad marketplace procedures
+
+## Phase 19: Pre-Step-2 Audit Fixes
+
+### Bug Fixes
+- [x] Fix duplicate keys in smartpro.test.ts mock object (getSubscriptionPlans, getCompanySubscription appear twice)
+- [x] Fix workforce route ordering: /workforce/permits/upload and /workforce/cases/new must come BEFORE /workforce/permits/:id and /workforce/cases in App.tsx
+- [x] Fix listPublicProviders and getPublicProfile in sanad router: changed to publicProcedure (no auth required for marketplace discovery)
+- [x] Fix submitServiceRequest: remains protected (requires login to submit a request)
+- [x] Mark Phase 16-18 todo items as [x] (all implemented in previous sessions)
+
+### UX Enhancements
+- [x] Fix route ordering in App.tsx (specific routes before parameterized)
+- [x] Add Bell icon and Expiry Alerts nav link to PlatformLayout
+- [x] Update test assertions for public procedures (listPublicProviders, getPublicProfile)
+
+### Step 2: Billing & Payment Engine
+- [x] DB: pro_billing_cycles table (officer_id, company_id, billing_month, billing_year, amount_omr, status, paid_at, invoice_number)
+- [x] DB: officer_payouts table (officer_id, payout_month, payout_year, track, gross_omr, commission_pct, net_omr, status, paid_at)
+- [x] tRPC: billing.generateMonthlyCycles — auto-generate OMR 100/month invoices for all active assignments
+- [x] tRPC: billing.updateCycleStatus — mark a billing cycle as paid/void
+- [x] tRPC: billing.generateOfficerPayouts — Track A: commission of collected fees; Track B: fixed salary
+- [x] tRPC: billing.getBillingSummary — summary of outstanding, paid, overdue invoices
+- [x] tRPC: billing.listCycles — list billing cycles with filters
+- [x] tRPC: billing.listPayouts — list officer payouts
+- [x] UI: BillingEnginePage.tsx — billing dashboard with invoice table, payout calculator, Track A/B breakdown
+- [x] Nav: "Billing Engine" link under Shared Omani PRO section
+- [x] Vitest: billing.test.ts — 23 tests covering invoice format, OMR formatting, Track A/B, severity
+
+### Step 3: MoL Compliance Certificate PDF
+- [x] tRPC: officers.generateMonthlyCertificates — bulk generate for all active assignments, skip duplicates
+- [x] Certificate numbers: SPRO-YYYYMM-XXXXXXXX format, idempotent (skip if already generated)
+- [x] Work order count per company/month included in certificate data
+
+### Step 4: Expiry & Renewal Alerts
+- [x] tRPC: alerts.getExpiryAlerts — list all upcoming expiries across 90/60/30/7 day thresholds
+- [x] tRPC: alerts.getAlertBadgeCount — quick count for notification bell
+- [x] Alert categories: work_permit, visa, resident_card, labour_card, pro_service, sanad_licence, employee_document
+- [x] UI: ExpiryAlertsPage.tsx — unified alert dashboard with severity color coding, filter bar, days countdown
+- [x] Route: /alerts registered in App.tsx
+- [x] Nav: "Expiry Alerts" link under Platform section in PlatformLayout

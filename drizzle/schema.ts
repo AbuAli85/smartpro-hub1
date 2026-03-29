@@ -1394,3 +1394,66 @@ export const sanadServiceRequests = mysqlTable(
 );
 export type SanadServiceRequest = typeof sanadServiceRequests.$inferSelect;
 export type InsertSanadServiceRequest = typeof sanadServiceRequests.$inferInsert;
+
+// ─── SHARED OMANI PRO — BILLING CYCLES ───────────────────────────────────────
+export const proBillingCycles = mysqlTable(
+  "pro_billing_cycles",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    officerId: int("officer_id").notNull(),
+    companyId: int("company_id").notNull(),
+    assignmentId: int("assignment_id").notNull(),
+    billingMonth: int("billing_month").notNull(), // 1-12
+    billingYear: int("billing_year").notNull(),
+    amountOmr: decimal("amount_omr", { precision: 10, scale: 3 }).notNull().default("100.000"),
+    status: mysqlEnum("status", ["pending", "paid", "overdue", "cancelled", "waived"]).notNull().default("pending"),
+    invoiceNumber: varchar("invoice_number", { length: 100 }).notNull().unique(),
+    paidAt: timestamp("paid_at"),
+    dueDate: timestamp("due_date"),
+    notes: text("notes"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  },
+  (t) => [
+    index("idx_pbc_officer").on(t.officerId),
+    index("idx_pbc_company").on(t.companyId),
+    index("idx_pbc_status").on(t.status),
+    index("idx_pbc_period").on(t.billingYear, t.billingMonth),
+  ]
+);
+export type ProBillingCycle = typeof proBillingCycles.$inferSelect;
+export type InsertProBillingCycle = typeof proBillingCycles.$inferInsert;
+
+// ─── SHARED OMANI PRO — OFFICER PAYOUTS ──────────────────────────────────────
+export const officerPayouts = mysqlTable(
+  "officer_payouts",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    officerId: int("officer_id").notNull(),
+    payoutMonth: int("payout_month").notNull(), // 1-12
+    payoutYear: int("payout_year").notNull(),
+    employmentTrack: mysqlEnum("employment_track", ["platform", "sanad"]).notNull().default("platform"),
+    // Track A (platform): commission-based
+    totalCollectedOmr: decimal("total_collected_omr", { precision: 10, scale: 3 }).notNull().default("0"),
+    commissionPct: decimal("commission_pct", { precision: 5, scale: 2 }).default("12.50"), // 10-15%
+    commissionOmr: decimal("commission_omr", { precision: 10, scale: 3 }).notNull().default("0"),
+    // Track B (sanad): fixed salary
+    fixedSalaryOmr: decimal("fixed_salary_omr", { precision: 10, scale: 3 }).default("600.000"),
+    // Final payout
+    grossOmr: decimal("gross_omr", { precision: 10, scale: 3 }).notNull().default("0"),
+    deductionsOmr: decimal("deductions_omr", { precision: 10, scale: 3 }).notNull().default("0"),
+    netOmr: decimal("net_omr", { precision: 10, scale: 3 }).notNull().default("0"),
+    status: mysqlEnum("status", ["pending", "approved", "paid", "on_hold"]).notNull().default("pending"),
+    paidAt: timestamp("paid_at"),
+    notes: text("notes"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  },
+  (t) => [
+    index("idx_op_officer").on(t.officerId),
+    index("idx_op_status").on(t.status),
+    index("idx_op_period").on(t.payoutYear, t.payoutMonth),
+  ]
+);
+export type OfficerPayout = typeof officerPayouts.$inferSelect;
+export type InsertOfficerPayout = typeof officerPayouts.$inferInsert;

@@ -21,6 +21,7 @@ import {
   ShoppingBag,
   Store,
   BookMarked,
+  CreditCard,
   UserCheck,
   UserCircle,
   Users,
@@ -100,6 +101,7 @@ const navGroups = [
     items: [
       { label: "Officer Registry", href: "/omani-officers", icon: <UserCheck size={18} /> },
       { label: "Assignments", href: "/officer-assignments", icon: <Building2 size={18} /> },
+      { label: "Billing Engine", href: "/billing", icon: <CreditCard size={18} /> },
     ],
   },
   {
@@ -108,6 +110,7 @@ const navGroups = [
       { label: "Company Admin", href: "/company-admin", icon: <Building2 size={18} /> },
       { label: "Client Portal", href: "/client-portal", icon: <UserCircle size={18} /> },
       { label: "Subscriptions", href: "/subscriptions", icon: <Zap size={18} /> },
+      { label: "Expiry Alerts", href: "/alerts", icon: <Bell size={18} /> },
       { label: "Admin Panel", href: "/admin", icon: <Settings size={18} /> },
     ],
   },
@@ -215,7 +218,7 @@ function NotificationBell() {
   const { data: proServices } = trpc.pro.list.useQuery({ status: "expiring_soon" });
   const { data: contracts } = trpc.contracts.list.useQuery({ status: "pending_signature" });
   const { data: leaveRequests } = trpc.hr.listLeave.useQuery({});
-
+  const { data: alertBadge } = trpc.alerts.getAlertBadgeCount.useQuery();
   const notifications = useMemo(() => {
     const items: { id: string; title: string; desc: string; type: "warning" | "info" | "action" }[] = [];
     (proServices ?? []).slice(0, 3).forEach((s) => {
@@ -230,9 +233,16 @@ function NotificationBell() {
     (leaveRequests ?? []).slice(0, 3).forEach((l) => {
       items.push({ id: `leave-${l.id}`, title: "Leave Request", desc: `Leave request pending approval`, type: "info" });
     });
+    // Expiry alerts from the alerts engine
+    const criticalCount = alertBadge?.critical ?? 0;
+    const totalExpiring = alertBadge?.count ?? 0;
+    if (criticalCount > 0) {
+      items.push({ id: "expiry-critical", title: `${criticalCount} Critical Expir${criticalCount === 1 ? "y" : "ies"}`, desc: `${criticalCount} item${criticalCount === 1 ? "" : "s"} expire within 7 days`, type: "warning" });
+    } else if (totalExpiring > 0) {
+      items.push({ id: "expiry-upcoming", title: `${totalExpiring} Upcoming Expir${totalExpiring === 1 ? "y" : "ies"}`, desc: `${totalExpiring} item${totalExpiring === 1 ? "" : "s"} expire within 30 days`, type: "info" });
+    }
     return items;
-  }, [proServices, contracts, leaveRequests]);
-
+  }, [proServices, contracts, leaveRequests, alertBadge]);
   const unread = notifications.length;
 
   return (

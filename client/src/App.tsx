@@ -40,6 +40,8 @@ import OfficerAssignmentPage from "./pages/OfficerAssignmentPage";
 import SanadMarketplacePage from "./pages/SanadMarketplacePage";
 import SanadCentreProfilePage from "./pages/SanadCentreProfilePage";
 import SanadCatalogueAdminPage from "./pages/SanadCatalogueAdminPage";
+import BillingEnginePage from "./pages/BillingEnginePage";
+import ExpiryAlertsPage from "./pages/ExpiryAlertsPage";
 
 function AppRoutes() {
   return (
@@ -62,25 +64,27 @@ function AppRoutes() {
         <Route path="/analytics" component={AnalyticsPage} />
         <Route path="/subscriptions" component={SubscriptionsPage} />
         <Route path="/admin" component={AdminPage} />
-        {/* Workforce Hub */}
+        {/* Workforce Hub — specific routes MUST come before parameterized ones */}
         <Route path="/workforce" component={WorkforceDashboard} />
         <Route path="/workforce/employees" component={WorkforceEmployeesPage} />
-        <Route path="/workforce/permits" component={WorkforcePermitsPage} />
-        <Route path="/workforce/cases" component={WorkforceCasesPage} />
-        <Route path="/workforce/documents" component={WorkforceDocumentsPage} />
-        <Route path="/workforce/sync" component={WorkforceSyncPage} />
         <Route path="/workforce/permits/upload" component={WorkforcePermitUploadPage} />
         <Route path="/workforce/permits/:id" component={WorkforcePermitDetailPage} />
-        <Route path="/workforce/employees/:id" component={WorkforceEmployeeDetailPage} />
+        <Route path="/workforce/permits" component={WorkforcePermitsPage} />
         <Route path="/workforce/cases/new" component={WorkforceCaseNewPage} />
+        <Route path="/workforce/cases" component={WorkforceCasesPage} />
+        <Route path="/workforce/employees/:id" component={WorkforceEmployeeDetailPage} />
+        <Route path="/workforce/documents" component={WorkforceDocumentsPage} />
+        <Route path="/workforce/sync" component={WorkforceSyncPage} />
         {/* Company Admin */}
         <Route path="/company-admin" component={CompanyAdminPage} />
         <Route path="/omani-officers" component={OmaniOfficersPage} />
         <Route path="/officer-assignments" component={OfficerAssignmentPage} />
-        {/* Sanad Marketplace */}
+        {/* Sanad Marketplace — specific routes before parameterized */}
         <Route path="/sanad/marketplace" component={SanadMarketplacePage} />
-        <Route path="/sanad/centre/:id" component={SanadCentreProfilePage} />
         <Route path="/sanad/catalogue-admin" component={SanadCatalogueAdminPage} />
+        <Route path="/billing" component={BillingEnginePage} />
+        <Route path="/alerts" component={ExpiryAlertsPage} />
+        <Route path="/sanad/centre/:id" component={SanadCentreProfilePage} />
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />
       </Switch>

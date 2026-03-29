@@ -23,7 +23,7 @@ import {
   updateSanadApplication,
   updateSanadOffice,
 } from "../db";
-import { protectedProcedure, router } from "../_core/trpc";
+import { protectedProcedure, publicProcedure, router } from "../_core/trpc";
 
 export const PROVIDER_TYPES = [
   "pro_office",
@@ -602,7 +602,7 @@ export const sanadRouter = router({
     }),
 
   // ─── Public Marketplace ──────────────────────────────────────────────────
-  listPublicProviders: protectedProcedure
+  listPublicProviders: publicProcedure
     .input(
       z.object({
         governorate: z.string().optional(),
@@ -623,7 +623,7 @@ export const sanadRouter = router({
       return rows;
     }),
 
-  getPublicProfile: protectedProcedure
+  getPublicProfile: publicProcedure
     .input(z.object({ officeId: z.number() }))
     .query(async ({ input }) => {
       const db = await getDb();

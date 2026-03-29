@@ -51,7 +51,6 @@ vi.mock("./db", () => ({
   getCompanyById: vi.fn().mockResolvedValue(null),
   createCompany: vi.fn().mockResolvedValue({ id: 1, name: "Test Co" }),
   updateCompany: vi.fn().mockResolvedValue({}),
-  getSubscriptionPlans: vi.fn().mockResolvedValue([]),
   getContracts: vi.fn().mockResolvedValue([]),
   getContractById: vi.fn().mockResolvedValue(null),
   createContract: vi.fn().mockResolvedValue({ id: 1 }),
@@ -88,7 +87,6 @@ vi.mock("./db", () => ({
   createCrmDeal: vi.fn().mockResolvedValue({ id: 1 }),
   updateCrmDeal: vi.fn().mockResolvedValue({}),
   getAuditLogs: vi.fn().mockResolvedValue([]),
-  getCompanySubscription: vi.fn().mockResolvedValue(null),
   // Attendance
   getAttendance: vi.fn().mockResolvedValue([]),
   createAttendanceRecord: vi.fn().mockResolvedValue({ id: 1 }),
@@ -706,10 +704,10 @@ describe("sanad.listPublicProviders", () => {
     });
     expect(Array.isArray(result)).toBe(true);
   });
-  it("requires authentication", async () => {
-    await expect(
-      appRouter.createCaller(makePublicCtx()).sanad.listPublicProviders({})
-    ).rejects.toThrow();
+  it("is accessible without authentication (public procedure)", async () => {
+    // listPublicProviders is a public procedure — no auth required
+    const result = await appRouter.createCaller(makePublicCtx()).sanad.listPublicProviders({});
+    expect(Array.isArray(result)).toBe(true);
   });
 });
 
@@ -719,10 +717,10 @@ describe("sanad.getPublicProfile", () => {
     const result = await appRouter.createCaller(ctx).sanad.getPublicProfile({ officeId: 1 });
     expect(result).toBeNull();
   });
-  it("requires authentication", async () => {
-    await expect(
-      appRouter.createCaller(makePublicCtx()).sanad.getPublicProfile({ officeId: 1 })
-    ).rejects.toThrow();
+  it("is accessible without authentication (public procedure)", async () => {
+    // getPublicProfile is a public procedure — no auth required
+    const result = await appRouter.createCaller(makePublicCtx()).sanad.getPublicProfile({ officeId: 1 });
+    expect(result).toBeNull();
   });
 });
 

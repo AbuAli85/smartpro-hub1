@@ -57,6 +57,11 @@ See `.env.example` at the repo root.
 - **Reports / client portal:** Company-scoped PDF reports resolve the tenant via `getUserCompany()` (active membership). `generateOfficerPayoutReport` is platform-only. Client portal company context uses the same `getUserCompany` helper.
 - **Alerts:** Expiry queries resolve the active company via `getUserCompany`; company users cannot pass another tenant’s `companyId`. Work permits, government profile expiries, PRO services, and vault documents are scoped to that company. Sanad office licence alerts are shown only to platform operators. `triggerRenewal` binds `companyId` from membership (or explicit platform `companyId` with entity validation) and never inserts `companyId = 0`. Badge counts for work permits respect the same company scope for non-platform users.
 - **Membership helpers:** `server/_core/membership.ts` (`getActiveCompanyMembership` / `requireActiveCompanyMembership`) delegates to `getUserCompany` so routers do not reimplement `company_members` queries with divergent `isActive` rules.
+- **Stats / dashboard scope:** `resolveStatsCompanyFilter` and `resolvePlatformOrCompanyScope` in `server/_core/tenant.ts` centralize optional `input.companyId` handling for compliance-style stats vs operations/SLA dashboards (platform `null` = aggregate all tenants; company users forced to active membership).
+- **Compliance:** All procedures use `resolveStatsCompanyFilter`; permit matrix loads permits only for in-scope employees plus `workPermits.companyId` when tenant-scoped; PASI line items are filtered by `payrollLineItems.companyId` matching the run.
+- **Operations:** `getDailySnapshot`, `getAiInsights`, and `getTodaysTasks` scope SLA joins, cases, permits, leave, payroll, billing revenue, renewal runs, audit tail, contracts, and quotations to the active company when the caller is not platform staff.
+- **SLA router:** Breaches list, performance summary aggregates, `startTracking`, `resolve`, and `getCaseSlaStatus` enforce government-case company ownership for non-platform users (inner-join / pre-check pattern).
+- **Storage:** `storagePut` / `storageGet` are server-only; callers must embed tenant in keys (e.g. `reports/payslips/${companyId}-…`). PDF/report routers validate `companyId` on source rows before upload.
 
 ## Production startup
 

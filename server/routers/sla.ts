@@ -8,6 +8,8 @@ import {
   governmentServiceCases,
 } from "../../drizzle/schema";
 import { eq, and, isNull, lt, desc, count, sql } from "drizzle-orm";
+import { resolvePlatformOrCompanyScope } from "../_core/tenant";
+import type { User } from "../../drizzle/schema";
 
 export const slaRouter = router({
   // ── List Rules ───────────────────────────────────────────────────────────────
@@ -75,10 +77,11 @@ export const slaRouter = router({
     }),
 
   // ── Get Breaches ─────────────────────────────────────────────────────────────
-  getBreaches: protectedProcedure.query(async () => {
+  getBreaches: protectedProcedure.query(async ({ ctx }) => {
     const db = await getDb();
     if (!db) return [];
 
+    const companyId = await resolvePlatformOrCompanyScope(ctx.user as User);
     const now = new Date();
 
     const breaches = await db
@@ -95,8 +98,14 @@ export const slaRouter = router({
         companyId: governmentServiceCases.companyId,
       })
       .from(caseSlaTracking)
-      .leftJoin(governmentServiceCases, eq(governmentServiceCases.id, caseSlaTracking.caseId))
-      .where(and(lt(caseSlaTracking.dueAt, now), isNull(caseSlaTracking.resolvedAt)))
+      .innerJoin(governmentServiceCases, eq(governmentServiceCases.id, caseSlaTracking.caseId))
+      .where(
+        and(
+          lt(caseSlaTracking.dueAt, now),
+          isNull(caseSlaTracking.resolvedAt),
+          ...(companyId ? [eq(governmentServiceCases.companyId, companyId)] : []),
+        ),
+      )
       .orderBy(caseSlaTracking.dueAt)
       .limit(50);
 
@@ -115,9 +124,22 @@ export const slaRouter = router({
         priority: z.enum(["low", "normal", "high", "urgent"]).default("normal"),
       }),
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      const companyId = await resolvePlatformOrCompanyScope(ctx.user as User);
+      const [caseRow] = await db
+        .select({ id: governmentServiceCases.id })
+        .from(governmentServiceCases)
+        .where(
+          and(
+            eq(governmentServiceCases.id, input.caseId),
+            ...(companyId ? [eq(governmentServiceCases.companyId, companyId)] : []),
+          ),
+        )
+        .limit(1);
+      if (!caseRow) throw new TRPCError({ code: "NOT_FOUND", message: "Case not found" });
 
       // Find matching rule
       const [rule] = await db
@@ -152,9 +174,22 @@ export const slaRouter = router({
   // ── Resolve Tracking ─────────────────────────────────────────────────────────
   resolve: protectedProcedure
     .input(z.object({ caseId: z.number() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      const companyId = await resolvePlatformOrCompanyScope(ctx.user as User);
+      const [caseRow] = await db
+        .select({ id: governmentServiceCases.id })
+        .from(governmentServiceCases)
+        .where(
+          and(
+            eq(governmentServiceCases.id, input.caseId),
+            ...(companyId ? [eq(governmentServiceCases.companyId, companyId)] : []),
+          ),
+        )
+        .limit(1);
+      if (!caseRow) throw new TRPCError({ code: "NOT_FOUND", message: "Case not found" });
 
       await db
         .update(caseSlaTracking)
@@ -167,9 +202,22 @@ export const slaRouter = router({
   // ── Get Case SLA Status ───────────────────────────────────────────────────────
   getCaseSlaStatus: protectedProcedure
     .input(z.object({ caseId: z.number() }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       const db = await getDb();
       if (!db) return null;
+
+      const companyId = await resolvePlatformOrCompanyScope(ctx.user as User);
+      const [caseRow] = await db
+        .select({ id: governmentServiceCases.id })
+        .from(governmentServiceCases)
+        .where(
+          and(
+            eq(governmentServiceCases.id, input.caseId),
+            ...(companyId ? [eq(governmentServiceCases.companyId, companyId)] : []),
+          ),
+        )
+        .limit(1);
+      if (!caseRow) return null;
 
       const [tracking] = await db
         .select()
@@ -196,20 +244,27 @@ export const slaRouter = router({
     }),
 
   // ── Performance Summary ───────────────────────────────────────────────────────
-  getPerformanceSummary: protectedProcedure.query(async () => {
+  getPerformanceSummary: protectedProcedure.query(async ({ ctx }) => {
     const db = await getDb();
-    if (!db) return { total: 0, resolved: 0, breached: 0, onTime: 0, breachRate: 0 };
+    if (!db) return { total: 0, resolved: 0, breached: 0, onTime: 0, breachRate: 0, onTimeRate: 0 };
 
-    const now = new Date();
+    const companyId = await resolvePlatformOrCompanyScope(ctx.user as User);
 
-    const [totals] = await db
+    const scopeWhere = companyId ? eq(governmentServiceCases.companyId, companyId) : undefined;
+
+    const baseAgg = db
       .select({
         total: count(),
-        resolved: sql<number>`sum(case when resolved_at is not null then 1 else 0 end)`,
-        breached: sql<number>`sum(case when breached_at is not null or (due_at < now() and resolved_at is null) then 1 else 0 end)`,
-        onTime: sql<number>`sum(case when resolved_at is not null and resolved_at <= due_at then 1 else 0 end)`,
+        resolved: sql<number>`sum(case when ${caseSlaTracking.resolvedAt} is not null then 1 else 0 end)`,
+        breached: sql<number>`sum(case when ${caseSlaTracking.breachedAt} is not null or (${caseSlaTracking.dueAt} < now() and ${caseSlaTracking.resolvedAt} is null) then 1 else 0 end)`,
+        onTime: sql<number>`sum(case when ${caseSlaTracking.resolvedAt} is not null and ${caseSlaTracking.resolvedAt} <= ${caseSlaTracking.dueAt} then 1 else 0 end)`,
       })
-      .from(caseSlaTracking);
+      .from(caseSlaTracking)
+      .innerJoin(governmentServiceCases, eq(caseSlaTracking.caseId, governmentServiceCases.id));
+
+    const [totals] = scopeWhere
+      ? await baseAgg.where(scopeWhere)
+      : await baseAgg;
 
     const total = Number(totals?.total ?? 0);
     const breached = Number(totals?.breached ?? 0);

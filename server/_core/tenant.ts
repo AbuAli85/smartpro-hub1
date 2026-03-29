@@ -102,3 +102,35 @@ export async function assertSignatureActor(user: User, signerEmail: string | nul
     throw new TRPCError({ code: "FORBIDDEN", message: "You are not authorized to sign for this request" });
   }
 }
+
+/**
+ * Stats / dashboard / compliance-style endpoints: platform may aggregate all tenants or pass `inputCompanyId`;
+ * company users are scoped to active membership and must not pass another tenant’s id (NOT_FOUND).
+ */
+export type StatsCompanyFilterResult =
+  | { aggregateAllTenants: true }
+  | { aggregateAllTenants: false; companyId: number };
+
+/** Dashboard / operations: `null` = platform may aggregate all tenants; otherwise active company id. */
+export async function resolvePlatformOrCompanyScope(user: User): Promise<number | null> {
+  if (canAccessGlobalAdminProcedures(user)) return null;
+  return requireActiveCompanyId(user.id);
+}
+
+export async function resolveStatsCompanyFilter(
+  user: User,
+  inputCompanyId?: number | null
+): Promise<StatsCompanyFilterResult> {
+  if (canAccessGlobalAdminProcedures(user)) {
+    if (inputCompanyId != null) return { aggregateAllTenants: false, companyId: inputCompanyId };
+    return { aggregateAllTenants: true };
+  }
+  const m = await getUserCompany(user.id);
+  if (!m?.company?.id) {
+    throw new TRPCError({ code: "FORBIDDEN", message: "No company membership" });
+  }
+  if (inputCompanyId != null && inputCompanyId !== m.company.id) {
+    throw new TRPCError({ code: "NOT_FOUND", message: "Not found" });
+  }
+  return { aggregateAllTenants: false, companyId: m.company.id };
+}

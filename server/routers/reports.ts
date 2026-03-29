@@ -293,7 +293,7 @@ export const reportsRouter = router({
       } else {
         if (!memberCompanyId) throw new TRPCError({ code: "NOT_FOUND", message: "No company found" });
         if (input.companyId != null && input.companyId !== memberCompanyId) {
-          throw new TRPCError({ code: "FORBIDDEN", message: "Cannot access another company's data" });
+          throw new TRPCError({ code: "NOT_FOUND", message: "Report not found" });
         }
         companyId = memberCompanyId;
       }

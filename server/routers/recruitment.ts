@@ -222,6 +222,12 @@ export const recruitmentRouter = router({
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       const companyId = await getMemberCompanyId(ctx.user.id);
       if (!companyId) throw new TRPCError({ code: "FORBIDDEN" });
+      const [appRow] = await db
+        .select({ id: jobApplications.id, jobId: jobApplications.jobId })
+        .from(jobApplications)
+        .where(and(eq(jobApplications.id, input.applicationId), eq(jobApplications.companyId, companyId)))
+        .limit(1);
+      if (!appRow) throw new TRPCError({ code: "NOT_FOUND", message: "Application not found" });
       const [result] = await db.insert(interviewSchedules).values({
         applicationId: input.applicationId,
         companyId,
@@ -299,6 +305,21 @@ export const recruitmentRouter = router({
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       const companyId = await getMemberCompanyId(ctx.user.id);
       if (!companyId) throw new TRPCError({ code: "FORBIDDEN" });
+      const [appRow] = await db
+        .select({ id: jobApplications.id, jobId: jobApplications.jobId })
+        .from(jobApplications)
+        .where(and(eq(jobApplications.id, input.applicationId), eq(jobApplications.companyId, companyId)))
+        .limit(1);
+      if (!appRow) throw new TRPCError({ code: "NOT_FOUND", message: "Application not found" });
+      if (appRow.jobId !== input.jobId) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Job does not match application" });
+      }
+      const [jobRow] = await db
+        .select({ id: jobPostings.id })
+        .from(jobPostings)
+        .where(and(eq(jobPostings.id, input.jobId), eq(jobPostings.companyId, companyId)))
+        .limit(1);
+      if (!jobRow) throw new TRPCError({ code: "NOT_FOUND", message: "Job not found" });
       const totalPackage = input.basicSalary + input.housingAllowance + input.transportAllowance + input.otherAllowances;
       // Generate offer letter HTML and store in S3
       const html = generateOfferLetterHtml({ ...input, totalPackage, companyId });
@@ -358,7 +379,7 @@ export const recruitmentRouter = router({
         .where(and(eq(offerLetters.id, input.id), eq(offerLetters.companyId, companyId))).limit(1);
       if (!offer) throw new TRPCError({ code: "NOT_FOUND" });
       await db.update(offerLetters).set({ status: input.status, respondedAt: new Date() })
-        .where(eq(offerLetters.id, input.id));
+        .where(and(eq(offerLetters.id, input.id), eq(offerLetters.companyId, companyId)));
       // If accepted, advance application to hired
       if (input.status === "accepted") {
         await db.update(jobApplications).set({ stage: "hired" })
@@ -512,7 +533,7 @@ Return a JSON object with:
           notes: `AI_SCREEN:${JSON.stringify(report)}`,
           stage: app.stage === "applied" ? "screening" : app.stage,
         })
-        .where(eq(jobApplications.id, input.applicationId));
+        .where(and(eq(jobApplications.id, input.applicationId), eq(jobApplications.companyId, companyId)));
       return report;
     }),
 

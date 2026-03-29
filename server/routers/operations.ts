@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { canAccessGlobalAdminProcedures } from "@shared/rbac";
 import { protectedProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
 import { TRPCError } from "@trpc/server";
@@ -18,13 +17,8 @@ import {
   serviceQuotations,
 } from "../../drizzle/schema";
 import { and, eq, gte, lte, lt, count, sum, desc, isNull, ne } from "drizzle-orm";
-import { getActiveCompanyMembership } from "../_core/membership";
-
-async function resolveCompanyId(user: { id: number; role: string; platformRole?: string | null }): Promise<number | null> {
-  if (canAccessGlobalAdminProcedures(user)) return null; // platform staff sees all tenants
-  const m = await getActiveCompanyMembership(user.id);
-  return m?.companyId ?? null;
-}
+import { resolvePlatformOrCompanyScope } from "../_core/tenant";
+import type { User } from "../../drizzle/schema";
 
 export const operationsRouter = router({
   // ── Daily Snapshot ──────────────────────────────────────────────────────────
@@ -32,7 +26,7 @@ export const operationsRouter = router({
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
-    const companyId = await resolveCompanyId(ctx.user);
+    const companyId = await resolvePlatformOrCompanyScope(ctx.user as User);
     const now = new Date();
     const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const in7Days = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
@@ -62,12 +56,25 @@ export const operationsRouter = router({
           )
           .groupBy(governmentServiceCases.caseStatus);
 
-    // SLA breaches
-    const slaBreaches = await db
-      .select({ id: caseSlaTracking.id, caseId: caseSlaTracking.caseId, dueAt: caseSlaTracking.dueAt })
-      .from(caseSlaTracking)
-      .where(and(lt(caseSlaTracking.dueAt, now), isNull(caseSlaTracking.resolvedAt)))
-      .limit(20);
+    // SLA breaches (scoped to company cases when not platform)
+    const slaBreaches = companyId
+      ? await db
+          .select({ id: caseSlaTracking.id, caseId: caseSlaTracking.caseId, dueAt: caseSlaTracking.dueAt })
+          .from(caseSlaTracking)
+          .innerJoin(governmentServiceCases, eq(caseSlaTracking.caseId, governmentServiceCases.id))
+          .where(
+            and(
+              eq(governmentServiceCases.companyId, companyId),
+              lt(caseSlaTracking.dueAt, now),
+              isNull(caseSlaTracking.resolvedAt),
+            ),
+          )
+          .limit(20)
+      : await db
+          .select({ id: caseSlaTracking.id, caseId: caseSlaTracking.caseId, dueAt: caseSlaTracking.dueAt })
+          .from(caseSlaTracking)
+          .where(and(lt(caseSlaTracking.dueAt, now), isNull(caseSlaTracking.resolvedAt)))
+          .limit(20);
 
     // Cases due today
     const endOfToday = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
@@ -83,6 +90,7 @@ export const operationsRouter = router({
       .from(governmentServiceCases)
       .where(
         and(
+          ...(companyId ? [eq(governmentServiceCases.companyId, companyId)] : []),
           gte(governmentServiceCases.dueDate, startOfDay),
           lte(governmentServiceCases.dueDate, endOfToday),
           ne(governmentServiceCases.caseStatus, "completed"),
@@ -95,7 +103,13 @@ export const operationsRouter = router({
     const expiringDocs = await db
       .select({ id: workPermits.id, permitNumber: workPermits.workPermitNumber, expiryDate: workPermits.expiryDate })
       .from(workPermits)
-      .where(and(gte(workPermits.expiryDate, now), lte(workPermits.expiryDate, in7Days)))
+      .where(
+        and(
+          ...(companyId ? [eq(workPermits.companyId, companyId)] : []),
+          gte(workPermits.expiryDate, now),
+          lte(workPermits.expiryDate, in7Days),
+        ),
+      )
       .limit(10);
 
     // Approved payroll runs (awaiting payment)
@@ -116,7 +130,12 @@ export const operationsRouter = router({
     const pendingLeave = await db
       .select({ cnt: count() })
       .from(leaveRequests)
-      .where(eq(leaveRequests.status, "pending"));
+      .where(
+        and(
+          eq(leaveRequests.status, "pending"),
+          ...(companyId ? [eq(leaveRequests.companyId, companyId)] : []),
+        ),
+      );
 
     // Revenue MTD
     const revenueMtd = await db
@@ -126,6 +145,7 @@ export const operationsRouter = router({
         and(
           eq(proBillingCycles.status, "paid"),
           gte(proBillingCycles.createdAt, startOfMonth),
+          ...(companyId ? [eq(proBillingCycles.companyId, companyId)] : []),
         ),
       );
 
@@ -159,7 +179,12 @@ export const operationsRouter = router({
     const activeWorkflows = await db
       .select({ cnt: count() })
       .from(renewalWorkflowRuns)
-      .where(eq(renewalWorkflowRuns.status, "case_created"));
+      .where(
+        and(
+          eq(renewalWorkflowRuns.status, "case_created"),
+          ...(companyId ? [eq(renewalWorkflowRuns.companyId, companyId)] : []),
+        ),
+      );
 
     // Draft quotations
     const draftQuotationsQuery = db.select({ cnt: count() }).from(serviceQuotations);
@@ -168,7 +193,7 @@ export const operationsRouter = router({
       : await draftQuotationsQuery.where(eq(serviceQuotations.status, "draft"));
 
     // Recent audit events
-    const recentActivity = await db
+    const recentActivityBase = db
       .select({
         id: auditEvents.id,
         action: auditEvents.action,
@@ -178,9 +203,13 @@ export const operationsRouter = router({
         createdAt: auditEvents.createdAt,
         metadata: auditEvents.metadata,
       })
-      .from(auditEvents)
-      .orderBy(desc(auditEvents.createdAt))
-      .limit(10);
+      .from(auditEvents);
+    const recentActivity = companyId
+      ? await recentActivityBase
+          .where(eq(auditEvents.companyId, companyId))
+          .orderBy(desc(auditEvents.createdAt))
+          .limit(10)
+      : await recentActivityBase.orderBy(desc(auditEvents.createdAt)).limit(10);
 
     const totalOpenCases = openCases.reduce((s, r) => s + Number(r.cnt), 0);
 
@@ -211,28 +240,57 @@ export const operationsRouter = router({
     const db = await getDb();
     if (!db) return [];
 
+    const companyId = await resolvePlatformOrCompanyScope(ctx.user as User);
     const now = new Date();
     const in14Days = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
 
     const expiringPermits = await db
       .select({ cnt: count() })
       .from(workPermits)
-      .where(and(gte(workPermits.expiryDate, now), lte(workPermits.expiryDate, in14Days)));
+      .where(
+        and(
+          ...(companyId ? [eq(workPermits.companyId, companyId)] : []),
+          gte(workPermits.expiryDate, now),
+          lte(workPermits.expiryDate, in14Days),
+        ),
+      );
 
     const overdueInvoices = await db
       .select({ cnt: count(), total: sum(proBillingCycles.amountOmr) })
       .from(proBillingCycles)
-      .where(eq(proBillingCycles.status, "overdue"));
+      .where(
+        and(
+          eq(proBillingCycles.status, "overdue"),
+          ...(companyId ? [eq(proBillingCycles.companyId, companyId)] : []),
+        ),
+      );
 
-    const slaBreaches = await db
-      .select({ cnt: count() })
-      .from(caseSlaTracking)
-      .where(and(lt(caseSlaTracking.dueAt, now), isNull(caseSlaTracking.resolvedAt)));
+    const slaBreaches = companyId
+      ? await db
+          .select({ cnt: count() })
+          .from(caseSlaTracking)
+          .innerJoin(governmentServiceCases, eq(caseSlaTracking.caseId, governmentServiceCases.id))
+          .where(
+            and(
+              eq(governmentServiceCases.companyId, companyId),
+              lt(caseSlaTracking.dueAt, now),
+              isNull(caseSlaTracking.resolvedAt),
+            ),
+          )
+      : await db
+          .select({ cnt: count() })
+          .from(caseSlaTracking)
+          .where(and(lt(caseSlaTracking.dueAt, now), isNull(caseSlaTracking.resolvedAt)));
 
     const pendingContracts = await db
       .select({ cnt: count() })
       .from(contracts)
-      .where(eq(contracts.status, "pending_signature"));
+      .where(
+        and(
+          eq(contracts.status, "pending_signature"),
+          ...(companyId ? [eq(contracts.companyId, companyId)] : []),
+        ),
+      );
 
     const insights: Array<{
       type: string;
@@ -313,6 +371,7 @@ export const operationsRouter = router({
     const db = await getDb();
     if (!db) return { casesDue: [], pendingLeaveApprovals: [], pendingPayrollApprovals: [], totalTasks: 0 };
 
+    const companyId = await resolvePlatformOrCompanyScope(ctx.user as User);
     const now = new Date();
     const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
 
@@ -328,6 +387,7 @@ export const operationsRouter = router({
       .from(governmentServiceCases)
       .where(
         and(
+          ...(companyId ? [eq(governmentServiceCases.companyId, companyId)] : []),
           lte(governmentServiceCases.dueDate, endOfDay),
           ne(governmentServiceCases.caseStatus, "completed"),
           ne(governmentServiceCases.caseStatus, "cancelled"),
@@ -345,13 +405,23 @@ export const operationsRouter = router({
         endDate: leaveRequests.endDate,
       })
       .from(leaveRequests)
-      .where(eq(leaveRequests.status, "pending"))
+      .where(
+        and(
+          eq(leaveRequests.status, "pending"),
+          ...(companyId ? [eq(leaveRequests.companyId, companyId)] : []),
+        ),
+      )
       .limit(5);
 
     const pendingPayrollApprovals = await db
       .select({ id: payrollRuns.id, month: payrollRuns.periodMonth, year: payrollRuns.periodYear, totalNet: payrollRuns.totalNet })
       .from(payrollRuns)
-      .where(eq(payrollRuns.status, "approved"))
+      .where(
+        and(
+          eq(payrollRuns.status, "approved"),
+          ...(companyId ? [eq(payrollRuns.companyId, companyId)] : []),
+        ),
+      )
       .limit(3);
 
     return {

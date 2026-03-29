@@ -1,22 +1,15 @@
 import { z } from "zod";
-import { canAccessGlobalAdminProcedures } from "@shared/rbac";
 import { protectedProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
-import { TRPCError } from "@trpc/server";
 import {
   employees,
   workPermits,
   payrollRuns,
   payrollLineItems,
 } from "../../drizzle/schema";
-import { eq, and, gte, lte, count, sum, sql, desc } from "drizzle-orm";
-import { getActiveCompanyMembership } from "../_core/membership";
-
-async function resolveCompanyId(user: { id: number; role: string; platformRole?: string | null }): Promise<number | null> {
-  if (canAccessGlobalAdminProcedures(user)) return null;
-  const m = await getActiveCompanyMembership(user.id);
-  return m?.companyId ?? null;
-}
+import { eq, and, gte, lte, count, inArray, desc } from "drizzle-orm";
+import { resolveStatsCompanyFilter } from "../_core/tenant";
+import type { User } from "../../drizzle/schema";
 
 export const complianceRouter = router({
   // ── Omanisation Stats ────────────────────────────────────────────────────────
@@ -26,10 +19,9 @@ export const complianceRouter = router({
       const db = await getDb();
       if (!db) return { total: 0, omani: 0, pct: 0, targetPct: 35, gap: 0, byDepartment: [] };
 
-      const companyId = input.companyId ?? await resolveCompanyId(ctx.user);
-
+      const scope = await resolveStatsCompanyFilter(ctx.user as User, input.companyId);
       const conditions = [eq(employees.status, "active")];
-      if (companyId) conditions.push(eq(employees.companyId, companyId));
+      if (!scope.aggregateAllTenants) conditions.push(eq(employees.companyId, scope.companyId));
 
       const allEmployees = await db
         .select({
@@ -76,7 +68,7 @@ export const complianceRouter = router({
       const db = await getDb();
       if (!db) return { employees: [], totalContribution: 0, status: "not_calculated" };
 
-      const companyId = input.companyId ?? await resolveCompanyId(ctx.user);
+      const scope = await resolveStatsCompanyFilter(ctx.user as User, input.companyId);
       const now = new Date();
       const month = input.month ?? now.getMonth() + 1;
       const year = input.year ?? now.getFullYear();
@@ -86,7 +78,7 @@ export const complianceRouter = router({
         eq(payrollRuns.periodMonth, month),
         eq(payrollRuns.periodYear, year),
       ];
-      if (companyId) conditions.push(eq(payrollRuns.companyId, companyId));
+      if (!scope.aggregateAllTenants) conditions.push(eq(payrollRuns.companyId, scope.companyId));
 
       const [run] = await db
         .select()
@@ -114,7 +106,9 @@ export const complianceRouter = router({
           status: payrollLineItems.status,
         })
         .from(payrollLineItems)
-        .where(eq(payrollLineItems.payrollRunId, run.id));
+        .where(
+          and(eq(payrollLineItems.payrollRunId, run.id), eq(payrollLineItems.companyId, run.companyId)),
+        );
 
       const totalContribution = lineItems.reduce((s, l) => s + Number(l.pasiDeduction ?? 0), 0);
 
@@ -135,7 +129,7 @@ export const complianceRouter = router({
       const db = await getDb();
       if (!db) return { status: "not_generated", wpsFileUrl: null, month: 0, year: 0 };
 
-      const companyId = input.companyId ?? await resolveCompanyId(ctx.user);
+      const scope = await resolveStatsCompanyFilter(ctx.user as User, input.companyId);
       const now = new Date();
       const month = input.month ?? now.getMonth() + 1;
       const year = input.year ?? now.getFullYear();
@@ -144,7 +138,7 @@ export const complianceRouter = router({
         eq(payrollRuns.periodMonth, month),
         eq(payrollRuns.periodYear, year),
       ];
-      if (companyId) conditions.push(eq(payrollRuns.companyId, companyId));
+      if (!scope.aggregateAllTenants) conditions.push(eq(payrollRuns.companyId, scope.companyId));
 
       const [run] = await db
         .select({
@@ -190,12 +184,12 @@ export const complianceRouter = router({
       const db = await getDb();
       if (!db) return { byDepartment: [], summary: { valid: 0, expiring: 0, expired: 0, total: 0 } };
 
-      const companyId = input.companyId ?? await resolveCompanyId(ctx.user);
+      const scope = await resolveStatsCompanyFilter(ctx.user as User, input.companyId);
       const now = new Date();
       const in30Days = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
 
       const empConditions = [eq(employees.status, "active")];
-      if (companyId) empConditions.push(eq(employees.companyId, companyId));
+      if (!scope.aggregateAllTenants) empConditions.push(eq(employees.companyId, scope.companyId));
 
       const allEmployees = await db
         .select({ id: employees.id, department: employees.department, firstName: employees.firstName, lastName: employees.lastName })
@@ -207,7 +201,12 @@ export const complianceRouter = router({
         return { byDepartment: [], summary: { valid: 0, expiring: 0, expired: 0, total: 0 } };
       }
 
-      // Get work permits for these employees
+      const permitFilters = [
+        eq(workPermits.permitStatus, "active"),
+        inArray(workPermits.employeeId, empIds),
+      ];
+      if (!scope.aggregateAllTenants) permitFilters.push(eq(workPermits.companyId, scope.companyId));
+
       const permits = await db
         .select({
           employeeId: workPermits.employeeId,
@@ -215,7 +214,7 @@ export const complianceRouter = router({
           permitStatus: workPermits.permitStatus,
         })
         .from(workPermits)
-        .where(eq(workPermits.permitStatus, "active"));
+        .where(and(...permitFilters));
 
       const permitMap = new Map<number, { expiryDate: Date | null; status: string }>();
       for (const p of permits) {
@@ -274,7 +273,7 @@ export const complianceRouter = router({
       const db = await getDb();
       if (!db) return { score: 0, grade: "N/A", checks: [] };
 
-      const companyId = input.companyId ?? await resolveCompanyId(ctx.user);
+      const scope = await resolveStatsCompanyFilter(ctx.user as User, input.companyId);
       const now = new Date();
       const in30Days = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
 
@@ -282,7 +281,7 @@ export const complianceRouter = router({
 
       // 1. Omanisation check
       const empConditions = [eq(employees.status, "active")];
-      if (companyId) empConditions.push(eq(employees.companyId, companyId));
+      if (!scope.aggregateAllTenants) empConditions.push(eq(employees.companyId, scope.companyId));
       const allEmps = await db.select({ nationality: employees.nationality }).from(employees).where(and(...empConditions));
       const total = allEmps.length;
       const omani = allEmps.filter((e) => e.nationality?.toLowerCase() === "omani" || e.nationality?.toLowerCase() === "om").length;
@@ -295,10 +294,15 @@ export const complianceRouter = router({
       });
 
       // 2. Work permit validity
+      const expiredPermitCond = [
+        eq(workPermits.permitStatus, "active"),
+        lte(workPermits.expiryDate, now),
+      ];
+      if (!scope.aggregateAllTenants) expiredPermitCond.push(eq(workPermits.companyId, scope.companyId));
       const expiredPermits = await db
         .select({ cnt: count() })
         .from(workPermits)
-        .where(and(eq(workPermits.permitStatus, "active"), lte(workPermits.expiryDate, now)));
+        .where(and(...expiredPermitCond));
       const expiredCount = Number(expiredPermits[0]?.cnt ?? 0);
       checks.push({
         name: "Work Permit Validity",
@@ -308,10 +312,16 @@ export const complianceRouter = router({
       });
 
       // 3. Expiring permits (30 days)
+      const expiringPermitCond = [
+        eq(workPermits.permitStatus, "active"),
+        gte(workPermits.expiryDate, now),
+        lte(workPermits.expiryDate, in30Days),
+      ];
+      if (!scope.aggregateAllTenants) expiringPermitCond.push(eq(workPermits.companyId, scope.companyId));
       const expiringPermits = await db
         .select({ cnt: count() })
         .from(workPermits)
-        .where(and(eq(workPermits.permitStatus, "active"), gte(workPermits.expiryDate, now), lte(workPermits.expiryDate, in30Days)));
+        .where(and(...expiringPermitCond));
       const expiringCount = Number(expiringPermits[0]?.cnt ?? 0);
       checks.push({
         name: "Upcoming Renewals",
@@ -327,7 +337,7 @@ export const complianceRouter = router({
         eq(payrollRuns.periodMonth, currentMonth),
         eq(payrollRuns.periodYear, currentYear),
       ];
-      if (companyId) payrollConditions.push(eq(payrollRuns.companyId, companyId));
+      if (!scope.aggregateAllTenants) payrollConditions.push(eq(payrollRuns.companyId, scope.companyId));
       const [latestRun] = await db
         .select({ status: payrollRuns.status, wpsFileUrl: payrollRuns.wpsFileUrl })
         .from(payrollRuns)

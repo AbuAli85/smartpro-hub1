@@ -141,12 +141,19 @@ export default function ExpiryAlertsPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Bell className="text-primary" size={26} />
+          <div className="flex flex-wrap items-center gap-1.5 mb-1.5">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-red-100 text-red-700 border border-red-200">MHRSD</span>
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-orange-100 text-orange-700 border border-orange-200">PASI</span>
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-100 text-blue-700 border border-blue-200">ROP Visa</span>
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-purple-100 text-purple-700 border border-purple-200">CR Renewal</span>
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-teal-100 text-teal-700 border border-teal-200">Sanad Licence</span>
+          </div>
+          <h1 className="text-2xl font-black tracking-tight text-foreground flex items-center gap-2">
+            <Bell className="text-orange-500" size={26} />
             Expiry & Renewal Alerts
           </h1>
           <p className="text-muted-foreground text-sm mt-0.5">
-            Track upcoming expirations across work permits, visas, documents, and licences
+            Real-time expiry tracking — work permits, visas, PASI, CR, Sanad licences &amp; employee documents · Oman &amp; GCC
           </p>
         </div>
         <Button

@@ -533,10 +533,10 @@ As a business services provider in Oman/GCC, here is what I need every single da
 
 ### PRIORITY 1 — Operations Command Center
 
-- [ ] UI: OperationsDashboardPage — provider's daily command center: today's tasks, SLA status, officer workload heatmap, revenue MTD, pending approvals, top 5 urgent alerts
-- [ ] tRPC: operations.getDailySnapshot — aggregated: open cases by status, SLA breaches, officer workload, revenue MTD, pending payroll approvals, expiring docs in 7 days
-- [ ] Route: /operations registered in App.tsx
-- [ ] Nav: "Operations" link as first item under Platform section in PlatformLayout
+- [x] UI: OperationsDashboardPage — provider's daily command center: today's tasks, SLA status, officer workload heatmap, revenue MTD, pending approvals, top 5 urgent alerts
+- [x] tRPC: operations.getDailySnapshot — aggregated: open cases by status, SLA breaches, officer workload, revenue MTD, pending payroll approvals, expiring docs in 7 days
+- [x] Route: /operations registered in App.tsx
+- [x] Nav: "Operations Centre" link under Overview section in PlatformLayout
 
 ### PRIORITY 2 — Quotation & Proposal Engine
 
@@ -563,36 +563,34 @@ As a business services provider in Oman/GCC, here is what I need every single da
 - [x] tRPC: sla.getBreaches — list cases currently in breach with hours overdue
 - [x] tRPC: sla.startTracking — called when a case is created: find matching rule, set due_at
 - [x] UI: SLAManagementPage — SLA rules table with edit dialog, breach list with case links, SLA performance chart (% met on time)
-- [ ] UI: WorkforceCasesPage — add SLA countdown chip per case row (green ≥50% time remaining, amber 20-50%, red <20% or breached)
+- [x] UI: WorkforceCasesPage — SLA countdown chip per case row (green/amber/red + "SLA Breached" label)
 - [x] Route: /sla-management registered in App.tsx
 - [x] Nav: "SLA Management" link under Shared Omani PRO section
 
 ### PRIORITY 4 — Financial Intelligence Panels
 
-- [ ] UI: BillingEnginePage — add "Aged Receivables" panel: 0-30 / 31-60 / 61-90 / 90+ days buckets with OMR totals
-- [ ] UI: BillingEnginePage — add "Revenue Trend" sparkline chart: last 6 months invoiced vs collected (OMR)
-- [ ] UI: BillingEnginePage — add "Top 5 Clients by Revenue" mini-table with OMR and invoice count
-- [ ] tRPC: billing.getAgedReceivables — group overdue invoices into age buckets
-- [ ] tRPC: billing.getRevenueTrend — monthly invoiced vs collected for last 6 months
-- [ ] tRPC: billing.getTopClients — top 10 clients by total invoiced OMR
+- [x] UI: BillingEnginePage — Financial Intelligence tab with Aged Receivables, Revenue Trend chart, Top Clients
+- [x] tRPC: billing.getAgedReceivables — group overdue invoices into age buckets
+- [x] tRPC: billing.getRevenueTrend — monthly invoiced vs collected for last 6 months
+- [x] tRPC: billing.getTopClients — top 10 clients by total invoiced OMR
 
 ### PRIORITY 5 — Client Portal Enhancements
 
-- [ ] UI: ClientPortalPage — add "New Service Request" tab: client fills service type, description, uploads docs, gets reference number
-- [ ] UI: ClientPortalPage — add "My Documents" tab: client downloads their own docs (passport copies, permits, contracts, payslips)
-- [ ] UI: ClientPortalPage — add "Upcoming Renewals" panel on dashboard tab: items expiring in 90 days with "Request Renewal" button
+- [x] UI: ClientPortalPage — "New Service Request" tab with form and reference number
+- [x] UI: ClientPortalPage — "My Documents" tab with download links
+- [x] UI: ClientPortalPage — "Upcoming Renewals" tab with 90-day expiry list
 - [ ] UI: ClientPortalPage — enhance PRO Services tab with step-by-step progress tracker (5 stages with icons)
-- [ ] tRPC: clientPortal.submitServiceRequest — client submits new request, creates sanad work order
-- [ ] tRPC: clientPortal.listMyDocuments — company's documents from employee_documents + contracts + payslips
-- [ ] tRPC: clientPortal.getUpcomingRenewals — expiring items for this company in next 90 days
+- [x] tRPC: clientPortal.submitServiceRequest — client submits new request, creates sanad work order
+- [x] tRPC: clientPortal.listMyDocuments — company's documents from employee_documents + contracts
+- [x] tRPC: clientPortal.getUpcomingRenewals — expiring items for this company in next 90 days
 
 ### PRIORITY 6 — Compliance Dashboard
 
-- [ ] UI: ComplianceDashboardPage — Omanisation ratio gauge (current % vs target %), PASI contribution status table, WPS compliance status, work permit validity matrix by department
-- [ ] tRPC: compliance.getOmanisationStats — total employees, Omani count, %, target %, gap
-- [ ] tRPC: compliance.getPasiStatus — PASI contribution amounts per employee for current month
-- [ ] tRPC: compliance.getWpsStatus — WPS file generated/not for current month, bank confirmation status
-- [ ] tRPC: compliance.getPermitMatrix — permit validity by department: valid/expiring/expired counts
+- [x] UI: ComplianceDashboardPage — Omanisation ratio gauge, PASI contribution status table, WPS compliance status, work permit validity matrix by department
+- [x] tRPC: compliance.getOmanisationStats — total employees, Omani count, %, target %, gap
+- [x] tRPC: compliance.getPasiStatus — PASI contribution amounts per employee for current month
+- [x] tRPC: compliance.getWpsStatus — WPS file generated/not for current month, bank confirmation status
+- [x] tRPC: compliance.getPermitMatrix — permit validity by department: valid/expiring/expired counts
 - [x] Route: /compliance registered in App.tsx
 - [x] Nav: "Compliance" link under Overview section
 

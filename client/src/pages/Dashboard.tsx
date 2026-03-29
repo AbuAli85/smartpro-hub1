@@ -101,6 +101,9 @@ export default function Dashboard() {
   const { data: expiringDocs } = trpc.pro.expiringDocuments.useQuery({ daysAhead: 30 });
   const { data: platformStats } = trpc.analytics.platformStats.useQuery();
   const { data: alertBadge } = trpc.alerts.getAlertBadgeCount.useQuery();
+  const { data: aiInsights } = trpc.operations.getAiInsights.useQuery();
+  const { data: todaysTasks } = trpc.operations.getTodaysTasks.useQuery();
+  const { data: auditFeed } = trpc.analytics.auditLogs.useQuery({ limit: 8 });
 
   const isAdmin = user?.role === "admin";
   const hour = new Date().getHours();
@@ -387,41 +390,120 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* ── Recent Activity ── */}
-      <div>
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
-            <Activity size={13} /> Recent Activity
-          </h2>
-          <Link href="/analytics">
-            <Button variant="ghost" size="sm" className="text-xs gap-1 h-7">
-              View all <ArrowUpRight size={11} />
-            </Button>
-          </Link>
-        </div>
-        <Card>
-          <CardContent className="p-4">
-            <div className="space-y-3">
-              {[
-                { icon: <CheckCircle2 size={14} className="text-emerald-600" />, bg: "bg-emerald-50", text: "SmartPRO platform is fully operational", time: "Now", sub: "All 12 modules active" },
-                { icon: <Shield size={14} className="text-blue-600" />, bg: "bg-blue-50", text: "PASI compliance check completed", time: "Today", sub: "98.7% contribution rate" },
-                { icon: <Building2 size={14} className="text-violet-600" />, bg: "bg-violet-50", text: "Sanad office management ready", time: "Today", sub: "Government services module" },
-                { icon: <Globe size={14} className="text-teal-600" />, bg: "bg-teal-50", text: "GCC multi-region support enabled", time: "Today", sub: "Oman, UAE, KSA, Qatar, Bahrain" },
-              ].map((item, i) => (
-                <div key={i} className="flex items-center gap-3 py-1.5 border-b border-border/60 last:border-0">
-                  <div className={`w-7 h-7 rounded-full ${item.bg} flex items-center justify-center shrink-0`}>
-                    {item.icon}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium text-foreground">{item.text}</div>
-                    <div className="text-xs text-muted-foreground">{item.sub}</div>
-                  </div>
-                  <span className="text-xs text-muted-foreground whitespace-nowrap">{item.time}</span>
-                </div>
-              ))}
-            </div>
+      {/* ── AI Insights + Today’s Tasks + Recent Activity ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+
+        {/* AI Insights */}
+        <Card className="border-0 shadow-sm">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <Zap size={14} className="text-amber-500" /> AI Insights
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {aiInsights && aiInsights.length > 0 ? aiInsights.map((ins, i) => (
+              <div key={i} className={`p-3 rounded-lg border-l-4 ${
+                ins.severity === "critical" ? "border-red-500 bg-red-50" :
+                ins.severity === "warning" ? "border-amber-500 bg-amber-50" :
+                "border-blue-500 bg-blue-50"
+              }`}>
+                <p className="text-xs font-semibold text-foreground">{ins.title}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{ins.description}</p>
+                {ins.actionUrl && (
+                  <Link href={ins.actionUrl}>
+                    <Button variant="link" size="sm" className="h-5 p-0 text-xs mt-1 gap-1">
+                      {ins.actionLabel} <ArrowRight size={10} />
+                    </Button>
+                  </Link>
+                )}
+              </div>
+            )) : (
+              <div className="text-center py-8 text-muted-foreground">
+                <Zap size={28} className="mx-auto mb-2 opacity-20" />
+                <p className="text-xs">No critical alerts today</p>
+                <p className="text-[10px] mt-0.5 opacity-60">All systems operating normally</p>
+              </div>
+            )}
           </CardContent>
         </Card>
+
+        {/* Today’s Tasks */}
+        <Card className="border-0 shadow-sm">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <CheckCircle2 size={14} className="text-emerald-500" /> Today’s Tasks
+              {todaysTasks && todaysTasks.totalTasks > 0 && (
+                <Badge variant="secondary" className="ml-auto text-xs">{todaysTasks.totalTasks}</Badge>
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-1">
+            {todaysTasks && todaysTasks.totalTasks > 0 ? todaysTasks.casesDue.slice(0, 6).map((task, i) => (
+              <div key={i} className="flex items-center gap-2 py-1.5 border-b border-border/50 last:border-0">
+                <div className={`w-2 h-2 rounded-full shrink-0 ${
+                  task.priority === "urgent" ? "bg-red-500" :
+                  task.priority === "high" ? "bg-amber-500" : "bg-blue-400"
+                }`} />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-medium truncate capitalize">{task.caseType.replace(/_/g, " ")}</p>
+                  <p className="text-[10px] text-muted-foreground">Gov. Case #{task.id}</p>
+                </div>
+                <Link href="/workforce/cases">
+                  <ChevronRight size={12} className="text-muted-foreground hover:text-foreground" />
+                </Link>
+              </div>
+            )) : (
+              <div className="text-center py-8 text-muted-foreground">
+                <CheckCircle2 size={28} className="mx-auto mb-2 opacity-20" />
+                <p className="text-xs">All clear for today</p>
+                <p className="text-[10px] mt-0.5 opacity-60">No pending tasks</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Recent Activity — real audit events from DB */}
+        <Card className="border-0 shadow-sm">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <Activity size={14} className="text-blue-500" /> Recent Activity
+              </CardTitle>
+              <Link href="/audit-log">
+                <Button variant="ghost" size="sm" className="text-xs gap-1 h-6">
+                  All <ArrowUpRight size={10} />
+                </Button>
+              </Link>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {auditFeed && auditFeed.length > 0 ? auditFeed.slice(0, 6).map((ev, i) => (
+              <div key={i} className="flex items-start gap-2 py-1.5 border-b border-border/50 last:border-0">
+                <div className="w-6 h-6 rounded-full bg-muted flex items-center justify-center shrink-0 mt-0.5">
+                  <Activity size={11} className="text-muted-foreground" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-medium truncate capitalize">{String(ev.action).replace(/_/g, " ")} {String(ev.entityType).replace(/_/g, " ")}</p>
+                  <p className="text-[10px] text-muted-foreground">
+                    {new Date(ev.createdAt).toLocaleTimeString("en-OM", { hour: "2-digit", minute: "2-digit" })}
+                  </p>
+                </div>
+              </div>
+            )) : (
+              <div className="space-y-2">
+                {["Platform initialized", "PASI module ready", "Sanad services active"].map((t, i) => (
+                  <div key={i} className="flex items-center gap-2 py-1.5 border-b border-border/50 last:border-0">
+                    <div className="w-6 h-6 rounded-full bg-emerald-50 flex items-center justify-center shrink-0">
+                      <CheckCircle2 size={11} className="text-emerald-600" />
+                    </div>
+                    <p className="text-xs text-muted-foreground">{t}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
       </div>
     </div>
   );

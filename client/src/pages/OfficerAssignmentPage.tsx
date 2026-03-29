@@ -13,7 +13,7 @@ import { toast } from "sonner";
 import {
   Building2, UserCheck, UserX, Plus, Search, FileText,
   Download, CheckCircle2, AlertTriangle, Clock, Wallet,
-  ArrowRight, RefreshCw, Users, TrendingUp, Shield
+  ArrowRight, RefreshCw, Users, TrendingUp, Shield, Zap
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -408,6 +408,16 @@ export default function OfficerAssignmentPage() {
     onError: (e) => toast.error(`Error: ${e.message}`),
   });
 
+  // Smart Assign: pick officer with most available capacity
+  const handleSmartAssign = () => {
+    const available = (officers as Officer[]).filter(o => o.availableSlots > 0);
+    if (available.length === 0) { toast.error("All officers are at full capacity"); return; }
+    const best = [...available].sort((a, b) => b.availableSlots - a.availableSlots)[0];
+    setSelectedOfficer(best);
+    setShowAssignDialog(true);
+    toast.info(`Smart Assign: Selected ${best.fullName} (${best.availableSlots} slots free, lowest load)`);
+  };
+
   const filteredOfficers = useMemo(() => {
     if (!officerSearch) return officers as Officer[];
     const q = officerSearch.toLowerCase();
@@ -436,9 +446,14 @@ export default function OfficerAssignmentPage() {
               Manage which companies are assigned to each Omani PRO officer
             </p>
           </div>
-          <Button variant="outline" size="sm" onClick={() => refetch()}>
-            <RefreshCw className="w-3.5 h-3.5 mr-1.5" /> Refresh
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" className="gap-1.5 border-violet-200 text-violet-700 hover:bg-violet-50" onClick={handleSmartAssign}>
+              <Zap className="w-3.5 h-3.5" /> Smart Assign
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => refetch()}>
+              <RefreshCw className="w-3.5 h-3.5 mr-1.5" /> Refresh
+            </Button>
+          </div>
         </div>
       </div>
 

@@ -1,6 +1,6 @@
 import { trpc } from "@/lib/trpc";
 import { useState } from "react";
-import { Shield, Plus, Search, AlertTriangle, Clock, CheckCircle2, RefreshCw } from "lucide-react";
+import { Shield, Plus, Search, AlertTriangle, Clock, CheckCircle2, RefreshCw, CheckSquare, Square, Zap } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -147,6 +147,8 @@ function NewProServiceDialog({ onSuccess }: { onSuccess: () => void }) {
 export default function ProServicesPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [bulkStatus, setBulkStatus] = useState("");
 
   const { data: services, refetch } = trpc.pro.list.useQuery({
     status: statusFilter !== "all" ? statusFilter : undefined,
@@ -157,6 +159,16 @@ export default function ProServicesPage() {
     onSuccess: () => { toast.success("Updated"); refetch(); },
     onError: (e) => toast.error(e.message),
   });
+
+  const toggleSelect = (id: number) => setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  const toggleAll = () => setSelectedIds(prev => prev.length === (filtered?.length ?? 0) && (filtered?.length ?? 0) > 0 ? [] : (filtered?.map(s => s.id) ?? []));
+  const handleBulkUpdate = async () => {
+    if (!bulkStatus || selectedIds.length === 0) return;
+    for (const id of selectedIds) {
+      await updateMutation.mutateAsync({ id, status: bulkStatus as any });
+    }
+    setSelectedIds([]); setBulkStatus("");
+  };
 
   const filtered = services?.filter((s) =>
     !search ||
@@ -222,6 +234,28 @@ export default function ProServicesPage() {
         </TabsList>
 
         <TabsContent value="services" className="space-y-4">
+          {selectedIds.length > 0 && (
+            <div className="flex items-center gap-3 p-3 bg-orange-50 border border-orange-200 rounded-xl">
+              <CheckSquare size={15} className="text-orange-600" />
+              <span className="text-sm font-semibold">{selectedIds.length} selected</span>
+              <div className="flex items-center gap-2 ml-auto">
+                <Select value={bulkStatus} onValueChange={setBulkStatus}>
+                  <SelectTrigger className="w-44 h-8 text-xs"><SelectValue placeholder="Set status..." /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="in_progress">In Progress</SelectItem>
+                    <SelectItem value="submitted_to_authority">Submitted</SelectItem>
+                    <SelectItem value="approved">Approved</SelectItem>
+                    <SelectItem value="completed">Completed</SelectItem>
+                    <SelectItem value="rejected">Rejected</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button size="sm" className="h-8 text-xs gap-1" onClick={handleBulkUpdate} disabled={!bulkStatus || updateMutation.isPending}>
+                  <Zap size={12} /> Apply
+                </Button>
+                <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => setSelectedIds([])}>Clear</Button>
+              </div>
+            </div>
+          )}
           <div className="flex flex-wrap gap-3">
             <div className="relative flex-1 min-w-48">
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
@@ -248,6 +282,12 @@ export default function ProServicesPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b bg-muted/40">
+                    <th className="px-4 py-3 w-8">
+                      <button onClick={toggleAll} className="text-muted-foreground hover:text-foreground">
+                        {selectedIds.length > 0 && selectedIds.length === (filtered?.length ?? 0)
+                          ? <CheckSquare size={14} /> : <Square size={14} />}
+                      </button>
+                    </th>
                     <th className="text-left px-4 py-3 font-medium text-muted-foreground">Service #</th>
                     <th className="text-left px-4 py-3 font-medium text-muted-foreground">Employee</th>
                     <th className="text-left px-4 py-3 font-medium text-muted-foreground">Service Type</th>
@@ -269,7 +309,12 @@ export default function ProServicesPage() {
                   {filtered?.map((svc) => {
                     const isExpiringSoon = svc.expiryDate && new Date(svc.expiryDate) < new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
                     return (
-                      <tr key={svc.id} className="border-b hover:bg-muted/20 transition-colors">
+                      <tr key={svc.id} className={`border-b hover:bg-muted/20 transition-colors ${selectedIds.includes(svc.id) ? "bg-orange-50/50" : ""}`}>
+                        <td className="px-4 py-3 w-8">
+                          <button onClick={() => toggleSelect(svc.id)} className="text-muted-foreground hover:text-foreground">
+                            {selectedIds.includes(svc.id) ? <CheckSquare size={14} className="text-orange-600" /> : <Square size={14} />}
+                          </button>
+                        </td>
                         <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{svc.serviceNumber}</td>
                         <td className="px-4 py-3">
                           <div className="font-medium">{svc.employeeName}</div>

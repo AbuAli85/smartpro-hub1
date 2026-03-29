@@ -161,6 +161,7 @@ export default function HREmployeesPage() {
     e.employeeNumber?.toLowerCase().includes(search.toLowerCase())
   );
 
+  const { data: omanisationStats } = trpc.compliance.getOmanisationStats.useQuery({ companyId: 0 });
   const stats = {
     total: employees?.length ?? 0,
     active: employees?.filter((e) => e.status === "active").length ?? 0,
@@ -207,6 +208,53 @@ export default function HREmployeesPage() {
         ))}
       </div>
 
+      {/* Omanisation Gauge */}
+      {omanisationStats && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="md:col-span-2 bg-gradient-to-r from-violet-600 to-violet-800 rounded-2xl p-5 text-white">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <p className="text-xs text-white/70 uppercase tracking-wide font-semibold">Omanisation Ratio</p>
+                <p className="text-3xl font-black mt-0.5">{omanisationStats.pct.toFixed(1)}%</p>
+              </div>
+              <div className="text-right">
+                <p className="text-xs text-white/70">MHRSD Target</p>
+                <p className="text-xl font-black">{omanisationStats.targetPct}%</p>
+              </div>
+            </div>
+            <div className="w-full bg-white/20 rounded-full h-3">
+              <div
+                className={`h-3 rounded-full transition-all ${omanisationStats.pct >= omanisationStats.targetPct ? "bg-emerald-400" : "bg-amber-400"}`}
+                style={{ width: `${Math.min(100, omanisationStats.targetPct > 0 ? (omanisationStats.pct / omanisationStats.targetPct) * 100 : 0)}%` }}
+              />
+            </div>
+            <div className="flex justify-between mt-2 text-xs text-white/70">
+              <span>{omanisationStats.omani} Omani nationals</span>
+              <span>{omanisationStats.total} total employees</span>
+            </div>
+          </div>
+          <div className={`rounded-2xl p-5 flex flex-col justify-center ${
+            omanisationStats.pct >= omanisationStats.targetPct
+              ? "bg-emerald-50 border border-emerald-200"
+              : "bg-amber-50 border border-amber-200"
+          }`}>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Compliance Status</p>
+            {omanisationStats.pct >= omanisationStats.targetPct ? (
+              <>
+                <p className="text-lg font-black text-emerald-700 mt-1">Compliant</p>
+                <p className="text-xs text-emerald-600 mt-0.5">Above MHRSD target</p>
+              </>
+            ) : (
+              <>
+                <p className="text-lg font-black text-amber-700 mt-1">Gap: {omanisationStats.gap.toFixed(1)}%</p>
+                <p className="text-xs text-amber-600 mt-0.5">
+                  Need {Math.max(0, Math.ceil((omanisationStats.targetPct / 100) * omanisationStats.total - omanisationStats.omani))} more Omani hires
+                </p>
+              </>
+            )}
+          </div>
+        </div>
+      )}
       <div className="flex flex-wrap gap-3">
         <div className="relative flex-1 min-w-48">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />

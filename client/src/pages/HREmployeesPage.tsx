@@ -221,7 +221,7 @@ function EmployeeDetailPanel({ employeeId, onClose, onUpdate }: { employeeId: nu
             </div>
           </div>
         </div>
-        <Button variant="ghost" size="icon" onClick={onClose}><X size={16} /></Button>
+        <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close employee panel"><X size={16} aria-hidden="true" /></Button>
       </div>
       <div className="flex-1 overflow-y-auto p-4 space-y-5">
         {emp.status === "active" && (
@@ -389,7 +389,7 @@ export default function HREmployeesPage() {
             <div className="flex flex-wrap gap-3">
               <div className="relative flex-1 min-w-48">
                 <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                <Input placeholder="Search by name, role, department, nationality..." className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
+                <Input placeholder="Search by name, role, department, nationality..." className="pl-9" aria-label="Search employees" value={search} onChange={(e) => setSearch(e.target.value)} />
               </div>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
                 <SelectTrigger className="w-36"><SelectValue placeholder="All Status" /></SelectTrigger>
@@ -414,14 +414,14 @@ export default function HREmployeesPage() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b bg-muted/40">
-                      <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">Employee</th>
-                      <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">Role</th>
-                      <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">Department</th>
-                      <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">Nationality</th>
-                      <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">Status</th>
-                      <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">Salary</th>
-                      <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">Hire Date</th>
-                      <th className="px-4 py-3 w-8"></th>
+                      <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">Employee</th>
+                      <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">Role</th>
+                      <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">Department</th>
+                      <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">Nationality</th>
+                      <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">Status</th>
+                      <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">Salary</th>
+                      <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">Hire Date</th>
+                      <th scope="col" className="px-4 py-3 w-8"></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -437,7 +437,7 @@ export default function HREmployeesPage() {
                       const isOmani = (emp.nationality ?? "").toLowerCase().includes("oman");
                       const isSelected = selectedId === emp.id;
                       return (
-                        <tr key={emp.id} className={"border-b hover:bg-muted/20 transition-colors cursor-pointer " + (isSelected ? "bg-orange-50" : "")} onClick={() => setSelectedId(isSelected ? null : emp.id)}>
+                        <tr key={emp.id} className={"border-b hover:bg-muted/20 transition-colors cursor-pointer " + (isSelected ? "bg-orange-50" : "")} onClick={() => setSelectedId(isSelected ? null : emp.id)} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setSelectedId(isSelected ? null : emp.id); }} aria-pressed={isSelected}>
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-3">
                               <Avatar className="w-8 h-8 shrink-0">

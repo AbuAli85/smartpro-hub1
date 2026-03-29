@@ -171,7 +171,7 @@ function ContactDetailPanel({ contactId, onClose }: { contactId: number; onClose
           <MessageSquare size={16} className="text-[var(--smartpro-orange)]" />
           <span className="font-semibold text-sm">Communication Log</span>
         </div>
-        <Button variant="ghost" size="icon" onClick={onClose}><X size={16} /></Button>
+        <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close contact panel"><X size={16} aria-hidden="true" /></Button>
       </div>
       <div className="p-4 border-b">
         <Button size="sm" className="w-full gap-2 bg-[var(--smartpro-orange)] hover:bg-orange-600 text-white" onClick={() => setShowCommForm(!showCommForm)}>
@@ -357,7 +357,7 @@ export default function CRMPage() {
             <div className="flex flex-wrap gap-3">
               <div className="relative flex-1 min-w-48">
                 <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                <Input placeholder="Search by name, company, email, position..." className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
+                <Input placeholder="Search by name, company, email, position..." className="pl-9" aria-label="Search contacts" value={search} onChange={(e) => setSearch(e.target.value)} />
               </div>
               <Select value={typeFilter} onValueChange={setTypeFilter}>
                 <SelectTrigger className="w-36"><SelectValue placeholder="All Status" /></SelectTrigger>
@@ -384,12 +384,12 @@ export default function CRMPage() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b bg-muted/40">
-                        <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">Contact</th>
-                        <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">Company</th>
-                        <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">Contact Info</th>
-                        <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">Status</th>
-                        <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">Move to</th>
-                        <th className="px-4 py-3 w-8"></th>
+                        <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">Contact</th>
+                        <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">Company</th>
+                        <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">Contact Info</th>
+                        <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">Status</th>
+                        <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">Move to</th>
+                        <th scope="col" className="px-4 py-3 w-8"></th>
                       </tr>
                     </thead>
                     <tbody>
@@ -450,12 +450,12 @@ export default function CRMPage() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b bg-muted/40">
-                      <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">Deal</th>
-                      <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">Value</th>
-                      <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">Stage</th>
-                      <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">Win %</th>
-                      <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">Close Date</th>
-                      <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">Move to</th>
+                      <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">Deal</th>
+                      <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">Value</th>
+                      <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">Stage</th>
+                      <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">Win %</th>
+                      <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">Close Date</th>
+                      <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">Move to</th>
                     </tr>
                   </thead>
                   <tbody>

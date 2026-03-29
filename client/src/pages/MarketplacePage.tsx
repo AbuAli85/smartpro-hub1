@@ -294,12 +294,12 @@ export default function MarketplacePage() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b bg-muted/40">
-                      <th className="text-left px-4 py-3 font-medium text-muted-foreground">Booking #</th>
-                      <th className="text-left px-4 py-3 font-medium text-muted-foreground">Provider</th>
-                      <th className="text-left px-4 py-3 font-medium text-muted-foreground">Status</th>
-                      <th className="text-left px-4 py-3 font-medium text-muted-foreground">Scheduled</th>
-                      <th className="text-left px-4 py-3 font-medium text-muted-foreground">Review</th>
-                      <th className="text-left px-4 py-3 font-medium text-muted-foreground">Created</th>
+                      <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground">Booking #</th>
+                      <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground">Provider</th>
+                      <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground">Status</th>
+                      <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground">Scheduled</th>
+                      <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground">Review</th>
+                      <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground">Created</th>
                     </tr>
                   </thead>
                   <tbody>

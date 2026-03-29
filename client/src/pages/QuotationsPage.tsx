@@ -127,7 +127,7 @@ function LineItemRow({
       </div>
       <div className="col-span-1 flex items-center justify-between">
         <span className="text-xs font-semibold text-right w-full">{lineTotal.toFixed(3)}</span>
-        <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500 hover:text-red-700" onClick={() => onRemove(index)}>
+        <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500 hover:text-red-700" onClick={() => onRemove(index)} aria-label="Remove line item">
           <Trash2 className="w-3 h-3" />
         </Button>
       </div>

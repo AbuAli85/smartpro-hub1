@@ -277,12 +277,12 @@ export default function ComplianceDashboardPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b text-xs text-muted-foreground">
-                    <th className="text-left py-2 font-semibold">Department</th>
-                    <th className="text-center py-2 font-semibold">Total</th>
-                    <th className="text-center py-2 font-semibold text-green-600">Valid</th>
-                    <th className="text-center py-2 font-semibold text-orange-600">Expiring</th>
-                    <th className="text-center py-2 font-semibold text-red-600">Expired</th>
-                    <th className="text-center py-2 font-semibold text-gray-500">No Permit</th>
+                    <th scope="col" className="text-left py-2 font-semibold">Department</th>
+                    <th scope="col" className="text-center py-2 font-semibold">Total</th>
+                    <th scope="col" className="text-center py-2 font-semibold text-green-600">Valid</th>
+                    <th scope="col" className="text-center py-2 font-semibold text-orange-600">Expiring</th>
+                    <th scope="col" className="text-center py-2 font-semibold text-red-600">Expired</th>
+                    <th scope="col" className="text-center py-2 font-semibold text-gray-500">No Permit</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">

@@ -462,13 +462,13 @@ export default function SanadCatalogueAdminPage() {
                     <div className="text-right mr-2">
                       <p className="text-sm font-semibold">OMR {Number(item.priceOmr).toFixed(3)}</p>
                     </div>
-                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => toggleMutation.mutate({ id: item.id, isActive: !item.isActive })}>
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => toggleMutation.mutate({ id: item.id, isActive: !item.isActive })} aria-label={item.isActive ? "Deactivate item" : "Activate item"}>
                       {item.isActive ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setEditItem({ ...item })}>
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setEditItem({ ...item })} aria-label="Edit catalogue item">
                       <Pencil className="h-4 w-4" />
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => setDeleteId(item.id)}>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => setDeleteId(item.id)} aria-label="Delete catalogue item">
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>

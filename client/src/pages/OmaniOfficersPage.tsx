@@ -173,7 +173,7 @@ function OfficerCard({ officer, onEdit, onView, isAdmin }: {
           </span>
           <div className="flex flex-wrap items-center gap-1">
             {isAdmin && (
-              <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+              <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity" aria-label="Edit officer"
                 onClick={(e) => { e.stopPropagation(); onEdit(officer); }}>
                 <Edit2 className="w-3 h-3" />
               </Button>

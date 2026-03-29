@@ -243,10 +243,10 @@ export default function SlaManagementPage() {
                         </Badge>
                       </div>
                       <div className="flex gap-1">
-                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(rule)}>
+                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(rule)} aria-label="Edit SLA rule">
                           <Pencil className="w-3.5 h-3.5" />
                         </Button>
-                        <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500" onClick={() => deleteMutation.mutate({ id: rule.id })}>
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500" onClick={() => deleteMutation.mutate({ id: rule.id })} aria-label="Delete SLA rule">
                           <Trash2 className="w-3.5 h-3.5" />
                         </Button>
                       </div>

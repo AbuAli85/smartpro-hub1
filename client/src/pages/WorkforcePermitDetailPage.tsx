@@ -293,10 +293,10 @@ export default function WorkforcePermitDetailPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b bg-muted/30">
-                    <th className="text-left px-4 py-2.5 font-medium">Renewal #</th>
-                    <th className="text-left px-4 py-2.5 font-medium">New Expiry</th>
-                    <th className="text-left px-4 py-2.5 font-medium">Status</th>
-                    <th className="text-left px-4 py-2.5 font-medium">Date</th>
+                    <th scope="col" className="text-left px-4 py-2.5 font-medium">Renewal #</th>
+                    <th scope="col" className="text-left px-4 py-2.5 font-medium">New Expiry</th>
+                    <th scope="col" className="text-left px-4 py-2.5 font-medium">Status</th>
+                    <th scope="col" className="text-left px-4 py-2.5 font-medium">Date</th>
                   </tr>
                 </thead>
                 <tbody>

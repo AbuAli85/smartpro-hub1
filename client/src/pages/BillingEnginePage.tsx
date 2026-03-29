@@ -122,10 +122,10 @@ function FinancialIntelligencePanel() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b">
-                    <th className="text-left py-2 px-3 text-xs font-semibold text-muted-foreground">#</th>
-                    <th className="text-left py-2 px-3 text-xs font-semibold text-muted-foreground">Company ID</th>
-                    <th className="text-right py-2 px-3 text-xs font-semibold text-muted-foreground">Total Invoiced</th>
-                    <th className="text-right py-2 px-3 text-xs font-semibold text-muted-foreground">Invoices</th>
+                    <th scope="col" className="text-left py-2 px-3 text-xs font-semibold text-muted-foreground">#</th>
+                    <th scope="col" className="text-left py-2 px-3 text-xs font-semibold text-muted-foreground">Company ID</th>
+                    <th scope="col" className="text-right py-2 px-3 text-xs font-semibold text-muted-foreground">Total Invoiced</th>
+                    <th scope="col" className="text-right py-2 px-3 text-xs font-semibold text-muted-foreground">Invoices</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -190,7 +190,7 @@ function BillingReportButton({ month, year }: { month: number; year: number }) {
       onClick={() => generateReport.mutate({ month, year })}
       disabled={generateReport.isPending}
       className="gap-1">
-      {generateReport.isPending ? <RefreshCw size={13} className="animate-spin" /> : <Download size={13} />}
+      {generateReport.isPending ? <RefreshCw size={13} className="animate-spin" aria-hidden="true" /> : <Download size={13} aria-hidden="true" />}
       PDF Report
     </Button>
   );
@@ -467,13 +467,13 @@ export default function BillingEnginePage() {
               <table className="w-full text-sm">
                 <thead className="bg-muted/50">
                   <tr>
-                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">Invoice #</th>
-                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">Officer</th>
-                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">Period</th>
-                    <th className="text-right px-4 py-3 font-medium text-muted-foreground">Amount</th>
-                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">Due Date</th>
-                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">Status</th>
-                    <th className="text-right px-4 py-3 font-medium text-muted-foreground">Actions</th>
+                    <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground">Invoice #</th>
+                    <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground">Officer</th>
+                    <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground">Period</th>
+                    <th scope="col" className="text-right px-4 py-3 font-medium text-muted-foreground">Amount</th>
+                    <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground">Due Date</th>
+                    <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground">Status</th>
+                    <th scope="col" className="text-right px-4 py-3 font-medium text-muted-foreground">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
@@ -533,14 +533,14 @@ export default function BillingEnginePage() {
               <table className="w-full text-sm">
                 <thead className="bg-muted/50">
                   <tr>
-                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">Officer</th>
-                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">Period</th>
-                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">Track</th>
-                    <th className="text-right px-4 py-3 font-medium text-muted-foreground">Collected</th>
-                    <th className="text-right px-4 py-3 font-medium text-muted-foreground">Commission</th>
-                    <th className="text-right px-4 py-3 font-medium text-muted-foreground">Net Payout</th>
-                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">Status</th>
-                    <th className="text-right px-4 py-3 font-medium text-muted-foreground">Actions</th>
+                    <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground">Officer</th>
+                    <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground">Period</th>
+                    <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground">Track</th>
+                    <th scope="col" className="text-right px-4 py-3 font-medium text-muted-foreground">Collected</th>
+                    <th scope="col" className="text-right px-4 py-3 font-medium text-muted-foreground">Commission</th>
+                    <th scope="col" className="text-right px-4 py-3 font-medium text-muted-foreground">Net Payout</th>
+                    <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground">Status</th>
+                    <th scope="col" className="text-right px-4 py-3 font-medium text-muted-foreground">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">

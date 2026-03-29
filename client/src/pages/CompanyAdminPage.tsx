@@ -290,7 +290,7 @@ export default function CompanyAdminPage() {
             <div className="flex flex-wrap items-center gap-2">
               {profileDirty && (
                 <Button onClick={handleProfileSave} disabled={updateCompany.isPending} className="gap-2">
-                  {updateCompany.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                  {updateCompany.isPending ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" /> : <Save className="w-4 h-4" aria-hidden="true" />}
                   Save Changes
                 </Button>
               )}
@@ -526,7 +526,7 @@ export default function CompanyAdminPage() {
             {isAdmin && profileDirty && (
               <div className="flex justify-end">
                 <Button onClick={handleProfileSave} disabled={updateCompany.isPending} size="lg" className="gap-2">
-                  {updateCompany.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                  {updateCompany.isPending ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" /> : <Save className="w-4 h-4" aria-hidden="true" />}
                   Save All Changes
                 </Button>
               </div>

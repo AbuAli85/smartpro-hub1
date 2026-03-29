@@ -439,13 +439,13 @@ export default function HRLeavePage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b text-muted-foreground text-xs">
-                    <th className="text-left py-2 px-3 font-medium">Employee</th>
-                    <th className="text-left py-2 px-3 font-medium">Period</th>
-                    <th className="text-right py-2 px-3 font-medium">Basic</th>
-                    <th className="text-right py-2 px-3 font-medium">Allowances</th>
-                    <th className="text-right py-2 px-3 font-medium">Deductions</th>
-                    <th className="text-right py-2 px-3 font-medium">Net Salary</th>
-                    <th className="text-center py-2 px-3 font-medium">Status</th>
+                    <th scope="col" className="text-left py-2 px-3 font-medium">Employee</th>
+                    <th scope="col" className="text-left py-2 px-3 font-medium">Period</th>
+                    <th scope="col" className="text-right py-2 px-3 font-medium">Basic</th>
+                    <th scope="col" className="text-right py-2 px-3 font-medium">Allowances</th>
+                    <th scope="col" className="text-right py-2 px-3 font-medium">Deductions</th>
+                    <th scope="col" className="text-right py-2 px-3 font-medium">Net Salary</th>
+                    <th scope="col" className="text-center py-2 px-3 font-medium">Status</th>
                   </tr>
                 </thead>
                 <tbody>

@@ -465,17 +465,17 @@ export default function SanadOfficeDashboardPage() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b bg-muted/40">
-                        <th className="text-left px-4 py-3 font-medium text-muted-foreground">Officer</th>
-                        <th className="text-left px-4 py-3 font-medium text-muted-foreground">Track</th>
-                        <th className="text-left px-4 py-3 font-medium text-muted-foreground">Capacity</th>
-                        <th className="text-right px-4 py-3 font-medium text-muted-foreground">Revenue</th>
-                        <th className="text-right px-4 py-3 font-medium text-muted-foreground">Salary</th>
-                        <th className="text-right px-4 py-3 font-medium text-muted-foreground">Net</th>
-                        <th className="text-center px-4 py-3 font-medium text-muted-foreground">WOs</th>
-                        <th className="text-center px-4 py-3 font-medium text-muted-foreground">Done</th>
-                        <th className="text-center px-4 py-3 font-medium text-muted-foreground">Rate%</th>
-                        <th className="text-center px-4 py-3 font-medium text-muted-foreground">Rating</th>
-                        <th className="text-left px-4 py-3 font-medium text-muted-foreground">Status</th>
+                        <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground">Officer</th>
+                        <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground">Track</th>
+                        <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground">Capacity</th>
+                        <th scope="col" className="text-right px-4 py-3 font-medium text-muted-foreground">Revenue</th>
+                        <th scope="col" className="text-right px-4 py-3 font-medium text-muted-foreground">Salary</th>
+                        <th scope="col" className="text-right px-4 py-3 font-medium text-muted-foreground">Net</th>
+                        <th scope="col" className="text-center px-4 py-3 font-medium text-muted-foreground">WOs</th>
+                        <th scope="col" className="text-center px-4 py-3 font-medium text-muted-foreground">Done</th>
+                        <th scope="col" className="text-center px-4 py-3 font-medium text-muted-foreground">Rate%</th>
+                        <th scope="col" className="text-center px-4 py-3 font-medium text-muted-foreground">Rating</th>
+                        <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground">Status</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -548,13 +548,13 @@ export default function SanadOfficeDashboardPage() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b bg-muted/40">
-                        <th className="text-left px-4 py-3 font-medium text-muted-foreground">Reference</th>
-                        <th className="text-left px-4 py-3 font-medium text-muted-foreground">Service</th>
-                        <th className="text-left px-4 py-3 font-medium text-muted-foreground">Company</th>
-                        <th className="text-left px-4 py-3 font-medium text-muted-foreground">Beneficiary</th>
-                        <th className="text-center px-4 py-3 font-medium text-muted-foreground">Status</th>
-                        <th className="text-center px-4 py-3 font-medium text-muted-foreground">Rating</th>
-                        <th className="text-left px-4 py-3 font-medium text-muted-foreground">Date</th>
+                        <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground">Reference</th>
+                        <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground">Service</th>
+                        <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground">Company</th>
+                        <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground">Beneficiary</th>
+                        <th scope="col" className="text-center px-4 py-3 font-medium text-muted-foreground">Status</th>
+                        <th scope="col" className="text-center px-4 py-3 font-medium text-muted-foreground">Rating</th>
+                        <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground">Date</th>
                       </tr>
                     </thead>
                     <tbody>

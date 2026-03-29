@@ -233,10 +233,10 @@ export default function SubscriptionsPage() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b">
-                      <th className="text-left py-2 font-medium text-muted-foreground">Feature</th>
-                      <th className="text-center py-2 font-medium text-blue-600">Basic</th>
-                      <th className="text-center py-2 font-medium text-purple-600">Professional</th>
-                      <th className="text-center py-2 font-medium text-amber-600">Enterprise</th>
+                      <th scope="col" className="text-left py-2 font-medium text-muted-foreground">Feature</th>
+                      <th scope="col" className="text-center py-2 font-medium text-blue-600">Basic</th>
+                      <th scope="col" className="text-center py-2 font-medium text-purple-600">Professional</th>
+                      <th scope="col" className="text-center py-2 font-medium text-amber-600">Enterprise</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -315,12 +315,12 @@ export default function SubscriptionsPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b text-muted-foreground text-xs">
-                    <th className="text-left py-2 px-3 font-medium">Invoice #</th>
-                    <th className="text-left py-2 px-3 font-medium">Date</th>
-                    <th className="text-right py-2 px-3 font-medium">Amount</th>
-                    <th className="text-left py-2 px-3 font-medium">Due Date</th>
-                    <th className="text-center py-2 px-3 font-medium">Status</th>
-                    <th className="text-center py-2 px-3 font-medium">Actions</th>
+                    <th scope="col" className="text-left py-2 px-3 font-medium">Invoice #</th>
+                    <th scope="col" className="text-left py-2 px-3 font-medium">Date</th>
+                    <th scope="col" className="text-right py-2 px-3 font-medium">Amount</th>
+                    <th scope="col" className="text-left py-2 px-3 font-medium">Due Date</th>
+                    <th scope="col" className="text-center py-2 px-3 font-medium">Status</th>
+                    <th scope="col" className="text-center py-2 px-3 font-medium">Actions</th>
                   </tr>
                 </thead>
                 <tbody>

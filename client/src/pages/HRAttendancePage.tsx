@@ -322,14 +322,14 @@ export default function HRAttendancePage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b text-xs text-muted-foreground">
-                    <th className="text-left py-2 px-3 font-medium">Employee</th>
-                    <th className="text-left py-2 px-3 font-medium">Date</th>
-                    <th className="text-left py-2 px-3 font-medium">Check In</th>
-                    <th className="text-left py-2 px-3 font-medium">Check Out</th>
-                    <th className="text-left py-2 px-3 font-medium">Hours</th>
-                    <th className="text-left py-2 px-3 font-medium">Status</th>
-                    <th className="text-left py-2 px-3 font-medium">Notes</th>
-                    <th className="text-left py-2 px-3 font-medium">Actions</th>
+                    <th scope="col" className="text-left py-2 px-3 font-medium">Employee</th>
+                    <th scope="col" className="text-left py-2 px-3 font-medium">Date</th>
+                    <th scope="col" className="text-left py-2 px-3 font-medium">Check In</th>
+                    <th scope="col" className="text-left py-2 px-3 font-medium">Check Out</th>
+                    <th scope="col" className="text-left py-2 px-3 font-medium">Hours</th>
+                    <th scope="col" className="text-left py-2 px-3 font-medium">Status</th>
+                    <th scope="col" className="text-left py-2 px-3 font-medium">Notes</th>
+                    <th scope="col" className="text-left py-2 px-3 font-medium">Actions</th>
                   </tr>
                 </thead>
                 <tbody>

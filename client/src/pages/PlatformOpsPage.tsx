@@ -267,11 +267,11 @@ function FinanceView() {
               <table className="w-full text-xs">
                 <thead>
                   <tr className="border-b border-border/40">
-                    <th className="text-left py-2 text-muted-foreground font-medium">#</th>
-                    <th className="text-left py-2 text-muted-foreground font-medium">Company</th>
-                    <th className="text-right py-2 text-muted-foreground font-medium">Billed</th>
-                    <th className="text-right py-2 text-muted-foreground font-medium">Paid</th>
-                    <th className="text-right py-2 text-muted-foreground font-medium">Cycles</th>
+                    <th scope="col" className="text-left py-2 text-muted-foreground font-medium">#</th>
+                    <th scope="col" className="text-left py-2 text-muted-foreground font-medium">Company</th>
+                    <th scope="col" className="text-right py-2 text-muted-foreground font-medium">Billed</th>
+                    <th scope="col" className="text-right py-2 text-muted-foreground font-medium">Paid</th>
+                    <th scope="col" className="text-right py-2 text-muted-foreground font-medium">Cycles</th>
                   </tr>
                 </thead>
                 <tbody>

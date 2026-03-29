@@ -481,7 +481,7 @@ function WorkOrderRow({ order, providers, onUpdate, onSelect }: { order: any; pr
   });
 
   return (
-    <div className="flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-muted/30 transition-colors cursor-pointer" onClick={() => onSelect?.(order.id)}>
+    <div className="flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-muted/30 transition-colors cursor-pointer" onClick={() => onSelect?.(order.id)} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onSelect?.(order.id); }} aria-label={`View work order ${order.referenceNumber}`}>
       <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center shrink-0">
         <StatusIcon size={15} className="text-muted-foreground" />
       </div>

@@ -156,14 +156,14 @@ export default function WorkforcePermitsPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b bg-muted/30">
-                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">Permit No.</th>
-                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">Employee</th>
-                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">Occupation</th>
-                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">Status</th>
-                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">Issue Date</th>
-                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">Expiry Date</th>
-                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">Remaining</th>
-                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">Actions</th>
+                  <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground">Permit No.</th>
+                  <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground">Employee</th>
+                  <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground">Occupation</th>
+                  <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground">Status</th>
+                  <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground">Issue Date</th>
+                  <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground">Expiry Date</th>
+                  <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground">Remaining</th>
+                  <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground">Actions</th>
                 </tr>
               </thead>
               <tbody>

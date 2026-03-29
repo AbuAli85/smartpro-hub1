@@ -201,7 +201,7 @@ export default function AdminPage() {
           <div className="flex flex-wrap gap-3">
             <div className="relative flex-1">
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-              <Input placeholder="Search companies..." className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
+              <Input placeholder="Search companies..." className="pl-9" aria-label="Search companies" value={search} onChange={(e) => setSearch(e.target.value)} />
             </div>
             <NewCompanyDialog onSuccess={refetchCompanies} />
           </div>
@@ -211,12 +211,12 @@ export default function AdminPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b bg-muted/40">
-                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">Company</th>
-                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">Country</th>
-                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">Industry</th>
-                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">Status</th>
-                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">Created</th>
-                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">Actions</th>
+                    <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground">Company</th>
+                    <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground">Country</th>
+                    <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground">Industry</th>
+                    <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground">Status</th>
+                    <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground">Created</th>
+                    <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -274,11 +274,11 @@ export default function AdminPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b bg-muted/40">
-                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">Action</th>
-                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">Entity</th>
-                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">User</th>
-                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">IP</th>
-                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">Time</th>
+                    <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground">Action</th>
+                    <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground">Entity</th>
+                    <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground">User</th>
+                    <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground">IP</th>
+                    <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground">Time</th>
                   </tr>
                 </thead>
                 <tbody>

@@ -286,3 +286,44 @@
 .animate-delay-100  { animation-delay: 0.1s; }
 .animate-delay-200  { animation-delay: 0.2s; }
 .animate-delay-300  { animation-delay: 0.3s; }
+
+/* ─── Accessibility ──────────────────────────────────────────────────────── */
+
+/* Skip-to-main-content link — visible only on keyboard focus */
+.skip-to-main {
+  position: absolute;
+  top: -100%;
+  left: 1rem;
+  z-index: 9999;
+  padding: 0.5rem 1rem;
+  background: var(--smartpro-orange);
+  color: #fff;
+  border-radius: 0 0 0.5rem 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: top 0.15s ease;
+}
+.skip-to-main:focus {
+  top: 0;
+  outline: 3px solid #fff;
+  outline-offset: 2px;
+}
+
+/* Respect prefers-reduced-motion — disable all animations/transitions */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Enhanced focus-visible ring for all interactive elements */
+:focus-visible {
+  outline: 2px solid var(--smartpro-orange);
+  outline-offset: 2px;
+}

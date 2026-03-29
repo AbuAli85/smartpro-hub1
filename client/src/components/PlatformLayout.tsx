@@ -359,16 +359,20 @@ export default function PlatformLayout({ children }: { children: React.ReactNode
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
+      {/* Skip to main content — visible only on keyboard focus */}
+      <a href="#main-content" className="skip-to-main">Skip to main content</a>
+
       {/* Mobile overlay */}
       {sidebarOpen && (
         <div
           className="fixed inset-0 bg-black/50 z-40 lg:hidden"
           onClick={() => setSidebarOpen(false)}
+          aria-hidden="true"
         />
       )}
 
       {/* Sidebar - desktop */}
-      <aside className="hidden lg:flex w-60 shrink-0 flex-col h-full">
+      <aside className="hidden lg:flex w-60 shrink-0 flex-col h-full" aria-label="Main navigation">
         <SidebarContent />
       </aside>
 
@@ -377,6 +381,8 @@ export default function PlatformLayout({ children }: { children: React.ReactNode
         className={`fixed inset-y-0 left-0 w-64 z-50 lg:hidden transform transition-transform duration-200 ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
+        aria-label="Mobile navigation"
+        aria-hidden={!sidebarOpen}
       >
         <SidebarContent onClose={() => setSidebarOpen(false)} />
       </aside>
@@ -384,19 +390,22 @@ export default function PlatformLayout({ children }: { children: React.ReactNode
       {/* Main */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Top bar */}
-        <header className="h-14 border-b border-border bg-card flex items-center px-4 gap-3 shrink-0">
+        <header className="h-14 border-b border-border bg-card flex items-center px-4 gap-3 shrink-0" role="banner">
           <button
             onClick={() => setSidebarOpen(true)}
             className="lg:hidden p-1.5 rounded-md hover:bg-muted transition-colors"
+            aria-label="Open navigation menu"
+            aria-expanded={sidebarOpen}
+            aria-controls="mobile-sidebar"
           >
-            <Menu size={20} />
+            <Menu size={20} aria-hidden="true" />
           </button>
           <div className="flex-1" />
           <NotificationBell />
         </header>
 
         {/* Content */}
-        <main className="flex-1 overflow-y-auto pb-16 lg:pb-0">
+        <main id="main-content" className="flex-1 overflow-y-auto pb-16 lg:pb-0" role="main">
           {children}
         </main>
       </div>

@@ -411,7 +411,7 @@ export default function RenewalWorkflowsPage() {
                           <TableCell className="text-right">
                             <div className="flex justify-end gap-1">
                               <Button
-                                variant="ghost" size="icon" className="h-7 w-7"
+                                variant="ghost" size="icon" className="h-7 w-7" aria-label="Edit renewal workflow"
                                 onClick={() => {
                                   setEditingRule({
                                     id: rule.id,
@@ -431,7 +431,7 @@ export default function RenewalWorkflowsPage() {
                                 <Edit2 className="h-3.5 w-3.5" />
                               </Button>
                               <Button
-                                variant="ghost" size="icon" className="h-7 w-7 text-red-500 hover:text-red-600"
+                                variant="ghost" size="icon" className="h-7 w-7 text-red-500 hover:text-red-600" aria-label="Delete renewal workflow"
                                 onClick={() => deleteRule.mutate({ id: rule.id })}
                               >
                                 <Trash2 className="h-3.5 w-3.5" />

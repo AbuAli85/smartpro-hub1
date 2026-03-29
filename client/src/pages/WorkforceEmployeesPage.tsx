@@ -111,14 +111,14 @@ export default function WorkforceEmployeesPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b bg-muted/30">
-                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">Employee</th>
-                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">Civil ID</th>
-                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">Nationality</th>
-                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">Work Permit</th>
-                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">Permit Status</th>
-                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">Expiry</th>
-                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">Occupation</th>
-                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">Actions</th>
+                  <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground">Employee</th>
+                  <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground">Civil ID</th>
+                  <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground">Nationality</th>
+                  <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground">Work Permit</th>
+                  <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground">Permit Status</th>
+                  <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground">Expiry</th>
+                  <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground">Occupation</th>
+                  <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground">Actions</th>
                 </tr>
               </thead>
               <tbody>

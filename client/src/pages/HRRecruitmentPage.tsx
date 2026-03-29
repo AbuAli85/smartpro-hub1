@@ -180,7 +180,7 @@ export default function HRRecruitmentPage() {
                 </div>
                 <div className="bg-muted/30 rounded-b-lg min-h-[200px] p-2 space-y-2 border border-t-0">
                   {((kanban as any)?.[stage] ?? []).map(({ app, job }: any) => (
-                    <div key={app.id} className="bg-background rounded-lg p-3 shadow-sm border cursor-pointer hover:shadow-md transition-shadow"
+                    <div key={app.id} className="bg-background rounded-lg p-3 shadow-sm border cursor-pointer hover:shadow-md transition-shadow" role="button" tabIndex={0}
                       onClick={() => setSelectedApp({ app, job })}>
                       <p className="text-xs font-semibold truncate">{app.applicantName}</p>
                       <p className="text-xs text-muted-foreground truncate">{job?.title}</p>

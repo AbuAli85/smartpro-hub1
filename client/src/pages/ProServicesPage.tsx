@@ -265,7 +265,7 @@ function CaseDetailPanel({ serviceId, onClose, onUpdate }: { serviceId: number; 
           <h2 className="font-bold text-lg leading-tight">{svc.employeeName}</h2>
           <p className="text-sm text-muted-foreground">{SERVICE_LABELS[svc.serviceType ?? "other"]}</p>
         </div>
-        <Button variant="ghost" size="icon" onClick={onClose}><X size={16} /></Button>
+        <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close case panel"><X size={16} aria-hidden="true" /></Button>
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-5">
@@ -608,20 +608,20 @@ export default function ProServicesPage() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b bg-muted/40">
-                      <th className="px-4 py-3 w-8">
+                      <th scope="col" className="px-4 py-3 w-8">
                         <button onClick={toggleAll} className="text-muted-foreground hover:text-foreground">
                           {selectedIds.length > 0 && selectedIds.length === (filtered?.length ?? 0)
                             ? <CheckSquare size={14} /> : <Square size={14} />}
                         </button>
                       </th>
-                      <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">Case #</th>
-                      <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">Employee</th>
-                      <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">Service</th>
-                      <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">Priority</th>
-                      <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">Status</th>
-                      <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">Due / Expiry</th>
-                      <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">Fees</th>
-                      <th className="px-4 py-3 w-8"></th>
+                      <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">Case #</th>
+                      <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">Employee</th>
+                      <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">Service</th>
+                      <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">Priority</th>
+                      <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">Status</th>
+                      <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">Due / Expiry</th>
+                      <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">Fees</th>
+                      <th scope="col" className="px-4 py-3 w-8"></th>
                     </tr>
                   </thead>
                   <tbody>

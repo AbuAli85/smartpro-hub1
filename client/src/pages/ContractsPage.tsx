@@ -442,7 +442,7 @@ export default function ContractsPage() {
       <div className="flex flex-wrap gap-3">
         <div className="relative flex-1 min-w-48">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <Input placeholder="Search contracts..." className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
+          <Input placeholder="Search contracts..." className="pl-9" aria-label="Search contracts" value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="w-44"><SelectValue placeholder="Status" /></SelectTrigger>
@@ -476,14 +476,14 @@ export default function ContractsPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b bg-muted/40">
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Contract #</th>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Title</th>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Type</th>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Parties</th>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Value</th>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Status</th>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground">End Date</th>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Actions</th>
+                <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground">Contract #</th>
+                <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground">Title</th>
+                <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground">Type</th>
+                <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground">Parties</th>
+                <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground">Value</th>
+                <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground">Status</th>
+                <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground">End Date</th>
+                <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground">Actions</th>
               </tr>
             </thead>
             <tbody>

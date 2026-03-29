@@ -32,6 +32,7 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 async function startServer() {
   validateProductionEnvironment();
   const app = express();
+  app.set("trust proxy", 1); // Trust first proxy — required for rate-limiter behind reverse proxy
   const server = createServer(app);
   // Security: helmet, rate limiting, input sanitisation, request IDs
   applySecurityMiddleware(app);

@@ -236,11 +236,11 @@ export default function WorkforceEmployeeDetailPage() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b bg-muted/30">
-                        <th className="text-left px-4 py-3 font-medium">Permit Number</th>
-                        <th className="text-left px-4 py-3 font-medium">Type</th>
-                        <th className="text-left px-4 py-3 font-medium">Occupation</th>
-                        <th className="text-left px-4 py-3 font-medium">Expiry</th>
-                        <th className="text-left px-4 py-3 font-medium">Status</th>
+                        <th scope="col" className="text-left px-4 py-3 font-medium">Permit Number</th>
+                        <th scope="col" className="text-left px-4 py-3 font-medium">Type</th>
+                        <th scope="col" className="text-left px-4 py-3 font-medium">Occupation</th>
+                        <th scope="col" className="text-left px-4 py-3 font-medium">Expiry</th>
+                        <th scope="col" className="text-left px-4 py-3 font-medium">Status</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -272,11 +272,11 @@ export default function WorkforceEmployeeDetailPage() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b bg-muted/30">
-                        <th className="text-left px-4 py-3 font-medium">Case Type</th>
-                        <th className="text-left px-4 py-3 font-medium">Status</th>
-                        <th className="text-left px-4 py-3 font-medium">Priority</th>
-                        <th className="text-left px-4 py-3 font-medium">Gov. Reference</th>
-                        <th className="text-left px-4 py-3 font-medium">Created</th>
+                        <th scope="col" className="text-left px-4 py-3 font-medium">Case Type</th>
+                        <th scope="col" className="text-left px-4 py-3 font-medium">Status</th>
+                        <th scope="col" className="text-left px-4 py-3 font-medium">Priority</th>
+                        <th scope="col" className="text-left px-4 py-3 font-medium">Gov. Reference</th>
+                        <th scope="col" className="text-left px-4 py-3 font-medium">Created</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -310,10 +310,10 @@ export default function WorkforceEmployeeDetailPage() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b bg-muted/30">
-                        <th className="text-left px-4 py-3 font-medium">Document Type</th>
-                        <th className="text-left px-4 py-3 font-medium">Verification</th>
-                        <th className="text-left px-4 py-3 font-medium">Expires</th>
-                        <th className="text-left px-4 py-3 font-medium">Uploaded</th>
+                        <th scope="col" className="text-left px-4 py-3 font-medium">Document Type</th>
+                        <th scope="col" className="text-left px-4 py-3 font-medium">Verification</th>
+                        <th scope="col" className="text-left px-4 py-3 font-medium">Expires</th>
+                        <th scope="col" className="text-left px-4 py-3 font-medium">Uploaded</th>
                       </tr>
                     </thead>
                     <tbody>

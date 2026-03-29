@@ -677,3 +677,14 @@ As a business services provider in Oman/GCC, here is what I need every single da
 - [x] Payroll: Already complete — payslip generation (HTML to S3), WPS file export, full approval workflow (draft → approved → paid)
 - [x] All 152 tests passing (billing, workforce, auth, smartpro)
 - [x] Zero TypeScript errors across all modules
+
+## Phase 24: Accessibility Audit Fixes
+
+- [x] A11y: Add aria-label to all icon-only buttons (close X, edit, delete, toggle icons) across all pages
+- [x] A11y: Add role="button" tabIndex={0} onKeyDown to all clickable divs/spans/trs missing keyboard support
+- [x] A11y: Add scope="col" to all <th> elements in data tables across all pages
+- [x] A11y: Add aria-label to all search Input fields that rely solely on placeholder
+- [x] A11y: Add prefers-reduced-motion media query to global CSS to disable animations for users who prefer it
+- [x] A11y: Add aria-hidden="true" to all decorative spinner/loading icons inside buttons
+- [x] A11y: Add skip-to-main-content link in PlatformLayout for keyboard users
+- [x] A11y: Add alt="" to decorative img in ManusDialog component

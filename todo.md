@@ -698,3 +698,10 @@ As a business services provider in Oman/GCC, here is what I need every single da
 - [x] Create client/src/pages/PreferencesPage.tsx (optional module toggles)
 - [x] Update PlatformLayout.tsx to filter sidebar by role + prefs + badges
 - [x] Update App.tsx to add /company/hub and /preferences routes
+
+## Phase 26: Onboarding Guide
+
+- [x] OnboardingGuidePage.tsx — role-aware content, sticky TOC, progress tracking, mark-as-done per section
+- [x] Route /onboarding-guide registered in App.tsx
+- [x] "Onboarding guide" link added to user dropdown in PlatformLayout sidebar footer
+- [x] GitHub sync — ClientAccessGate, shouldUsePortalOnlyShell, Dashboard improvements merged (214 tests passing, 0 TS errors)

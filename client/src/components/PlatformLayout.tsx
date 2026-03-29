@@ -18,6 +18,7 @@ import {
   FolderOpen,
   Globe,
   LayoutDashboard,
+  HelpCircle,
   LogOut,
   Menu,
   RefreshCw,
@@ -262,6 +263,11 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-52">
+            <DropdownMenuItem asChild>
+              <Link href="/onboarding-guide">
+                <HelpCircle size={14} className="mr-2" /> Onboarding guide
+              </Link>
+            </DropdownMenuItem>
             <DropdownMenuItem asChild>
               <Link href="/preferences">
                 <Settings size={14} className="mr-2" /> Navigation preferences

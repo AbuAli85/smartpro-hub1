@@ -705,3 +705,17 @@ As a business services provider in Oman/GCC, here is what I need every single da
 - [x] Route /onboarding-guide registered in App.tsx
 - [x] "Onboarding guide" link added to user dropdown in PlatformLayout sidebar footer
 - [x] GitHub sync — ClientAccessGate, shouldUsePortalOnlyShell, Dashboard improvements merged (214 tests passing, 0 TS errors)
+
+## Phase 27: Invite Pipeline & Admin Owner Email
+
+- [ ] Schema: add company_invites table (token, companyId, email, role, invitedBy, expiresAt, acceptedAt)
+- [ ] Migration: apply company_invites table via webdev_execute_sql
+- [ ] Backend: companies.createInvite procedure (generates token, stores invite, sends notification email)
+- [ ] Backend: companies.acceptInvite procedure (validates token, creates user if needed, adds to company_members)
+- [ ] Backend: companies.listInvites procedure (show pending invites in Company Admin)
+- [ ] Backend: companies.revokeInvite procedure
+- [ ] Frontend: AcceptInvitePage at /invite/:token (sign-in gate + accept button)
+- [ ] Frontend: Update OnboardingPage to call createInvite for unknown emails
+- [ ] Frontend: Update Company Admin members tab to show pending invites + revoke action
+- [ ] Admin "New Company": add ownerEmail field, wire to companies.create to auto-add owner as company_admin
+- [ ] Tests: createInvite, acceptInvite, duplicate-accept guard, expired-token guard, ownerEmail flow

@@ -23,6 +23,7 @@ function NewCompanyDialog({ onSuccess }: { onSuccess: () => void }) {
     phone: "",
     email: "",
     industry: "",
+    ownerEmail: "",
   });
 
   const createMutation = trpc.companies.create.useMutation({
@@ -86,8 +87,18 @@ function NewCompanyDialog({ onSuccess }: { onSuccess: () => void }) {
               <Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
             </div>
           </div>
+          <div className="space-y-1.5">
+            <Label>Owner Email <span className="text-muted-foreground font-normal">(optional)</span></Label>
+            <Input
+              type="email"
+              placeholder="owner@clientcompany.com"
+              value={form.ownerEmail}
+              onChange={(e) => setForm({ ...form, ownerEmail: e.target.value })}
+            />
+            <p className="text-xs text-muted-foreground">If the owner already has a SmartPRO account, they will be assigned as Company Admin automatically.</p>
+          </div>
           <Button className="w-full" disabled={!form.name || createMutation.isPending}
-            onClick={() => createMutation.mutate(form)}>
+            onClick={() => createMutation.mutate({ ...form, ownerEmail: form.ownerEmail || undefined })}>
             {createMutation.isPending ? "Creating..." : "Create Company"}
           </Button>
         </div>

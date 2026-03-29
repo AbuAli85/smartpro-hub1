@@ -1875,3 +1875,19 @@ export const caseSlaTracking = mysqlTable("case_sla_tracking", {
 });
 export type CaseSlaTracking = typeof caseSlaTracking.$inferSelect;
 export type InsertCaseSlaTracking = typeof caseSlaTracking.$inferInsert;
+
+// ─── COMPANY INVITES ──────────────────────────────────────────────────────────
+export const companyInvites = mysqlTable("company_invites", {
+  id: int("id").autoincrement().primaryKey(),
+  companyId: int("company_id").notNull(),
+  email: varchar("email", { length: 255 }).notNull(),
+  role: varchar("role", { length: 50 }).notNull().default("company_member"),
+  token: varchar("token", { length: 128 }).notNull().unique(),
+  invitedBy: int("invited_by").notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+  acceptedAt: timestamp("accepted_at"),
+  revokedAt: timestamp("revoked_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export type CompanyInvite = typeof companyInvites.$inferSelect;
+export type InsertCompanyInvite = typeof companyInvites.$inferInsert;

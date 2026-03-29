@@ -1,6 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import { and, desc, eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
+import { randomBytes } from "crypto";
 import { z } from "zod";
 import { canAccessGlobalAdminProcedures } from "@shared/rbac";
 import {
@@ -14,8 +15,9 @@ import {
   updateCompany,
   getDb,
 } from "../db";
-import { companyMembers, users } from "../../drizzle/schema";
+import { companyInvites, companyMembers, users } from "../../drizzle/schema";
 import { protectedProcedure, router } from "../_core/trpc";
+import { notifyOwner } from "../_core/notification";
 
 function companyIdFromCreateResult(row: unknown): number {
   if (row && typeof row === "object") {
@@ -139,6 +141,12 @@ export const companiesRouter = router({
         registrationNumber: z.string().optional(),
         /** Emails of users who already have SmartPRO accounts — they are added as company members. */
         inviteEmails: z.array(z.string().email()).max(50).optional(),
+        /**
+         * Optional: email of an existing user who should be assigned as company_admin.
+         * Only honoured when the caller is a platform operator (canAccessGlobalAdminProcedures).
+         * Useful for Admin "New Company" form where the operator creates a workspace on behalf of a client.
+         */
+        ownerEmail: z.string().email().optional(),
       })
     )
     .mutation(async ({ input, ctx }) => {
@@ -150,7 +158,7 @@ export const companiesRouter = router({
         });
       }
 
-      const { inviteEmails = [], ...companyFields } = input;
+      const { inviteEmails = [], ownerEmail, ...companyFields } = input;
       const slug = companyFields.name.toLowerCase().replace(/\s+/g, "-") + "-" + nanoid(6);
       const insertResult = await createCompany({ ...companyFields, slug, subscriptionPlanId: 1 });
       const companyId = companyIdFromCreateResult(insertResult);
@@ -168,8 +176,36 @@ export const companiesRouter = router({
             isActive: true,
           });
         }
+
+        // Platform admin "New Company" with ownerEmail: assign the specified user as company_admin
+        if (ownerEmail && canAccessGlobalAdminProcedures(ctx.user)) {
+          const [ownerUser] = await db
+            .select({ id: users.id })
+            .from(users)
+            .where(eq(users.email, ownerEmail.toLowerCase()))
+            .limit(1);
+          if (ownerUser && ownerUser.id !== ctx.user.id) {
+            // Check not already a member
+            const [ownerMember] = await db
+              .select({ id: companyMembers.id })
+              .from(companyMembers)
+              .where(and(eq(companyMembers.userId, ownerUser.id), eq(companyMembers.companyId, companyId)))
+              .limit(1);
+            if (!ownerMember) {
+              await db.insert(companyMembers).values({
+                companyId,
+                userId: ownerUser.id,
+                role: "company_admin",
+                isActive: true,
+                invitedBy: ctx.user.id,
+              });
+              teammatesAdded++;
+            }
+          }
+        }
+
         if (inviteEmails.length > 0) {
-          teammatesAdded = await addExistingUsersAsMembers(
+          teammatesAdded += await addExistingUsersAsMembers(
             db,
             companyId,
             ctx.user.id,
@@ -255,11 +291,9 @@ export const companiesRouter = router({
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      // Verify the member belongs to the caller's company
       const membership = await getUserCompany(ctx.user.id);
       if (!membership) throw new TRPCError({ code: "FORBIDDEN" });
       if (!canAccessGlobalAdminProcedures(ctx.user)) await assertCompanyAdmin(ctx.user.id, membership.company.id);
-      // Prevent self-demotion if last admin
       const [target] = await db
         .select({ userId: companyMembers.userId, role: companyMembers.role })
         .from(companyMembers)
@@ -267,7 +301,6 @@ export const companiesRouter = router({
         .limit(1);
       if (!target) throw new TRPCError({ code: "NOT_FOUND" });
       if (target.userId === ctx.user.id && input.role !== "company_admin") {
-        // Check if there's another admin
         const admins = await db
           .select({ id: companyMembers.id })
           .from(companyMembers)
@@ -329,14 +362,12 @@ export const companiesRouter = router({
       const membership = await getUserCompany(ctx.user.id);
       if (!membership) throw new TRPCError({ code: "FORBIDDEN" });
       if (!canAccessGlobalAdminProcedures(ctx.user)) await assertCompanyAdmin(ctx.user.id, membership.company.id);
-      // Find user by email
       const [targetUser] = await db
         .select({ id: users.id, name: users.name })
         .from(users)
         .where(eq(users.email, input.email))
         .limit(1);
       if (!targetUser) throw new TRPCError({ code: "NOT_FOUND", message: "No user found with that email address." });
-      // Check if already a member
       const [existing] = await db
         .select({ id: companyMembers.id, isActive: companyMembers.isActive })
         .from(companyMembers)
@@ -344,7 +375,6 @@ export const companiesRouter = router({
         .limit(1);
       if (existing) {
         if (existing.isActive) throw new TRPCError({ code: "CONFLICT", message: "This user is already a member." });
-        // Re-activate
         await db.update(companyMembers).set({ isActive: true, role: input.role }).where(eq(companyMembers.id, existing.id));
         return { success: true, action: "reactivated" as const };
       }
@@ -356,5 +386,161 @@ export const companiesRouter = router({
         invitedBy: ctx.user.id,
       });
       return { success: true, action: "added" as const };
+    }),
+
+  // ── Invite Pipeline (for users without SmartPRO accounts) ─────────────────
+
+  /**
+   * Creates a time-limited invite token for a user who doesn't yet have a SmartPRO account.
+   * Sends a notification to the owner with the invite URL.
+   * The invitee follows the link, signs up / signs in, and calls acceptInvite.
+   */
+  createInvite: protectedProcedure
+    .input(z.object({
+      email: z.string().email(),
+      role: z.enum(["company_admin", "company_member", "finance_admin", "hr_admin", "reviewer"]).default("company_member"),
+      origin: z.string().url(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const membership = await getUserCompany(ctx.user.id);
+      if (!membership && !canAccessGlobalAdminProcedures(ctx.user)) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "You must belong to a company to invite members." });
+      }
+      const companyId = membership?.company.id;
+      if (!companyId) throw new TRPCError({ code: "BAD_REQUEST", message: "No active company found." });
+      if (!canAccessGlobalAdminProcedures(ctx.user)) await assertCompanyAdmin(ctx.user.id, companyId);
+      // If user already has an account, suggest addMemberByEmail instead
+      const [existingUser] = await db.select({ id: users.id }).from(users).where(eq(users.email, input.email.toLowerCase())).limit(1);
+      if (existingUser) {
+        const [existingMember] = await db
+          .select({ id: companyMembers.id, isActive: companyMembers.isActive })
+          .from(companyMembers)
+          .where(and(eq(companyMembers.userId, existingUser.id), eq(companyMembers.companyId, companyId)))
+          .limit(1);
+        if (existingMember?.isActive) throw new TRPCError({ code: "CONFLICT", message: "This user is already a member." });
+      }
+      // Revoke any existing pending invite for same email+company
+      await db
+        .update(companyInvites)
+        .set({ revokedAt: new Date() })
+        .where(and(eq(companyInvites.email, input.email.toLowerCase()), eq(companyInvites.companyId, companyId)));
+      const token = randomBytes(32).toString("hex");
+      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+      await db.insert(companyInvites).values({
+        companyId,
+        email: input.email.toLowerCase(),
+        role: input.role,
+        token,
+        invitedBy: ctx.user.id,
+        expiresAt,
+      });
+      const inviteUrl = `${input.origin}/invite/${token}`;
+      const companyName = membership?.company.name ?? "SmartPRO";
+      await notifyOwner({
+        title: `Team invite sent to ${input.email}`,
+        content: `${ctx.user.name ?? ctx.user.email} invited ${input.email} to join ${companyName} as ${input.role.replace(/_/g, " ")}. Invite link: ${inviteUrl} (expires in 7 days)`,
+      });
+      return { success: true, token, inviteUrl, expiresAt };
+    }),
+
+  /** List all invites for the caller's company (pending, accepted, revoked). */
+  listInvites: protectedProcedure.query(async ({ ctx }) => {
+    const db = await getDb();
+    if (!db) return [];
+    const membership = await getUserCompany(ctx.user.id);
+    if (!membership) return [];
+    if (!canAccessGlobalAdminProcedures(ctx.user)) await assertCompanyAdmin(ctx.user.id, membership.company.id);
+    return db
+      .select({
+        id: companyInvites.id,
+        email: companyInvites.email,
+        role: companyInvites.role,
+        token: companyInvites.token,
+        expiresAt: companyInvites.expiresAt,
+        acceptedAt: companyInvites.acceptedAt,
+        revokedAt: companyInvites.revokedAt,
+        createdAt: companyInvites.createdAt,
+        inviterName: users.name,
+      })
+      .from(companyInvites)
+      .leftJoin(users, eq(users.id, companyInvites.invitedBy))
+      .where(eq(companyInvites.companyId, membership.company.id))
+      .orderBy(desc(companyInvites.createdAt));
+  }),
+
+  /** Revoke a pending invite. */
+  revokeInvite: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input, ctx }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const membership = await getUserCompany(ctx.user.id);
+      if (!membership && !canAccessGlobalAdminProcedures(ctx.user)) throw new TRPCError({ code: "FORBIDDEN" });
+      if (membership && !canAccessGlobalAdminProcedures(ctx.user)) await assertCompanyAdmin(ctx.user.id, membership.company.id);
+      await db.update(companyInvites).set({ revokedAt: new Date() }).where(eq(companyInvites.id, input.id));
+      return { success: true };
+    }),
+
+  /** Accept an invite token — adds the signed-in user to the company. */
+  acceptInvite: protectedProcedure
+    .input(z.object({ token: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const [invite] = await db
+        .select()
+        .from(companyInvites)
+        .where(eq(companyInvites.token, input.token))
+        .limit(1);
+      if (!invite) throw new TRPCError({ code: "NOT_FOUND", message: "Invite not found or already used." });
+      if (invite.revokedAt) throw new TRPCError({ code: "FORBIDDEN", message: "This invite has been revoked." });
+      if (invite.acceptedAt) throw new TRPCError({ code: "CONFLICT", message: "This invite has already been accepted." });
+      if (new Date() > invite.expiresAt) throw new TRPCError({ code: "FORBIDDEN", message: "This invite has expired. Please ask your admin to resend it." });
+      const [existing] = await db
+        .select({ id: companyMembers.id, isActive: companyMembers.isActive })
+        .from(companyMembers)
+        .where(and(eq(companyMembers.userId, ctx.user.id), eq(companyMembers.companyId, invite.companyId)))
+        .limit(1);
+      if (existing?.isActive) throw new TRPCError({ code: "CONFLICT", message: "You are already a member of this company." });
+      // invite.role is varchar in schema; cast to the companyMembers enum type
+      const memberRole = invite.role as "company_admin" | "company_member" | "reviewer" | "client";
+      if (existing && !existing.isActive) {
+        await db.update(companyMembers).set({ isActive: true, role: memberRole }).where(eq(companyMembers.id, existing.id));
+      } else {
+        await db.insert(companyMembers).values({
+          companyId: invite.companyId,
+          userId: ctx.user.id,
+          role: memberRole,
+          isActive: true,
+          invitedBy: invite.invitedBy,
+        });
+      }
+      await db.update(companyInvites).set({ acceptedAt: new Date() }).where(eq(companyInvites.id, invite.id));
+      return { success: true, companyId: invite.companyId, role: invite.role };
+    }),
+
+  /** Fetch invite metadata for the accept-invite page (no auth required for preview). */
+  getInviteInfo: protectedProcedure
+    .input(z.object({ token: z.string() }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const [invite] = await db
+        .select({
+          id: companyInvites.id,
+          email: companyInvites.email,
+          role: companyInvites.role,
+          expiresAt: companyInvites.expiresAt,
+          acceptedAt: companyInvites.acceptedAt,
+          revokedAt: companyInvites.revokedAt,
+          companyId: companyInvites.companyId,
+        })
+        .from(companyInvites)
+        .where(eq(companyInvites.token, input.token))
+        .limit(1);
+      if (!invite) throw new TRPCError({ code: "NOT_FOUND", message: "Invite not found." });
+      return invite;
     }),
 });

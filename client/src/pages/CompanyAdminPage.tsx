@@ -170,6 +170,11 @@ export default function CompanyAdminPage() {
   const [addMemberDialog, setAddMemberDialog] = useState(false);
   const [addEmail, setAddEmail] = useState("");
   const [addRole, setAddRole] = useState<MemberRole>("company_member");
+  // Invite pipeline state
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState<"company_admin" | "company_member" | "finance_admin" | "hr_admin" | "reviewer">("company_member");
+  const [inviteResult, setInviteResult] = useState<{ inviteUrl: string; expiresAt: Date } | null>(null);
+  const [showInviteDialog, setShowInviteDialog] = useState(false);
 
   const [roleDialog, setRoleDialog] = useState<{ memberId: number; currentRole: MemberRole; name: string } | null>(null);
   const [newRole, setNewRole] = useState<MemberRole>("company_member");
@@ -217,6 +222,19 @@ export default function CompanyAdminPage() {
   });
 
   const isAdmin = user?.role === "admin" || myMembership?.role === "company_admin";
+  // Invite pipeline queries and mutations (must be after isAdmin)
+  const { data: pendingInvites, refetch: refetchInvites } = trpc.companies.listInvites.useQuery(undefined, { enabled: isAdmin });
+  const createInvite = trpc.companies.createInvite.useMutation({
+    onSuccess: (data) => {
+      setInviteResult({ inviteUrl: data.inviteUrl, expiresAt: new Date(data.expiresAt) });
+      refetchInvites();
+    },
+    onError: (err: { message?: string }) => toast.error(err.message || "Failed to create invite"),
+  });
+  const revokeInvite = trpc.companies.revokeInvite.useMutation({
+    onSuccess: () => { toast.success("Invite revoked"); refetchInvites(); },
+    onError: (err: { message?: string }) => toast.error(err.message || "Failed to revoke invite"),
+  });
   const allActiveMembers = (members ?? []).filter((m) => m.isActive);
   const allInactiveMembers = (members ?? []).filter((m) => !m.isActive);
 
@@ -771,6 +789,65 @@ export default function CompanyAdminPage() {
                 </CardContent>
               </Card>
             )}
+          {/* ── Pending Invites ── */}
+          {isAdmin && pendingInvites && pendingInvites.length > 0 && (
+            <Card className="mt-6">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Mail className="w-4 h-4 text-primary" />
+                    Pending Invites
+                    <Badge variant="secondary" className="text-xs">{pendingInvites.length}</Badge>
+                  </CardTitle>
+                  <Button size="sm" variant="outline" className="gap-2 h-8" onClick={() => { setInviteResult(null); setShowInviteDialog(true); }}>
+                    <UserPlus className="w-3.5 h-3.5" />
+                    Invite by Link
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead scope="col">Email</TableHead>
+                      <TableHead scope="col">Role</TableHead>
+                      <TableHead scope="col">Expires</TableHead>
+                      <TableHead scope="col" className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {pendingInvites.map((inv) => (
+                      <TableRow key={inv.id}>
+                        <TableCell className="font-medium text-sm">{inv.email}</TableCell>
+                        <TableCell><RoleBadge role={inv.role as MemberRole} /></TableCell>
+                        <TableCell className="text-xs text-muted-foreground">{new Date(inv.expiresAt).toLocaleDateString()}</TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 px-2 text-xs text-destructive hover:text-destructive"
+                            onClick={() => revokeInvite.mutate({ id: inv.id })}
+                            disabled={revokeInvite.isPending}
+                            aria-label={`Revoke invite for ${inv.email}`}
+                          >
+                            Revoke
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          )}
+          {isAdmin && (!pendingInvites || pendingInvites.length === 0) && (
+            <div className="mt-4 flex justify-end">
+              <Button size="sm" variant="outline" className="gap-2" onClick={() => { setInviteResult(null); setShowInviteDialog(true); }}>
+                <Mail className="w-3.5 h-3.5" />
+                Invite by Magic Link
+              </Button>
+            </div>
+          )}
           </TabsContent>
         </Tabs>
       </div>
@@ -891,6 +968,83 @@ export default function CompanyAdminPage() {
               Update Role
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Invite by Magic Link Dialog ── */}
+      <Dialog open={showInviteDialog} onOpenChange={(o) => { if (!o) { setShowInviteDialog(false); setInviteResult(null); setInviteEmail(""); } }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Mail className="w-5 h-5 text-primary" />
+              Invite by Magic Link
+            </DialogTitle>
+            <DialogDescription>
+              Send a one-time invite link to someone who doesn’t have a SmartPRO account yet. The link expires in 7 days.
+            </DialogDescription>
+          </DialogHeader>
+          {!inviteResult ? (
+            <div className="space-y-4 py-2">
+              <div className="space-y-2">
+                <Label htmlFor="inviteEmail">Email Address</Label>
+                <Input
+                  id="inviteEmail"
+                  type="email"
+                  placeholder="colleague@company.com"
+                  value={inviteEmail}
+                  onChange={(e) => setInviteEmail(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Role</Label>
+                <Select value={inviteRole} onValueChange={(v) => setInviteRole(v as typeof inviteRole)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="company_admin">Company Admin</SelectItem>
+                    <SelectItem value="company_member">Company Member</SelectItem>
+                    <SelectItem value="finance_admin">Finance Admin</SelectItem>
+                    <SelectItem value="hr_admin">HR Admin</SelectItem>
+                    <SelectItem value="reviewer">Reviewer</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setShowInviteDialog(false)}>Cancel</Button>
+                <Button
+                  onClick={() => createInvite.mutate({ email: inviteEmail, role: inviteRole, origin: window.location.origin })}
+                  disabled={!inviteEmail.trim() || createInvite.isPending}
+                  className="gap-2"
+                >
+                  {createInvite.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />}
+                  Generate Invite Link
+                </Button>
+              </DialogFooter>
+            </div>
+          ) : (
+            <div className="space-y-4 py-2">
+              <div className="rounded-lg bg-muted p-3 space-y-2">
+                <p className="text-xs font-medium text-muted-foreground">Invite Link (valid until {inviteResult.expiresAt.toLocaleDateString()})</p>
+                <div className="flex items-center gap-2">
+                  <code className="text-xs flex-1 truncate bg-background rounded px-2 py-1.5 border">{inviteResult.inviteUrl}</code>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="shrink-0 h-8 px-2"
+                    onClick={() => { navigator.clipboard.writeText(inviteResult.inviteUrl); toast.success("Link copied!"); }}
+                    aria-label="Copy invite link"
+                  >
+                    Copy
+                  </Button>
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Share this link with <strong>{inviteEmail}</strong>. When they click it and sign up or log in, they will automatically join your company as <strong>{inviteRole.replace("_", " ")}</strong>.
+              </p>
+              <DialogFooter>
+                <Button onClick={() => { setShowInviteDialog(false); setInviteResult(null); setInviteEmail(""); }}>Done</Button>
+              </DialogFooter>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 

@@ -1,0 +1,9 @@
+{
+  "query": "\nCREATE TABLE IF NOT EXISTS company_invites (\n  id INT AUTO_INCREMENT PRIMARY KEY,\n  company_id INT NOT NULL,\n  email VARCHAR(255) NOT NULL,\n  role VARCHAR(50) NOT NULL DEFAULT 'company_member',\n  token VARCHAR(128) NOT NULL UNIQUE,\n  invited_by INT NOT NULL,\n  expires_at TIMESTAMP NOT NULL,\n  accepted_at TIMESTAMP NULL,\n  revoked_at TIMESTAMP NULL,\n  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  INDEX idx_company_invites_token (token),\n  INDEX idx_company_invites_email (email),\n  INDEX idx_company_invites_company (company_id)\n);\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ihzfUTY3fkQrUHE.881d021b3ccf --database Q4QjnxJVGSNRVMesYiE8Gm --execute \nCREATE TABLE IF NOT EXISTS company_invites (\n  id INT AUTO_INCREMENT PRIMARY KEY,\n  company_id INT NOT NULL,\n  email VARCHAR(255) NOT NULL,\n  role VARCHAR(50) NOT NULL DEFAULT 'company_member',\n  token VARCHAR(128) NOT NULL UNIQUE,\n  invited_by INT NOT NULL,\n  expires_at TIMESTAMP NOT NULL,\n  accepted_at TIMESTAMP NULL,\n  revoked_at TIMESTAMP NULL,\n  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  INDEX idx_company_invites_token (token),\n  INDEX idx_company_invites_email (email),\n  INDEX idx_company_invites_company (company_id)\n);\n",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1651
+}

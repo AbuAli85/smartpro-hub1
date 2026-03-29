@@ -613,12 +613,12 @@ As a business services provider in Oman/GCC, here is what I need every single da
 - [x] UI: ProServicesPage — 3-step intake wizard: employee info → service type + docs → fees + due date
 
 ### Sanad — Work Order Lifecycle
-- [ ] UI: SanadPage — work order detail drawer with full timeline, document checklist, fee breakdown, and status history
-- [ ] UI: SanadPage — KPI bar: Open Orders / Awaiting Docs / Completed This Month / Total Fees Collected (OMR)
+- [x] UI: SanadPage — work order detail drawer with full timeline, document checklist, fee breakdown, and status history
+- [x] UI: SanadPage — KPI bar: Open Orders / Awaiting Docs / Completed This Month / Total Fees Collected (OMR)
 
 ### Workforce Cases — Case Management
-- [ ] UI: WorkforceCasesPage — case detail panel with task checklist, document uploads, officer notes, MOL reference number
-- [ ] UI: WorkforceCasesPage — KPI bar: Open / Urgent / Due Today / Completed This Month
+- [x] UI: WorkforceCasesPage — case detail panel with task checklist, document uploads, officer notes, MOL reference number
+- [x] UI: WorkforceCasesPage — KPI bar: Open / Urgent / Due Today / Completed This Month
 
 ### CRM — Pipeline with Business Value
 - [x] UI: CRMPage — Kanban pipeline view (Lead → Qualified → Proposal → Negotiation → Won/Lost) with OMR value per column
@@ -630,25 +630,25 @@ As a business services provider in Oman/GCC, here is what I need every single da
 - [x] UI: ContractsPage — KPI bar: Active / Expiring in 30 Days / Pending Signature / Total Contract Value (OMR)
 
 ### Billing — Payment Lifecycle
-- [ ] UI: BillingEnginePage — invoice detail panel with line items, payment history, send reminder button, mark paid action
-- [ ] UI: BillingEnginePage — payment recording dialog: amount, date, method (bank transfer/cash/cheque), reference
+- [x] UI: BillingEnginePage — invoice detail panel with line items, payment history, send reminder button, mark paid action
+- [x] UI: BillingEnginePage — payment recording dialog: amount, date, method (bank transfer/cash/cheque), reference
 
 ### HR Employees — Full Employee Profile
 - [x] UI: HREmployeesPage — employee profile card with passport/visa expiry countdown, PASI number, salary band
 - [x] UI: HREmployeesPage — employee detail panel: personal info, documents tab, leave balance tab, payslips tab
 
 ### Payroll — WPS-Ready Payslips
-- [ ] UI: PayrollEnginePage — payslip detail view: basic + allowances + deductions + net, PASI contribution, WPS reference
-- [ ] UI: PayrollEnginePage — WPS file generation button: download CSV in Oman bank WPS format
-- [ ] UI: PayrollEnginePage — payroll run approval workflow: draft → reviewed → approved → paid
+- [x] UI: PayrollEnginePage — payslip detail view: basic + allowances + deductions + net, PASI contribution, WPS reference
+- [x] UI: PayrollEnginePage — WPS file generation button: download CSV in Oman bank WPS format
+- [x] UI: PayrollEnginePage — payroll run approval workflow: draft → reviewed → approved → paid
 
 ### Operations Centre — Real-Time Command Center
-- [ ] UI: OperationsDashboardPage — "Today's Priorities" panel: top 5 urgent items sorted by SLA breach risk
-- [ ] UI: OperationsDashboardPage — officer workload matrix: each officer's open cases count with color-coded capacity
+- [x] UI: OperationsDashboardPage — "Today's Priorities" panel: top 5 urgent items sorted by SLA breach risk
+- [x] UI: OperationsDashboardPage — officer workload matrix: each officer's open cases count with color-coded capacity
 
 ### Client Portal — Self-Service Hub
-- [ ] UI: ClientPortalPage — case tracker with real-time status, assigned officer name, and estimated completion date
-- [ ] UI: ClientPortalPage — invoice history with payment status and download PDF button
+- [x] UI: ClientPortalPage — case tracker with real-time status, assigned officer name, and estimated completion date
+- [x] UI: ClientPortalPage — invoice history with payment status and download PDF button
 
 ## Phase 22: Module Rebuild — Business Instrument Upgrade (Completed)
 - [x] PRO Services: KPI bar (Pending / In Progress / Submitted / Completed / OMR collected), case detail side panel with timeline, officer notes, document checklist, intake wizard

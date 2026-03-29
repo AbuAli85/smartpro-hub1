@@ -144,7 +144,7 @@ export default function WorkforceCaseNewPage() {
             <CardDescription>Select the type of government service required.</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {CASE_TYPES.map((type) => (
                 <button
                   key={type.value}
@@ -175,7 +175,7 @@ export default function WorkforceCaseNewPage() {
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <Label>Priority Level</Label>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 {PRIORITIES.map((p) => (
                   <button
                     key={p.value}
@@ -220,7 +220,7 @@ export default function WorkforceCaseNewPage() {
             <CardDescription>Optionally link this case to a specific employee or work permit.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="employeeId">Employee ID</Label>
                 <Input

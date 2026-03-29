@@ -398,7 +398,7 @@ function ScheduledReportsTab() {
                 <Label className="text-sm">Report Name *</Label>
                 <Input placeholder="e.g. Weekly Executive Summary" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label className="text-sm">Report Type</Label>
                   <Select value={form.type} onValueChange={(v) => setForm({ ...form, type: v })}>
@@ -441,7 +441,7 @@ function ScheduledReportsTab() {
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
         {[
           { label: "Active Reports", value: reports.filter(r => r.status === "active").length, color: "text-green-600 bg-green-50" },
           { label: "Paused Reports", value: reports.filter(r => r.status === "paused").length, color: "text-amber-600 bg-amber-50" },
@@ -726,7 +726,7 @@ function CustomReportBuilder() {
                       ))}
                     </div>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     <Button className="flex-1 gap-1 text-xs h-8" onClick={handleGenerate} disabled={generating}>
                       <TrendingUp size={12} /> Regenerate
                     </Button>

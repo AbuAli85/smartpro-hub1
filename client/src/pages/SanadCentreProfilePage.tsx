@@ -4,8 +4,9 @@ import { trpc } from "@/lib/trpc";
 import {
   ArrowLeft, MapPin, Phone, Mail, Globe, Clock, Shield, CheckCircle,
   Star, Building2, FileText, Briefcase, Scale, Stamp, Users,
-  Send, ChevronRight, Calendar, DollarSign, Timer,
+  Send, ChevronRight, Calendar, DollarSign, Timer, ThumbsUp, MessageSquare, PenLine,
 } from "lucide-react";
+import { useAuth } from "@/_core/hooks/useAuth";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -56,7 +57,7 @@ const SERVICE_TYPE_LABELS: Record<string, string> = {
 function StarRating({ rating, count }: { rating: number | string | null; count?: number }) {
   const r = Number(rating ?? 0);
   return (
-    <div className="flex items-center gap-1">
+    <div className="flex flex-wrap items-center gap-1">
       {[1,2,3,4,5].map((s) => (
         <Star key={s} className={`h-4 w-4 ${s <= Math.round(r) ? "fill-amber-400 text-amber-400" : "text-gray-300"}`} />
       ))}
@@ -117,7 +118,7 @@ function RequestServiceDialog({ open, onClose, officeId, officeName, services }:
           <DialogTitle>Request Service from {officeName}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4 py-2">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>Your Name *</Label>
               <Input placeholder="Full name" value={form.contactName} onChange={(e) => setForm({ ...form, contactName: e.target.value })} />
@@ -131,7 +132,7 @@ function RequestServiceDialog({ open, onClose, officeId, officeName, services }:
             <Label>Email (optional)</Label>
             <Input type="email" placeholder="your@email.com" value={form.contactEmail} onChange={(e) => setForm({ ...form, contactEmail: e.target.value })} />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>Company Name</Label>
               <Input placeholder="Your company" value={form.companyName} onChange={(e) => setForm({ ...form, companyName: e.target.value })} />
@@ -193,18 +194,74 @@ function RequestServiceDialog({ open, onClose, officeId, officeName, services }:
   );
 }
 
+// ─── Write Review Dialog ─────────────────────────────────────────────────────
+function WriteReviewDialog({ officeId, onClose, onDone }: { officeId: number; onClose: () => void; onDone: () => void }) {
+  const [form, setForm] = useState({ overallRating: 5, speedRating: 4, qualityRating: 4, communicationRating: 4, reviewTitle: "", reviewBody: "" });
+  const submit = trpc.ratings.submitRating.useMutation({
+    onSuccess: () => { toast.success("Review submitted! Thank you for your feedback."); onDone(); onClose(); },
+    onError: (e) => toast.error(e.message),
+  });
+  const StarPicker = ({ label, field }: { label: string; field: keyof typeof form }) => (
+    <div className="space-y-1">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <div className="flex flex-wrap gap-1">
+        {[1,2,3,4,5].map(s => (
+          <button key={s} type="button" onClick={() => setForm(f => ({ ...f, [field]: s }))}>
+            <Star className={`h-5 w-5 transition-colors ${s <= (form[field] as number) ? "fill-amber-400 text-amber-400" : "text-gray-300 hover:text-amber-300"}`} />
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+  return (
+    <Dialog open onOpenChange={v => !v && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader><DialogTitle>Write a Review</DialogTitle></DialogHeader>
+        <div className="space-y-4 py-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <StarPicker label="Overall" field="overallRating" />
+            <StarPicker label="Speed" field="speedRating" />
+            <StarPicker label="Quality" field="qualityRating" />
+            <StarPicker label="Communication" field="communicationRating" />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Review Title (optional)</Label>
+            <Input placeholder="Summarise your experience" value={form.reviewTitle} onChange={e => setForm(f => ({ ...f, reviewTitle: e.target.value }))} />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Your Review (optional)</Label>
+            <Textarea placeholder="Describe your experience with this centre..." rows={4} value={form.reviewBody} onChange={e => setForm(f => ({ ...f, reviewBody: e.target.value }))} />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button onClick={() => submit.mutate({ officeId, ...form, reviewTitle: form.reviewTitle || undefined, reviewBody: form.reviewBody || undefined })} disabled={submit.isPending} className="bg-red-600 hover:bg-red-700 text-white">
+            {submit.isPending ? "Submitting..." : "Submit Review"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function SanadCentreProfilePage() {
   const { id } = useParams<{ id: string }>();
   const officeId = Number(id);
   const [requestOpen, setRequestOpen] = useState(false);
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const { user } = useAuth();
+  const utils = trpc.useUtils();
 
   const { data: profileData, isLoading } = trpc.sanad.getPublicProfile.useQuery({ officeId }, { enabled: !!officeId });
+  const { data: ratingsData } = trpc.ratings.getOfficeRatings.useQuery({ officeId, limit: 10 }, { enabled: !!officeId });
+  const { data: myRating } = trpc.ratings.getMyRating.useQuery({ officeId }, { enabled: !!officeId && !!user });
+  const markHelpful = trpc.ratings.markHelpful.useMutation({ onSuccess: () => utils.ratings.getOfficeRatings.invalidate() });
 
   if (isLoading) {
     return (
       <div className="max-w-4xl mx-auto px-4 py-8 space-y-6">
         <Skeleton className="h-48 rounded-xl" />
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
           <Skeleton className="h-24 rounded-xl" />
           <Skeleton className="h-24 rounded-xl" />
           <Skeleton className="h-24 rounded-xl" />
@@ -319,31 +376,31 @@ export default function SanadCentreProfilePage() {
                 </div>
               )}
               {office.phone && (
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <Phone className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                   <a href={`tel:${office.phone}`} className="hover:text-red-600">{office.phone}</a>
                 </div>
               )}
               {office.email && (
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <Mail className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                   <a href={`mailto:${office.email}`} className="hover:text-red-600 truncate">{office.email}</a>
                 </div>
               )}
               {office.website && (
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <Globe className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                   <a href={office.website} target="_blank" rel="noreferrer" className="hover:text-red-600 truncate">{office.website}</a>
                 </div>
               )}
               {office.openingHours && (
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <Clock className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                   <span>{office.openingHours}</span>
                 </div>
               )}
               {office.contactPerson && (
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <Users className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                   <span>{office.contactPerson}</span>
                 </div>
@@ -453,6 +510,109 @@ export default function SanadCentreProfilePage() {
             </CardContent>
           </Card>
 
+          {/* Customer Reviews */}
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                  <MessageSquare className="h-4 w-4" />
+                  Customer Reviews
+                  {ratingsData?.total ? <Badge variant="secondary" className="text-xs">{ratingsData.total}</Badge> : null}
+                </CardTitle>
+                {user && !myRating && (
+                  <Button size="sm" variant="outline" onClick={() => setReviewOpen(true)}>
+                    <PenLine className="h-3.5 w-3.5 mr-1" /> Write a Review
+                  </Button>
+                )}
+                {myRating && <Badge className="bg-green-100 text-green-700 text-xs">You reviewed this centre</Badge>}
+              </div>
+            </CardHeader>
+            <CardContent>
+              {/* Aggregate */}
+              {ratingsData?.aggregate && (
+                <div className="mb-4 p-3 rounded-lg bg-muted/50 flex flex-wrap gap-4 items-center">
+                  <div className="text-center">
+                    <p className="text-3xl font-bold text-amber-500">{ratingsData.aggregate.avgOverall?.toFixed(1) ?? "—"}</p>
+                    <div className="flex gap-0.5 justify-center mt-0.5">
+                      {[1,2,3,4,5].map(s => <Star key={s} className={`h-3.5 w-3.5 ${s <= Math.round(ratingsData.aggregate!.avgOverall ?? 0) ? "fill-amber-400 text-amber-400" : "text-gray-300"}`} />)}
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5">{ratingsData.aggregate.total} reviews</p>
+                  </div>
+                  <div className="flex-1 space-y-1 min-w-[140px]">
+                    {[5,4,3,2,1].map(s => (
+                      <div key={s} className="flex flex-wrap items-center gap-2">
+                        <span className="text-xs w-4 text-right">{s}</span>
+                        <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
+                        <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
+                          <div className="h-full bg-amber-400 rounded-full" style={{ width: ratingsData.aggregate?.total ? `${((ratingsData.aggregate?.distribution[s as 1|2|3|4|5] ?? 0) / ratingsData.aggregate.total) * 100}%` : "0%" }} />
+                        </div>
+                        <span className="text-xs text-muted-foreground w-4">{ratingsData.aggregate?.distribution[s as 1|2|3|4|5] ?? 0}</span>
+                      </div>
+                    ))}
+                  </div>
+                  {ratingsData.aggregate?.avgSpeed && (
+                    <div className="text-xs space-y-1">
+                      <p className="text-muted-foreground">Speed: <span className="font-medium text-foreground">{ratingsData.aggregate.avgSpeed?.toFixed(1)}</span></p>
+                      {ratingsData.aggregate?.avgQuality && <p className="text-muted-foreground">Quality: <span className="font-medium text-foreground">{ratingsData.aggregate.avgQuality?.toFixed(1)}</span></p>}
+                      {ratingsData.aggregate?.avgComm && <p className="text-muted-foreground">Comm: <span className="font-medium text-foreground">{ratingsData.aggregate.avgComm?.toFixed(1)}</span></p>}
+                    </div>
+                  )}
+                </div>
+              )}
+              {/* Review list */}
+              {!ratingsData?.ratings.length ? (
+                <div className="text-center py-8">
+                  <Star className="h-8 w-8 mx-auto text-muted-foreground/30 mb-2" />
+                  <p className="text-sm text-muted-foreground">No reviews yet. Be the first to review this centre.</p>
+                  {user && !myRating && (
+                    <Button size="sm" className="mt-3 bg-red-600 hover:bg-red-700 text-white" onClick={() => setReviewOpen(true)}>
+                      <PenLine className="h-3.5 w-3.5 mr-1" /> Write a Review
+                    </Button>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {ratingsData.ratings.map(r => (
+                    <div key={r.id} className="border rounded-lg p-4 space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <div className="flex gap-0.5 mb-1">
+                            {[1,2,3,4,5].map(s => <Star key={s} className={`h-3.5 w-3.5 ${s <= r.overallRating ? "fill-amber-400 text-amber-400" : "text-gray-300"}`} />)}
+                          </div>
+                          {r.reviewTitle && <p className="font-medium text-sm">{r.reviewTitle}</p>}
+                        </div>
+                        <div className="text-right flex-shrink-0">
+                          {r.isVerified && <Badge className="bg-blue-100 text-blue-700 text-xs mb-1">Verified</Badge>}
+                          <p className="text-xs text-muted-foreground">{new Date(r.createdAt).toLocaleDateString()}</p>
+                        </div>
+                      </div>
+                      {r.reviewBody && <p className="text-sm text-muted-foreground">{r.reviewBody}</p>}
+                      <div className="flex items-center justify-between pt-1">
+                        <p className="text-xs text-muted-foreground">— {r.companyName ?? r.reviewerName ?? "Anonymous"}</p>
+                        <button
+                          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                          onClick={() => markHelpful.mutate({ ratingId: r.id })}
+                        >
+                          <ThumbsUp className="h-3 w-3" /> {r.helpfulCount > 0 ? r.helpfulCount : "Helpful"}
+                        </button>
+                      </div>
+                      {r.replies.length > 0 && (
+                        <div className="mt-2 pl-3 border-l-2 border-muted">
+                          {r.replies.map(reply => (
+                            <div key={reply.id} className="text-xs">
+                              <span className="font-medium">{reply.replierName ?? "Centre"}: </span>
+                              <span className="text-muted-foreground">{reply.replyBody}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
           {/* CTA */}
           <div className="bg-gradient-to-r from-gray-900 to-gray-800 rounded-xl p-5 text-white flex items-center justify-between gap-4">
             <div>
@@ -473,6 +633,13 @@ export default function SanadCentreProfilePage() {
         officeName={office.name}
         services={catalogue}
       />
+      {reviewOpen && (
+        <WriteReviewDialog
+          officeId={officeId}
+          onClose={() => setReviewOpen(false)}
+          onDone={() => utils.ratings.getOfficeRatings.invalidate()}
+        />
+      )}
     </div>
   );
 }

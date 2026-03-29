@@ -66,7 +66,7 @@ export default function WorkforceSyncPage() {
             Monitor and manage synchronisation with Oman MOL and government portals
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button variant="outline" onClick={() => refetch()} className="gap-2">
             <RefreshCw className="w-4 h-4" /> Refresh
           </Button>
@@ -182,7 +182,7 @@ export default function WorkforceSyncPage() {
 
                     {isExpanded && (
                       <div className="border-t bg-muted/30 p-3 space-y-2 text-sm">
-                        <div className="grid grid-cols-3 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                           <div>
                             <p className="text-xs text-muted-foreground">Records Fetched</p>
                             <p className="font-medium">{job.recordsFetched ?? 0}</p>

@@ -1,4 +1,5 @@
 import { TRPCError } from "@trpc/server";
+import { eq, asc } from "drizzle-orm";
 import { storagePut } from "../storage";
 import { nanoid } from "nanoid";
 import { z } from "zod";
@@ -10,9 +11,11 @@ import {
   getContracts,
   getUserCompany,
   updateContract,
+  getDb,
 } from "../db";
 import { protectedProcedure, router } from "../_core/trpc";
 import { invokeLLM } from "../_core/llm";
+import { contractSignatures, contractSignatureAudit } from "../../drizzle/schema";
 
 export const contractsRouter = router({
   list: protectedProcedure
@@ -98,7 +101,6 @@ export const contractsRouter = router({
     return getContractTemplates(membership?.company.id);
   }),
 
-  // ── Google Docs-style template generation using LLM ──────────────────────────────────────────────────────
   generateFromTemplate: protectedProcedure
     .input(z.object({
       type: z.enum(["employment", "service", "nda", "partnership", "vendor", "lease", "other"]),
@@ -144,7 +146,6 @@ Generate a complete, professional contract document with all standard clauses fo
       return { content, contractType };
     }),
 
-  // ── Export contract as formatted HTML (for print/PDF) ──────────────────────────────────────────────────────
   exportHtml: protectedProcedure
     .input(z.object({ id: z.number() }))
     .query(async ({ input }) => {
@@ -185,22 +186,185 @@ Generate a complete, professional contract document with all standard clauses fo
       return { html, title: contract.title, contractNumber: contract.contractNumber };
     }),
 
+  // ── E-Signature Procedures ────────────────────────────────────────────────────
+  addSigner: protectedProcedure
+    .input(z.object({
+      contractId: z.number(),
+      signerName: z.string().min(2),
+      signerEmail: z.string().email(),
+      signerRole: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const [result] = await db.insert(contractSignatures).values({
+        contractId: input.contractId,
+        signerName: input.signerName,
+        signerEmail: input.signerEmail,
+        signerRole: input.signerRole,
+        status: "pending",
+      });
+      const insertId = (result as any).insertId as number;
+      await db.insert(contractSignatureAudit).values({
+        contractId: input.contractId,
+        signatureId: insertId,
+        event: "requested",
+        actorName: ctx.user.name,
+        actorEmail: ctx.user.email ?? undefined,
+        notes: `Signature requested from ${input.signerName} <${input.signerEmail}>`,
+      });
+      await updateContract(input.contractId, { status: "pending_signature" });
+      return { id: insertId };
+    }),
+
+  listSigners: protectedProcedure
+    .input(z.object({ contractId: z.number() }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) return [];
+      return db.select().from(contractSignatures)
+        .where(eq(contractSignatures.contractId, input.contractId))
+        .orderBy(asc(contractSignatures.createdAt));
+    }),
+
+  submitSignature: protectedProcedure
+    .input(z.object({
+      signatureId: z.number(),
+      signatureDataUrl: z.string(), // base64 PNG from canvas
+      ipAddress: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const [signer] = await db.select().from(contractSignatures)
+        .where(eq(contractSignatures.id, input.signatureId)).limit(1);
+      if (!signer) throw new TRPCError({ code: "NOT_FOUND" });
+      if (signer.status === "signed") throw new TRPCError({ code: "BAD_REQUEST", message: "Already signed" });
+      // Store signature image in S3
+      const base64Data = input.signatureDataUrl.replace(/^data:image\/\w+;base64,/, "");
+      const buffer = Buffer.from(base64Data, "base64");
+      const key = `signatures/${signer.contractId}/${input.signatureId}-${Date.now()}.png`;
+      const { url } = await storagePut(key, buffer, "image/png");
+      await db.update(contractSignatures).set({
+        status: "signed",
+        signedAt: new Date(),
+        signatureUrl: url,
+        ipAddress: input.ipAddress,
+      }).where(eq(contractSignatures.id, input.signatureId));
+      await db.insert(contractSignatureAudit).values({
+        contractId: signer.contractId,
+        signatureId: input.signatureId,
+        event: "signed",
+        actorName: signer.signerName,
+        actorEmail: signer.signerEmail,
+        ipAddress: input.ipAddress,
+        notes: `Signed by ${signer.signerName}`,
+      });
+      // Check if all signers have signed → mark contract as signed
+      const allSigners = await db.select().from(contractSignatures)
+        .where(eq(contractSignatures.contractId, signer.contractId));
+      const allSigned = allSigners.every(s => s.status === "signed");
+      if (allSigned) {
+        await updateContract(signer.contractId, { status: "signed", signedAt: new Date() });
+        await db.insert(contractSignatureAudit).values({
+          contractId: signer.contractId,
+          event: "completed",
+          notes: "All parties have signed. Contract is fully executed.",
+        });
+      }
+      return { ok: true, allSigned, signatureUrl: url };
+    }),
+
+  declineSignature: protectedProcedure
+    .input(z.object({ signatureId: z.number(), reason: z.string().optional() }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const [signer] = await db.select().from(contractSignatures)
+        .where(eq(contractSignatures.id, input.signatureId)).limit(1);
+      if (!signer) throw new TRPCError({ code: "NOT_FOUND" });
+      await db.update(contractSignatures).set({ status: "declined" })
+        .where(eq(contractSignatures.id, input.signatureId));
+      await db.insert(contractSignatureAudit).values({
+        contractId: signer.contractId,
+        signatureId: input.signatureId,
+        event: "declined",
+        actorName: signer.signerName,
+        actorEmail: signer.signerEmail,
+        notes: input.reason ?? "Declined without reason",
+      });
+      return { ok: true };
+    }),
+
+  getSignatureAuditTrail: protectedProcedure
+    .input(z.object({ contractId: z.number() }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) return [];
+      return db.select().from(contractSignatureAudit)
+        .where(eq(contractSignatureAudit.contractId, input.contractId))
+        .orderBy(asc(contractSignatureAudit.createdAt));
+    }),
+
+  exportSignedHtml: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const contract = await getContractById(input.id);
+      if (!contract) throw new TRPCError({ code: "NOT_FOUND" });
+      const signers = await db.select().from(contractSignatures)
+        .where(eq(contractSignatures.contractId, input.id))
+        .orderBy(asc(contractSignatures.createdAt));
+      const sigBlocks = signers.map(s => `
+        <div class="sig-block">
+          <p><strong>${s.signerRole ?? "Signatory"}</strong>: ${s.signerName}</p>
+          ${s.signatureUrl
+          ? `<img src="${s.signatureUrl}" style="max-height:60px;border-bottom:1px solid #333;" alt="signature" />`
+          : `<div style="border-bottom:1px solid #333;height:60px;"></div>`}
+          <p style="font-size:11px;color:#666">${s.status === "signed" && s.signedAt
+          ? `Signed: ${new Date(s.signedAt).toLocaleString()}`
+          : (s.status ?? "pending").toUpperCase()}</p>
+          ${s.ipAddress ? `<p style="font-size:10px;color:#999">IP: ${s.ipAddress}</p>` : ""}
+        </div>`).join("");
+      const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${contract.title} — Signed</title>
+<style>
+body{font-family:'Times New Roman',serif;max-width:800px;margin:40px auto;padding:40px;line-height:1.8;color:#1a1a1a}
+h1{text-align:center;font-size:20px;text-transform:uppercase;border-bottom:2px solid #1a1a1a;padding-bottom:12px;margin-bottom:24px}
+.meta{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:24px;font-size:13px}
+.content{white-space:pre-wrap;font-size:13px}
+.signatures{margin-top:60px;display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:30px}
+.sig-block{border-top:2px solid #1a1a1a;padding-top:12px;font-size:12px}
+.badge{display:inline-block;background:#166534;color:white;padding:2px 8px;border-radius:4px;font-size:11px;margin-bottom:8px}
+</style></head><body>
+<div class="badge">✓ FULLY EXECUTED</div>
+<h1>${contract.title}</h1>
+<div class="meta">
+  <div><span>Contract No: </span><strong>${contract.contractNumber}</strong></div>
+  <div><span>Status: </span><strong>SIGNED</strong></div>
+  <div><span>Party A: </span><strong>${contract.partyAName ?? "—"}</strong></div>
+  <div><span>Party B: </span><strong>${contract.partyBName ?? "—"}</strong></div>
+  ${contract.signedAt ? `<div><span>Signed: </span><strong>${new Date(contract.signedAt).toLocaleDateString()}</strong></div>` : ""}
+</div>
+<div class="content">${contract.content ?? "No content."}</div>
+<div class="signatures">${sigBlocks}</div>
+</body></html>`;
+      const key = `contracts/signed/${input.id}-${contract.contractNumber?.replace(/[^a-zA-Z0-9]/g, "-")}-signed-${Date.now()}.html`;
+      const { url } = await storagePut(key, Buffer.from(html, "utf-8"), "text/html");
+      await updateContract(input.id, { pdfUrl: url });
+      return { url, title: contract.title };
+    }),
+
   // Store the contract HTML as a file in S3 and return a persistent download URL
   saveToStorage: protectedProcedure
     .input(z.object({ id: z.number() }))
-    .mutation(async ({ input, ctx }) => {
+    .mutation(async ({ input }) => {
       const contract = await getContractById(input.id);
       if (!contract) throw new TRPCError({ code: "NOT_FOUND" });
-
-      // Build print-ready HTML (same as exportHtml)
       const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${contract.title}</title><style>body{font-family:'Times New Roman',serif;max-width:800px;margin:40px auto;padding:40px;line-height:1.8;color:#1a1a1a}h1{text-align:center;font-size:20px;text-transform:uppercase;border-bottom:2px solid #1a1a1a;padding-bottom:12px;margin-bottom:24px}.meta{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:24px;font-size:13px}.content{white-space:pre-wrap;font-size:13px}.signatures{margin-top:60px;display:grid;grid-template-columns:1fr 1fr;gap:40px}.sig-block{border-top:1px solid #333;padding-top:8px;font-size:12px}@media print{body{margin:0}}</style></head><body><h1>${contract.title}</h1><div class="meta"><div><span>Contract No:</span><strong>${contract.contractNumber}</strong></div><div><span>Status:</span><strong>${contract.status?.toUpperCase()}</strong></div><div><span>Party A:</span><strong>${contract.partyAName ?? "—"}</strong></div><div><span>Party B:</span><strong>${contract.partyBName ?? "—"}</strong></div>${contract.value ? `<div><span>Value:</span><strong>${contract.value} ${contract.currency}</strong></div>` : ""}</div><div class="content">${contract.content ?? "No content."}</div><div class="signatures"><div class="sig-block"><p>Party A: ${contract.partyAName ?? "___"}</p><p>Signature: _______________</p><p>Date: _______________</p></div><div class="sig-block"><p>Party B: ${contract.partyBName ?? "___"}</p><p>Signature: _______________</p><p>Date: _______________</p></div></div></body></html>`;
-
       const fileKey = `contracts/${input.id}-${contract.contractNumber?.replace(/[^a-zA-Z0-9]/g, "-")}-${Date.now()}.html`;
       const { url } = await storagePut(fileKey, Buffer.from(html, "utf-8"), "text/html");
-
-      // Persist the download URL on the contract record
       await updateContract(input.id, { pdfUrl: url });
-
       return { url, fileKey, title: contract.title };
     }),
 });

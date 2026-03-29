@@ -1,283 +1,489 @@
-import { trpc } from "@/lib/trpc";
 import { useState } from "react";
-import { BookOpen, Plus, Users, Briefcase, CheckCircle2, XCircle } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { trpc } from "@/lib/trpc";
+import { useAuth } from "@/_core/hooks/useAuth";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { toast } from "sonner";
+import {
+  Users, Briefcase, Calendar, Star, Send, CheckCircle, XCircle,
+  Plus, Eye, Clock, Video, MapPin, FileText, RefreshCw, Trash2
+} from "lucide-react";
 
-const stageColors: Record<string, string> = {
-  applied: "bg-gray-100 text-gray-700",
-  screening: "bg-blue-100 text-blue-700",
-  interview: "bg-purple-100 text-purple-700",
-  assessment: "bg-indigo-100 text-indigo-700",
-  offer: "bg-amber-100 text-amber-700",
-  hired: "bg-green-100 text-green-700",
-  rejected: "bg-red-100 text-red-700",
+const STAGES = ["applied","screening","interview","assessment","offer","hired","rejected"] as const;
+type Stage = typeof STAGES[number];
+
+const STAGE_COLORS: Record<Stage, string> = {
+  applied: "bg-gray-100 text-gray-700 border-gray-200",
+  screening: "bg-blue-100 text-blue-700 border-blue-200",
+  interview: "bg-purple-100 text-purple-700 border-purple-200",
+  assessment: "bg-amber-100 text-amber-700 border-amber-200",
+  offer: "bg-orange-100 text-orange-700 border-orange-200",
+  hired: "bg-green-100 text-green-700 border-green-200",
+  rejected: "bg-red-100 text-red-700 border-red-200",
 };
 
-function NewJobDialog({ onSuccess }: { onSuccess: () => void }) {
-  const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({
-    title: "",
-    department: "",
-    location: "",
-    type: "full_time" as const,
-    description: "",
-    requirements: "",
-    salaryMin: "",
-    salaryMax: "",
-    applicationDeadline: "",
-  });
+const STAGE_LABELS: Record<Stage, string> = {
+  applied: "Applied", screening: "Screening", interview: "Interview",
+  assessment: "Assessment", offer: "Offer Sent", hired: "Hired", rejected: "Rejected",
+};
 
-  const createMutation = trpc.hr.createJob.useMutation({
-    onSuccess: () => { toast.success("Job posting created"); setOpen(false); onSuccess(); },
-    onError: (e) => toast.error(e.message),
-  });
-
-  return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button size="sm" className="gap-2"><Plus size={16} /> Post Job</Button>
-      </DialogTrigger>
-      <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
-        <DialogHeader><DialogTitle>Post New Job</DialogTitle></DialogHeader>
-        <div className="space-y-4 mt-2">
-          <div className="space-y-1.5">
-            <Label>Job Title *</Label>
-            <Input placeholder="e.g. PRO Officer" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <Label>Department</Label>
-              <Input placeholder="e.g. Operations" value={form.department} onChange={(e) => setForm({ ...form, department: e.target.value })} />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Location</Label>
-              <Input placeholder="e.g. Muscat" value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <Label>Employment Type</Label>
-              <Select value={form.type} onValueChange={(v) => setForm({ ...form, type: v as any })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="full_time">Full Time</SelectItem>
-                  <SelectItem value="part_time">Part Time</SelectItem>
-                  <SelectItem value="contract">Contract</SelectItem>
-                  <SelectItem value="intern">Intern</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label>Application Deadline</Label>
-              <Input type="date" value={form.applicationDeadline} onChange={(e) => setForm({ ...form, applicationDeadline: e.target.value })} />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <Label>Salary Min (OMR)</Label>
-              <Input type="number" placeholder="0" value={form.salaryMin} onChange={(e) => setForm({ ...form, salaryMin: e.target.value })} />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Salary Max (OMR)</Label>
-              <Input type="number" placeholder="0" value={form.salaryMax} onChange={(e) => setForm({ ...form, salaryMax: e.target.value })} />
-            </div>
-          </div>
-          <div className="space-y-1.5">
-            <Label>Job Description</Label>
-            <Textarea placeholder="Describe the role..." value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={3} />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Requirements</Label>
-            <Textarea placeholder="List requirements..." value={form.requirements} onChange={(e) => setForm({ ...form, requirements: e.target.value })} rows={3} />
-          </div>
-          <Button className="w-full" disabled={!form.title || createMutation.isPending}
-            onClick={() => createMutation.mutate({
-              ...form,
-              salaryMin: form.salaryMin ? Number(form.salaryMin) : undefined,
-              salaryMax: form.salaryMax ? Number(form.salaryMax) : undefined,
-            })}>
-            {createMutation.isPending ? "Posting..." : "Post Job"}
-          </Button>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
+const fmt = (n: number | string | null | undefined) => `OMR ${Number(n ?? 0).toFixed(3)}`;
 
 export default function HRRecruitmentPage() {
-  const [selectedJob, setSelectedJob] = useState<number | null>(null);
+  const { user } = useAuth();
+  const [activeTab, setActiveTab] = useState("pipeline");
+  const [selectedJobId, setSelectedJobId] = useState<number | undefined>();
+  const [selectedApp, setSelectedApp] = useState<any | null>(null);
+  const [createJobOpen, setCreateJobOpen] = useState(false);
+  const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [offerOpen, setOfferOpen] = useState(false);
+  const [jobForm, setJobForm] = useState({ title: "", department: "", location: "", type: "full_time" as const, description: "", requirements: "", salaryMin: "", salaryMax: "", applicationDeadline: "" });
+  const [interviewForm, setInterviewForm] = useState({ interviewType: "video" as const, scheduledAt: "", durationMinutes: 60, location: "", meetingLink: "", interviewerNames: "", notes: "" });
+  const [offerForm, setOfferForm] = useState({ basicSalary: "", housingAllowance: "0", transportAllowance: "0", otherAllowances: "0", probationMonths: 3, annualLeave: 21, startDate: "", additionalTerms: "" });
 
-  const { data: jobs, refetch: refetchJobs } = trpc.hr.listJobs.useQuery();
-  const { data: applications, refetch: refetchApps } = trpc.hr.listApplications.useQuery({ jobId: selectedJob ?? undefined });
+  const { data: summary, refetch: refetchSummary } = trpc.recruitment.getPipelineSummary.useQuery();
+  const { data: jobs, refetch: refetchJobs } = trpc.recruitment.listJobs.useQuery();
+  const { data: kanban, refetch: refetchKanban } = trpc.recruitment.getPipelineKanban.useQuery(
+    selectedJobId ? { jobId: selectedJobId } : undefined
+  );
+  const { data: interviews, refetch: refetchInterviews } = trpc.recruitment.listInterviews.useQuery();
+  const { data: offers, refetch: refetchOffers } = trpc.recruitment.listOffers.useQuery();
 
-  const updateJobMutation = trpc.hr.updateJob.useMutation({
-    onSuccess: () => { toast.success("Updated"); refetchJobs(); },
+  const createJob = trpc.recruitment.createJob.useMutation({
+    onSuccess: () => { toast.success("Job posting created"); setCreateJobOpen(false); refetchJobs(); refetchSummary(); },
     onError: (e) => toast.error(e.message),
   });
-
-  const updateAppMutation = trpc.hr.updateApplication.useMutation({
-    onSuccess: () => { toast.success("Stage updated"); refetchApps(); },
+  const updateJob = trpc.recruitment.updateJob.useMutation({
+    onSuccess: () => { toast.success("Job updated"); refetchJobs(); },
     onError: (e) => toast.error(e.message),
   });
-
-  const stats = {
-    openJobs: jobs?.filter((j) => j.status === "open").length ?? 0,
-    totalApps: applications?.length ?? 0,
-    inInterview: applications?.filter((a) => a.stage === "interview").length ?? 0,
-    hired: applications?.filter((a) => a.stage === "hired").length ?? 0,
-  };
+  const deleteJob = trpc.recruitment.deleteJob.useMutation({
+    onSuccess: () => { toast.success("Job deleted"); refetchJobs(); refetchSummary(); },
+    onError: (e) => toast.error(e.message),
+  });
+  const updateStage = trpc.recruitment.updateApplicationStage.useMutation({
+    onSuccess: () => { toast.success("Stage updated"); refetchKanban(); refetchSummary(); },
+    onError: (e) => toast.error(e.message),
+  });
+  const scheduleInterview = trpc.recruitment.scheduleInterview.useMutation({
+    onSuccess: () => { toast.success("Interview scheduled"); setScheduleOpen(false); refetchInterviews(); refetchKanban(); },
+    onError: (e) => toast.error(e.message),
+  });
+  const updateInterview = trpc.recruitment.updateInterview.useMutation({
+    onSuccess: () => { toast.success("Interview updated"); refetchInterviews(); },
+    onError: (e) => toast.error(e.message),
+  });
+  const createOffer = trpc.recruitment.createOffer.useMutation({
+    onSuccess: (d) => {
+      toast.success("Offer letter created");
+      setOfferOpen(false);
+      refetchOffers();
+      refetchKanban();
+      if (d.url) window.open(d.url, "_blank");
+    },
+    onError: (e) => toast.error(e.message),
+  });
+  const sendOffer = trpc.recruitment.sendOffer.useMutation({
+    onSuccess: () => { toast.success("Offer marked as sent"); refetchOffers(); },
+    onError: (e) => toast.error(e.message),
+  });
+  const updateOfferStatus = trpc.recruitment.updateOfferStatus.useMutation({
+    onSuccess: () => { toast.success("Offer status updated"); refetchOffers(); refetchKanban(); refetchSummary(); },
+    onError: (e) => toast.error(e.message),
+  });
 
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <BookOpen size={24} className="text-[var(--smartpro-orange)]" />
-            Recruitment (ATS)
-          </h1>
-          <p className="text-muted-foreground text-sm mt-1">Manage job postings and applicant tracking</p>
+          <h1 className="text-2xl font-bold">Recruitment Pipeline</h1>
+          <p className="text-muted-foreground text-sm mt-1">Manage job postings, candidates, interviews, and offer letters</p>
         </div>
-        <NewJobDialog onSuccess={refetchJobs} />
+        <Button onClick={() => setCreateJobOpen(true)} className="gap-2">
+          <Plus size={16} /> Post New Job
+        </Button>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      {/* KPI Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         {[
-          { label: "Open Positions", value: stats.openJobs, icon: <Briefcase size={18} />, color: "text-blue-600 bg-blue-50" },
-          { label: "Total Applicants", value: stats.totalApps, icon: <Users size={18} />, color: "text-purple-600 bg-purple-50" },
-          { label: "In Interview", value: stats.inInterview, icon: <BookOpen size={18} />, color: "text-amber-600 bg-amber-50" },
-          { label: "Hired", value: stats.hired, icon: <CheckCircle2 size={18} />, color: "text-green-600 bg-green-50" },
-        ].map((s) => (
-          <Card key={s.label}>
+          { label: "Open Jobs", value: summary?.openJobs ?? 0, icon: <Briefcase size={18} />, color: "text-blue-600 bg-blue-50" },
+          { label: "Total Candidates", value: summary?.totalApplications ?? 0, icon: <Users size={18} />, color: "text-purple-600 bg-purple-50" },
+          { label: "In Interview", value: summary?.stageMap?.["interview"] ?? 0, icon: <Calendar size={18} />, color: "text-amber-600 bg-amber-50" },
+          { label: "Pending Interviews", value: summary?.pendingInterviews ?? 0, icon: <Clock size={18} />, color: "text-orange-600 bg-orange-50" },
+          { label: "Offers Sent", value: summary?.pendingOffers ?? 0, icon: <Send size={18} />, color: "text-green-600 bg-green-50" },
+        ].map(({ label, value, icon, color }) => (
+          <Card key={label}>
             <CardContent className="p-4 flex items-center gap-3">
-              <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${s.color}`}>{s.icon}</div>
-              <div>
-                <p className="text-2xl font-bold">{s.value}</p>
-                <p className="text-xs text-muted-foreground">{s.label}</p>
-              </div>
+              <div className={`p-2 rounded-lg ${color}`}>{icon}</div>
+              <div><p className="text-xs text-muted-foreground">{label}</p><p className="text-xl font-bold">{value}</p></div>
             </CardContent>
           </Card>
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Jobs list */}
-        <div className="space-y-3">
-          <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">Job Postings</h2>
-          {jobs?.length === 0 ? (
-            <Card className="border-dashed">
-              <CardContent className="p-8 text-center">
-                <Briefcase size={32} className="mx-auto text-muted-foreground mb-2 opacity-40" />
-                <p className="text-sm text-muted-foreground">No job postings yet</p>
-              </CardContent>
-            </Card>
-          ) : (
-            jobs?.map((job) => (
-              <Card
-                key={job.id}
-                className={`cursor-pointer transition-all hover:shadow-md ${selectedJob === job.id ? "ring-2 ring-[var(--smartpro-orange)]" : ""}`}
-                onClick={() => setSelectedJob(job.id === selectedJob ? null : job.id)}
-              >
-                <CardContent className="p-4">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <h3 className="font-semibold text-sm">{job.title}</h3>
-                      {job.department && <p className="text-xs text-muted-foreground">{job.department}</p>}
-                      {job.location && <p className="text-xs text-muted-foreground">{job.location}</p>}
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList>
+          <TabsTrigger value="pipeline">Kanban Pipeline</TabsTrigger>
+          <TabsTrigger value="jobs">Job Postings</TabsTrigger>
+          <TabsTrigger value="interviews">Interviews</TabsTrigger>
+          <TabsTrigger value="offers">Offer Letters</TabsTrigger>
+        </TabsList>
+
+        {/* ── Kanban Pipeline ── */}
+        <TabsContent value="pipeline" className="space-y-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <Select value={selectedJobId ? String(selectedJobId) : "all"} onValueChange={(v) => setSelectedJobId(v === "all" ? undefined : Number(v))}>
+              <SelectTrigger className="w-56"><SelectValue placeholder="All Jobs" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Jobs</SelectItem>
+                {jobs?.map(j => <SelectItem key={j.id} value={String(j.id)}>{j.title}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Button variant="outline" size="sm" onClick={() => refetchKanban()} className="gap-1"><RefreshCw size={14} /> Refresh</Button>
+          </div>
+          <div className="flex gap-3 overflow-x-auto pb-4">
+            {STAGES.map(stage => (
+              <div key={stage} className="min-w-[170px] flex-shrink-0">
+                <div className={`rounded-t-lg px-3 py-2 text-xs font-semibold border ${STAGE_COLORS[stage]}`}>
+                  {STAGE_LABELS[stage]} <span className="ml-1 opacity-70">({(kanban as any)?.[stage]?.length ?? 0})</span>
+                </div>
+                <div className="bg-muted/30 rounded-b-lg min-h-[200px] p-2 space-y-2 border border-t-0">
+                  {((kanban as any)?.[stage] ?? []).map(({ app, job }: any) => (
+                    <div key={app.id} className="bg-background rounded-lg p-3 shadow-sm border cursor-pointer hover:shadow-md transition-shadow"
+                      onClick={() => setSelectedApp({ app, job })}>
+                      <p className="text-xs font-semibold truncate">{app.applicantName}</p>
+                      <p className="text-xs text-muted-foreground truncate">{job?.title}</p>
+                      <p className="text-xs text-muted-foreground truncate">{app.applicantEmail}</p>
                     </div>
-                    <Badge className={`text-xs ${job.status === "open" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"}`} variant="outline">
-                      {job.status}
-                    </Badge>
+                  ))}
+                  {!((kanban as any)?.[stage]?.length) && (
+                    <p className="text-xs text-muted-foreground text-center py-4">Empty</p>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </TabsContent>
+
+        {/* ── Job Postings ── */}
+        <TabsContent value="jobs" className="space-y-4">
+          {!jobs?.length && <p className="text-muted-foreground text-center py-8">No job postings yet. Click "Post New Job" to get started.</p>}
+          <div className="grid gap-4">
+            {jobs?.map(job => (
+              <Card key={job.id}>
+                <CardContent className="p-4 flex items-start justify-between gap-4">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="font-semibold">{job.title}</h3>
+                      <Badge variant="outline" className={`text-xs ${job.status === "open" ? "border-green-300 text-green-700" : "border-gray-300 text-gray-600"}`}>
+                        {job.status}
+                      </Badge>
+                      <Badge variant="outline" className="text-xs">{job.type?.replace("_", " ")}</Badge>
+                    </div>
+                    <div className="flex items-center gap-4 mt-1 text-sm text-muted-foreground flex-wrap">
+                      {job.department && <span>{job.department}</span>}
+                      {job.location && <span className="flex flex-wrap items-center gap-1"><MapPin size={12} />{job.location}</span>}
+                      {(job.salaryMin || job.salaryMax) && <span>{job.salaryMin && fmt(job.salaryMin)} — {job.salaryMax && fmt(job.salaryMax)}</span>}
+                      <span className="flex flex-wrap items-center gap-1"><Users size={12} />{(job as any).applicationCount ?? 0} applicants</span>
+                    </div>
                   </div>
-                  <div className="flex items-center justify-between mt-3">
-                    <span className="text-xs text-muted-foreground capitalize">{job.type?.replace(/_/g, " ")}</span>
-                    <Select value={job.status ?? "open"} onValueChange={(v) => updateJobMutation.mutate({ id: job.id, status: v as any })}>
-                      <SelectTrigger className="h-6 text-xs w-24 border-0 bg-transparent p-0">
-                        <span className="text-muted-foreground text-xs">Change</span>
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="open">Open</SelectItem>
-                        <SelectItem value="on_hold">On Hold</SelectItem>
-                        <SelectItem value="closed">Close</SelectItem>
-                      </SelectContent>
-                    </Select>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {job.status === "draft" && (
+                      <Button size="sm" variant="outline" onClick={() => updateJob.mutate({ id: job.id, status: "open" })} className="text-green-600 gap-1">
+                        <CheckCircle size={14} /> Publish
+                      </Button>
+                    )}
+                    {job.status === "open" && (
+                      <Button size="sm" variant="outline" onClick={() => updateJob.mutate({ id: job.id, status: "closed" })} className="text-gray-600">
+                        Close
+                      </Button>
+                    )}
+                    <Button size="sm" variant="ghost" onClick={() => { setSelectedJobId(job.id); setActiveTab("pipeline"); }}>
+                      <Eye size={14} />
+                    </Button>
+                    <Button size="sm" variant="ghost" className="text-red-500" onClick={() => deleteJob.mutate({ id: job.id })}>
+                      <Trash2 size={14} />
+                    </Button>
                   </div>
                 </CardContent>
               </Card>
-            ))
-          )}
-        </div>
+            ))}
+          </div>
+        </TabsContent>
 
-        {/* Applications */}
-        <div className="lg:col-span-2 space-y-3">
-          <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">
-            {selectedJob ? "Applications" : "All Applications"}
-          </h2>
-          {applications?.length === 0 ? (
-            <Card className="border-dashed">
-              <CardContent className="p-8 text-center">
-                <Users size={32} className="mx-auto text-muted-foreground mb-2 opacity-40" />
-                <p className="text-sm text-muted-foreground">No applications yet</p>
-              </CardContent>
-            </Card>
-          ) : (
-            <Card>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b bg-muted/40">
-                      <th className="text-left px-4 py-3 font-medium text-muted-foreground">Applicant</th>
-                      <th className="text-left px-4 py-3 font-medium text-muted-foreground">Stage</th>
-                      <th className="text-left px-4 py-3 font-medium text-muted-foreground">Applied</th>
-                      <th className="text-left px-4 py-3 font-medium text-muted-foreground">Move to</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {applications?.map((app) => (
-                      <tr key={app.id} className="border-b hover:bg-muted/20">
-                        <td className="px-4 py-3">
-                          <div className="font-medium">{app.applicantName}</div>
-                          {app.applicantEmail && <div className="text-xs text-muted-foreground">{app.applicantEmail}</div>}
-                        </td>
-                        <td className="px-4 py-3">
-                          <Badge className={`text-xs ${stageColors[app.stage ?? "applied"]}`} variant="outline">
-                            {app.stage}
-                          </Badge>
-                        </td>
-                        <td className="px-4 py-3 text-xs text-muted-foreground">
-                          {new Date(app.createdAt).toLocaleDateString()}
-                        </td>
-                        <td className="px-4 py-3">
-                          <Select value={app.stage ?? "applied"} onValueChange={(v) => updateAppMutation.mutate({ id: app.id, stage: v as any })}>
-                            <SelectTrigger className="h-7 text-xs w-32"><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="applied">Applied</SelectItem>
-                              <SelectItem value="screening">Screening</SelectItem>
-                              <SelectItem value="interview">Interview</SelectItem>
-                              <SelectItem value="assessment">Assessment</SelectItem>
-                              <SelectItem value="offer">Offer</SelectItem>
-                              <SelectItem value="hired">Hired</SelectItem>
-                              <SelectItem value="rejected">Rejected</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+        {/* ── Interviews ── */}
+        <TabsContent value="interviews" className="space-y-4">
+          {!interviews?.length && <p className="text-muted-foreground text-center py-8">No interviews scheduled yet.</p>}
+          <div className="grid gap-3">
+            {interviews?.map(({ interview, app, job }: any) => (
+              <Card key={interview.id}>
+                <CardContent className="p-4 flex items-start justify-between gap-4">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="font-semibold">{app?.applicantName}</p>
+                      <Badge variant="outline" className="text-xs">{interview.interviewType?.replace("_", " ")}</Badge>
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${interview.status === "scheduled" ? "bg-blue-100 text-blue-700" : interview.status === "completed" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
+                        {interview.status}
+                      </span>
+                    </div>
+                    <p className="text-sm text-muted-foreground mt-1">{job?.title}</p>
+                    <div className="flex items-center gap-4 mt-1 text-sm text-muted-foreground flex-wrap">
+                      <span className="flex flex-wrap items-center gap-1"><Calendar size={12} />{new Date(interview.scheduledAt).toLocaleString()}</span>
+                      <span className="flex flex-wrap items-center gap-1"><Clock size={12} />{interview.durationMinutes} min</span>
+                      {interview.meetingLink && <a href={interview.meetingLink} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-blue-600 hover:underline"><Video size={12} /> Join</a>}
+                      {interview.location && <span className="flex flex-wrap items-center gap-1"><MapPin size={12} />{interview.location}</span>}
+                    </div>
+                    {interview.feedback && <p className="text-sm mt-2 text-muted-foreground italic">"{interview.feedback}"</p>}
+                    {interview.rating && (
+                      <div className="flex items-center gap-0.5 mt-1">
+                        {[1,2,3,4,5].map(r => (
+                          <Star key={r} size={14} className={r <= interview.rating ? "text-amber-400 fill-amber-400" : "text-gray-300"} />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {interview.status === "scheduled" && (
+                      <>
+                        <Button size="sm" variant="outline" onClick={() => updateInterview.mutate({ id: interview.id, status: "completed" })} className="text-green-600 gap-1">
+                          <CheckCircle size={14} /> Done
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => updateInterview.mutate({ id: interview.id, status: "cancelled" })} className="text-red-500">
+                          <XCircle size={14} />
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </TabsContent>
+
+        {/* ── Offer Letters ── */}
+        <TabsContent value="offers" className="space-y-4">
+          {!offers?.length && <p className="text-muted-foreground text-center py-8">No offer letters yet.</p>}
+          <div className="grid gap-3">
+            {offers?.map(offer => (
+              <Card key={offer.id}>
+                <CardContent className="p-4 flex items-start justify-between gap-4">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="font-semibold">{offer.applicantName}</p>
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                        offer.status === "accepted" ? "bg-green-100 text-green-700" :
+                        offer.status === "rejected" ? "bg-red-100 text-red-700" :
+                        offer.status === "sent" ? "bg-blue-100 text-blue-700" :
+                        "bg-gray-100 text-gray-700"
+                      }`}>{offer.status}</span>
+                    </div>
+                    <p className="text-sm text-muted-foreground">{offer.position}{offer.department ? ` — ${offer.department}` : ""}</p>
+                    <div className="flex items-center gap-4 mt-1 text-sm text-muted-foreground flex-wrap">
+                      <span className="font-medium text-foreground">{fmt(offer.totalPackage)}/month</span>
+                      {offer.startDate && <span>Start: {new Date(offer.startDate).toLocaleDateString()}</span>}
+                      {offer.expiresAt && <span>Expires: {new Date(offer.expiresAt).toLocaleDateString()}</span>}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {offer.letterUrl && (
+                      <a href={offer.letterUrl} target="_blank" rel="noopener noreferrer">
+                        <Button size="sm" variant="outline" className="gap-1"><FileText size={14} /> View</Button>
+                      </a>
+                    )}
+                    {offer.status === "draft" && (
+                      <Button size="sm" variant="outline" onClick={() => sendOffer.mutate({ id: offer.id })} className="text-blue-600 gap-1">
+                        <Send size={14} /> Send
+                      </Button>
+                    )}
+                    {offer.status === "sent" && (
+                      <>
+                        <Button size="sm" variant="outline" onClick={() => updateOfferStatus.mutate({ id: offer.id, status: "accepted" })} className="text-green-600 gap-1">
+                          <CheckCircle size={14} /> Accept
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => updateOfferStatus.mutate({ id: offer.id, status: "rejected" })} className="text-red-500 gap-1">
+                          <XCircle size={14} /> Reject
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </TabsContent>
+      </Tabs>
+
+      {/* ── Application Detail / Move Stage Dialog ── */}
+      <Dialog open={!!selectedApp} onOpenChange={(o) => !o && setSelectedApp(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader><DialogTitle>{selectedApp?.app?.applicantName}</DialogTitle></DialogHeader>
+          {selectedApp && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div><p className="text-muted-foreground">Email</p><p className="font-medium">{selectedApp.app.applicantEmail}</p></div>
+                <div><p className="text-muted-foreground">Phone</p><p className="font-medium">{selectedApp.app.applicantPhone ?? "—"}</p></div>
+                <div><p className="text-muted-foreground">Position</p><p className="font-medium">{selectedApp.job?.title}</p></div>
+                <div><p className="text-muted-foreground">Applied</p><p className="font-medium">{new Date(selectedApp.app.createdAt).toLocaleDateString()}</p></div>
               </div>
-            </Card>
+              {selectedApp.app.resumeUrl && (
+                <a href={selectedApp.app.resumeUrl} target="_blank" rel="noopener noreferrer">
+                  <Button variant="outline" size="sm" className="gap-2"><FileText size={14} /> View Resume</Button>
+                </a>
+              )}
+              <div className="space-y-2">
+                <Label>Move to Stage</Label>
+                <div className="flex flex-wrap gap-2">
+                  {STAGES.filter(s => s !== selectedApp.app.stage).map(s => (
+                    <Button key={s} size="sm" variant="outline"
+                      className={`text-xs ${STAGE_COLORS[s]}`}
+                      onClick={() => { updateStage.mutate({ id: selectedApp.app.id, stage: s }); setSelectedApp(null); }}>
+                      {STAGE_LABELS[s]}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button variant="outline" size="sm" onClick={() => setScheduleOpen(true)} className="gap-1">
+                  <Calendar size={14} /> Schedule Interview
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => setOfferOpen(true)} className="gap-1">
+                  <FileText size={14} /> Create Offer
+                </Button>
+              </div>
+            </div>
           )}
-        </div>
-      </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Create Job Dialog ── */}
+      <Dialog open={createJobOpen} onOpenChange={setCreateJobOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader><DialogTitle>Post New Job</DialogTitle></DialogHeader>
+          <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
+            <div className="space-y-1"><Label>Job Title *</Label><Input value={jobForm.title} onChange={e => setJobForm(f => ({ ...f, title: e.target.value }))} placeholder="e.g. Senior Accountant" /></div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1"><Label>Department</Label><Input value={jobForm.department} onChange={e => setJobForm(f => ({ ...f, department: e.target.value }))} placeholder="Finance" /></div>
+              <div className="space-y-1"><Label>Location</Label><Input value={jobForm.location} onChange={e => setJobForm(f => ({ ...f, location: e.target.value }))} placeholder="Muscat" /></div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label>Type</Label>
+                <Select value={jobForm.type} onValueChange={(v) => setJobForm(f => ({ ...f, type: v as any }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="full_time">Full Time</SelectItem>
+                    <SelectItem value="part_time">Part Time</SelectItem>
+                    <SelectItem value="contract">Contract</SelectItem>
+                    <SelectItem value="intern">Intern</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1"><Label>Application Deadline</Label><Input type="date" value={jobForm.applicationDeadline} onChange={e => setJobForm(f => ({ ...f, applicationDeadline: e.target.value }))} /></div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1"><Label>Min Salary (OMR)</Label><Input type="number" value={jobForm.salaryMin} onChange={e => setJobForm(f => ({ ...f, salaryMin: e.target.value }))} placeholder="500" /></div>
+              <div className="space-y-1"><Label>Max Salary (OMR)</Label><Input type="number" value={jobForm.salaryMax} onChange={e => setJobForm(f => ({ ...f, salaryMax: e.target.value }))} placeholder="1200" /></div>
+            </div>
+            <div className="space-y-1"><Label>Description</Label><Textarea value={jobForm.description} onChange={e => setJobForm(f => ({ ...f, description: e.target.value }))} rows={3} placeholder="Role overview and responsibilities..." /></div>
+            <div className="space-y-1"><Label>Requirements</Label><Textarea value={jobForm.requirements} onChange={e => setJobForm(f => ({ ...f, requirements: e.target.value }))} rows={3} placeholder="Qualifications and skills required..." /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCreateJobOpen(false)}>Cancel</Button>
+            <Button onClick={() => createJob.mutate({ ...jobForm, salaryMin: jobForm.salaryMin ? Number(jobForm.salaryMin) : undefined, salaryMax: jobForm.salaryMax ? Number(jobForm.salaryMax) : undefined })} disabled={!jobForm.title || createJob.isPending}>
+              {createJob.isPending ? <RefreshCw size={14} className="animate-spin mr-2" /> : null} Create Job
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Schedule Interview Dialog ── */}
+      <Dialog open={scheduleOpen} onOpenChange={setScheduleOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>Schedule Interview — {selectedApp?.app?.applicantName}</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label>Type</Label>
+                <Select value={interviewForm.interviewType} onValueChange={(v) => setInterviewForm(f => ({ ...f, interviewType: v as any }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="video">Video Call</SelectItem>
+                    <SelectItem value="phone">Phone</SelectItem>
+                    <SelectItem value="in_person">In Person</SelectItem>
+                    <SelectItem value="technical">Technical</SelectItem>
+                    <SelectItem value="panel">Panel</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1"><Label>Duration (min)</Label><Input type="number" value={interviewForm.durationMinutes} onChange={e => setInterviewForm(f => ({ ...f, durationMinutes: Number(e.target.value) }))} /></div>
+            </div>
+            <div className="space-y-1"><Label>Date & Time *</Label><Input type="datetime-local" value={interviewForm.scheduledAt} onChange={e => setInterviewForm(f => ({ ...f, scheduledAt: e.target.value }))} /></div>
+            <div className="space-y-1"><Label>Meeting Link</Label><Input value={interviewForm.meetingLink} onChange={e => setInterviewForm(f => ({ ...f, meetingLink: e.target.value }))} placeholder="https://meet.google.com/..." /></div>
+            <div className="space-y-1"><Label>Interviewers</Label><Input value={interviewForm.interviewerNames} onChange={e => setInterviewForm(f => ({ ...f, interviewerNames: e.target.value }))} placeholder="Ahmed Al-Rashidi, Sara Al-Balushi" /></div>
+            <div className="space-y-1"><Label>Notes</Label><Textarea value={interviewForm.notes} onChange={e => setInterviewForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setScheduleOpen(false)}>Cancel</Button>
+            <Button onClick={() => selectedApp && scheduleInterview.mutate({ applicationId: selectedApp.app.id, ...interviewForm })} disabled={!interviewForm.scheduledAt || scheduleInterview.isPending}>
+              {scheduleInterview.isPending ? <RefreshCw size={14} className="animate-spin mr-2" /> : null} Schedule
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Create Offer Dialog ── */}
+      <Dialog open={offerOpen} onOpenChange={setOfferOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader><DialogTitle>Create Offer — {selectedApp?.app?.applicantName}</DialogTitle></DialogHeader>
+          <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1"><Label>Basic Salary (OMR) *</Label><Input type="number" step="0.001" value={offerForm.basicSalary} onChange={e => setOfferForm(f => ({ ...f, basicSalary: e.target.value }))} placeholder="600.000" /></div>
+              <div className="space-y-1"><Label>Housing Allowance</Label><Input type="number" step="0.001" value={offerForm.housingAllowance} onChange={e => setOfferForm(f => ({ ...f, housingAllowance: e.target.value }))} /></div>
+              <div className="space-y-1"><Label>Transport Allowance</Label><Input type="number" step="0.001" value={offerForm.transportAllowance} onChange={e => setOfferForm(f => ({ ...f, transportAllowance: e.target.value }))} /></div>
+              <div className="space-y-1"><Label>Other Allowances</Label><Input type="number" step="0.001" value={offerForm.otherAllowances} onChange={e => setOfferForm(f => ({ ...f, otherAllowances: e.target.value }))} /></div>
+              <div className="space-y-1"><Label>Start Date</Label><Input type="date" value={offerForm.startDate} onChange={e => setOfferForm(f => ({ ...f, startDate: e.target.value }))} /></div>
+              <div className="space-y-1"><Label>Probation (months)</Label><Input type="number" value={offerForm.probationMonths} onChange={e => setOfferForm(f => ({ ...f, probationMonths: Number(e.target.value) }))} /></div>
+              <div className="space-y-1"><Label>Annual Leave (days)</Label><Input type="number" value={offerForm.annualLeave} onChange={e => setOfferForm(f => ({ ...f, annualLeave: Number(e.target.value) }))} /></div>
+            </div>
+            {offerForm.basicSalary && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm">
+                <strong>Total Package:</strong> {fmt(Number(offerForm.basicSalary) + Number(offerForm.housingAllowance) + Number(offerForm.transportAllowance) + Number(offerForm.otherAllowances))}/month
+              </div>
+            )}
+            <div className="space-y-1"><Label>Additional Terms</Label><Textarea value={offerForm.additionalTerms} onChange={e => setOfferForm(f => ({ ...f, additionalTerms: e.target.value }))} rows={3} placeholder="Any additional conditions..." /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOfferOpen(false)}>Cancel</Button>
+            <Button onClick={() => selectedApp && createOffer.mutate({
+              applicationId: selectedApp.app.id,
+              jobId: selectedApp.app.jobId,
+              applicantName: selectedApp.app.applicantName,
+              applicantEmail: selectedApp.app.applicantEmail,
+              position: selectedApp.job?.title ?? "Position",
+              department: selectedApp.job?.department,
+              basicSalary: Number(offerForm.basicSalary),
+              housingAllowance: Number(offerForm.housingAllowance),
+              transportAllowance: Number(offerForm.transportAllowance),
+              otherAllowances: Number(offerForm.otherAllowances),
+              probationMonths: offerForm.probationMonths,
+              annualLeave: offerForm.annualLeave,
+              startDate: offerForm.startDate || undefined,
+              additionalTerms: offerForm.additionalTerms || undefined,
+            })} disabled={!offerForm.basicSalary || createOffer.isPending}>
+              {createOffer.isPending ? <RefreshCw size={14} className="animate-spin mr-2" /> : null} Generate Offer Letter
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

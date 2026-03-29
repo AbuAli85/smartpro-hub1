@@ -100,7 +100,7 @@ export default function HRLeavePage() {
           </h1>
           <p className="text-muted-foreground text-sm mt-1">Manage employee leave requests and payroll records</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Dialog open={leaveOpen} onOpenChange={setLeaveOpen}>
             <DialogTrigger asChild>
               <Button variant="outline" size="sm" className="gap-2">
@@ -123,7 +123,7 @@ export default function HRLeavePage() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <Label>Start Date</Label>
                     <Input type="date" value={leaveForm.startDate} onChange={(e) => setLeaveForm({ ...leaveForm, startDate: e.target.value })} />
@@ -181,7 +181,7 @@ export default function HRLeavePage() {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <Label>Month</Label>
                       <Select value={String(payrollForm.month)} onValueChange={(v) => setPayrollForm({ ...payrollForm, month: Number(v) })}>
@@ -200,7 +200,7 @@ export default function HRLeavePage() {
                       <Input type="number" value={payrollForm.year} onChange={(e) => setPayrollForm({ ...payrollForm, year: Number(e.target.value) })} />
                     </div>
                   </div>
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                     <div>
                       <Label>Basic Salary (OMR)</Label>
                       <Input type="number" placeholder="0.00" value={payrollForm.basicSalary} onChange={(e) => setPayrollForm({ ...payrollForm, basicSalary: e.target.value })} />
@@ -268,7 +268,7 @@ export default function HRLeavePage() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card>
           <CardContent className="p-4">
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               <div className="w-9 h-9 rounded-lg bg-amber-50 flex items-center justify-center">
                 <Clock size={16} className="text-amber-600" />
               </div>
@@ -281,7 +281,7 @@ export default function HRLeavePage() {
         </Card>
         <Card>
           <CardContent className="p-4">
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               <div className="w-9 h-9 rounded-lg bg-green-50 flex items-center justify-center">
                 <CheckCircle2 size={16} className="text-green-600" />
               </div>
@@ -294,7 +294,7 @@ export default function HRLeavePage() {
         </Card>
         <Card>
           <CardContent className="p-4">
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center">
                 <FileText size={16} className="text-blue-600" />
               </div>
@@ -307,7 +307,7 @@ export default function HRLeavePage() {
         </Card>
         <Card>
           <CardContent className="p-4">
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               <div className="w-9 h-9 rounded-lg bg-orange-50 flex items-center justify-center">
                 <DollarSign size={16} className="text-orange-600" />
               </div>
@@ -359,7 +359,7 @@ export default function HRLeavePage() {
                       <div className="flex items-start gap-3">
                         <div className="mt-0.5">{statusIcons[req.status ?? "pending"]}</div>
                         <div>
-                          <div className="flex items-center gap-2">
+                          <div className="flex flex-wrap items-center gap-2">
                             <span className="font-medium text-sm">Employee #{req.employeeId}</span>
                             <Badge className={`text-[10px] capitalize ${leaveTypeColors[req.leaveType ?? "annual"] ?? "bg-gray-100 text-gray-700"}`} variant="outline">
                               {req.leaveType}
@@ -372,7 +372,7 @@ export default function HRLeavePage() {
                           {req.reason && <p className="text-xs text-muted-foreground mt-1 italic">"{req.reason}"</p>}
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         <Badge className={`text-[10px] capitalize ${
                           req.status === "approved" ? "bg-green-100 text-green-700" :
                           req.status === "rejected" ? "bg-red-100 text-red-700" :
@@ -381,7 +381,7 @@ export default function HRLeavePage() {
                           {req.status}
                         </Badge>
                         {isAdmin && req.status === "pending" && (
-                          <div className="flex gap-1">
+                          <div className="flex flex-wrap gap-1">
                             <Button
                               size="sm"
                               variant="outline"

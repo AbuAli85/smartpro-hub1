@@ -227,7 +227,7 @@ export default function WorkforcePermitsPage() {
                           </span>
                         </td>
                         <td className="px-4 py-3">
-                          <div className="flex gap-1">
+                          <div className="flex flex-wrap gap-1">
                             <Button
                               variant="ghost"
                               size="sm"
@@ -260,7 +260,7 @@ export default function WorkforcePermitsPage() {
           {!isLoading && permits.length > 0 && (
             <div className="flex items-center justify-between px-4 py-3 border-t">
               <p className="text-xs text-muted-foreground">Showing {permits.length} permits</p>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <Button variant="outline" size="sm" disabled={page === 1} onClick={() => setPage(p => p - 1)}>Previous</Button>
                 <Button variant="outline" size="sm" disabled={permits.length < 20} onClick={() => setPage(p => p + 1)}>Next</Button>
               </div>
@@ -276,7 +276,7 @@ export default function WorkforcePermitsPage() {
             <DialogTitle>Upload MOL Work Permit Certificate</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <Label className="text-xs">Employee ID *</Label>
                 <Input

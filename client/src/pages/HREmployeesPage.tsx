@@ -48,7 +48,7 @@ function NewEmployeeDialog({ onSuccess }: { onSuccess: () => void }) {
           <DialogTitle>Add New Employee</DialogTitle>
         </DialogHeader>
         <div className="space-y-4 mt-2">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label>First Name *</Label>
               <Input value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} />
@@ -58,7 +58,7 @@ function NewEmployeeDialog({ onSuccess }: { onSuccess: () => void }) {
               <Input value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label>Email</Label>
               <Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
@@ -68,7 +68,7 @@ function NewEmployeeDialog({ onSuccess }: { onSuccess: () => void }) {
               <Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label>Nationality</Label>
               <Input value={form.nationality} onChange={(e) => setForm({ ...form, nationality: e.target.value })} />
@@ -78,7 +78,7 @@ function NewEmployeeDialog({ onSuccess }: { onSuccess: () => void }) {
               <Input value={form.passportNumber} onChange={(e) => setForm({ ...form, passportNumber: e.target.value })} />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label>Department</Label>
               <Input placeholder="e.g. Operations" value={form.department} onChange={(e) => setForm({ ...form, department: e.target.value })} />
@@ -88,7 +88,7 @@ function NewEmployeeDialog({ onSuccess }: { onSuccess: () => void }) {
               <Input placeholder="e.g. PRO Officer" value={form.position} onChange={(e) => setForm({ ...form, position: e.target.value })} />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label>Employment Type</Label>
               <Select value={form.employmentType} onValueChange={(v) => setForm({ ...form, employmentType: v as any })}>
@@ -106,7 +106,7 @@ function NewEmployeeDialog({ onSuccess }: { onSuccess: () => void }) {
               <Input type="date" value={form.hireDate} onChange={(e) => setForm({ ...form, hireDate: e.target.value })} />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label>Salary</Label>
               <Input type="number" placeholder="0.00" value={form.salary} onChange={(e) => setForm({ ...form, salary: e.target.value })} />

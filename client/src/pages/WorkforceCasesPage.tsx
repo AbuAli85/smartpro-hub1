@@ -140,7 +140,7 @@ export default function WorkforceCasesPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Case List */}
         <div className="lg:col-span-2 space-y-4">
-          <div className="flex gap-3">
+          <div className="flex flex-wrap gap-3">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
@@ -236,7 +236,7 @@ export default function WorkforceCasesPage() {
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-3 text-sm">
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <div>
                       <p className="text-xs text-muted-foreground">Type</p>
                       <p className="font-medium">{CASE_TYPE_LABELS[caseDetail.case.caseType] ?? caseDetail.case.caseType}</p>

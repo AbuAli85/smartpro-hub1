@@ -87,7 +87,7 @@ function OfficerSelectorCard({ officer, selected, onClick }: {
           : "border-border/50 bg-card/60 hover:border-border"
       }`}
     >
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <CapacityRing pct={officer.capacityPct} active={officer.activeAssignments} max={officer.maxCompanies} />
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-foreground truncate">{officer.fullName}</p>
@@ -151,7 +151,7 @@ function AssignCompanyDialog({ open, onClose, officer }: {
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
+          <DialogTitle className="flex flex-wrap items-center gap-2">
             <UserCheck className="w-5 h-5 text-emerald-400" />
             Assign Company to {officer?.fullName}
           </DialogTitle>
@@ -205,7 +205,7 @@ function AssignCompanyDialog({ open, onClose, officer }: {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>Monthly Fee (OMR)</Label>
               <Input value={monthlyFee} onChange={(e) => setMonthlyFee(Number(e.target.value))}
@@ -252,7 +252,7 @@ function CertificateDialog({ open, onClose, companyId, companyName }: {
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
+          <DialogTitle className="flex flex-wrap items-center gap-2">
             <FileText className="w-5 h-5 text-blue-400" />
             Compliance Certificate — {companyName}
           </DialogTitle>
@@ -263,7 +263,7 @@ function CertificateDialog({ open, onClose, companyId, companyName }: {
             <p className="text-sm text-muted-foreground">
               Generate a Ministry of Labour compliance certificate confirming that this company has an active Omani PRO officer assigned through the SmartPRO Shared Omani PRO programme.
             </p>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>Month</Label>
                 <Select value={String(month)} onValueChange={(v) => setMonth(Number(v))}>
@@ -497,7 +497,7 @@ export default function OfficerAssignmentPage() {
                 <Card className="border-border/50 bg-card/60">
                   <CardContent className="p-5">
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-4">
+                      <div className="flex flex-wrap items-center gap-4">
                         <CapacityRing
                           pct={selectedOfficer.capacityPct}
                           active={selectedOfficer.activeAssignments}
@@ -510,15 +510,15 @@ export default function OfficerAssignmentPage() {
                             <p className="text-sm text-muted-foreground" dir="rtl">{selectedOfficer.fullNameAr}</p>
                           )}
                           <div className="flex items-center gap-3 mt-1.5 text-xs text-muted-foreground">
-                            <span className="flex items-center gap-1">
+                            <span className="flex flex-wrap items-center gap-1">
                               <Building2 className="w-3 h-3" />
                               {selectedOfficer.activeAssignments} companies
                             </span>
-                            <span className="flex items-center gap-1">
+                            <span className="flex flex-wrap items-center gap-1">
                               <Wallet className="w-3 h-3" />
                               OMR {totalRevenue.toFixed(3)}/mo revenue
                             </span>
-                            <span className="flex items-center gap-1">
+                            <span className="flex flex-wrap items-center gap-1">
                               <TrendingUp className="w-3 h-3" />
                               OMR {(totalRevenue - selectedOfficer.monthlySalary).toFixed(3)}/mo net
                             </span>
@@ -539,7 +539,7 @@ export default function OfficerAssignmentPage() {
                 <Card className="border-border/50">
                   <CardHeader className="pb-3">
                     <CardTitle className="text-sm flex items-center justify-between">
-                      <span className="flex items-center gap-2">
+                      <span className="flex flex-wrap items-center gap-2">
                         <CheckCircle2 className="w-4 h-4 text-emerald-400" />
                         Active Assignments ({activeAssignments.length})
                       </span>
@@ -573,7 +573,7 @@ export default function OfficerAssignmentPage() {
                         {activeAssignments.map((a) => (
                           <div key={a.id}
                             className="flex items-center justify-between p-3.5 rounded-xl bg-muted/20 border border-border/40 hover:border-border/60 transition-colors">
-                            <div className="flex items-center gap-3">
+                            <div className="flex flex-wrap items-center gap-3">
                               <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-emerald-500/20 to-emerald-600/10 border border-emerald-500/20 flex items-center justify-center shrink-0">
                                 <span className="text-sm font-bold text-emerald-400">
                                   {a.companyName.charAt(0)}
@@ -586,7 +586,7 @@ export default function OfficerAssignmentPage() {
                                 </p>
                               </div>
                             </div>
-                            <div className="flex items-center gap-2">
+                            <div className="flex flex-wrap items-center gap-2">
                               <div className="text-right">
                                 <p className="text-xs font-medium text-foreground">OMR {a.monthlyFee.toFixed(3)}/mo</p>
                                 <p className="text-[10px] text-muted-foreground">

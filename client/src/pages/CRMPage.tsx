@@ -47,7 +47,7 @@ function NewContactDialog({ onSuccess }: { onSuccess: () => void }) {
       <DialogContent className="max-w-md">
         <DialogHeader><DialogTitle>Add New Contact</DialogTitle></DialogHeader>
         <div className="space-y-4 mt-2">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label>First Name *</Label>
               <Input value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} />
@@ -57,7 +57,7 @@ function NewContactDialog({ onSuccess }: { onSuccess: () => void }) {
               <Input value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label>Email</Label>
               <Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
@@ -67,7 +67,7 @@ function NewContactDialog({ onSuccess }: { onSuccess: () => void }) {
               <Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label>Company</Label>
               <Input value={form.company} onChange={(e) => setForm({ ...form, company: e.target.value })} />
@@ -132,7 +132,7 @@ function NewDealDialog({ onSuccess }: { onSuccess: () => void }) {
             <Label>Deal Title *</Label>
             <Input placeholder="e.g. PRO Services Package" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label>Deal Value</Label>
               <Input type="number" placeholder="0.00" value={form.value} onChange={(e) => setForm({ ...form, value: e.target.value })} />
@@ -149,7 +149,7 @@ function NewDealDialog({ onSuccess }: { onSuccess: () => void }) {
               </Select>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label>Stage</Label>
               <Select value={form.stage} onValueChange={(v) => setForm({ ...form, stage: v as any })}>
@@ -230,7 +230,7 @@ export default function CRMPage() {
           </h1>
           <p className="text-muted-foreground text-sm mt-1">Contacts, deals and sales pipeline management</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <NewDealDialog onSuccess={refetchDeals} />
           <NewContactDialog onSuccess={refetchContacts} />
         </div>

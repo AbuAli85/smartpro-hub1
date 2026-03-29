@@ -46,7 +46,7 @@ function NewCompanyDialog({ onSuccess }: { onSuccess: () => void }) {
             <Label>Legal Name</Label>
             <Input value={form.legalName} onChange={(e) => setForm({ ...form, legalName: e.target.value })} />
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label>Registration Number</Label>
               <Input value={form.registrationNumber} onChange={(e) => setForm({ ...form, registrationNumber: e.target.value })} />
@@ -66,7 +66,7 @@ function NewCompanyDialog({ onSuccess }: { onSuccess: () => void }) {
               </Select>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label>City</Label>
               <Input value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} />
@@ -76,7 +76,7 @@ function NewCompanyDialog({ onSuccess }: { onSuccess: () => void }) {
               <Input placeholder="e.g. Business Services" value={form.industry} onChange={(e) => setForm({ ...form, industry: e.target.value })} />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label>Phone</Label>
               <Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
@@ -198,7 +198,7 @@ export default function AdminPage() {
         </TabsList>
 
         <TabsContent value="companies" className="space-y-4">
-          <div className="flex gap-3">
+          <div className="flex flex-wrap gap-3">
             <div className="relative flex-1">
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
               <Input placeholder="Search companies..." className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
@@ -457,7 +457,7 @@ export default function AdminPage() {
                   </div>
                 ))}
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <Button size="sm" className="gap-2" onClick={() => toast.success("Integration keys saved")}>
                   <CheckCircle2 size={14} /> Save Keys
                 </Button>

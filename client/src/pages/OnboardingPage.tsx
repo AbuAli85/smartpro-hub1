@@ -83,7 +83,7 @@ export default function OnboardingPage() {
         {/* Step Indicator */}
         <div className="flex items-center justify-center gap-2 mb-8">
           {STEPS.map((s, i) => (
-            <div key={s.id} className="flex items-center gap-2">
+            <div key={s.id} className="flex flex-wrap items-center gap-2">
               <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
                 step === s.id ? "bg-[var(--smartpro-orange)] text-white" :
                 step > s.id ? "bg-green-500 text-white" : "bg-white/10 text-white/50"
@@ -177,7 +177,7 @@ export default function OnboardingPage() {
                   <p className="font-medium mb-2">Creating workspace for:</p>
                   <p className="text-muted-foreground">{company.name} · {company.industry} · {company.country}</p>
                 </div>
-                <div className="flex gap-3">
+                <div className="flex flex-wrap gap-3">
                   <Button variant="outline" className="gap-2" onClick={() => setStep(1)}>
                     <ArrowLeft size={16} /> Back
                   </Button>

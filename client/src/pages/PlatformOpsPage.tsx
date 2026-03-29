@@ -168,7 +168,7 @@ function FinanceView() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <Select value={String(ebitdaYear)} onValueChange={(v) => setEbitdaYear(Number(v))}>
                 <SelectTrigger className="h-8 text-xs w-24">
                   <SelectValue />
@@ -513,7 +513,7 @@ function UsersView() {
                   <Badge variant="outline" className={`text-xs font-medium ${roleColors[r.role] ?? "bg-gray-100 text-gray-700"}`}>
                     {r.role.replace(/_/g, " ")}
                   </Badge>
-                  <div className="flex items-center gap-3">
+                  <div className="flex flex-wrap items-center gap-3">
                     <div className="w-32 h-2 bg-muted rounded-full overflow-hidden">
                       <div
                         className="h-full bg-primary rounded-full"

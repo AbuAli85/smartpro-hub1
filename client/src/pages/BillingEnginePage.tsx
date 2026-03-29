@@ -458,7 +458,7 @@ export default function BillingEnginePage() {
       <Dialog open={showGenDialog} onOpenChange={setShowGenDialog}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
+            <DialogTitle className="flex flex-wrap items-center gap-2">
               <FileText size={18} />
               Generate Monthly Invoices
             </DialogTitle>
@@ -468,7 +468,7 @@ export default function BillingEnginePage() {
               This will create OMR 100 invoices for all active officer-company assignments for the selected period.
               Existing invoices are skipped automatically.
             </p>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <Label className="text-xs">Month</Label>
                 <Select value={genMonth} onValueChange={setGenMonth}>
@@ -513,7 +513,7 @@ export default function BillingEnginePage() {
       <Dialog open={showPayoutDialog} onOpenChange={setShowPayoutDialog}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
+            <DialogTitle className="flex flex-wrap items-center gap-2">
               <Wallet size={18} />
               Calculate Officer Payout
             </DialogTitle>
@@ -529,7 +529,7 @@ export default function BillingEnginePage() {
                 onChange={(e) => setPayoutOfficerId(e.target.value)}
               />
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <Label className="text-xs">Month</Label>
                 <Select value={genMonth} onValueChange={setGenMonth}>
@@ -557,7 +557,7 @@ export default function BillingEnginePage() {
                 </Select>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <Label className="text-xs">Commission % (Track A)</Label>
                 <Input className="mt-1" type="number" value={payoutCommPct} onChange={(e) => setPayoutCommPct(e.target.value)} />

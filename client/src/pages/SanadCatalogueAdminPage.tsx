@@ -237,7 +237,7 @@ export default function SanadCatalogueAdminPage() {
           </p>
         </div>
         {myOffice && (
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {(myOffice as any).isPublicListed === 1 ? (
               <Badge className="bg-green-100 text-green-700 border-green-200">
                 <CheckCircle className="h-3 w-3 mr-1" /> Listed
@@ -278,7 +278,7 @@ export default function SanadCatalogueAdminPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-1.5">
                       <Label>Centre Name (English) *</Label>
                       <Input value={profileForm.name} onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })} placeholder="Al Noor PRO Services" />
@@ -288,7 +288,7 @@ export default function SanadCatalogueAdminPage() {
                       <Input value={profileForm.nameAr} onChange={(e) => setProfileForm({ ...profileForm, nameAr: e.target.value })} placeholder="خدمات النور للعلاقات العامة" dir="rtl" />
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-1.5">
                       <Label>Provider Type *</Label>
                       <Select value={profileForm.providerType} onValueChange={(v) => setProfileForm({ ...profileForm, providerType: v })}>
@@ -321,7 +321,7 @@ export default function SanadCatalogueAdminPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-1.5">
                       <Label>City</Label>
                       <Input value={profileForm.city} onChange={(e) => setProfileForm({ ...profileForm, city: e.target.value })} placeholder="Muscat" />
@@ -340,7 +340,7 @@ export default function SanadCatalogueAdminPage() {
                     <Label>Full Address</Label>
                     <Input value={profileForm.location} onChange={(e) => setProfileForm({ ...profileForm, location: e.target.value })} placeholder="Building, Street, Area" />
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-1.5">
                       <Label><Phone className="h-3.5 w-3.5 inline mr-1" />Phone</Label>
                       <Input value={profileForm.phone} onChange={(e) => setProfileForm({ ...profileForm, phone: e.target.value })} placeholder="+968 XXXX XXXX" />
@@ -350,7 +350,7 @@ export default function SanadCatalogueAdminPage() {
                       <Input type="email" value={profileForm.email} onChange={(e) => setProfileForm({ ...profileForm, email: e.target.value })} placeholder="info@centre.om" />
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-1.5">
                       <Label><Globe className="h-3.5 w-3.5 inline mr-1" />Website</Label>
                       <Input value={profileForm.website} onChange={(e) => setProfileForm({ ...profileForm, website: e.target.value })} placeholder="https://yourcentre.om" />
@@ -360,7 +360,7 @@ export default function SanadCatalogueAdminPage() {
                       <Input value={profileForm.contactPerson} onChange={(e) => setProfileForm({ ...profileForm, contactPerson: e.target.value })} placeholder="Manager name" />
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-1.5">
                       <Label><Clock className="h-3.5 w-3.5 inline mr-1" />Opening Hours</Label>
                       <Input value={profileForm.openingHours} onChange={(e) => setProfileForm({ ...profileForm, openingHours: e.target.value })} placeholder="Sun–Thu 8am–5pm" />
@@ -489,7 +489,7 @@ export default function SanadCatalogueAdminPage() {
         <DialogContent className="max-w-lg">
           <DialogHeader><DialogTitle>Add Service to Catalogue</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>Service Name (EN) *</Label>
                 <Input value={form.serviceName} onChange={(e) => setForm({ ...form, serviceName: e.target.value })} placeholder="Work Permit Renewal" />
@@ -499,7 +499,7 @@ export default function SanadCatalogueAdminPage() {
                 <Input value={form.serviceNameAr} onChange={(e) => setForm({ ...form, serviceNameAr: e.target.value })} dir="rtl" placeholder="تجديد تصريح العمل" />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>Service Type *</Label>
                 <Select value={form.serviceType} onValueChange={(v) => setForm({ ...form, serviceType: v })}>
@@ -538,7 +538,7 @@ export default function SanadCatalogueAdminPage() {
           <DialogContent className="max-w-lg">
             <DialogHeader><DialogTitle>Edit Service</DialogTitle></DialogHeader>
             <div className="space-y-4 py-2">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label>Service Name (EN) *</Label>
                   <Input value={editItem.serviceName} onChange={(e) => setEditItem({ ...editItem, serviceName: e.target.value })} />
@@ -548,7 +548,7 @@ export default function SanadCatalogueAdminPage() {
                   <Input value={editItem.serviceNameAr ?? ""} onChange={(e) => setEditItem({ ...editItem, serviceNameAr: e.target.value })} dir="rtl" />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label>Service Type *</Label>
                   <Select value={editItem.serviceType} onValueChange={(v) => setEditItem({ ...editItem, serviceType: v })}>

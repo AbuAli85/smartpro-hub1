@@ -299,12 +299,12 @@ export default function ExpiryAlertsPage() {
                   <p className={`text-sm ${sev.color}`}>{alert.description}</p>
                   <div className="flex flex-wrap items-center gap-3 mt-1.5 text-xs text-muted-foreground">
                     {alert.companyName && (
-                      <span className="flex items-center gap-1">
+                      <span className="flex flex-wrap items-center gap-1">
                         <Building2 size={11} />
                         {alert.companyName}
                       </span>
                     )}
-                    <span className="flex items-center gap-1">
+                    <span className="flex flex-wrap items-center gap-1">
                       <Clock size={11} />
                       Expires {expDate.toLocaleDateString("en-OM", { day: "numeric", month: "short", year: "numeric" })}
                     </span>

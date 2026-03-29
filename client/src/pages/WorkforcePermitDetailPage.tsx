@@ -140,7 +140,7 @@ export default function WorkforcePermitDetailPage() {
           <Badge className={`text-xs border ${statusColor(p.status)}`}>
             {p.status?.replace(/_/g, " ")}
           </Badge>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             {canRenew && (
               <Button size="sm" variant="outline" onClick={() => setRenewDialog(true)} className="gap-2">
                 <RefreshCw className="w-4 h-4" />
@@ -179,7 +179,7 @@ export default function WorkforcePermitDetailPage() {
         )}
 
         {/* Key metrics */}
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
           {[
             {
               label: "Days Remaining",
@@ -213,7 +213,7 @@ export default function WorkforcePermitDetailPage() {
         </div>
 
         {/* Details grid */}
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Card className="shadow-sm">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm flex items-center gap-2">
@@ -323,7 +323,7 @@ export default function WorkforcePermitDetailPage() {
       <Dialog open={renewDialog} onOpenChange={setRenewDialog}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
+            <DialogTitle className="flex flex-wrap items-center gap-2">
               <RefreshCw className="w-5 h-5 text-primary" />
               Renew Work Permit
             </DialogTitle>

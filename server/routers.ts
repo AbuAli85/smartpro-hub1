@@ -14,8 +14,14 @@ import { sanadRouter } from "./routers/sanad";
 import { workforceRouter } from "./routers/workforce";
 import { officersRouter } from "./routers/officers";
 import { billingRouter } from "./routers/billing";
+import { renewalWorkflowsRouter } from "./routers/renewalWorkflows";
+import { ratingsRouter } from "./routers/ratings";
+import { reportsRouter } from "./routers/reports";
 import { alertsRouter } from "./routers/alerts";
 import { platformOpsRouter } from "./routers/platformOps";
+import { payrollRouter } from "./routers/payroll";
+import { recruitmentRouter } from "./routers/recruitment";
+import { clientPortalRouter } from "./routers/clientPortal";
 
 export const appRouter = router({
   system: systemRouter,
@@ -41,8 +47,14 @@ export const appRouter = router({
   workforce: workforceRouter,
   officers: officersRouter,
   billing: billingRouter,
+  renewalWorkflows: renewalWorkflowsRouter,
+  ratings: ratingsRouter,
+  reports: reportsRouter,
   alerts: alertsRouter,
   platformOps: platformOpsRouter,
+  payroll: payrollRouter,
+  recruitment: recruitmentRouter,
+  clientPortal: clientPortalRouter,
 });
 
 export type AppRouter = typeof appRouter;

@@ -41,8 +41,13 @@ import SanadMarketplacePage from "./pages/SanadMarketplacePage";
 import SanadCentreProfilePage from "./pages/SanadCentreProfilePage";
 import SanadCatalogueAdminPage from "./pages/SanadCatalogueAdminPage";
 import BillingEnginePage from "./pages/BillingEnginePage";
-import ExpiryAlertsPage from "./pages/ExpiryAlertsPage";
+import ExpiryAlertsPage from "@/pages/ExpiryAlertsPage";
+import RenewalWorkflowsPage from "@/pages/RenewalWorkflowsPage";
 import PlatformOpsPage from "./pages/PlatformOpsPage";
+import PayrollEnginePage from "./pages/PayrollEnginePage";
+import SanadRatingsModerationPage from "./pages/SanadRatingsModerationPage";
+import ReportsPage from "./pages/ReportsPage";
+import AuditLogPage from "./pages/AuditLogPage";
 
 function AppRoutes() {
   return (
@@ -85,7 +90,12 @@ function AppRoutes() {
         <Route path="/sanad/catalogue-admin" component={SanadCatalogueAdminPage} />
         <Route path="/billing" component={BillingEnginePage} />
         <Route path="/alerts" component={ExpiryAlertsPage} />
+          <Route path="/renewal-workflows" component={RenewalWorkflowsPage} />
         <Route path="/platform-ops" component={PlatformOpsPage} />
+        <Route path="/payroll" component={PayrollEnginePage} />
+        <Route path="/sanad/ratings-moderation" component={SanadRatingsModerationPage} />
+        <Route path="/reports" component={ReportsPage} />
+        <Route path="/audit-log" component={AuditLogPage} />
         <Route path="/sanad/centre/:id" component={SanadCentreProfilePage} />
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />

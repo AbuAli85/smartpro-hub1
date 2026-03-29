@@ -56,7 +56,7 @@ const SERVICE_TYPE_LABELS: Record<string, string> = {
 function StarRating({ rating, count }: { rating: number | string | null; count?: number }) {
   const r = Number(rating ?? 0);
   return (
-    <div className="flex items-center gap-1">
+    <div className="flex flex-wrap items-center gap-1">
       {[1,2,3,4,5].map((s) => (
         <Star key={s} className={`h-3.5 w-3.5 ${s <= Math.round(r) ? "fill-amber-400 text-amber-400" : "text-gray-300"}`} />
       ))}
@@ -78,7 +78,7 @@ function ProviderCard({ office }: { office: any }) {
         <CardContent className="p-0">
           <div className="relative bg-gradient-to-r from-gray-900 to-gray-700 rounded-t-lg p-4 pb-8">
             <div className="flex items-start justify-between">
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center gap-3">
                 <div className="h-12 w-12 rounded-xl bg-white/10 backdrop-blur flex items-center justify-center border border-white/20">
                   {office.logoUrl
                     ? <img src={office.logoUrl} alt={office.name} className="h-10 w-10 rounded-lg object-cover" />
@@ -174,7 +174,7 @@ function ProviderCardSkeleton() {
           <Skeleton className="h-4 w-24" />
           <Skeleton className="h-3 w-32" />
           <Skeleton className="h-3 w-40" />
-          <div className="flex gap-1">
+          <div className="flex flex-wrap gap-1">
             <Skeleton className="h-5 w-20 rounded-full" />
             <Skeleton className="h-5 w-16 rounded-full" />
           </div>
@@ -242,15 +242,15 @@ export default function SanadMarketplacePage() {
             Compare services, check ratings, and request help — all in one place.
           </p>
           <div className="flex flex-wrap justify-center gap-8 text-sm text-gray-400">
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <Building2 className="h-4 w-4 text-red-400" />
               <span><strong className="text-white">{providers.length}</strong> registered centres</span>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <CheckCircle className="h-4 w-4 text-green-400" />
               <span><strong className="text-white">{providers.filter((p) => p.isVerified).length}</strong> verified</span>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <MapPin className="h-4 w-4 text-amber-400" />
               <span><strong className="text-white">{GOVERNORATES.length}</strong> governorates covered</span>
             </div>

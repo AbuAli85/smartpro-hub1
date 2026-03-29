@@ -225,7 +225,7 @@ export default function WorkforceDocumentsPage() {
               }`}>
                 <CardContent className="p-4 space-y-3">
                   <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <div className="p-2 rounded-lg bg-muted">
                         <FileText className="w-4 h-4 text-primary" />
                       </div>
@@ -306,14 +306,14 @@ export default function WorkforceDocumentsPage() {
               <Label>File *</Label>
               <input ref={fileRef} type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden"
                 onChange={e => setSelectedFile(e.target.files?.[0] ?? null)} />
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <Button variant="outline" className="flex-1" onClick={() => fileRef.current?.click()}>
                   <Upload className="w-4 h-4 mr-2" />
                   {selectedFile ? selectedFile.name : "Choose File"}
                 </Button>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>Issue Date</Label>
                 <Input type="date" value={uploadForm.issuedAt}

@@ -57,7 +57,7 @@ export default function WorkforceEmployeesPage() {
           <h1 className="text-2xl font-bold">Workforce Employees</h1>
           <p className="text-muted-foreground text-sm mt-0.5">MOL-enhanced employee profiles with permit health indicators</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button variant="outline" size="sm" onClick={() => refetch()}>
             <RefreshCw className="w-4 h-4 mr-2" />
             Refresh
@@ -167,7 +167,7 @@ export default function WorkforceEmployeesPage() {
                           {emp.occupationTitle ?? "—"}
                         </td>
                         <td className="px-4 py-3">
-                          <div className="flex gap-1">
+                          <div className="flex flex-wrap gap-1">
                             <Button
                               variant="ghost"
                               size="sm"
@@ -200,7 +200,7 @@ export default function WorkforceEmployeesPage() {
               <p className="text-xs text-muted-foreground">
                 Showing {employees.length} employees
               </p>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <Button variant="outline" size="sm" disabled={page === 1} onClick={() => setPage(p => p - 1)}>Previous</Button>
                 <Button variant="outline" size="sm" disabled={employees.length < 20} onClick={() => setPage(p => p + 1)}>Next</Button>
               </div>

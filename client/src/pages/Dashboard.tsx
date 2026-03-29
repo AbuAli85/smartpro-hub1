@@ -74,7 +74,7 @@ function QuickActionCard({
               {icon}
             </div>
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <h3 className="font-semibold text-sm">{title}</h3>
                 {count !== undefined && count > 0 && (
                   <Badge variant="secondary" className="text-xs px-1.5 py-0">
@@ -277,7 +277,7 @@ export default function Dashboard() {
               <div className="space-y-2">
                 {expiringDocs.slice(0, 5).map((doc) => (
                   <div key={doc.id} className="flex items-center justify-between py-1.5 border-b border-amber-100 last:border-0">
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <AlertTriangle size={14} className="text-amber-600 shrink-0" />
                       <div>
                         <span className="text-sm font-medium">{doc.employeeName}</span>

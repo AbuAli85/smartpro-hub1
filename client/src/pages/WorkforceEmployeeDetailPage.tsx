@@ -114,7 +114,7 @@ export default function WorkforceEmployeeDetailPage() {
 
       <div className="max-w-4xl mx-auto px-6 py-6 space-y-6">
         {/* Summary cards */}
-        <div className="grid grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
             { label: "Active Permits", value: permits.filter((p: any) => p.status === "active").length, icon: Shield, color: "text-emerald-600" },
             { label: "Open Cases", value: cases.filter((c: any) => c.status !== "closed" && c.status !== "completed").length, icon: FileText, color: "text-blue-600" },
@@ -148,7 +148,7 @@ export default function WorkforceEmployeeDetailPage() {
 
           {/* Profile Tab */}
           <TabsContent value="profile" className="space-y-4 mt-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Card className="shadow-sm">
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm flex items-center gap-2">

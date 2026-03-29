@@ -155,7 +155,7 @@ export default function WorkforcePermitUploadPage() {
 
       <div className="max-w-3xl mx-auto px-6 py-8 space-y-8">
         {/* Progress Steps */}
-        <div className="flex items-center gap-0">
+        <div className="flex flex-wrap items-center gap-0">
           {steps.map((s, idx) => (
             <div key={s.id} className="flex items-center flex-1">
               <div className="flex flex-col items-center gap-1">
@@ -200,7 +200,7 @@ export default function WorkforcePermitUploadPage() {
                 <Info className="w-4 h-4 mt-0.5 shrink-0" />
                 <span>At least one identifier is required. Civil ID is preferred for MOL alignment.</span>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="employeeId">Employee System ID</Label>
                   <Input
@@ -246,7 +246,7 @@ export default function WorkforcePermitUploadPage() {
             </CardHeader>
             <CardContent className="space-y-5">
               {/* Core permit fields */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="permitNumber">
                     Permit Number <span className="text-destructive">*</span>
@@ -274,7 +274,7 @@ export default function WorkforcePermitUploadPage() {
               </div>
 
               {/* Occupation */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Occupation Code</Label>
                   <Select value={form.occupationCode} onValueChange={(v) => {
@@ -304,7 +304,7 @@ export default function WorkforcePermitUploadPage() {
               </div>
 
               {/* Dates */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="issueDate">Issue Date</Label>
                   <Input
@@ -328,7 +328,7 @@ export default function WorkforcePermitUploadPage() {
               </div>
 
               {/* Sponsor */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="sponsorName">Sponsor / Employer Name</Label>
                   <Input
@@ -350,7 +350,7 @@ export default function WorkforcePermitUploadPage() {
               </div>
 
               {/* Location */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="governorate">Governorate</Label>
                   <Input

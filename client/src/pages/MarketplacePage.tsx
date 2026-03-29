@@ -14,7 +14,7 @@ import { toast } from "sonner";
 
 function StarRating({ value, onChange }: { value: number; onChange: (v: number) => void }) {
   return (
-    <div className="flex gap-1">
+    <div className="flex flex-wrap gap-1">
       {[1, 2, 3, 4, 5].map((star) => (
         <button key={star} type="button" onClick={() => onChange(star)}>
           <Star size={20} className={star <= value ? "text-amber-400 fill-amber-400" : "text-muted-foreground"} />
@@ -40,7 +40,7 @@ function ReviewDialog({ booking, onSuccess }: { booking: any; onSuccess: () => v
 
   if (booking.rating) {
     return (
-      <div className="flex items-center gap-1">
+      <div className="flex flex-wrap items-center gap-1">
         {[1, 2, 3, 4, 5].map((s) => (
           <Star key={s} size={13} className={s <= (booking.rating ?? 0) ? "text-amber-400 fill-amber-400" : "text-muted-foreground"} />
         ))}
@@ -217,7 +217,7 @@ export default function MarketplacePage() {
                       <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white font-bold text-lg">
                         {provider.businessName?.charAt(0)}
                       </div>
-                      <div className="flex items-center gap-1">
+                      <div className="flex flex-wrap items-center gap-1">
                         {provider.isVerified && (
                           <Badge className="bg-blue-50 text-blue-700 text-xs gap-1" variant="outline">
                             <CheckCircle2 size={10} /> Verified
@@ -246,7 +246,7 @@ export default function MarketplacePage() {
                       )}
                     </div>
                     <div className="flex items-center justify-between mt-4 pt-3 border-t">
-                      <div className="flex items-center gap-1">
+                      <div className="flex flex-wrap items-center gap-1">
                         <Star size={13} className="text-amber-400 fill-amber-400" />
                         <span className="text-xs font-medium">{provider.rating ? Number(provider.rating).toFixed(1) : "New"}</span>
                         {provider.reviewCount && provider.reviewCount > 0 && (

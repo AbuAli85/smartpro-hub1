@@ -188,7 +188,7 @@ export default function HRAttendancePage() {
           </h1>
           <p className="text-muted-foreground text-sm mt-1">Monitor employee attendance, punctuality, and presence</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button size="sm" variant="outline" className="gap-2" onClick={() => toast.info("Export feature coming soon")}>
             <Download size={14} /> Export
           </Button>
@@ -285,7 +285,7 @@ export default function HRAttendancePage() {
               <div className="space-y-2 max-h-64 overflow-y-auto">
                 {todayRecords.map((r) => (
                   <div key={r.id} className="flex items-center justify-between py-1.5 border-b last:border-0">
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <div className="w-7 h-7 rounded-full bg-muted flex items-center justify-center text-xs font-bold">
                         {String(r.employeeId ?? "?").slice(0, 1)}
                       </div>
@@ -355,7 +355,7 @@ export default function HRAttendancePage() {
                         </td>
                         <td className="py-2 px-3 text-muted-foreground text-xs max-w-[120px] truncate">{r.notes ?? "—"}</td>
                         <td className="py-2 px-3">
-                          <div className="flex gap-1">
+                          <div className="flex flex-wrap gap-1">
                             <EditAttendanceDialog
                               record={{ id: r.id, status: r.status ?? "present", notes: r.notes ?? null }}
                               onSuccess={refetch}

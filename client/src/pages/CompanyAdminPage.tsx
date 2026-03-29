@@ -270,7 +270,7 @@ export default function CompanyAdminPage() {
       <div className="border-b bg-card">
         <div className="max-w-6xl mx-auto px-6 py-5">
           <div className="flex items-start justify-between gap-4">
-            <div className="flex items-center gap-4">
+            <div className="flex flex-wrap items-center gap-4">
               <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
                 <Building2 className="w-6 h-6 text-primary" />
               </div>
@@ -287,7 +287,7 @@ export default function CompanyAdminPage() {
                 </div>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               {profileDirty && (
                 <Button onClick={handleProfileSave} disabled={updateCompany.isPending} className="gap-2">
                   {updateCompany.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
@@ -559,7 +559,7 @@ export default function CompanyAdminPage() {
                   </CardTitle>
                   <CardDescription>Users with active access to this company</CardDescription>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <div className="relative">
                     <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
                     <input
@@ -631,7 +631,7 @@ export default function CompanyAdminPage() {
                         return (
                           <TableRow key={m.memberId} className={isMe ? "bg-primary/5" : ""}>
                             <TableCell>
-                              <div className="flex items-center gap-3">
+                              <div className="flex flex-wrap items-center gap-3">
                                 <Avatar className="w-8 h-8">
                                   <AvatarImage src={m.avatarUrl ?? undefined} />
                                   <AvatarFallback className="text-xs bg-primary/10 text-primary font-semibold">
@@ -734,7 +734,7 @@ export default function CompanyAdminPage() {
                         return (
                           <TableRow key={m.memberId} className="opacity-60">
                             <TableCell>
-                              <div className="flex items-center gap-3">
+                              <div className="flex flex-wrap items-center gap-3">
                                 <Avatar className="w-8 h-8">
                                   <AvatarFallback className="text-xs bg-muted text-muted-foreground font-semibold">
                                     {initials}
@@ -779,7 +779,7 @@ export default function CompanyAdminPage() {
       <Dialog open={addMemberDialog} onOpenChange={setAddMemberDialog}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
+            <DialogTitle className="flex flex-wrap items-center gap-2">
               <UserPlus className="w-5 h-5 text-primary" />
               Add Member
             </DialogTitle>
@@ -807,7 +807,7 @@ export default function CompanyAdminPage() {
             </div>
             <div className="space-y-2">
               <Label>Role</Label>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {(Object.entries(ROLE_CONFIG) as [MemberRole, typeof ROLE_CONFIG[MemberRole]][]).map(([role, cfg]) => (
                   <button
                     key={role}
@@ -847,7 +847,7 @@ export default function CompanyAdminPage() {
       <Dialog open={!!roleDialog} onOpenChange={(o) => !o && setRoleDialog(null)}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
+            <DialogTitle className="flex flex-wrap items-center gap-2">
               <Edit3 className="w-5 h-5 text-primary" />
               Change Role
             </DialogTitle>
@@ -856,7 +856,7 @@ export default function CompanyAdminPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="py-2">
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {(Object.entries(ROLE_CONFIG) as [MemberRole, typeof ROLE_CONFIG[MemberRole]][]).map(([role, cfg]) => (
                 <button
                   key={role}

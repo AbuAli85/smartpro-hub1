@@ -76,7 +76,7 @@ const PIE_COLORS = ["#22c55e", "#f59e0b", "#ef4444", "#60a5fa", "#a78bfa", "#f97
 function CapacityBar({ pct }: { pct: number }) {
   const color = pct >= 90 ? "bg-red-500" : pct >= 60 ? "bg-amber-500" : "bg-emerald-500";
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex flex-wrap items-center gap-2">
       <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
         <div className={`h-full rounded-full transition-all ${color}`} style={{ width: `${Math.min(pct, 100)}%` }} />
       </div>
@@ -88,7 +88,7 @@ function CapacityBar({ pct }: { pct: number }) {
 function StarRating({ value }: { value: number | null }) {
   if (value === null) return <span className="text-xs text-muted-foreground">No ratings</span>;
   return (
-    <div className="flex items-center gap-1">
+    <div className="flex flex-wrap items-center gap-1">
       <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
       <span className="text-sm font-semibold">{value.toFixed(1)}</span>
       <span className="text-xs text-muted-foreground">/5</span>
@@ -187,7 +187,7 @@ export default function SanadOfficeDashboardPage() {
             Monitor officer performance, earnings, and work order metrics
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <Select
             value={String(officeId)}
             onValueChange={(v) => setSelectedOfficeId(Number(v))}
@@ -373,7 +373,7 @@ export default function SanadOfficeDashboardPage() {
                     No work orders yet
                   </div>
                 ) : (
-                  <div className="flex items-center gap-6">
+                  <div className="flex flex-wrap items-center gap-6">
                     <ResponsiveContainer width="50%" height={200}>
                       <PieChart>
                         <Pie

@@ -1,368 +1,669 @@
-import { trpc } from "@/lib/trpc";
-import { useLocation } from "wouter";
 import { useState } from "react";
+import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import {
-  FileText, ShoppingBag, MessageSquare, CheckCircle2, Clock,
-  AlertCircle, Download, Star, Building2, Phone, Mail, Globe
+  FileText, CreditCard, Shield, Building2, ShoppingBag,
+  Bell, MessageSquare, LayoutDashboard, AlertTriangle, CheckCircle2,
+  Clock, XCircle, Download, Send, ChevronRight, Star, Eye, User,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Progress } from "@/components/ui/progress";
+import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
+import { useLocation } from "wouter";
 
-const statusColors: Record<string, string> = {
-  draft: "bg-gray-100 text-gray-700",
-  pending_review: "bg-amber-100 text-amber-700",
-  pending_signature: "bg-blue-100 text-blue-700",
-  signed: "bg-green-100 text-green-700",
-  active: "bg-emerald-100 text-emerald-700",
-  expired: "bg-red-100 text-red-700",
-  confirmed: "bg-green-100 text-green-700",
-  pending: "bg-amber-100 text-amber-700",
-  completed: "bg-blue-100 text-blue-700",
-  cancelled: "bg-gray-100 text-gray-500",
-};
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function fmtDate(d: Date | string | null | undefined) {
+  if (!d) return "—";
+  return new Date(d).toLocaleDateString("en-OM", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+function fmtOMR(n: number | string | null | undefined) {
+  return `OMR ${Number(n ?? 0).toFixed(3)}`;
+}
+
+function severityColor(s: string) {
+  if (s === "critical") return "bg-red-100 text-red-700 border-red-200";
+  if (s === "high") return "bg-orange-100 text-orange-700 border-orange-200";
+  if (s === "medium") return "bg-amber-100 text-amber-700 border-amber-200";
+  return "bg-emerald-100 text-emerald-700 border-emerald-200";
+}
+
+function statusBadge(status: string) {
+  const map: Record<string, string> = {
+    active: "bg-emerald-100 text-emerald-700",
+    signed: "bg-emerald-100 text-emerald-700",
+    pending_signature: "bg-blue-100 text-blue-700",
+    draft: "bg-gray-100 text-gray-600",
+    expired: "bg-red-100 text-red-700",
+    terminated: "bg-red-100 text-red-700",
+    cancelled: "bg-gray-100 text-gray-500",
+    pending: "bg-amber-100 text-amber-700",
+    paid: "bg-emerald-100 text-emerald-700",
+    overdue: "bg-red-100 text-red-700",
+    waived: "bg-gray-100 text-gray-500",
+    confirmed: "bg-emerald-100 text-emerald-700",
+    completed: "bg-blue-100 text-blue-700",
+    in_progress: "bg-blue-100 text-blue-700",
+    assigned: "bg-blue-100 text-blue-700",
+    submitted_to_authority: "bg-purple-100 text-purple-700",
+    awaiting_documents: "bg-amber-100 text-amber-700",
+    approved: "bg-emerald-100 text-emerald-700",
+    rejected: "bg-red-100 text-red-700",
+    action_required: "bg-red-100 text-red-700",
+    in_review: "bg-purple-100 text-purple-700",
+    submitted: "bg-purple-100 text-purple-700",
+  };
+  return map[status] ?? "bg-gray-100 text-gray-600";
+}
+
+function CaseIcon({ status }: { status: string }) {
+  if (["approved", "completed", "signed", "paid"].includes(status))
+    return <CheckCircle2 className="w-4 h-4 text-emerald-500" />;
+  if (["rejected", "cancelled", "terminated"].includes(status))
+    return <XCircle className="w-4 h-4 text-red-500" />;
+  if (["action_required"].includes(status))
+    return <AlertTriangle className="w-4 h-4 text-red-500" />;
+  return <Clock className="w-4 h-4 text-amber-500" />;
+}
+
+function KPICard({ icon: Icon, label, value, sub, color }: {
+  icon: React.ElementType; label: string; value: string | number; sub?: string; color: string;
+}) {
+  return (
+    <Card className="border-0 shadow-sm">
+      <CardContent className="p-5">
+        <div className="flex items-start justify-between">
+          <div>
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">{label}</p>
+            <p className="text-2xl font-bold text-foreground">{value}</p>
+            {sub && <p className="text-xs text-muted-foreground mt-1">{sub}</p>}
+          </div>
+          <div className={`p-2.5 rounded-xl ${color}`}>
+            <Icon className="w-5 h-5" />
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function ClientPortalPage() {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState("overview");
   const [, navigate] = useLocation();
-  const [exportingId, setExportingId] = useState<number | null>(null);
-  const utils = trpc.useUtils();
+  const [activeTab, setActiveTab] = useState("dashboard");
+  const [msgSubject, setMsgSubject] = useState("");
+  const [msgBody, setMsgBody] = useState("");
+  const [msgCategory, setMsgCategory] = useState<"general" | "billing" | "contract" | "pro_service" | "government_case" | "technical">("general");
 
-  const { data: myCompany } = trpc.companies.myCompany.useQuery();
-  const { data: contracts } = trpc.contracts.list.useQuery({});
-  const { data: bookings } = trpc.marketplace.listBookings.useQuery();
-  const { data: proServices } = trpc.pro.list.useQuery({});
+  const { data: dashboard, isLoading: dashLoading } = trpc.clientPortal.getDashboard.useQuery();
+  const { data: contractsData } = trpc.clientPortal.listContracts.useQuery({ pageSize: 50 });
+  const { data: invoicesData } = trpc.clientPortal.listInvoices.useQuery({ pageSize: 50 });
+  const { data: proServicesData } = trpc.clientPortal.listProServices.useQuery({ pageSize: 50 });
+  const { data: govCasesData } = trpc.clientPortal.listGovernmentCases.useQuery({ pageSize: 50 });
+  const { data: bookingsData } = trpc.clientPortal.listBookings.useQuery({ pageSize: 50 });
+  const { data: alertsData } = trpc.clientPortal.getExpiryAlerts.useQuery({ daysAhead: 90 });
+  const { data: messagesData, refetch: refetchMessages } = trpc.clientPortal.listMessages.useQuery({ pageSize: 50 });
 
-  const activeContracts = (contracts ?? []).filter((c) =>
-    ["active", "signed", "pending_signature"].includes(c.status ?? "")
-  );
-  const pendingBookings = (bookings ?? []).filter((b) => b.status === "pending" || b.status === "confirmed");
-  const activeProServices = (proServices ?? []).filter((p) =>
-    ["submitted", "in_progress", "under_review"].includes(p.status ?? "")
-  );
+  const sendMessage = trpc.clientPortal.sendMessage.useMutation({
+    onSuccess: () => {
+      toast.success("Message sent to SmartPRO team");
+      setMsgSubject(""); setMsgBody("");
+      refetchMessages();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const markRead = trpc.clientPortal.markMessageRead.useMutation({
+    onSuccess: () => refetchMessages(),
+  });
+
+  const kpis = dashboard?.kpis;
+  const company = dashboard?.company;
+  const criticalAlerts = (alertsData?.items ?? []).filter(a => a.severity === "critical").length;
+  const overdueInvoices = (invoicesData?.items ?? []).filter(i => i.effectiveStatus === "overdue").length;
+  const pendingSig = (contractsData?.items ?? []).filter(c => c.status === "pending_signature").length;
+  const unreadMsgs = (messagesData?.items ?? []).filter(m => !m.isRead).length;
+
+  const navItems = [
+    { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
+    { id: "contracts", label: "Contracts", icon: FileText, badge: pendingSig },
+    { id: "invoices", label: "Invoices", icon: CreditCard, badge: overdueInvoices },
+    { id: "pro-services", label: "PRO Services", icon: Shield },
+    { id: "gov-cases", label: "Gov Cases", icon: Building2 },
+    { id: "bookings", label: "Bookings", icon: ShoppingBag },
+    { id: "alerts", label: "Alerts", icon: Bell, badge: criticalAlerts },
+    { id: "messages", label: "Messages", icon: MessageSquare, badge: unreadMsgs },
+  ];
 
   return (
-    <div className="p-6 space-y-6 max-w-6xl mx-auto">
-      {/* Welcome Header */}
-      <div className="rounded-2xl bg-gradient-to-br from-[var(--smartpro-navy)] to-[var(--smartpro-blue)] p-6 text-white">
-        <div className="flex items-start justify-between">
-          <div>
-            <h1 className="text-2xl font-bold">Welcome back, {user?.name ?? "Client"}</h1>
-            <p className="text-white/70 mt-1 text-sm">Your SmartPRO client portal — manage all your business services in one place</p>
-            {myCompany && (
-              <div className="flex items-center gap-2 mt-3">
-                <Building2 size={14} className="text-white/60" />
-                <span className="text-sm text-white/80">{myCompany.company.name}</span>
-                <Badge className="bg-white/20 text-white text-xs border-0">{myCompany.member.role}</Badge>
-              </div>
-            )}
+    <div className="min-h-screen bg-background">
+      {/* Portal Header */}
+      <div className="border-b bg-card px-6 py-4 sticky top-0 z-10">
+        <div className="max-w-7xl mx-auto flex items-center justify-between">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center">
+              <User className="w-4 h-4 text-primary" />
+            </div>
+            <div>
+              <h1 className="text-base font-semibold text-foreground leading-tight">Client Portal</h1>
+              <p className="text-xs text-muted-foreground">
+                {company?.name ?? "Your Company"} · {user?.name}
+              </p>
+            </div>
           </div>
-          <div className="text-right">
-            <p className="text-3xl font-bold">{activeContracts.length + pendingBookings.length + activeProServices.length}</p>
-            <p className="text-white/60 text-sm">Active Items</p>
+          <div className="flex flex-wrap items-center gap-2">
+            {criticalAlerts > 0 && (
+              <Badge className="bg-red-100 text-red-700 border-red-200 gap-1 text-xs">
+                <AlertTriangle className="w-3 h-3" />
+                {criticalAlerts} Critical
+              </Badge>
+            )}
+            <Button variant="outline" size="sm" onClick={() => navigate("/dashboard")}>
+              ← Dashboard
+            </Button>
           </div>
         </div>
       </div>
 
-      {/* Quick Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {[
-          { label: "Active Contracts", value: activeContracts.length, icon: <FileText size={18} />, color: "text-blue-600 bg-blue-50", tab: "contracts" },
-          { label: "Service Bookings", value: pendingBookings.length, icon: <ShoppingBag size={18} />, color: "text-purple-600 bg-purple-50", tab: "bookings" },
-          { label: "PRO Services", value: activeProServices.length, icon: <CheckCircle2 size={18} />, color: "text-green-600 bg-green-50", tab: "pro" },
-          { label: "Total Contracts", value: (contracts ?? []).length, icon: <Clock size={18} />, color: "text-amber-600 bg-amber-50", tab: "contracts" },
-        ].map((s) => (
-          <Card key={s.label} className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setActiveTab(s.tab)}>
-            <CardContent className="p-4 flex items-center gap-3">
-              <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${s.color}`}>{s.icon}</div>
-              <div>
-                <p className="text-2xl font-bold">{s.value}</p>
-                <p className="text-xs text-muted-foreground">{s.label}</p>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid grid-cols-4 w-full max-w-lg">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="contracts">Contracts</TabsTrigger>
-          <TabsTrigger value="bookings">Bookings</TabsTrigger>
-          <TabsTrigger value="pro">PRO Services</TabsTrigger>
-        </TabsList>
-
-        {/* Overview Tab */}
-        <TabsContent value="overview" className="space-y-4 mt-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Recent Contracts */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm flex items-center gap-2"><FileText size={14} /> Recent Contracts</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {(contracts ?? []).slice(0, 4).length === 0 ? (
-                  <p className="text-sm text-muted-foreground text-center py-4">No contracts yet</p>
-                ) : (
-                  <div className="space-y-2">
-                    {(contracts ?? []).slice(0, 4).map((c) => (
-                      <div key={c.id} className="flex items-center justify-between py-1.5 border-b last:border-0">
-                        <div>
-                          <p className="text-sm font-medium truncate max-w-[180px]">{c.title}</p>
-                          <p className="text-xs text-muted-foreground">{c.contractNumber}</p>
-                        </div>
-                        <Badge className={`text-xs ${statusColors[c.status ?? "draft"] ?? ""}`}>{c.status}</Badge>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Recent Bookings */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm flex items-center gap-2"><ShoppingBag size={14} /> Recent Bookings</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {(bookings ?? []).slice(0, 4).length === 0 ? (
-                  <p className="text-sm text-muted-foreground text-center py-4">No bookings yet</p>
-                ) : (
-                  <div className="space-y-2">
-                    {(bookings ?? []).slice(0, 4).map((b) => (
-                      <div key={b.id} className="flex items-center justify-between py-1.5 border-b last:border-0">
-                        <div>
-                          <p className="text-sm font-medium">Booking #{b.id}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {b.scheduledAt ? new Date(b.scheduledAt).toLocaleDateString() : "Not scheduled"}
-                          </p>
-                        </div>
-                        <Badge className={`text-xs ${statusColors[b.status ?? "pending"] ?? ""}`}>{b.status}</Badge>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+      <div className="max-w-7xl mx-auto px-4 md:px-6 py-6">
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          {/* Tab Nav */}
+          <div className="mb-6 overflow-x-auto pb-1">
+            <TabsList className="h-auto p-1 gap-0.5 bg-muted/50 inline-flex">
+              {navItems.map(item => (
+                <TabsTrigger key={item.id} value={item.id} className="flex items-center gap-1.5 px-3 py-2 text-xs md:text-sm relative">
+                  <item.icon className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">{item.label}</span>
+                  {item.badge != null && item.badge > 0 && (
+                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] rounded-full w-4 h-4 flex items-center justify-center font-bold">
+                      {item.badge > 9 ? "9+" : item.badge}
+                    </span>
+                  )}
+                </TabsTrigger>
+              ))}
+            </TabsList>
           </div>
 
-          {/* Company Info */}
-          {myCompany && (
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm flex items-center gap-2"><Building2 size={14} /> Your Company</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <p className="text-xs text-muted-foreground">Company Name</p>
-                    <p className="font-semibold mt-0.5">{myCompany.company.name}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Industry</p>
-                    <p className="font-semibold mt-0.5">{myCompany.company.industry ?? "—"}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Country</p>
-                    <p className="font-semibold mt-0.5">{myCompany.company.country ?? "Oman"}</p>
-                  </div>
-                  {myCompany.company.phone && (
-                    <div className="flex items-center gap-2">
-                      <Phone size={12} className="text-muted-foreground" />
-                      <span className="text-sm">{myCompany.company.phone}</span>
-                    </div>
-                  )}
-                  {myCompany.company.email && (
-                    <div className="flex items-center gap-2">
-                      <Mail size={12} className="text-muted-foreground" />
-                      <span className="text-sm">{myCompany.company.email}</span>
-                    </div>
-                  )}
-                  {myCompany.company.website && (
-                    <div className="flex items-center gap-2">
-                      <Globe size={12} className="text-muted-foreground" />
-                      <span className="text-sm">{myCompany.company.website}</span>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Support Card */}
-          <Card className="border-dashed border-2 border-muted">
-            <CardContent className="p-6 text-center">
-              <MessageSquare size={32} className="mx-auto mb-3 text-muted-foreground opacity-50" />
-              <h3 className="font-semibold mb-1">Need Help?</h3>
-              <p className="text-sm text-muted-foreground mb-3">Our support team is available 24/7 to assist with any questions about your services.</p>
-              <div className="flex gap-2 justify-center">
-                <Button size="sm" variant="outline" className="gap-2" onClick={() => toast.info("Live chat coming soon")}>
-                  <MessageSquare size={14} /> Live Chat
-                </Button>
-                <Button size="sm" variant="outline" className="gap-2" onClick={() => toast.info("Email support: support@smartpro.om")}>
-                  <Mail size={14} /> Email Support
-                </Button>
+          {/* ─── Dashboard ─── */}
+          <TabsContent value="dashboard" className="space-y-6">
+            {dashLoading ? (
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                {[...Array(6)].map((_, i) => <div key={i} className="h-24 rounded-xl bg-muted animate-pulse" />)}
               </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Contracts Tab */}
-        <TabsContent value="contracts" className="mt-4">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm">My Contracts</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {(contracts ?? []).length === 0 ? (
-                <div className="text-center py-12 text-muted-foreground">
-                  <FileText size={40} className="mx-auto mb-3 opacity-20" />
-                  <p className="font-medium">No contracts found</p>
-                  <p className="text-sm mt-1">Contracts you are party to will appear here</p>
+            ) : (
+              <>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  <KPICard icon={FileText} label="Active Contracts" value={kpis?.activeContracts ?? 0} color="bg-blue-100 text-blue-600" />
+                  <KPICard icon={Building2} label="Open Gov Cases" value={kpis?.openCases ?? 0} color="bg-purple-100 text-purple-600" />
+                  <KPICard icon={CreditCard} label="Pending Invoices" value={kpis?.pendingInvoices ?? 0} sub={fmtOMR(kpis?.totalPendingOMR)} color="bg-amber-100 text-amber-600" />
+                  <KPICard icon={Bell} label="Expiring Permits" value={kpis?.expiringPermits ?? 0} sub="within 30 days" color="bg-red-100 text-red-600" />
+                  <KPICard icon={Shield} label="Active PRO Services" value={kpis?.activeProServices ?? 0} color="bg-emerald-100 text-emerald-600" />
+                  <KPICard icon={AlertTriangle} label="Expiring Contracts" value={kpis?.expiringContracts ?? 0} sub="within 30 days" color="bg-orange-100 text-orange-600" />
                 </div>
-              ) : (
-                <div className="space-y-3">
-                  {(contracts ?? []).map((c) => (
-                    <div key={c.id} className="border rounded-lg p-4 hover:bg-muted/30 transition-colors">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <p className="font-semibold text-sm">{c.title}</p>
-                            <Badge className={`text-xs ${statusColors[c.status ?? "draft"] ?? ""}`}>{c.status}</Badge>
+
+                {/* Quick Actions */}
+                <Card className="border-0 shadow-sm">
+                  <CardHeader className="pb-3"><CardTitle className="text-base">Quick Actions</CardTitle></CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      {[
+                        { label: "View Contracts", tab: "contracts", icon: FileText, color: "bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200" },
+                        { label: "Pay Invoices", tab: "invoices", icon: CreditCard, color: "bg-amber-50 hover:bg-amber-100 text-amber-700 border-amber-200" },
+                        { label: "Track Cases", tab: "gov-cases", icon: Building2, color: "bg-purple-50 hover:bg-purple-100 text-purple-700 border-purple-200" },
+                        { label: "Contact Us", tab: "messages", icon: MessageSquare, color: "bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200" },
+                      ].map(a => (
+                        <button key={a.tab} onClick={() => setActiveTab(a.tab)}
+                          className={`flex items-center gap-3 p-4 rounded-xl border transition-colors text-left ${a.color}`}>
+                          <a.icon className="w-5 h-5 flex-shrink-0" />
+                          <span className="text-sm font-medium">{a.label}</span>
+                          <ChevronRight className="w-4 h-4 ml-auto" />
+                        </button>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Expiry preview */}
+                {(alertsData?.items ?? []).length > 0 && (
+                  <Card className="border-0 shadow-sm">
+                    <CardHeader className="pb-3 flex flex-row items-center justify-between">
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <Bell className="w-4 h-4 text-amber-500" /> Upcoming Expiries
+                      </CardTitle>
+                      <Button variant="ghost" size="sm" onClick={() => setActiveTab("alerts")}>
+                        View All <ChevronRight className="w-3 h-3 ml-1" />
+                      </Button>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-2">
+                        {(alertsData?.items ?? []).slice(0, 5).map((alert, i) => (
+                          <div key={i} className={`flex items-center justify-between p-3 rounded-lg border ${severityColor(alert.severity)}`}>
+                            <div>
+                              <p className="text-sm font-medium">{alert.label}</p>
+                              <p className="text-xs opacity-75">{alert.reference}</p>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-sm font-bold">{alert.daysLeft}d</p>
+                              <p className="text-xs opacity-75">{fmtDate(alert.expiryDate)}</p>
+                            </div>
                           </div>
-                          <p className="text-xs text-muted-foreground mt-0.5">{c.contractNumber} · {c.type}</p>
-                          <div className="flex gap-4 mt-2 text-xs text-muted-foreground">
-                            {c.partyAName && <span>Party A: {c.partyAName}</span>}
-                            {c.partyBName && <span>Party B: {c.partyBName}</span>}
-                            {c.value && <span>Value: {c.value} {c.currency}</span>}
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+              </>
+            )}
+          </TabsContent>
+
+          {/* ─── Contracts ─── */}
+          <TabsContent value="contracts" className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold">Your Contracts</h2>
+              <div className="flex flex-wrap gap-2">
+                {pendingSig > 0 && <Badge className="bg-blue-100 text-blue-700">{pendingSig} need signature</Badge>}
+                <Badge variant="outline">{contractsData?.items.length ?? 0} total</Badge>
+              </div>
+            </div>
+            {(contractsData?.items ?? []).length === 0 ? (
+              <Card className="border-0 shadow-sm">
+                <CardContent className="py-12 text-center text-muted-foreground">
+                  <FileText className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                  <p>No contracts found</p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-3">
+                {(contractsData?.items ?? []).map(c => (
+                  <Card key={c.id} className={`border-0 shadow-sm hover:shadow-md transition-shadow ${c.status === "pending_signature" ? "ring-1 ring-blue-300" : ""}`}>
+                    <CardContent className="p-5">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1 flex-wrap">
+                            <h3 className="font-semibold text-foreground truncate">{c.title}</h3>
+                            <Badge className={`text-xs ${statusBadge(c.status ?? "draft")}`}>
+                              {(c.status ?? "draft").replace(/_/g, " ")}
+                            </Badge>
+                          </div>
+                          <div className="flex items-center gap-4 text-sm text-muted-foreground flex-wrap">
+                            <span>Type: {c.type?.replace(/_/g, " ") ?? "—"}</span>
+                            {c.value && <span>Value: {fmtOMR(c.value)}</span>}
+                            {c.endDate && (
+                              <span className={c.daysToExpiry != null && c.daysToExpiry <= 30 ? "text-red-600 font-medium" : ""}>
+                                Expires: {fmtDate(c.endDate)}
+                                {c.daysToExpiry != null && c.daysToExpiry > 0 && ` (${c.daysToExpiry}d)`}
+                              </span>
+                            )}
                           </div>
                         </div>
-                        <div className="flex gap-2 shrink-0">
+                        <div className="flex items-center gap-2 flex-shrink-0">
                           {c.status === "pending_signature" && (
-                            <Button size="sm" className="gap-1 text-xs h-7 bg-blue-600 hover:bg-blue-700"
-                              onClick={() => toast.info("E-signature flow coming soon")}>
+                            <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white text-xs"
+                              onClick={() => toast.info("E-signature flow — coming in Step 10")}>
                               Sign Now
                             </Button>
                           )}
-                          <Button size="sm" variant="outline" className="gap-1 text-xs h-7"
-                            disabled={exportingId === c.id}
-                            onClick={async () => {
-                              setExportingId(c.id);
-                              try {
-                                const result = await utils.contracts.exportHtml.fetch({ id: c.id });
-                                const win = window.open("", "_blank");
-                                if (win) { win.document.write(result.html); win.document.close(); win.print(); }
-                                else toast.error("Pop-up blocked — please allow pop-ups for this site");
-                              } catch { toast.error("Export failed"); }
-                              finally { setExportingId(null); }
-                            }}>
-                            <Download size={12} /> {exportingId === c.id ? "Exporting…" : "Export / Print"}
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Bookings Tab */}
-        <TabsContent value="bookings" className="mt-4">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm">My Service Bookings</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {(bookings ?? []).length === 0 ? (
-                <div className="text-center py-12 text-muted-foreground">
-                  <ShoppingBag size={40} className="mx-auto mb-3 opacity-20" />
-                  <p className="font-medium">No bookings found</p>
-                  <p className="text-sm mt-1">Visit the Marketplace to book services</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {(bookings ?? []).map((b) => (
-                    <div key={b.id} className="border rounded-lg p-4 hover:bg-muted/30 transition-colors">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="font-semibold text-sm">Booking #{b.id}</p>
-                          <p className="text-xs text-muted-foreground mt-0.5">
-                            Scheduled: {b.scheduledAt ? new Date(b.scheduledAt).toLocaleString() : "TBD"}
-                          </p>
-                          {b.amount && <p className="text-xs text-muted-foreground">Total: {b.amount} {b.currency ?? "OMR"}</p>}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Badge className={`text-xs ${statusColors[b.status ?? "pending"] ?? ""}`}>{b.status}</Badge>
-                          {b.status === "completed" && (
-                            <Button size="sm" variant="outline" className="gap-1 text-xs h-7"
-                              onClick={() => navigate("/marketplace")}>
-                              <Star size={12} /> Leave Review
+                          {c.pdfUrl && (
+                            <Button variant="outline" size="sm" asChild>
+                              <a href={c.pdfUrl} target="_blank" rel="noopener noreferrer">
+                                <Download className="w-3.5 h-3.5 mr-1" /> PDF
+                              </a>
                             </Button>
                           )}
                         </div>
                       </div>
-                      {b.notes && <p className="text-xs text-muted-foreground mt-2 border-t pt-2">{b.notes}</p>}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </TabsContent>
 
-        {/* PRO Services Tab */}
-        <TabsContent value="pro" className="mt-4">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm">My PRO Services</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {(proServices ?? []).length === 0 ? (
-                <div className="text-center py-12 text-muted-foreground">
-                  <AlertCircle size={40} className="mx-auto mb-3 opacity-20" />
-                  <p className="font-medium">No PRO services found</p>
-                  <p className="text-sm mt-1">PRO service requests will appear here</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {(proServices ?? []).map((p) => (
-                    <div key={p.id} className="border rounded-lg p-4 hover:bg-muted/30 transition-colors">
-                      <div className="flex items-center justify-between">
+          {/* ─── Invoices ─── */}
+          <TabsContent value="invoices" className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold">Billing & Invoices</h2>
+              <div className="flex flex-wrap gap-2">
+                {overdueInvoices > 0 && <Badge className="bg-red-100 text-red-700">{overdueInvoices} overdue</Badge>}
+                <Badge variant="outline">{invoicesData?.items.length ?? 0} total</Badge>
+              </div>
+            </div>
+            {(invoicesData?.items ?? []).length === 0 ? (
+              <Card className="border-0 shadow-sm">
+                <CardContent className="py-12 text-center text-muted-foreground">
+                  <CreditCard className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                  <p>No invoices found</p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-3">
+                {(invoicesData?.items ?? []).map(inv => (
+                  <Card key={inv.id} className={`border-0 shadow-sm ${inv.effectiveStatus === "overdue" ? "border-l-4 border-l-red-500" : inv.effectiveStatus === "pending" ? "border-l-4 border-l-amber-400" : ""}`}>
+                    <CardContent className="p-5">
+                      <div className="flex items-center justify-between gap-4">
                         <div>
-                          <div className="flex items-center gap-2">
-                            <p className="font-semibold text-sm capitalize">{(p.serviceType ?? "service").replace(/_/g, " ")}</p>
-                            <Badge className={`text-xs ${statusColors[p.status ?? "pending"] ?? ""}`}>{p.status}</Badge>
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="font-mono text-sm font-semibold">{inv.invoiceLabel}</span>
+                            <Badge className={`text-xs ${statusBadge(inv.effectiveStatus)}`}>{inv.effectiveStatus}</Badge>
                           </div>
-                          <p className="text-xs text-muted-foreground mt-0.5">
-                            Ref: {p.serviceNumber ?? `PRO-${p.id}`}
+                          <p className="text-sm text-muted-foreground">
+                            Period: {inv.billingMonth}/{inv.billingYear}
+                            {inv.paidAt && ` · Paid: ${fmtDate(inv.paidAt)}`}
                           </p>
-                          {p.employeeName && <p className="text-xs text-muted-foreground">Applicant: {p.employeeName}</p>}
-                          {p.expiryDate && (
-                            <p className="text-xs text-amber-600 mt-1">
-                              Expires: {new Date(p.expiryDate).toLocaleDateString()}
-                            </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-xl font-bold text-foreground">{fmtOMR(inv.amountOmr)}</p>
+                          {["pending", "overdue"].includes(inv.effectiveStatus) && (
+                            <Button size="sm" className="mt-2 bg-primary text-primary-foreground text-xs"
+                              onClick={() => toast.info("Online payment integration coming soon. Please contact your account manager.")}>
+                              Pay Now
+                            </Button>
                           )}
                         </div>
-                        <Button size="sm" variant="outline" className="gap-1 text-xs h-7"
-                          onClick={() => navigate("/pro")}>
-                          View Details
-                        </Button>
                       </div>
-                    </div>
-                  ))}
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </TabsContent>
+
+          {/* ─── PRO Services ─── */}
+          <TabsContent value="pro-services" className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold">PRO Service Applications</h2>
+              <Badge variant="outline">{proServicesData?.items.length ?? 0} total</Badge>
+            </div>
+            {(proServicesData?.items ?? []).length === 0 ? (
+              <Card className="border-0 shadow-sm">
+                <CardContent className="py-12 text-center text-muted-foreground">
+                  <Shield className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                  <p>No PRO service applications found</p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-3">
+                {(proServicesData?.items ?? []).map(svc => {
+                  const steps = ["pending", "assigned", "in_progress", "awaiting_documents", "submitted_to_authority", "approved", "completed"];
+                  const currentIdx = steps.indexOf(svc.status ?? "pending");
+                  return (
+                    <Card key={svc.id} className="border-0 shadow-sm">
+                      <CardContent className="p-5">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1 flex-wrap">
+                              <h3 className="font-semibold">{svc.serviceType?.replace(/_/g, " ") ?? "PRO Service"}</h3>
+                              <Badge className={`text-xs ${statusBadge(svc.status ?? "pending")}`}>
+                                {(svc.status ?? "pending").replace(/_/g, " ")}
+                              </Badge>
+                            </div>
+                            <div className="flex items-center gap-4 text-sm text-muted-foreground flex-wrap mb-3">
+                              {svc.employeeName && <span>Employee: {svc.employeeName}</span>}
+                              {svc.dueDate && <span>Due: {fmtDate(svc.dueDate)}</span>}
+                              <span>Ref: #{svc.id}</span>
+                            </div>
+                            {/* Progress dots */}
+                            <div className="flex flex-wrap items-center gap-1">
+                              {steps.slice(0, 6).map((step, i) => {
+                                const done = i < currentIdx;
+                                const active = i === currentIdx;
+                                return (
+                                  <div key={step} className="flex flex-wrap items-center gap-1">
+                                    <div className={`w-2.5 h-2.5 rounded-full transition-colors ${done ? "bg-emerald-500" : active ? "bg-blue-500 ring-2 ring-blue-200" : "bg-muted"}`} />
+                                    {i < 5 && <div className={`h-0.5 w-5 transition-colors ${done ? "bg-emerald-500" : "bg-muted"}`} />}
+                                  </div>
+                                );
+                              })}
+                              <span className="text-xs text-muted-foreground ml-2 capitalize">
+                                {(svc.status ?? "pending").replace(/_/g, " ")}
+                              </span>
+                            </div>
+                          </div>
+                          <CaseIcon status={svc.status ?? "pending"} />
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
+          </TabsContent>
+
+          {/* ─── Government Cases ─── */}
+          <TabsContent value="gov-cases" className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold">Government Cases</h2>
+              <Badge variant="outline">{govCasesData?.items.length ?? 0} total</Badge>
+            </div>
+            {(govCasesData?.items ?? []).length === 0 ? (
+              <Card className="border-0 shadow-sm">
+                <CardContent className="py-12 text-center text-muted-foreground">
+                  <Building2 className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                  <p>No government cases found</p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-3">
+                {(govCasesData?.items ?? []).map(c => (
+                  <Card key={c.id} className={`border-0 shadow-sm ${c.caseStatus === "action_required" ? "ring-1 ring-red-300" : ""}`}>
+                    <CardContent className="p-5">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1 flex-wrap">
+                            <h3 className="font-semibold">{c.caseType?.replace(/_/g, " ") ?? "Government Case"}</h3>
+                            <Badge className={`text-xs ${statusBadge(c.caseStatus ?? "draft")}`}>
+                              {(c.caseStatus ?? "draft").replace(/_/g, " ")}
+                            </Badge>
+                            {c.caseStatus === "action_required" && (
+                              <Badge className="bg-red-100 text-red-700 text-xs animate-pulse">Action Required</Badge>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-4 text-sm text-muted-foreground flex-wrap mb-3">
+                            <span>Ref: #{c.id}</span>
+                            <span>Created: {fmtDate(c.createdAt)}</span>
+                            {c.governmentReference && <span>Gov Ref: {c.governmentReference}</span>}
+                          </div>
+                          {c.taskProgress.total > 0 && (
+                            <div className="space-y-1">
+                              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                                <span>Task Progress</span>
+                                <span>{c.taskProgress.completed}/{c.taskProgress.total}</span>
+                              </div>
+                              <Progress value={c.taskProgress.pct} className="h-1.5" />
+                            </div>
+                          )}
+                        </div>
+                        <CaseIcon status={c.caseStatus ?? "draft"} />
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </TabsContent>
+
+          {/* ─── Bookings ─── */}
+          <TabsContent value="bookings" className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold">Marketplace Bookings</h2>
+              <Badge variant="outline">{bookingsData?.items.length ?? 0} total</Badge>
+            </div>
+            {(bookingsData?.items ?? []).length === 0 ? (
+              <Card className="border-0 shadow-sm">
+                <CardContent className="py-12 text-center text-muted-foreground">
+                  <ShoppingBag className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                  <p>No bookings found</p>
+                  <Button className="mt-4 text-sm" onClick={() => navigate("/marketplace")}>Browse Marketplace</Button>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-3">
+                {(bookingsData?.items ?? []).map(b => (
+                  <Card key={b.id} className="border-0 shadow-sm">
+                    <CardContent className="p-5">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1 flex-wrap">
+                            <h3 className="font-semibold">{b.providerName ?? "Service Provider"}</h3>
+                            <Badge className={`text-xs ${statusBadge(b.status ?? "pending")}`}>
+                              {(b.status ?? "pending").replace(/_/g, " ")}
+                            </Badge>
+                          </div>
+                          <div className="flex items-center gap-4 text-sm text-muted-foreground flex-wrap">
+                            <span>Category: {b.providerCategory ?? "—"}</span>
+                            {b.scheduledAt && <span>Scheduled: {fmtDate(b.scheduledAt)}</span>}
+                            {b.amount && <span>Amount: {fmtOMR(b.amount)}</span>}
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          {b.status === "completed" && (
+                            <Button variant="outline" size="sm" className="gap-1 text-xs"
+                              onClick={() => toast.info("Rating feature coming in Step 7")}>
+                              <Star className="w-3 h-3" /> Rate
+                            </Button>
+                          )}
+                          <CaseIcon status={b.status ?? "pending"} />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </TabsContent>
+
+          {/* ─── Expiry Alerts ─── */}
+          <TabsContent value="alerts" className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold">Expiry Alerts</h2>
+              <div className="flex flex-wrap gap-2">
+                {criticalAlerts > 0 && <Badge className="bg-red-100 text-red-700">{criticalAlerts} critical</Badge>}
+                <Badge variant="outline">{alertsData?.items.length ?? 0} total</Badge>
+              </div>
+            </div>
+            {(alertsData?.items ?? []).length === 0 ? (
+              <Card className="border-0 shadow-sm">
+                <CardContent className="py-12 text-center">
+                  <Bell className="w-10 h-10 mx-auto mb-3 text-emerald-400" />
+                  <p className="text-emerald-600 font-medium">All documents are up to date!</p>
+                  <p className="text-sm text-muted-foreground mt-1">No expiries within the next 90 days</p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-3">
+                {(alertsData?.items ?? []).map((alert, i) => (
+                  <Card key={i} className={`border-0 shadow-sm border-l-4 ${
+                    alert.severity === "critical" ? "border-l-red-500" :
+                    alert.severity === "high" ? "border-l-orange-500" :
+                    alert.severity === "medium" ? "border-l-amber-500" : "border-l-emerald-500"
+                  }`}>
+                    <CardContent className="p-5">
+                      <div className="flex items-center justify-between gap-4">
+                        <div>
+                          <div className="flex items-center gap-2 mb-1">
+                            <h3 className="font-semibold text-foreground">{alert.label}</h3>
+                            <Badge className={`text-xs ${severityColor(alert.severity)}`}>{alert.severity}</Badge>
+                          </div>
+                          <p className="text-sm text-muted-foreground">
+                            Ref: {alert.reference} · Expires: {fmtDate(alert.expiryDate)}
+                          </p>
+                        </div>
+                        <div className="text-right flex-shrink-0">
+                          <p className={`text-2xl font-bold ${
+                            alert.severity === "critical" ? "text-red-600" :
+                            alert.severity === "high" ? "text-orange-600" :
+                            alert.severity === "medium" ? "text-amber-600" : "text-emerald-600"
+                          }`}>{alert.daysLeft}</p>
+                          <p className="text-xs text-muted-foreground">days left</p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </TabsContent>
+
+          {/* ─── Messages ─── */}
+          <TabsContent value="messages" className="space-y-4">
+            <h2 className="text-lg font-semibold">Messages to SmartPRO Team</h2>
+
+            {/* Compose */}
+            <Card className="border-0 shadow-sm">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Send className="w-4 h-4" /> New Message
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <Input placeholder="Subject" value={msgSubject} onChange={e => setMsgSubject(e.target.value)} />
+                  <Select value={msgCategory} onValueChange={v => setMsgCategory(v as typeof msgCategory)}>
+                    <SelectTrigger><SelectValue placeholder="Category" /></SelectTrigger>
+                    <SelectContent>
+                      {(["general", "billing", "contract", "pro_service", "government_case", "technical"] as const).map(c => (
+                        <SelectItem key={c} value={c}>{c.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase())}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
+                <Textarea placeholder="Describe your question or issue..." value={msgBody} onChange={e => setMsgBody(e.target.value)} rows={4} />
+                <Button
+                  disabled={!msgSubject.trim() || !msgBody.trim() || sendMessage.isPending}
+                  onClick={() => sendMessage.mutate({ subject: msgSubject, message: msgBody, category: msgCategory })}
+                  className="gap-2"
+                >
+                  <Send className="w-4 h-4" />
+                  {sendMessage.isPending ? "Sending..." : "Send Message"}
+                </Button>
+              </CardContent>
+            </Card>
+
+            {/* History */}
+            <div className="space-y-3">
+              {(messagesData?.items ?? []).length === 0 ? (
+                <Card className="border-0 shadow-sm">
+                  <CardContent className="py-8 text-center text-muted-foreground">
+                    <MessageSquare className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                    <p className="text-sm">No messages yet. Send your first message above.</p>
+                  </CardContent>
+                </Card>
+              ) : (
+                (messagesData?.items ?? []).map(msg => (
+                  <Card key={msg.id} className={`border-0 shadow-sm ${!msg.isRead ? "border-l-4 border-l-blue-500" : ""}`}>
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <p className="font-medium text-sm">{msg.title}</p>
+                            {!msg.isRead && <Badge className="bg-blue-100 text-blue-700 text-xs">New</Badge>}
+                          </div>
+                          <p className="text-sm text-muted-foreground line-clamp-2">{msg.message}</p>
+                          <p className="text-xs text-muted-foreground mt-1">{fmtDate(msg.createdAt)}</p>
+                        </div>
+                        {!msg.isRead && (
+                          <Button variant="ghost" size="sm" onClick={() => markRead.mutate({ messageId: msg.id })}>
+                            <Eye className="w-4 h-4" />
+                          </Button>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))
               )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+            </div>
+          </TabsContent>
+        </Tabs>
+      </div>
     </div>
   );
 }

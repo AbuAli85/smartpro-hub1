@@ -1461,3 +1461,276 @@ export const officerPayouts = mysqlTable(
 );
 export type OfficerPayout = typeof officerPayouts.$inferSelect;
 export type InsertOfficerPayout = typeof officerPayouts.$inferInsert;
+
+// ─── AUTOMATED RENEWAL WORKFLOWS ─────────────────────────────────────────────
+export const renewalWorkflowRules = mysqlTable(
+  "renewal_workflow_rules",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    companyId: int("company_id"), // null = platform-wide default rule
+    name: varchar("name", { length: 255 }).notNull(),
+    description: text("description"),
+    entityType: mysqlEnum("entity_type", [
+      "work_permit", "visa", "resident_card", "labour_card",
+      "sanad_licence", "officer_document", "employee_document", "pro_service"
+    ]).notNull(),
+    triggerDaysBefore: int("trigger_days_before").notNull().default(30), // 90/60/30/7
+    autoCreateCase: boolean("auto_create_case").notNull().default(true),
+    autoAssignOfficer: boolean("auto_assign_officer").notNull().default(false),
+    notifyClient: boolean("notify_client").notNull().default(true),
+    notifyOwner: boolean("notify_owner").notNull().default(true),
+    caseType: mysqlEnum("case_type", [
+      "renewal", "amendment", "cancellation", "contract_registration",
+      "employee_update", "document_update", "new_permit", "transfer"
+    ]).notNull().default("renewal"),
+    isActive: boolean("is_active").notNull().default(true),
+    createdBy: int("created_by").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  },
+  (t) => [
+    index("idx_rwr_company").on(t.companyId),
+    index("idx_rwr_entity").on(t.entityType),
+    index("idx_rwr_active").on(t.isActive),
+  ]
+);
+export type RenewalWorkflowRule = typeof renewalWorkflowRules.$inferSelect;
+export type InsertRenewalWorkflowRule = typeof renewalWorkflowRules.$inferInsert;
+
+export const renewalWorkflowRuns = mysqlTable(
+  "renewal_workflow_runs",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    ruleId: int("rule_id").notNull(),
+    companyId: int("company_id").notNull(),
+    entityType: varchar("entity_type", { length: 50 }).notNull(),
+    entityId: int("entity_id").notNull(),
+    entityLabel: varchar("entity_label", { length: 255 }),
+    expiryDate: timestamp("expiry_date").notNull(),
+    daysBeforeExpiry: int("days_before_expiry").notNull(),
+    status: mysqlEnum("status", ["pending", "triggered", "case_created", "skipped", "failed"]).notNull().default("pending"),
+    caseId: int("case_id"), // created government_service_case id
+    assignedOfficerId: int("assigned_officer_id"),
+    triggeredAt: timestamp("triggered_at"),
+    notes: text("notes"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  },
+  (t) => [
+    index("idx_rwrun_rule").on(t.ruleId),
+    index("idx_rwrun_company").on(t.companyId),
+    index("idx_rwrun_entity").on(t.entityType, t.entityId),
+    index("idx_rwrun_status").on(t.status),
+    index("idx_rwrun_expiry").on(t.expiryDate),
+  ]
+);
+export type RenewalWorkflowRun = typeof renewalWorkflowRuns.$inferSelect;
+export type InsertRenewalWorkflowRun = typeof renewalWorkflowRuns.$inferInsert;
+
+// ─── Sanad Ratings & Reviews ──────────────────────────────────────────────────
+
+export const sanadRatings = mysqlTable(
+  "sanad_ratings",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    officeId: int("office_id").notNull(),
+    companyId: int("company_id").notNull(),
+    reviewerUserId: int("reviewer_user_id").notNull(),
+    serviceRequestId: int("service_request_id"), // optional link to a sanad_service_requests row
+    overallRating: int("overall_rating").notNull(), // 1-5
+    speedRating: int("speed_rating"), // 1-5
+    qualityRating: int("quality_rating"), // 1-5
+    communicationRating: int("communication_rating"), // 1-5
+    reviewTitle: varchar("review_title", { length: 255 }),
+    reviewBody: text("review_body"),
+    isVerified: boolean("is_verified").default(false).notNull(), // verified = linked to a completed service request
+    isPublished: boolean("is_published").default(true).notNull(), // moderation flag
+    moderationNote: text("moderation_note"),
+    moderatedBy: int("moderated_by"),
+    moderatedAt: timestamp("moderated_at"),
+    helpfulCount: int("helpful_count").default(0).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  },
+  (t) => [
+    index("idx_srating_office").on(t.officeId),
+    index("idx_srating_company").on(t.companyId),
+    index("idx_srating_published").on(t.isPublished),
+    index("idx_srating_verified").on(t.isVerified),
+  ]
+);
+export type SanadRating = typeof sanadRatings.$inferSelect;
+export type InsertSanadRating = typeof sanadRatings.$inferInsert;
+
+export const sanadRatingReplies = mysqlTable(
+  "sanad_rating_replies",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    ratingId: int("rating_id").notNull(),
+    repliedByUserId: int("replied_by_user_id").notNull(),
+    replyBody: text("reply_body").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  },
+  (t) => [
+    index("idx_srreply_rating").on(t.ratingId),
+  ]
+);
+export type SanadRatingReply = typeof sanadRatingReplies.$inferSelect;
+export type InsertSanadRatingReply = typeof sanadRatingReplies.$inferInsert;
+
+// ─── PAYROLL ENGINE ────────────────────────────────────────────────────────────
+export const payrollRuns = mysqlTable(
+  "payroll_runs",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    companyId: int("company_id").notNull(),
+    periodMonth: int("period_month").notNull(),
+    periodYear: int("period_year").notNull(),
+    runDate: timestamp("run_date").defaultNow().notNull(),
+    status: mysqlEnum("status", ["draft", "processing", "approved", "paid", "cancelled"]).default("draft").notNull(),
+    totalGross: decimal("total_gross", { precision: 14, scale: 3 }).default("0"),
+    totalDeductions: decimal("total_deductions", { precision: 14, scale: 3 }).default("0"),
+    totalNet: decimal("total_net", { precision: 14, scale: 3 }).default("0"),
+    employeeCount: int("employee_count").default(0),
+    notes: text("notes"),
+    approvedByUserId: int("approved_by_user_id"),
+    approvedAt: timestamp("approved_at"),
+    paidAt: timestamp("paid_at"),
+    wpsFileUrl: varchar("wps_file_url", { length: 1024 }),
+    wpsFileKey: varchar("wps_file_key", { length: 512 }),
+    wpsSubmittedAt: timestamp("wps_submitted_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  },
+  (t) => [
+    index("idx_payrun_company").on(t.companyId),
+    index("idx_payrun_period").on(t.periodYear, t.periodMonth),
+    index("idx_payrun_status").on(t.status),
+  ]
+);
+export type PayrollRun = typeof payrollRuns.$inferSelect;
+export type InsertPayrollRun = typeof payrollRuns.$inferInsert;
+
+export const payrollLineItems = mysqlTable(
+  "payroll_line_items",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    payrollRunId: int("payroll_run_id").notNull(),
+    companyId: int("company_id").notNull(),
+    employeeId: int("employee_id").notNull(),
+    basicSalary: decimal("basic_salary", { precision: 12, scale: 3 }).notNull(),
+    housingAllowance: decimal("housing_allowance", { precision: 12, scale: 3 }).default("0"),
+    transportAllowance: decimal("transport_allowance", { precision: 12, scale: 3 }).default("0"),
+    otherAllowances: decimal("other_allowances", { precision: 12, scale: 3 }).default("0"),
+    overtimePay: decimal("overtime_pay", { precision: 12, scale: 3 }).default("0"),
+    grossSalary: decimal("gross_salary", { precision: 12, scale: 3 }).notNull(),
+    pasiDeduction: decimal("pasi_deduction", { precision: 12, scale: 3 }).default("0"),
+    incomeTax: decimal("income_tax", { precision: 12, scale: 3 }).default("0"),
+    loanDeduction: decimal("loan_deduction", { precision: 12, scale: 3 }).default("0"),
+    absenceDeduction: decimal("absence_deduction", { precision: 12, scale: 3 }).default("0"),
+    otherDeductions: decimal("other_deductions", { precision: 12, scale: 3 }).default("0"),
+    totalDeductions: decimal("total_deductions", { precision: 12, scale: 3 }).notNull(),
+    netSalary: decimal("net_salary", { precision: 12, scale: 3 }).notNull(),
+    bankAccount: varchar("bank_account", { length: 50 }),
+    bankName: varchar("bank_name", { length: 100 }),
+    ibanNumber: varchar("iban_number", { length: 34 }),
+    payslipUrl: varchar("payslip_url", { length: 1024 }),
+    payslipKey: varchar("payslip_key", { length: 512 }),
+    status: mysqlEnum("status", ["pending", "paid", "failed", "on_hold"]).default("pending").notNull(),
+    notes: text("notes"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("idx_pli_run").on(t.payrollRunId),
+    index("idx_pli_employee").on(t.employeeId),
+    index("idx_pli_company").on(t.companyId),
+  ]
+);
+export type PayrollLineItem = typeof payrollLineItems.$inferSelect;
+export type InsertPayrollLineItem = typeof payrollLineItems.$inferInsert;
+
+// ─── RECRUITMENT: INTERVIEW SCHEDULES ─────────────────────────────────────────
+export const interviewSchedules = mysqlTable(
+  "interview_schedules",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    applicationId: int("application_id").notNull(),
+    companyId: int("company_id").notNull(),
+    interviewType: mysqlEnum("interview_type", ["phone", "video", "in_person", "technical", "panel"]).default("video").notNull(),
+    scheduledAt: timestamp("scheduled_at").notNull(),
+    durationMinutes: int("duration_minutes").default(60),
+    location: varchar("location", { length: 512 }),
+    meetingLink: varchar("meeting_link", { length: 1024 }),
+    interviewerNames: text("interviewer_names"),
+    status: mysqlEnum("status", ["scheduled", "completed", "cancelled", "no_show"]).default("scheduled").notNull(),
+    feedback: text("feedback"),
+    rating: int("rating"),
+    notes: text("notes"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  },
+  (t) => [
+    index("idx_is_application").on(t.applicationId),
+    index("idx_is_company").on(t.companyId),
+    index("idx_is_scheduled").on(t.scheduledAt),
+  ]
+);
+export type InterviewSchedule = typeof interviewSchedules.$inferSelect;
+export type InsertInterviewSchedule = typeof interviewSchedules.$inferInsert;
+
+// ─── RECRUITMENT: OFFER LETTERS ────────────────────────────────────────────────
+export const offerLetters = mysqlTable(
+  "offer_letters",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    applicationId: int("application_id").notNull(),
+    companyId: int("company_id").notNull(),
+    jobId: int("job_id").notNull(),
+    applicantName: varchar("applicant_name", { length: 255 }).notNull(),
+    applicantEmail: varchar("applicant_email", { length: 320 }).notNull(),
+    position: varchar("position", { length: 255 }).notNull(),
+    department: varchar("department", { length: 100 }),
+    startDate: timestamp("start_date"),
+    basicSalary: decimal("basic_salary", { precision: 12, scale: 3 }).notNull(),
+    housingAllowance: decimal("housing_allowance", { precision: 12, scale: 3 }).default("0"),
+    transportAllowance: decimal("transport_allowance", { precision: 12, scale: 3 }).default("0"),
+    otherAllowances: decimal("other_allowances", { precision: 12, scale: 3 }).default("0"),
+    totalPackage: decimal("total_package", { precision: 12, scale: 3 }).notNull(),
+    probationMonths: int("probation_months").default(3),
+    annualLeave: int("annual_leave").default(21),
+    additionalTerms: text("additional_terms"),
+    status: mysqlEnum("status", ["draft", "sent", "accepted", "rejected", "expired"]).default("draft").notNull(),
+    sentAt: timestamp("sent_at"),
+    respondedAt: timestamp("responded_at"),
+    expiresAt: timestamp("expires_at"),
+    letterUrl: varchar("letter_url", { length: 1024 }),
+    letterKey: varchar("letter_key", { length: 512 }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  },
+  (t) => [
+    index("idx_ol_application").on(t.applicationId),
+    index("idx_ol_company").on(t.companyId),
+    index("idx_ol_status").on(t.status),
+  ]
+);
+export type OfferLetter = typeof offerLetters.$inferSelect;
+export type InsertOfferLetter = typeof offerLetters.$inferInsert;
+
+// ─── E-SIGNATURE AUDIT TRAIL ─────────────────────────────────────────────────
+export const contractSignatureAudit = mysqlTable("contract_signature_audit", {
+  id: int("id").autoincrement().primaryKey(),
+  contractId: int("contract_id").notNull(),
+  signatureId: int("signature_id"),
+  event: mysqlEnum("event", [
+    "requested", "viewed", "signed", "declined", "expired", "reminder_sent", "completed"
+  ]).notNull(),
+  actorName: varchar("actor_name", { length: 255 }),
+  actorEmail: varchar("actor_email", { length: 320 }),
+  ipAddress: varchar("ip_address", { length: 64 }),
+  userAgent: varchar("user_agent", { length: 512 }),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export type ContractSignatureAudit = typeof contractSignatureAudit.$inferSelect;

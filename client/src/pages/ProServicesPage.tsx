@@ -60,7 +60,7 @@ function NewProServiceDialog({ onSuccess }: { onSuccess: () => void }) {
           <DialogTitle>New PRO Service Request</DialogTitle>
         </DialogHeader>
         <div className="space-y-4 mt-2">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label>Service Type</Label>
               <Select value={form.serviceType} onValueChange={(v) => setForm({ ...form, serviceType: v as any })}>
@@ -97,7 +97,7 @@ function NewProServiceDialog({ onSuccess }: { onSuccess: () => void }) {
             <Label>Employee Name *</Label>
             <Input placeholder="Full name" value={form.employeeName} onChange={(e) => setForm({ ...form, employeeName: e.target.value })} />
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label>Nationality</Label>
               <Input placeholder="e.g. Indian" value={form.nationality} onChange={(e) => setForm({ ...form, nationality: e.target.value })} />
@@ -107,7 +107,7 @@ function NewProServiceDialog({ onSuccess }: { onSuccess: () => void }) {
               <Input placeholder="Passport #" value={form.passportNumber} onChange={(e) => setForm({ ...form, passportNumber: e.target.value })} />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label>Passport Expiry</Label>
               <Input type="date" value={form.passportExpiry} onChange={(e) => setForm({ ...form, passportExpiry: e.target.value })} />
@@ -117,7 +117,7 @@ function NewProServiceDialog({ onSuccess }: { onSuccess: () => void }) {
               <Input type="date" value={form.expiryDate} onChange={(e) => setForm({ ...form, expiryDate: e.target.value })} />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label>Fees (OMR)</Label>
               <Input type="number" placeholder="0.00" value={form.fees} onChange={(e) => setForm({ ...form, fees: e.target.value })} />

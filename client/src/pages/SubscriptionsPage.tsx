@@ -109,7 +109,7 @@ export default function SubscriptionsPage() {
                       {currentSub.currentPeriodEnd && ` · Renews ${new Date(currentSub.currentPeriodEnd).toLocaleDateString()}`}
                     </p>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <Badge className={`${isActive ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"}`} variant="outline">
                       {currentSub.status}
                     </Badge>

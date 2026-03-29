@@ -107,7 +107,7 @@ function OfficerCard({ officer, onEdit, onView, isAdmin }: {
       <CardContent className="p-5">
         {/* Header */}
         <div className="flex items-start justify-between mb-4">
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-red-500/20 to-red-600/10 flex items-center justify-center border border-red-500/20 shrink-0">
               <span className="text-lg font-bold text-red-400">
                 {officer.fullName.charAt(0).toUpperCase()}
@@ -171,7 +171,7 @@ function OfficerCard({ officer, onEdit, onView, isAdmin }: {
           <span className="text-xs text-muted-foreground">
             OMR {Number(officer.monthlySalary).toFixed(3)}/mo
           </span>
-          <div className="flex items-center gap-1">
+          <div className="flex flex-wrap items-center gap-1">
             {isAdmin && (
               <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
                 onClick={(e) => { e.stopPropagation(); onEdit(officer); }}>
@@ -247,7 +247,7 @@ function OfficerFormDialog({
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
+          <DialogTitle className="flex flex-wrap items-center gap-2">
             <Award className="w-5 h-5 text-red-400" />
             {isEdit ? "Edit Officer Profile" : "Register New Omani PRO Officer"}
           </DialogTitle>
@@ -374,7 +374,7 @@ function OfficerDetailDialog({ officerId, onClose, onEdit, isAdmin }: {
           <>
             <DialogHeader>
               <div className="flex items-start justify-between">
-                <div className="flex items-center gap-4">
+                <div className="flex flex-wrap items-center gap-4">
                   <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-red-500/20 to-red-600/10 flex items-center justify-center border border-red-500/20">
                     <span className="text-2xl font-bold text-red-400">{officer.fullName.charAt(0)}</span>
                   </div>
@@ -538,7 +538,7 @@ export default function OmaniOfficersPage() {
               Shared Omani PRO — National Omanisation Compliance Programme
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button variant="outline" size="sm" onClick={() => refetch()}>
               <RefreshCw className="w-3.5 h-3.5 mr-1.5" /> Refresh
             </Button>
@@ -574,7 +574,7 @@ export default function OmaniOfficersPage() {
         {stats && stats.omanisEmployed > 0 && (
           <Card className="border-emerald-500/30 bg-emerald-500/5">
             <CardContent className="py-3 px-5">
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center gap-3">
                 <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
                 <div>
                   <span className="text-sm font-semibold text-emerald-400">
@@ -628,7 +628,7 @@ export default function OmaniOfficersPage() {
             {Array.from({ length: 8 }).map((_, i) => (
               <Card key={i} className="border-border/50 animate-pulse">
                 <CardContent className="p-5 space-y-3">
-                  <div className="flex gap-3">
+                  <div className="flex flex-wrap gap-3">
                     <div className="w-11 h-11 rounded-xl bg-muted" />
                     <div className="flex-1 space-y-2">
                       <div className="h-3 bg-muted rounded w-3/4" />

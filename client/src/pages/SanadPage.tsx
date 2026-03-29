@@ -108,13 +108,13 @@ function NewWorkOrderDialog({ providers, onSuccess }: { providers: any[]; onSucc
       </DialogTrigger>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
+          <DialogTitle className="flex flex-wrap items-center gap-2">
             <FileText size={20} className="text-red-600" />
             New Service Request
           </DialogTitle>
         </DialogHeader>
         <div className="space-y-4 mt-2">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1">
               <Label>Service Type *</Label>
               <Select value={form.serviceType} onValueChange={(v) => setForm({ ...form, serviceType: v as any })}>
@@ -140,7 +140,7 @@ function NewWorkOrderDialog({ providers, onSuccess }: { providers: any[]; onSucc
               </Select>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1">
               <Label>Beneficiary Name</Label>
               <Input placeholder="Full name" value={form.beneficiaryName} onChange={(e) => setForm({ ...form, beneficiaryName: e.target.value })} />
@@ -150,7 +150,7 @@ function NewWorkOrderDialog({ providers, onSuccess }: { providers: any[]; onSucc
               <Input placeholder="e.g. Indian" value={form.nationality} onChange={(e) => setForm({ ...form, nationality: e.target.value })} />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1">
               <Label>Passport Number</Label>
               <Input placeholder="Passport / ID" value={form.passportNumber} onChange={(e) => setForm({ ...form, passportNumber: e.target.value })} />
@@ -168,7 +168,7 @@ function NewWorkOrderDialog({ providers, onSuccess }: { providers: any[]; onSucc
               </Select>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1">
               <Label>Estimated Fees (OMR)</Label>
               <Input type="number" placeholder="0.000" value={form.fees} onChange={(e) => setForm({ ...form, fees: e.target.value })} />
@@ -221,9 +221,9 @@ function ProviderCard({ provider, onSelect }: { provider: any; onSelect: (p: any
         </div>
         {provider.description && <p className="text-xs text-muted-foreground mt-3 line-clamp-2">{provider.description}</p>}
         <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-          {provider.city && <span className="flex items-center gap-1"><MapPin size={11} />{provider.city}{provider.governorate ? `, ${provider.governorate}` : ""}</span>}
-          {provider.phone && <span className="flex items-center gap-1"><Phone size={11} />{provider.phone}</span>}
-          {provider.openingHours && <span className="flex items-center gap-1"><Clock size={11} />{provider.openingHours}</span>}
+          {provider.city && <span className="flex flex-wrap items-center gap-1"><MapPin size={11} />{provider.city}{provider.governorate ? `, ${provider.governorate}` : ""}</span>}
+          {provider.phone && <span className="flex flex-wrap items-center gap-1"><Phone size={11} />{provider.phone}</span>}
+          {provider.openingHours && <span className="flex flex-wrap items-center gap-1"><Clock size={11} />{provider.openingHours}</span>}
         </div>
         {provider.services && provider.services.length > 0 && (
           <div className="mt-3 flex flex-wrap gap-1">
@@ -234,7 +234,7 @@ function ProviderCard({ provider, onSelect }: { provider: any; onSelect: (p: any
           </div>
         )}
         <div className="mt-3 flex items-center justify-between">
-          <div className="flex items-center gap-1">
+          <div className="flex flex-wrap items-center gap-1">
             {[1,2,3,4,5].map((n) => (
               <Star key={n} size={12} className={n <= stars ? "text-amber-400 fill-amber-400" : "text-gray-300"} />
             ))}
@@ -258,7 +258,7 @@ function ProviderDetailDialog({ provider, onClose, onRequestService }: { provide
     <Dialog open={!!provider} onOpenChange={onClose}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
+          <DialogTitle className="flex flex-wrap items-center gap-2">
             <Icon size={20} className="text-red-600" />
             {provider.name}
             {provider.isVerified && <BadgeCheck size={16} className="text-blue-500" />}
@@ -291,7 +291,7 @@ function ProviderDetailDialog({ provider, onClose, onRequestService }: { provide
               </div>
             </div>
           )}
-          <div className="flex items-center gap-1">
+          <div className="flex flex-wrap items-center gap-1">
             {[1,2,3,4,5].map((n) => (
               <Star key={n} size={14} className={n <= stars ? "text-amber-400 fill-amber-400" : "text-gray-300"} />
             ))}
@@ -337,8 +337,8 @@ function WorkOrderRow({ order, providers, onUpdate }: { order: any; providers: a
         <div className="flex items-center gap-3 mt-0.5 text-xs text-muted-foreground flex-wrap">
           <span className="font-mono">{order.referenceNumber}</span>
           {order.beneficiaryName && <span>{order.beneficiaryName}</span>}
-          {provider && <span className="flex items-center gap-1"><Building2 size={10} />{provider.name}</span>}
-          {order.dueDate && <span className="flex items-center gap-1"><Clock size={10} />Due {new Date(order.dueDate).toLocaleDateString()}</span>}
+          {provider && <span className="flex flex-wrap items-center gap-1"><Building2 size={10} />{provider.name}</span>}
+          {order.dueDate && <span className="flex flex-wrap items-center gap-1"><Clock size={10} />Due {new Date(order.dueDate).toLocaleDateString()}</span>}
           {order.fees && <span>{Number(order.fees).toFixed(3)} OMR</span>}
         </div>
       </div>
@@ -454,7 +454,7 @@ export default function SanadPage() {
             </TabsTrigger>
           </TabsList>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <div className="relative">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
               <Input

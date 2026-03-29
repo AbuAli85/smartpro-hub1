@@ -85,7 +85,7 @@ export default function WorkforceDashboard() {
             MOL-aligned workforce management — work permits, government cases, document vault
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button variant="outline" size="sm" onClick={() => navigate("/workforce/sync")}>
             <RefreshCw className="w-4 h-4 mr-2" />
             Sync MOL

@@ -99,7 +99,7 @@
 - [x] Zero TypeScript errors
 - [x] Navigation and routing verification
 - [x] Mobile responsiveness (responsive sidebar)
-- [ ] Arabic / RTL full support (requires i18n library + RTL CSS overrides — external-dependency enhancement)
+- [ ] Arabic / RTL full support — DEFERRED: requires react-i18next + RTL CSS overrides; significant UI rework; tracked for future phase
 - [x] Final checkpoint and delivery
 
 ## Bug Fixes
@@ -109,9 +109,9 @@
 - [x] Build Client Portal page (contracts, bookings, PRO services, company info, support)
 
 ## Known Limitations (Future Roadmap)
-- [ ] E-signature flow (requires DocuSign or Adobe Sign API key)
+- [ ] E-signature flow — DEFERRED: requires DocuSign or Adobe Sign API key from user
 - [x] Contract document S3 storage pipeline: saveToStorage mutation uploads contract HTML to S3 via storagePut, persists CDN URL in contracts.pdfUrl column, returns download URL. Note: stores HTML document (not PDF bytes); true PDF byte generation is a future enhancement.
-- [ ] Live chat support channel (requires Intercom / Crisp / Tawk.to API key)
+- [ ] Live chat support channel — DEFERRED: requires Intercom / Crisp / Tawk.to API key from user
 - [x] Service detail view deep-link from Client Portal (PRO tab → /pro-services, Bookings → /marketplace with Leave Review action)
 - [x] Undefined-return audit: grep verified 32 membership guards return null/[]/zero-object; no bare `return undefined` in any router file. Comprehensive automated test coverage for all edge cases is a future enhancement.
 
@@ -302,3 +302,210 @@
 - [x] UI: ExpiryAlertsPage.tsx — unified alert dashboard with severity color coding, filter bar, days countdown
 - [x] Route: /alerts registered in App.tsx
 - [x] Nav: "Expiry Alerts" link under Platform section in PlatformLayout
+
+## Step 5: Client Portal (Fully Featured)
+
+### Business Goal
+Give every company a dedicated self-service portal: view their own contracts, invoices, PRO service cases, marketplace bookings, and government case statuses — without accessing admin or other companies' data.
+
+### Database
+- [ ] DB: client_portal_tokens table (company_id, token, expires_at, created_by) — for shareable portal links
+- [ ] DB: client_messages table (company_id, sender_user_id, message, is_read, created_at) — in-portal messaging
+
+### Backend tRPC Procedures
+- [ ] tRPC: clientPortal.getDashboard — company KPIs: active contracts, open cases, pending invoices, expiring docs
+- [ ] tRPC: clientPortal.listContracts — company's contracts with status, value, expiry
+- [ ] tRPC: clientPortal.listInvoices — billing cycles for the company with payment status
+- [ ] tRPC: clientPortal.listProServices — active PRO service applications with case status
+- [ ] tRPC: clientPortal.listGovernmentCases — workforce government cases with task progress
+- [ ] tRPC: clientPortal.listBookings — marketplace bookings with provider info
+- [ ] tRPC: clientPortal.getExpiryAlerts — company-specific expiry alerts (work permits, visas, contracts)
+- [ ] tRPC: clientPortal.sendMessage — send a message to the SmartPRO team
+- [ ] tRPC: clientPortal.listMessages — view message thread with SmartPRO team
+- [ ] tRPC: clientPortal.markMessageRead — mark messages as read
+
+### Frontend
+- [ ] UI: ClientPortalPage.tsx — full rebuild: sidebar nav (Dashboard, Contracts, Invoices, PRO Services, Gov Cases, Bookings, Alerts, Messages), company profile header, KPI cards
+- [ ] UI: Client Dashboard tab — KPI summary cards, expiry countdown widgets, recent activity feed
+- [ ] UI: Client Contracts tab — table with status badges, view/download PDF button, e-sign button (when pending_signature)
+- [ ] UI: Client Invoices tab — invoice list with OMR amounts, paid/overdue badges, download receipt
+- [ ] UI: Client PRO Services tab — application cards with progress timeline (submitted → in_review → approved)
+- [ ] UI: Client Government Cases tab — case cards with task checklist progress bar
+- [ ] UI: Client Bookings tab — booking cards with provider info, status, and review button (post-completion)
+- [ ] UI: Client Expiry Alerts tab — colour-coded countdown cards (red/amber/green) for all expiring documents
+- [ ] UI: Client Messages tab — chat-style thread with SmartPRO team, unread badge on nav
+- [ ] Nav: Client Portal link in PlatformLayout sidebar
+
+## Step 6: Automated Renewal Workflows
+
+### Business Goal
+When an expiry alert fires (≤30 days), automatically create a government case, assign it to the responsible PRO officer, notify the company, and track the renewal to completion — zero manual intervention required.
+
+### Database
+- [ ] DB: renewal_workflows table (alert_id, case_id, officer_id, company_id, status, triggered_at, completed_at, notes)
+- [ ] DB: workflow_events table (workflow_id, event_type, actor_user_id, payload, created_at) — full audit trail
+
+### Backend tRPC Procedures
+- [ ] tRPC: workflows.triggerRenewal — create renewal workflow from an alert: auto-create case, assign officer, notify company
+- [ ] tRPC: workflows.listWorkflows — list all active/completed workflows with status
+- [ ] tRPC: workflows.getWorkflow — full workflow detail with event timeline
+- [ ] tRPC: workflows.updateWorkflow — update status, add notes, reassign officer
+- [ ] tRPC: workflows.completeWorkflow — mark as complete, update original entity expiry date
+- [ ] tRPC: workflows.cancelWorkflow — cancel with reason
+- [ ] Server job: auto-trigger workflows for all alerts crossing the 30-day threshold (called from a scheduled check)
+
+### Frontend
+- [ ] UI: RenewalWorkflowsPage.tsx — workflow dashboard: active/completed tabs, status pipeline (Triggered → Case Created → In Progress → Completed), officer assignment, timeline
+- [ ] UI: WorkflowDetailPage.tsx — full timeline of events, case link, officer info, document checklist, complete/cancel actions
+- [ ] Nav: Renewal Workflows link under Workforce Hub section
+
+## Step 7: Sanad Ratings & Reviews (Fully Featured)
+
+### Business Goal
+After a service request is completed, the requesting company can leave a verified 1-5 star rating with a written review. Ratings are aggregated into a public score displayed on the marketplace. Sanad admins can moderate reviews.
+
+### Database
+- [ ] DB: sanad_ratings table (office_id, company_id, service_request_id, rating (1-5), review_text, is_verified, is_moderated, moderation_status, created_at)
+
+### Backend tRPC Procedures
+- [ ] tRPC: sanad.submitRating — post-service rating (only allowed once per completed service_request_id)
+- [ ] tRPC: sanad.listRatings — paginated ratings for a centre with reviewer company name
+- [ ] tRPC: sanad.getRatingSummary — aggregate: avg rating, count by star, recent reviews
+- [ ] tRPC: sanad.moderateRating — admin: approve/reject/hide a review
+- [ ] tRPC: sanad.respondToRating — Sanad centre admin: post a public response to a review
+- [ ] Auto-update sanad_offices.averageRating and totalReviews after each new rating
+
+### Frontend
+- [ ] UI: Rating dialog in SanadCentreProfilePage — post-completion star selector + review text, submit button
+- [ ] UI: Ratings section in SanadCentreProfilePage — star distribution bar chart, recent reviews list with response thread
+- [ ] UI: Rating moderation tab in SanadCatalogueAdminPage — pending/approved/rejected reviews, approve/reject/respond actions
+- [ ] UI: Rating prompt in ClientPortalPage bookings tab — "Rate this service" button for completed bookings
+
+## Step 8: Payroll Engine (Fully Featured)
+
+### Business Goal
+Full monthly payroll cycle: calculate gross pay, apply deductions (PASI, income tax, loans, absences), generate payslips, export WPS-compatible file for Oman bank transfers, and track payment status.
+
+### Database
+- [ ] DB: payroll_cycles table (company_id, cycle_month, cycle_year, status, total_gross_omr, total_deductions_omr, total_net_omr, wps_file_url, processed_at, paid_at)
+- [ ] DB: payroll_line_items table (cycle_id, employee_id, basic_salary, housing_allowance, transport_allowance, other_allowances, overtime_hours, overtime_rate, pasi_deduction, income_tax_deduction, loan_deduction, absence_deduction, gross_omr, net_omr, payslip_url, status)
+- [ ] DB: employee_salary_config table (employee_id, basic_salary, housing_allowance, transport_allowance, other_allowances, pasi_rate, effective_from)
+- [ ] DB: salary_loans table (employee_id, company_id, loan_amount, monthly_deduction, balance_remaining, status, created_at)
+
+### Backend tRPC Procedures
+- [ ] tRPC: payroll.generateCycle — auto-generate payroll cycle for a month: pull all active employees, apply salary configs, calculate deductions, create line items
+- [ ] tRPC: payroll.getCycleSummary — cycle KPIs: total gross, deductions, net, employee count
+- [ ] tRPC: payroll.listCycles — list payroll cycles with status
+- [ ] tRPC: payroll.getCycleLineItems — paginated employee line items for a cycle
+- [ ] tRPC: payroll.updateLineItem — manual adjustment to a line item (override, add bonus, add deduction)
+- [ ] tRPC: payroll.approveCycle — lock cycle for payment
+- [ ] tRPC: payroll.generateWPSFile — produce WPS-format CSV/text file and upload to S3
+- [ ] tRPC: payroll.generatePayslip — generate HTML payslip for an employee, upload to S3
+- [ ] tRPC: payroll.listSalaryConfigs — list salary configurations per employee
+- [ ] tRPC: payroll.upsertSalaryConfig — set/update salary config for an employee
+- [ ] tRPC: payroll.listLoans — list salary loans
+- [ ] tRPC: payroll.createLoan — create a salary loan with monthly deduction schedule
+
+### Frontend
+- [ ] UI: PayrollPage.tsx — full payroll dashboard with cycle list, generate cycle button, cycle detail drawer
+- [ ] UI: Cycle detail view — employee line items table, totals summary, approve button, WPS export button
+- [ ] UI: Salary Config tab — per-employee salary setup form (basic, allowances, PASI rate)
+- [ ] UI: Loans tab — loan list, create loan form, remaining balance tracker
+- [ ] UI: Payslip viewer — HTML payslip modal with download button
+- [ ] Nav: Payroll link under HR section in PlatformLayout
+
+## Step 9: Recruitment Pipeline (Fully Featured)
+
+### Business Goal
+End-to-end hiring: post jobs (internal + public board), receive applications, screen CVs with AI, schedule interviews, send offer letters, and convert accepted candidates to employees.
+
+### Database
+- [ ] DB: interview_schedules table (application_id, interviewer_user_id, scheduled_at, duration_minutes, type (phone/video/in_person), location, notes, outcome, created_at)
+- [ ] DB: offer_letters table (application_id, employee_id, offer_html, salary_offered, start_date, expiry_date, status (draft/sent/accepted/declined), sent_at, responded_at)
+
+### Backend tRPC Procedures
+- [ ] tRPC: hr.listJobsPublic — public job board (no auth) with active postings
+- [ ] tRPC: hr.applyForJob — public application submission with CV upload URL
+- [ ] tRPC: hr.screenApplication — AI-powered CV screening: score 0-100, extract skills, flag gaps
+- [ ] tRPC: hr.scheduleInterview — create interview slot, send notification to applicant
+- [ ] tRPC: hr.updateInterview — update outcome (passed/failed/no_show)
+- [ ] tRPC: hr.createOfferLetter — generate offer letter from template with LLM, upload to S3
+- [ ] tRPC: hr.sendOffer — mark offer as sent, notify applicant
+- [ ] tRPC: hr.respondToOffer — applicant accepts/declines (via token link)
+- [ ] tRPC: hr.convertToEmployee — on acceptance: create employee record from application data
+
+### Frontend
+- [ ] UI: HRRecruitmentPage.tsx — full rebuild: job postings list, applicant pipeline (Kanban: Applied → Screening → Interview → Offer → Hired/Rejected), AI screening score badges
+- [ ] UI: ApplicationDetailDrawer — CV preview, AI screening report, interview history, offer letter, convert-to-employee button
+- [ ] UI: InterviewScheduler — date/time picker, type selector, notes, outcome recorder
+- [ ] UI: OfferLetterComposer — LLM-generated offer letter editor, send button, response tracking
+- [ ] UI: Public job board page (/jobs) — public-facing job listings with apply form
+- [ ] Route: /jobs registered in App.tsx (public, no auth)
+
+## Step 10: Contract E-Signature (In-App)
+
+### Business Goal
+Contracts can be signed directly in the browser without DocuSign. Each signer draws or types their signature, the system captures a timestamp + IP + user ID, generates a signed PDF, and stores the audit trail.
+
+### Database
+- [ ] DB: contract_signatures table already exists — extend with: signature_data (base64 image), ip_address, user_agent, signed_at (already has signed_at)
+- [ ] DB: contract_audit_trail table (contract_id, event_type, actor_user_id, actor_name, ip_address, created_at)
+
+### Backend tRPC Procedures
+- [ ] tRPC: contracts.requestSignature — send signature request to a user (creates pending signature record, sends notification)
+- [ ] tRPC: contracts.sign — capture signature data (base64 canvas), record IP, timestamp, mark signed
+- [ ] tRPC: contracts.getSignatureStatus — list all required signers and their status
+- [ ] tRPC: contracts.generateSignedPDF — after all parties sign: render contract HTML + signature blocks → upload to S3
+- [ ] tRPC: contracts.getAuditTrail — full audit trail for a contract
+
+### Frontend
+- [ ] UI: SignatureModal component — canvas-based signature pad (draw or type), clear/redo, confirm button
+- [ ] UI: ContractsPage.tsx — add "Request Signatures" button, signer status list (signed/pending), "View Signed PDF" button
+- [ ] UI: Signature request page (/contracts/:id/sign) — standalone signing page (accessible without full login for external signers)
+- [ ] Route: /contracts/:id/sign registered in App.tsx
+
+## Step 11: PDF Report Generation
+
+### Business Goal
+One-click professional PDF export for: billing summaries, compliance certificates, payslips, workforce reports, and contract PDFs — all branded with SmartPRO header/footer.
+
+### Backend tRPC Procedures
+- [ ] tRPC: reports.generateBillingReport — monthly billing summary PDF (company, officer, cycle breakdown)
+- [ ] tRPC: reports.generateWorkforceReport — workforce snapshot PDF (employees, permit statuses, expiry list)
+- [ ] tRPC: reports.generatePayrollReport — payroll cycle PDF with all line items
+- [ ] tRPC: reports.generateComplianceCertificate — single certificate PDF (already partial — make it a proper branded PDF)
+- [ ] tRPC: reports.generateContractPDF — contract HTML → PDF with signature blocks
+
+### Frontend
+- [ ] UI: ReportsPage.tsx — report generator hub: select report type, date range, company filter, generate button, download link
+- [ ] UI: Download buttons on BillingEnginePage, PayrollPage, OfficerAssignmentPage, ContractsPage
+- [ ] Nav: Reports link under Platform section
+
+## Step 12: Security Hardening
+
+### Business Goal
+Production-ready security: rate limiting on all public endpoints, input sanitisation, CSRF protection, and a full audit log viewer for admins.
+
+### Backend
+- [ ] Rate limiting middleware: max 60 req/min per IP on public procedures, 300 req/min on authenticated procedures
+- [ ] Input sanitisation: strip HTML from all string inputs using DOMPurify equivalent on server
+- [ ] CSRF: validate Origin header on all mutation procedures
+- [ ] Audit log: all admin actions (user role changes, company deletions, billing overrides) written to audit_events
+- [ ] tRPC: admin.listAuditLogs — paginated audit log viewer with filters (entity_type, actor, date range)
+
+### Frontend
+- [ ] UI: Audit Log tab in AdminPage — table of all audit events with actor, action, entity, timestamp, before/after state diff viewer
+
+## Step 13: Mobile Responsive Audit
+
+### Business Goal
+Every page works correctly on 375px (iPhone SE) and 768px (iPad) viewports. Sidebar collapses to a hamburger menu on mobile. Tables become card stacks. Forms are touch-friendly.
+
+### Frontend
+- [ ] PlatformLayout: hamburger menu on mobile, slide-in sidebar drawer, overlay backdrop
+- [ ] All data tables: responsive card view on mobile (hide columns, stack key fields)
+- [ ] All forms: full-width inputs, larger touch targets (min 44px), native date pickers on mobile
+- [ ] Dashboard KPI cards: 2-column grid on mobile, 4-column on desktop
+- [ ] Workflow pages: horizontal timeline collapses to vertical on mobile
+- [ ] All modals/drawers: full-screen on mobile
+- [ ] Bottom navigation bar on mobile for key actions (Dashboard, Alerts, Messages, Profile)

@@ -5,6 +5,24 @@ import { canAccessGlobalAdminProcedures } from "@shared/rbac";
 import type { User } from "../../drizzle/schema";
 import { contractSignatures } from "../../drizzle/schema";
 
+/**
+ * Quotations may be company-scoped or legacy rows with null companyId (creator-only).
+ */
+export async function assertQuotationTenantAccess(
+  user: User,
+  quotation: { companyId: number | null; createdBy: number },
+  entityLabel = "Quotation"
+): Promise<void> {
+  if (canAccessGlobalAdminProcedures(user)) return;
+  if (quotation.companyId != null) {
+    await assertRowBelongsToActiveCompany(user, quotation.companyId, entityLabel);
+    return;
+  }
+  if (quotation.createdBy !== user.id) {
+    throw new TRPCError({ code: "NOT_FOUND", message: `${entityLabel} not found` });
+  }
+}
+
 export function normalizeEmail(e: string | null | undefined): string {
   return (e ?? "").trim().toLowerCase();
 }

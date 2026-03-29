@@ -205,6 +205,13 @@ export async function getSanadApplications(companyId: number, filters?: { status
   return db.select().from(sanadApplications).where(and(...conditions)).orderBy(desc(sanadApplications.createdAt));
 }
 
+export async function getSanadApplicationById(id: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const [row] = await db.select().from(sanadApplications).where(eq(sanadApplications.id, id)).limit(1);
+  return row ?? null;
+}
+
 export async function getAllSanadApplications(filters?: { status?: string }) {
   const db = await getDb();
   if (!db) return [];
@@ -603,6 +610,13 @@ export async function createCrmContact(data: typeof crmContacts.$inferInsert) {
   return result[0] ?? null;
 }
 
+export async function getCrmContactById(id: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const [row] = await db.select().from(crmContacts).where(eq(crmContacts.id, id)).limit(1);
+  return row ?? null;
+}
+
 export async function updateCrmContact(id: number, data: Partial<typeof crmContacts.$inferInsert>) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
@@ -624,6 +638,13 @@ export async function createCrmDeal(data: typeof crmDeals.$inferInsert) {
   if (!db) throw new Error("DB not available");
   const result = await db.insert(crmDeals).values(data);
   return result[0] ?? null;
+}
+
+export async function getCrmDealById(id: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const [row] = await db.select().from(crmDeals).where(eq(crmDeals.id, id)).limit(1);
+  return row ?? null;
 }
 
 export async function updateCrmDeal(id: number, data: Partial<typeof crmDeals.$inferInsert>) {

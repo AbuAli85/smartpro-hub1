@@ -338,8 +338,9 @@ export const payrollRouter = router({
       if (m.role !== "company_admin") throw new TRPCError({ code: "FORBIDDEN", message: "Only admins can mark payroll paid" });
       await db.update(payrollRuns).set({ status: "paid", paidAt: new Date() })
         .where(and(eq(payrollRuns.id, input.runId), eq(payrollRuns.companyId, m.companyId)));
-      await db.update(payrollLineItems).set({ status: "paid" })
-        .where(eq(payrollLineItems.payrollRunId, input.runId));
+      await db.update(payrollLineItems).set({ status: "paid" }).where(
+        and(eq(payrollLineItems.payrollRunId, input.runId), eq(payrollLineItems.companyId, m.companyId)),
+      );
       return { success: true };
     }),
 
@@ -387,7 +388,10 @@ export const payrollRouter = router({
       });
       const key = `payslips/${m.companyId}/${row.run?.periodYear}-${row.run?.periodMonth}/emp-${row.line.employeeId}-${Date.now()}.html`;
       const { url } = await storagePut(key, Buffer.from(html, "utf-8"), "text/html");
-      await db.update(payrollLineItems).set({ payslipUrl: url, payslipKey: key }).where(eq(payrollLineItems.id, input.lineId));
+      await db
+        .update(payrollLineItems)
+        .set({ payslipUrl: url, payslipKey: key })
+        .where(and(eq(payrollLineItems.id, input.lineId), eq(payrollLineItems.companyId, m.companyId)));
       return { url };
     }),
 
@@ -409,7 +413,7 @@ export const payrollRouter = router({
         })
         .from(payrollLineItems)
         .leftJoin(employees, eq(payrollLineItems.employeeId, employees.id))
-        .where(eq(payrollLineItems.payrollRunId, input.runId));
+        .where(and(eq(payrollLineItems.payrollRunId, input.runId), eq(payrollLineItems.companyId, m.companyId)));
       const csv = buildWpsCsv(lines.map(r => ({
         employeeName: `${r.emp?.firstName ?? ""} ${r.emp?.lastName ?? ""}`.trim(),
         employeeId: r.line.employeeId,

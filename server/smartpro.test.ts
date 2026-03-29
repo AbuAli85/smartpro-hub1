@@ -29,6 +29,8 @@ vi.mock("./db", () => ({
   createPerformanceReview: vi.fn().mockResolvedValue({ id: 1 }),
   // CRM
   updateCrmContact: vi.fn().mockResolvedValue({}),
+  getCrmContactById: vi.fn().mockResolvedValue(null),
+  getCrmDealById: vi.fn().mockResolvedValue(null),
   getCrmCommunications: vi.fn().mockResolvedValue([]),
   createCrmCommunication: vi.fn().mockResolvedValue({ id: 1 }),
   // Notifications
@@ -60,6 +62,7 @@ vi.mock("./db", () => ({
   createProService: vi.fn().mockResolvedValue({ id: 1 }),
   updateProService: vi.fn().mockResolvedValue({}),
   getSanadApplications: vi.fn().mockResolvedValue([]),
+  getSanadApplicationById: vi.fn().mockResolvedValue(null),
   createSanadApplication: vi.fn().mockResolvedValue({ id: 1 }),
   updateSanadApplication: vi.fn().mockResolvedValue({}),
   getSanadOffices: vi.fn().mockResolvedValue([]),
@@ -340,6 +343,18 @@ describe("crm", () => {
     const result = await caller.crm.pipelineStats();
     // Returns array of pipeline stages (may be empty when no company)
     expect(result).toBeDefined();
+  });
+
+  it("updateContact returns NOT_FOUND when contact belongs to another company", async () => {
+    const { getCrmContactById, getUserCompany } = await import("./db");
+    vi.mocked(getCrmContactById).mockResolvedValueOnce({ id: 1, companyId: 2 } as any);
+    vi.mocked(getUserCompany).mockResolvedValueOnce({ company: { id: 1 }, member: {} } as any);
+    const caller = appRouter.createCaller(
+      makeCtx({ role: "user", platformRole: "company_member" }),
+    );
+    await expect(caller.crm.updateContact({ id: 1, firstName: "X" })).rejects.toMatchObject({
+      code: "NOT_FOUND",
+    });
   });
 });
 
@@ -645,6 +660,13 @@ describe("sanad.officeDashboard", () => {
       appRouter.createCaller(makePublicCtx()).sanad.officeDashboard({ officeId: 1 })
     ).rejects.toThrow();
   });
+
+  it("rejects non-platform users", async () => {
+    const ctx = makeCtx({ role: "user", platformRole: "company_member" });
+    await expect(
+      appRouter.createCaller(ctx).sanad.officeDashboard({ officeId: 1 }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
 });
 
 describe("sanad.officerPerformance", () => {
@@ -776,6 +798,11 @@ describe("sanad.getMyOfficeProfile", () => {
     const result = await appRouter.createCaller(ctx).sanad.getMyOfficeProfile({});
     expect(result).toBeNull();
   });
+  it("returns null for non-platform users without calling DB", async () => {
+    const ctx = makeCtx({ role: "user", platformRole: "company_member" });
+    const result = await appRouter.createCaller(ctx).sanad.getMyOfficeProfile({});
+    expect(result).toBeNull();
+  });
   it("requires authentication", async () => {
     await expect(
       appRouter.createCaller(makePublicCtx()).sanad.getMyOfficeProfile({})
@@ -806,5 +833,17 @@ describe("sanad.addCatalogueItem", () => {
         processingDays: 3,
       })
     ).rejects.toThrow();
+  });
+  it("rejects non-platform users", async () => {
+    const ctx = makeCtx({ role: "user", platformRole: "company_member" });
+    await expect(
+      appRouter.createCaller(ctx).sanad.addCatalogueItem({
+        officeId: 1,
+        serviceName: "Test",
+        serviceType: "work_permit",
+        priceOmr: "10.000",
+        processingDays: 3,
+      }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 });

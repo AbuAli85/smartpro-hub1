@@ -2,14 +2,12 @@ import { z } from "zod";
 import { protectedProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
 import { TRPCError } from "@trpc/server";
-import {
-  serviceQuotations,
-  quotationLineItems,
-  contracts,
-} from "../../drizzle/schema";
-import { eq, and, desc, sql } from "drizzle-orm";
+import { serviceQuotations, quotationLineItems } from "../../drizzle/schema";
+import { eq, and, desc, sql, or, isNull } from "drizzle-orm";
 import { invokeLLM } from "../_core/llm";
 import { storagePut } from "../storage";
+import { canAccessGlobalAdminProcedures } from "@shared/rbac";
+import { assertQuotationTenantAccess, requireActiveCompanyId } from "../_core/tenant";
 
 function generateRefNumber(): string {
   const year = new Date().getFullYear();
@@ -52,6 +50,10 @@ export const quotationsRouter = router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
+      const companyId = canAccessGlobalAdminProcedures(ctx.user)
+        ? input.companyId ?? null
+        : await requireActiveCompanyId(ctx.user.id);
+
       const lines = calcLineTotals(input.lineItems);
       const subtotal = lines.reduce((s, l) => s + l.lineTotal, 0);
       const vat = subtotal * 0.05; // 5% VAT (Oman)
@@ -62,7 +64,7 @@ export const quotationsRouter = router({
       const [quotation] = await db
         .insert(serviceQuotations)
         .values({
-          companyId: input.companyId ?? null,
+          companyId,
           referenceNumber: refNumber,
           clientName: input.clientName,
           clientEmail: input.clientEmail ?? null,
@@ -110,7 +112,17 @@ export const quotationsRouter = router({
 
       const conditions = [];
       if (input.status) conditions.push(eq(serviceQuotations.status, input.status));
-      if (input.companyId) conditions.push(eq(serviceQuotations.companyId, input.companyId));
+      if (canAccessGlobalAdminProcedures(ctx.user)) {
+        if (input.companyId != null) conditions.push(eq(serviceQuotations.companyId, input.companyId));
+      } else {
+        const cid = await requireActiveCompanyId(ctx.user.id);
+        conditions.push(
+          or(
+            eq(serviceQuotations.companyId, cid),
+            and(isNull(serviceQuotations.companyId), eq(serviceQuotations.createdBy, ctx.user.id)),
+          )!,
+        );
+      }
 
       return db
         .select()
@@ -133,6 +145,11 @@ export const quotationsRouter = router({
         .limit(1);
 
       if (!quotation) throw new TRPCError({ code: "NOT_FOUND" });
+
+      await assertQuotationTenantAccess(ctx.user, {
+        companyId: quotation.companyId,
+        createdBy: quotation.createdBy,
+      });
 
       const lineItems = await db
         .select()
@@ -169,14 +186,19 @@ export const quotationsRouter = router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
-      const [existing] = await db
-        .select({ status: serviceQuotations.status })
+      const [row] = await db
+        .select({
+          status: serviceQuotations.status,
+          companyId: serviceQuotations.companyId,
+          createdBy: serviceQuotations.createdBy,
+        })
         .from(serviceQuotations)
         .where(eq(serviceQuotations.id, input.id))
         .limit(1);
 
-      if (!existing) throw new TRPCError({ code: "NOT_FOUND" });
-      if (existing.status !== "draft") throw new TRPCError({ code: "BAD_REQUEST", message: "Only draft quotations can be edited" });
+      if (!row) throw new TRPCError({ code: "NOT_FOUND" });
+      await assertQuotationTenantAccess(ctx.user, { companyId: row.companyId, createdBy: row.createdBy });
+      if (row.status !== "draft") throw new TRPCError({ code: "BAD_REQUEST", message: "Only draft quotations can be edited" });
 
       const updateData: Record<string, unknown> = {};
       if (input.clientName) updateData.clientName = input.clientName;
@@ -231,6 +253,10 @@ export const quotationsRouter = router({
         .limit(1);
 
       if (!quotation) throw new TRPCError({ code: "NOT_FOUND" });
+      await assertQuotationTenantAccess(ctx.user, {
+        companyId: quotation.companyId,
+        createdBy: quotation.createdBy,
+      });
 
       const lineItems = await db
         .select()
@@ -294,6 +320,18 @@ Terms: ${quotation.terms ?? "Payment due within 30 days. All prices in Omani Ria
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
+      const [row] = await db
+        .select({
+          companyId: serviceQuotations.companyId,
+          createdBy: serviceQuotations.createdBy,
+        })
+        .from(serviceQuotations)
+        .where(eq(serviceQuotations.id, input.id))
+        .limit(1);
+
+      if (!row) throw new TRPCError({ code: "NOT_FOUND" });
+      await assertQuotationTenantAccess(ctx.user, { companyId: row.companyId, createdBy: row.createdBy });
+
       await db
         .update(serviceQuotations)
         .set({ status: "accepted", acceptedAt: new Date() })
@@ -308,6 +346,18 @@ Terms: ${quotation.terms ?? "Payment due within 30 days. All prices in Omani Ria
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      const [row] = await db
+        .select({
+          companyId: serviceQuotations.companyId,
+          createdBy: serviceQuotations.createdBy,
+        })
+        .from(serviceQuotations)
+        .where(eq(serviceQuotations.id, input.id))
+        .limit(1);
+
+      if (!row) throw new TRPCError({ code: "NOT_FOUND" });
+      await assertQuotationTenantAccess(ctx.user, { companyId: row.companyId, createdBy: row.createdBy });
 
       await db
         .update(serviceQuotations)
@@ -325,12 +375,20 @@ Terms: ${quotation.terms ?? "Payment due within 30 days. All prices in Omani Ria
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
       const [existing] = await db
-        .select({ status: serviceQuotations.status })
+        .select({
+          status: serviceQuotations.status,
+          companyId: serviceQuotations.companyId,
+          createdBy: serviceQuotations.createdBy,
+        })
         .from(serviceQuotations)
         .where(eq(serviceQuotations.id, input.id))
         .limit(1);
 
       if (!existing) throw new TRPCError({ code: "NOT_FOUND" });
+      await assertQuotationTenantAccess(ctx.user, {
+        companyId: existing.companyId,
+        createdBy: existing.createdBy,
+      });
       if (existing.status !== "draft") throw new TRPCError({ code: "BAD_REQUEST", message: "Only draft quotations can be deleted" });
 
       await db.delete(quotationLineItems).where(eq(quotationLineItems.quotationId, input.id));
@@ -340,18 +398,28 @@ Terms: ${quotation.terms ?? "Payment due within 30 days. All prices in Omani Ria
     }),
 
   // ── Summary stats ────────────────────────────────────────────────────────────
-  getSummary: protectedProcedure.query(async () => {
+  getSummary: protectedProcedure.query(async ({ ctx }) => {
     const db = await getDb();
     if (!db) return { total: 0, draft: 0, sent: 0, accepted: 0, declined: 0, totalValueOmr: 0 };
 
-    const rows = await db
+    const base = db
       .select({
         status: serviceQuotations.status,
         cnt: sql<number>`count(*)`,
         totalVal: sql<number>`sum(total_omr)`,
       })
-      .from(serviceQuotations)
-      .groupBy(serviceQuotations.status);
+      .from(serviceQuotations);
+
+    const rows = canAccessGlobalAdminProcedures(ctx.user)
+      ? await base.groupBy(serviceQuotations.status)
+      : await base
+          .where(
+            or(
+              eq(serviceQuotations.companyId, await requireActiveCompanyId(ctx.user.id)),
+              and(isNull(serviceQuotations.companyId), eq(serviceQuotations.createdBy, ctx.user.id)),
+            )!,
+          )
+          .groupBy(serviceQuotations.status);
 
     const result = { total: 0, draft: 0, sent: 0, accepted: 0, declined: 0, expired: 0, totalValueOmr: 0 };
     for (const row of rows) {

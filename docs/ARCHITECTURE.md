@@ -40,6 +40,9 @@ See `.env.example` at the repo root.
 - `assertRowBelongsToActiveCompany` — cross-tenant access returns **NOT_FOUND** (not FORBIDDEN) to reduce enumeration.
 - Contract signing: `assertContractReadable` / `assertContractSignersVisible` allow **owning company**, **platform staff**, or **invited signer email** so `/contracts/:id/sign` keeps working.
 - `submitSignature` / `declineSignature` require the authenticated user’s email to match the signer row.
+- **Quotations:** `assertQuotationTenantAccess` — rows with `companyId` are scoped to the active company; legacy rows with `null` companyId are visible only to the original `createdBy` user (platform staff bypass).
+- **CRM:** Creates resolve `companyId` via active membership, or explicit `companyId` / caller’s company for platform users; updates and communications validate the contact/deal `companyId` matches that resolved tenant.
+- **Sanad work orders:** Reads and mutations use `assertRowBelongsToActiveCompany` on `sanad_applications.companyId` (client company). Office KPI endpoints (`officeDashboard`, `officerPerformance`, `earningsTrend`, `workOrderStats`), catalogue CRUD aliases (`addCatalogueItem`, etc.), `getMyOfficeProfile`, and `upsertOfficeProfile` are restricted to `canAccessGlobalAdminProcedures` so arbitrary tenants cannot scrape office metrics or mutate catalogue rows by id.
 
 ## Production startup
 

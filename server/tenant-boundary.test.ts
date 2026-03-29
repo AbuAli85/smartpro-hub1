@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import {
+  assertQuotationTenantAccess,
   assertRowBelongsToActiveCompany,
   normalizeEmail,
   requireActiveCompanyId,
@@ -61,5 +62,32 @@ describe("assertRowBelongsToActiveCompany", () => {
     const admin = { id: 1, role: "user" as const, platformRole: "super_admin" as const };
     await expect(assertRowBelongsToActiveCompany(admin as any, 999, "Row")).resolves.toBeUndefined();
     expect(db.getUserCompany).not.toHaveBeenCalled();
+  });
+});
+
+describe("assertQuotationTenantAccess", () => {
+  beforeEach(() => {
+    vi.mocked(db.getUserCompany).mockReset();
+  });
+
+  const memberUser = { id: 10, role: "user" as const, platformRole: "company_member" as const };
+
+  it("allows creator when companyId is null", async () => {
+    await expect(
+      assertQuotationTenantAccess(memberUser as any, { companyId: null, createdBy: 10 }),
+    ).resolves.toBeUndefined();
+  });
+
+  it("rejects other users when companyId is null", async () => {
+    await expect(
+      assertQuotationTenantAccess(memberUser as any, { companyId: null, createdBy: 99 }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+
+  it("uses company membership when companyId is set", async () => {
+    vi.mocked(db.getUserCompany).mockResolvedValue({ company: { id: 4 }, member: {} } as any);
+    await expect(
+      assertQuotationTenantAccess(memberUser as any, { companyId: 4, createdBy: 99 }),
+    ).resolves.toBeUndefined();
   });
 });

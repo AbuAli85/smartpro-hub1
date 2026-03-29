@@ -1,16 +1,34 @@
+import { TRPCError } from "@trpc/server";
 import { z } from "zod";
+import { canAccessGlobalAdminProcedures } from "@shared/rbac";
+import { assertRowBelongsToActiveCompany, requireActiveCompanyId } from "../_core/tenant";
 import {
   createCrmCommunication,
   createCrmContact,
   createCrmDeal,
   getCrmCommunications,
+  getCrmContactById,
   getCrmContacts,
+  getCrmDealById,
   getCrmDeals,
   getUserCompany,
   updateCrmContact,
   updateCrmDeal,
 } from "../db";
 import { protectedProcedure, router } from "../_core/trpc";
+
+async function resolveCrmCompanyId(
+  ctx: { user: { id: number; role?: string | null; platformRole?: string | null } },
+  inputCompanyId?: number
+): Promise<number> {
+  if (canAccessGlobalAdminProcedures(ctx.user)) {
+    if (inputCompanyId != null) return inputCompanyId;
+    const m = await getUserCompany(ctx.user.id);
+    if (m?.company?.id) return m.company.id;
+    throw new TRPCError({ code: "BAD_REQUEST", message: "companyId is required when you have no company membership" });
+  }
+  return requireActiveCompanyId(ctx.user.id);
+}
 
 export const crmRouter = router({
   // Contacts
@@ -25,6 +43,7 @@ export const crmRouter = router({
   createContact: protectedProcedure
     .input(
       z.object({
+        companyId: z.number().optional(),
         firstName: z.string().min(1),
         lastName: z.string().min(1),
         email: z.string().email().optional(),
@@ -40,9 +59,9 @@ export const crmRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
-      const membership = await getUserCompany(ctx.user.id);
-      const companyId = membership?.company.id ?? 1;
-      await createCrmContact({ ...input, companyId, ownerId: ctx.user.id });
+      const companyId = await resolveCrmCompanyId(ctx, input.companyId);
+      const { companyId: _omit, ...rest } = input;
+      await createCrmContact({ ...rest, companyId, ownerId: ctx.user.id });
       return { success: true };
     }),
 
@@ -61,7 +80,10 @@ export const crmRouter = router({
         tags: z.array(z.string()).optional(),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      const row = await getCrmContactById(input.id);
+      if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Contact not found" });
+      await assertRowBelongsToActiveCompany(ctx.user, row.companyId, "Contact");
       const { id, ...data } = input;
       await updateCrmContact(id, data);
       return { success: true };
@@ -79,6 +101,7 @@ export const crmRouter = router({
   createDeal: protectedProcedure
     .input(
       z.object({
+        companyId: z.number().optional(),
         title: z.string().min(2),
         contactId: z.number().optional(),
         value: z.number().optional(),
@@ -91,10 +114,17 @@ export const crmRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
-      const membership = await getUserCompany(ctx.user.id);
-      const companyId = membership?.company.id ?? 1;
+      const companyId = await resolveCrmCompanyId(ctx, input.companyId);
+      if (input.contactId != null) {
+        const c = await getCrmContactById(input.contactId);
+        if (!c) throw new TRPCError({ code: "NOT_FOUND", message: "Contact not found" });
+        if (c.companyId !== companyId) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Contact not found" });
+        }
+      }
+      const { companyId: _omit, ...rest } = input;
       await createCrmDeal({
-        ...input,
+        ...rest,
         companyId,
         ownerId: ctx.user.id,
         value: input.value ? String(input.value) : undefined,
@@ -115,13 +145,16 @@ export const crmRouter = router({
         expectedCloseDate: z.string().optional(),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      const row = await getCrmDealById(input.id);
+      if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Deal not found" });
+      await assertRowBelongsToActiveCompany(ctx.user, row.companyId, "Deal");
       const { id, ...data } = input;
-      const updateData: any = { ...data };
+      const updateData: Record<string, unknown> = { ...data };
       if (data.value !== undefined) updateData.value = String(data.value);
       if (data.expectedCloseDate) updateData.expectedCloseDate = new Date(data.expectedCloseDate);
       if (data.stage === "closed_won" || data.stage === "closed_lost") updateData.closedAt = new Date();
-      await updateCrmDeal(id, updateData);
+      await updateCrmDeal(id, updateData as any);
       return { success: true };
     }),
 
@@ -137,6 +170,7 @@ export const crmRouter = router({
   createCommunication: protectedProcedure
     .input(
       z.object({
+        companyId: z.number().optional(),
         contactId: z.number().optional(),
         dealId: z.number().optional(),
         type: z.enum(["email", "call", "meeting", "note", "sms", "whatsapp"]),
@@ -148,10 +182,24 @@ export const crmRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
-      const membership = await getUserCompany(ctx.user.id);
-      const companyId = membership?.company.id ?? 1;
+      const companyId = await resolveCrmCompanyId(ctx, input.companyId);
+      if (input.contactId != null) {
+        const c = await getCrmContactById(input.contactId);
+        if (!c) throw new TRPCError({ code: "NOT_FOUND", message: "Contact not found" });
+        if (c.companyId !== companyId) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Contact not found" });
+        }
+      }
+      if (input.dealId != null) {
+        const d = await getCrmDealById(input.dealId);
+        if (!d) throw new TRPCError({ code: "NOT_FOUND", message: "Deal not found" });
+        if (d.companyId !== companyId) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Deal not found" });
+        }
+      }
+      const { companyId: _omit, ...rest } = input;
       await createCrmCommunication({
-        ...input,
+        ...rest,
         companyId,
         userId: ctx.user.id,
         scheduledAt: input.scheduledAt ? new Date(input.scheduledAt) : undefined,

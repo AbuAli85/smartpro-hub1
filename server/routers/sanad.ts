@@ -18,12 +18,14 @@ import {
   createSanadOffice,
   getAllSanadApplications,
   getAllSanadOffices,
+  getSanadApplicationById,
   getSanadApplications,
   getSanadOffices,
   getUserCompany,
   updateSanadApplication,
   updateSanadOffice,
 } from "../db";
+import { assertRowBelongsToActiveCompany, requireActiveCompanyId } from "../_core/tenant";
 import { protectedProcedure, publicProcedure, router } from "../_core/trpc";
 
 export const PROVIDER_TYPES = [
@@ -210,8 +212,7 @@ export const sanadRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
-      const membership = await getUserCompany(ctx.user.id);
-      const companyId = membership?.company.id ?? 1;
+      const companyId = await requireActiveCompanyId(ctx.user.id);
       const referenceNumber = "SAN-" + Date.now() + "-" + nanoid(4).toUpperCase();
       const title = input.title || input.serviceType.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
       await createSanadApplication({
@@ -241,7 +242,10 @@ export const sanadRouter = router({
         dueDate: z.string().optional(),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      const wo = await getSanadApplicationById(input.id);
+      if (!wo) throw new TRPCError({ code: "NOT_FOUND", message: "Work order not found" });
+      await assertRowBelongsToActiveCompany(ctx.user, wo.companyId, "Work order");
       const { id, ...data } = input;
       const updateData: any = { ...data };
       if (data.fees !== undefined) updateData.fees = String(data.fees);
@@ -255,11 +259,11 @@ export const sanadRouter = router({
   /** Get a single work order by ID */
   getWorkOrderById: protectedProcedure
     .input(z.object({ id: z.number() }))
-    .query(async ({ input }) => {
-      const db = await getDb();
-      if (!db) return null;
-      const rows = await db.select().from(sanadApplications).where(eq(sanadApplications.id, input.id)).limit(1);
-      return rows[0] ?? null;
+    .query(async ({ input, ctx }) => {
+      const wo = await getSanadApplicationById(input.id);
+      if (!wo) return null;
+      await assertRowBelongsToActiveCompany(ctx.user, wo.companyId, "Work order");
+      return wo;
     }),
 
   /** Rate a completed work order */
@@ -271,7 +275,10 @@ export const sanadRouter = router({
         ratingComment: z.string().optional(),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      const wo = await getSanadApplicationById(input.id);
+      if (!wo) throw new TRPCError({ code: "NOT_FOUND", message: "Work order not found" });
+      await assertRowBelongsToActiveCompany(ctx.user, wo.companyId, "Work order");
       await updateSanadApplication(input.id, {
         rating: input.rating,
         ratingComment: input.ratingComment,
@@ -286,7 +293,10 @@ export const sanadRouter = router({
    */
   officeDashboard: protectedProcedure
     .input(z.object({ officeId: z.number() }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
+      if (!canAccessGlobalAdminProcedures(ctx.user)) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Platform access required" });
+      }
       const db = await getDb();
       if (!db) return null;
 
@@ -405,7 +415,10 @@ export const sanadRouter = router({
    */
   officerPerformance: protectedProcedure
     .input(z.object({ officeId: z.number() }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
+      if (!canAccessGlobalAdminProcedures(ctx.user)) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Platform access required" });
+      }
       const db = await getDb();
       if (!db) return [];
 
@@ -492,7 +505,10 @@ export const sanadRouter = router({
    */
   earningsTrend: protectedProcedure
     .input(z.object({ officeId: z.number() }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
+      if (!canAccessGlobalAdminProcedures(ctx.user)) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Platform access required" });
+      }
       const db = await getDb();
       if (!db) return [];
 
@@ -556,7 +572,10 @@ export const sanadRouter = router({
    */
   workOrderStats: protectedProcedure
     .input(z.object({ officeId: z.number() }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
+      if (!canAccessGlobalAdminProcedures(ctx.user)) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Platform access required" });
+      }
       const db = await getDb();
       if (!db) return { byServiceType: [], byStatus: [], recentOrders: [] };
 
@@ -841,7 +860,8 @@ export const sanadRouter = router({
   /** Get the first Sanad office profile (for self-management by the current user) */
   getMyOfficeProfile: protectedProcedure
     .input(z.object({ officeId: z.number().optional() }).optional())
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
+      if (!canAccessGlobalAdminProcedures(ctx.user)) return null;
       const db = await getDb();
       if (!db) return null;
       if (input?.officeId) {
@@ -876,10 +896,11 @@ export const sanadRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
+      if (!canAccessGlobalAdminProcedures(ctx.user)) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Platform access required" });
+      }
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-      const membership = await getUserCompany(ctx.user.id);
-      if (!membership) throw new TRPCError({ code: "FORBIDDEN", message: "No company" });
       const officeId = (input as any).officeId as number | undefined;
       const existing = officeId
         ? await db.select().from(sanadOffices).where(eq(sanadOffices.id, officeId)).limit(1)
@@ -927,7 +948,10 @@ export const sanadRouter = router({
         descriptionAr: z.string().optional(),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      if (!canAccessGlobalAdminProcedures(ctx.user)) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Platform access required" });
+      }
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
       const [result] = await db.insert(sanadServiceCatalogue).values({
@@ -958,7 +982,10 @@ export const sanadRouter = router({
         descriptionAr: z.string().optional(),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      if (!canAccessGlobalAdminProcedures(ctx.user)) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Platform access required" });
+      }
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
       await db.update(sanadServiceCatalogue).set({
@@ -977,7 +1004,10 @@ export const sanadRouter = router({
   /** Toggle a catalogue item active/inactive */
   toggleCatalogueItem: protectedProcedure
     .input(z.object({ id: z.number(), isActive: z.boolean() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      if (!canAccessGlobalAdminProcedures(ctx.user)) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Platform access required" });
+      }
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
       await db.update(sanadServiceCatalogue).set({ isActive: input.isActive ? 1 : 0, updatedAt: new Date() }).where(eq(sanadServiceCatalogue.id, input.id));
@@ -987,7 +1017,10 @@ export const sanadRouter = router({
   /** Delete a catalogue item */
   deleteCatalogueItem: protectedProcedure
     .input(z.object({ id: z.number() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      if (!canAccessGlobalAdminProcedures(ctx.user)) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Platform access required" });
+      }
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
       await db.delete(sanadServiceCatalogue).where(eq(sanadServiceCatalogue.id, input.id));

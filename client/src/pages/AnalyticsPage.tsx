@@ -67,11 +67,23 @@ export default function AnalyticsPage() {
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
       <div>
-        <h1 className="text-2xl font-bold flex items-center gap-2">
-          <BarChart3 size={24} className="text-[var(--smartpro-orange)]" />
-          Analytics Dashboard
-        </h1>
-        <p className="text-muted-foreground text-sm mt-1">Cross-module reporting and business intelligence</p>
+        <div className="flex items-center gap-3 mb-1">
+          <div className="w-10 h-10 rounded-xl bg-violet-600 flex items-center justify-center shadow-sm">
+            <BarChart3 size={20} className="text-white" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-black text-foreground tracking-tight">Analytics Dashboard</h1>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Cross-module business intelligence — contracts, PRO services, HR, payroll, and CRM insights for Oman & GCC
+            </p>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2 mt-2">
+          <span className="inline-flex items-center gap-1 bg-violet-50 text-violet-700 border border-violet-200 rounded-full px-2.5 py-0.5 text-[10px] font-semibold">Real-time KPIs</span>
+          <span className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 border border-blue-200 rounded-full px-2.5 py-0.5 text-[10px] font-semibold">OMR Revenue</span>
+          <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full px-2.5 py-0.5 text-[10px] font-semibold">Compliance Tracking</span>
+          <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-700 border border-amber-200 rounded-full px-2.5 py-0.5 text-[10px] font-semibold">Scheduled Reports</span>
+        </div>
       </div>
 
       {/* Platform Overview */}

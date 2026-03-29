@@ -407,15 +407,25 @@ export default function SanadPage() {
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between gap-4 flex-wrap">
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Building2 size={24} className="text-red-600" />
-            Sanad Service Providers
-          </h1>
-          <p className="text-muted-foreground text-sm mt-1">
-            Browse PRO offices, typing centres, admin bureaus and other service providers — then track your work orders in one place.
-          </p>
+          <div className="flex items-center gap-3 mb-1">
+            <div className="w-10 h-10 rounded-xl bg-red-600 flex items-center justify-center shadow-sm">
+              <Building2 size={20} className="text-white" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-black text-foreground tracking-tight">Sanad Office Management</h1>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Government service providers across Oman — PRO offices, typing centres, admin bureaus, legal services, attestation
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2 mt-2">
+            <span className="inline-flex items-center gap-1 bg-red-50 text-red-700 border border-red-200 rounded-full px-2.5 py-0.5 text-[10px] font-semibold">🇴🇲 Sultanate of Oman</span>
+            <span className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 border border-blue-200 rounded-full px-2.5 py-0.5 text-[10px] font-semibold">🇦🇪 UAE</span>
+            <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full px-2.5 py-0.5 text-[10px] font-semibold">🇸🇦 KSA</span>
+            <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-700 border border-amber-200 rounded-full px-2.5 py-0.5 text-[10px] font-semibold">🇶🇦 Qatar</span>
+          </div>
         </div>
         <NewWorkOrderDialog providers={providers} onSuccess={() => workOrdersQuery.refetch()} />
       </div>
@@ -423,20 +433,16 @@ export default function SanadPage() {
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { label: "Active Providers", value: activeProviders,       icon: Building2,    color: "text-red-600" },
-          { label: "Total Work Orders", value: workOrders.length,    icon: FileText,     color: "text-blue-600" },
-          { label: "In Progress",       value: pendingOrders,        icon: Clock,        color: "text-amber-600" },
-          { label: "Completed",         value: completedOrders,      icon: CheckCircle2, color: "text-emerald-600" },
+          { label: "Active Providers",  value: activeProviders,    bg: "stat-gradient-1", icon: Building2 },
+          { label: "Total Work Orders", value: workOrders.length,  bg: "stat-gradient-2", icon: FileText },
+          { label: "In Progress",       value: pendingOrders,      bg: "stat-gradient-gold", icon: Clock },
+          { label: "Completed",         value: completedOrders,    bg: "stat-gradient-4", icon: CheckCircle2 },
         ].map((s) => (
-          <Card key={s.label}>
-            <CardContent className="p-4 flex items-center gap-3">
-              <s.icon size={22} className={s.color} />
-              <div>
-                <p className="text-2xl font-bold">{s.value}</p>
-                <p className="text-xs text-muted-foreground">{s.label}</p>
-              </div>
-            </CardContent>
-          </Card>
+          <div key={s.label} className={`${s.bg} rounded-2xl p-4 text-white shadow-sm`}>
+            <s.icon size={20} className="mb-2 opacity-80" />
+            <p className="text-2xl font-black">{s.value}</p>
+            <p className="text-xs text-white/70 mt-0.5 uppercase tracking-wide">{s.label}</p>
+          </div>
         ))}
       </div>
 

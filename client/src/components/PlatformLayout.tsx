@@ -136,12 +136,12 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
       {/* Logo */}
       <div className="flex items-center justify-between px-4 py-5 border-b border-[var(--sidebar-border)]">
         <Link href="/dashboard" className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-[var(--smartpro-orange)] flex items-center justify-center">
-            <span className="text-white font-bold text-sm">SP</span>
+          <div className="w-9 h-9 rounded-xl bg-[var(--smartpro-orange)] flex items-center justify-center shadow-md">
+            <span className="text-white font-black text-sm tracking-tight">SP</span>
           </div>
           <div>
-            <div className="text-white font-bold text-sm leading-none">SmartPRO</div>
-            <div className="text-[10px] text-white/50 leading-none mt-0.5">Business Hub</div>
+            <div className="text-white font-black text-sm leading-none tracking-tight">SmartPRO</div>
+            <div className="text-[10px] text-white/45 leading-none mt-0.5">Business Services Hub · Oman</div>
           </div>
         </Link>
         {onClose && (

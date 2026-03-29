@@ -399,13 +399,25 @@ export default function ContractsPage() {
 
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <FileText size={24} className="text-[var(--smartpro-orange)]" />
-            Contract Management
-          </h1>
-          <p className="text-muted-foreground text-sm mt-1">Create, manage and e-sign all business contracts</p>
+          <div className="flex items-center gap-3 mb-1">
+            <div className="w-10 h-10 rounded-xl bg-teal-600 flex items-center justify-center shadow-sm">
+              <FileText size={20} className="text-white" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-black text-foreground tracking-tight">Contract Management</h1>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                AI-drafted contracts, e-signatures, employment agreements, service contracts, and NDA management
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2 mt-2">
+            <span className="inline-flex items-center gap-1 bg-teal-50 text-teal-700 border border-teal-200 rounded-full px-2.5 py-0.5 text-[10px] font-semibold">AI Drafting</span>
+            <span className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 border border-blue-200 rounded-full px-2.5 py-0.5 text-[10px] font-semibold">E-Signature</span>
+            <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full px-2.5 py-0.5 text-[10px] font-semibold">Oman Law Compliant</span>
+            <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-700 border border-amber-200 rounded-full px-2.5 py-0.5 text-[10px] font-semibold">Multi-party Signing</span>
+          </div>
         </div>
         <div className="flex flex-wrap gap-2">
           <AIGenerateContractDialog onSuccess={refetch} />
@@ -415,17 +427,15 @@ export default function ContractsPage() {
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { label: "Total Contracts", value: stats.total, icon: <FileText size={18} />, color: "text-blue-600 bg-blue-50" },
-          { label: "Active / Signed", value: stats.active, icon: <CheckCircle2 size={18} />, color: "text-green-600 bg-green-50" },
-          { label: "Pending", value: stats.pending, icon: <Clock size={18} />, color: "text-amber-600 bg-amber-50" },
-          { label: "Expired", value: stats.expired, icon: <AlertTriangle size={18} />, color: "text-red-600 bg-red-50" },
+          { label: "Total Contracts", value: stats.total,   bg: "stat-gradient-1" },
+          { label: "Active / Signed", value: stats.active,  bg: "stat-gradient-4" },
+          { label: "Pending",         value: stats.pending, bg: "stat-gradient-gold" },
+          { label: "Expired",         value: stats.expired, bg: "stat-gradient-2" },
         ].map((s) => (
-          <Card key={s.label}>
-            <CardContent className="p-4 flex items-center gap-3">
-              <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${s.color}`}>{s.icon}</div>
-              <div><p className="text-2xl font-bold">{s.value}</p><p className="text-xs text-muted-foreground">{s.label}</p></div>
-            </CardContent>
-          </Card>
+          <div key={s.label} className={`${s.bg} rounded-2xl p-4 text-white shadow-sm`}>
+            <p className="text-2xl font-black">{s.value}</p>
+            <p className="text-xs text-white/70 mt-0.5 uppercase tracking-wide">{s.label}</p>
+          </div>
         ))}
       </div>
 

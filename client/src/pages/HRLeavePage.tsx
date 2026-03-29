@@ -92,13 +92,25 @@ export default function HRLeavePage() {
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Calendar size={24} className="text-[var(--smartpro-orange)]" />
-            Leave & Payroll
-          </h1>
-          <p className="text-muted-foreground text-sm mt-1">Manage employee leave requests and payroll records</p>
+          <div className="flex items-center gap-3 mb-1">
+            <div className="w-10 h-10 rounded-xl bg-sky-600 flex items-center justify-center shadow-sm">
+              <Calendar size={20} className="text-white" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-black text-foreground tracking-tight">Leave Management</h1>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Annual leave, sick leave, Oman public holidays, and payroll record management per MHRSD guidelines
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2 mt-2">
+            <span className="inline-flex items-center gap-1 bg-sky-50 text-sky-700 border border-sky-200 rounded-full px-2.5 py-0.5 text-[10px] font-semibold">MHRSD Compliant</span>
+            <span className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 border border-blue-200 rounded-full px-2.5 py-0.5 text-[10px] font-semibold">Annual Leave</span>
+            <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full px-2.5 py-0.5 text-[10px] font-semibold">Sick Leave</span>
+            <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-700 border border-amber-200 rounded-full px-2.5 py-0.5 text-[10px] font-semibold">Oman Holidays</span>
+          </div>
         </div>
         <div className="flex flex-wrap gap-2">
           <Dialog open={leaveOpen} onOpenChange={setLeaveOpen}>

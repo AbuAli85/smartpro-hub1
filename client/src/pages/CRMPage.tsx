@@ -222,13 +222,24 @@ export default function CRMPage() {
 
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Users size={24} className="text-[var(--smartpro-orange)]" />
-            CRM
-          </h1>
-          <p className="text-muted-foreground text-sm mt-1">Contacts, deals and sales pipeline management</p>
+          <div className="flex items-center gap-3 mb-1">
+            <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center shadow-sm">
+              <Users size={20} className="text-white" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-black text-foreground tracking-tight">CRM & Sales Pipeline</h1>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Contacts, leads, deals, and pipeline management for Oman & GCC business development
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2 mt-2">
+            <span className="inline-flex items-center gap-1 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-full px-2.5 py-0.5 text-[10px] font-semibold">OMR Pipeline</span>
+            <span className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 border border-blue-200 rounded-full px-2.5 py-0.5 text-[10px] font-semibold">GCC Contacts</span>
+            <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full px-2.5 py-0.5 text-[10px] font-semibold">B2B Deals</span>
+          </div>
         </div>
         <div className="flex flex-wrap gap-2">
           <NewDealDialog onSuccess={refetchDeals} />
@@ -238,20 +249,15 @@ export default function CRMPage() {
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { label: "Total Contacts", value: stats.contacts, icon: <Users size={18} />, color: "text-blue-600 bg-blue-50" },
-          { label: "Leads", value: stats.leads, icon: <TrendingUp size={18} />, color: "text-purple-600 bg-purple-50" },
-          { label: "Active Deals", value: stats.deals, icon: <Building2 size={18} />, color: "text-amber-600 bg-amber-50" },
-          { label: "Pipeline Value", value: `OMR ${stats.pipeline.toLocaleString()}`, icon: <DollarSign size={18} />, color: "text-green-600 bg-green-50" },
+          { label: "Total Contacts",  value: stats.contacts,                       bg: "stat-gradient-1" },
+          { label: "Leads",           value: stats.leads,                          bg: "stat-gradient-2" },
+          { label: "Active Deals",    value: stats.deals,                          bg: "stat-gradient-gold" },
+          { label: "Pipeline (OMR)",  value: `${stats.pipeline.toLocaleString()}`, bg: "stat-gradient-4" },
         ].map((s) => (
-          <Card key={s.label}>
-            <CardContent className="p-4 flex items-center gap-3">
-              <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${s.color}`}>{s.icon}</div>
-              <div>
-                <p className="text-xl font-bold">{s.value}</p>
-                <p className="text-xs text-muted-foreground">{s.label}</p>
-              </div>
-            </CardContent>
-          </Card>
+          <div key={s.label} className={`${s.bg} rounded-2xl p-4 text-white shadow-sm`}>
+            <p className="text-2xl font-black">{s.value}</p>
+            <p className="text-xs text-white/70 mt-0.5 uppercase tracking-wide">{s.label}</p>
+          </div>
         ))}
       </div>
 

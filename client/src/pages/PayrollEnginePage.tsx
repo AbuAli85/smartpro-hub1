@@ -186,10 +186,25 @@ export default function PayrollEnginePage() {
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Payroll Engine</h1>
-          <p className="text-muted-foreground text-sm mt-1">Manage payroll cycles, salary configurations, loans, and WPS submissions</p>
+          <div className="flex items-center gap-3 mb-1">
+            <div className="w-10 h-10 rounded-xl bg-emerald-600 flex items-center justify-center shadow-sm">
+              <Banknote size={20} className="text-white" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-black text-foreground tracking-tight">Payroll Engine</h1>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                WPS-compliant payroll runs, salary configs, PASI deductions, salary loans, and OMR payslip generation
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2 mt-2">
+            <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full px-2.5 py-0.5 text-[10px] font-semibold">WPS Compliant</span>
+            <span className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 border border-blue-200 rounded-full px-2.5 py-0.5 text-[10px] font-semibold">PASI Deductions</span>
+            <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-700 border border-amber-200 rounded-full px-2.5 py-0.5 text-[10px] font-semibold">OMR Payslips</span>
+            <span className="inline-flex items-center gap-1 bg-violet-50 text-violet-700 border border-violet-200 rounded-full px-2.5 py-0.5 text-[10px] font-semibold">Salary Loans</span>
+          </div>
         </div>
         <div className="flex gap-2">
           <PayrollReportButton />
@@ -200,43 +215,18 @@ export default function PayrollEnginePage() {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="p-2 bg-green-100 rounded-lg"><DollarSign size={20} className="text-green-700" /></div>
-            <div>
-              <p className="text-xs text-muted-foreground">Total Paid YTD</p>
-              <p className="text-lg font-bold">{fmt(summary?.totalPaidYTD)}</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="p-2 bg-blue-100 rounded-lg"><Users size={20} className="text-blue-700" /></div>
-            <div>
-              <p className="text-xs text-muted-foreground">Last Run Employees</p>
-              <p className="text-lg font-bold">{summary?.lastRun?.employeeCount ?? 0}</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="p-2 bg-yellow-100 rounded-lg"><Clock size={20} className="text-yellow-700" /></div>
-            <div>
-              <p className="text-xs text-muted-foreground">Pending Approval</p>
-              <p className="text-lg font-bold">{summary?.pendingApproval ?? 0}</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="p-2 bg-purple-100 rounded-lg"><TrendingUp size={20} className="text-purple-700" /></div>
-            <div>
-              <p className="text-xs text-muted-foreground">Last Run Net</p>
-              <p className="text-lg font-bold">{fmt(summary?.lastRun?.totalNet)}</p>
-            </div>
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {[
+          { label: "Total Paid YTD",      value: fmt(summary?.totalPaidYTD),              bg: "stat-gradient-4" },
+          { label: "Last Run Employees",  value: summary?.lastRun?.employeeCount ?? 0,    bg: "stat-gradient-1" },
+          { label: "Pending Approval",    value: summary?.pendingApproval ?? 0,           bg: "stat-gradient-gold" },
+          { label: "Last Run Net (OMR)",  value: fmt(summary?.lastRun?.totalNet),         bg: "stat-gradient-2" },
+        ].map((s) => (
+          <div key={s.label} className={`${s.bg} rounded-2xl p-4 text-white shadow-sm`}>
+            <p className="text-xl font-black">{s.value}</p>
+            <p className="text-xs text-white/70 mt-0.5 uppercase tracking-wide">{s.label}</p>
+          </div>
+        ))}
       </div>
 
       <Tabs defaultValue="runs">

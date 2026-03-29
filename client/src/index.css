@@ -42,87 +42,98 @@
   --color-sidebar-ring: var(--sidebar-ring);
 }
 
+/* ─── SmartPRO Brand Tokens ──────────────────────────────────────────────── */
 :root {
-  --smartpro-navy: oklch(0.18 0.025 240);
-  --smartpro-orange: oklch(0.62 0.18 25);
-  --smartpro-teal: oklch(0.52 0.14 195);
-  --smartpro-green: oklch(0.55 0.15 155);
-  --primary: var(--color-blue-700);
-  --primary-foreground: var(--color-blue-50);
-  --sidebar-primary: var(--color-blue-600);
-  --sidebar-primary-foreground: var(--color-blue-50);
-  --chart-1: var(--color-blue-300);
-  --chart-2: var(--color-blue-500);
-  --chart-3: var(--color-blue-600);
-  --chart-4: var(--color-blue-700);
-  --chart-5: var(--color-blue-800);
-  --radius: 0.65rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.235 0.015 65);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.235 0.015 65);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.235 0.015 65);
-  --secondary: oklch(0.98 0.001 286.375);
-  --secondary-foreground: oklch(0.4 0.015 65);
-  --muted: oklch(0.967 0.001 286.375);
-  --muted-foreground: oklch(0.552 0.016 285.938);
-  --accent: oklch(0.967 0.001 286.375);
-  --accent-foreground: oklch(0.141 0.005 285.823);
-  --destructive: oklch(0.577 0.245 27.325);
+  /* Brand palette */
+  --smartpro-orange:     oklch(0.63 0.20 28);   /* primary CTA */
+  --smartpro-orange-dk:  oklch(0.54 0.20 28);   /* hover */
+  --smartpro-charcoal:   oklch(0.17 0.012 250); /* sidebar / dark bg */
+  --smartpro-slate:      oklch(0.24 0.016 250); /* sidebar hover */
+  --smartpro-teal:       oklch(0.52 0.14 195);  /* accent 2 */
+  --smartpro-green:      oklch(0.55 0.15 155);  /* success */
+  --smartpro-gold:       oklch(0.72 0.14 75);   /* premium / warning */
+
+  /* Semantic tokens — light mode */
+  --primary:             var(--smartpro-orange);
+  --primary-foreground:  oklch(1 0 0);
+  --secondary:           oklch(0.97 0.002 286);
+  --secondary-foreground:oklch(0.38 0.015 65);
+  --muted:               oklch(0.965 0.002 286);
+  --muted-foreground:    oklch(0.54 0.016 286);
+  --accent:              oklch(0.965 0.002 286);
+  --accent-foreground:   oklch(0.14 0.005 286);
+  --destructive:         oklch(0.577 0.245 27);
   --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(0.92 0.004 286.32);
-  --input: oklch(0.92 0.004 286.32);
-  --ring: oklch(0.623 0.214 259.815);
-  --sidebar: oklch(0.16 0.025 240);
-  --sidebar-foreground: oklch(0.88 0.005 240);
-  --sidebar-accent: oklch(0.62 0.18 25);
-  --sidebar-accent-foreground: oklch(1 0 0);
-  --sidebar-border: oklch(0.24 0.02 240);
-  --sidebar-ring: oklch(0.62 0.18 25);
+  --background:          oklch(0.985 0.002 286);
+  --foreground:          oklch(0.18 0.012 250);
+  --card:                oklch(1 0 0);
+  --card-foreground:     oklch(0.18 0.012 250);
+  --popover:             oklch(1 0 0);
+  --popover-foreground:  oklch(0.18 0.012 250);
+  --border:              oklch(0.90 0.004 286);
+  --input:               oklch(0.90 0.004 286);
+  --ring:                var(--smartpro-orange);
+  --radius:              0.65rem;
+
+  /* Charts */
+  --chart-1: var(--smartpro-orange);
+  --chart-2: var(--smartpro-teal);
+  --chart-3: var(--smartpro-green);
+  --chart-4: var(--smartpro-gold);
+  --chart-5: oklch(0.55 0.18 300);
+
+  /* Sidebar */
+  --sidebar:                     var(--smartpro-charcoal);
+  --sidebar-foreground:          oklch(0.88 0.005 250);
+  --sidebar-primary:             var(--smartpro-orange);
+  --sidebar-primary-foreground:  oklch(1 0 0);
+  --sidebar-accent:              var(--smartpro-orange);
+  --sidebar-accent-foreground:   oklch(1 0 0);
+  --sidebar-border:              oklch(0.26 0.016 250);
+  --sidebar-ring:                var(--smartpro-orange);
 }
 
 .dark {
-  --primary: var(--color-blue-700);
-  --primary-foreground: var(--color-blue-50);
-  --sidebar-primary: var(--color-blue-500);
-  --sidebar-primary-foreground: var(--color-blue-50);
-  --background: oklch(0.141 0.005 285.823);
-  --foreground: oklch(0.85 0.005 65);
-  --card: oklch(0.21 0.006 285.885);
-  --card-foreground: oklch(0.85 0.005 65);
-  --popover: oklch(0.21 0.006 285.885);
-  --popover-foreground: oklch(0.85 0.005 65);
-  --secondary: oklch(0.24 0.006 286.033);
-  --secondary-foreground: oklch(0.7 0.005 65);
-  --muted: oklch(0.274 0.006 286.033);
-  --muted-foreground: oklch(0.705 0.015 286.067);
-  --accent: oklch(0.274 0.006 286.033);
-  --accent-foreground:  oklch(0.92 0.005 65);
-  --destructive: oklch(0.704 0.191 22.216);
+  --primary:             var(--smartpro-orange);
+  --primary-foreground:  oklch(1 0 0);
+  --background:          oklch(0.13 0.006 286);
+  --foreground:          oklch(0.88 0.005 65);
+  --card:                oklch(0.19 0.006 286);
+  --card-foreground:     oklch(0.88 0.005 65);
+  --popover:             oklch(0.19 0.006 286);
+  --popover-foreground:  oklch(0.88 0.005 65);
+  --secondary:           oklch(0.24 0.006 286);
+  --secondary-foreground:oklch(0.72 0.005 65);
+  --muted:               oklch(0.27 0.006 286);
+  --muted-foreground:    oklch(0.70 0.015 286);
+  --accent:              oklch(0.27 0.006 286);
+  --accent-foreground:   oklch(0.92 0.005 65);
+  --destructive:         oklch(0.70 0.19 22);
   --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.488 0.243 264.376);
-  --chart-1: var(--color-blue-300);
-  --chart-2: var(--color-blue-500);
-  --chart-3: var(--color-blue-600);
-  --chart-4: var(--color-blue-700);
-  --chart-5: var(--color-blue-800);
-  --sidebar: oklch(0.21 0.006 285.885);
-  --sidebar-foreground: oklch(0.85 0.005 65);
-  --sidebar-accent: oklch(0.274 0.006 286.033);
-  --sidebar-accent-foreground:  oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.488 0.243 264.376);
+  --border:              oklch(1 0 0 / 10%);
+  --input:               oklch(1 0 0 / 15%);
+  --ring:                var(--smartpro-orange);
+  --chart-1: var(--smartpro-orange);
+  --chart-2: var(--smartpro-teal);
+  --chart-3: var(--smartpro-green);
+  --chart-4: var(--smartpro-gold);
+  --chart-5: oklch(0.65 0.18 300);
+  --sidebar:                     oklch(0.19 0.006 286);
+  --sidebar-foreground:          oklch(0.88 0.005 65);
+  --sidebar-accent:              var(--smartpro-orange);
+  --sidebar-accent-foreground:   oklch(1 0 0);
+  --sidebar-border:              oklch(1 0 0 / 10%);
+  --sidebar-ring:                var(--smartpro-orange);
 }
 
+/* ─── Base ───────────────────────────────────────────────────────────────── */
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
   body {
     @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
   }
   button:not(:disabled),
   [role="button"]:not([aria-disabled="true"]),
@@ -137,94 +148,141 @@
   }
 }
 
+/* ─── Layout utilities ───────────────────────────────────────────────────── */
 @layer components {
-  /**
-   * Custom container utility that centers content and adds responsive padding.
-   *
-   * This overrides Tailwind's default container behavior to:
-   * - Auto-center content (mx-auto)
-   * - Add responsive horizontal padding
-   * - Set max-width for large screens
-   *
-   * Usage: <div className="container">...</div>
-   *
-   * For custom widths, use max-w-* utilities directly:
-   * <div className="max-w-6xl mx-auto px-4">...</div>
-   */
   .container {
     width: 100%;
     margin-left: auto;
     margin-right: auto;
-    padding-left: 1rem; /* 16px - mobile padding */
+    padding-left: 1rem;
     padding-right: 1rem;
   }
-
   .flex {
     min-height: 0;
     min-width: 0;
   }
-
   @media (min-width: 640px) {
-    .container {
-      padding-left: 1.5rem; /* 24px - tablet padding */
-      padding-right: 1.5rem;
-    }
+    .container { padding-left: 1.5rem; padding-right: 1.5rem; }
   }
-
   @media (min-width: 1024px) {
-    .container {
-      padding-left: 2rem;
-      padding-right: 2rem;
-      max-width: 1280px;
-    }
+    .container { padding-left: 2rem; padding-right: 2rem; max-width: 1280px; }
   }
 }
 
-/* SmartPRO Platform Utilities */
+/* ─── Sidebar ────────────────────────────────────────────────────────────── */
 .sidebar-nav {
   background-color: var(--sidebar);
   color: var(--sidebar-foreground);
 }
-
 .sidebar-nav-item {
   @apply flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 cursor-pointer;
   color: var(--sidebar-foreground);
-  opacity: 0.7;
+  opacity: 0.72;
 }
-
 .sidebar-nav-item:hover {
-  background-color: oklch(0.24 0.02 240);
+  background-color: oklch(0.26 0.018 250);
   opacity: 1;
 }
-
 .sidebar-nav-item.active {
-  background-color: var(--sidebar-accent);
-  color: var(--sidebar-accent-foreground);
+  background: linear-gradient(90deg, var(--smartpro-orange) 0%, var(--smartpro-orange-dk) 100%);
+  color: #fff;
   opacity: 1;
+  box-shadow: 0 2px 8px oklch(0.63 0.20 28 / 35%);
 }
+.sidebar-nav-item.active svg { color: #fff; }
 
-.sidebar-nav-item.active svg {
-  color: var(--sidebar-accent-foreground);
-}
-
+/* ─── KPI stat cards ─────────────────────────────────────────────────────── */
 .stat-gradient-1 {
-  background: linear-gradient(135deg, oklch(0.18 0.025 240) 0%, oklch(0.28 0.03 240) 100%);
+  background: linear-gradient(135deg, var(--smartpro-charcoal) 0%, oklch(0.26 0.018 250) 100%);
 }
-
 .stat-gradient-2 {
-  background: linear-gradient(135deg, oklch(0.62 0.18 25) 0%, oklch(0.55 0.20 30) 100%);
+  background: linear-gradient(135deg, var(--smartpro-orange) 0%, var(--smartpro-orange-dk) 100%);
 }
-
 .stat-gradient-3 {
-  background: linear-gradient(135deg, oklch(0.45 0.15 200) 0%, oklch(0.38 0.18 210) 100%);
+  background: linear-gradient(135deg, var(--smartpro-teal) 0%, oklch(0.42 0.16 200) 100%);
 }
-
 .stat-gradient-4 {
-  background: linear-gradient(135deg, oklch(0.50 0.15 150) 0%, oklch(0.42 0.18 160) 100%);
+  background: linear-gradient(135deg, var(--smartpro-green) 0%, oklch(0.44 0.17 155) 100%);
+}
+.stat-gradient-gold {
+  background: linear-gradient(135deg, var(--smartpro-gold) 0%, oklch(0.62 0.16 75) 100%);
 }
 
-/* Scrollbar */
+/* ─── Module icon chips ──────────────────────────────────────────────────── */
+.module-chip {
+  @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold;
+}
+.module-chip-gov   { @apply bg-blue-100 text-blue-800; }
+.module-chip-hr    { @apply bg-violet-100 text-violet-800; }
+.module-chip-biz   { @apply bg-orange-100 text-orange-800; }
+.module-chip-fin   { @apply bg-emerald-100 text-emerald-800; }
+.module-chip-legal { @apply bg-amber-100 text-amber-800; }
+
+/* ─── Page header pattern ────────────────────────────────────────────────── */
+.page-header {
+  @apply flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6;
+}
+.page-title {
+  @apply text-2xl font-bold text-foreground tracking-tight;
+}
+.page-subtitle {
+  @apply text-sm text-muted-foreground mt-0.5;
+}
+
+/* ─── Data table ─────────────────────────────────────────────────────────── */
+.data-table-wrapper {
+  @apply overflow-x-auto rounded-xl border border-border;
+}
+.data-table {
+  @apply w-full text-sm;
+}
+.data-table th {
+  @apply px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide bg-muted/50 border-b border-border;
+}
+.data-table td {
+  @apply px-4 py-3 border-b border-border/60 last:border-0;
+}
+.data-table tr:hover td {
+  @apply bg-muted/30;
+}
+
+/* ─── Status badges ──────────────────────────────────────────────────────── */
+.status-active    { @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800; }
+.status-pending   { @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800; }
+.status-expired   { @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800; }
+.status-draft     { @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700; }
+.status-signed    { @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800; }
+.status-cancelled { @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-700; }
+
+/* ─── Landing page utilities ─────────────────────────────────────────────── */
+.hero-gradient {
+  background: linear-gradient(135deg,
+    var(--smartpro-charcoal) 0%,
+    oklch(0.22 0.018 250) 50%,
+    oklch(0.19 0.014 250) 100%);
+}
+.hero-accent-line {
+  background: linear-gradient(90deg, var(--smartpro-orange) 0%, var(--smartpro-teal) 100%);
+}
+.feature-card {
+  @apply bg-card border border-border rounded-2xl p-6 hover:shadow-lg hover:-translate-y-1 transition-all duration-200;
+}
+.feature-icon-wrap {
+  @apply w-12 h-12 rounded-xl flex items-center justify-center mb-4;
+}
+
+/* ─── Scrollbar ──────────────────────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: oklch(0.80 0.005 240); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: oklch(0.65 0.01 240); }
+::-webkit-scrollbar-thumb { background: oklch(0.80 0.005 250); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: oklch(0.65 0.01 250); }
+
+/* ─── Animations ─────────────────────────────────────────────────────────── */
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in-up { animation: fade-in-up 0.5s ease both; }
+.animate-delay-100  { animation-delay: 0.1s; }
+.animate-delay-200  { animation-delay: 0.2s; }
+.animate-delay-300  { animation-delay: 0.3s; }

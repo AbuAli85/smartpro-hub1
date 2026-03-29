@@ -529,14 +529,16 @@ export default function OmaniOfficersPage() {
       {/* Header */}
       <div className="border-b border-border/50 bg-card/40 backdrop-blur-sm sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-bold text-foreground flex items-center gap-2">
-              <Award className="w-5 h-5 text-red-400" />
-              Omani PRO Officers
-            </h1>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Shared Omani PRO — National Omanisation Compliance Programme
-            </p>
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-red-600 flex items-center justify-center shadow-sm">
+              <Award className="w-4 h-4 text-white" />
+            </div>
+            <div>
+              <h1 className="text-xl font-black text-foreground tracking-tight">Omani PRO Officers Registry</h1>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                PASI-registered officers, Omanisation compliance, multi-company assignments, and payout management
+              </p>
+            </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Button variant="outline" size="sm" onClick={() => refetch()}>

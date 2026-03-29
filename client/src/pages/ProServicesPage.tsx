@@ -173,35 +173,40 @@ export default function ProServicesPage() {
 
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Shield size={24} className="text-[var(--smartpro-orange)]" />
-            PRO Services
-          </h1>
-          <p className="text-muted-foreground text-sm mt-1">
-            Visa processing, work permits, labor cards & document renewals
-          </p>
+          <div className="flex items-center gap-3 mb-1">
+            <div className="w-10 h-10 rounded-xl bg-[var(--smartpro-orange)] flex items-center justify-center shadow-sm">
+              <Shield size={20} className="text-white" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-black text-foreground tracking-tight">PRO & Visa Services</h1>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Work permits, residence visas, labour cards, PASI registration, MHRSD filings, and document renewals
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2 mt-2">
+            <span className="inline-flex items-center gap-1 bg-orange-50 text-orange-700 border border-orange-200 rounded-full px-2.5 py-0.5 text-[10px] font-semibold">MHRSD Compliant</span>
+            <span className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 border border-blue-200 rounded-full px-2.5 py-0.5 text-[10px] font-semibold">PASI Integrated</span>
+            <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full px-2.5 py-0.5 text-[10px] font-semibold">WPS Ready</span>
+            <span className="inline-flex items-center gap-1 bg-violet-50 text-violet-700 border border-violet-200 rounded-full px-2.5 py-0.5 text-[10px] font-semibold">Omanisation Tracking</span>
+          </div>
         </div>
         <NewProServiceDialog onSuccess={refetch} />
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { label: "Total Services", value: stats.total, icon: <Shield size={18} />, color: "text-blue-600 bg-blue-50" },
-          { label: "In Progress", value: stats.pending, icon: <Clock size={18} />, color: "text-amber-600 bg-amber-50" },
-          { label: "Completed", value: stats.completed, icon: <CheckCircle2 size={18} />, color: "text-green-600 bg-green-50" },
-          { label: "Expiring (60d)", value: stats.expiringSoon, icon: <AlertTriangle size={18} />, color: "text-red-600 bg-red-50" },
+          { label: "Total Services",  value: stats.total,        bg: "stat-gradient-1" },
+          { label: "In Progress",     value: stats.pending,      bg: "stat-gradient-2" },
+          { label: "Completed",       value: stats.completed,    bg: "stat-gradient-4" },
+          { label: "Expiring (60d)",  value: stats.expiringSoon, bg: "stat-gradient-gold" },
         ].map((s) => (
-          <Card key={s.label}>
-            <CardContent className="p-4 flex items-center gap-3">
-              <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${s.color}`}>{s.icon}</div>
-              <div>
-                <p className="text-2xl font-bold">{s.value}</p>
-                <p className="text-xs text-muted-foreground">{s.label}</p>
-              </div>
-            </CardContent>
-          </Card>
+          <div key={s.label} className={`${s.bg} rounded-2xl p-4 text-white shadow-sm`}>
+            <p className="text-2xl font-black">{s.value}</p>
+            <p className="text-xs text-white/70 mt-0.5 uppercase tracking-wide">{s.label}</p>
+          </div>
         ))}
       </div>
 

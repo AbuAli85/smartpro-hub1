@@ -262,12 +262,24 @@ export default function RenewalWorkflowsPage() {
     <TooltipProvider>
       <div className="p-6 space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold">Renewal Workflows</h1>
-            <p className="text-muted-foreground text-sm mt-1">
-              Automate document renewal cases — define rules, let the engine do the rest.
-            </p>
+            <div className="flex items-center gap-3 mb-1">
+              <div className="w-10 h-10 rounded-xl bg-teal-600 flex items-center justify-center shadow-sm">
+                <RefreshCw size={20} className="text-white" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-black text-foreground tracking-tight">Renewal Workflows</h1>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Automated renewal engine — visas, CR, PASI, municipality permits, and Oman government document deadlines
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2 mt-2">
+              <span className="inline-flex items-center gap-1 bg-teal-50 text-teal-700 border border-teal-200 rounded-full px-2.5 py-0.5 text-[10px] font-semibold">Auto-Trigger Rules</span>
+              <span className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 border border-blue-200 rounded-full px-2.5 py-0.5 text-[10px] font-semibold">Expiry Tracking</span>
+              <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-700 border border-amber-200 rounded-full px-2.5 py-0.5 text-[10px] font-semibold">Oman Gov Deadlines</span>
+            </div>
           </div>
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" size="sm" onClick={handleRefresh}>

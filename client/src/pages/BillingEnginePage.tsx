@@ -194,13 +194,23 @@ export default function BillingEnginePage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <CreditCard className="text-primary" size={26} />
-            Billing Engine
-          </h1>
-          <p className="text-muted-foreground text-sm mt-0.5">
-            Manage monthly invoices, officer payouts, and revenue tracking
-          </p>
+          <div className="flex items-center gap-3 mb-1">
+            <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center shadow-sm">
+              <CreditCard size={20} className="text-white" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-black text-foreground tracking-tight">Billing Engine</h1>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Monthly OMR invoicing, Omani PRO officer payouts, revenue tracking, and financial reporting
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2 mt-2">
+            <span className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 border border-blue-200 rounded-full px-2.5 py-0.5 text-[10px] font-semibold">OMR Invoicing</span>
+            <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full px-2.5 py-0.5 text-[10px] font-semibold">Officer Payouts</span>
+            <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-700 border border-amber-200 rounded-full px-2.5 py-0.5 text-[10px] font-semibold">PDF Reports</span>
+            <span className="inline-flex items-center gap-1 bg-red-50 text-red-700 border border-red-200 rounded-full px-2.5 py-0.5 text-[10px] font-semibold">Overdue Tracking</span>
+          </div>
         </div>
         <div className="flex gap-2 flex-wrap">
           <Button variant="outline" size="sm" onClick={() => markOverdueMutation.mutate()} disabled={markOverdueMutation.isPending}>

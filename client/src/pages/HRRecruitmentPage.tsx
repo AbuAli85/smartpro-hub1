@@ -111,12 +111,27 @@ export default function HRRecruitmentPage() {
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold">Recruitment Pipeline</h1>
-          <p className="text-muted-foreground text-sm mt-1">Manage job postings, candidates, interviews, and offer letters</p>
+          <div className="flex items-center gap-3 mb-1">
+            <div className="w-10 h-10 rounded-xl bg-purple-600 flex items-center justify-center shadow-sm">
+              <Briefcase size={20} className="text-white" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-black text-foreground tracking-tight">Recruitment Pipeline</h1>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Job postings, AI CV screening, interviews, offer letters, and Omanisation quota tracking
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2 mt-2">
+            <span className="inline-flex items-center gap-1 bg-purple-50 text-purple-700 border border-purple-200 rounded-full px-2.5 py-0.5 text-[10px] font-semibold">AI CV Screening</span>
+            <span className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 border border-blue-200 rounded-full px-2.5 py-0.5 text-[10px] font-semibold">Public Job Board</span>
+            <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full px-2.5 py-0.5 text-[10px] font-semibold">Omanisation Tracking</span>
+            <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-700 border border-amber-200 rounded-full px-2.5 py-0.5 text-[10px] font-semibold">Offer Letters</span>
+          </div>
         </div>
-        <Button onClick={() => setCreateJobOpen(true)} className="gap-2">
+        <Button onClick={() => setCreateJobOpen(true)} className="gap-2 shrink-0">
           <Plus size={16} /> Post New Job
         </Button>
       </div>
@@ -124,18 +139,16 @@ export default function HRRecruitmentPage() {
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         {[
-          { label: "Open Jobs", value: summary?.openJobs ?? 0, icon: <Briefcase size={18} />, color: "text-blue-600 bg-blue-50" },
-          { label: "Total Candidates", value: summary?.totalApplications ?? 0, icon: <Users size={18} />, color: "text-purple-600 bg-purple-50" },
-          { label: "In Interview", value: summary?.stageMap?.["interview"] ?? 0, icon: <Calendar size={18} />, color: "text-amber-600 bg-amber-50" },
-          { label: "Pending Interviews", value: summary?.pendingInterviews ?? 0, icon: <Clock size={18} />, color: "text-orange-600 bg-orange-50" },
-          { label: "Offers Sent", value: summary?.pendingOffers ?? 0, icon: <Send size={18} />, color: "text-green-600 bg-green-50" },
-        ].map(({ label, value, icon, color }) => (
-          <Card key={label}>
-            <CardContent className="p-4 flex items-center gap-3">
-              <div className={`p-2 rounded-lg ${color}`}>{icon}</div>
-              <div><p className="text-xs text-muted-foreground">{label}</p><p className="text-xl font-bold">{value}</p></div>
-            </CardContent>
-          </Card>
+          { label: "Open Jobs",         value: summary?.openJobs ?? 0,                   bg: "stat-gradient-1" },
+          { label: "Total Candidates",  value: summary?.totalApplications ?? 0,          bg: "stat-gradient-2" },
+          { label: "In Interview",      value: summary?.stageMap?.["interview"] ?? 0,   bg: "stat-gradient-gold" },
+          { label: "Pending Interviews",value: summary?.pendingInterviews ?? 0,          bg: "stat-gradient-3" },
+          { label: "Offers Sent",       value: summary?.pendingOffers ?? 0,              bg: "stat-gradient-4" },
+        ].map(({ label, value, bg }) => (
+          <div key={label} className={`${bg} rounded-2xl p-4 text-white shadow-sm`}>
+            <p className="text-2xl font-black">{value}</p>
+            <p className="text-xs text-white/70 mt-0.5 uppercase tracking-wide">{label}</p>
+          </div>
         ))}
       </div>
 

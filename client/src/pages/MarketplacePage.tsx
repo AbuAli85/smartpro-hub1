@@ -146,15 +146,25 @@ export default function MarketplacePage() {
 
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <ShoppingBag size={24} className="text-[var(--smartpro-orange)]" />
-            Marketplace
-          </h1>
-          <p className="text-muted-foreground text-sm mt-1">
-            Discover and book verified business service providers
-          </p>
+          <div className="flex items-center gap-3 mb-1">
+            <div className="w-10 h-10 rounded-xl bg-[var(--smartpro-orange)] flex items-center justify-center shadow-sm">
+              <ShoppingBag size={20} className="text-white" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-black text-foreground tracking-tight">Business Services Marketplace</h1>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Verified PRO offices, legal firms, accounting bureaus, IT providers, and consultants across Oman & GCC
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2 mt-2">
+            <span className="inline-flex items-center gap-1 bg-orange-50 text-orange-700 border border-orange-200 rounded-full px-2.5 py-0.5 text-[10px] font-semibold">Verified Providers</span>
+            <span className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 border border-blue-200 rounded-full px-2.5 py-0.5 text-[10px] font-semibold">Instant Booking</span>
+            <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full px-2.5 py-0.5 text-[10px] font-semibold">OMR Pricing</span>
+            <span className="inline-flex items-center gap-1 bg-violet-50 text-violet-700 border border-violet-200 rounded-full px-2.5 py-0.5 text-[10px] font-semibold">Rated & Reviewed</span>
+          </div>
         </div>
       </div>
 

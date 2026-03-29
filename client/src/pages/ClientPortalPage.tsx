@@ -161,13 +161,15 @@ export default function ClientPortalPage() {
       <div className="border-b bg-card px-6 py-4 sticky top-0 z-10">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex flex-wrap items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center">
-              <User className="w-4 h-4 text-primary" />
+            <div className="w-9 h-9 rounded-xl bg-[var(--smartpro-orange)] flex items-center justify-center shadow-sm">
+              <User className="w-4 h-4 text-white" />
             </div>
             <div>
-              <h1 className="text-base font-semibold text-foreground leading-tight">Client Portal</h1>
+              <h1 className="text-base font-black text-foreground leading-tight tracking-tight">
+                SmartPRO Client Portal
+              </h1>
               <p className="text-xs text-muted-foreground">
-                {company?.name ?? "Your Company"} · {user?.name}
+                {company?.name ?? "Your Company"} · {user?.name} · Oman & GCC Business Services
               </p>
             </div>
           </div>

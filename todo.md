@@ -519,3 +519,90 @@ Every page works correctly on 375px (iPhone SE) and 768px (iPad) viewports. Side
 - [x] Workflow pages: responsive layout applied
 - [x] All modals/drawers: full-screen on mobile — main content area now has pb-16 lg:pb-0 to clear the bottom nav
 - [x] Bottom navigation bar on mobile (MobileBottomNav component in PlatformLayout): Dashboard, Alerts, Contracts, HR, CRM tabs
+
+## Phase 20: Provider-Perspective Deep Upgrade
+
+### Business Context
+As a business services provider in Oman/GCC, here is what I need every single day:
+- **Morning**: Check what's urgent (SLA breaches, expiring docs, pending approvals, today's tasks)
+- **Client intake**: Quickly create a quotation, send it, convert to contract, kick off the work
+- **Operations**: Track every case, know which officer is overloaded, see who's waiting on documents
+- **Financial**: Know exactly what I've invoiced, what's collected, what's overdue, who owes me
+- **Compliance**: Omanisation %, PASI contributions, WPS file for bank, government deadlines
+- **Client relationship**: Client can see their own cases, pay invoices, sign contracts, request services
+
+### PRIORITY 1 — Operations Command Center
+
+- [ ] UI: OperationsDashboardPage — provider's daily command center: today's tasks, SLA status, officer workload heatmap, revenue MTD, pending approvals, top 5 urgent alerts
+- [ ] tRPC: operations.getDailySnapshot — aggregated: open cases by status, SLA breaches, officer workload, revenue MTD, pending payroll approvals, expiring docs in 7 days
+- [ ] Route: /operations registered in App.tsx
+- [ ] Nav: "Operations" link as first item under Platform section in PlatformLayout
+
+### PRIORITY 2 — Quotation & Proposal Engine
+
+- [ ] DB: service_quotations table (id, company_id, client_name, client_email, services_json, subtotal_omr, vat_omr, total_omr, validity_days, status, notes, pdf_url, sent_at, accepted_at, created_by, created_at)
+- [ ] DB: quotation_line_items table (id, quotation_id, service_name, description, qty, unit_price_omr, discount_pct, line_total_omr)
+- [ ] tRPC: quotations.create — create quotation with line items, auto-generate reference number (QT-YYYY-XXXX)
+- [ ] tRPC: quotations.list — list with status filter (draft/sent/accepted/declined/expired)
+- [ ] tRPC: quotations.getById — full quotation with line items
+- [ ] tRPC: quotations.update — edit quotation before sending
+- [ ] tRPC: quotations.send — mark as sent, generate branded PDF via LLM, upload to S3
+- [ ] tRPC: quotations.accept — client accepts: auto-create contract draft from quotation data
+- [ ] tRPC: quotations.decline — mark declined with reason
+- [ ] UI: QuotationsPage — list with status badges, create dialog with line item editor, send/accept/decline actions, PDF preview link
+- [ ] Route: /quotations registered in App.tsx
+- [ ] Nav: "Quotations" link under Business section in PlatformLayout
+
+### PRIORITY 3 — SLA & Service Level Management
+
+- [ ] DB: service_sla_rules table (id, service_type, priority, target_hours, escalation_hours, breach_action, is_active)
+- [ ] DB: case_sla_tracking table (id, case_id, rule_id, started_at, due_at, breached_at, resolved_at, breach_notified)
+- [ ] tRPC: sla.listRules — list all SLA rules
+- [ ] tRPC: sla.upsertRule — create/update SLA rule per service type + priority
+- [ ] tRPC: sla.deleteRule — remove a rule
+- [ ] tRPC: sla.getBreaches — list cases currently in breach with hours overdue
+- [ ] tRPC: sla.startTracking — called when a case is created: find matching rule, set due_at
+- [ ] UI: SLAManagementPage — SLA rules table with edit dialog, breach list with case links, SLA performance chart (% met on time)
+- [ ] UI: WorkforceCasesPage — add SLA countdown chip per case row (green ≥50% time remaining, amber 20-50%, red <20% or breached)
+- [ ] Route: /sla-management registered in App.tsx
+- [ ] Nav: "SLA Management" link under Platform section
+
+### PRIORITY 4 — Financial Intelligence Panels
+
+- [ ] UI: BillingEnginePage — add "Aged Receivables" panel: 0-30 / 31-60 / 61-90 / 90+ days buckets with OMR totals
+- [ ] UI: BillingEnginePage — add "Revenue Trend" sparkline chart: last 6 months invoiced vs collected (OMR)
+- [ ] UI: BillingEnginePage — add "Top 5 Clients by Revenue" mini-table with OMR and invoice count
+- [ ] tRPC: billing.getAgedReceivables — group overdue invoices into age buckets
+- [ ] tRPC: billing.getRevenueTrend — monthly invoiced vs collected for last 6 months
+- [ ] tRPC: billing.getTopClients — top 10 clients by total invoiced OMR
+
+### PRIORITY 5 — Client Portal Enhancements
+
+- [ ] UI: ClientPortalPage — add "New Service Request" tab: client fills service type, description, uploads docs, gets reference number
+- [ ] UI: ClientPortalPage — add "My Documents" tab: client downloads their own docs (passport copies, permits, contracts, payslips)
+- [ ] UI: ClientPortalPage — add "Upcoming Renewals" panel on dashboard tab: items expiring in 90 days with "Request Renewal" button
+- [ ] UI: ClientPortalPage — enhance PRO Services tab with step-by-step progress tracker (5 stages with icons)
+- [ ] tRPC: clientPortal.submitServiceRequest — client submits new request, creates sanad work order
+- [ ] tRPC: clientPortal.listMyDocuments — company's documents from employee_documents + contracts + payslips
+- [ ] tRPC: clientPortal.getUpcomingRenewals — expiring items for this company in next 90 days
+
+### PRIORITY 6 — Compliance Dashboard
+
+- [ ] UI: ComplianceDashboardPage — Omanisation ratio gauge (current % vs target %), PASI contribution status table, WPS compliance status, work permit validity matrix by department
+- [ ] tRPC: compliance.getOmanisationStats — total employees, Omani count, %, target %, gap
+- [ ] tRPC: compliance.getPasiStatus — PASI contribution amounts per employee for current month
+- [ ] tRPC: compliance.getWpsStatus — WPS file generated/not for current month, bank confirmation status
+- [ ] tRPC: compliance.getPermitMatrix — permit validity by department: valid/expiring/expired counts
+- [ ] Route: /compliance registered in App.tsx
+- [ ] Nav: "Compliance" link under Platform section
+
+### PRIORITY 7 — Smart Enhancements
+
+- [ ] UI: Dashboard — replace hardcoded "Recent Activity" with real audit_events feed (last 10 events from DB)
+- [ ] UI: Dashboard — add "AI Insight" card: top 3 actionable alerts (e.g. "5 work permits expire in 14 days — click to trigger renewals")
+- [ ] UI: Dashboard — add "Today's Tasks" panel: cases due today, pending approvals, unread messages count
+- [ ] UI: ProServicesPage — add "Bulk Actions" toolbar: select multiple services → bulk assign officer / bulk update status
+- [ ] UI: HREmployeesPage — add "Omanisation Gauge" widget: circular gauge showing current % vs target
+- [ ] UI: OfficerAssignmentPage — add "Smart Assign" button: suggest best officer by workload + specialization + governorate
+- [ ] tRPC: operations.getAiInsights — top 3 AI-generated actionable insights from current data state
+- [ ] tRPC: operations.getTodaysTasks — tasks due today across all modules for current user

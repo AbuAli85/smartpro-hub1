@@ -51,6 +51,10 @@ import AuditLogPage from "./pages/AuditLogPage";
 import PublicJobBoardPage from "./pages/PublicJobBoardPage";
 import WorkflowDetailPage from "./pages/WorkflowDetailPage";
 import ContractSignPage from "./pages/ContractSignPage";
+import OperationsDashboardPage from "./pages/OperationsDashboardPage";
+import QuotationsPage from "./pages/QuotationsPage";
+import SlaManagementPage from "./pages/SlaManagementPage";
+import ComplianceDashboardPage from "./pages/ComplianceDashboardPage";
 function PublicRoutes() {
   return (
     <Switch>
@@ -108,6 +112,10 @@ function AppRoutes() {
         <Route path="/sanad/ratings-moderation" component={SanadRatingsModerationPage} />
         <Route path="/reports" component={ReportsPage} />
         <Route path="/audit-log" component={AuditLogPage} />
+        <Route path="/operations" component={OperationsDashboardPage} />
+        <Route path="/quotations" component={QuotationsPage} />
+        <Route path="/sla-management" component={SlaManagementPage} />
+        <Route path="/compliance" component={ComplianceDashboardPage} />
         <Route path="/sanad/centre/:id" component={SanadCentreProfilePage} />
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />

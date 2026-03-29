@@ -1,6 +1,7 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { getLoginUrl } from "@/const";
 import {
+  Activity,
   BarChart2,
   BarChart3,
   Banknote,
@@ -9,6 +10,7 @@ import {
   Briefcase,
   Building2,
   Calendar,
+  CheckCircle2,
   ChevronDown,
   ChevronRight,
   Clock,
@@ -26,6 +28,7 @@ import {
   BookMarked,
   CreditCard,
   Star,
+  Target,
   UserCheck,
   UserCircle,
   Users,
@@ -59,7 +62,9 @@ const navGroups = [
     label: "Overview",
     items: [
       { label: "Dashboard", href: "/dashboard", icon: <LayoutDashboard size={18} /> },
+      { label: "Operations Centre", href: "/operations", icon: <Activity size={18} /> },
       { label: "Analytics", href: "/analytics", icon: <BarChart3 size={18} /> },
+      { label: "Compliance", href: "/compliance", icon: <CheckCircle2 size={18} /> },
     ],
   },
   {
@@ -76,6 +81,7 @@ const navGroups = [
   {
     label: "Business",
     items: [
+      { label: "Quotations", href: "/quotations", icon: <Target size={18} /> },
       { label: "Contracts", href: "/contracts", icon: <FileText size={18} /> },
       { label: "Marketplace", href: "/marketplace", icon: <ShoppingBag size={18} /> },
       { label: "CRM", href: "/crm", icon: <Users size={18} /> },
@@ -108,6 +114,7 @@ const navGroups = [
       { label: "Officer Registry", href: "/omani-officers", icon: <UserCheck size={18} /> },
       { label: "Assignments", href: "/officer-assignments", icon: <Building2 size={18} /> },
       { label: "Billing Engine", href: "/billing", icon: <CreditCard size={18} /> },
+      { label: "SLA Management", href: "/sla-management", icon: <Shield size={18} /> },
     ],
   },
   {

@@ -1801,3 +1801,77 @@ export const clientMessages = mysqlTable("client_messages", {
 });
 export type ClientMessage = typeof clientMessages.$inferSelect;
 export type InsertClientMessage = typeof clientMessages.$inferInsert;
+
+// ─── SERVICE QUOTATIONS ───────────────────────────────────────────────────────
+export const serviceQuotations = mysqlTable("service_quotations", {
+  id: int("id").autoincrement().primaryKey(),
+  companyId: int("company_id"),
+  referenceNumber: varchar("reference_number", { length: 50 }).notNull().unique(),
+  clientName: varchar("client_name", { length: 255 }).notNull(),
+  clientEmail: varchar("client_email", { length: 255 }),
+  clientPhone: varchar("client_phone", { length: 50 }),
+  subtotalOmr: decimal("subtotal_omr", { precision: 10, scale: 3 }).notNull().default("0"),
+  vatOmr: decimal("vat_omr", { precision: 10, scale: 3 }).notNull().default("0"),
+  totalOmr: decimal("total_omr", { precision: 10, scale: 3 }).notNull().default("0"),
+  validityDays: int("validity_days").notNull().default(30),
+  status: mysqlEnum("status", ["draft", "sent", "accepted", "declined", "expired"]).notNull().default("draft"),
+  notes: text("notes"),
+  terms: text("terms"),
+  pdfUrl: varchar("pdf_url", { length: 1024 }),
+  sentAt: timestamp("sent_at"),
+  acceptedAt: timestamp("accepted_at"),
+  declinedAt: timestamp("declined_at"),
+  declineReason: text("decline_reason"),
+  convertedToContractId: int("converted_to_contract_id"),
+  createdBy: int("created_by").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+export type ServiceQuotation = typeof serviceQuotations.$inferSelect;
+export type InsertServiceQuotation = typeof serviceQuotations.$inferInsert;
+
+// ─── QUOTATION LINE ITEMS ─────────────────────────────────────────────────────
+export const quotationLineItems = mysqlTable("quotation_line_items", {
+  id: int("id").autoincrement().primaryKey(),
+  quotationId: int("quotation_id").notNull(),
+  serviceName: varchar("service_name", { length: 255 }).notNull(),
+  description: text("description"),
+  qty: int("qty").notNull().default(1),
+  unitPriceOmr: decimal("unit_price_omr", { precision: 10, scale: 3 }).notNull(),
+  discountPct: decimal("discount_pct", { precision: 5, scale: 2 }).notNull().default("0"),
+  lineTotalOmr: decimal("line_total_omr", { precision: 10, scale: 3 }).notNull(),
+  sortOrder: int("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export type QuotationLineItem = typeof quotationLineItems.$inferSelect;
+export type InsertQuotationLineItem = typeof quotationLineItems.$inferInsert;
+
+// ─── SERVICE SLA RULES ────────────────────────────────────────────────────────
+export const serviceSlaRules = mysqlTable("service_sla_rules", {
+  id: int("id").autoincrement().primaryKey(),
+  serviceType: varchar("service_type", { length: 100 }).notNull(),
+  priority: mysqlEnum("priority", ["low", "normal", "high", "urgent"]).notNull().default("normal"),
+  targetHours: int("target_hours").notNull(),
+  escalationHours: int("escalation_hours").notNull(),
+  breachAction: mysqlEnum("breach_action", ["notify", "escalate", "auto_reassign"]).notNull().default("notify"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+export type ServiceSlaRule = typeof serviceSlaRules.$inferSelect;
+export type InsertServiceSlaRule = typeof serviceSlaRules.$inferInsert;
+
+// ─── CASE SLA TRACKING ────────────────────────────────────────────────────────
+export const caseSlaTracking = mysqlTable("case_sla_tracking", {
+  id: int("id").autoincrement().primaryKey(),
+  caseId: int("case_id").notNull(),
+  ruleId: int("rule_id"),
+  startedAt: timestamp("started_at").defaultNow().notNull(),
+  dueAt: timestamp("due_at").notNull(),
+  breachedAt: timestamp("breached_at"),
+  resolvedAt: timestamp("resolved_at"),
+  breachNotified: boolean("breach_notified").notNull().default(false),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export type CaseSlaTracking = typeof caseSlaTracking.$inferSelect;
+export type InsertCaseSlaTracking = typeof caseSlaTracking.$inferInsert;

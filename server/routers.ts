@@ -22,6 +22,10 @@ import { platformOpsRouter } from "./routers/platformOps";
 import { payrollRouter } from "./routers/payroll";
 import { recruitmentRouter } from "./routers/recruitment";
 import { clientPortalRouter } from "./routers/clientPortal";
+import { operationsRouter } from "./routers/operations";
+import { quotationsRouter } from "./routers/quotations";
+import { slaRouter } from "./routers/sla";
+import { complianceRouter } from "./routers/compliance";
 
 export const appRouter = router({
   system: systemRouter,
@@ -55,6 +59,10 @@ export const appRouter = router({
   payroll: payrollRouter,
   recruitment: recruitmentRouter,
   clientPortal: clientPortalRouter,
+  operations: operationsRouter,
+  quotations: quotationsRouter,
+  sla: slaRouter,
+  compliance: complianceRouter,
 });
 
 export type AppRouter = typeof appRouter;

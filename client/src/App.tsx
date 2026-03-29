@@ -48,7 +48,17 @@ import PayrollEnginePage from "./pages/PayrollEnginePage";
 import SanadRatingsModerationPage from "./pages/SanadRatingsModerationPage";
 import ReportsPage from "./pages/ReportsPage";
 import AuditLogPage from "./pages/AuditLogPage";
+import PublicJobBoardPage from "./pages/PublicJobBoardPage";
+import WorkflowDetailPage from "./pages/WorkflowDetailPage";
 
+function PublicRoutes() {
+  return (
+    <Switch>
+      <Route path="/jobs" component={PublicJobBoardPage} />
+      <Route component={AppRoutes} />
+    </Switch>
+  );
+}
 function AppRoutes() {
   return (
     <PlatformLayout>
@@ -90,7 +100,8 @@ function AppRoutes() {
         <Route path="/sanad/catalogue-admin" component={SanadCatalogueAdminPage} />
         <Route path="/billing" component={BillingEnginePage} />
         <Route path="/alerts" component={ExpiryAlertsPage} />
-          <Route path="/renewal-workflows" component={RenewalWorkflowsPage} />
+          <Route path="/renewal-workflows/:id" component={WorkflowDetailPage} />
+        <Route path="/renewal-workflows" component={RenewalWorkflowsPage} />
         <Route path="/platform-ops" component={PlatformOpsPage} />
         <Route path="/payroll" component={PayrollEnginePage} />
         <Route path="/sanad/ratings-moderation" component={SanadRatingsModerationPage} />
@@ -110,7 +121,7 @@ function App() {
       <ThemeProvider defaultTheme="light">
         <TooltipProvider>
           <Toaster />
-          <AppRoutes />
+          <PublicRoutes />
         </TooltipProvider>
       </ThemeProvider>
     </ErrorBoundary>

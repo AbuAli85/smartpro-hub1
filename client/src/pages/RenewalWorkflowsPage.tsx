@@ -12,8 +12,9 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { AlertCircle, CheckCircle2, Clock, Edit2, Play, Plus, RefreshCw, Trash2, Zap } from "lucide-react";
+import { AlertCircle, CheckCircle2, Clock, Edit2, Play, Plus, RefreshCw, Trash2, Zap, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
+import { useLocation } from "wouter";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -202,6 +203,7 @@ function RuleFormDialog({
 export default function RenewalWorkflowsPage() {
   const { user } = useAuth();
   const isPlatformAdmin = user?.role === "admin";
+  const [, navigate] = useLocation();
 
   const [ruleDialogOpen, setRuleDialogOpen] = useState(false);
   const [editingRule, setEditingRule] = useState<{ id: number } & Partial<RuleFormData> | undefined>();
@@ -489,6 +491,12 @@ export default function RenewalWorkflowsPage() {
                             </TableCell>
                             <TableCell className="text-sm">{run.caseId ? `#${run.caseId}` : "—"}</TableCell>
                             <TableCell className="text-xs text-muted-foreground">{triggeredAt?.toLocaleString() ?? "—"}</TableCell>
+                            <TableCell>
+                              <Button variant="ghost" size="sm" className="h-7 px-2"
+                                onClick={() => navigate(`/renewal-workflows/${run.id}`)}>
+                                <ChevronRight size={13} />
+                              </Button>
+                            </TableCell>
                           </TableRow>
                         );
                       })}

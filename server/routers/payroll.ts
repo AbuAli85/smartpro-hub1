@@ -8,6 +8,8 @@ import {
   payrollLineItems,
   employees,
   companyMembers,
+  employeeSalaryConfigs,
+  salaryLoans,
 } from "../../drizzle/schema";
 import { storagePut } from "../storage";
 
@@ -435,5 +437,184 @@ export const payrollRouter = router({
       const pendingApproval = runs.filter(r => r.status === "draft" || r.status === "processing").length;
       const lastRun = runs[0] ?? null;
       return { totalPaidYTD, pendingApproval, lastRun, recentRuns: runs.slice(0, 6) };
+    }),
+
+  // ─── SALARY CONFIG ──────────────────────────────────────────────────────────
+  /** List salary configs for all employees in the company */
+  listSalaryConfigs: protectedProcedure
+    .query(async ({ ctx }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+      const m = await getMemberCompanyId(ctx.user.id);
+      if (!m) throw new TRPCError({ code: "FORBIDDEN", message: "Not a company member" });
+      const configs = await db
+        .select({
+          id: employeeSalaryConfigs.id,
+          employeeId: employeeSalaryConfigs.employeeId,
+          basicSalary: employeeSalaryConfigs.basicSalary,
+          housingAllowance: employeeSalaryConfigs.housingAllowance,
+          transportAllowance: employeeSalaryConfigs.transportAllowance,
+          otherAllowances: employeeSalaryConfigs.otherAllowances,
+          pasiRate: employeeSalaryConfigs.pasiRate,
+          incomeTaxRate: employeeSalaryConfigs.incomeTaxRate,
+          effectiveFrom: employeeSalaryConfigs.effectiveFrom,
+          effectiveTo: employeeSalaryConfigs.effectiveTo,
+          notes: employeeSalaryConfigs.notes,
+          employeeFirstName: employees.firstName,
+          employeeLastName: employees.lastName,
+          employeeNationality: employees.nationality,
+        })
+        .from(employeeSalaryConfigs)
+        .leftJoin(employees, eq(employeeSalaryConfigs.employeeId, employees.id))
+        .where(eq(employeeSalaryConfigs.companyId, m.companyId))
+        .orderBy(employees.firstName);
+      return configs;
+    }),
+
+  /** Create or update salary config for an employee */
+  upsertSalaryConfig: protectedProcedure
+    .input(z.object({
+      employeeId: z.number(),
+      basicSalary: z.number().min(0),
+      housingAllowance: z.number().min(0).default(0),
+      transportAllowance: z.number().min(0).default(0),
+      otherAllowances: z.number().min(0).default(0),
+      pasiRate: z.number().min(0).max(100).default(11.5),
+      incomeTaxRate: z.number().min(0).max(100).default(0),
+      effectiveFrom: z.string(),
+      effectiveTo: z.string().optional(),
+      notes: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+      const m = await getMemberCompanyId(ctx.user.id);
+      if (!m) throw new TRPCError({ code: "FORBIDDEN", message: "Not a company member" });
+      // verify employee belongs to company
+      const [emp] = await db.select({ id: employees.id }).from(employees)
+        .where(and(eq(employees.id, input.employeeId), eq(employees.companyId, m.companyId)));
+      if (!emp) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
+      // close any existing active config
+      await db.update(employeeSalaryConfigs)
+        .set({ effectiveTo: new Date(input.effectiveFrom) })
+        .where(and(
+          eq(employeeSalaryConfigs.employeeId, input.employeeId),
+          eq(employeeSalaryConfigs.companyId, m.companyId),
+          sql`effective_to IS NULL`,
+        ));
+      const insertData: any = {
+        employeeId: input.employeeId,
+        companyId: m.companyId,
+        basicSalary: String(input.basicSalary),
+        housingAllowance: String(input.housingAllowance),
+        transportAllowance: String(input.transportAllowance),
+        otherAllowances: String(input.otherAllowances),
+        pasiRate: String(input.pasiRate),
+        incomeTaxRate: String(input.incomeTaxRate),
+        effectiveFrom: new Date(input.effectiveFrom),
+        effectiveTo: input.effectiveTo ? new Date(input.effectiveTo) : null,
+        notes: input.notes ?? null,
+      };
+      const [newConfig] = await db.insert(employeeSalaryConfigs).values(insertData).$returningId();
+      return { id: newConfig.id };
+    }),
+
+  // ─── SALARY LOANS ───────────────────────────────────────────────────────────
+  /** List salary loans for the company */
+  listLoans: protectedProcedure
+    .query(async ({ ctx }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+      const m = await getMemberCompanyId(ctx.user.id);
+      if (!m) throw new TRPCError({ code: "FORBIDDEN", message: "Not a company member" });
+      const loans = await db
+        .select({
+          id: salaryLoans.id,
+          employeeId: salaryLoans.employeeId,
+          loanAmount: salaryLoans.loanAmount,
+          monthlyDeduction: salaryLoans.monthlyDeduction,
+          balanceRemaining: salaryLoans.balanceRemaining,
+          status: salaryLoans.status,
+          startMonth: salaryLoans.startMonth,
+          startYear: salaryLoans.startYear,
+          reason: salaryLoans.reason,
+          createdAt: salaryLoans.createdAt,
+          employeeFirstName: employees.firstName,
+          employeeLastName: employees.lastName,
+        })
+        .from(salaryLoans)
+        .leftJoin(employees, eq(salaryLoans.employeeId, employees.id))
+        .where(eq(salaryLoans.companyId, m.companyId))
+        .orderBy(desc(salaryLoans.createdAt));
+      return loans;
+    }),
+
+  /** Create a new salary loan */
+  createLoan: protectedProcedure
+    .input(z.object({
+      employeeId: z.number(),
+      loanAmount: z.number().positive(),
+      monthlyDeduction: z.number().positive(),
+      startMonth: z.number().min(1).max(12),
+      startYear: z.number().min(2020),
+      reason: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+      const m = await getMemberCompanyId(ctx.user.id);
+      if (!m) throw new TRPCError({ code: "FORBIDDEN", message: "Not a company member" });
+      const [emp] = await db.select({ id: employees.id }).from(employees)
+        .where(and(eq(employees.id, input.employeeId), eq(employees.companyId, m.companyId)));
+      if (!emp) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
+      const [loan] = await db.insert(salaryLoans).values({
+        employeeId: input.employeeId,
+        companyId: m.companyId,
+        loanAmount: String(input.loanAmount),
+        monthlyDeduction: String(input.monthlyDeduction),
+        balanceRemaining: String(input.loanAmount),
+        status: "active",
+        startMonth: input.startMonth,
+        startYear: input.startYear,
+        reason: input.reason ?? null,
+        approvedBy: ctx.user.id,
+      }).$returningId();
+      return { id: loan.id };
+    }),
+
+  /** Update loan balance (called after payroll deduction) */
+  updateLoanBalance: protectedProcedure
+    .input(z.object({
+      loanId: z.number(),
+      deductedAmount: z.number().positive(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+      const m = await getMemberCompanyId(ctx.user.id);
+      if (!m) throw new TRPCError({ code: "FORBIDDEN", message: "Not a company member" });
+      const [loan] = await db.select().from(salaryLoans)
+        .where(and(eq(salaryLoans.id, input.loanId), eq(salaryLoans.companyId, m.companyId)));
+      if (!loan) throw new TRPCError({ code: "NOT_FOUND", message: "Loan not found" });
+      const newBalance = Math.max(0, Number(loan.balanceRemaining) - input.deductedAmount);
+      const newStatus = newBalance <= 0 ? "completed" : "active";
+      await db.update(salaryLoans)
+        .set({ balanceRemaining: String(newBalance), status: newStatus })
+        .where(eq(salaryLoans.id, input.loanId));
+      return { newBalance, status: newStatus };
+    }),
+
+  /** Cancel a loan */
+  cancelLoan: protectedProcedure
+    .input(z.object({ loanId: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+      const m = await getMemberCompanyId(ctx.user.id);
+      if (!m) throw new TRPCError({ code: "FORBIDDEN", message: "Not a company member" });
+      await db.update(salaryLoans)
+        .set({ status: "cancelled" })
+        .where(and(eq(salaryLoans.id, input.loanId), eq(salaryLoans.companyId, m.companyId)));
+      return { success: true };
     }),
 });

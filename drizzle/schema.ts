@@ -1734,3 +1734,42 @@ export const contractSignatureAudit = mysqlTable("contract_signature_audit", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 export type ContractSignatureAudit = typeof contractSignatureAudit.$inferSelect;
+
+// ─── EMPLOYEE SALARY CONFIG ───────────────────────────────────────────────────
+export const employeeSalaryConfigs = mysqlTable("employee_salary_configs", {
+  id: int("id").autoincrement().primaryKey(),
+  employeeId: int("employee_id").notNull(),
+  companyId: int("company_id").notNull(),
+  basicSalary: decimal("basic_salary", { precision: 10, scale: 3 }).notNull().default("0.000"),
+  housingAllowance: decimal("housing_allowance", { precision: 10, scale: 3 }).notNull().default("0.000"),
+  transportAllowance: decimal("transport_allowance", { precision: 10, scale: 3 }).notNull().default("0.000"),
+  otherAllowances: decimal("other_allowances", { precision: 10, scale: 3 }).notNull().default("0.000"),
+  pasiRate: decimal("pasi_rate", { precision: 5, scale: 2 }).notNull().default("11.50"),
+  incomeTaxRate: decimal("income_tax_rate", { precision: 5, scale: 2 }).notNull().default("0.00"),
+  effectiveFrom: date("effective_from").notNull(),
+  effectiveTo: date("effective_to"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+export type EmployeeSalaryConfig = typeof employeeSalaryConfigs.$inferSelect;
+export type InsertEmployeeSalaryConfig = typeof employeeSalaryConfigs.$inferInsert;
+
+// ─── SALARY LOANS ─────────────────────────────────────────────────────────────
+export const salaryLoans = mysqlTable("salary_loans", {
+  id: int("id").autoincrement().primaryKey(),
+  employeeId: int("employee_id").notNull(),
+  companyId: int("company_id").notNull(),
+  loanAmount: decimal("loan_amount", { precision: 10, scale: 3 }).notNull(),
+  monthlyDeduction: decimal("monthly_deduction", { precision: 10, scale: 3 }).notNull(),
+  balanceRemaining: decimal("balance_remaining", { precision: 10, scale: 3 }).notNull(),
+  status: mysqlEnum("status", ["active", "completed", "cancelled"]).notNull().default("active"),
+  startMonth: int("start_month").notNull(),
+  startYear: int("start_year").notNull(),
+  reason: varchar("reason", { length: 500 }),
+  approvedBy: int("approved_by"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+export type SalaryLoan = typeof salaryLoans.$inferSelect;
+export type InsertSalaryLoan = typeof salaryLoans.$inferInsert;

@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Users, Briefcase, Calendar, Star, Send, CheckCircle, XCircle,
-  Plus, Eye, Clock, Video, MapPin, FileText, RefreshCw, Trash2
+  Plus, Eye, Clock, Video, MapPin, FileText, RefreshCw, Trash2, Sparkles
 } from "lucide-react";
 
 const STAGES = ["applied","screening","interview","assessment","offer","hired","rejected"] as const;
@@ -41,6 +41,7 @@ export default function HRRecruitmentPage() {
   const [activeTab, setActiveTab] = useState("pipeline");
   const [selectedJobId, setSelectedJobId] = useState<number | undefined>();
   const [selectedApp, setSelectedApp] = useState<any | null>(null);
+  const [aiReport, setAiReport] = useState<any | null>(null);
   const [createJobOpen, setCreateJobOpen] = useState(false);
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [offerOpen, setOfferOpen] = useState(false);
@@ -92,6 +93,14 @@ export default function HRRecruitmentPage() {
   });
   const sendOffer = trpc.recruitment.sendOffer.useMutation({
     onSuccess: () => { toast.success("Offer marked as sent"); refetchOffers(); },
+    onError: (e) => toast.error(e.message),
+  });
+  const screenApp = trpc.recruitment.screenApplication.useMutation({
+    onSuccess: (data) => { setAiReport(data); toast.success("AI screening complete"); },
+    onError: (e) => toast.error(e.message),
+  });
+  const convertToEmployee = trpc.recruitment.convertToEmployee.useMutation({
+    onSuccess: (d) => { toast.success(`Employee record created: ${d.name}`); setSelectedApp(null); },
     onError: (e) => toast.error(e.message),
   });
   const updateOfferStatus = trpc.recruitment.updateOfferStatus.useMutation({
@@ -351,6 +360,28 @@ export default function HRRecruitmentPage() {
                   ))}
                 </div>
               </div>
+              {aiReport && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <p className="font-semibold text-sm flex items-center gap-1"><Sparkles size={13} className="text-blue-600" /> AI Screening Result</p>
+                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                      aiReport.score >= 70 ? "bg-green-100 text-green-800" :
+                      aiReport.score >= 40 ? "bg-yellow-100 text-yellow-800" :
+                      "bg-red-100 text-red-800"
+                    }`}>{aiReport.score}/100</span>
+                  </div>
+                  {aiReport.summary && <p className="text-xs text-muted-foreground">{aiReport.summary}</p>}
+                  {aiReport.strengths?.length > 0 && (
+                    <div><p className="text-xs font-medium text-green-700 mb-0.5">Strengths</p>
+                    <ul className="text-xs text-muted-foreground space-y-0.5">{aiReport.strengths.map((s: string, i: number) => <li key={i}>• {s}</li>)}</ul></div>
+                  )}
+                  {aiReport.gaps?.length > 0 && (
+                    <div><p className="text-xs font-medium text-red-700 mb-0.5">Gaps</p>
+                    <ul className="text-xs text-muted-foreground space-y-0.5">{aiReport.gaps.map((g: string, i: number) => <li key={i}>• {g}</li>)}</ul></div>
+                  )}
+                  <p className="text-xs font-medium capitalize">Recommendation: <span className="text-blue-700">{aiReport.recommendation?.replace("_", " ")}</span></p>
+                </div>
+              )}
               <div className="flex flex-wrap gap-2">
                 <Button variant="outline" size="sm" onClick={() => setScheduleOpen(true)} className="gap-1">
                   <Calendar size={14} /> Schedule Interview
@@ -358,6 +389,21 @@ export default function HRRecruitmentPage() {
                 <Button variant="outline" size="sm" onClick={() => setOfferOpen(true)} className="gap-1">
                   <FileText size={14} /> Create Offer
                 </Button>
+                <Button variant="outline" size="sm"
+                  onClick={() => { setAiReport(null); screenApp.mutate({ applicationId: selectedApp.app.id }); }}
+                  disabled={screenApp.isPending}
+                  className="gap-1 text-blue-600 border-blue-300 hover:bg-blue-50">
+                  {screenApp.isPending ? <RefreshCw size={13} className="animate-spin" /> : <Sparkles size={13} />}
+                  AI Screen
+                </Button>
+                {selectedApp?.app?.stage === "offer" && (
+                  <Button size="sm"
+                    onClick={() => convertToEmployee.mutate({ applicationId: selectedApp.app.id, startDate: new Date().toISOString().slice(0,10) })}
+                    disabled={convertToEmployee.isPending}
+                    className="gap-1 bg-green-600 hover:bg-green-700">
+                    <CheckCircle size={13} /> Convert to Employee
+                  </Button>
+                )}
               </div>
             </div>
           )}

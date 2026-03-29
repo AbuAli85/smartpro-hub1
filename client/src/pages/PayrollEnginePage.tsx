@@ -11,10 +11,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Textarea } from "@/components/ui/textarea";
 import {
   DollarSign, FileText, Users, CheckCircle, Clock, AlertCircle,
   Play, Download, Eye, ChevronRight, Plus, RefreshCw, Banknote,
-  TrendingUp, Calculator
+  TrendingUp, Calculator, CreditCard, Settings, XCircle
 } from "lucide-react";
 
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -28,6 +29,8 @@ const statusColor: Record<string, string> = {
   pending: "bg-yellow-100 text-yellow-800",
   failed: "bg-red-100 text-red-800",
   on_hold: "bg-gray-100 text-gray-800",
+  active: "bg-green-100 text-green-800",
+  completed: "bg-blue-100 text-blue-800",
 };
 
 export default function PayrollEnginePage() {
@@ -39,12 +42,42 @@ export default function PayrollEnginePage() {
   const [createForm, setCreateForm] = useState({ month: now.getMonth() + 1, year: now.getFullYear(), notes: "" });
   const [editLine, setEditLine] = useState<any | null>(null);
 
+  // Salary Config state
+  const [salaryConfigOpen, setSalaryConfigOpen] = useState(false);
+  const [salaryConfigForm, setSalaryConfigForm] = useState({
+    employeeId: 0,
+    basicSalary: 0,
+    housingAllowance: 0,
+    transportAllowance: 0,
+    otherAllowances: 0,
+    pasiRate: 11.5,
+    incomeTaxRate: 0,
+    effectiveFrom: new Date().toISOString().split("T")[0],
+    effectiveTo: "",
+    notes: "",
+  });
+
+  // Loan state
+  const [loanOpen, setLoanOpen] = useState(false);
+  const [loanForm, setLoanForm] = useState({
+    employeeId: 0,
+    loanAmount: 0,
+    monthlyDeduction: 0,
+    startMonth: now.getMonth() + 1,
+    startYear: now.getFullYear(),
+    reason: "",
+  });
+
   const { data: summary, refetch: refetchSummary } = trpc.payroll.getSummary.useQuery();
   const { data: runs, refetch: refetchRuns } = trpc.payroll.listRuns.useQuery({ year: selectedYear });
   const { data: runDetail, refetch: refetchDetail } = trpc.payroll.getRun.useQuery(
     { runId: selectedRunId! },
     { enabled: !!selectedRunId }
   );
+  const { data: salaryConfigs, refetch: refetchConfigs } = trpc.payroll.listSalaryConfigs.useQuery();
+  const { data: loans, refetch: refetchLoans } = trpc.payroll.listLoans.useQuery();
+  const { data: empListData } = trpc.workforce.employees.list.useQuery({});
+  const empList = empListData?.items;
 
   const createRun = trpc.payroll.createRun.useMutation({
     onSuccess: (d) => {
@@ -89,7 +122,46 @@ export default function PayrollEnginePage() {
     onError: (e) => toast.error(e.message),
   });
 
+  const upsertSalaryConfig = trpc.payroll.upsertSalaryConfig.useMutation({
+    onSuccess: () => {
+      toast.success("Salary configuration saved");
+      setSalaryConfigOpen(false);
+      refetchConfigs();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const createLoan = trpc.payroll.createLoan.useMutation({
+    onSuccess: () => {
+      toast.success("Loan created successfully");
+      setLoanOpen(false);
+      refetchLoans();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const cancelLoan = trpc.payroll.cancelLoan.useMutation({
+    onSuccess: () => { toast.success("Loan cancelled"); refetchLoans(); },
+    onError: (e) => toast.error(e.message),
+  });
+
   const years = Array.from({ length: 5 }, (_, i) => now.getFullYear() - i);
+
+  const openSalaryConfigForEmployee = (emp: any) => {
+    setSalaryConfigForm({
+      employeeId: emp.id,
+      basicSalary: Number(emp.salary ?? 0),
+      housingAllowance: 0,
+      transportAllowance: 0,
+      otherAllowances: 0,
+      pasiRate: 11.5,
+      incomeTaxRate: 0,
+      effectiveFrom: new Date().toISOString().split("T")[0],
+      effectiveTo: "",
+      notes: "",
+    });
+    setSalaryConfigOpen(true);
+  };
 
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
@@ -97,7 +169,7 @@ export default function PayrollEnginePage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Payroll Engine</h1>
-          <p className="text-muted-foreground text-sm mt-1">Manage payroll cycles, payslips, and WPS submissions</p>
+          <p className="text-muted-foreground text-sm mt-1">Manage payroll cycles, salary configurations, loans, and WPS submissions</p>
         </div>
         <Button onClick={() => setCreateOpen(true)} className="gap-2">
           <Plus size={16} /> New Payroll Run
@@ -145,9 +217,11 @@ export default function PayrollEnginePage() {
       </div>
 
       <Tabs defaultValue="runs">
-        <TabsList>
+        <TabsList className="flex flex-wrap gap-1">
           <TabsTrigger value="runs">Payroll Runs</TabsTrigger>
           <TabsTrigger value="detail" disabled={!selectedRunId}>Run Detail</TabsTrigger>
+          <TabsTrigger value="salary-config">Salary Config</TabsTrigger>
+          <TabsTrigger value="loans">Loans</TabsTrigger>
         </TabsList>
 
         {/* Payroll Runs Tab */}
@@ -341,6 +415,197 @@ export default function PayrollEnginePage() {
             </>
           )}
         </TabsContent>
+
+        {/* Salary Config Tab */}
+        <TabsContent value="salary-config" className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-semibold">Salary Configurations</h2>
+              <p className="text-sm text-muted-foreground">Define base salary, allowances, and deduction rates per employee</p>
+            </div>
+            <Button onClick={() => { setSalaryConfigForm(f => ({ ...f, employeeId: 0 })); setSalaryConfigOpen(true); }} className="gap-2">
+              <Plus size={16} /> New Config
+            </Button>
+          </div>
+
+          {/* Employee quick-config cards */}
+          {empList && empList.length > 0 && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {empList.map((emp: any) => {
+                const cfg = salaryConfigs?.find(c => c.employeeId === emp.id);
+                return (
+                  <Card key={emp.id} className="hover:shadow-md transition-shadow">
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between mb-3">
+                        <div>
+                          <p className="font-semibold text-sm">{emp.firstName} {emp.lastName}</p>
+                          <p className="text-xs text-muted-foreground">{emp.jobTitle ?? "—"} · {emp.nationality ?? "—"}</p>
+                        </div>
+                        <Button size="sm" variant="outline" onClick={() => openSalaryConfigForEmployee(emp)} className="gap-1 text-xs">
+                          <Settings size={12} /> Configure
+                        </Button>
+                      </div>
+                      {cfg ? (
+                        <div className="space-y-1 text-xs">
+                          <div className="flex justify-between"><span className="text-muted-foreground">Basic Salary</span><span className="font-medium">{fmt(cfg.basicSalary)}</span></div>
+                          <div className="flex justify-between"><span className="text-muted-foreground">Housing</span><span>{fmt(cfg.housingAllowance)}</span></div>
+                          <div className="flex justify-between"><span className="text-muted-foreground">Transport</span><span>{fmt(cfg.transportAllowance)}</span></div>
+                          <div className="flex justify-between"><span className="text-muted-foreground">PASI Rate</span><span>{cfg.pasiRate}%</span></div>
+                          <div className="flex justify-between"><span className="text-muted-foreground">Effective From</span><span>{cfg.effectiveFrom ? new Date(cfg.effectiveFrom).toLocaleDateString() : "—"}</span></div>
+                        </div>
+                      ) : (
+                        <div className="bg-yellow-50 border border-yellow-200 rounded p-2 text-xs text-yellow-800">
+                          No salary config set. Using employee record defaults.
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Full config table */}
+          <Card>
+            <CardHeader><CardTitle className="text-base">All Salary Configurations</CardTitle></CardHeader>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Employee</TableHead>
+                  <TableHead>Basic Salary</TableHead>
+                  <TableHead>Housing</TableHead>
+                  <TableHead>Transport</TableHead>
+                  <TableHead>Other</TableHead>
+                  <TableHead>PASI Rate</TableHead>
+                  <TableHead>Effective From</TableHead>
+                  <TableHead>Effective To</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {!salaryConfigs?.length && (
+                  <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-8">No salary configurations yet. Click "Configure" on an employee card above.</TableCell></TableRow>
+                )}
+                {salaryConfigs?.map(cfg => (
+                  <TableRow key={cfg.id}>
+                    <TableCell className="font-medium">{cfg.employeeFirstName} {cfg.employeeLastName}</TableCell>
+                    <TableCell className="font-semibold text-green-700">{fmt(cfg.basicSalary)}</TableCell>
+                    <TableCell>{fmt(cfg.housingAllowance)}</TableCell>
+                    <TableCell>{fmt(cfg.transportAllowance)}</TableCell>
+                    <TableCell>{fmt(cfg.otherAllowances)}</TableCell>
+                    <TableCell>{cfg.pasiRate}%</TableCell>
+                    <TableCell>{cfg.effectiveFrom ? new Date(cfg.effectiveFrom).toLocaleDateString() : "—"}</TableCell>
+                    <TableCell>{cfg.effectiveTo ? new Date(cfg.effectiveTo).toLocaleDateString() : <span className="text-green-600 text-xs font-medium">Active</span>}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </Card>
+        </TabsContent>
+
+        {/* Loans Tab */}
+        <TabsContent value="loans" className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-semibold">Employee Loans</h2>
+              <p className="text-sm text-muted-foreground">Manage salary advances and monthly deductions</p>
+            </div>
+            <Button onClick={() => setLoanOpen(true)} className="gap-2">
+              <Plus size={16} /> New Loan
+            </Button>
+          </div>
+
+          {/* Loan summary cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <Card>
+              <CardContent className="p-4 flex items-center gap-3">
+                <div className="p-2 bg-blue-100 rounded-lg"><CreditCard size={20} className="text-blue-700" /></div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Active Loans</p>
+                  <p className="text-lg font-bold">{loans?.filter(l => l.status === "active").length ?? 0}</p>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4 flex items-center gap-3">
+                <div className="p-2 bg-red-100 rounded-lg"><DollarSign size={20} className="text-red-700" /></div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Total Outstanding</p>
+                  <p className="text-lg font-bold">{fmt(loans?.filter(l => l.status === "active").reduce((s, l) => s + Number(l.balanceRemaining ?? 0), 0))}</p>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4 flex items-center gap-3">
+                <div className="p-2 bg-green-100 rounded-lg"><CheckCircle size={20} className="text-green-700" /></div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Completed Loans</p>
+                  <p className="text-lg font-bold">{loans?.filter(l => l.status === "completed").length ?? 0}</p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <Card>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Employee</TableHead>
+                  <TableHead>Loan Amount</TableHead>
+                  <TableHead>Monthly Deduction</TableHead>
+                  <TableHead>Balance Remaining</TableHead>
+                  <TableHead>Start</TableHead>
+                  <TableHead>Reason</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {!loans?.length && (
+                  <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-8">No loans recorded yet</TableCell></TableRow>
+                )}
+                {loans?.map(loan => (
+                  <TableRow key={loan.id}>
+                    <TableCell className="font-medium">{loan.employeeFirstName} {loan.employeeLastName}</TableCell>
+                    <TableCell>{fmt(loan.loanAmount)}</TableCell>
+                    <TableCell className="text-red-600">-{fmt(loan.monthlyDeduction)}/mo</TableCell>
+                    <TableCell>
+                      <div>
+                        <span className="font-semibold">{fmt(loan.balanceRemaining)}</span>
+                        {loan.status === "active" && Number(loan.loanAmount) > 0 && (
+                          <div className="w-full bg-gray-200 rounded-full h-1.5 mt-1">
+                            <div
+                              className="bg-blue-600 h-1.5 rounded-full"
+                              style={{ width: `${Math.min(100, ((Number(loan.loanAmount) - Number(loan.balanceRemaining)) / Number(loan.loanAmount)) * 100)}%` }}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>{MONTHS[(loan.startMonth ?? 1) - 1]} {loan.startYear}</TableCell>
+                    <TableCell className="text-muted-foreground text-xs max-w-32 truncate">{loan.reason ?? "—"}</TableCell>
+                    <TableCell>
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusColor[loan.status] ?? ""}`}>
+                        {loan.status}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      {loan.status === "active" && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-xs text-red-600"
+                          onClick={() => { if (confirm("Cancel this loan?")) cancelLoan.mutate({ loanId: loan.id }); }}
+                        >
+                          <XCircle size={12} className="mr-1" /> Cancel
+                        </Button>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </Card>
+        </TabsContent>
       </Tabs>
 
       {/* Create Run Dialog */}
@@ -439,6 +704,156 @@ export default function PayrollEnginePage() {
               ibanNumber: editLine.ibanNumber,
             })} disabled={updateLine.isPending}>
               Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Salary Config Dialog */}
+      <Dialog open={salaryConfigOpen} onOpenChange={setSalaryConfigOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader><DialogTitle>Salary Configuration</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-1">
+              <Label>Employee</Label>
+              <Select
+                value={salaryConfigForm.employeeId ? String(salaryConfigForm.employeeId) : ""}
+                onValueChange={(v) => setSalaryConfigForm(f => ({ ...f, employeeId: Number(v) }))}
+              >
+                <SelectTrigger><SelectValue placeholder="Select employee..." /></SelectTrigger>
+                <SelectContent>
+                  {empList?.map((emp: any) => (
+                    <SelectItem key={emp.id} value={String(emp.id)}>{emp.firstName} {emp.lastName}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Basic Salary (OMR)</Label>
+                <Input type="number" step="0.001" value={salaryConfigForm.basicSalary} onChange={e => setSalaryConfigForm(f => ({ ...f, basicSalary: Number(e.target.value) }))} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Housing Allowance (OMR)</Label>
+                <Input type="number" step="0.001" value={salaryConfigForm.housingAllowance} onChange={e => setSalaryConfigForm(f => ({ ...f, housingAllowance: Number(e.target.value) }))} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Transport Allowance (OMR)</Label>
+                <Input type="number" step="0.001" value={salaryConfigForm.transportAllowance} onChange={e => setSalaryConfigForm(f => ({ ...f, transportAllowance: Number(e.target.value) }))} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Other Allowances (OMR)</Label>
+                <Input type="number" step="0.001" value={salaryConfigForm.otherAllowances} onChange={e => setSalaryConfigForm(f => ({ ...f, otherAllowances: Number(e.target.value) }))} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">PASI Rate (%)</Label>
+                <Input type="number" step="0.01" value={salaryConfigForm.pasiRate} onChange={e => setSalaryConfigForm(f => ({ ...f, pasiRate: Number(e.target.value) }))} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Income Tax Rate (%)</Label>
+                <Input type="number" step="0.01" value={salaryConfigForm.incomeTaxRate} onChange={e => setSalaryConfigForm(f => ({ ...f, incomeTaxRate: Number(e.target.value) }))} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Effective From</Label>
+                <Input type="date" value={salaryConfigForm.effectiveFrom} onChange={e => setSalaryConfigForm(f => ({ ...f, effectiveFrom: e.target.value }))} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Effective To (optional)</Label>
+                <Input type="date" value={salaryConfigForm.effectiveTo} onChange={e => setSalaryConfigForm(f => ({ ...f, effectiveTo: e.target.value }))} />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Notes</Label>
+              <Textarea placeholder="e.g. Salary revision after performance review" value={salaryConfigForm.notes} onChange={e => setSalaryConfigForm(f => ({ ...f, notes: e.target.value }))} rows={2} />
+            </div>
+            <div className="bg-amber-50 border border-amber-200 rounded p-3 text-xs text-amber-800">
+              <strong>Note:</strong> Saving a new config will close the current active config for this employee. The new config takes effect from the "Effective From" date.
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSalaryConfigOpen(false)}>Cancel</Button>
+            <Button
+              onClick={() => upsertSalaryConfig.mutate({
+                ...salaryConfigForm,
+                effectiveTo: salaryConfigForm.effectiveTo || undefined,
+                notes: salaryConfigForm.notes || undefined,
+              })}
+              disabled={upsertSalaryConfig.isPending || !salaryConfigForm.employeeId}
+            >
+              {upsertSalaryConfig.isPending ? <RefreshCw size={14} className="animate-spin mr-2" /> : null}
+              Save Configuration
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* New Loan Dialog */}
+      <Dialog open={loanOpen} onOpenChange={setLoanOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>New Employee Loan</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-1">
+              <Label>Employee</Label>
+              <Select
+                value={loanForm.employeeId ? String(loanForm.employeeId) : ""}
+                onValueChange={(v) => setLoanForm(f => ({ ...f, employeeId: Number(v) }))}
+              >
+                <SelectTrigger><SelectValue placeholder="Select employee..." /></SelectTrigger>
+                <SelectContent>
+                  {empList?.map((emp: any) => (
+                    <SelectItem key={emp.id} value={String(emp.id)}>{emp.firstName} {emp.lastName}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Loan Amount (OMR)</Label>
+                <Input type="number" step="0.001" value={loanForm.loanAmount} onChange={e => setLoanForm(f => ({ ...f, loanAmount: Number(e.target.value) }))} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Monthly Deduction (OMR)</Label>
+                <Input type="number" step="0.001" value={loanForm.monthlyDeduction} onChange={e => setLoanForm(f => ({ ...f, monthlyDeduction: Number(e.target.value) }))} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Start Month</Label>
+                <Select value={String(loanForm.startMonth)} onValueChange={(v) => setLoanForm(f => ({ ...f, startMonth: Number(v) }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>{MONTHS.map((m, i) => <SelectItem key={i+1} value={String(i+1)}>{m}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Start Year</Label>
+                <Select value={String(loanForm.startYear)} onValueChange={(v) => setLoanForm(f => ({ ...f, startYear: Number(v) }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>{years.map(y => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+            </div>
+            {loanForm.loanAmount > 0 && loanForm.monthlyDeduction > 0 && (
+              <div className="bg-blue-50 border border-blue-200 rounded p-3 text-xs text-blue-800">
+                <strong>Repayment estimate:</strong> {Math.ceil(loanForm.loanAmount / loanForm.monthlyDeduction)} months
+                ({fmt(loanForm.loanAmount / Math.ceil(loanForm.loanAmount / loanForm.monthlyDeduction))} avg/month)
+              </div>
+            )}
+            <div className="space-y-1">
+              <Label className="text-xs">Reason (optional)</Label>
+              <Textarea placeholder="e.g. Medical emergency, home purchase..." value={loanForm.reason} onChange={e => setLoanForm(f => ({ ...f, reason: e.target.value }))} rows={2} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setLoanOpen(false)}>Cancel</Button>
+            <Button
+              onClick={() => createLoan.mutate({
+                ...loanForm,
+                reason: loanForm.reason || undefined,
+              })}
+              disabled={createLoan.isPending || !loanForm.employeeId || loanForm.loanAmount <= 0 || loanForm.monthlyDeduction <= 0}
+            >
+              {createLoan.isPending ? <RefreshCw size={14} className="animate-spin mr-2" /> : null}
+              Create Loan
             </Button>
           </DialogFooter>
         </DialogContent>

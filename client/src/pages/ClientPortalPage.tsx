@@ -109,7 +109,18 @@ export default function ClientPortalPage() {
   const { data: invoicesData } = trpc.clientPortal.listInvoices.useQuery({ pageSize: 50 });
   const { data: proServicesData } = trpc.clientPortal.listProServices.useQuery({ pageSize: 50 });
   const { data: govCasesData } = trpc.clientPortal.listGovernmentCases.useQuery({ pageSize: 50 });
-  const { data: bookingsData } = trpc.clientPortal.listBookings.useQuery({ pageSize: 50 });
+  const [ratingBooking, setRatingBooking] = useState<any | null>(null);
+  const [ratingValue, setRatingValue] = useState(0);
+  const [ratingReview, setRatingReview] = useState("");
+  const { data: bookingsData, refetch: refetchBookings } = trpc.clientPortal.listBookings.useQuery({ pageSize: 50 });
+  const submitReview = trpc.marketplace.submitReview.useMutation({
+    onSuccess: () => {
+      toast.success("Rating submitted! Thank you.");
+      setRatingBooking(null); setRatingValue(0); setRatingReview("");
+      refetchBookings();
+    },
+    onError: (e) => toast.error(e.message),
+  });
   const { data: alertsData } = trpc.clientPortal.getExpiryAlerts.useQuery({ daysAhead: 90 });
   const { data: messagesData, refetch: refetchMessages } = trpc.clientPortal.listMessages.useQuery({ pageSize: 50 });
 
@@ -525,11 +536,18 @@ export default function ClientPortalPage() {
                           </div>
                         </div>
                         <div className="flex flex-wrap items-center gap-2">
-                          {b.status === "completed" && (
+                          {b.status === "completed" && !b.rating && (
                             <Button variant="outline" size="sm" className="gap-1 text-xs"
-                              onClick={() => toast.info("Rating feature coming in Step 7")}>
+                              onClick={() => { setRatingBooking(b); setRatingValue(0); setRatingReview(""); }}>
                               <Star className="w-3 h-3" /> Rate
                             </Button>
+                          )}
+                          {b.rating && (
+                            <div className="flex items-center gap-1 text-xs text-amber-600">
+                              {[...Array(5)].map((_, i) => (
+                                <Star key={i} className={`w-3 h-3 ${i < (b.rating ?? 0) ? "fill-amber-400 text-amber-400" : "text-gray-300"}`} />
+                              ))}
+                            </div>
                           )}
                           <CaseIcon status={b.status ?? "pending"} />
                         </div>
@@ -664,6 +682,48 @@ export default function ClientPortalPage() {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* ─── Rating Dialog ─── */}
+      {ratingBooking && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-background rounded-xl shadow-xl max-w-sm w-full p-6 space-y-4">
+            <h3 className="text-lg font-semibold">Rate Your Experience</h3>
+            <p className="text-sm text-muted-foreground">{ratingBooking.providerName ?? "Service Provider"}</p>
+            <div className="flex items-center gap-2 justify-center">
+              {[1,2,3,4,5].map(n => (
+                <button key={n} onClick={() => setRatingValue(n)} className="focus:outline-none">
+                  <Star className={`w-8 h-8 transition-colors ${
+                    n <= ratingValue ? "fill-amber-400 text-amber-400" : "text-gray-300 hover:text-amber-300"
+                  }`} />
+                </button>
+              ))}
+            </div>
+            {ratingValue > 0 && (
+              <p className="text-center text-sm font-medium text-amber-600">
+                {["Poor","Fair","Good","Very Good","Excellent"][ratingValue-1]}
+              </p>
+            )}
+            <textarea
+              className="w-full border rounded-lg p-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary"
+              rows={3}
+              placeholder="Share your experience (optional)..."
+              value={ratingReview}
+              onChange={e => setRatingReview(e.target.value)}
+            />
+            <div className="flex gap-2 justify-end">
+              <button
+                className="px-4 py-2 text-sm border rounded-lg hover:bg-muted transition-colors"
+                onClick={() => setRatingBooking(null)}
+              >Cancel</button>
+              <button
+                className="px-4 py-2 text-sm bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50"
+                disabled={ratingValue === 0 || submitReview.isPending}
+                onClick={() => submitReview.mutate({ bookingId: ratingBooking.id, rating: ratingValue, review: ratingReview || undefined })}
+              >{submitReview.isPending ? "Submitting..." : "Submit Rating"}</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -8,6 +8,8 @@ import {
 } from "../../drizzle/schema";
 import { eq, and, desc, asc, inArray, sql, count } from "drizzle-orm";
 import { storagePut } from "../storage";
+import { invokeLLM } from "../_core/llm";
+import { publicProcedure } from "../_core/trpc";
 
 function randomSuffix() { return Math.random().toString(36).slice(2, 8).toUpperCase(); }
 
@@ -365,6 +367,201 @@ export const recruitmentRouter = router({
           .where(and(eq(jobApplications.id, offer.applicationId), eq(jobApplications.companyId, companyId)));
       }
       return { ok: true };
+    }),
+
+  // ── Public Job Board ────────────────────────────────────────────────────────
+  /** Public job listings — no auth required */
+  listPublicJobs: publicProcedure
+    .input(z.object({
+      query: z.string().optional(),
+      type: z.enum(["full_time","part_time","contract","intern","all"]).default("all"),
+    }).optional())
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) return [];
+      const conditions: any[] = [sql`${jobPostings.status} = 'open'`];
+      if (input?.type && input.type !== "all") conditions.push(eq(jobPostings.type, input.type as any));
+      const rows = await db.select({
+        id: jobPostings.id,
+        title: jobPostings.title,
+        department: jobPostings.department,
+        location: jobPostings.location,
+        type: jobPostings.type,
+        description: jobPostings.description,
+        requirements: jobPostings.requirements,
+        salaryMin: jobPostings.salaryMin,
+        salaryMax: jobPostings.salaryMax,
+        applicationDeadline: jobPostings.applicationDeadline,
+        createdAt: jobPostings.createdAt,
+      }).from(jobPostings)
+        .where(and(...conditions))
+        .orderBy(desc(jobPostings.createdAt))
+        .limit(50);
+      // Filter by query client-side for simplicity
+      if (input?.query) {
+        const q = input.query.toLowerCase();
+        return rows.filter(r =>
+          r.title?.toLowerCase().includes(q) ||
+          r.department?.toLowerCase().includes(q) ||
+          r.location?.toLowerCase().includes(q)
+        );
+      }
+      return rows;
+    }),
+
+  /** Submit a job application — public (no auth required) */
+  applyForJob: publicProcedure
+    .input(z.object({
+      jobId: z.number(),
+      applicantName: z.string().min(2),
+      applicantEmail: z.string().email(),
+      applicantPhone: z.string().optional(),
+      coverLetter: z.string().optional(),
+      cvUrl: z.string().url().optional(),
+      currentCompany: z.string().optional(),
+      yearsExperience: z.number().optional(),
+      skills: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      // Verify job is open
+      const [job] = await db.select({ id: jobPostings.id, companyId: jobPostings.companyId, title: jobPostings.title })
+        .from(jobPostings).where(and(eq(jobPostings.id, input.jobId), sql`${jobPostings.status} = 'open'`));
+      if (!job) throw new TRPCError({ code: "NOT_FOUND", message: "Job not found or no longer accepting applications" });
+      // Check for duplicate application
+      const [existing] = await db.select({ id: jobApplications.id }).from(jobApplications)
+        .where(and(eq(jobApplications.jobId, input.jobId), eq(jobApplications.applicantEmail, input.applicantEmail)));
+      if (existing) throw new TRPCError({ code: "CONFLICT", message: "You have already applied for this position" });
+      const [result] = await db.insert(jobApplications).values({
+        jobId: input.jobId,
+        companyId: job!.companyId,
+        applicantName: input.applicantName,
+        applicantEmail: input.applicantEmail,
+        applicantPhone: input.applicantPhone,
+        coverLetter: input.coverLetter,
+        resumeUrl: input.cvUrl,
+        stage: "applied",
+        notes: [input.currentCompany && `Current: ${input.currentCompany}`, input.yearsExperience && `${input.yearsExperience} yrs exp`, input.skills && `Skills: ${input.skills}`].filter(Boolean).join(" | ") || undefined,
+      });
+      return { id: (result as any).insertId, jobTitle: job!.title };
+    }),
+
+  /** AI-powered CV screening — score 0-100, extract skills, flag gaps */
+  screenApplication: protectedProcedure
+    .input(z.object({
+      applicationId: z.number(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const companyId = await getMemberCompanyId(ctx.user.id);
+      if (!companyId) throw new TRPCError({ code: "FORBIDDEN" });
+      const [appRow] = await db.select({
+        app: jobApplications,
+        job: { title: jobPostings.title, requirements: jobPostings.requirements, description: jobPostings.description },
+      }).from(jobApplications)
+        .leftJoin(jobPostings, eq(jobApplications.jobId, jobPostings.id))
+        .where(and(eq(jobApplications.id, input.applicationId), eq(jobApplications.companyId, companyId)));
+      if (!appRow) throw new TRPCError({ code: "NOT_FOUND" });
+      const { app, job } = appRow;
+      const prompt = `You are an expert HR recruiter. Evaluate this job application and return a JSON screening report.
+
+Job Title: ${job?.title ?? "Unknown"}
+Job Requirements: ${job?.requirements ?? "Not specified"}
+Job Description: ${job?.description ?? "Not specified"}
+
+Applicant: ${app.applicantName}
+Cover Letter: ${app.coverLetter ?? "Not provided"}
+Application Notes: ${app.notes ?? "Not provided"}
+
+Return a JSON object with:
+- score: number 0-100 (overall fit score)
+- recommendation: "strong_yes" | "yes" | "maybe" | "no"
+- strengths: string[] (top 3 strengths)
+- gaps: string[] (key gaps or concerns)
+- summary: string (2-3 sentence summary)
+- extractedSkills: string[] (skills identified from the application)`;
+      const response = await invokeLLM({
+        messages: [
+          { role: "system", content: "You are an expert HR recruiter. Always respond with valid JSON only." },
+          { role: "user", content: prompt },
+        ],
+        response_format: { type: "json_schema", json_schema: {
+          name: "screening_report",
+          strict: true,
+          schema: {
+            type: "object",
+            properties: {
+              score: { type: "number" },
+              recommendation: { type: "string" },
+              strengths: { type: "array", items: { type: "string" } },
+              gaps: { type: "array", items: { type: "string" } },
+              summary: { type: "string" },
+              extractedSkills: { type: "array", items: { type: "string" } },
+            },
+            required: ["score", "recommendation", "strengths", "gaps", "summary", "extractedSkills"],
+            additionalProperties: false,
+          },
+        }},
+      });
+      const content = response.choices[0]?.message?.content ?? "{}";
+      const report = JSON.parse(typeof content === "string" ? content : JSON.stringify(content));
+      // Save screening result to application
+      // Store screening report in notes field (schema doesn't have dedicated AI fields)
+      await db.update(jobApplications)
+        .set({
+          notes: `AI_SCREEN:${JSON.stringify(report)}`,
+          stage: app.stage === "applied" ? "screening" : app.stage,
+        })
+        .where(eq(jobApplications.id, input.applicationId));
+      return report;
+    }),
+
+  /** Convert accepted application to employee record */
+  convertToEmployee: protectedProcedure
+    .input(z.object({
+      applicationId: z.number(),
+      startDate: z.string(),
+      salary: z.number().optional(),
+      jobTitle: z.string().optional(),
+      department: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const companyId = await getMemberCompanyId(ctx.user.id);
+      if (!companyId) throw new TRPCError({ code: "FORBIDDEN" });
+      const [appRow] = await db.select({
+        app: jobApplications,
+        job: { title: jobPostings.title, department: jobPostings.department },
+      }).from(jobApplications)
+        .leftJoin(jobPostings, eq(jobApplications.jobId, jobPostings.id))
+        .where(and(eq(jobApplications.id, input.applicationId), eq(jobApplications.companyId, companyId)));
+      if (!appRow) throw new TRPCError({ code: "NOT_FOUND" });
+      const { app, job } = appRow;
+      if (app.stage !== "hired" && app.stage !== "offer") {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Application must be in offer or hired stage" });
+      }
+      // Create employee record
+      const nameParts = (app.applicantName ?? "").split(" ");
+      const firstName = nameParts[0] ?? app.applicantName ?? "";
+      const lastName = nameParts.slice(1).join(" ") || "";
+      const [empResult] = await db.insert(employees).values({
+        companyId,
+        firstName,
+        lastName,
+        email: app.applicantEmail ?? "",
+        phone: app.applicantPhone,
+        position: input.jobTitle ?? job?.title ?? "",
+        department: input.department ?? job?.department ?? undefined,
+        hireDate: new Date(input.startDate),
+        salary: input.salary ? String(input.salary) : null,
+        status: "active",
+      });
+      await db.update(jobApplications).set({ stage: "hired" })
+        .where(eq(jobApplications.id, input.applicationId));
+      return { employeeId: (empResult as any).insertId, name: `${firstName} ${lastName}` };
     }),
 
   // ── Pipeline Summary ────────────────────────────────────────────────────────

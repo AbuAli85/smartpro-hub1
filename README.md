@@ -56,13 +56,19 @@ Multi-tenant B2B platform for Oman / GCC business services: Sanad and PRO workfl
    pnpm start    # Production: node dist/index.js
    ```
 
+   CI: GitHub Actions workflow `.github/workflows/ci.yml` runs install, `pnpm check`, `pnpm test`, and `pnpm build`.
+
+6. **Production environment**
+
+   With `NODE_ENV=production`, the server refuses to start unless `DATABASE_URL`, `JWT_SECRET` (≥16 characters), `VITE_APP_ID`, and `OAUTH_SERVER_URL` are set (`server/_core/env.ts`).
+
 ## Project layout
 
 | Path | Role |
 |------|------|
 | `client/src/` | React app, routes in `App.tsx` |
 | `server/routers/` | tRPC routers (canonical business API) |
-| `server/_core/` | Express entry, auth SDK, security, tRPC base |
+| `server/_core/` | Express entry, auth SDK, security, tRPC base, **tenant helpers** (`tenant.ts`) |
 | `server/db.ts` | Drizzle-backed data access helpers |
 | `drizzle/schema.ts` | Table definitions |
 | `shared/` | Shared constants and **RBAC helpers** (`shared/rbac.ts`) |

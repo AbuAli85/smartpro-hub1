@@ -445,6 +445,48 @@ export async function updateJobPosting(id: number, data: Partial<typeof jobPosti
   await db.update(jobPostings).set(data).where(eq(jobPostings.id, id));
 }
 
+export async function getJobPostingById(id: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const [r] = await db.select().from(jobPostings).where(eq(jobPostings.id, id)).limit(1);
+  return r ?? null;
+}
+
+export async function getJobApplicationById(id: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const [r] = await db.select().from(jobApplications).where(eq(jobApplications.id, id)).limit(1);
+  return r ?? null;
+}
+
+export async function getLeaveRequestById(id: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const [r] = await db.select().from(leaveRequests).where(eq(leaveRequests.id, id)).limit(1);
+  return r ?? null;
+}
+
+export async function getPayrollRecordById(id: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const [r] = await db.select().from(payrollRecords).where(eq(payrollRecords.id, id)).limit(1);
+  return r ?? null;
+}
+
+export async function getPerformanceReviewById(id: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const [r] = await db.select().from(performanceReviews).where(eq(performanceReviews.id, id)).limit(1);
+  return r ?? null;
+}
+
+export async function getAttendanceRecordById(id: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const [r] = await db.select().from(attendance).where(eq(attendance.id, id)).limit(1);
+  return r ?? null;
+}
+
 export async function getJobApplications(jobId?: number, companyId?: number) {
   const db = await getDb();
   if (!db) return [];

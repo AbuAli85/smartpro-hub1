@@ -1,7 +1,9 @@
+import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import {
   createAttendanceRecord,
   deleteAttendanceRecord,
+  getAttendanceRecordById,
   getAttendanceStats,
   updateAttendanceRecord,
   createEmployee,
@@ -13,9 +15,13 @@ import {
   getAttendance,
   getEmployeeById,
   getEmployees,
+  getJobApplicationById,
   getJobApplications,
+  getJobPostingById,
   getJobPostings,
+  getLeaveRequestById,
   getLeaveRequests,
+  getPayrollRecordById,
   getPayrollRecords,
   getPerformanceReviews,
   getUserCompany,
@@ -25,6 +31,7 @@ import {
   updateLeaveRequest,
   updatePayrollRecord,
 } from "../db";
+import { assertRowBelongsToActiveCompany, requireActiveCompanyId } from "../_core/tenant";
 import { protectedProcedure, router } from "../_core/trpc";
 
 export const hrRouter = router({
@@ -37,8 +44,11 @@ export const hrRouter = router({
       return getEmployees(membership.company.id, input);
     }),
 
-  getEmployee: protectedProcedure.input(z.object({ id: z.number() })).query(async ({ input }) => {
-    return getEmployeeById(input.id);
+  getEmployee: protectedProcedure.input(z.object({ id: z.number() })).query(async ({ input, ctx }) => {
+    const emp = await getEmployeeById(input.id);
+    if (!emp) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
+    await assertRowBelongsToActiveCompany(ctx.user, emp.companyId, "Employee");
+    return emp;
   }),
 
   createEmployee: protectedProcedure
@@ -63,8 +73,7 @@ export const hrRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
-      const membership = await getUserCompany(ctx.user.id);
-      const companyId = membership?.company.id ?? 1;
+      const companyId = await requireActiveCompanyId(ctx.user.id);
       await createEmployee({
         ...input,
         companyId,
@@ -86,8 +95,11 @@ export const hrRouter = router({
         salary: z.number().optional(),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const { id, ...data } = input;
+      const existing = await getEmployeeById(id);
+      if (!existing) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
+      await assertRowBelongsToActiveCompany(ctx.user, existing.companyId, "Employee");
       const updateData: any = { ...data };
       if (data.salary !== undefined) updateData.salary = String(data.salary);
       await updateEmployee(id, updateData);
@@ -116,8 +128,7 @@ export const hrRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
-      const membership = await getUserCompany(ctx.user.id);
-      const companyId = membership?.company.id ?? 1;
+      const companyId = await requireActiveCompanyId(ctx.user.id);
       await createJobPosting({
         ...input,
         companyId,
@@ -139,8 +150,11 @@ export const hrRouter = router({
         description: z.string().optional(),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const { id, ...data } = input;
+      const job = await getJobPostingById(id);
+      if (!job) throw new TRPCError({ code: "NOT_FOUND", message: "Job not found" });
+      await assertRowBelongsToActiveCompany(ctx.user, job.companyId, "Job");
       await updateJobPosting(id, data);
       return { success: true };
     }),
@@ -150,7 +164,8 @@ export const hrRouter = router({
     .input(z.object({ jobId: z.number().optional() }))
     .query(async ({ input, ctx }) => {
       const membership = await getUserCompany(ctx.user.id);
-      return getJobApplications(input.jobId, membership?.company.id);
+      if (!membership) return [];
+      return getJobApplications(input.jobId, membership.company.id);
     }),
 
   updateApplication: protectedProcedure
@@ -161,8 +176,11 @@ export const hrRouter = router({
         notes: z.string().optional(),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const { id, ...data } = input;
+      const app = await getJobApplicationById(id);
+      if (!app) throw new TRPCError({ code: "NOT_FOUND", message: "Application not found" });
+      await assertRowBelongsToActiveCompany(ctx.user, app.companyId, "Application");
       await updateJobApplication(id, data);
       return { success: true };
     }),
@@ -188,8 +206,10 @@ export const hrRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
-      const membership = await getUserCompany(ctx.user.id);
-      const companyId = membership?.company.id ?? 1;
+      const companyId = await requireActiveCompanyId(ctx.user.id);
+      const emp = await getEmployeeById(input.employeeId);
+      if (!emp) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
+      if (emp.companyId !== companyId) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
       await createLeaveRequest({
         ...input,
         companyId,
@@ -210,6 +230,9 @@ export const hrRouter = router({
     )
     .mutation(async ({ input, ctx }) => {
       const { id, ...data } = input;
+      const row = await getLeaveRequestById(id);
+      if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Leave request not found" });
+      await assertRowBelongsToActiveCompany(ctx.user, row.companyId, "Leave request");
       await updateLeaveRequest(id, { ...data, approvedBy: ctx.user.id });
       return { success: true };
     }),
@@ -237,8 +260,10 @@ export const hrRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
-      const membership = await getUserCompany(ctx.user.id);
-      const companyId = membership?.company.id ?? 1;
+      const companyId = await requireActiveCompanyId(ctx.user.id);
+      const emp = await getEmployeeById(input.employeeId);
+      if (!emp) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
+      if (emp.companyId !== companyId) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
       const netSalary = input.basicSalary + input.allowances - input.deductions - input.taxAmount;
       await createPayrollRecord({
         ...input,
@@ -254,7 +279,10 @@ export const hrRouter = router({
 
   updatePayroll: protectedProcedure
     .input(z.object({ id: z.number(), status: z.enum(["draft", "approved", "paid"]) }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      const row = await getPayrollRecordById(input.id);
+      if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Payroll record not found" });
+      await assertRowBelongsToActiveCompany(ctx.user, row.companyId, "Payroll record");
       const updateData: any = { status: input.status };
       if (input.status === "paid") updateData.paidAt = new Date();
       await updatePayrollRecord(input.id, updateData);
@@ -281,8 +309,10 @@ export const hrRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
-      const membership = await getUserCompany(ctx.user.id);
-      const companyId = membership?.company.id ?? 1;
+      const companyId = await requireActiveCompanyId(ctx.user.id);
+      const emp = await getEmployeeById(input.employeeId);
+      if (!emp) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
+      if (emp.companyId !== companyId) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
       await createPerformanceReview({
         ...input,
         companyId,
@@ -319,8 +349,10 @@ export const hrRouter = router({
       notes: z.string().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const membership = await getUserCompany(ctx.user.id);
-      const companyId = membership?.company.id ?? 1;
+      const companyId = await requireActiveCompanyId(ctx.user.id);
+      const emp = await getEmployeeById(input.employeeId);
+      if (!emp) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
+      if (emp.companyId !== companyId) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
       await createAttendanceRecord({
         companyId,
         employeeId: input.employeeId,
@@ -341,8 +373,11 @@ export const hrRouter = router({
       checkOut: z.string().optional(),
       notes: z.string().optional(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const { id, checkIn, checkOut, ...rest } = input;
+      const row = await getAttendanceRecordById(id);
+      if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Attendance record not found" });
+      await assertRowBelongsToActiveCompany(ctx.user, row.companyId, "Attendance record");
       await updateAttendanceRecord(id, {
         ...rest,
         checkIn: checkIn ? new Date(checkIn) : undefined,
@@ -353,7 +388,10 @@ export const hrRouter = router({
 
   deleteAttendance: protectedProcedure
     .input(z.object({ id: z.number() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      const row = await getAttendanceRecordById(input.id);
+      if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Attendance record not found" });
+      await assertRowBelongsToActiveCompany(ctx.user, row.companyId, "Attendance record");
       await deleteAttendanceRecord(input.id);
       return { success: true };
     }),

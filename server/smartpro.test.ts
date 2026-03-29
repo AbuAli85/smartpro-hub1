@@ -391,8 +391,14 @@ describe("hr.attendance", () => {
     ).rejects.toThrow();
   });
 
-  it("createAttendance succeeds for authenticated user", async () => {
-    const caller = appRouter.createCaller(makeCtx());
+  it("createAttendance succeeds when membership and employee match company", async () => {
+    const { getUserCompany, getEmployeeById } = await import("./db");
+    (getUserCompany as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      company: { id: 1 },
+      member: {},
+    } as any);
+    (getEmployeeById as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ id: 1, companyId: 1 } as any);
+    const caller = appRouter.createCaller(makeCtx({ role: "user", platformRole: "company_admin" }));
     const result = await caller.hr.createAttendance({ employeeId: 1, date: "2026-03-01", status: "present" });
     expect(result).toHaveProperty("success", true);
   });
@@ -409,6 +415,7 @@ describe("contracts.export", () => {
     const { getContractById } = await import("./db");
     (getContractById as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
       id: 1,
+      companyId: 1,
       title: "Test Employment Contract",
       contractNumber: "CON-001",
       status: "active",

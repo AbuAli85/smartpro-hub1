@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { canAccessGlobalAdminProcedures } from "@shared/rbac";
 import { protectedProcedure, router } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { getDb } from "../db";
@@ -281,8 +282,18 @@ export const reportsRouter = router({
 
       const member = await db.select().from(companyMembers)
         .where(eq(companyMembers.userId, ctx.user.id)).limit(1);
-      const companyId = input.companyId ?? member[0]?.companyId;
-      if (!companyId) throw new TRPCError({ code: "NOT_FOUND", message: "No company found" });
+      const memberCompanyId = member[0]?.companyId;
+      let companyId: number;
+      if (canAccessGlobalAdminProcedures(ctx.user)) {
+        companyId = input.companyId ?? memberCompanyId;
+        if (!companyId) throw new TRPCError({ code: "NOT_FOUND", message: "No company found" });
+      } else {
+        if (!memberCompanyId) throw new TRPCError({ code: "NOT_FOUND", message: "No company found" });
+        if (input.companyId != null && input.companyId !== memberCompanyId) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Cannot access another company's data" });
+        }
+        companyId = memberCompanyId;
+      }
 
       const [company] = await db.select().from(companies).where(eq(companies.id, companyId)).limit(1);
 

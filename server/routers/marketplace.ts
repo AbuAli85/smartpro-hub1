@@ -1,5 +1,6 @@
 import { nanoid } from "nanoid";
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import {
   createMarketplaceBooking,
   createProvider,
@@ -10,6 +11,8 @@ import {
   getUserCompany,
   updateProvider,
 } from "../db";
+import { canAccessGlobalAdminProcedures } from "@shared/rbac";
+import { requireActiveCompanyId } from "../_core/tenant";
 import { protectedProcedure, publicProcedure, router } from "../_core/trpc";
 
 export const marketplaceRouter = router({
@@ -67,8 +70,17 @@ export const marketplaceRouter = router({
         isFeatured: z.boolean().optional(),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const { id, ...data } = input;
+      const p = await getProviderById(id);
+      if (!p) throw new TRPCError({ code: "NOT_FOUND", message: "Provider not found" });
+      if (canAccessGlobalAdminProcedures(ctx.user)) {
+        await updateProvider(id, data);
+        return { success: true };
+      }
+      if (p.userId !== ctx.user.id) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Provider not found" });
+      }
       await updateProvider(id, data);
       return { success: true };
     }),
@@ -90,8 +102,7 @@ export const marketplaceRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
-      const membership = await getUserCompany(ctx.user.id);
-      const companyId = membership?.company.id ?? 1;
+      const companyId = await requireActiveCompanyId(ctx.user.id);
       const bookingNumber = "BK-" + Date.now() + "-" + nanoid(4).toUpperCase();
       await createMarketplaceBooking({
         ...input,

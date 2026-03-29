@@ -1,3 +1,4 @@
+import { TRPCError } from "@trpc/server";
 import { nanoid } from "nanoid";
 import { z } from "zod";
 import { canAccessGlobalAdminProcedures } from "@shared/rbac";
@@ -10,6 +11,7 @@ import {
   getUserCompany,
   updateProService,
 } from "../db";
+import { assertRowBelongsToActiveCompany, requireActiveCompanyId } from "../_core/tenant";
 import { protectedProcedure, router } from "../_core/trpc";
 
 const SERVICE_TYPE_ENUM = z.enum([
@@ -38,8 +40,11 @@ export const proRouter = router({
 
   getById: protectedProcedure
     .input(z.object({ id: z.number() }))
-    .query(async ({ input }) => {
-      return getProServiceById(input.id);
+    .query(async ({ input, ctx }) => {
+      const row = await getProServiceById(input.id);
+      if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "PRO service not found" });
+      await assertRowBelongsToActiveCompany(ctx.user, row.companyId, "PRO service");
+      return row;
     }),
 
   getStats: protectedProcedure.query(async ({ ctx }) => {
@@ -79,8 +84,11 @@ export const proRouter = router({
 
   expiringDocuments: protectedProcedure
     .input(z.object({ daysAhead: z.number().default(30) }))
-    .query(async ({ input }) => {
-      return getExpiringDocuments(input.daysAhead);
+    .query(async ({ input, ctx }) => {
+      const rows = await getExpiringDocuments(input.daysAhead);
+      if (canAccessGlobalAdminProcedures(ctx.user)) return rows;
+      const companyId = await requireActiveCompanyId(ctx.user.id);
+      return rows.filter((r) => r.companyId === companyId);
     }),
 
   create: protectedProcedure
@@ -103,8 +111,7 @@ export const proRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
-      const membership = await getUserCompany(ctx.user.id);
-      const companyId = membership?.company.id ?? 1;
+      const companyId = await requireActiveCompanyId(ctx.user.id);
       const serviceNumber = "PRO-" + Date.now() + "-" + nanoid(4).toUpperCase();
       await createProService({
         ...input,
@@ -146,8 +153,11 @@ export const proRouter = router({
         dueDate: z.string().optional(),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const { id, ...data } = input;
+      const existing = await getProServiceById(id);
+      if (!existing) throw new TRPCError({ code: "NOT_FOUND", message: "PRO service not found" });
+      await assertRowBelongsToActiveCompany(ctx.user, existing.companyId, "PRO service");
       const updateData: any = { ...data };
       if (data.status === "completed") updateData.completedAt = new Date();
       if (data.expiryDate) updateData.expiryDate = new Date(data.expiryDate);

@@ -31,3 +31,16 @@ See `.env.example` at the repo root.
 ## npm scripts
 
 **Decision:** `cross-env` sets `NODE_ENV` in `dev` / `start` so Windows shells behave the same as Unix.
+
+## Tenant boundaries (`server/_core/tenant.ts`)
+
+**Decision:** Shared helpers enforce company scope on row reads/updates:
+
+- `requireActiveCompanyId` — mutations that create tenant data must not fall back to `companyId = 1`.
+- `assertRowBelongsToActiveCompany` — cross-tenant access returns **NOT_FOUND** (not FORBIDDEN) to reduce enumeration.
+- Contract signing: `assertContractReadable` / `assertContractSignersVisible` allow **owning company**, **platform staff**, or **invited signer email** so `/contracts/:id/sign` keeps working.
+- `submitSignature` / `declineSignature` require the authenticated user’s email to match the signer row.
+
+## Production startup
+
+**Decision:** `validateProductionEnvironment()` in `server/_core/env.ts` runs on server boot when `NODE_ENV=production` and exits if `DATABASE_URL`, `JWT_SECRET` (≥16 chars), `VITE_APP_ID`, or `OAUTH_SERVER_URL` is missing.

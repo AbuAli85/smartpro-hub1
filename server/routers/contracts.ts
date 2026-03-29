@@ -15,6 +15,13 @@ import {
   getDb,
 } from "../db";
 import { protectedProcedure, router } from "../_core/trpc";
+import {
+  assertContractReadable,
+  assertContractSignersVisible,
+  assertRowBelongsToActiveCompany,
+  assertSignatureActor,
+  requireActiveCompanyId,
+} from "../_core/tenant";
 import { invokeLLM } from "../_core/llm";
 import { contractSignatures, contractSignatureAudit } from "../../drizzle/schema";
 
@@ -28,9 +35,10 @@ export const contractsRouter = router({
       return getContracts(membership.company.id, input);
     }),
 
-  getById: protectedProcedure.input(z.object({ id: z.number() })).query(async ({ input }) => {
+  getById: protectedProcedure.input(z.object({ id: z.number() })).query(async ({ input, ctx }) => {
     const contract = await getContractById(input.id);
     if (!contract) throw new TRPCError({ code: "NOT_FOUND" });
+    await assertContractReadable(ctx.user, input.id);
     return contract;
   }),
 
@@ -53,8 +61,7 @@ export const contractsRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
-      const membership = await getUserCompany(ctx.user.id);
-      const companyId = membership?.company.id ?? 1;
+      const companyId = await requireActiveCompanyId(ctx.user.id);
       const contractNumber = "CON-" + Date.now() + "-" + nanoid(4).toUpperCase();
       await createContract({
         ...input,
@@ -86,8 +93,11 @@ export const contractsRouter = router({
         tags: z.array(z.string()).optional(),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const { id, ...data } = input;
+      const existing = await getContractById(id);
+      if (!existing) throw new TRPCError({ code: "NOT_FOUND" });
+      await assertRowBelongsToActiveCompany(ctx.user, existing.companyId, "Contract");
       const updateData: any = { ...data };
       if (data.value !== undefined) updateData.value = String(data.value);
       if (data.startDate) updateData.startDate = new Date(data.startDate);
@@ -149,9 +159,10 @@ Generate a complete, professional contract document with all standard clauses fo
 
   exportHtml: protectedProcedure
     .input(z.object({ id: z.number() }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       const contract = await getContractById(input.id);
       if (!contract) throw new TRPCError({ code: "NOT_FOUND" });
+      await assertRowBelongsToActiveCompany(ctx.user, contract.companyId, "Contract");
       const html = `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><title>${contract.title}</title>
@@ -198,6 +209,9 @@ Generate a complete, professional contract document with all standard clauses fo
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const c = await getContractById(input.contractId);
+      if (!c) throw new TRPCError({ code: "NOT_FOUND" });
+      await assertRowBelongsToActiveCompany(ctx.user, c.companyId, "Contract");
       const [result] = await db.insert(contractSignatures).values({
         contractId: input.contractId,
         signerName: input.signerName,
@@ -220,7 +234,8 @@ Generate a complete, professional contract document with all standard clauses fo
 
   listSigners: protectedProcedure
     .input(z.object({ contractId: z.number() }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
+      await assertContractSignersVisible(ctx.user, input.contractId);
       const db = await getDb();
       if (!db) return [];
       return db.select().from(contractSignatures)
@@ -234,12 +249,13 @@ Generate a complete, professional contract document with all standard clauses fo
       signatureDataUrl: z.string(), // base64 PNG from canvas
       ipAddress: z.string().optional(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       const [signer] = await db.select().from(contractSignatures)
         .where(eq(contractSignatures.id, input.signatureId)).limit(1);
       if (!signer) throw new TRPCError({ code: "NOT_FOUND" });
+      await assertSignatureActor(ctx.user, signer.signerEmail);
       if (signer.status === "signed") throw new TRPCError({ code: "BAD_REQUEST", message: "Already signed" });
       // Store signature image in S3
       const base64Data = input.signatureDataUrl.replace(/^data:image\/\w+;base64,/, "");
@@ -278,12 +294,13 @@ Generate a complete, professional contract document with all standard clauses fo
 
   declineSignature: protectedProcedure
     .input(z.object({ signatureId: z.number(), reason: z.string().optional() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       const [signer] = await db.select().from(contractSignatures)
         .where(eq(contractSignatures.id, input.signatureId)).limit(1);
       if (!signer) throw new TRPCError({ code: "NOT_FOUND" });
+      await assertSignatureActor(ctx.user, signer.signerEmail);
       await db.update(contractSignatures).set({ status: "declined" })
         .where(eq(contractSignatures.id, input.signatureId));
       await db.insert(contractSignatureAudit).values({
@@ -299,7 +316,8 @@ Generate a complete, professional contract document with all standard clauses fo
 
   getSignatureAuditTrail: protectedProcedure
     .input(z.object({ contractId: z.number() }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
+      await assertContractSignersVisible(ctx.user, input.contractId);
       const db = await getDb();
       if (!db) return [];
       return db.select().from(contractSignatureAudit)
@@ -309,11 +327,12 @@ Generate a complete, professional contract document with all standard clauses fo
 
   exportSignedHtml: protectedProcedure
     .input(z.object({ id: z.number() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       const contract = await getContractById(input.id);
       if (!contract) throw new TRPCError({ code: "NOT_FOUND" });
+      await assertRowBelongsToActiveCompany(ctx.user, contract.companyId, "Contract");
       const signers = await db.select().from(contractSignatures)
         .where(eq(contractSignatures.contractId, input.id))
         .orderBy(asc(contractSignatures.createdAt));
@@ -359,9 +378,10 @@ h1{text-align:center;font-size:20px;text-transform:uppercase;border-bottom:2px s
   // Store the contract HTML as a file in S3 and return a persistent download URL
   saveToStorage: protectedProcedure
     .input(z.object({ id: z.number() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const contract = await getContractById(input.id);
       if (!contract) throw new TRPCError({ code: "NOT_FOUND" });
+      await assertRowBelongsToActiveCompany(ctx.user, contract.companyId, "Contract");
       const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${contract.title}</title><style>body{font-family:'Times New Roman',serif;max-width:800px;margin:40px auto;padding:40px;line-height:1.8;color:#1a1a1a}h1{text-align:center;font-size:20px;text-transform:uppercase;border-bottom:2px solid #1a1a1a;padding-bottom:12px;margin-bottom:24px}.meta{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:24px;font-size:13px}.content{white-space:pre-wrap;font-size:13px}.signatures{margin-top:60px;display:grid;grid-template-columns:1fr 1fr;gap:40px}.sig-block{border-top:1px solid #333;padding-top:8px;font-size:12px}@media print{body{margin:0}}</style></head><body><h1>${contract.title}</h1><div class="meta"><div><span>Contract No:</span><strong>${contract.contractNumber}</strong></div><div><span>Status:</span><strong>${contract.status?.toUpperCase()}</strong></div><div><span>Party A:</span><strong>${contract.partyAName ?? "—"}</strong></div><div><span>Party B:</span><strong>${contract.partyBName ?? "—"}</strong></div>${contract.value ? `<div><span>Value:</span><strong>${contract.value} ${contract.currency}</strong></div>` : ""}</div><div class="content">${contract.content ?? "No content."}</div><div class="signatures"><div class="sig-block"><p>Party A: ${contract.partyAName ?? "___"}</p><p>Signature: _______________</p><p>Date: _______________</p></div><div class="sig-block"><p>Party B: ${contract.partyBName ?? "___"}</p><p>Signature: _______________</p><p>Date: _______________</p></div></div></body></html>`;
       const fileKey = `contracts/${input.id}-${contract.contractNumber?.replace(/[^a-zA-Z0-9]/g, "-")}-${Date.now()}.html`;
       const { url } = await storagePut(fileKey, Buffer.from(html, "utf-8"), "text/html");

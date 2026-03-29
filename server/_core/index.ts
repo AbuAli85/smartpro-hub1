@@ -8,6 +8,7 @@ import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { applySecurityMiddleware } from "./security";
+import { validateProductionEnvironment } from "./env";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -29,6 +30,7 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 }
 
 async function startServer() {
+  validateProductionEnvironment();
   const app = express();
   const server = createServer(app);
   // Security: helmet, rate limiting, input sanitisation, request IDs

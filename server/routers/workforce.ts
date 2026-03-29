@@ -323,6 +323,9 @@ export const workforceRouter = router({
       .query(async ({ ctx, input }) => {
         const companyId = await getMemberCompanyId(ctx.user);
         if (!companyId) throw new TRPCError({ code: "FORBIDDEN" });
+        if (!(await hasPermission(ctx.user, companyId, "employees.read"))) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "You do not have permission to view employees" });
+        }
         const db = await getDb();
         if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
@@ -335,15 +338,15 @@ export const workforceRouter = router({
           .where(eq(employeeGovernmentProfiles.employeeId, emp.id)).limit(1);
 
         const permits = await db.select().from(workPermits)
-          .where(eq(workPermits.employeeId, emp.id))
+          .where(and(eq(workPermits.employeeId, emp.id), eq(workPermits.companyId, companyId)))
           .orderBy(desc(workPermits.expiryDate));
 
         const docs = await db.select().from(employeeDocuments)
-          .where(eq(employeeDocuments.employeeId, emp.id))
+          .where(and(eq(employeeDocuments.employeeId, emp.id), eq(employeeDocuments.companyId, companyId)))
           .orderBy(desc(employeeDocuments.createdAt));
 
         const cases = await db.select().from(governmentServiceCases)
-          .where(eq(governmentServiceCases.employeeId, emp.id))
+          .where(and(eq(governmentServiceCases.employeeId, emp.id), eq(governmentServiceCases.companyId, companyId)))
           .orderBy(desc(governmentServiceCases.createdAt))
           .limit(10);
 
@@ -442,7 +445,11 @@ export const workforceRouter = router({
           .limit(1);
         if (!wp) throw new TRPCError({ code: "NOT_FOUND" });
 
-        const [emp] = await db.select().from(employees).where(eq(employees.id, wp.employeeId)).limit(1);
+        const [emp] = await db
+          .select()
+          .from(employees)
+          .where(and(eq(employees.id, wp.employeeId), eq(employees.companyId, companyId)))
+          .limit(1);
         const docs = await db.select().from(employeeDocuments)
           .where(eq(employeeDocuments.workPermitId, wp.id))
           .orderBy(desc(employeeDocuments.createdAt));
@@ -590,9 +597,10 @@ export const workforceRouter = router({
           lastSyncedAt: new Date(),
         };
 
-        const existingPermit = await db.select({ id: workPermits.id })
+        const existingPermit = await db
+          .select({ id: workPermits.id })
           .from(workPermits)
-          .where(eq(workPermits.workPermitNumber, p.workPermitNumber))
+          .where(and(eq(workPermits.workPermitNumber, p.workPermitNumber), eq(workPermits.companyId, companyId)))
           .limit(1);
 
         let workPermitId: number;
@@ -785,6 +793,23 @@ Return ONLY valid JSON matching the schema, no extra text.`,
         const db = await getDb();
         if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
+        if (input.employeeId != null) {
+          const [e] = await db
+            .select({ id: employees.id })
+            .from(employees)
+            .where(and(eq(employees.id, input.employeeId), eq(employees.companyId, companyId)))
+            .limit(1);
+          if (!e) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
+        }
+        if (input.workPermitId != null) {
+          const [wp] = await db
+            .select({ id: workPermits.id })
+            .from(workPermits)
+            .where(and(eq(workPermits.id, input.workPermitId), eq(workPermits.companyId, companyId)))
+            .limit(1);
+          if (!wp) throw new TRPCError({ code: "NOT_FOUND", message: "Work permit not found" });
+        }
+
         const caseResult = await db.insert(governmentServiceCases).values({
           companyId,
           employeeId: input.employeeId,
@@ -922,10 +947,19 @@ Return ONLY valid JSON matching the schema, no extra text.`,
         taskStatus: z.enum(["pending", "in_progress", "completed", "skipped", "blocked"]),
       }))
       .mutation(async ({ ctx, input }) => {
+        const companyId = await getMemberCompanyId(ctx.user);
+        if (!companyId) throw new TRPCError({ code: "FORBIDDEN" });
         const db = await getDb();
         if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-        const updates: Record<string, unknown> = { taskStatus: input.taskStatus, updatedAt: new Date() };
-        if (input.taskStatus === "completed") updates.completedAt = new Date();
+
+        const [taskRow] = await db
+          .select({ taskId: caseTasks.id })
+          .from(caseTasks)
+          .innerJoin(governmentServiceCases, eq(caseTasks.caseId, governmentServiceCases.id))
+          .where(and(eq(caseTasks.id, input.taskId), eq(governmentServiceCases.companyId, companyId)))
+          .limit(1);
+        if (!taskRow) throw new TRPCError({ code: "NOT_FOUND", message: "Task not found" });
+
         await db.update(caseTasks).set({
           taskStatus: input.taskStatus,
           completedAt: input.taskStatus === "completed" ? new Date() : undefined,
@@ -983,6 +1017,27 @@ Return ONLY valid JSON matching the schema, no extra text.`,
         if (!companyId) throw new TRPCError({ code: "FORBIDDEN" });
         const db = await getDb();
         if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+        const [empRow] = await db
+          .select({ id: employees.id })
+          .from(employees)
+          .where(and(eq(employees.id, input.employeeId), eq(employees.companyId, companyId)))
+          .limit(1);
+        if (!empRow) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
+        if (input.workPermitId != null) {
+          const [wpRow] = await db
+            .select({ id: workPermits.id })
+            .from(workPermits)
+            .where(
+              and(
+                eq(workPermits.id, input.workPermitId),
+                eq(workPermits.companyId, companyId),
+                eq(workPermits.employeeId, input.employeeId),
+              ),
+            )
+            .limit(1);
+          if (!wpRow) throw new TRPCError({ code: "NOT_FOUND", message: "Work permit not found" });
+        }
 
         const buffer = Buffer.from(input.fileDataBase64, "base64");
         const fileKey = `company/${companyId}/employees/${input.employeeId}/${input.documentType}/${Date.now()}-${input.fileName}`;

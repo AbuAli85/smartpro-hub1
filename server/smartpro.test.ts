@@ -367,6 +367,38 @@ describe("marketplace", () => {
   });
 });
 
+// ─── Billing / reports (tenant & platform gates) ─────────────────────────────
+describe("billing.getBillingDashboard", () => {
+  it("rejects non-platform users", async () => {
+    const caller = appRouter.createCaller(
+      makeCtx({ role: "user", platformRole: "company_member" }),
+    );
+    await expect(caller.billing.getBillingDashboard({})).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+});
+
+describe("reports.generateOfficerPayoutReport", () => {
+  it("rejects non-platform users before touching officer data", async () => {
+    const caller = appRouter.createCaller(
+      makeCtx({ role: "user", platformRole: "company_member" }),
+    );
+    await expect(
+      caller.reports.generateOfficerPayoutReport({ officerId: 1, month: 3, year: 2026 }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+});
+
+describe("workforce.cases.updateTask", () => {
+  it("requires company context (no silent cross-tenant updates)", async () => {
+    const caller = appRouter.createCaller(
+      makeCtx({ role: "user", platformRole: "company_member" }),
+    );
+    await expect(
+      caller.workforce.cases.updateTask({ taskId: 999, taskStatus: "completed" }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+});
+
 // ─── Subscriptions Tests ──────────────────────────────────────────────────────
 describe("subscriptions", () => {
   it("plans returns empty array when no DB", async () => {

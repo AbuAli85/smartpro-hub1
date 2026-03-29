@@ -43,6 +43,10 @@ See `.env.example` at the repo root.
 - **Quotations:** `assertQuotationTenantAccess` — rows with `companyId` are scoped to the active company; legacy rows with `null` companyId are visible only to the original `createdBy` user (platform staff bypass).
 - **CRM:** Creates resolve `companyId` via active membership, or explicit `companyId` / caller’s company for platform users; updates and communications validate the contact/deal `companyId` matches that resolved tenant.
 - **Sanad work orders:** Reads and mutations use `assertRowBelongsToActiveCompany` on `sanad_applications.companyId` (client company). Office KPI endpoints (`officeDashboard`, `officerPerformance`, `earningsTrend`, `workOrderStats`), catalogue CRUD aliases (`addCatalogueItem`, etc.), `getMyOfficeProfile`, and `upsertOfficeProfile` are restricted to `canAccessGlobalAdminProcedures` so arbitrary tenants cannot scrape office metrics or mutate catalogue rows by id.
+- **Billing router:** All procedures remain platform-only (`canAccessGlobalAdminProcedures`); no company-scoped billing reads are exposed there (client invoice visibility lives under `clientPortal`).
+- **Workforce:** `caseTasks` updates require a join to `governmentServiceCases` and the caller’s company. Document uploads validate `employeeId` / optional `workPermitId` against the same company. MOL certificate ingestion scopes permit upserts by `companyId` + `workPermitNumber` so permit numbers cannot hijack another tenant’s row. `employees.getById` requires `employees.read` and scopes nested permits, documents, and cases by `companyId`.
+- **Payroll:** `company_members` resolution for payroll uses `isActive`; `getRun` line items are filtered by `companyId` as well as `payrollRunId`.
+- **Reports / client portal:** Company-scoped PDF reports resolve the tenant via `getUserCompany()` (active membership). `generateOfficerPayoutReport` is platform-only. Client portal company context uses the same `getUserCompany` helper.
 
 ## Production startup
 

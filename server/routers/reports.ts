@@ -2,12 +2,12 @@ import { z } from "zod";
 import { canAccessGlobalAdminProcedures } from "@shared/rbac";
 import { protectedProcedure, router } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
-import { getDb } from "../db";
+import { getDb, getUserCompany } from "../db";
 import { eq, and, gte, lte, inArray, desc } from "drizzle-orm";
 import {
   companies, proBillingCycles, omaniProOfficers, officerCompanyAssignments,
   officerPayouts, complianceCertificates, employees, workPermits,
-  payrollRuns, payrollLineItems, governmentServiceCases, companyMembers,
+  payrollRuns, payrollLineItems, governmentServiceCases,
 } from "../../drizzle/schema";
 import { storagePut } from "../storage";
 import PDFDocument from "pdfkit";
@@ -87,14 +87,13 @@ export const reportsRouter = router({
   generateBillingSummary: protectedProcedure
     .input(z.object({ month: z.number().min(1).max(12), year: z.number().min(2020) }))
     .mutation(async ({ ctx, input }) => {
+      const membership = await getUserCompany(ctx.user.id);
+      if (!membership?.company?.id) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "No company found" });
+      }
+      const companyId = membership.company.id;
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-
-      // Get company for this user
-      const member = await db.select().from(companyMembers)
-        .where(eq(companyMembers.userId, ctx.user.id)).limit(1);
-      const companyId = member[0]?.companyId;
-      if (!companyId) throw new TRPCError({ code: "NOT_FOUND", message: "No company found" });
 
       const [company] = await db.select().from(companies).where(eq(companies.id, companyId)).limit(1);
 
@@ -172,24 +171,32 @@ export const reportsRouter = router({
   generatePayslip: protectedProcedure
     .input(z.object({ runId: z.number(), employeeId: z.number() }))
     .mutation(async ({ ctx, input }) => {
+      const membership = await getUserCompany(ctx.user.id);
+      if (!membership?.company?.id) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "No company found" });
+      }
+      const companyId = membership.company.id;
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
 
-      const member = await db.select().from(companyMembers)
-        .where(eq(companyMembers.userId, ctx.user.id)).limit(1);
-      const companyId = member[0]?.companyId;
-      if (!companyId) throw new TRPCError({ code: "NOT_FOUND", message: "No company found" });
-
       const [run] = await db.select().from(payrollRuns)
-        .where(and(eq(payrollRuns.id, input.runId), eq(payrollRuns.companyId, Number(companyId)))).limit(1);
+        .where(and(eq(payrollRuns.id, input.runId), eq(payrollRuns.companyId, companyId))).limit(1);
       if (!run) throw new TRPCError({ code: "NOT_FOUND", message: "Payroll run not found" });
 
       const [emp] = await db.select().from(employees)
         .where(and(eq(employees.id, input.employeeId), eq(employees.companyId, companyId))).limit(1);
       if (!emp) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
 
-      const lineItems = await db.select().from(payrollLineItems)
-        .where(and(eq(payrollLineItems.payrollRunId, input.runId), eq(payrollLineItems.employeeId, input.employeeId)));
+      const lineItems = await db
+        .select()
+        .from(payrollLineItems)
+        .where(
+          and(
+            eq(payrollLineItems.payrollRunId, input.runId),
+            eq(payrollLineItems.employeeId, input.employeeId),
+            eq(payrollLineItems.companyId, companyId),
+          ),
+        );
 
       const [company] = await db.select().from(companies).where(eq(companies.id, companyId)).limit(1);
 
@@ -277,15 +284,11 @@ export const reportsRouter = router({
   generateWorkforceReport: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }))
     .mutation(async ({ ctx, input }) => {
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-
-      const member = await db.select().from(companyMembers)
-        .where(eq(companyMembers.userId, ctx.user.id)).limit(1);
-      const memberCompanyId = member[0]?.companyId;
+      const membership = await getUserCompany(ctx.user.id);
+      const memberCompanyId = membership?.company?.id;
       let companyId: number;
       if (canAccessGlobalAdminProcedures(ctx.user)) {
-        companyId = input.companyId ?? memberCompanyId;
+        companyId = input.companyId ?? memberCompanyId!;
         if (!companyId) throw new TRPCError({ code: "NOT_FOUND", message: "No company found" });
       } else {
         if (!memberCompanyId) throw new TRPCError({ code: "NOT_FOUND", message: "No company found" });
@@ -294,6 +297,9 @@ export const reportsRouter = router({
         }
         companyId = memberCompanyId;
       }
+
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
 
       const [company] = await db.select().from(companies).where(eq(companies.id, companyId)).limit(1);
 
@@ -382,13 +388,13 @@ export const reportsRouter = router({
   generateComplianceReport: protectedProcedure
     .input(z.object({ month: z.number().min(1).max(12), year: z.number().min(2020) }))
     .mutation(async ({ ctx, input }) => {
+      const membership = await getUserCompany(ctx.user.id);
+      if (!membership?.company?.id) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "No company found" });
+      }
+      const companyId = membership.company.id;
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-
-      const member = await db.select().from(companyMembers)
-        .where(eq(companyMembers.userId, ctx.user.id)).limit(1);
-      const companyId = member[0]?.companyId;
-      if (!companyId) throw new TRPCError({ code: "NOT_FOUND", message: "No company found" });
 
       const [company] = await db.select().from(companies).where(eq(companies.id, companyId)).limit(1);
 
@@ -464,6 +470,9 @@ export const reportsRouter = router({
   generateOfficerPayoutReport: protectedProcedure
     .input(z.object({ officerId: z.number(), month: z.number().min(1).max(12), year: z.number().min(2020) }))
     .mutation(async ({ ctx, input }) => {
+      if (!canAccessGlobalAdminProcedures(ctx.user)) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Platform access required" });
+      }
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
 

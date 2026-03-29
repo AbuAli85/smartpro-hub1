@@ -20,7 +20,7 @@ async function getMemberCompanyId(userId: number) {
   const [m] = await db
     .select({ companyId: companyMembers.companyId, role: companyMembers.role })
     .from(companyMembers)
-    .where(eq(companyMembers.userId, userId))
+    .where(and(eq(companyMembers.userId, userId), eq(companyMembers.isActive, true)))
     .limit(1);
   return m ?? null;
 }
@@ -187,7 +187,7 @@ export const payrollRouter = router({
         })
         .from(payrollLineItems)
         .leftJoin(employees, eq(payrollLineItems.employeeId, employees.id))
-        .where(eq(payrollLineItems.payrollRunId, input.runId));
+        .where(and(eq(payrollLineItems.payrollRunId, input.runId), eq(payrollLineItems.companyId, m.companyId)));
       return { run, lines };
     }),
 
@@ -369,7 +369,7 @@ export const payrollRouter = router({
         employeeName: `${row.emp?.firstName ?? ""} ${row.emp?.lastName ?? ""}`.trim(),
         employeeId: row.line.employeeId,
         month: row.run?.periodMonth ?? 1,
-        year: row.run?.periodYear ?? 2025,
+        year: row.run?.periodYear ?? new Date().getFullYear(),
         basicSalary: Number(row.line.basicSalary),
         housingAllowance: Number(row.line.housingAllowance ?? 0),
         transportAllowance: Number(row.line.transportAllowance ?? 0),

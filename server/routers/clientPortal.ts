@@ -6,10 +6,10 @@
 import { z } from "zod";
 import { canAccessGlobalAdminProcedures } from "@shared/rbac";
 import { router, protectedProcedure } from "../_core/trpc";
-import { getDb } from "../db";
+import { getDb, getUserCompany } from "../db";
 import { TRPCError } from "@trpc/server";
 import {
-  companies, companyMembers, contracts, proServices,
+  companies, contracts, proServices,
   marketplaceBookings, marketplaceProviders, governmentServiceCases,
   caseTasks, workPermits, employees, employeeGovernmentProfiles,
   proBillingCycles, companySubscriptions, subscriptionPlans,
@@ -19,17 +19,11 @@ import { eq, and, desc, asc, lte, gte, or, isNotNull } from "drizzle-orm";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+/** Active company for portal routes; platform staff use admin surfaces, not this helper. */
 async function getClientCompanyId(user: { id: number; role: string; platformRole?: string | null }): Promise<number | null> {
-  const db = await getDb();
-  if (!db) return null;
-  // Platform admins can see all — return null to indicate "all companies"
   if (canAccessGlobalAdminProcedures(user)) return null;
-  const [member] = await db
-    .select({ companyId: companyMembers.companyId })
-    .from(companyMembers)
-    .where(eq(companyMembers.userId, user.id))
-    .limit(1);
-  return member?.companyId ?? null;
+  const m = await getUserCompany(user.id);
+  return m?.company?.id ?? null;
 }
 
 // ─── Router ───────────────────────────────────────────────────────────────────

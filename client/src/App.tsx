@@ -55,6 +55,8 @@ import OperationsDashboardPage from "./pages/OperationsDashboardPage";
 import QuotationsPage from "./pages/QuotationsPage";
 import SlaManagementPage from "./pages/SlaManagementPage";
 import ComplianceDashboardPage from "./pages/ComplianceDashboardPage";
+import CompanyHubPage from "./pages/CompanyHubPage";
+import PreferencesPage from "./pages/PreferencesPage";
 function PublicRoutes() {
   return (
     <Switch>
@@ -116,6 +118,8 @@ function AppRoutes() {
         <Route path="/quotations" component={QuotationsPage} />
         <Route path="/sla-management" component={SlaManagementPage} />
         <Route path="/compliance" component={ComplianceDashboardPage} />
+        <Route path="/company/hub" component={CompanyHubPage} />
+        <Route path="/preferences" component={PreferencesPage} />
         <Route path="/sanad/centre/:id" component={SanadCentreProfilePage} />
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />

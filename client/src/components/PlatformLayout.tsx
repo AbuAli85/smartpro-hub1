@@ -35,9 +35,16 @@ import {
   X,
   Zap,
 } from "lucide-react";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
+import {
+  clientNavItemVisible,
+  seesPlatformOperatorNav,
+  isPortalClientNav,
+  isCompanyOwnerNav,
+} from "@shared/clientNav";
+import { getHiddenNavHrefs } from "@/lib/navVisibility";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -81,6 +88,7 @@ const navGroups = [
   {
     label: "Business",
     items: [
+      { label: "Company hub", href: "/company/hub", icon: <Building2 size={18} /> },
       { label: "Quotations", href: "/quotations", icon: <Target size={18} /> },
       { label: "Contracts", href: "/contracts", icon: <FileText size={18} /> },
       { label: "Marketplace", href: "/marketplace", icon: <ShoppingBag size={18} /> },
@@ -137,6 +145,30 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
   const [location] = useLocation();
   const { user, logout } = useAuth();
   const { data: myCompany } = trpc.companies.myCompany.useQuery();
+  const [navPrefsEpoch, setNavPrefsEpoch] = useState(0);
+
+  useEffect(() => {
+    const onPrefs = () => setNavPrefsEpoch((n) => n + 1);
+    window.addEventListener("smartpro-nav-prefs-changed", onPrefs);
+    return () => window.removeEventListener("smartpro-nav-prefs-changed", onPrefs);
+  }, []);
+
+  const visibleNavGroups = useMemo(() => {
+    const hiddenOptional = getHiddenNavHrefs();
+    const platformNav = seesPlatformOperatorNav(user);
+    return navGroups
+      .map((group) => ({
+        ...group,
+        label:
+          group.label === "Platform" && !platformNav ? "Your company" : group.label,
+        items: group.items.filter((item) =>
+          clientNavItemVisible(item.href, user, hiddenOptional, {
+            hasCompanyWorkspace: Boolean(myCompany?.company?.id),
+          }),
+        ),
+      }))
+      .filter((g) => g.items.length > 0);
+  }, [user, navPrefsEpoch, myCompany?.company?.id]);
 
   return (
     <div className="flex flex-col h-full sidebar-nav">
@@ -162,15 +194,28 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
       {myCompany && (
         <div className="px-4 py-3 border-b border-[var(--sidebar-border)]">
           <div className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-white/5">
-            <Building2 size={14} className="text-white/60" />
-            <span className="text-xs text-white/70 truncate">{myCompany.company.name}</span>
+            <Building2 size={14} className="text-white/60 shrink-0" />
+            <div className="min-w-0 flex-1">
+              <span className="text-xs text-white/70 truncate block">{myCompany.company.name}</span>
+              {user && (
+                <span className="text-[10px] text-white/40 uppercase tracking-wide">
+                  {seesPlatformOperatorNav(user)
+                    ? "Platform"
+                    : isPortalClientNav(user)
+                      ? "Client access"
+                      : isCompanyOwnerNav(user)
+                        ? "Owner"
+                        : "Team"}
+                </span>
+              )}
+            </div>
           </div>
         </div>
       )}
 
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-5">
-        {navGroups.map((group) => (
+        {visibleNavGroups.map((group) => (
           <div key={group.label}>
             <div className="px-3 mb-1.5 text-[10px] font-semibold uppercase tracking-widest text-white/30">
               {group.label}
@@ -213,10 +258,10 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
               <ChevronDown size={14} className="text-white/40 shrink-0" />
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48">
+          <DropdownMenuContent align="end" className="w-52">
             <DropdownMenuItem asChild>
-              <Link href="/settings">
-                <Settings size={14} className="mr-2" /> Settings
+              <Link href="/preferences">
+                <Settings size={14} className="mr-2" /> Navigation preferences
               </Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
@@ -417,13 +462,40 @@ export default function PlatformLayout({ children }: { children: React.ReactNode
 
 function MobileBottomNav() {
   const [location] = useLocation();
-  const tabs = [
-    { href: "/dashboard", icon: <LayoutDashboard size={20} />, label: "Home" },
-    { href: "/alerts", icon: <Bell size={20} />, label: "Alerts" },
-    { href: "/contracts", icon: <FileText size={20} />, label: "Contracts" },
-    { href: "/hr/employees", icon: <Users size={20} />, label: "HR" },
-    { href: "/crm", icon: <Briefcase size={20} />, label: "CRM" },
-  ];
+  const { user } = useAuth();
+  const { data: myCompany, isLoading: companyLoading } = trpc.companies.myCompany.useQuery();
+  const platform = seesPlatformOperatorNav(user);
+  const portalShell =
+    isPortalClientNav(user) && !companyLoading && !myCompany?.company?.id;
+
+  const tabs = useMemo(() => {
+    if (platform) {
+      return [
+        { href: "/dashboard", icon: <LayoutDashboard size={20} />, label: "Home" },
+        { href: "/alerts", icon: <Bell size={20} />, label: "Alerts" },
+        { href: "/contracts", icon: <FileText size={20} />, label: "Contracts" },
+        { href: "/hr/employees", icon: <Users size={20} />, label: "HR" },
+        { href: "/crm", icon: <Briefcase size={20} />, label: "CRM" },
+      ];
+    }
+    if (portalShell) {
+      return [
+        { href: "/dashboard", icon: <LayoutDashboard size={20} />, label: "Home" },
+        { href: "/alerts", icon: <Bell size={20} />, label: "Alerts" },
+        { href: "/client-portal", icon: <UserCircle size={20} />, label: "Portal" },
+        { href: "/contracts", icon: <FileText size={20} />, label: "Contracts" },
+        { href: "/company/hub", icon: <Building2 size={20} />, label: "Hub" },
+      ];
+    }
+    return [
+      { href: "/dashboard", icon: <LayoutDashboard size={20} />, label: "Home" },
+      { href: "/alerts", icon: <Bell size={20} />, label: "Alerts" },
+      { href: "/operations", icon: <Activity size={20} />, label: "Ops" },
+      { href: "/company/hub", icon: <Building2 size={20} />, label: "Hub" },
+      { href: "/hr/employees", icon: <Users size={20} />, label: "HR" },
+    ];
+  }, [platform, portalShell]);
+
   return (
     <nav className="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-card border-t border-border flex items-center justify-around h-16">
       {tabs.map((tab) => {

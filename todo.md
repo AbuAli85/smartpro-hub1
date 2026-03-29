@@ -217,3 +217,37 @@
 - [x] Route: /sanad/office-dashboard registered in App.tsx
 - [x] Nav: "Office Dashboard" link added under Government Services in PlatformLayout
 - [x] Tests: vitest tests for all 4 new procedures (procedures return null/[] gracefully in mock env — consistent with existing pattern)
+
+## Phase 18: Sanad Centre Public Marketplace
+
+### Database
+- [ ] DB: extend sanad_offices with isPublicListed, licenceNumber, licenceExpiry, verifiedAt, languages, governorate, logo_url, description_ar
+- [ ] DB: sanad_service_catalogue table (office_id, service_type, service_name_ar, price_omr, processing_days, description, is_active)
+- [ ] DB: sanad_service_requests table (requester_company_id, office_id, service_type, message, contact_name, contact_phone, status, created_at)
+
+### Backend tRPC Procedures
+- [ ] tRPC: sanad.listPublicProviders (public, no auth — filter by governorate, service type, language, min rating, search)
+- [ ] tRPC: sanad.getPublicProfile (public — full centre profile with services catalogue and ratings)
+- [ ] tRPC: sanad.updatePublicProfile (protected — Sanad centre admin updates their public profile)
+- [ ] tRPC: sanad.listServiceCatalogue (protected — list own services)
+- [ ] tRPC: sanad.upsertServiceCatalogue (protected — add/edit service in catalogue)
+- [ ] tRPC: sanad.deleteServiceItem (protected — remove service from catalogue)
+- [ ] tRPC: sanad.submitServiceRequest (public — any company submits a service request to a centre)
+- [ ] tRPC: sanad.listServiceRequests (protected — Sanad centre sees incoming requests)
+- [ ] tRPC: sanad.updateServiceRequestStatus (protected — accept/decline/complete a request)
+
+### Frontend Pages
+- [ ] UI: SanadMarketplacePage.tsx — public directory with hero, filter bar (governorate, service type, language, rating), centre cards grid, empty state
+- [ ] UI: SanadCentreProfilePage.tsx — full public profile: header with logo/name/verified badge, services catalogue table, ratings, contact info, Request Service dialog
+- [ ] UI: SanadCatalogueAdminPage.tsx — service catalogue management: add/edit/delete services, toggle active/inactive, update public profile fields
+- [ ] UI: Incoming Requests tab in SanadCatalogueAdminPage — view, accept, decline incoming service requests
+
+### Routes & Navigation
+- [ ] Route: /sanad/marketplace registered in App.tsx (public, no auth required)
+- [ ] Route: /sanad/centre/:id registered in App.tsx (public profile page)
+- [ ] Route: /sanad/catalogue-admin registered in App.tsx (protected)
+- [ ] Nav: "Marketplace" link added under Government Services in PlatformLayout
+- [ ] Nav: "Manage Catalogue" link added under Government Services in PlatformLayout
+
+### Tests
+- [ ] Vitest tests for all new sanad marketplace procedures

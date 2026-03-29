@@ -1,5 +1,6 @@
 import {
   boolean,
+  date,
   decimal,
   index,
   int,
@@ -235,6 +236,17 @@ export const sanadOffices = mysqlTable("sanad_offices", {
   openingHours: varchar("openingHours", { length: 255 }),
   isVerified: boolean("isVerified").default(false),
   notes: text("notes"),
+  // Public marketplace fields
+  isPublicListed: int("is_public_listed").default(0).notNull(),
+  licenceNumber: varchar("licence_number", { length: 100 }),
+  licenceExpiry: date("licence_expiry"),
+  verifiedAt: timestamp("verified_at"),
+  languages: varchar("languages", { length: 255 }).default("Arabic,English"),
+  logoUrl: text("logo_url"),
+  descriptionAr: text("description_ar"),
+  avgRating: decimal("avg_rating", { precision: 3, scale: 2 }).default("0"),
+  totalReviews: int("total_reviews").default(0).notNull(),
+  responseTimeHours: int("response_time_hours").default(24),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -1326,3 +1338,59 @@ export const complianceCertificates = mysqlTable(
 );
 export type ComplianceCertificate = typeof complianceCertificates.$inferSelect;
 export type InsertComplianceCertificate = typeof complianceCertificates.$inferInsert;
+
+// ─── SANAD SERVICE CATALOGUE ──────────────────────────────────────────────────
+export const sanadServiceCatalogue = mysqlTable(
+  "sanad_service_catalogue",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    officeId: int("office_id").notNull(),
+    serviceType: varchar("service_type", { length: 100 }).notNull(),
+    serviceName: varchar("service_name", { length: 255 }).notNull(),
+    serviceNameAr: varchar("service_name_ar", { length: 255 }),
+    priceOmr: decimal("price_omr", { precision: 10, scale: 3 }).notNull().default("0"),
+    processingDays: int("processing_days").notNull().default(3),
+    description: text("description"),
+    descriptionAr: text("description_ar"),
+    isActive: int("is_active").notNull().default(1),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  },
+  (t) => [
+    index("idx_ssc_office").on(t.officeId),
+    index("idx_ssc_type").on(t.serviceType),
+    index("idx_ssc_active").on(t.isActive),
+  ]
+);
+export type SanadServiceCatalogueItem = typeof sanadServiceCatalogue.$inferSelect;
+export type InsertSanadServiceCatalogueItem = typeof sanadServiceCatalogue.$inferInsert;
+
+// ─── SANAD SERVICE REQUESTS ───────────────────────────────────────────────────
+export const sanadServiceRequests = mysqlTable(
+  "sanad_service_requests",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    officeId: int("office_id").notNull(),
+    requesterCompanyId: int("requester_company_id"),
+    requesterUserId: int("requester_user_id"),
+    serviceType: varchar("service_type", { length: 100 }).notNull(),
+    serviceCatalogueId: int("service_catalogue_id"),
+    contactName: varchar("contact_name", { length: 255 }).notNull(),
+    contactPhone: varchar("contact_phone", { length: 50 }).notNull(),
+    contactEmail: varchar("contact_email", { length: 255 }),
+    companyName: varchar("company_name", { length: 255 }),
+    companyCr: varchar("company_cr", { length: 100 }),
+    message: text("message"),
+    status: mysqlEnum("status", ["new", "contacted", "in_progress", "completed", "declined"]).notNull().default("new"),
+    notes: text("notes"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  },
+  (t) => [
+    index("idx_ssr_office").on(t.officeId),
+    index("idx_ssr_status").on(t.status),
+    index("idx_ssr_created").on(t.createdAt),
+  ]
+);
+export type SanadServiceRequest = typeof sanadServiceRequests.$inferSelect;
+export type InsertSanadServiceRequest = typeof sanadServiceRequests.$inferInsert;

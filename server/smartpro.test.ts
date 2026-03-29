@@ -689,3 +689,117 @@ describe("sanad.workOrderStats", () => {
     ).rejects.toThrow();
   });
 });
+
+// ─── Phase 18: Sanad Marketplace Tests ────────────────────────────────────────
+
+describe("sanad.listPublicProviders", () => {
+  it("returns empty array when DB is unavailable (mock env)", async () => {
+    const ctx = makeCtx({ role: "user" });
+    const result = await appRouter.createCaller(ctx).sanad.listPublicProviders({});
+    expect(Array.isArray(result)).toBe(true);
+  });
+  it("accepts governorate and serviceType filters", async () => {
+    const ctx = makeCtx({ role: "user" });
+    const result = await appRouter.createCaller(ctx).sanad.listPublicProviders({
+      governorate: "Muscat",
+      serviceType: "work_permit",
+    });
+    expect(Array.isArray(result)).toBe(true);
+  });
+  it("requires authentication", async () => {
+    await expect(
+      appRouter.createCaller(makePublicCtx()).sanad.listPublicProviders({})
+    ).rejects.toThrow();
+  });
+});
+
+describe("sanad.getPublicProfile", () => {
+  it("returns null when DB is unavailable (mock env)", async () => {
+    const ctx = makeCtx({ role: "user" });
+    const result = await appRouter.createCaller(ctx).sanad.getPublicProfile({ officeId: 1 });
+    expect(result).toBeNull();
+  });
+  it("requires authentication", async () => {
+    await expect(
+      appRouter.createCaller(makePublicCtx()).sanad.getPublicProfile({ officeId: 1 })
+    ).rejects.toThrow();
+  });
+});
+
+describe("sanad.submitServiceRequest", () => {
+  it("throws INTERNAL_SERVER_ERROR when DB is unavailable (mock env)", async () => {
+    const ctx = makeCtx({ role: "user" });
+    await expect(
+      appRouter.createCaller(ctx).sanad.submitServiceRequest({
+        officeId: 1,
+        serviceType: "work_permit",
+        description: "Test request",
+        contactName: "Test User",
+        contactPhone: "99999999",
+      })
+    ).rejects.toMatchObject({ code: "INTERNAL_SERVER_ERROR" });
+  });
+  it("requires authentication", async () => {
+    await expect(
+      appRouter.createCaller(makePublicCtx()).sanad.submitServiceRequest({
+        officeId: 1,
+        serviceType: "work_permit",
+        description: "Test",
+        contactName: "Test",
+        contactPhone: "99999999",
+      })
+    ).rejects.toThrow();
+  });
+});
+
+describe("sanad.listServiceCatalogue", () => {
+  it("returns empty array when DB is unavailable (mock env)", async () => {
+    const ctx = makeCtx({ role: "user" });
+    const result = await appRouter.createCaller(ctx).sanad.listServiceCatalogue({ officeId: 1 });
+    expect(Array.isArray(result)).toBe(true);
+  });
+  it("requires authentication", async () => {
+    await expect(
+      appRouter.createCaller(makePublicCtx()).sanad.listServiceCatalogue({ officeId: 1 })
+    ).rejects.toThrow();
+  });
+});
+
+describe("sanad.getMyOfficeProfile", () => {
+  it("returns null when DB is unavailable (mock env)", async () => {
+    const ctx = makeCtx({ role: "admin" });
+    const result = await appRouter.createCaller(ctx).sanad.getMyOfficeProfile({});
+    expect(result).toBeNull();
+  });
+  it("requires authentication", async () => {
+    await expect(
+      appRouter.createCaller(makePublicCtx()).sanad.getMyOfficeProfile({})
+    ).rejects.toThrow();
+  });
+});
+
+describe("sanad.addCatalogueItem", () => {
+  it("throws INTERNAL_SERVER_ERROR when DB is unavailable (mock env)", async () => {
+    const ctx = makeCtx({ role: "admin" });
+    await expect(
+      appRouter.createCaller(ctx).sanad.addCatalogueItem({
+        officeId: 1,
+        serviceName: "Work Permit",
+        serviceType: "work_permit",
+        priceOmr: "25.000",
+        processingDays: 5,
+      })
+    ).rejects.toMatchObject({ code: "INTERNAL_SERVER_ERROR" });
+  });
+  it("requires authentication", async () => {
+    await expect(
+      appRouter.createCaller(makePublicCtx()).sanad.addCatalogueItem({
+        officeId: 1,
+        serviceName: "Test",
+        serviceType: "work_permit",
+        priceOmr: "10.000",
+        processingDays: 3,
+      })
+    ).rejects.toThrow();
+  });
+});

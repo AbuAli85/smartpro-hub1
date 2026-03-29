@@ -19,6 +19,8 @@ import {
   Settings,
   Shield,
   ShoppingBag,
+  Store,
+  BookMarked,
   UserCheck,
   UserCircle,
   Users,
@@ -60,6 +62,8 @@ const navGroups = [
     items: [
       { label: "Sanad Offices", href: "/sanad", icon: <Building2 size={18} /> },
       { label: "Office Dashboard", href: "/sanad/office-dashboard", icon: <BarChart3 size={18} /> },
+      { label: "Sanad Marketplace", href: "/sanad/marketplace", icon: <Store size={18} /> },
+      { label: "Catalogue Admin", href: "/sanad/catalogue-admin", icon: <BookMarked size={18} /> },
       { label: "PRO Services", href: "/pro", icon: <Shield size={18} /> },
     ],
   },

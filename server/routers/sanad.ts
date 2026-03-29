@@ -9,6 +9,8 @@ import {
   omaniProOfficers,
   sanadApplications,
   sanadOffices,
+  sanadServiceCatalogue,
+  sanadServiceRequests,
 } from "../../drizzle/schema";
 import {
   createSanadApplication,
@@ -597,6 +599,397 @@ export const sanadRouter = router({
         byStatus: byStatus.map((r) => ({ status: r.status, total: Number(r.total) })),
         recentOrders,
       };
+    }),
+
+  // ─── Public Marketplace ──────────────────────────────────────────────────
+  listPublicProviders: protectedProcedure
+    .input(
+      z.object({
+        governorate: z.string().optional(),
+        serviceType: z.string().optional(),
+        language: z.string().optional(),
+        minRating: z.number().min(0).max(5).optional(),
+        search: z.string().optional(),
+      }).optional()
+    )
+    .query(async () => {
+      const db = await getDb();
+      if (!db) return [];
+      const rows = await db
+        .select()
+        .from(sanadOffices)
+        .where(eq(sanadOffices.status, "active"))
+        .orderBy(desc(sanadOffices.avgRating));
+      return rows;
+    }),
+
+  getPublicProfile: protectedProcedure
+    .input(z.object({ officeId: z.number() }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) return null;
+      const [office] = await db
+        .select()
+        .from(sanadOffices)
+        .where(eq(sanadOffices.id, input.officeId))
+        .limit(1);
+      if (!office) return null;
+      const catalogue = await db
+        .select()
+        .from(sanadServiceCatalogue)
+        .where(and(eq(sanadServiceCatalogue.officeId, input.officeId), eq(sanadServiceCatalogue.isActive, 1)))
+        .orderBy(sanadServiceCatalogue.serviceType);
+      const reviews = await db
+        .select()
+        .from(sanadApplications)
+        .where(and(eq(sanadApplications.providerId, input.officeId), sql`${sanadApplications.rating} IS NOT NULL`))
+        .orderBy(desc(sanadApplications.createdAt))
+        .limit(10);
+      return { office, catalogue, reviews };
+    }),
+
+  updatePublicProfile: protectedProcedure
+    .input(
+      z.object({
+        officeId: z.number(),
+        isPublicListed: z.boolean().optional(),
+        licenceNumber: z.string().optional(),
+        licenceExpiry: z.string().optional(),
+        languages: z.string().optional(),
+        governorate: z.string().optional(),
+        logoUrl: z.string().optional(),
+        descriptionAr: z.string().optional(),
+        responseTimeHours: z.number().optional(),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      if (ctx.user.role !== "admin") throw new Error("FORBIDDEN");
+      const db = await getDb();
+      if (!db) throw new Error("DB unavailable");
+      const { officeId, ...fields } = input;
+      await db
+        .update(sanadOffices)
+        .set({
+          isPublicListed: fields.isPublicListed !== undefined ? (fields.isPublicListed ? 1 : 0) : undefined,
+          licenceNumber: fields.licenceNumber,
+          licenceExpiry: fields.licenceExpiry ? new Date(fields.licenceExpiry) : undefined,
+          languages: fields.languages,
+          governorate: fields.governorate,
+          logoUrl: fields.logoUrl,
+          descriptionAr: fields.descriptionAr,
+          responseTimeHours: fields.responseTimeHours,
+          updatedAt: new Date(),
+        })
+        .where(eq(sanadOffices.id, officeId));
+      return { success: true };
+    }),
+
+  listServiceCatalogue: protectedProcedure
+    .input(z.object({ officeId: z.number() }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) return [];
+      return db
+        .select()
+        .from(sanadServiceCatalogue)
+        .where(eq(sanadServiceCatalogue.officeId, input.officeId))
+        .orderBy(sanadServiceCatalogue.serviceType);
+    }),
+
+  upsertServiceCatalogue: protectedProcedure
+    .input(
+      z.object({
+        id: z.number().optional(),
+        officeId: z.number(),
+        serviceType: z.string(),
+        serviceName: z.string().min(1),
+        serviceNameAr: z.string().optional(),
+        priceOmr: z.number().min(0),
+        processingDays: z.number().min(1).default(3),
+        description: z.string().optional(),
+        descriptionAr: z.string().optional(),
+        isActive: z.boolean().default(true),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      if (ctx.user.role !== "admin") throw new Error("FORBIDDEN");
+      const db = await getDb();
+      if (!db) throw new Error("DB unavailable");
+      if (input.id) {
+        await db
+          .update(sanadServiceCatalogue)
+          .set({
+            serviceType: input.serviceType,
+            serviceName: input.serviceName,
+            serviceNameAr: input.serviceNameAr,
+            priceOmr: String(input.priceOmr),
+            processingDays: input.processingDays,
+            description: input.description,
+            descriptionAr: input.descriptionAr,
+            isActive: input.isActive ? 1 : 0,
+            updatedAt: new Date(),
+          })
+          .where(eq(sanadServiceCatalogue.id, input.id));
+        return { id: input.id };
+      }
+      const [result] = await db.insert(sanadServiceCatalogue).values({
+        officeId: input.officeId,
+        serviceType: input.serviceType,
+        serviceName: input.serviceName,
+        serviceNameAr: input.serviceNameAr,
+        priceOmr: String(input.priceOmr),
+        processingDays: input.processingDays,
+        description: input.description,
+        descriptionAr: input.descriptionAr,
+        isActive: input.isActive ? 1 : 0,
+      });
+      return { id: (result as any).insertId };
+    }),
+
+  deleteServiceItem: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input, ctx }) => {
+      if (ctx.user.role !== "admin") throw new Error("FORBIDDEN");
+      const db = await getDb();
+      if (!db) throw new Error("DB unavailable");
+      await db.delete(sanadServiceCatalogue).where(eq(sanadServiceCatalogue.id, input.id));
+      return { success: true };
+    }),
+
+  submitServiceRequest: protectedProcedure
+    .input(
+      z.object({
+        officeId: z.number(),
+        serviceType: z.string(),
+        serviceCatalogueId: z.number().optional(),
+        contactName: z.string().min(1),
+        contactPhone: z.string().min(1),
+        contactEmail: z.string().email().optional(),
+        companyName: z.string().optional(),
+        companyCr: z.string().optional(),
+        message: z.string().optional(),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      const db = await getDb();
+      if (!db) throw new Error("DB unavailable");
+      const membership = await getUserCompany(ctx.user.id);
+      const [result] = await db.insert(sanadServiceRequests).values({
+        officeId: input.officeId,
+        requesterCompanyId: membership?.company.id ?? null,
+        requesterUserId: ctx.user.id,
+        serviceType: input.serviceType,
+        serviceCatalogueId: input.serviceCatalogueId ?? null,
+        contactName: input.contactName,
+        contactPhone: input.contactPhone,
+        contactEmail: input.contactEmail ?? null,
+        companyName: input.companyName ?? membership?.company.name ?? null,
+        companyCr: input.companyCr ?? null,
+        message: input.message ?? null,
+        status: "new",
+      });
+      return { id: (result as any).insertId, success: true };
+    }),
+
+  listServiceRequests: protectedProcedure
+    .input(z.object({ officeId: z.number(), status: z.string().optional() }))
+    .query(async ({ input, ctx }) => {
+      if (ctx.user.role !== "admin") throw new Error("FORBIDDEN");
+      const db = await getDb();
+      if (!db) return [];
+      const conditions = [eq(sanadServiceRequests.officeId, input.officeId)];
+      if (input.status) conditions.push(eq(sanadServiceRequests.status, input.status as any));
+      return db
+        .select()
+        .from(sanadServiceRequests)
+        .where(and(...conditions))
+        .orderBy(desc(sanadServiceRequests.createdAt));
+    }),
+
+  updateServiceRequestStatus: protectedProcedure
+    .input(
+      z.object({
+        id: z.number(),
+        status: z.enum(["new", "contacted", "in_progress", "completed", "declined"]),
+        notes: z.string().optional(),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      if (ctx.user.role !== "admin") throw new Error("FORBIDDEN");
+      const db = await getDb();
+      if (!db) throw new Error("DB unavailable");
+      await db
+        .update(sanadServiceRequests)
+        .set({ status: input.status, notes: input.notes, updatedAt: new Date() })
+        .where(eq(sanadServiceRequests.id, input.id));
+      return { success: true };
+    }),
+
+  // ─── Sanad Centre Self-Management ──────────────────────────────────────────
+
+  /** Get the first Sanad office profile (for self-management by the current user) */
+  getMyOfficeProfile: protectedProcedure
+    .input(z.object({ officeId: z.number().optional() }).optional())
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) return null;
+      if (input?.officeId) {
+        const [office] = await db.select().from(sanadOffices).where(eq(sanadOffices.id, input.officeId)).limit(1);
+        return office ?? null;
+      }
+      const [office] = await db.select().from(sanadOffices).limit(1);
+      return office ?? null;
+    }),
+
+  /** Create or update the Sanad office profile for the current user's company */
+  upsertOfficeProfile: protectedProcedure
+    .input(
+      z.object({
+        name: z.string().min(1),
+        nameAr: z.string().optional(),
+        providerType: z.enum(PROVIDER_TYPES).default("pro_office"),
+        description: z.string().optional(),
+        descriptionAr: z.string().optional(),
+        licenseNumber: z.string().optional(),
+        city: z.string().optional(),
+        governorate: z.string().optional(),
+        location: z.string().optional(),
+        phone: z.string().optional(),
+        email: z.string().optional(),
+        website: z.string().optional(),
+        contactPerson: z.string().optional(),
+        openingHours: z.string().optional(),
+        languages: z.string().optional(),
+        responseTimeHours: z.number().optional(),
+        isPublicListed: z.number().optional(),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+      const membership = await getUserCompany(ctx.user.id);
+      if (!membership) throw new TRPCError({ code: "FORBIDDEN", message: "No company" });
+      const officeId = (input as any).officeId as number | undefined;
+      const existing = officeId
+        ? await db.select().from(sanadOffices).where(eq(sanadOffices.id, officeId)).limit(1)
+        : await db.select().from(sanadOffices).limit(1);
+      const payload: any = {
+        name: input.name,
+        nameAr: input.nameAr,
+        providerType: input.providerType,
+        description: input.description,
+        descriptionAr: input.descriptionAr,
+        licenseNumber: input.licenseNumber,
+        city: input.city,
+        governorate: input.governorate,
+        location: input.location,
+        phone: input.phone,
+        email: input.email,
+        website: input.website,
+        contactPerson: input.contactPerson,
+        openingHours: input.openingHours,
+        languages: input.languages,
+        responseTimeHours: input.responseTimeHours,
+        isPublicListed: input.isPublicListed,
+        updatedAt: new Date(),
+      };
+      if (existing.length > 0) {
+        await db.update(sanadOffices).set(payload).where(eq(sanadOffices.id, existing[0].id));
+
+        return { id: existing[0].id };
+      }
+      const [result] = await db.insert(sanadOffices).values({ ...payload, status: "active" });
+      return { id: (result as any).insertId };
+    }),
+
+  /** Add a new service catalogue item */
+  addCatalogueItem: protectedProcedure
+    .input(
+      z.object({
+        officeId: z.number(),
+        serviceName: z.string().min(1),
+        serviceNameAr: z.string().optional(),
+        serviceType: z.string(),
+        priceOmr: z.string(),
+        processingDays: z.number().default(3),
+        description: z.string().optional(),
+        descriptionAr: z.string().optional(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+      const [result] = await db.insert(sanadServiceCatalogue).values({
+        officeId: input.officeId,
+        serviceType: input.serviceType,
+        serviceName: input.serviceName,
+        serviceNameAr: input.serviceNameAr,
+        priceOmr: input.priceOmr,
+        processingDays: input.processingDays,
+        description: input.description,
+        descriptionAr: input.descriptionAr,
+        isActive: 1,
+      });
+      return { id: (result as any).insertId };
+    }),
+
+  /** Update an existing catalogue item */
+  updateCatalogueItem: protectedProcedure
+    .input(
+      z.object({
+        id: z.number(),
+        serviceName: z.string().min(1),
+        serviceNameAr: z.string().optional(),
+        serviceType: z.string(),
+        priceOmr: z.string(),
+        processingDays: z.number(),
+        description: z.string().optional(),
+        descriptionAr: z.string().optional(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+      await db.update(sanadServiceCatalogue).set({
+        serviceName: input.serviceName,
+        serviceNameAr: input.serviceNameAr,
+        serviceType: input.serviceType,
+        priceOmr: input.priceOmr,
+        processingDays: input.processingDays,
+        description: input.description,
+        descriptionAr: input.descriptionAr,
+        updatedAt: new Date(),
+      }).where(eq(sanadServiceCatalogue.id, input.id));
+      return { success: true };
+    }),
+
+  /** Toggle a catalogue item active/inactive */
+  toggleCatalogueItem: protectedProcedure
+    .input(z.object({ id: z.number(), isActive: z.boolean() }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+      await db.update(sanadServiceCatalogue).set({ isActive: input.isActive ? 1 : 0, updatedAt: new Date() }).where(eq(sanadServiceCatalogue.id, input.id));
+      return { success: true };
+    }),
+
+  /** Delete a catalogue item */
+  deleteCatalogueItem: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+      await db.delete(sanadServiceCatalogue).where(eq(sanadServiceCatalogue.id, input.id));
+      return { success: true };
+    }),
+
+  /** Get service catalogue for a specific office (alias used by admin page) */
+  getServiceCatalogue: protectedProcedure
+    .input(z.object({ officeId: z.number() }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) return [];
+      return db.select().from(sanadServiceCatalogue).where(eq(sanadServiceCatalogue.officeId, input.officeId)).orderBy(sanadServiceCatalogue.serviceType);
     }),
 
   // ─── Legacy aliases (backward compat) ────────────────────────────────────

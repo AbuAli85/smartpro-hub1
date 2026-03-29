@@ -37,6 +37,9 @@ import WorkforceCaseNewPage from "./pages/WorkforceCaseNewPage";
 import CompanyAdminPage from "./pages/CompanyAdminPage";
 import OmaniOfficersPage from "./pages/OmaniOfficersPage";
 import OfficerAssignmentPage from "./pages/OfficerAssignmentPage";
+import SanadMarketplacePage from "./pages/SanadMarketplacePage";
+import SanadCentreProfilePage from "./pages/SanadCentreProfilePage";
+import SanadCatalogueAdminPage from "./pages/SanadCatalogueAdminPage";
 
 function AppRoutes() {
   return (
@@ -74,6 +77,10 @@ function AppRoutes() {
         <Route path="/company-admin" component={CompanyAdminPage} />
         <Route path="/omani-officers" component={OmaniOfficersPage} />
         <Route path="/officer-assignments" component={OfficerAssignmentPage} />
+        {/* Sanad Marketplace */}
+        <Route path="/sanad/marketplace" component={SanadMarketplacePage} />
+        <Route path="/sanad/centre/:id" component={SanadCentreProfilePage} />
+        <Route path="/sanad/catalogue-admin" component={SanadCatalogueAdminPage} />
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />
       </Switch>

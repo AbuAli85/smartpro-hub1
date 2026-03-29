@@ -540,32 +540,32 @@ As a business services provider in Oman/GCC, here is what I need every single da
 
 ### PRIORITY 2 — Quotation & Proposal Engine
 
-- [ ] DB: service_quotations table (id, company_id, client_name, client_email, services_json, subtotal_omr, vat_omr, total_omr, validity_days, status, notes, pdf_url, sent_at, accepted_at, created_by, created_at)
-- [ ] DB: quotation_line_items table (id, quotation_id, service_name, description, qty, unit_price_omr, discount_pct, line_total_omr)
-- [ ] tRPC: quotations.create — create quotation with line items, auto-generate reference number (QT-YYYY-XXXX)
-- [ ] tRPC: quotations.list — list with status filter (draft/sent/accepted/declined/expired)
-- [ ] tRPC: quotations.getById — full quotation with line items
-- [ ] tRPC: quotations.update — edit quotation before sending
-- [ ] tRPC: quotations.send — mark as sent, generate branded PDF via LLM, upload to S3
-- [ ] tRPC: quotations.accept — client accepts: auto-create contract draft from quotation data
-- [ ] tRPC: quotations.decline — mark declined with reason
-- [ ] UI: QuotationsPage — list with status badges, create dialog with line item editor, send/accept/decline actions, PDF preview link
-- [ ] Route: /quotations registered in App.tsx
-- [ ] Nav: "Quotations" link under Business section in PlatformLayout
+- [x] DB: service_quotations table (id, company_id, client_name, client_email, services_json, subtotal_omr, vat_omr, total_omr, validity_days, status, notes, pdf_url, sent_at, accepted_at, created_by, created_at)
+- [x] DB: quotation_line_items table (id, quotation_id, service_name, description, qty, unit_price_omr, discount_pct, line_total_omr)
+- [x] tRPC: quotations.create — create quotation with line items, auto-generate reference number (QT-YYYY-XXXX)
+- [x] tRPC: quotations.list — list with status filter (draft/sent/accepted/declined/expired)
+- [x] tRPC: quotations.getById — full quotation with line items
+- [x] tRPC: quotations.update — edit quotation before sending
+- [x] tRPC: quotations.send — mark as sent, generate branded PDF via LLM, upload to S3
+- [x] tRPC: quotations.accept — client accepts: auto-create contract draft from quotation data
+- [x] tRPC: quotations.decline — mark declined with reason
+- [x] UI: QuotationsPage — list with status badges, create dialog with line item editor, send/accept/decline actions, PDF preview link
+- [x] Route: /quotations registered in App.tsx
+- [x] Nav: "Quotations" link under Business section in PlatformLayout
 
 ### PRIORITY 3 — SLA & Service Level Management
 
-- [ ] DB: service_sla_rules table (id, service_type, priority, target_hours, escalation_hours, breach_action, is_active)
-- [ ] DB: case_sla_tracking table (id, case_id, rule_id, started_at, due_at, breached_at, resolved_at, breach_notified)
-- [ ] tRPC: sla.listRules — list all SLA rules
-- [ ] tRPC: sla.upsertRule — create/update SLA rule per service type + priority
-- [ ] tRPC: sla.deleteRule — remove a rule
-- [ ] tRPC: sla.getBreaches — list cases currently in breach with hours overdue
-- [ ] tRPC: sla.startTracking — called when a case is created: find matching rule, set due_at
-- [ ] UI: SLAManagementPage — SLA rules table with edit dialog, breach list with case links, SLA performance chart (% met on time)
+- [x] DB: service_sla_rules table (id, service_type, priority, target_hours, escalation_hours, breach_action, is_active)
+- [x] DB: case_sla_tracking table (id, case_id, rule_id, started_at, due_at, breached_at, resolved_at, breach_notified)
+- [x] tRPC: sla.listRules — list all SLA rules
+- [x] tRPC: sla.upsertRule — create/update SLA rule per service type + priority
+- [x] tRPC: sla.deleteRule — remove a rule
+- [x] tRPC: sla.getBreaches — list cases currently in breach with hours overdue
+- [x] tRPC: sla.startTracking — called when a case is created: find matching rule, set due_at
+- [x] UI: SLAManagementPage — SLA rules table with edit dialog, breach list with case links, SLA performance chart (% met on time)
 - [ ] UI: WorkforceCasesPage — add SLA countdown chip per case row (green ≥50% time remaining, amber 20-50%, red <20% or breached)
-- [ ] Route: /sla-management registered in App.tsx
-- [ ] Nav: "SLA Management" link under Platform section
+- [x] Route: /sla-management registered in App.tsx
+- [x] Nav: "SLA Management" link under Shared Omani PRO section
 
 ### PRIORITY 4 — Financial Intelligence Panels
 
@@ -593,8 +593,8 @@ As a business services provider in Oman/GCC, here is what I need every single da
 - [ ] tRPC: compliance.getPasiStatus — PASI contribution amounts per employee for current month
 - [ ] tRPC: compliance.getWpsStatus — WPS file generated/not for current month, bank confirmation status
 - [ ] tRPC: compliance.getPermitMatrix — permit validity by department: valid/expiring/expired counts
-- [ ] Route: /compliance registered in App.tsx
-- [ ] Nav: "Compliance" link under Platform section
+- [x] Route: /compliance registered in App.tsx
+- [x] Nav: "Compliance" link under Overview section
 
 ### PRIORITY 7 — Smart Enhancements
 

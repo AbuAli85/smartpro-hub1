@@ -5,6 +5,7 @@ import {
   FileText, CreditCard, Shield, Building2, ShoppingBag,
   Bell, MessageSquare, LayoutDashboard, AlertTriangle, CheckCircle2,
   Clock, XCircle, Download, Send, ChevronRight, Star, Eye, User,
+  PlusCircle, FolderOpen, CalendarClock, Zap,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -94,6 +95,231 @@ function KPICard({ icon: Icon, label, value, sub, color }: {
   );
 }
 
+// ─── Sub-Tab Components ──────────────────────────────────────────────────────
+
+const SERVICE_TYPES = [
+  "Work Permit Application",
+  "Work Permit Renewal",
+  "Residence Visa Application",
+  "Residence Visa Renewal",
+  "PASI Registration",
+  "PASI Contribution Query",
+  "Labour Card Issuance",
+  "Labour Card Renewal",
+  "CR Amendment",
+  "Municipality Permit",
+  "Employment Contract Attestation",
+  "Exit Re-Entry Visa",
+  "Final Exit Visa",
+  "Salary Certificate",
+  "Other Government Service",
+];
+
+function ServiceRequestTab() {
+  const [serviceType, setServiceType] = useState("");
+  const [description, setDescription] = useState("");
+  const [contactName, setContactName] = useState("");
+  const [contactPhone, setContactPhone] = useState("");
+  const [contactEmail, setContactEmail] = useState("");
+  const [urgency, setUrgency] = useState<"normal" | "urgent" | "critical">("normal");
+  const [submitted, setSubmitted] = useState<string | null>(null);
+  const submitMutation = trpc.clientPortal.submitServiceRequest.useMutation({
+    onSuccess: (data) => {
+      setSubmitted(data.referenceNumber);
+      setServiceType(""); setDescription(""); setContactName(""); setContactPhone(""); setContactEmail("");
+      toast.success(`Service request submitted! Ref: ${data.referenceNumber}`);
+    },
+    onError: (e) => toast.error(e.message),
+  });
+  return (
+    <div className="max-w-2xl space-y-4">
+      <Card className="border-0 shadow-sm">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base font-semibold flex items-center gap-2">
+            <Zap size={16} className="text-[var(--smartpro-orange)]" />
+            Submit a New Service Request
+          </CardTitle>
+          <p className="text-sm text-muted-foreground">Our PRO team will contact you within 2 business hours. All requests are tracked with a reference number.</p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {submitted && (
+            <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex items-center gap-3">
+              <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+              <div>
+                <p className="text-sm font-semibold text-emerald-800">Request Submitted Successfully</p>
+                <p className="text-xs text-emerald-700">Reference: <span className="font-mono font-bold">{submitted}</span> — Our team will contact you shortly.</p>
+              </div>
+            </div>
+          )}
+          <div>
+            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Service Type *</label>
+            <Select value={serviceType} onValueChange={setServiceType}>
+              <SelectTrigger className="mt-1"><SelectValue placeholder="Select service type..." /></SelectTrigger>
+              <SelectContent>
+                {SERVICE_TYPES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Urgency Level *</label>
+            <div className="flex gap-2 mt-1">
+              {(["normal", "urgent", "critical"] as const).map(u => (
+                <button key={u} onClick={() => setUrgency(u)}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${
+                    urgency === u
+                      ? u === "critical" ? "bg-red-600 text-white border-red-600"
+                        : u === "urgent" ? "bg-orange-500 text-white border-orange-500"
+                        : "bg-primary text-primary-foreground border-primary"
+                      : "bg-background border-border hover:bg-muted"
+                  }`}>
+                  {u.charAt(0).toUpperCase() + u.slice(1)}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Description *</label>
+            <Textarea className="mt-1" rows={4} placeholder="Describe your request in detail. Include employee names, passport numbers, or any relevant reference numbers..." value={description} onChange={e => setDescription(e.target.value)} />
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Contact Name *</label>
+              <Input className="mt-1" placeholder="Your name" value={contactName} onChange={e => setContactName(e.target.value)} />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Contact Phone *</label>
+              <Input className="mt-1" placeholder="+968 XXXX XXXX" value={contactPhone} onChange={e => setContactPhone(e.target.value)} />
+            </div>
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Email (optional)</label>
+            <Input className="mt-1" type="email" placeholder="your@email.com" value={contactEmail} onChange={e => setContactEmail(e.target.value)} />
+          </div>
+          <Button
+            className="w-full gap-2"
+            disabled={!serviceType || !description.trim() || !contactName.trim() || !contactPhone.trim() || submitMutation.isPending}
+            onClick={() => submitMutation.mutate({ serviceType, description, contactName, contactPhone, contactEmail: contactEmail || undefined, urgency })}
+          >
+            <Send className="w-4 h-4" />
+            {submitMutation.isPending ? "Submitting..." : "Submit Service Request"}
+          </Button>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function MyDocumentsTab() {
+  const { data: docs, isLoading } = trpc.clientPortal.listMyDocuments.useQuery();
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className="text-base font-semibold">My Documents</h3>
+        <Badge variant="secondary">{docs?.length ?? 0} documents</Badge>
+      </div>
+      {isLoading ? (
+        <div className="space-y-3">{[...Array(4)].map((_, i) => <div key={i} className="h-16 rounded-xl bg-muted animate-pulse" />)}</div>
+      ) : !docs?.length ? (
+        <Card className="border-0 shadow-sm"><CardContent className="py-10 text-center text-muted-foreground"><FolderOpen className="w-10 h-10 mx-auto mb-3 opacity-30" /><p className="text-sm">No documents found for your company.</p></CardContent></Card>
+      ) : (
+        <div className="space-y-2">
+          {docs.map((doc) => (
+            <Card key={`${doc.category}-${doc.id}`} className="border-0 shadow-sm hover:shadow-md transition-shadow">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${
+                      doc.category === "Contract" ? "bg-blue-100" : "bg-purple-100"
+                    }`}>
+                      <FileText className={`w-4 h-4 ${doc.category === "Contract" ? "text-blue-600" : "text-purple-600"}`} />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium">{(doc as any).title ?? String((doc as any).type ?? "")}</p>
+                      <p className="text-xs text-muted-foreground">{doc.category} · {fmtDate(doc.createdAt)}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge className={`text-xs ${statusBadge(doc.status ?? "pending")}`}>{doc.status ?? "pending"}</Badge>
+                    {doc.url && (
+                      <a href={doc.url} target="_blank" rel="noopener noreferrer">
+                        <Button variant="outline" size="sm" className="gap-1.5">
+                          <Download className="w-3.5 h-3.5" />
+                          <span className="hidden sm:inline">Download</span>
+                        </Button>
+                      </a>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function UpcomingRenewalsTab() {
+  const { data: renewals, isLoading } = trpc.clientPortal.getUpcomingRenewals.useQuery();
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className="text-base font-semibold">Upcoming Renewals</h3>
+        <Badge variant="secondary">{renewals?.length ?? 0} items</Badge>
+      </div>
+      {isLoading ? (
+        <div className="space-y-3">{[...Array(4)].map((_, i) => <div key={i} className="h-16 rounded-xl bg-muted animate-pulse" />)}</div>
+      ) : !renewals?.length ? (
+        <Card className="border-0 shadow-sm"><CardContent className="py-10 text-center text-muted-foreground"><CalendarClock className="w-10 h-10 mx-auto mb-3 opacity-30" /><p className="text-sm">No renewals due in the next 90 days.</p><p className="text-xs mt-1">All permits and documents are up to date.</p></CardContent></Card>
+      ) : (
+        <div className="space-y-2">
+          {renewals.map((r) => (
+            <Card key={r.id} className={`border-0 shadow-sm ${
+              (r.daysRemaining ?? 999) <= 14 ? "border-l-4 border-l-red-500" :
+              (r.daysRemaining ?? 999) <= 30 ? "border-l-4 border-l-orange-500" :
+              "border-l-4 border-l-amber-400"
+            }`}>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${
+                      (r.daysRemaining ?? 999) <= 14 ? "bg-red-100" :
+                      (r.daysRemaining ?? 999) <= 30 ? "bg-orange-100" : "bg-amber-100"
+                    }`}>
+                      <CalendarClock className={`w-4 h-4 ${
+                        (r.daysRemaining ?? 999) <= 14 ? "text-red-600" :
+                        (r.daysRemaining ?? 999) <= 30 ? "text-orange-600" : "text-amber-600"
+                      }`} />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium">{r.type} — {r.reference}</p>
+                      <p className="text-xs text-muted-foreground">Expires: {fmtDate(r.expiryDate)}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge className={`text-xs ${
+                      (r.daysRemaining ?? 999) <= 14 ? "bg-red-100 text-red-700" :
+                      (r.daysRemaining ?? 999) <= 30 ? "bg-orange-100 text-orange-700" :
+                      "bg-amber-100 text-amber-700"
+                    }`}>
+                      {r.daysRemaining != null ? `${r.daysRemaining}d left` : "Expiring"}
+                    </Badge>
+                    <Button size="sm" variant="outline" className="gap-1.5 text-xs" onClick={() => toast.info("Contact SmartPRO team to initiate renewal")}
+                    >
+                      <Send className="w-3 h-3" />
+                      Request Renewal
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function ClientPortalPage() {
@@ -153,6 +379,9 @@ export default function ClientPortalPage() {
     { id: "bookings", label: "Bookings", icon: ShoppingBag },
     { id: "alerts", label: "Alerts", icon: Bell, badge: criticalAlerts },
     { id: "messages", label: "Messages", icon: MessageSquare, badge: unreadMsgs },
+    { id: "service-request", label: "New Request", icon: PlusCircle },
+    { id: "my-documents", label: "My Documents", icon: FolderOpen },
+    { id: "renewals", label: "Upcoming Renewals", icon: CalendarClock },
   ];
 
   return (
@@ -681,6 +910,21 @@ export default function ClientPortalPage() {
                 ))
               )}
             </div>
+          </TabsContent>
+
+          {/* ── Service Request Tab ── */}
+          <TabsContent value="service-request" className="space-y-4">
+            <ServiceRequestTab />
+          </TabsContent>
+
+          {/* ── My Documents Tab ── */}
+          <TabsContent value="my-documents" className="space-y-4">
+            <MyDocumentsTab />
+          </TabsContent>
+
+          {/* ── Upcoming Renewals Tab ── */}
+          <TabsContent value="renewals" className="space-y-4">
+            <UpcomingRenewalsTab />
           </TabsContent>
         </Tabs>
       </div>

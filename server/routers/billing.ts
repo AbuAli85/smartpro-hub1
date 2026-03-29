@@ -371,6 +371,80 @@ export const billingRouter = router({
     }),
 
   /**
+   * Aged Receivables — group overdue invoices into age buckets
+   */
+  getAgedReceivables: protectedProcedure.query(async ({ ctx }) => {
+    if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+    const db = await getDb();
+    if (!db) return [];
+    const now = new Date();
+    const overdue = await db.select().from(proBillingCycles).where(eq(proBillingCycles.status, "overdue"));
+    const buckets = { b0_30: 0, b31_60: 0, b61_90: 0, b90plus: 0 };
+    const counts = { b0_30: 0, b31_60: 0, b61_90: 0, b90plus: 0 };
+    for (const inv of overdue) {
+      if (!inv.dueDate) continue;
+      const days = Math.floor((now.getTime() - new Date(inv.dueDate).getTime()) / 86400000);
+      const amt = parseFloat(String(inv.amountOmr ?? "0"));
+      if (days <= 30) { buckets.b0_30 += amt; counts.b0_30++; }
+      else if (days <= 60) { buckets.b31_60 += amt; counts.b31_60++; }
+      else if (days <= 90) { buckets.b61_90 += amt; counts.b61_90++; }
+      else { buckets.b90plus += amt; counts.b90plus++; }
+    }
+    return [
+      { label: "0–30 days", amountOmr: Math.round(buckets.b0_30 * 1000) / 1000, count: counts.b0_30 },
+      { label: "31–60 days", amountOmr: Math.round(buckets.b31_60 * 1000) / 1000, count: counts.b31_60 },
+      { label: "61–90 days", amountOmr: Math.round(buckets.b61_90 * 1000) / 1000, count: counts.b61_90 },
+      { label: "90+ days", amountOmr: Math.round(buckets.b90plus * 1000) / 1000, count: counts.b90plus },
+    ];
+  }),
+
+  /**
+   * Revenue Trend — last 6 months invoiced vs collected (OMR)
+   */
+  getRevenueTrend: protectedProcedure.query(async ({ ctx }) => {
+    if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+    const db = await getDb();
+    if (!db) return [];
+    const now = new Date();
+    const months: { year: number; month: number; label: string }[] = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      months.push({ year: d.getFullYear(), month: d.getMonth() + 1, label: d.toLocaleString("en-GB", { month: "short", year: "2-digit" }) });
+    }
+    const all = await db.select().from(proBillingCycles);
+    return months.map(({ year, month, label }) => {
+      const period = all.filter((r) => r.billingYear === year && r.billingMonth === month);
+      const invoiced = period.reduce((s, r) => s + parseFloat(String(r.amountOmr ?? "0")), 0);
+      const collected = period.filter((r) => r.status === "paid").reduce((s, r) => s + parseFloat(String(r.amountOmr ?? "0")), 0);
+      return { label, invoiced: Math.round(invoiced * 1000) / 1000, collected: Math.round(collected * 1000) / 1000 };
+    });
+  }),
+
+  /**
+   * Top Clients by Revenue — top 10 companies by total invoiced OMR
+   */
+  getTopClients: protectedProcedure.query(async ({ ctx }) => {
+    if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+    const db = await getDb();
+    if (!db) return [];
+    const rows = await db
+      .select({
+        companyId: proBillingCycles.companyId,
+        totalOmr: sum(proBillingCycles.amountOmr),
+        invoiceCount: sql<number>`count(*)`,
+      })
+      .from(proBillingCycles)
+      .groupBy(proBillingCycles.companyId)
+      .orderBy(desc(sum(proBillingCycles.amountOmr)))
+      .limit(10);
+    return rows.map((r) => ({
+      companyId: r.companyId,
+      totalOmr: parseFloat(String(r.totalOmr ?? "0")),
+      invoiceCount: Number(r.invoiceCount),
+    }));
+  }),
+
+  /**
    * Mark overdue invoices — any pending invoice past due date becomes overdue.
    */
   markOverdueInvoices: protectedProcedure.mutation(async ({ ctx }) => {

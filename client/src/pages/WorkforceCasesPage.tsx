@@ -203,10 +203,28 @@ export default function WorkforceCasesPage() {
                           )}
                         </div>
                         <div className="flex flex-col items-end gap-1 shrink-0">
-                          {c.dueDate && (
+                          {c.dueDate ? (() => {
+                            const hoursLeft = Math.round((new Date(c.dueDate).getTime() - Date.now()) / 3600000);
+                            const isBreached = hoursLeft < 0;
+                            const cls = isBreached || hoursLeft < 24
+                              ? "bg-red-100 text-red-700"
+                              : hoursLeft < 72
+                              ? "bg-amber-100 text-amber-700"
+                              : "bg-emerald-100 text-emerald-700";
+                            return (
+                              <span className={`text-xs font-medium px-2 py-0.5 rounded-full flex items-center gap-1 ${cls}`}>
+                                <Clock className="w-3 h-3" />
+                                {isBreached
+                                  ? `SLA Breached`
+                                  : hoursLeft < 24
+                                  ? `${hoursLeft}h left`
+                                  : `${Math.round(hoursLeft / 24)}d left`}
+                              </span>
+                            );
+                          })() : (
                             <span className="text-xs text-muted-foreground flex items-center gap-1">
                               <Calendar className="w-3 h-3" />
-                              {new Date(c.dueDate).toLocaleDateString()}
+                              No SLA
                             </span>
                           )}
                           <ChevronRight className="w-4 h-4 text-muted-foreground" />

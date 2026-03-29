@@ -431,4 +431,116 @@ export const clientPortalRouter = router({
         .where(and(eq(notifications.id, input.messageId), eq(notifications.userId, ctx.user.id)));
       return { success: true };
     }),
+
+  /**
+   * Submit a new service request from the client portal
+   */
+  submitServiceRequest: protectedProcedure
+    .input(z.object({
+      serviceType: z.string().min(1),
+      description: z.string().min(1),
+      contactName: z.string().min(1),
+      contactPhone: z.string().min(1),
+      contactEmail: z.string().email().optional(),
+      urgency: z.enum(["normal", "urgent", "critical"]).default("normal"),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const companyId = await getClientCompanyId(ctx.user);
+      let companyName = "Unknown Company";
+      let companyCr: string | undefined;
+      if (companyId) {
+        const [co] = await db.select({ name: companies.name, regNumber: companies.registrationNumber })
+          .from(companies).where(eq(companies.id, companyId)).limit(1);
+        if (co) { companyName = co.name; companyCr = co.regNumber ?? undefined; }
+      }
+      const [office] = await db.select({ id: sanadOffices.id }).from(sanadOffices).limit(1);
+      if (!office) throw new TRPCError({ code: "NOT_FOUND", message: "No Sanad office configured" });
+      const { sanadServiceRequests } = await import("../../drizzle/schema");
+      const [result] = await db.insert(sanadServiceRequests).values({
+        officeId: office.id,
+        requesterCompanyId: companyId ?? undefined,
+        requesterUserId: ctx.user.id,
+        serviceType: input.serviceType,
+        contactName: input.contactName,
+        contactPhone: input.contactPhone,
+        contactEmail: input.contactEmail,
+        companyName,
+        companyCr,
+        message: `[${input.urgency.toUpperCase()}] ${input.description}`,
+        status: "new",
+      });
+      const refNumber = `SR-${new Date().getFullYear()}-${String((result as any).insertId).padStart(5, "0")}`;
+      return { success: true, referenceNumber: refNumber, requestId: (result as any).insertId };
+    }),
+
+  /**
+   * List all documents available to this company
+   */
+  listMyDocuments: protectedProcedure.query(async ({ ctx }) => {
+    const db = await getDb();
+    if (!db) return [];
+    const companyId = await getClientCompanyId(ctx.user);
+    if (!companyId) return [];
+    const contractDocs = await db.select({
+      id: contracts.id,
+      type: contracts.type,
+      title: contracts.title,
+      status: contracts.status,
+      url: contracts.pdfUrl,
+      createdAt: contracts.createdAt,
+    }).from(contracts).where(eq(contracts.companyId, companyId)).limit(50);
+    const { employeeDocuments } = await import("../../drizzle/schema");
+    const empDocs = await db.select({
+      id: employeeDocuments.id,
+      type: employeeDocuments.documentType,
+      title: employeeDocuments.documentType,
+      status: employeeDocuments.verificationStatus,
+      url: employeeDocuments.fileUrl,
+      createdAt: employeeDocuments.createdAt,
+    }).from(employeeDocuments)
+      .innerJoin(employees, eq(employeeDocuments.employeeId, employees.id))
+      .where(eq(employees.companyId, companyId)).limit(100);
+    return [
+      ...contractDocs.map((d) => ({ ...d, category: "Contract" as const })),
+      ...empDocs.map((d) => ({ ...d, category: "Employee Document" as const })),
+    ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }),
+
+  /**
+   * Get upcoming renewals for this company in the next 90 days
+   */
+  getUpcomingRenewals: protectedProcedure.query(async ({ ctx }) => {
+    const db = await getDb();
+    if (!db) return [];
+    const companyId = await getClientCompanyId(ctx.user);
+    if (!companyId) return [];
+    const now = new Date();
+    const in90 = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000);
+    const permits = await db.select({
+      id: workPermits.id,
+      type: workPermits.provider,
+      reference: workPermits.workPermitNumber,
+      expiryDate: workPermits.expiryDate,
+      status: workPermits.permitStatus,
+    }).from(workPermits)
+      .innerJoin(employees, eq(workPermits.employeeId, employees.id))
+      .where(and(
+        eq(employees.companyId, companyId),
+        lte(workPermits.expiryDate, in90),
+        gte(workPermits.expiryDate, now),
+      )).limit(50);
+    return permits.map((p) => ({
+      id: p.id,
+      category: "Work Permit" as const,
+      type: p.type ?? "Work Permit",
+      reference: p.reference ?? `WP-${p.id}`,
+      expiryDate: p.expiryDate,
+      daysRemaining: p.expiryDate
+        ? Math.ceil((new Date(p.expiryDate).getTime() - now.getTime()) / 86400000)
+        : null,
+      status: p.status,
+    }));
+  }),
 });

@@ -25,6 +25,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import {
   AlertCircle,
+  BarChart2,
   BanknoteIcon,
   CheckCircle2,
   ChevronDown,
@@ -39,6 +40,112 @@ import {
   Wallet,
   XCircle,
 } from "lucide-react";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
+
+function FinancialIntelligencePanel() {
+  const agedQuery = trpc.billing.getAgedReceivables.useQuery();
+  const trendQuery = trpc.billing.getRevenueTrend.useQuery();
+  const topQuery = trpc.billing.getTopClients.useQuery();
+  const aged = agedQuery.data ?? [];
+  const trend = trendQuery.data ?? [];
+  const top = topQuery.data ?? [];
+  const totalOverdue = aged.reduce((s, b) => s + b.amountOmr, 0);
+  return (
+    <div className="space-y-6">
+      {/* Aged Receivables */}
+      <Card className="border-0 shadow-sm">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base font-semibold flex items-center gap-2">
+            <AlertCircle size={16} className="text-red-500" />
+            Aged Receivables
+            <span className="ml-auto text-sm font-normal text-red-600 font-semibold">Total: OMR {totalOverdue.toFixed(3)}</span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {agedQuery.isLoading ? <div className="text-center py-6 text-muted-foreground text-sm">Loading...</div> : (
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              {aged.map((b) => (
+                <div key={b.label} className={`rounded-xl p-4 border ${
+                  b.label === '0–30 days' ? 'bg-amber-50 border-amber-200' :
+                  b.label === '31–60 days' ? 'bg-orange-50 border-orange-200' :
+                  b.label === '61–90 days' ? 'bg-red-50 border-red-200' :
+                  'bg-red-100 border-red-300'
+                }`}>
+                  <p className="text-xs font-medium text-muted-foreground">{b.label}</p>
+                  <p className="text-xl font-bold mt-1">OMR {b.amountOmr.toFixed(3)}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{b.count} invoice{b.count !== 1 ? 's' : ''}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Revenue Trend */}
+      <Card className="border-0 shadow-sm">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base font-semibold flex items-center gap-2">
+            <TrendingUp size={16} className="text-emerald-600" />
+            Revenue Trend — Last 6 Months (OMR)
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {trendQuery.isLoading ? <div className="text-center py-6 text-muted-foreground text-sm">Loading...</div> : (
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={trend} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                <YAxis tick={{ fontSize: 11 }} />
+                <Tooltip formatter={(v: any) => `OMR ${Number(v).toFixed(3)}`} />
+                <Legend />
+                <Bar dataKey="invoiced" name="Invoiced" fill="#3b82f6" radius={[4,4,0,0]} />
+                <Bar dataKey="collected" name="Collected" fill="#10b981" radius={[4,4,0,0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Top Clients */}
+      <Card className="border-0 shadow-sm">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base font-semibold flex items-center gap-2">
+            <Users size={16} className="text-blue-600" />
+            Top Clients by Revenue
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {topQuery.isLoading ? <div className="text-center py-6 text-muted-foreground text-sm">Loading...</div> : top.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground text-sm">No billing data yet. Generate invoices to see top clients.</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-left py-2 px-3 text-xs font-semibold text-muted-foreground">#</th>
+                    <th className="text-left py-2 px-3 text-xs font-semibold text-muted-foreground">Company ID</th>
+                    <th className="text-right py-2 px-3 text-xs font-semibold text-muted-foreground">Total Invoiced</th>
+                    <th className="text-right py-2 px-3 text-xs font-semibold text-muted-foreground">Invoices</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {top.map((c, i) => (
+                    <tr key={c.companyId} className="border-b last:border-0 hover:bg-muted/30">
+                      <td className="py-2 px-3 text-muted-foreground">{i + 1}</td>
+                      <td className="py-2 px-3 font-medium">Company #{c.companyId}</td>
+                      <td className="py-2 px-3 text-right font-semibold text-emerald-700">OMR {c.totalOmr.toFixed(3)}</td>
+                      <td className="py-2 px-3 text-right text-muted-foreground">{c.invoiceCount}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
 
 const MONTHS = [
   "January", "February", "March", "April", "May", "June",
@@ -336,6 +443,10 @@ export default function BillingEnginePage() {
             Officer Payouts
             {payouts.length > 0 && <Badge variant="secondary" className="ml-1 text-xs px-1.5 py-0">{payouts.length}</Badge>}
           </TabsTrigger>
+          <TabsTrigger value="intelligence" className="gap-1.5">
+            <BarChart2 size={14} />
+            Financial Intelligence
+          </TabsTrigger>
         </TabsList>
 
         {/* ── Invoices Tab ── */}
@@ -482,6 +593,11 @@ export default function BillingEnginePage() {
               </table>
             </div>
           )}
+        </TabsContent>
+
+        {/* ── Financial Intelligence Tab ── */}
+        <TabsContent value="intelligence">
+          <FinancialIntelligencePanel />
         </TabsContent>
       </Tabs>
 

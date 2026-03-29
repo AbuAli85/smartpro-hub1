@@ -206,3 +206,14 @@
 - [ ] UI: PlatformOpsPage.tsx — role-based internal management dashboard
 - [ ] UI: Finance view — monthly revenue, Sanad centre payments, EBITDA
 - [ ] UI: Regional view — Sanad centres map, officer capacity by governorate
+
+## Phase 17: Sanad Office Performance Dashboard
+
+- [x] tRPC: sanad.officeDashboard — KPI summary (officers count, total earnings, active assignments, avg rating)
+- [x] tRPC: sanad.officerPerformance — per-officer metrics (work orders completed, in-progress, rejected, earnings, rating)
+- [x] tRPC: sanad.earningsTrend — monthly earnings breakdown for the Sanad office (last 6 months)
+- [x] tRPC: sanad.workOrderStats — work order volume by service type and status for the office's officers
+- [x] UI: SanadOfficeDashboardPage.tsx — full dashboard with KPI cards, officer performance table, earnings chart, work order breakdown
+- [x] Route: /sanad/office-dashboard registered in App.tsx
+- [x] Nav: "Office Dashboard" link added under Government Services in PlatformLayout
+- [x] Tests: vitest tests for all 4 new procedures (procedures return null/[] gracefully in mock env — consistent with existing pattern)

@@ -10,6 +10,7 @@ import PlatformLayout from "./components/PlatformLayout";
 import Home from "./pages/Home";
 import Dashboard from "./pages/Dashboard";
 import SanadPage from "./pages/SanadPage";
+import SanadOfficeDashboardPage from "./pages/SanadOfficeDashboardPage";
 import ProServicesPage from "./pages/ProServicesPage";
 import MarketplacePage from "./pages/MarketplacePage";
 import ContractsPage from "./pages/ContractsPage";
@@ -44,6 +45,7 @@ function AppRoutes() {
         <Route path="/" component={Dashboard} />
         <Route path="/dashboard" component={Dashboard} />
         <Route path="/sanad" component={SanadPage} />
+        <Route path="/sanad/office-dashboard" component={SanadOfficeDashboardPage} />
         <Route path="/pro" component={ProServicesPage} />
         <Route path="/marketplace" component={MarketplacePage} />
         <Route path="/contracts" component={ContractsPage} />

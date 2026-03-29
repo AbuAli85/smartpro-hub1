@@ -1,6 +1,15 @@
 import { TRPCError } from "@trpc/server";
 import { nanoid } from "nanoid";
+import { and, avg, count, desc, eq, gte, sql } from "drizzle-orm";
 import { z } from "zod";
+import { getDb } from "../db";
+import {
+  companies,
+  officerCompanyAssignments,
+  omaniProOfficers,
+  sanadApplications,
+  sanadOffices,
+} from "../../drizzle/schema";
 import {
   createSanadApplication,
   createSanadOffice,
@@ -255,6 +264,339 @@ export const sanadRouter = router({
         ratingComment: input.ratingComment,
       } as any);
       return { success: true };
+    }),
+
+  // ─── Office Dashboard ────────────────────────────────────────────────────
+  /**
+   * KPI summary for a Sanad office: officer count, total monthly earnings,
+   * active company assignments, and average client rating.
+   */
+  officeDashboard: protectedProcedure
+    .input(z.object({ officeId: z.number() }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) return null;
+
+      // Officers belonging to this office
+      const officerRows = await db
+        .select({
+          id: omaniProOfficers.id,
+          fullName: omaniProOfficers.fullName,
+          fullNameAr: omaniProOfficers.fullNameAr,
+          status: omaniProOfficers.status,
+          employmentTrack: omaniProOfficers.employmentTrack,
+          monthlySalary: omaniProOfficers.monthlySalary,
+          maxCompanies: omaniProOfficers.maxCompanies,
+          hiredAt: omaniProOfficers.hiredAt,
+        })
+        .from(omaniProOfficers)
+        .where(and(
+          eq(omaniProOfficers.sanadOfficeId, input.officeId),
+          sql`${omaniProOfficers.status} != 'terminated'`
+        ));
+
+      const officerIds = officerRows.map((o) => o.id);
+
+      if (officerIds.length === 0) {
+        return {
+          totalOfficers: 0,
+          activeOfficers: 0,
+          trackAOfficers: 0,
+          trackBOfficers: 0,
+          totalActiveAssignments: 0,
+          totalMonthlyRevenue: 0,
+          totalMonthlySalaries: 0,
+          netMonthlyEarnings: 0,
+          avgRating: null,
+          totalWorkOrders: 0,
+          completedWorkOrders: 0,
+          inProgressWorkOrders: 0,
+          rejectedWorkOrders: 0,
+          completionRate: 0,
+          officers: [],
+        };
+      }
+
+      // Assignment stats per officer
+      const assignStats = await db
+        .select({
+          officerId: officerCompanyAssignments.officerId,
+          activeCount: sql<number>`SUM(CASE WHEN ${officerCompanyAssignments.status} = 'active' THEN 1 ELSE 0 END)`,
+          monthlyRevenue: sql<number>`SUM(CASE WHEN ${officerCompanyAssignments.status} = 'active' THEN ${officerCompanyAssignments.monthlyFee} ELSE 0 END)`,
+        })
+        .from(officerCompanyAssignments)
+        .where(sql`${officerCompanyAssignments.officerId} IN (${sql.join(officerIds.map(id => sql`${id}`), sql`, `)})`)
+        .groupBy(officerCompanyAssignments.officerId);
+
+      const assignMap = new Map(assignStats.map((a) => [a.officerId, a]));
+
+      // Work order stats per officer (via providerId = officeId)
+      const woStats = await db
+        .select({
+          total: count(),
+          completed: sql<number>`SUM(CASE WHEN ${sanadApplications.status} = 'completed' THEN 1 ELSE 0 END)`,
+          inProgress: sql<number>`SUM(CASE WHEN ${sanadApplications.status} IN ('in_progress','submitted','awaiting_documents','awaiting_payment') THEN 1 ELSE 0 END)`,
+          rejected: sql<number>`SUM(CASE WHEN ${sanadApplications.status} = 'rejected' THEN 1 ELSE 0 END)`,
+          avgRating: avg(sanadApplications.rating),
+        })
+        .from(sanadApplications)
+        .where(eq(sanadApplications.providerId, input.officeId));
+
+      const wo = woStats[0];
+      const totalWO = Number(wo.total);
+      const completedWO = Number(wo.completed ?? 0);
+
+      // Enrich each officer
+      const enrichedOfficers = officerRows.map((o) => {
+        const aStats = assignMap.get(o.id);
+        const active = Number(aStats?.activeCount ?? 0);
+        const revenue = Number(aStats?.monthlyRevenue ?? 0);
+        const salary = Number(o.monthlySalary);
+        return {
+          ...o,
+          monthlySalary: salary,
+          activeAssignments: active,
+          availableSlots: o.maxCompanies - active,
+          capacityPct: Math.round((active / o.maxCompanies) * 100),
+          monthlyRevenue: revenue,
+          netEarnings: revenue - salary,
+        };
+      });
+
+      const totalActive = enrichedOfficers.filter((o) => o.status === "active").length;
+      const totalRevenue = enrichedOfficers.reduce((s, o) => s + o.monthlyRevenue, 0);
+      const totalSalaries = enrichedOfficers.reduce((s, o) => s + o.monthlySalary, 0);
+
+      return {
+        totalOfficers: officerRows.length,
+        activeOfficers: totalActive,
+        trackAOfficers: officerRows.filter((o) => o.employmentTrack === "platform").length,
+        trackBOfficers: officerRows.filter((o) => o.employmentTrack === "sanad").length,
+        totalActiveAssignments: enrichedOfficers.reduce((s, o) => s + o.activeAssignments, 0),
+        totalMonthlyRevenue: totalRevenue,
+        totalMonthlySalaries: totalSalaries,
+        netMonthlyEarnings: totalRevenue - totalSalaries,
+        avgRating: wo.avgRating ? Number(wo.avgRating) : null,
+        totalWorkOrders: totalWO,
+        completedWorkOrders: completedWO,
+        inProgressWorkOrders: Number(wo.inProgress ?? 0),
+        rejectedWorkOrders: Number(wo.rejected ?? 0),
+        completionRate: totalWO > 0 ? Math.round((completedWO / totalWO) * 100) : 0,
+        officers: enrichedOfficers,
+      };
+    }),
+
+  /**
+   * Per-officer performance breakdown for a Sanad office.
+   * Returns work order counts, earnings, and rating for each officer.
+   */
+  officerPerformance: protectedProcedure
+    .input(z.object({ officeId: z.number() }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) return [];
+
+      const officerRows = await db
+        .select()
+        .from(omaniProOfficers)
+        .where(and(
+          eq(omaniProOfficers.sanadOfficeId, input.officeId),
+          sql`${omaniProOfficers.status} != 'terminated'`
+        ));
+
+      if (officerRows.length === 0) return [];
+
+      const officerIds = officerRows.map((o) => o.id);
+
+      const assignStats = await db
+        .select({
+          officerId: officerCompanyAssignments.officerId,
+          activeCount: sql<number>`SUM(CASE WHEN ${officerCompanyAssignments.status} = 'active' THEN 1 ELSE 0 END)`,
+          totalRevenue: sql<number>`SUM(CASE WHEN ${officerCompanyAssignments.status} = 'active' THEN ${officerCompanyAssignments.monthlyFee} ELSE 0 END)`,
+        })
+        .from(officerCompanyAssignments)
+        .where(sql`${officerCompanyAssignments.officerId} IN (${sql.join(officerIds.map(id => sql`${id}`), sql`, `)})`)
+        .groupBy(officerCompanyAssignments.officerId);
+
+      const assignMap = new Map(assignStats.map((a) => [a.officerId, a]));
+
+      // Work orders handled by companies assigned to each officer
+      // We join through officer_company_assignments → sanad_applications.companyId
+      const woPerOfficer = await db
+        .select({
+          officerId: officerCompanyAssignments.officerId,
+          total: count(),
+          completed: sql<number>`SUM(CASE WHEN ${sanadApplications.status} = 'completed' THEN 1 ELSE 0 END)`,
+          inProgress: sql<number>`SUM(CASE WHEN ${sanadApplications.status} IN ('in_progress','submitted','awaiting_documents','awaiting_payment') THEN 1 ELSE 0 END)`,
+          rejected: sql<number>`SUM(CASE WHEN ${sanadApplications.status} = 'rejected' THEN 1 ELSE 0 END)`,
+          avgRating: avg(sanadApplications.rating),
+        })
+        .from(officerCompanyAssignments)
+        .innerJoin(sanadApplications, and(
+          eq(sanadApplications.companyId, officerCompanyAssignments.companyId),
+          eq(sanadApplications.providerId, input.officeId)
+        ))
+        .where(sql`${officerCompanyAssignments.officerId} IN (${sql.join(officerIds.map(id => sql`${id}`), sql`, `)})`)
+        .groupBy(officerCompanyAssignments.officerId);
+
+      const woMap = new Map(woPerOfficer.map((w) => [w.officerId, w]));
+
+      return officerRows.map((o) => {
+        const a = assignMap.get(o.id);
+        const w = woMap.get(o.id);
+        const active = Number(a?.activeCount ?? 0);
+        const revenue = Number(a?.totalRevenue ?? 0);
+        const salary = Number(o.monthlySalary);
+        const totalWO = Number(w?.total ?? 0);
+        const completedWO = Number(w?.completed ?? 0);
+        return {
+          id: o.id,
+          fullName: o.fullName,
+          fullNameAr: o.fullNameAr,
+          status: o.status,
+          employmentTrack: o.employmentTrack,
+          monthlySalary: salary,
+          maxCompanies: o.maxCompanies,
+          activeAssignments: active,
+          availableSlots: o.maxCompanies - active,
+          capacityPct: Math.round((active / o.maxCompanies) * 100),
+          monthlyRevenue: revenue,
+          netEarnings: revenue - salary,
+          totalWorkOrders: totalWO,
+          completedWorkOrders: completedWO,
+          inProgressWorkOrders: Number(w?.inProgress ?? 0),
+          rejectedWorkOrders: Number(w?.rejected ?? 0),
+          completionRate: totalWO > 0 ? Math.round((completedWO / totalWO) * 100) : 0,
+          avgRating: w?.avgRating ? Number(w.avgRating) : null,
+          hiredAt: o.hiredAt,
+        };
+      });
+    }),
+
+  /**
+   * Monthly earnings trend for a Sanad office (last 6 months).
+   * Returns Track B salary cost vs. revenue from company assignments.
+   */
+  earningsTrend: protectedProcedure
+    .input(z.object({ officeId: z.number() }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) return [];
+
+      // Build last 6 months array
+      const months: { year: number; month: number; label: string }[] = [];
+      const now = new Date();
+      for (let i = 5; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        months.push({
+          year: d.getFullYear(),
+          month: d.getMonth() + 1,
+          label: d.toLocaleString("en", { month: "short", year: "2-digit" }),
+        });
+      }
+
+      // Officers for this office
+      const officerRows = await db
+        .select({ id: omaniProOfficers.id, monthlySalary: omaniProOfficers.monthlySalary, employmentTrack: omaniProOfficers.employmentTrack })
+        .from(omaniProOfficers)
+        .where(and(
+          eq(omaniProOfficers.sanadOfficeId, input.officeId),
+          sql`${omaniProOfficers.status} != 'terminated'`
+        ));
+
+      const trackBOfficers = officerRows.filter((o) => o.employmentTrack === "sanad");
+      const trackBSalaryPerMonth = trackBOfficers.reduce((s, o) => s + Number(o.monthlySalary), 0);
+      const trackBCommissionPerMonth = trackBOfficers.length * 600; // OMR 600 received from platform per Track B officer
+
+      // For Track A: commission is 10–15% of assignments revenue
+      const officerIds = officerRows.map((o) => o.id);
+      const trackAOfficers = officerRows.filter((o) => o.employmentTrack === "platform");
+
+      // Active assignments for Track A officers (commission ~12.5% avg)
+      let trackARevenue = 0;
+      if (trackAOfficers.length > 0) {
+        const aIds = trackAOfficers.map((o) => o.id);
+        const aStats = await db
+          .select({ totalFee: sql<number>`SUM(${officerCompanyAssignments.monthlyFee})` })
+          .from(officerCompanyAssignments)
+          .where(and(
+            sql`${officerCompanyAssignments.officerId} IN (${sql.join(aIds.map(id => sql`${id}`), sql`, `)})`,
+            eq(officerCompanyAssignments.status, "active")
+          ));
+        trackARevenue = Number(aStats[0]?.totalFee ?? 0) * 0.125; // 12.5% commission
+      }
+
+      return months.map((m) => ({
+        label: m.label,
+        year: m.year,
+        month: m.month,
+        trackBRevenue: trackBCommissionPerMonth,
+        trackBSalaryCost: trackBSalaryPerMonth,
+        trackBNet: trackBCommissionPerMonth - trackBSalaryPerMonth,
+        trackACommission: trackARevenue,
+        totalEarnings: trackBCommissionPerMonth - trackBSalaryPerMonth + trackARevenue,
+      }));
+    }),
+
+  /**
+   * Work order volume breakdown by service type and status for a Sanad office.
+   */
+  workOrderStats: protectedProcedure
+    .input(z.object({ officeId: z.number() }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) return { byServiceType: [], byStatus: [], recentOrders: [] };
+
+      const byServiceType = await db
+        .select({
+          serviceType: sanadApplications.serviceType,
+          total: count(),
+          completed: sql<number>`SUM(CASE WHEN ${sanadApplications.status} = 'completed' THEN 1 ELSE 0 END)`,
+          avgRating: avg(sanadApplications.rating),
+        })
+        .from(sanadApplications)
+        .where(eq(sanadApplications.providerId, input.officeId))
+        .groupBy(sanadApplications.serviceType)
+        .orderBy(desc(count()));
+
+      const byStatus = await db
+        .select({
+          status: sanadApplications.status,
+          total: count(),
+        })
+        .from(sanadApplications)
+        .where(eq(sanadApplications.providerId, input.officeId))
+        .groupBy(sanadApplications.status);
+
+      const recentOrders = await db
+        .select({
+          id: sanadApplications.id,
+          referenceNumber: sanadApplications.referenceNumber,
+          serviceType: sanadApplications.serviceType,
+          status: sanadApplications.status,
+          beneficiaryName: sanadApplications.beneficiaryName,
+          companyName: companies.name,
+          rating: sanadApplications.rating,
+          completedAt: sanadApplications.completedAt,
+          createdAt: sanadApplications.createdAt,
+        })
+        .from(sanadApplications)
+        .innerJoin(companies, eq(companies.id, sanadApplications.companyId))
+        .where(eq(sanadApplications.providerId, input.officeId))
+        .orderBy(desc(sanadApplications.createdAt))
+        .limit(10);
+
+      return {
+        byServiceType: byServiceType.map((r) => ({
+          serviceType: r.serviceType,
+          total: Number(r.total),
+          completed: Number(r.completed ?? 0),
+          completionRate: Number(r.total) > 0 ? Math.round((Number(r.completed ?? 0) / Number(r.total)) * 100) : 0,
+          avgRating: r.avgRating ? Number(r.avgRating) : null,
+        })),
+        byStatus: byStatus.map((r) => ({ status: r.status, total: Number(r.total) })),
+        recentOrders,
+      };
     }),
 
   // ─── Legacy aliases (backward compat) ────────────────────────────────────

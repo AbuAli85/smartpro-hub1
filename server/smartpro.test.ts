@@ -625,3 +625,67 @@ describe("officers router", () => {
     ).rejects.toThrow();
   });
 });
+
+// ─── Phase 17: Sanad Office Dashboard Procedures ─────────────────────────────
+
+describe("sanad.officeDashboard", () => {
+  it("returns null when DB is unavailable (mock env)", async () => {
+    const ctx = makeCtx({ role: "admin" });
+    const result = await appRouter.createCaller(ctx).sanad.officeDashboard({ officeId: 1 });
+    expect(result).toBeNull();
+  });
+
+  it("requires authentication", async () => {
+    await expect(
+      appRouter.createCaller(makePublicCtx()).sanad.officeDashboard({ officeId: 1 })
+    ).rejects.toThrow();
+  });
+});
+
+describe("sanad.officerPerformance", () => {
+  it("returns empty array when DB is unavailable (mock env)", async () => {
+    const ctx = makeCtx({ role: "admin" });
+    const result = await appRouter.createCaller(ctx).sanad.officerPerformance({ officeId: 1 });
+    expect(Array.isArray(result)).toBe(true);
+    expect(result).toHaveLength(0);
+  });
+
+  it("requires authentication", async () => {
+    await expect(
+      appRouter.createCaller(makePublicCtx()).sanad.officerPerformance({ officeId: 1 })
+    ).rejects.toThrow();
+  });
+});
+
+describe("sanad.earningsTrend", () => {
+  it("returns empty array when DB is unavailable (mock env)", async () => {
+    const ctx = makeCtx({ role: "admin" });
+    const result = await appRouter.createCaller(ctx).sanad.earningsTrend({ officeId: 1 });
+    expect(Array.isArray(result)).toBe(true);
+    expect(result).toHaveLength(0);
+  });
+
+  it("requires authentication", async () => {
+    await expect(
+      appRouter.createCaller(makePublicCtx()).sanad.earningsTrend({ officeId: 1 })
+    ).rejects.toThrow();
+  });
+});
+
+describe("sanad.workOrderStats", () => {
+  it("returns empty stats object when DB is unavailable (mock env)", async () => {
+    const ctx = makeCtx({ role: "admin" });
+    const result = await appRouter.createCaller(ctx).sanad.workOrderStats({ officeId: 1 });
+    expect(result).toMatchObject({
+      byServiceType: [],
+      byStatus: [],
+      recentOrders: [],
+    });
+  });
+
+  it("requires authentication", async () => {
+    await expect(
+      appRouter.createCaller(makePublicCtx()).sanad.workOrderStats({ officeId: 1 })
+    ).rejects.toThrow();
+  });
+});

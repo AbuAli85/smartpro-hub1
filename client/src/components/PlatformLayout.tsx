@@ -59,6 +59,7 @@ const navGroups = [
     label: "Government Services",
     items: [
       { label: "Sanad Offices", href: "/sanad", icon: <Building2 size={18} /> },
+      { label: "Office Dashboard", href: "/sanad/office-dashboard", icon: <BarChart3 size={18} /> },
       { label: "PRO Services", href: "/pro", icon: <Shield size={18} /> },
     ],
   },

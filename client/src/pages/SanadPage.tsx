@@ -309,9 +309,168 @@ function ProviderDetailDialog({ provider, onClose, onRequestService }: { provide
   );
 }
 
+// ─── Work Order Detail Drawer ────────────────────────────────────────────────
+
+function WorkOrderDetailDrawer({ orderId, providers, onClose, onUpdate }: { orderId: number; providers: any[]; onClose: () => void; onUpdate: () => void }) {
+  const { data: order, refetch } = trpc.sanad.getWorkOrderById.useQuery({ id: orderId });
+  const updateMutation = trpc.sanad.updateWorkOrder.useMutation({
+    onSuccess: () => { toast.success("Work order updated"); refetch(); onUpdate(); },
+    onError: (e) => toast.error(e.message),
+  });
+  const [notesEdit, setNotesEdit] = useState("");
+  const [showNotesEdit, setShowNotesEdit] = useState(false);
+  if (!order) return null;
+  const statusCfg = STATUS_CONFIG[order.status] ?? STATUS_CONFIG.draft;
+  const provider = providers.find((p) => p.id === order.providerId);
+  const timeline = [
+    { label: "Created",    date: order.createdAt,   done: true },
+    { label: "Submitted",  date: order.submittedAt, done: !!order.submittedAt },
+    { label: "Processing", date: null,              done: ["in_progress","awaiting_documents","awaiting_payment","completed"].includes(order.status) },
+    { label: "Docs Ready", date: null,              done: ["awaiting_payment","completed"].includes(order.status) },
+    { label: "Completed",  date: order.completedAt, done: order.status === "completed" },
+  ];
+  const CHECKLIST = [
+    { key: "passport",  label: "Passport Copy" },
+    { key: "visa",      label: "Visa / Residence Card" },
+    { key: "contract",  label: "Employment Contract" },
+    { key: "medical",   label: "Medical Certificate" },
+    { key: "photo",     label: "Passport Photo" },
+  ];
+  const docs: { name: string; url: string; status: string }[] = (order as any).documents ?? [];
+  const feeBreakdown = [
+    { label: "Government Fee",  amount: Number(order.fees ?? 0) * 0.6 },
+    { label: "Service Charge",  amount: Number(order.fees ?? 0) * 0.25 },
+    { label: "Processing Fee",  amount: Number(order.fees ?? 0) * 0.15 },
+  ];
+  const nextAction = order.status === "draft" ? "Submit this work order to begin processing."
+    : order.status === "submitted" ? "Assign to a Sanad provider and start processing."
+    : order.status === "in_progress" ? "Collect required documents from the beneficiary."
+    : order.status === "awaiting_documents" ? "Review uploaded documents and proceed to payment."
+    : order.status === "awaiting_payment" ? "Confirm payment receipt and mark as completed."
+    : order.status === "completed" ? "Work order complete. Request client rating."
+    : "Review and take appropriate action.";
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end" onClick={onClose}>
+      <div className="w-full max-w-md bg-background border-l shadow-2xl overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="sticky top-0 bg-background border-b px-4 py-3 flex items-center justify-between z-10">
+          <div>
+            <h2 className="font-bold text-sm">{order.title || SERVICE_TYPE_LABELS[(order as any).serviceType] || (order as any).serviceType}</h2>
+            <p className="text-xs text-muted-foreground font-mono">{order.referenceNumber}</p>
+          </div>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground p-1 text-lg leading-none">&times;</button>
+        </div>
+        <div className="p-4 space-y-5">
+          {/* Status + Priority + Quick Update */}
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge className={`${statusCfg.color} text-xs`}>{statusCfg.label}</Badge>
+            {order.priority && order.priority !== "normal" && (
+              <Badge className={`${PRIORITY_COLORS[order.priority as keyof typeof PRIORITY_COLORS] ?? ""} text-xs`}>{order.priority}</Badge>
+            )}
+            <Select value={order.status} onValueChange={(v) => updateMutation.mutate({ id: order.id, status: v as any })}>
+              <SelectTrigger className="h-7 text-xs w-40"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {["draft","submitted","in_progress","awaiting_documents","awaiting_payment","completed","rejected","cancelled"].map((s) => (
+                  <SelectItem key={s} value={s} className="text-xs">{STATUS_CONFIG[s]?.label ?? s}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          {/* Info Grid */}
+          <div className="grid grid-cols-2 gap-3 text-xs bg-muted/30 rounded-lg p-3">
+            {order.beneficiaryName && <div><p className="text-muted-foreground">Beneficiary</p><p className="font-medium">{order.beneficiaryName}</p></div>}
+            {(order as any).nationality && <div><p className="text-muted-foreground">Nationality</p><p className="font-medium">{(order as any).nationality}</p></div>}
+            {(order as any).passportNumber && <div><p className="text-muted-foreground">Passport #</p><p className="font-medium font-mono">{(order as any).passportNumber}</p></div>}
+            {provider && <div><p className="text-muted-foreground">Provider</p><p className="font-medium">{provider.name}</p></div>}
+            {order.dueDate && <div><p className="text-muted-foreground">Due Date</p><p className="font-medium">{new Date(order.dueDate).toLocaleDateString()}</p></div>}
+            <div><p className="text-muted-foreground">Created</p><p className="font-medium">{new Date(order.createdAt).toLocaleDateString()}</p></div>
+          </div>
+          {/* Fee Breakdown */}
+          {order.fees && Number(order.fees) > 0 && (
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Fee Breakdown</p>
+              <div className="space-y-1.5 bg-muted/20 rounded-lg p-3">
+                {feeBreakdown.map((f) => (
+                  <div key={f.label} className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">{f.label}</span>
+                    <span className="font-medium">{f.amount.toFixed(3)} OMR</span>
+                  </div>
+                ))}
+                <div className="flex justify-between text-xs font-bold border-t pt-1.5 mt-1">
+                  <span>Total</span>
+                  <span className="text-emerald-700">{Number(order.fees).toFixed(3)} OMR</span>
+                </div>
+              </div>
+            </div>
+          )}
+          {/* Progress Timeline */}
+          <div>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Progress Timeline</p>
+            <div className="relative">
+              <div className="absolute left-3 top-0 bottom-0 w-0.5 bg-muted" />
+              {timeline.map((step, i) => (
+                <div key={i} className="relative flex items-start gap-3 mb-3">
+                  <div className={`relative z-10 w-6 h-6 rounded-full border-2 flex items-center justify-center text-[10px] shrink-0 ${step.done ? "bg-emerald-500 border-emerald-500 text-white" : "bg-background border-muted-foreground/30 text-muted-foreground"}`}>
+                    {step.done ? "✓" : i + 1}
+                  </div>
+                  <div className="pt-0.5">
+                    <p className={`text-xs font-medium ${step.done ? "text-foreground" : "text-muted-foreground"}`}>{step.label}</p>
+                    {step.date && <p className="text-[10px] text-muted-foreground">{new Date(step.date).toLocaleDateString()}</p>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+          {/* Document Checklist */}
+          <div>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Document Checklist</p>
+            <div className="space-y-1.5">
+              {CHECKLIST.map((item) => {
+                const uploaded = docs.some((d) => d.name.toLowerCase().includes(item.key));
+                return (
+                  <div key={item.key} className="flex items-center gap-2 text-xs">
+                    <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${uploaded ? "bg-emerald-500 border-emerald-500" : "border-muted-foreground/40"}`}>
+                      {uploaded && <span className="text-white text-[10px]">✓</span>}
+                    </div>
+                    <span className={uploaded ? "text-foreground" : "text-muted-foreground"}>{item.label}</span>
+                    {uploaded && <span className="text-[10px] text-emerald-600 ml-auto">Uploaded</span>}
+                    {!uploaded && <span className="text-[10px] text-muted-foreground/60 ml-auto">Pending</span>}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+          {/* Officer Notes */}
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Officer Notes</p>
+              <button className="text-xs text-blue-600 hover:underline" onClick={() => { setNotesEdit(order.notes ?? ""); setShowNotesEdit(true); }}>Edit</button>
+            </div>
+            {showNotesEdit ? (
+              <div className="space-y-2">
+                <Textarea className="text-xs" rows={3} value={notesEdit} onChange={(e) => setNotesEdit(e.target.value)} />
+                <div className="flex gap-2">
+                  <Button size="sm" className="h-7 text-xs" onClick={() => { updateMutation.mutate({ id: order.id, notes: notesEdit }); setShowNotesEdit(false); }}>Save</Button>
+                  <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setShowNotesEdit(false)}>Cancel</Button>
+                </div>
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground bg-muted/40 rounded p-2 min-h-[40px]">{order.notes || "No notes yet."}</p>
+            )}
+          </div>
+          {/* Next Action Banner */}
+          <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
+            <p className="text-xs font-semibold text-orange-800 mb-1">Next Action Required</p>
+            <p className="text-xs text-orange-700">{nextAction}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Work Order Row ───────────────────────────────────────────────────────────
 
-function WorkOrderRow({ order, providers, onUpdate }: { order: any; providers: any[]; onUpdate: () => void }) {
+function WorkOrderRow({ order, providers, onUpdate, onSelect }: { order: any; providers: any[]; onUpdate: () => void; onSelect?: (id: number) => void }) {
   const statusCfg = STATUS_CONFIG[order.status] ?? STATUS_CONFIG.draft;
   const StatusIcon = statusCfg.icon;
   const provider = providers.find((p) => p.id === order.providerId);
@@ -322,7 +481,7 @@ function WorkOrderRow({ order, providers, onUpdate }: { order: any; providers: a
   });
 
   return (
-    <div className="flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-muted/30 transition-colors">
+    <div className="flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-muted/30 transition-colors cursor-pointer" onClick={() => onSelect?.(order.id)}>
       <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center shrink-0">
         <StatusIcon size={15} className="text-muted-foreground" />
       </div>
@@ -342,16 +501,18 @@ function WorkOrderRow({ order, providers, onUpdate }: { order: any; providers: a
           {order.fees && <span>{Number(order.fees).toFixed(3)} OMR</span>}
         </div>
       </div>
-      <Select value={order.status} onValueChange={(v) => updateMutation.mutate({ id: order.id, status: v as any })}>
-        <SelectTrigger className="h-7 text-xs w-36 shrink-0">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {["draft","submitted","in_progress","awaiting_documents","awaiting_payment","completed","rejected","cancelled"].map((s) => (
-            <SelectItem key={s} value={s} className="text-xs">{STATUS_CONFIG[s]?.label ?? s}</SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      <div onClick={(e) => e.stopPropagation()}>
+        <Select value={order.status} onValueChange={(v) => updateMutation.mutate({ id: order.id, status: v as any })}>
+          <SelectTrigger className="h-7 text-xs w-36 shrink-0">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {["draft","submitted","in_progress","awaiting_documents","awaiting_payment","completed","rejected","cancelled"].map((s) => (
+              <SelectItem key={s} value={s} className="text-xs">{STATUS_CONFIG[s]?.label ?? s}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
     </div>
   );
 }
@@ -364,6 +525,7 @@ export default function SanadPage() {
   const [typeFilter, setTypeFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [selectedProvider, setSelectedProvider] = useState<any>(null);
+  const [selectedWorkOrderId, setSelectedWorkOrderId] = useState<number | null>(null);
 
   const providersQuery = trpc.sanad.listProviders.useQuery(undefined);
   const workOrdersQuery = trpc.sanad.listWorkOrders.useQuery(undefined);
@@ -543,7 +705,7 @@ export default function SanadPage() {
           ) : (
             <div className="space-y-2">
               {filteredOrders.map((o) => (
-                <WorkOrderRow key={o.id} order={o} providers={providers} onUpdate={() => workOrdersQuery.refetch()} />
+                <WorkOrderRow key={o.id} order={o} providers={providers} onUpdate={() => workOrdersQuery.refetch()} onSelect={setSelectedWorkOrderId} />
               ))}
             </div>
           )}
@@ -556,6 +718,15 @@ export default function SanadPage() {
           provider={selectedProvider}
           onClose={() => setSelectedProvider(null)}
           onRequestService={() => setTab("orders")}
+        />
+      )}
+      {/* Work Order Detail Drawer */}
+      {selectedWorkOrderId && (
+        <WorkOrderDetailDrawer
+          orderId={selectedWorkOrderId}
+          providers={providers}
+          onClose={() => setSelectedWorkOrderId(null)}
+          onUpdate={() => workOrdersQuery.refetch()}
         />
       )}
     </div>

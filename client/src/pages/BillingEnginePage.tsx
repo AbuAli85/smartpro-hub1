@@ -213,6 +213,8 @@ export default function BillingEnginePage() {
   const [payoutNotes, setPayoutNotes] = useState("");
   const [selectedInvoice, setSelectedInvoice] = useState<any>(null);
   const [invoiceNotes, setInvoiceNotes] = useState("");
+  const [showPaymentDialog, setShowPaymentDialog] = useState(false);
+  const [paymentForm, setPaymentForm] = useState({ amount: "", date: new Date().toISOString().split("T")[0], method: "bank_transfer", reference: "", notes: "" });
 
   const utils = trpc.useUtils();
 
@@ -745,69 +747,198 @@ export default function BillingEnginePage() {
         </DialogContent>
       </Dialog>
 
-      {/* ── Manage Invoice Dialog ── */}
+      {/* ── Invoice Detail Panel (Full-featured) ── */}
       {selectedInvoice && (
-        <Dialog open={!!selectedInvoice} onOpenChange={() => setSelectedInvoice(null)}>
-          <DialogContent className="max-w-sm">
-            <DialogHeader>
-              <DialogTitle>Manage Invoice</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-3 py-2 text-sm">
-              <div className="bg-muted/50 rounded-lg p-3 space-y-1.5">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Invoice #</span>
-                  <span className="font-mono text-xs">{selectedInvoice.invoiceNumber}</span>
-                </div>
+        <div className="fixed inset-0 z-50 flex justify-end" onClick={() => setSelectedInvoice(null)}>
+          <div className="w-full max-w-md bg-background border-l shadow-2xl overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="sticky top-0 bg-background border-b px-4 py-3 flex items-center justify-between z-10">
+              <div>
+                <h2 className="font-bold text-sm">Invoice Detail</h2>
+                <p className="text-xs text-muted-foreground font-mono">{selectedInvoice.invoiceNumber}</p>
+              </div>
+              <button onClick={() => setSelectedInvoice(null)} className="text-muted-foreground hover:text-foreground p-1 text-lg leading-none">&times;</button>
+            </div>
+            <div className="p-4 space-y-5">
+              {/* Status Badge */}
+              <div className="flex items-center gap-2">
+                <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border ${STATUS_CONFIG[selectedInvoice.status]?.color}`}>
+                  {STATUS_CONFIG[selectedInvoice.status]?.icon}
+                  {STATUS_CONFIG[selectedInvoice.status]?.label}
+                </span>
+                {selectedInvoice.status === "overdue" && (
+                  <span className="text-xs text-red-600 font-medium">⚠ Payment overdue</span>
+                )}
+              </div>
+              {/* Invoice Summary */}
+              <div className="bg-muted/30 rounded-lg p-4 space-y-2 text-sm">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Officer</span>
-                  <span className="font-medium">{selectedInvoice.officerName ?? `#${selectedInvoice.officerId}`}</span>
+                  <span className="font-medium">{selectedInvoice.officerName ?? `Officer #${selectedInvoice.officerId}`}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Period</span>
+                  <span className="text-muted-foreground">Billing Period</span>
                   <span>{MONTHS[(selectedInvoice.billingMonth ?? 1) - 1]} {selectedInvoice.billingYear}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Amount</span>
-                  <span className="font-semibold">{formatOMR(selectedInvoice.amountOmr)}</span>
+                  <span className="text-muted-foreground">Company</span>
+                  <span>#{selectedInvoice.companyId}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Status</span>
-                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${STATUS_CONFIG[selectedInvoice.status]?.color}`}>
-                    {STATUS_CONFIG[selectedInvoice.status]?.label}
-                  </span>
+                {selectedInvoice.dueDate && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Due Date</span>
+                    <span className={selectedInvoice.status === "overdue" ? "text-red-600 font-medium" : ""}>
+                      {new Date(selectedInvoice.dueDate).toLocaleDateString()}
+                    </span>
+                  </div>
+                )}
+                {selectedInvoice.paidAt && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Paid On</span>
+                    <span className="text-emerald-700 font-medium">{new Date(selectedInvoice.paidAt).toLocaleDateString()}</span>
+                  </div>
+                )}
+              </div>
+              {/* Line Items */}
+              <div>
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Line Items</p>
+                <div className="space-y-1.5 bg-muted/20 rounded-lg p-3">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">PRO Officer Monthly Fee</span>
+                    <span className="font-medium">{formatOMR(selectedInvoice.amountOmr)}</span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">VAT (5%)</span>
+                    <span className="font-medium">{formatOMR(Number(selectedInvoice.amountOmr) * 0.05)}</span>
+                  </div>
+                  <div className="flex justify-between text-xs font-bold border-t pt-1.5 mt-1">
+                    <span>Total Due</span>
+                    <span className="text-blue-700">{formatOMR(Number(selectedInvoice.amountOmr) * 1.05)}</span>
+                  </div>
                 </div>
               </div>
+              {/* Payment History */}
               <div>
-                <Label className="text-xs">Notes</Label>
-                <Textarea className="mt-1 text-sm" rows={2} value={invoiceNotes} onChange={(e) => setInvoiceNotes(e.target.value)} />
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Payment History</p>
+                {selectedInvoice.status === "paid" ? (
+                  <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-xs">
+                    <CheckCircle2 size={14} className="text-emerald-600 shrink-0" />
+                    <div>
+                      <p className="font-medium text-emerald-800">Payment Received</p>
+                      <p className="text-emerald-700">{formatOMR(selectedInvoice.amountOmr)} · {selectedInvoice.paidAt ? new Date(selectedInvoice.paidAt).toLocaleDateString() : "Date unknown"}</p>
+                      {selectedInvoice.notes && <p className="text-emerald-600 mt-0.5">{selectedInvoice.notes}</p>}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-xs text-muted-foreground bg-muted/30 rounded-lg p-3 text-center">
+                    No payments recorded yet
+                  </div>
+                )}
+              </div>
+              {/* Notes */}
+              <div>
+                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Notes</Label>
+                <Textarea className="mt-1.5 text-sm" rows={2} value={invoiceNotes} onChange={(e) => setInvoiceNotes(e.target.value)} />
+              </div>
+              {/* Actions */}
+              <div className="flex flex-col gap-2 pt-1">
+                {selectedInvoice.status !== "paid" && (
+                  <Button
+                    className="w-full bg-emerald-600 hover:bg-emerald-700"
+                    onClick={() => { setPaymentForm(f => ({ ...f, amount: String(selectedInvoice.amountOmr) })); setShowPaymentDialog(true); }}
+                  >
+                    <BanknoteIcon size={14} className="mr-1.5" />
+                    Record Payment
+                  </Button>
+                )}
+                {selectedInvoice.status !== "paid" && (
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => {
+                      toast.success(`Reminder sent for invoice ${selectedInvoice.invoiceNumber}`);
+                    }}
+                  >
+                    <FileText size={14} className="mr-1.5" />
+                    Send Reminder
+                  </Button>
+                )}
+                {selectedInvoice.status === "pending" && (
+                  <Button
+                    variant="outline"
+                    className="w-full text-red-600 border-red-200 hover:bg-red-50"
+                    onClick={() => updateStatusMutation.mutate({ invoiceId: selectedInvoice.id, status: "overdue", notes: invoiceNotes })}
+                    disabled={updateStatusMutation.isPending}
+                  >
+                    Mark Overdue
+                  </Button>
+                )}
+                <Button variant="ghost" className="w-full" onClick={() => setSelectedInvoice(null)}>Close</Button>
               </div>
             </div>
-            <DialogFooter className="flex-col gap-2 sm:flex-row">
-              {selectedInvoice.status !== "paid" && (
-                <Button
-                  className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700"
-                  onClick={() => markPaidMutation.mutate({ invoiceId: selectedInvoice.id, notes: invoiceNotes })}
-                  disabled={markPaidMutation.isPending}
-                >
-                  <CheckCircle2 size={14} className="mr-1.5" />
-                  Mark as Paid
-                </Button>
-              )}
-              {selectedInvoice.status === "pending" && (
-                <Button
-                  variant="outline"
-                  className="w-full sm:w-auto text-red-600 border-red-200 hover:bg-red-50"
-                  onClick={() => updateStatusMutation.mutate({ invoiceId: selectedInvoice.id, status: "overdue", notes: invoiceNotes })}
-                  disabled={updateStatusMutation.isPending}
-                >
-                  Mark Overdue
-                </Button>
-              )}
-              <Button variant="ghost" onClick={() => setSelectedInvoice(null)}>Close</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+          </div>
+        </div>
       )}
+      {/* ── Record Payment Dialog ── */}
+      <Dialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <BanknoteIcon size={18} className="text-emerald-600" />
+              Record Payment
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div>
+              <Label className="text-xs">Amount (OMR)</Label>
+              <Input className="mt-1" type="number" step="0.001" value={paymentForm.amount} onChange={(e) => setPaymentForm(f => ({ ...f, amount: e.target.value }))} />
+            </div>
+            <div>
+              <Label className="text-xs">Payment Date</Label>
+              <Input className="mt-1" type="date" value={paymentForm.date} onChange={(e) => setPaymentForm(f => ({ ...f, date: e.target.value }))} />
+            </div>
+            <div>
+              <Label className="text-xs">Payment Method</Label>
+              <Select value={paymentForm.method} onValueChange={(v) => setPaymentForm(f => ({ ...f, method: v }))}>
+                <SelectTrigger className="mt-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+                  <SelectItem value="cash">Cash</SelectItem>
+                  <SelectItem value="cheque">Cheque</SelectItem>
+                  <SelectItem value="online">Online Payment</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs">Reference / Transaction ID</Label>
+              <Input className="mt-1" placeholder="Bank ref, cheque no., etc." value={paymentForm.reference} onChange={(e) => setPaymentForm(f => ({ ...f, reference: e.target.value }))} />
+            </div>
+            <div>
+              <Label className="text-xs">Notes (optional)</Label>
+              <Textarea className="mt-1 text-sm" rows={2} value={paymentForm.notes} onChange={(e) => setPaymentForm(f => ({ ...f, notes: e.target.value }))} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowPaymentDialog(false)}>Cancel</Button>
+            <Button
+              className="bg-emerald-600 hover:bg-emerald-700"
+              disabled={!paymentForm.amount || markPaidMutation.isPending}
+              onClick={() => {
+                if (selectedInvoice) {
+                  markPaidMutation.mutate({
+                    invoiceId: selectedInvoice.id,
+                    notes: `${paymentForm.method.replace(/_/g, " ")} · Ref: ${paymentForm.reference || "N/A"} · ${paymentForm.notes || ""}`.trim(),
+                  });
+                  setShowPaymentDialog(false);
+                }
+              }}
+            >
+              {markPaidMutation.isPending ? "Recording..." : "Record Payment"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

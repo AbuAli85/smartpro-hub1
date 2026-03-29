@@ -251,6 +251,16 @@ export const sanadRouter = router({
       return { success: true };
     }),
 
+  /** Get a single work order by ID */
+  getWorkOrderById: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) return null;
+      const rows = await db.select().from(sanadApplications).where(eq(sanadApplications.id, input.id)).limit(1);
+      return rows[0] ?? null;
+    }),
+
   /** Rate a completed work order */
   rateWorkOrder: protectedProcedure
     .input(

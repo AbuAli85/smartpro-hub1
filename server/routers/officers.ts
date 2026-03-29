@@ -15,6 +15,7 @@ import {
 import { adminProcedure, protectedProcedure, router } from "../_core/trpc";
 import { storagePut } from "../storage";
 import { assertRowBelongsToActiveCompany } from "../_core/tenant";
+import { getActiveCompanyMembership } from "../_core/membership";
 import type { User } from "../../drizzle/schema";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -582,11 +583,27 @@ export const officersRouter = router({
   // ── List certificates ──────────────────────────────────────────────────────
   listCertificates: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }))
-    .query(async ({ input }) => {
+    .query(async ({ ctx, input }) => {
+      const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
+      let filterCompanyId: number | undefined;
+
+      if (!isPlatform) {
+        const m = await getActiveCompanyMembership(ctx.user.id);
+        if (!m) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "No company membership" });
+        }
+        if (input?.companyId != null && input.companyId !== m.companyId) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Certificates not found" });
+        }
+        filterCompanyId = m.companyId;
+      } else {
+        filterCompanyId = input?.companyId;
+      }
+
       const db = await getDb();
       if (!db) return [];
 
-      const conditions = input?.companyId ? [eq(complianceCertificates.companyId, input.companyId)] : [];
+      const conditions = filterCompanyId != null ? [eq(complianceCertificates.companyId, filterCompanyId)] : [];
 
       return db
         .select({

@@ -15,6 +15,7 @@
  *     }]
  *   });
  */
+import { randomUUID } from "crypto";
 import { storagePut } from "server/storage";
 import { ENV } from "./env";
 
@@ -82,7 +83,7 @@ export async function generateImage(
 
   // Save to S3
   const { url } = await storagePut(
-    `generated/${Date.now()}.png`,
+    `generated/${randomUUID()}.png`,
     buffer,
     result.image.mimeType
   );

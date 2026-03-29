@@ -342,6 +342,7 @@ Generate a complete, professional contract document with all standard clauses fo
       const contract = await getContractById(input.id);
       if (!contract) throw new TRPCError({ code: "NOT_FOUND" });
       await assertRowBelongsToActiveCompany(ctx.user, contract.companyId, "Contract");
+      const cid = contract.companyId!;
       const signers = await db.select().from(contractSignatures)
         .where(eq(contractSignatures.contractId, input.id))
         .orderBy(asc(contractSignatures.createdAt));
@@ -378,7 +379,6 @@ h1{text-align:center;font-size:20px;text-transform:uppercase;border-bottom:2px s
 <div class="content">${contract.content ?? "No content."}</div>
 <div class="signatures">${sigBlocks}</div>
 </body></html>`;
-      const cid = contract.companyId ?? 0;
       const key = `contracts/${cid}/signed/${input.id}-${contract.contractNumber?.replace(/[^a-zA-Z0-9]/g, "-")}-signed-${Date.now()}.html`;
       const { url } = await storagePut(key, Buffer.from(html, "utf-8"), "text/html");
       await updateContract(input.id, { pdfUrl: url });
@@ -392,8 +392,8 @@ h1{text-align:center;font-size:20px;text-transform:uppercase;border-bottom:2px s
       const contract = await getContractById(input.id);
       if (!contract) throw new TRPCError({ code: "NOT_FOUND" });
       await assertRowBelongsToActiveCompany(ctx.user, contract.companyId, "Contract");
+      const cid = contract.companyId!;
       const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${contract.title}</title><style>body{font-family:'Times New Roman',serif;max-width:800px;margin:40px auto;padding:40px;line-height:1.8;color:#1a1a1a}h1{text-align:center;font-size:20px;text-transform:uppercase;border-bottom:2px solid #1a1a1a;padding-bottom:12px;margin-bottom:24px}.meta{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:24px;font-size:13px}.content{white-space:pre-wrap;font-size:13px}.signatures{margin-top:60px;display:grid;grid-template-columns:1fr 1fr;gap:40px}.sig-block{border-top:1px solid #333;padding-top:8px;font-size:12px}@media print{body{margin:0}}</style></head><body><h1>${contract.title}</h1><div class="meta"><div><span>Contract No:</span><strong>${contract.contractNumber}</strong></div><div><span>Status:</span><strong>${contract.status?.toUpperCase()}</strong></div><div><span>Party A:</span><strong>${contract.partyAName ?? "—"}</strong></div><div><span>Party B:</span><strong>${contract.partyBName ?? "—"}</strong></div>${contract.value ? `<div><span>Value:</span><strong>${contract.value} ${contract.currency}</strong></div>` : ""}</div><div class="content">${contract.content ?? "No content."}</div><div class="signatures"><div class="sig-block"><p>Party A: ${contract.partyAName ?? "___"}</p><p>Signature: _______________</p><p>Date: _______________</p></div><div class="sig-block"><p>Party B: ${contract.partyBName ?? "___"}</p><p>Signature: _______________</p><p>Date: _______________</p></div></div></body></html>`;
-      const cid = contract.companyId ?? 0;
       const fileKey = `contracts/${cid}/${input.id}-${contract.contractNumber?.replace(/[^a-zA-Z0-9]/g, "-")}-${Date.now()}.html`;
       const { url } = await storagePut(fileKey, Buffer.from(html, "utf-8"), "text/html");
       await updateContract(input.id, { pdfUrl: url });

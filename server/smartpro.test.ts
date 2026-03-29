@@ -389,6 +389,52 @@ describe("reports.generateOfficerPayoutReport", () => {
   });
 });
 
+describe("reports company-scoped PDF exports", () => {
+  it("generateBillingSummary returns FORBIDDEN without active company membership", async () => {
+    vi.mocked(db.getUserCompany).mockResolvedValueOnce(null);
+    const caller = appRouter.createCaller(
+      makeCtx({ role: "user", platformRole: "company_member" }),
+    );
+    await expect(
+      caller.reports.generateBillingSummary({ month: 3, year: 2026 }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+});
+
+describe("officers.listCertificates", () => {
+  it("returns empty when DB is unavailable", async () => {
+    vi.mocked(db.getUserCompany).mockResolvedValueOnce({
+      company: { id: 1 },
+      member: { role: "company_admin" },
+    } as any);
+    const caller = appRouter.createCaller(
+      makeCtx({ role: "user", platformRole: "company_member" }),
+    );
+    await expect(caller.officers.listCertificates({})).resolves.toEqual([]);
+  });
+
+  it("returns NOT_FOUND when tenant passes another companyId", async () => {
+    vi.mocked(db.getUserCompany).mockResolvedValueOnce({
+      company: { id: 5 },
+      member: { role: "company_admin" },
+    } as any);
+    const caller = appRouter.createCaller(
+      makeCtx({ role: "user", platformRole: "company_member" }),
+    );
+    await expect(caller.officers.listCertificates({ companyId: 99 })).rejects.toMatchObject({
+      code: "NOT_FOUND",
+    });
+  });
+
+  it("returns FORBIDDEN without company membership", async () => {
+    vi.mocked(db.getUserCompany).mockResolvedValueOnce(null);
+    const caller = appRouter.createCaller(
+      makeCtx({ role: "user", platformRole: "company_member" }),
+    );
+    await expect(caller.officers.listCertificates({})).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+});
+
 describe("workforce.cases.updateTask", () => {
   it("requires company context (no silent cross-tenant updates)", async () => {
     const caller = appRouter.createCaller(

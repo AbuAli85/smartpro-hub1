@@ -90,6 +90,13 @@ const navGroups = [
     ],
   },
   {
+    label: "My Company",
+    items: [
+      { label: "Company Workspace", href: "/company/workspace", icon: <Building2 size={18} /> },
+      { label: "My Team", href: "/my-team", icon: <Users size={18} /> },
+    ],
+  },
+  {
     label: "Business",
     items: [
       { label: "Company hub", href: "/company/hub", icon: <Building2 size={18} /> },

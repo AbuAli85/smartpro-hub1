@@ -757,3 +757,59 @@ As a business services provider in Oman/GCC, here is what I need every single da
 - [x] Fix membership -> member property references in PlatformLayout and ClientAccessGate
 - [x] Write server/auditor.test.ts with 25 tests covering requireNotAuditor, AUDITOR_BLOCKED_HREFS, nav filtering, and route access
 - [x] All 240 tests passing, zero TypeScript errors
+
+## Phase 29: My Team — Self-Service Staff Management
+
+### Business Goal
+Any company member (admin or regular) can add, view, edit, and manage their own staff directly from the platform without needing to navigate the full HR module.
+
+### Backend tRPC Procedures
+- [ ] tRPC: team.listMembers — list all employees for the caller's company (with search, status, department filters)
+- [ ] tRPC: team.getMember — get full profile of a single team member
+- [ ] tRPC: team.addMember — add a new staff member (simplified 2-step form: personal + role)
+- [ ] tRPC: team.updateMember — update name, position, department, phone, email, status
+- [ ] tRPC: team.deleteMember — soft-delete / terminate a team member (status → terminated)
+
+### Frontend Pages
+- [ ] UI: MyTeamPage.tsx — staff directory with card grid + table toggle, search, filter by department/status, headcount stats bar
+- [ ] UI: Add Staff dialog — 2-step wizard (Step 1: name/email/phone/nationality; Step 2: department/position/employment type/hire date)
+- [ ] UI: Staff profile side panel — full details, edit inline, quick actions (email, call), status change with confirmation
+- [ ] UI: Department breakdown — mini chart showing headcount by department
+- [ ] UI: Empty state — friendly prompt when no staff added yet
+
+### Routes & Navigation
+- [x] Route: /my-team registered in App.tsx
+- [ ] Nav: "My Team" link in PlatformLayout sidebar under Company section (visible to all company roles)
+
+### Tests
+- [ ] Vitest tests for team router procedures
+
+## Phase 30: All-in-One Company Workspace
+
+### Business Goal
+Every company on SmartPRO Hub gets a complete, unified business operating area — staff management, payroll, HR, contracts, PRO services, compliance — all accessible from one place with clear step-by-step guidance.
+
+### Backend tRPC Procedures
+- [x] tRPC: team.listMembers — list company employees with search/filter (wraps hr.listEmployees with simpler API)
+- [x] tRPC: team.getMember — get full staff profile
+- [x] tRPC: team.addMember — add staff (name, role, department, employment type, salary)
+- [x] tRPC: team.updateMember — update staff details (name, position, department, phone, email, status)
+- [x] tRPC: team.removeMember — soft-delete / terminate (status → terminated)
+- [x] tRPC: team.getTeamStats — headcount, active, on_leave, by department, recent hires
+
+### Frontend Pages
+- [x] UI: MyTeamPage.tsx — full staff directory: card grid + table toggle, search, filter by dept/status, headcount KPI bar, add/edit/offboard dialogs, staff profile side panel
+- [x] UI: CompanyWorkspacePage.tsx — unified company hub: live KPI tiles (staff count, payroll status, open contracts, compliance score, PRO cases, expiry alerts), quick-action buttons, module cards with status, step-by-step setup guide for new companies
+- [x] UI: Staff profile side panel — full details, inline edit, quick actions (email, call), status change with confirmation dialog
+- [x] UI: Department breakdown mini-chart in My Team page
+- [x] UI: Empty state with onboarding prompt when no staff added yet
+
+### Navigation & Routes
+- [x] Route: /my-team registered in App.tsx
+- [x] Route: /company/workspace registered in App.tsx (replaces /company/hub as primary entry)
+- [x] Nav: "My Team" link added to sidebar under Business/Company section (visible to all company roles)
+- [x] Nav: "Company Workspace" as top-level entry point in sidebar (visible to all company roles)
+- [x] Add /my-team to PORTAL_CLIENT_HREFS so portal-only clients can also access it
+
+### Tests
+- [x] Vitest tests for team router (listMembers, addMember, updateMember, getTeamStats)

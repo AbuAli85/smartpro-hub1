@@ -56,6 +56,8 @@ import QuotationsPage from "./pages/QuotationsPage";
 import SlaManagementPage from "./pages/SlaManagementPage";
 import ComplianceDashboardPage from "./pages/ComplianceDashboardPage";
 import CompanyHubPage from "./pages/CompanyHubPage";
+import CompanyWorkspacePage from "./pages/CompanyWorkspacePage";
+import MyTeamPage from "./pages/MyTeamPage";
 import PreferencesPage from "./pages/PreferencesPage";
 import OnboardingGuidePage from "@/pages/OnboardingGuidePage";
 import AcceptInvitePage from "@/pages/AcceptInvitePage";
@@ -121,6 +123,8 @@ function AppRoutes() {
         <Route path="/sla-management" component={SlaManagementPage} />
         <Route path="/compliance" component={ComplianceDashboardPage} />
         <Route path="/company/hub" component={CompanyHubPage} />
+        <Route path="/company/workspace" component={CompanyWorkspacePage} />
+        <Route path="/my-team" component={MyTeamPage} />
         <Route path="/preferences" component={PreferencesPage} />
         <Route path="/onboarding-guide" component={OnboardingGuidePage} />
         <Route path="/invite/:token" component={AcceptInvitePage} />

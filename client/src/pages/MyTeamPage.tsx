@@ -308,7 +308,7 @@ function StaffProfilePanel({
 
   if (isLoading) {
     return (
-      <div className="w-80 border-l border-gray-200 bg-white flex items-center justify-center">
+      <div className="w-80 border-l border-border bg-card flex items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-2 border-[var(--smartpro-orange)] border-t-transparent" />
       </div>
     );
@@ -319,28 +319,28 @@ function StaffProfilePanel({
   const initials = getInitials(member.firstName, member.lastName);
 
   return (
-    <div className="w-80 border-l border-gray-200 bg-white flex flex-col overflow-hidden">
+    <div className="w-80 border-l border-border bg-card flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-        <span className="text-sm font-semibold text-gray-800">Staff Profile</span>
-        <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+        <span className="text-sm font-semibold text-foreground">Staff Profile</span>
+        <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
           <X size={16} />
         </button>
       </div>
 
       <div className="flex-1 overflow-y-auto">
         {/* Avatar + name */}
-        <div className="flex flex-col items-center py-6 px-4 bg-gradient-to-b from-gray-50 to-white border-b border-gray-100">
+        <div className="flex flex-col items-center py-6 px-4 bg-gradient-to-b from-muted/40 to-card border-b border-border">
           <Avatar className="w-16 h-16 mb-3">
             <AvatarFallback className="bg-[var(--smartpro-orange)] text-white text-xl font-bold">
               {initials}
             </AvatarFallback>
           </Avatar>
           <div className="text-center">
-            <div className="font-semibold text-gray-900 text-base">
+            <div className="font-semibold text-foreground text-base">
               {member.firstName} {member.lastName}
             </div>
-            <div className="text-sm text-gray-500 mt-0.5">{member.position || "—"}</div>
+            <div className="text-sm text-muted-foreground mt-0.5">{member.position || "—"}</div>
             <div className="mt-2 flex items-center justify-center gap-1.5">
               <Badge className={`text-xs border ${sm.color} flex items-center gap-1`}>
                 {sm.icon} {sm.label}
@@ -355,7 +355,7 @@ function StaffProfilePanel({
         </div>
 
         {/* Quick actions */}
-        <div className="flex gap-2 px-4 py-3 border-b border-gray-100">
+        <div className="flex gap-2 px-4 py-3 border-b border-border">
           {member.email && (
             <a href={`mailto:${member.email}`} className="flex-1">
               <Button variant="outline" size="sm" className="w-full gap-1.5 text-xs">
@@ -416,7 +416,7 @@ function StaffProfilePanel({
                   className={`text-xs px-2 py-1.5 rounded-md border transition-all flex items-center gap-1 justify-center
                     ${member.status === status
                       ? "border-[var(--smartpro-orange)] bg-orange-50 text-orange-700 font-semibold cursor-default"
-                      : "border-gray-200 hover:border-gray-300 text-gray-600 hover:bg-gray-50"
+                      : "border-border hover:border-muted-foreground text-muted-foreground hover:bg-muted/50"
                     }`}
                 >
                   {meta.icon} {meta.label}
@@ -428,7 +428,7 @@ function StaffProfilePanel({
       </div>
 
       {/* Footer */}
-      <div className="px-4 py-3 border-t border-gray-100">
+      <div className="px-4 py-3 border-t border-border">
         <Button
           variant="outline"
           size="sm"
@@ -445,7 +445,7 @@ function StaffProfilePanel({
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <div className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">{title}</div>
+      <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2">{title}</div>
       <div className="space-y-1.5">{children}</div>
     </div>
   );
@@ -454,9 +454,9 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 function InfoRow({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
   return (
     <div className="flex items-start gap-2">
-      <span className="text-gray-400 mt-0.5 shrink-0">{icon}</span>
-      <span className="text-xs text-gray-500 w-20 shrink-0">{label}</span>
-      <span className="text-xs text-gray-800 font-medium break-all">{value}</span>
+      <span className="text-muted-foreground mt-0.5 shrink-0">{icon}</span>
+      <span className="text-xs text-muted-foreground w-20 shrink-0">{label}</span>
+      <span className="text-xs text-foreground font-medium break-all">{value}</span>
     </div>
   );
 }
@@ -469,14 +469,14 @@ function DeptChart({ data }: { data: { dept: string; count: number }[] }) {
     <div className="space-y-2">
       {data.slice(0, 8).map((d, i) => (
         <div key={d.dept} className="flex items-center gap-2">
-          <div className="w-24 text-xs text-gray-600 truncate text-right">{d.dept}</div>
-          <div className="flex-1 bg-gray-100 rounded-full h-2 overflow-hidden">
+          <div className="w-24 text-xs text-muted-foreground truncate text-right">{d.dept}</div>
+          <div className="flex-1 bg-muted rounded-full h-2 overflow-hidden">
             <div
               className={`h-2 rounded-full ${DEPT_COLORS[i % DEPT_COLORS.length]}`}
               style={{ width: `${(d.count / max) * 100}%` }}
             />
           </div>
-          <div className="w-6 text-xs font-semibold text-gray-700 text-right">{d.count}</div>
+          <div className="w-6 text-xs font-semibold text-foreground text-right">{d.count}</div>
         </div>
       ))}
     </div>
@@ -495,7 +495,7 @@ function StaffCard({
   return (
     <div
       onClick={onClick}
-      className="bg-white border border-gray-200 rounded-xl p-4 cursor-pointer hover:border-[var(--smartpro-orange)] hover:shadow-md transition-all group relative"
+      className="bg-card border border-border rounded-xl p-4 cursor-pointer hover:border-[var(--smartpro-orange)] hover:shadow-md transition-all group relative"
     >
       <div className="absolute top-3 right-3" onClick={(e) => e.stopPropagation()}>
         <DropdownMenu>
@@ -521,11 +521,11 @@ function StaffCard({
           </AvatarFallback>
         </Avatar>
         <div className="min-w-0 flex-1">
-          <div className="font-semibold text-gray-900 text-sm truncate">
+          <div className="font-semibold text-foreground text-sm truncate">
             {member.firstName} {member.lastName}
           </div>
-          <div className="text-xs text-gray-500 truncate">{member.position || "—"}</div>
-          <div className="text-xs text-gray-400 truncate">{member.department || "No department"}</div>
+          <div className="text-xs text-muted-foreground truncate">{member.position || "—"}</div>
+          <div className="text-xs text-muted-foreground/70 truncate">{member.department || "No department"}</div>
         </div>
       </div>
 
@@ -533,7 +533,7 @@ function StaffCard({
         <Badge className={`text-[10px] border px-1.5 py-0.5 flex items-center gap-1 ${sm.color}`}>
           {sm.icon} {sm.label}
         </Badge>
-        <span className="text-[10px] text-gray-400">{EMP_TYPE_LABELS[member.employmentType ?? "full_time"]}</span>
+        <span className="text-[10px] text-muted-foreground">{EMP_TYPE_LABELS[member.employmentType ?? "full_time"]}</span>
       </div>
 
       {member.email && (
@@ -592,14 +592,14 @@ export default function MyTeamPage() {
       {/* Main content */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Page header */}
-        <div className="px-6 py-5 border-b border-gray-200 bg-white">
+        <div className="px-6 py-5 border-b border-border bg-card">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+              <h1 className="text-xl font-bold text-foreground flex items-center gap-2">
                 <Users size={20} className="text-[var(--smartpro-orange)]" />
                 My Team
               </h1>
-              <p className="text-sm text-gray-500 mt-0.5">
+              <p className="text-sm text-muted-foreground mt-0.5">
                 Manage your company's staff — add, edit, and track your entire workforce
               </p>
             </div>
@@ -615,14 +615,14 @@ export default function MyTeamPage() {
           {stats && (
             <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3">
               {[
-                { label: "Total Staff", value: stats.total, color: "text-gray-800", bg: "bg-gray-50 border-gray-200" },
+                { label: "Total Staff", value: stats.total, color: "text-foreground", bg: "bg-muted/60 border-border" },
                 { label: "Active", value: stats.active, color: "text-emerald-700", bg: "bg-emerald-50 border-emerald-200" },
                 { label: "On Leave", value: stats.onLeave, color: "text-amber-700", bg: "bg-amber-50 border-amber-200" },
                 { label: "Departments", value: stats.byDepartment.length, color: "text-blue-700", bg: "bg-blue-50 border-blue-200" },
               ].map((k) => (
                 <div key={k.label} className={`rounded-lg border px-3 py-2 ${k.bg}`}>
                   <div className={`text-2xl font-black ${k.color}`}>{k.value}</div>
-                  <div className="text-xs text-gray-500 mt-0.5">{k.label}</div>
+                  <div className="text-xs text-muted-foreground mt-0.5">{k.label}</div>
                 </div>
               ))}
             </div>
@@ -630,9 +630,9 @@ export default function MyTeamPage() {
         </div>
 
         {/* Filters + view toggle */}
-        <div className="px-6 py-3 border-b border-gray-100 bg-white flex items-center gap-3 flex-wrap">
+        <div className="px-6 py-3 border-b border-border bg-card flex items-center gap-3 flex-wrap">
           <div className="relative flex-1 min-w-48">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <Input
               placeholder="Search by name, position, email…"
               value={search}
@@ -662,16 +662,16 @@ export default function MyTeamPage() {
               ))}
             </SelectContent>
           </Select>
-          <div className="flex items-center border border-gray-200 rounded-lg overflow-hidden">
+          <div className="flex items-center border border-border rounded-lg overflow-hidden">
             <button
               onClick={() => setViewMode("grid")}
-              className={`px-2.5 py-1.5 transition-colors ${viewMode === "grid" ? "bg-[var(--smartpro-orange)] text-white" : "text-gray-500 hover:bg-gray-50"}`}
+              className={`px-2.5 py-1.5 transition-colors ${viewMode === "grid" ? "bg-[var(--smartpro-orange)] text-white" : "text-muted-foreground hover:bg-muted/50"}`}
             >
               <LayoutGrid size={14} />
             </button>
             <button
               onClick={() => setViewMode("list")}
-              className={`px-2.5 py-1.5 transition-colors ${viewMode === "list" ? "bg-[var(--smartpro-orange)] text-white" : "text-gray-500 hover:bg-gray-50"}`}
+              className={`px-2.5 py-1.5 transition-colors ${viewMode === "list" ? "bg-[var(--smartpro-orange)] text-white" : "text-muted-foreground hover:bg-muted/50"}`}
             >
               <List size={14} />
             </button>
@@ -683,7 +683,7 @@ export default function MyTeamPage() {
           {isLoading ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
               {Array.from({ length: 8 }).map((_, i) => (
-                <div key={i} className="bg-gray-100 rounded-xl h-40 animate-pulse" />
+                <div key={i} className="bg-muted rounded-xl h-40 animate-pulse" />
               ))}
             </div>
           ) : members.length === 0 ? (
@@ -691,12 +691,12 @@ export default function MyTeamPage() {
               <div className="w-16 h-16 rounded-full bg-orange-50 flex items-center justify-center mb-4">
                 <Users size={28} className="text-[var(--smartpro-orange)]" />
               </div>
-              <h3 className="text-base font-semibold text-gray-800 mb-1">
+              <h3 className="text-base font-semibold text-foreground mb-1">
                 {search || statusFilter !== "all" || deptFilter !== "all"
                   ? "No staff match your filters"
                   : "No staff added yet"}
               </h3>
-              <p className="text-sm text-gray-500 max-w-xs">
+              <p className="text-sm text-muted-foreground max-w-xs">
                 {search || statusFilter !== "all" || deptFilter !== "all"
                   ? "Try adjusting your search or filters."
                   : "Start building your team by adding your first staff member. It only takes a minute."}
@@ -724,16 +724,16 @@ export default function MyTeamPage() {
             </div>
           ) : (
             /* Table view */
-            <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+            <div className="bg-card border border-border rounded-xl overflow-hidden">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-gray-100 bg-gray-50">
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Name</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Department</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Position</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Type</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Contact</th>
+                  <tr className="border-b border-border bg-muted/50">
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Name</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Department</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Position</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Type</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Status</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Contact</th>
                     <th className="px-4 py-3" />
                   </tr>
                 </thead>
@@ -744,7 +744,7 @@ export default function MyTeamPage() {
                       <tr
                         key={m.id}
                         onClick={() => setSelectedId(m.id)}
-                        className="border-b border-gray-50 hover:bg-gray-50 cursor-pointer transition-colors"
+                        className="border-b border-border/60 hover:bg-muted/30 cursor-pointer transition-colors"
                       >
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2.5">
@@ -754,14 +754,14 @@ export default function MyTeamPage() {
                               </AvatarFallback>
                             </Avatar>
                             <div>
-                              <div className="font-medium text-gray-900">{m.firstName} {m.lastName}</div>
-                              {m.employeeNumber && <div className="text-xs text-gray-400">{m.employeeNumber}</div>}
+                              <div className="font-medium text-foreground">{m.firstName} {m.lastName}</div>
+                              {m.employeeNumber && <div className="text-xs text-muted-foreground">{m.employeeNumber}</div>}
                             </div>
                           </div>
                         </td>
-                        <td className="px-4 py-3 text-gray-600">{m.department || "—"}</td>
-                        <td className="px-4 py-3 text-gray-600">{m.position || "—"}</td>
-                        <td className="px-4 py-3 text-gray-500 text-xs">{EMP_TYPE_LABELS[m.employmentType ?? "full_time"]}</td>
+                        <td className="px-4 py-3 text-muted-foreground">{m.department || "—"}</td>
+                        <td className="px-4 py-3 text-muted-foreground">{m.position || "—"}</td>
+                        <td className="px-4 py-3 text-muted-foreground text-xs">{EMP_TYPE_LABELS[m.employmentType ?? "full_time"]}</td>
                         <td className="px-4 py-3">
                           <Badge className={`text-[10px] border flex items-center gap-1 w-fit ${sm.color}`}>
                             {sm.icon} {sm.label}
@@ -769,8 +769,8 @@ export default function MyTeamPage() {
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2">
-                            {m.email && <a href={`mailto:${m.email}`} onClick={(e) => e.stopPropagation()} className="text-gray-400 hover:text-gray-600"><Mail size={13} /></a>}
-                            {m.phone && <a href={`tel:${m.phone}`} onClick={(e) => e.stopPropagation()} className="text-gray-400 hover:text-gray-600"><Phone size={13} /></a>}
+                            {m.email && <a href={`mailto:${m.email}`} onClick={(e) => e.stopPropagation()} className="text-muted-foreground hover:text-foreground"><Mail size={13} /></a>}
+                            {m.phone && <a href={`tel:${m.phone}`} onClick={(e) => e.stopPropagation()} className="text-muted-foreground hover:text-foreground"><Phone size={13} /></a>}
                           </div>
                         </td>
                         <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>

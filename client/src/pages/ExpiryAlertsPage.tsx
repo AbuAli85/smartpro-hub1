@@ -28,6 +28,7 @@ import {
   User,
 } from "lucide-react";
 import { Link } from "wouter";
+import { toast } from "sonner";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -61,31 +62,31 @@ interface ExpiryAlert {
 const SEVERITY_CONFIG: Record<AlertSeverity, { label: string; color: string; bg: string; icon: React.ReactNode; border: string }> = {
   critical: {
     label: "Critical",
-    color: "text-red-700",
-    bg: "bg-red-50",
-    border: "border-red-200",
-    icon: <AlertCircle size={14} className="text-red-600" />,
+    color: "text-red-600 dark:text-red-400",
+    bg: "bg-red-50 dark:bg-red-950/40",
+    border: "border-red-200 dark:border-red-800",
+    icon: <AlertCircle size={14} className="text-red-600 dark:text-red-400" />,
   },
   high: {
     label: "High",
-    color: "text-orange-700",
-    bg: "bg-orange-50",
-    border: "border-orange-200",
-    icon: <AlertTriangle size={14} className="text-orange-600" />,
+    color: "text-orange-600 dark:text-orange-400",
+    bg: "bg-orange-50 dark:bg-orange-950/40",
+    border: "border-orange-200 dark:border-orange-800",
+    icon: <AlertTriangle size={14} className="text-orange-600 dark:text-orange-400" />,
   },
   medium: {
     label: "Medium",
-    color: "text-amber-700",
-    bg: "bg-amber-50",
-    border: "border-amber-200",
-    icon: <Clock size={14} className="text-amber-600" />,
+    color: "text-amber-600 dark:text-amber-400",
+    bg: "bg-amber-50 dark:bg-amber-950/40",
+    border: "border-amber-200 dark:border-amber-800",
+    icon: <Clock size={14} className="text-amber-600 dark:text-amber-400" />,
   },
   low: {
     label: "Low",
-    color: "text-blue-700",
-    bg: "bg-blue-50",
-    border: "border-blue-200",
-    icon: <Info size={14} className="text-blue-600" />,
+    color: "text-blue-600 dark:text-blue-400",
+    bg: "bg-blue-50 dark:bg-blue-950/40",
+    border: "border-blue-200 dark:border-blue-800",
+    icon: <Info size={14} className="text-blue-600 dark:text-blue-400" />,
   },
 };
 
@@ -112,9 +113,9 @@ export default function ExpiryAlertsPage() {
   const triggerRenewal = trpc.alerts.triggerRenewal.useMutation({
     onSuccess: (data) => {
       setRenewingId(null);
-      alert(data.message);
+      toast.success(data.message);
     },
-    onError: () => setRenewingId(null),
+    onError: (e) => { setRenewingId(null); toast.error(e.message); },
   });
 
   const alertsQuery = trpc.alerts.getExpiryAlerts.useQuery({
@@ -257,9 +258,18 @@ export default function ExpiryAlertsPage() {
 
       {/* Alerts List */}
       {alertsQuery.isLoading ? (
-        <div className="text-center py-16 text-muted-foreground">
-          <RefreshCw className="animate-spin mx-auto mb-3" size={32} />
-          Loading alerts...
+        <div className="space-y-2">
+          {[1,2,3,4].map((i) => (
+            <div key={i} className="flex items-start gap-3 p-4 rounded-xl border border-border animate-pulse">
+              <div className="w-9 h-9 rounded-lg bg-muted shrink-0" />
+              <div className="flex-1 space-y-2">
+                <div className="h-4 bg-muted rounded w-48" />
+                <div className="h-3 bg-muted rounded w-72" />
+                <div className="h-3 bg-muted rounded w-36" />
+              </div>
+              <div className="w-14 h-14 rounded-lg bg-muted shrink-0" />
+            </div>
+          ))}
         </div>
       ) : filtered.length === 0 ? (
         <div className="text-center py-16 border-2 border-dashed rounded-xl">
@@ -287,7 +297,7 @@ export default function ExpiryAlertsPage() {
                 className={`flex items-start gap-3 p-4 rounded-xl border ${sev.border} ${sev.bg} transition-all hover:shadow-sm`}
               >
                 {/* Severity indicator */}
-                <div className={`mt-0.5 p-1.5 rounded-lg bg-white/60 border ${sev.border}`}>
+                <div className={`mt-0.5 p-1.5 rounded-lg bg-background/60 border ${sev.border}`}>
                   {sev.icon}
                 </div>
 
@@ -298,7 +308,7 @@ export default function ExpiryAlertsPage() {
                     <Badge variant="outline" className={`text-xs px-1.5 py-0 ${sev.color} border-current/30`}>
                       {sev.label}
                     </Badge>
-                    <span className="inline-flex items-center gap-1 text-xs text-muted-foreground bg-white/60 px-2 py-0.5 rounded-full border border-muted">
+                    <span className="inline-flex items-center gap-1 text-xs text-muted-foreground bg-background/60 px-2 py-0.5 rounded-full border border-muted">
                       {cat.icon}
                       {cat.label}
                     </span>
@@ -320,7 +330,7 @@ export default function ExpiryAlertsPage() {
 
                 {/* Days badge + action */}
                 <div className="flex flex-col items-end gap-2 shrink-0">
-                  <div className={`text-center px-3 py-1.5 rounded-lg bg-white/70 border ${sev.border}`}>
+                  <div className={`text-center px-3 py-1.5 rounded-lg bg-background/70 border ${sev.border}`}>
                     <div className={`text-xl font-bold ${sev.color}`}>{alert.daysUntilExpiry}</div>
                     <div className={`text-xs ${sev.color} opacity-80`}>days</div>
                   </div>

@@ -274,7 +274,7 @@ function SignatureCanvasDialog({ signatureId, signerName }: { signatureId: numbe
         <DialogHeader><DialogTitle>Sign as {signerName}</DialogTitle></DialogHeader>
         <div className="space-y-3">
           <p className="text-sm text-muted-foreground">Draw your signature below using your mouse or touchscreen.</p>
-          <div className="border-2 border-dashed rounded-lg overflow-hidden bg-white">
+          <div className="border-2 border-dashed rounded-lg overflow-hidden bg-white dark:bg-zinc-100">
             <canvas ref={canvasRef} width={400} height={150} className="w-full touch-none cursor-crosshair"
               onMouseDown={startDraw} onMouseMove={draw} onMouseUp={stopDraw} onMouseLeave={stopDraw}
               onTouchStart={startDraw} onTouchMove={draw} onTouchEnd={stopDraw} />

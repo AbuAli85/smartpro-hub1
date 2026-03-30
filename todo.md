@@ -813,3 +813,51 @@ Every company on SmartPRO Hub gets a complete, unified business operating area �
 
 ### Tests
 - [x] Vitest tests for team router (listMembers, addMember, updateMember, getTeamStats)
+
+## Phase 31: Client UX Enhancement Pass
+
+### Global / Design System
+- [ ] Fix navy blue usage in OnboardingPage (replace with charcoal/gray)
+- [ ] Add consistent page-level loading skeleton to all data-heavy pages
+- [ ] Add `PageHeader` reusable component with breadcrumb, title, subtitle, and action slot
+- [ ] Improve empty state components — consistent icon + message + CTA pattern
+- [ ] Fix dark mode on CompanyWorkspacePage KPI tiles (remove hardcoded bg-white)
+
+### Navigation
+- [ ] Add "My Company" group visibility rule — only show when user has a company workspace
+- [ ] Improve sidebar active-state to highlight parent when on child routes
+
+### My Team
+- [ ] Simplify Add Staff wizard — reduce to 2 focused steps (Essential Info / Employment Details)
+- [ ] Add avatar colour variety using department-based colour assignment
+- [ ] Add sticky table header in table view
+- [ ] Add "Copy email" quick action in staff card dropdown
+
+### Company Workspace
+- [ ] Add loading skeleton for KPI tiles while data loads
+- [ ] Add "no company" guard with CTA to create company
+- [ ] Make module cards show live counts (employees, contracts, alerts)
+
+### HR Leave & Payroll
+- [ ] Add leave balance summary bar (Annual / Sick / Emergency remaining days)
+- [ ] Add date range validation (end date must be after start date)
+- [ ] Add visual status timeline on leave request cards
+
+### PRO Services
+- [ ] Add quick-filter chips (All / Pending / In Progress / Completed) above the list
+- [ ] Make workflow progress bar responsive on mobile
+
+### Expiry Alerts
+- [ ] Add "Mark All as Acknowledged" bulk action button
+- [ ] Fix severity badge colours to use brand palette (not blue)
+
+### Contracts
+- [ ] Convert create form to 2-step wizard (Basic Info / Terms & Dates)
+- [ ] Add contract type icon in the list view
+
+### Subscriptions
+- [ ] Make plan comparison cards stack properly on mobile
+
+### Client Portal
+- [ ] Replace hardcoded blue unread badge with brand orange
+- [ ] Add message count badge on the Messages tab trigger

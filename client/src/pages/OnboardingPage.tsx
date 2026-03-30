@@ -89,7 +89,7 @@ export default function OnboardingPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-[var(--smartpro-navy)] to-slate-800 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-[var(--smartpro-charcoal)] via-[oklch(0.20_0.012_250)] to-[oklch(0.15_0.008_250)] flex items-center justify-center p-4">
       <div className="w-full max-w-2xl">
         {/* Logo */}
         <div className="text-center mb-8">
@@ -266,9 +266,14 @@ export default function OnboardingPage() {
                     </div>
                   ))}
                 </div>
-                <Button className="w-full gap-2" size="lg" onClick={() => navigate("/dashboard")}>
-                  Go to Dashboard <ArrowRight size={16} />
-                </Button>
+                <div className="flex flex-col gap-3">
+                  <Button className="w-full gap-2" size="lg" onClick={() => navigate("/company/workspace")}>
+                    Go to Company Workspace <ArrowRight size={16} />
+                  </Button>
+                  <Button variant="outline" className="w-full gap-2" onClick={() => navigate("/my-team")}>
+                    Add Your First Staff Member
+                  </Button>
+                </div>
               </div>
             )}
           </CardContent>

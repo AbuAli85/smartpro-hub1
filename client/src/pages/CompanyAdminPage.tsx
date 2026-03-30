@@ -978,7 +978,7 @@ export default function CompanyAdminPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setRoleDialog(null)}>Cancel</Button>
             <Button
-              onClick={() => roleDialog && updateRole.mutate({ memberId: roleDialog.memberId, role: newRole })}
+              onClick={() => roleDialog && updateRole.mutate({ memberId: roleDialog.memberId, role: newRole as Parameters<typeof updateRole.mutate>[0]['role'] })}
               disabled={!roleDialog || newRole === roleDialog?.currentRole || updateRole.isPending}
               className="gap-2"
             >
@@ -1030,7 +1030,7 @@ export default function CompanyAdminPage() {
               <DialogFooter>
                 <Button variant="outline" onClick={() => setShowInviteDialog(false)}>Cancel</Button>
                 <Button
-                  onClick={() => createInvite.mutate({ email: inviteEmail, role: inviteRole, origin: window.location.origin })}
+                  onClick={() => createInvite.mutate({ email: inviteEmail, role: inviteRole as Parameters<typeof createInvite.mutate>[0]['role'], origin: window.location.origin })}
                   disabled={!inviteEmail.trim() || createInvite.isPending}
                   className="gap-2"
                 >

@@ -721,22 +721,22 @@ As a business services provider in Oman/GCC, here is what I need every single da
 - [x] Tests: createInvite, acceptInvite, duplicate-accept guard, expired-token guard, ownerEmail flow
 
 ## Phase 28: External Auditor Role
-- [ ] Schema: add external_auditor to platformRole enum and companyMembers role enum
-- [ ] DB migration: ALTER TABLE to add external_auditor to both enums
-- [ ] shared/rbac.ts: add isExternalAuditor() and assertNotAuditor() helpers
-- [ ] shared/clientNav.ts: add AUDITOR_ALLOWED_HREFS set and auditor nav filtering
-- [ ] Backend: block external_auditor from payroll write procedures (createRun, updateLineItem, approveRun, markPaid, generateWpsFile)
-- [ ] Backend: block external_auditor from HR write procedures (createEmployee, updateEmployee, deleteEmployee, createLeave, approveLeave)
-- [ ] Backend: block external_auditor from company manage procedures (updateCompany, addMember, removeMember, updateRole, createInvite, revokeInvite)
-- [ ] Backend: block external_auditor from billing write procedures (markInvoicePaid, updateInvoiceStatus, recordPayment)
-- [ ] Backend: block external_auditor from PRO/Sanad write procedures (createProService, updateProService, createWorkOrder, updateWorkOrder)
-- [ ] Frontend: AuditModeBanner component (orange/amber banner shown when role is external_auditor)
-- [ ] Frontend: useAuditMode() hook that returns isAuditor boolean from membership
-- [ ] Frontend: PlatformLayout integrates AuditModeBanner below header
-- [ ] Frontend: clientNav.ts auditor-allowed hrefs (read-only pages only)
-- [ ] Frontend: CompanyAdminPage invite dialog adds External Auditor option with tooltip
-- [ ] Frontend: AcceptInvitePage shows Audit Mode explanation for external_auditor invites
-- [ ] Tests: isExternalAuditor(), assertNotAuditor(), auditor nav filtering, payroll/HR/billing write blocks
+- [x] Schema: add external_auditor to platformRole enum and companyMembers role enum
+- [x] DB migration: ALTER TABLE to add external_auditor to both enums
+- [x] shared/rbac.ts: add isExternalAuditor() and assertNotAuditor() helpers
+- [x] shared/clientNav.ts: add AUDITOR_ALLOWED_HREFS set and auditor nav filtering
+- [x] Backend: block external_auditor from payroll write procedures (createRun, updateLineItem, approveRun, markPaid, generateWpsFile)
+- [x] Backend: block external_auditor from HR write procedures (createEmployee, updateEmployee, deleteEmployee, createLeave, approveLeave)
+- [x] Backend: block external_auditor from company manage procedures (updateCompany, addMember, removeMember, updateRole, createInvite, revokeInvite)
+- [x] Backend: block external_auditor from billing write procedures (markInvoicePaid, updateInvoiceStatus, recordPayment)
+- [x] Backend: block external_auditor from PRO/Sanad write procedures (createProService, updateProService, createWorkOrder, updateWorkOrder)
+- [x] Frontend: AuditModeBanner component (orange/amber banner shown when role is external_auditor)
+- [x] Frontend: useAuditMode() hook that returns isAuditor boolean from membership
+- [x] Frontend: PlatformLayout integrates AuditModeBanner below header
+- [x] Frontend: clientNav.ts auditor-allowed hrefs (read-only pages only)
+- [x] Frontend: CompanyAdminPage invite dialog adds External Auditor option with tooltip
+- [x] Frontend: AcceptInvitePage shows Audit Mode explanation for external_auditor invites
+- [x] Tests: isExternalAuditor(), assertNotAuditor(), auditor nav filtering, payroll/HR/billing write blocks
 
 ## Phase 28: External Auditor Role
 - [x] Add external_auditor to company_member_role enum in drizzle/schema.ts

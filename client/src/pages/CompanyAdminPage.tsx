@@ -893,7 +893,7 @@ export default function CompanyAdminPage() {
                 onChange={(e) => setAddEmail(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && addEmail && !addMember.isPending)
-                    addMember.mutate({ email: addEmail, role: addRole });
+                    addMember.mutate({ email: addEmail, role: addRole as Parameters<typeof addMember.mutate>[0]['role'] });
                 }}
               />
               <p className="text-xs text-muted-foreground">
@@ -927,7 +927,7 @@ export default function CompanyAdminPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setAddMemberDialog(false)}>Cancel</Button>
             <Button
-              onClick={() => addMember.mutate({ email: addEmail, role: addRole })}
+              onClick={() => addMember.mutate({ email: addEmail, role: addRole as Parameters<typeof addMember.mutate>[0]['role'] })}
               disabled={!addEmail.trim() || addMember.isPending}
               className="gap-2"
             >

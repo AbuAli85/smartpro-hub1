@@ -32,6 +32,7 @@ import {
   updatePayrollRecord,
 } from "../db";
 import { assertRowBelongsToActiveCompany, requireActiveCompanyId } from "../_core/tenant";
+import { getActiveCompanyMembership, requireNotAuditor } from "../_core/membership";
 import { protectedProcedure, router } from "../_core/trpc";
 
 export const hrRouter = router({
@@ -73,7 +74,10 @@ export const hrRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id);
+      const membership = await getActiveCompanyMembership(ctx.user.id);
+      if (!membership) throw new TRPCError({ code: "FORBIDDEN", message: "No company membership" });
+      requireNotAuditor(membership.role, "External Auditors cannot create employees.");
+      const companyId = membership.companyId;
       await createEmployee({
         ...input,
         companyId,
@@ -96,6 +100,8 @@ export const hrRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
+      const _auditorCheck = await getActiveCompanyMembership(ctx.user.id);
+      if (_auditorCheck) requireNotAuditor(_auditorCheck.role, "External Auditors cannot update employees.");
       const { id, ...data } = input;
       const existing = await getEmployeeById(id);
       if (!existing) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });

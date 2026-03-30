@@ -1,0 +1,9 @@
+{
+  "query": "\nALTER TABLE users MODIFY COLUMN platformRole ENUM(\n  'super_admin','platform_admin','regional_manager','client_services',\n  'finance_admin','hr_admin','company_admin','company_member','reviewer',\n  'client','external_auditor'\n) NOT NULL DEFAULT 'client';\n\nALTER TABLE company_members MODIFY COLUMN role ENUM(\n  'company_admin','company_member','reviewer','client','external_auditor'\n) NOT NULL DEFAULT 'company_member';\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ihzfUTY3fkQrUHE.881d021b3ccf --database Q4QjnxJVGSNRVMesYiE8Gm --execute \nALTER TABLE users MODIFY COLUMN platformRole ENUM(\n  'super_admin','platform_admin','regional_manager','client_services',\n  'finance_admin','hr_admin','company_admin','company_member','reviewer',\n  'client','external_auditor'\n) NOT NULL DEFAULT 'client';\n\nALTER TABLE company_members MODIFY COLUMN role ENUM(\n  'company_admin','company_member','reviewer','client','external_auditor'\n) NOT NULL DEFAULT 'company_member';\n",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1969
+}

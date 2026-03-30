@@ -47,6 +47,7 @@ import {
   shouldUsePortalOnlyShell,
 } from "@shared/clientNav";
 import { ClientAccessGate } from "@/components/ClientAccessGate";
+import { AuditModeBanner } from "@/components/AuditModeBanner";
 import { getHiddenNavHrefs } from "@/lib/navVisibility";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -168,6 +169,7 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
           clientNavItemVisible(item.href, user, hiddenOptional, {
             hasCompanyWorkspace: Boolean(myCompany?.company?.id),
             companyWorkspaceLoading: myCompanyLoading,
+            memberRole: myCompany?.member?.role ?? null,
           }),
         ),
       }))
@@ -366,6 +368,11 @@ function NotificationBell() {
 export default function PlatformLayout({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, loading } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { data: layoutCompany } = trpc.companies.myCompany.useQuery(
+    undefined,
+    { enabled: isAuthenticated },
+  );
+  const isAuditor = layoutCompany?.member?.role === "external_auditor";
 
   if (loading) {
     return (
@@ -460,6 +467,9 @@ export default function PlatformLayout({ children }: { children: React.ReactNode
 
         {/* Content */}
         <main id="main-content" className="flex-1 overflow-y-auto pb-16 lg:pb-0" role="main">
+          {isAuditor && (
+            <AuditModeBanner companyName={layoutCompany?.company?.name} />
+          )}
           <ClientAccessGate>{children}</ClientAccessGate>
         </main>
       </div>

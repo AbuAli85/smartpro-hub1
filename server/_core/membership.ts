@@ -23,3 +23,20 @@ export async function requireActiveCompanyMembership(
   }
   return m;
 }
+
+/**
+ * Throws FORBIDDEN if the membership role is external_auditor.
+ * Use in any write (mutation) procedure to enforce read-only access for auditors.
+ *
+ * Usage:
+ *   const m = await requireActiveCompanyMembership(ctx.user.id);
+ *   requireNotAuditor(m.role);
+ */
+export function requireNotAuditor(
+  role: CompanyMember["role"],
+  message = "External Auditors have read-only access and cannot perform this action.",
+): void {
+  if (role === "external_auditor") {
+    throw new TRPCError({ code: "FORBIDDEN", message });
+  }
+}

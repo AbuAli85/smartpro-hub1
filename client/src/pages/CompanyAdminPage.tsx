@@ -46,7 +46,7 @@ import {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type MemberRole = "company_admin" | "company_member" | "reviewer" | "client";
+type MemberRole = "company_admin" | "company_member" | "finance_admin" | "hr_admin" | "reviewer" | "client" | "external_auditor";
 
 const ROLE_CONFIG: Record<MemberRole, { label: string; color: string; icon: React.ReactNode; description: string }> = {
   company_admin: {
@@ -72,6 +72,24 @@ const ROLE_CONFIG: Record<MemberRole, { label: string; color: string; icon: Reac
     color: "bg-gray-100 text-gray-600 border-gray-200",
     icon: <Shield className="w-3 h-3" />,
     description: "Limited access to client-facing features",
+  },
+  finance_admin: {
+    label: "Finance Admin",
+    color: "bg-emerald-100 text-emerald-700 border-emerald-200",
+    icon: <Shield className="w-3 h-3" />,
+    description: "Full access to payroll, billing, and financial reports",
+  },
+  hr_admin: {
+    label: "HR Admin",
+    color: "bg-purple-100 text-purple-700 border-purple-200",
+    icon: <Users className="w-3 h-3" />,
+    description: "Full access to HR, recruitment, and attendance",
+  },
+  external_auditor: {
+    label: "External Auditor",
+    color: "bg-amber-100 text-amber-700 border-amber-200",
+    icon: <Eye className="w-3 h-3" />,
+    description: "Read-only access to contracts, PRO, HR, and workforce data. Cannot edit, approve, or manage.",
   },
 };
 
@@ -172,7 +190,7 @@ export default function CompanyAdminPage() {
   const [addRole, setAddRole] = useState<MemberRole>("company_member");
   // Invite pipeline state
   const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteRole, setInviteRole] = useState<"company_admin" | "company_member" | "finance_admin" | "hr_admin" | "reviewer">("company_member");
+  const [inviteRole, setInviteRole] = useState<"company_admin" | "company_member" | "finance_admin" | "hr_admin" | "reviewer" | "external_auditor">("company_member");
   const [inviteResult, setInviteResult] = useState<{ inviteUrl: string; expiresAt: Date } | null>(null);
   const [showInviteDialog, setShowInviteDialog] = useState(false);
 
@@ -1005,6 +1023,7 @@ export default function CompanyAdminPage() {
                     <SelectItem value="finance_admin">Finance Admin</SelectItem>
                     <SelectItem value="hr_admin">HR Admin</SelectItem>
                     <SelectItem value="reviewer">Reviewer</SelectItem>
+                    <SelectItem value="external_auditor">External Auditor (Read-Only)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

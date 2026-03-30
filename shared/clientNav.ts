@@ -33,6 +33,28 @@ export const PORTAL_CLIENT_HREFS = new Set<string>([
   "/",
 ]);
 
+/**
+ * Routes blocked for external_auditor (read-only role).
+ * Auditors can view data but cannot access management/write-heavy pages.
+ */
+export const AUDITOR_BLOCKED_HREFS = new Set<string>([
+  "/company-admin",
+  "/renewal-workflows",
+  "/payroll",
+  "/reports",
+  "/hr/recruitment",
+  "/quotations",
+  "/marketplace",
+  "/sanad/catalogue-admin",
+  "/sanad/ratings-moderation",
+  "/admin",
+  "/omani-officers",
+  "/officer-assignments",
+  "/billing",
+  "/sla-management",
+  "/platform-ops",
+]);
+
 /** User can hide these from the sidebar (preferences) */
 export const OPTIONAL_NAV_HREFS = new Set<string>([
   "/analytics",
@@ -41,6 +63,12 @@ export const OPTIONAL_NAV_HREFS = new Set<string>([
   "/hr/recruitment",
   "/quotations",
 ]);
+
+export function isExternalAuditorNav(
+  memberRole?: string | null,
+): boolean {
+  return memberRole === "external_auditor";
+}
 
 export function seesPlatformOperatorNav(user: {
   role?: string | null;
@@ -68,8 +96,10 @@ export function isPortalClientNav(user: { platformRole?: string | null } | null)
 export type ClientNavOptions = {
   /** When true, `platformRole: client` still gets full company nav (not the minimal portal shell). */
   hasCompanyWorkspace?: boolean;
-  /** While company membership is loading, do not treat portal users as “no company” (avoids nav flash). */
+  /** While company membership is loading, do not treat portal users as "no company" (avoids nav flash). */
   companyWorkspaceLoading?: boolean;
+  /** Company membership role (e.g. "external_auditor") — used for auditor nav filtering. */
+  memberRole?: string | null;
 };
 
 /** Exported for mobile nav / layout parity with sidebar. */
@@ -93,6 +123,11 @@ export function clientNavItemVisible(
   options?: ClientNavOptions,
 ): boolean {
   if (OPTIONAL_NAV_HREFS.has(href) && hiddenOptional.has(href)) {
+    return false;
+  }
+
+  // External auditors cannot see management/write-heavy pages
+  if (AUDITOR_BLOCKED_HREFS.has(href) && isExternalAuditorNav(options?.memberRole)) {
     return false;
   }
 
@@ -148,6 +183,13 @@ export function clientRouteAccessible(
     if (!hiddenOptional.has(opt)) continue;
     if (path === opt || path.startsWith(`${opt}/`)) {
       return false;
+    }
+  }
+
+  // External auditors: block all management/write-heavy routes
+  if (isExternalAuditorNav(options?.memberRole)) {
+    for (const blocked of Array.from(AUDITOR_BLOCKED_HREFS)) {
+      if (pathMatchesRestrictedPrefix(path, blocked)) return false;
     }
   }
 

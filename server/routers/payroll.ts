@@ -11,7 +11,7 @@ import {
   salaryLoans,
 } from "../../drizzle/schema";
 import { storagePut } from "../storage";
-import { getActiveCompanyMembership } from "../_core/membership";
+import { getActiveCompanyMembership, requireNotAuditor } from "../_core/membership";
 
 /** PASI contribution: 7% employee, 11.5% employer for Omani nationals */
 function calcPasi(basicSalary: number, isOmani: boolean) {
@@ -191,6 +191,7 @@ export const payrollRouter = router({
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
       const m = await getActiveCompanyMembership(ctx.user.id);
       if (!m) throw new TRPCError({ code: "FORBIDDEN", message: "Not a company member" });
+      requireNotAuditor(m.role, "External Auditors cannot create payroll runs.");
       // Check for duplicate run
       const [existing] = await db.select({ id: payrollRuns.id }).from(payrollRuns)
         .where(and(eq(payrollRuns.companyId, m.companyId), eq(payrollRuns.periodMonth, input.month), eq(payrollRuns.periodYear, input.year)))
@@ -267,6 +268,7 @@ export const payrollRouter = router({
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
       const m = await getActiveCompanyMembership(ctx.user.id);
       if (!m) throw new TRPCError({ code: "FORBIDDEN", message: "Not a company member" });
+      requireNotAuditor(m.role, "External Auditors cannot modify payroll line items.");
       const [line] = await db.select().from(payrollLineItems).where(and(eq(payrollLineItems.id, input.lineId), eq(payrollLineItems.companyId, m.companyId))).limit(1);
       if (!line) throw new TRPCError({ code: "NOT_FOUND", message: "Line item not found" });
       // Recalculate
@@ -309,6 +311,7 @@ export const payrollRouter = router({
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
       const m = await getActiveCompanyMembership(ctx.user.id);
       if (!m) throw new TRPCError({ code: "FORBIDDEN", message: "Not a company member" });
+      requireNotAuditor(m.role, "External Auditors cannot approve payroll runs.");
       if (m.role !== "company_admin") throw new TRPCError({ code: "FORBIDDEN", message: "Only admins can approve payroll" });
       await db.update(payrollRuns).set({ status: "approved", approvedByUserId: ctx.user.id, approvedAt: new Date() })
         .where(and(eq(payrollRuns.id, input.runId), eq(payrollRuns.companyId, m.companyId)));
@@ -323,6 +326,7 @@ export const payrollRouter = router({
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
       const m = await getActiveCompanyMembership(ctx.user.id);
       if (!m) throw new TRPCError({ code: "FORBIDDEN", message: "Not a company member" });
+      requireNotAuditor(m.role, "External Auditors cannot mark payroll as paid.");
       if (m.role !== "company_admin") throw new TRPCError({ code: "FORBIDDEN", message: "Only admins can mark payroll paid" });
       await db.update(payrollRuns).set({ status: "paid", paidAt: new Date() })
         .where(and(eq(payrollRuns.id, input.runId), eq(payrollRuns.companyId, m.companyId)));

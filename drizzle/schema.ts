@@ -34,6 +34,7 @@ export const users = mysqlTable("users", {
     "company_member",
     "reviewer",
     "client",
+    "external_auditor",
   ])
     .default("client")
     .notNull(),
@@ -41,7 +42,7 @@ export const users = mysqlTable("users", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
-});
+})
 
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
@@ -83,8 +84,11 @@ export const companyMembers = mysqlTable(
     role: mysqlEnum("role", [
       "company_admin",
       "company_member",
+      "finance_admin",
+      "hr_admin",
       "reviewer",
       "client",
+      "external_auditor",
     ])
       .default("company_member")
       .notNull(),
@@ -1881,7 +1885,7 @@ export const companyInvites = mysqlTable("company_invites", {
   id: int("id").autoincrement().primaryKey(),
   companyId: int("company_id").notNull(),
   email: varchar("email", { length: 255 }).notNull(),
-  role: varchar("role", { length: 50 }).notNull().default("company_member"),
+  role: mysqlEnum("role", ["company_admin", "company_member", "finance_admin", "hr_admin", "reviewer", "client", "external_auditor"]).notNull().default("company_member"),
   token: varchar("token", { length: 128 }).notNull().unique(),
   invitedBy: int("invited_by").notNull(),
   expiresAt: timestamp("expires_at").notNull(),

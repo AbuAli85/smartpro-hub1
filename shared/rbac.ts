@@ -27,3 +27,29 @@ export function isCompanyProvisioningAdmin(user: {
   if (canAccessGlobalAdminProcedures(user)) return true;
   return user.platformRole === "company_admin";
 }
+
+/**
+ * Returns true when the user's company membership role is external_auditor.
+ * Call this with the membership row, not the platform-level user object.
+ */
+export function isExternalAuditor(membershipRole: string | null | undefined): boolean {
+  return membershipRole === "external_auditor";
+}
+
+/**
+ * Throws a FORBIDDEN TRPCError when the caller is an external_auditor.
+ * Import TRPCError from @trpc/server at the call site.
+ *
+ * Usage:
+ *   const m = await getCompanyMembership(ctx);
+ *   assertNotAuditor(m?.role, "Cannot modify payroll in Audit Mode");
+ */
+export function assertNotAuditor(
+  membershipRole: string | null | undefined,
+  message = "External Auditors have read-only access and cannot perform this action.",
+): void {
+  if (isExternalAuditor(membershipRole)) {
+    // Throw a plain Error; callers wrap it in TRPCError({ code: 'FORBIDDEN' })
+    throw new Error(message);
+  }
+}

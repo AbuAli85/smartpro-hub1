@@ -286,7 +286,7 @@ export const companiesRouter = router({
   updateMemberRole: protectedProcedure
     .input(z.object({
       memberId: z.number(),
-      role: z.enum(["company_admin", "company_member", "reviewer", "client"]),
+      role: z.enum(["company_admin", "company_member", "finance_admin", "hr_admin", "reviewer", "client", "external_auditor"]),
     }))
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
@@ -354,7 +354,7 @@ export const companiesRouter = router({
   addMemberByEmail: protectedProcedure
     .input(z.object({
       email: z.string().email(),
-      role: z.enum(["company_admin", "company_member", "reviewer", "client"]).default("company_member"),
+      role: z.enum(["company_admin", "company_member", "finance_admin", "hr_admin", "reviewer", "client", "external_auditor"]).default("company_member"),
     }))
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
@@ -398,7 +398,7 @@ export const companiesRouter = router({
   createInvite: protectedProcedure
     .input(z.object({
       email: z.string().email(),
-      role: z.enum(["company_admin", "company_member", "finance_admin", "hr_admin", "reviewer"]).default("company_member"),
+      role: z.enum(["company_admin", "company_member", "finance_admin", "hr_admin", "reviewer", "external_auditor"]).default("company_member"),
       origin: z.string().url(),
     }))
     .mutation(async ({ input, ctx }) => {
@@ -505,7 +505,7 @@ export const companiesRouter = router({
         .limit(1);
       if (existing?.isActive) throw new TRPCError({ code: "CONFLICT", message: "You are already a member of this company." });
       // invite.role is varchar in schema; cast to the companyMembers enum type
-      const memberRole = invite.role as "company_admin" | "company_member" | "reviewer" | "client";
+      const memberRole = invite.role as "company_admin" | "company_member" | "reviewer" | "client" | "external_auditor";
       if (existing && !existing.isActive) {
         await db.update(companyMembers).set({ isActive: true, role: memberRole }).where(eq(companyMembers.id, existing.id));
       } else {

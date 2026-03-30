@@ -28,8 +28,9 @@ export function ClientAccessGate({ children }: { children: ReactNode }) {
     return clientRouteAccessible(location, user, getHiddenNavHrefs(), {
       hasCompanyWorkspace: Boolean(myCompany?.company?.id),
       companyWorkspaceLoading: companyLoading,
+      memberRole: myCompany?.member?.role ?? null,
     });
-  }, [location, user, myCompany?.company?.id, companyLoading, prefsEpoch]);
+  }, [location, user, myCompany?.company?.id, myCompany?.member?.role, companyLoading, prefsEpoch]);
 
   if (authLoading || !user) {
     return <>{children}</>;

@@ -1,4 +1,5 @@
 import { TRPCError } from "@trpc/server";
+import { getActiveCompanyMembership, requireNotAuditor } from "../_core/membership";
 import { nanoid } from "nanoid";
 import { z } from "zod";
 import { canAccessGlobalAdminProcedures } from "@shared/rbac";
@@ -111,7 +112,10 @@ export const proRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id);
+      const membership = await getActiveCompanyMembership(ctx.user.id);
+      if (!membership) throw new TRPCError({ code: "FORBIDDEN", message: "No company membership" });
+      requireNotAuditor(membership.role, "External Auditors cannot create PRO service cases.");
+      const companyId = membership.companyId;
       const serviceNumber = "PRO-" + Date.now() + "-" + nanoid(4).toUpperCase();
       await createProService({
         ...input,
@@ -154,6 +158,8 @@ export const proRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
+      const _m = await getActiveCompanyMembership(ctx.user.id);
+      if (_m) requireNotAuditor(_m.role, "External Auditors cannot update PRO service cases.");
       const { id, ...data } = input;
       const existing = await getProServiceById(id);
       if (!existing) throw new TRPCError({ code: "NOT_FOUND", message: "PRO service not found" });

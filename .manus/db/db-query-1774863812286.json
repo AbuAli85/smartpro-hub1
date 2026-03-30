@@ -1,0 +1,9 @@
+{
+  "query": "ALTER TABLE company_invites MODIFY COLUMN role ENUM('company_admin','company_member','finance_admin','hr_admin','reviewer','client','external_auditor') NOT NULL DEFAULT 'company_member';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ihzfUTY3fkQrUHE.881d021b3ccf --database Q4QjnxJVGSNRVMesYiE8Gm --execute ALTER TABLE company_invites MODIFY COLUMN role ENUM('company_admin','company_member','finance_admin','hr_admin','reviewer','client','external_auditor') NOT NULL DEFAULT 'company_member';",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1877
+}

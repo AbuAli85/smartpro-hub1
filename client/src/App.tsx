@@ -45,6 +45,7 @@ import ExpiryAlertsPage from "@/pages/ExpiryAlertsPage";
 import RenewalWorkflowsPage from "@/pages/RenewalWorkflowsPage";
 import PlatformOpsPage from "./pages/PlatformOpsPage";
 import PayrollEnginePage from "./pages/PayrollEnginePage";
+import PayrollProcessingPage from "./pages/PayrollProcessingPage";
 import SanadRatingsModerationPage from "./pages/SanadRatingsModerationPage";
 import ReportsPage from "./pages/ReportsPage";
 import AuditLogPage from "./pages/AuditLogPage";
@@ -121,6 +122,7 @@ function AppRoutes() {
         <Route path="/renewal-workflows" component={RenewalWorkflowsPage} />
         <Route path="/platform-ops" component={PlatformOpsPage} />
         <Route path="/payroll" component={PayrollEnginePage} />
+        <Route path="/payroll/process" component={PayrollProcessingPage} />
         <Route path="/sanad/ratings-moderation" component={SanadRatingsModerationPage} />
         <Route path="/reports" component={ReportsPage} />
         <Route path="/audit-log" component={AuditLogPage} />

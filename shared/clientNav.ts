@@ -18,7 +18,7 @@ export const PLATFORM_ONLY_HREFS = new Set<string>([
 export const COMPANY_OWNER_HREFS = new Set<string>(["/company-admin", "/renewal-workflows"]);
 
 /** Payroll & executive reports */
-export const COMPANY_LEADERSHIP_HREFS = new Set<string>(["/payroll", "/reports"]);
+export const COMPANY_LEADERSHIP_HREFS = new Set<string>(["/payroll", "/payroll/process", "/reports"]);
 
 /** End-customer portal — minimal shell */
 export const PORTAL_CLIENT_HREFS = new Set<string>([
@@ -35,6 +35,7 @@ export const PORTAL_CLIENT_HREFS = new Set<string>([
   "/business/dashboard",
   "/company/operations",
   "/company/documents",
+  "/payroll/process",
   "/preferences",
   "/",
 ]);

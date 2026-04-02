@@ -940,3 +940,22 @@ Every company on SmartPRO Hub gets a complete, unified business operating area �
 - [ ] UI: EmployeeLifecyclePage — Documents tab links to /employee/:id/documents (not old workforce hub)
 - [ ] UI: EmployeeLifecyclePage — capture termination date and reason when status set to terminated/resigned
 - [ ] UI: EmployeeLifecyclePage — add "Edit Full Profile" button that opens expanded edit form
+
+## Phase 37: Complete Payroll Processing Module
+
+- [ ] Backend: Enhance createRun to auto-pickup active salary loans and deduct monthly amount
+- [ ] Backend: Enhance createRun to auto-calculate absence deductions from leave records (unpaid leave days)
+- [ ] Backend: Add previewRun procedure — returns per-employee salary breakdown without saving
+- [ ] Backend: Add generatePayslip procedure — generates HTML payslip for a single employee/run and stores to S3
+- [ ] Backend: Add generateWPS procedure — generates WPS-format CSV for bank submission
+- [ ] Backend: Add getEmployeePayrollHistory procedure — list all payroll records for one employee
+- [ ] UI: PayrollProcessingPage.tsx — new dedicated client-friendly payroll page with 4 tabs: Run Payroll, Payslips, Salary Setup, Loans
+- [ ] UI: Run Payroll tab — month/year selector, employee count preview, auto-calculation summary, Run button, approval workflow
+- [ ] UI: Per-employee breakdown table — name, basic, allowances, deductions (PASI, loans, absences), net salary, edit icon
+- [ ] UI: Payslips tab — list all generated payslips, search by employee, download/view PDF
+- [ ] UI: Salary Setup tab — set basic salary, housing, transport allowances per employee before running payroll
+- [ ] UI: Loans tab — manage salary loans per employee (create, view balance, cancel)
+- [ ] UI: WPS Export button — download CSV file formatted for Oman WPS bank submission
+- [ ] UI: Payslip modal — printable payslip view with all salary components, company header
+- [ ] UI: Employee Lifecycle payroll tab — show full payroll history for the employee
+- [ ] Nav: Add /payroll/process route to App.tsx and My Company sidebar

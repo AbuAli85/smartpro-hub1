@@ -9,6 +9,7 @@ import {
   employees,
   employeeSalaryConfigs,
   salaryLoans,
+  leaveRequests,
 } from "../../drizzle/schema";
 import { storagePut } from "../storage";
 import { getActiveCompanyMembership, requireNotAuditor } from "../_core/membership";
@@ -211,16 +212,47 @@ export const payrollRouter = router({
         notes: input.notes,
       });
       const runId = (runResult as any).insertId as number;
+      // Fetch salary configs (latest per employee)
+      const salaryConfigs = await db.select().from(employeeSalaryConfigs)
+        .where(eq(employeeSalaryConfigs.companyId, m.companyId))
+        .orderBy(desc(employeeSalaryConfigs.effectiveFrom));
+      // Fetch active loans
+      const activeLoans = await db.select().from(salaryLoans)
+        .where(and(eq(salaryLoans.companyId, m.companyId), eq(salaryLoans.status, "active")));
+      // Fetch approved unpaid leave for this month
+      const monthStart = new Date(input.year, input.month - 1, 1);
+      const monthEnd = new Date(input.year, input.month, 0, 23, 59, 59);
+      const unpaidLeaves = await db.select().from(leaveRequests)
+        .where(and(
+          eq(leaveRequests.companyId, m.companyId),
+          eq(leaveRequests.status, "approved"),
+          eq(leaveRequests.leaveType, "unpaid"),
+          sql`${leaveRequests.startDate} >= ${monthStart}`,
+          sql`${leaveRequests.startDate} <= ${monthEnd}`
+        ));
       // Auto-populate line items
       let totalGross = 0, totalDeductions = 0, totalNet = 0;
       for (const emp of empList) {
-        const basic = Number(emp.salary ?? 0);
-        const housing = Number((emp as any).housingAllowance ?? 0);
-        const transport = Number((emp as any).transportAllowance ?? 0);
-        const gross = basic + housing + transport;
+        // Use salary config if available, else fall back to employee.salary
+        const config = salaryConfigs.find(c => c.employeeId === emp.id);
+        const basic = config ? Number(config.basicSalary) : Number(emp.salary ?? 0);
+        const housing = config ? Number(config.housingAllowance) : 0;
+        const transport = config ? Number(config.transportAllowance) : 0;
+        const otherAllowances = config ? Number(config.otherAllowances) : 0;
+        const gross = basic + housing + transport + otherAllowances;
         const isOmani = emp.nationality?.toLowerCase() === "omani" || emp.nationality?.toLowerCase() === "oman";
         const pasi = calcPasi(basic, isOmani);
-        const totalDed = pasi;
+        // Auto-deduct active loan monthly amount
+        const empLoan = activeLoans.find(l => l.employeeId === emp.id);
+        const loanDeduction = empLoan
+          ? Math.min(Number(empLoan.monthlyDeduction), Number(empLoan.balanceRemaining))
+          : 0;
+        // Auto-calculate absence deduction from unpaid leave days (26 working days/month, Oman standard)
+        const empUnpaidLeave = unpaidLeaves.filter(l => l.employeeId === emp.id);
+        const unpaidDays = empUnpaidLeave.reduce((sum, l) => sum + Number(l.days ?? 0), 0);
+        const dailyRate = basic / 26;
+        const absenceDeduction = Math.round(unpaidDays * dailyRate * 1000) / 1000;
+        const totalDed = pasi + loanDeduction + absenceDeduction;
         const net = gross - totalDed;
         totalGross += gross;
         totalDeductions += totalDed;
@@ -229,14 +261,24 @@ export const payrollRouter = router({
           payrollRunId: runId,
           companyId: m.companyId,
           employeeId: emp.id,
-          basicSalary: String(basic),
-          housingAllowance: String(housing),
-          transportAllowance: String(transport),
-          grossSalary: String(gross),
+          basicSalary: String(Math.round(basic * 1000) / 1000),
+          housingAllowance: String(Math.round(housing * 1000) / 1000),
+          transportAllowance: String(Math.round(transport * 1000) / 1000),
+          otherAllowances: String(Math.round(otherAllowances * 1000) / 1000),
+          grossSalary: String(Math.round(gross * 1000) / 1000),
           pasiDeduction: String(pasi),
-          totalDeductions: String(totalDed),
-          netSalary: String(net),
+          loanDeduction: String(Math.round(loanDeduction * 1000) / 1000),
+          absenceDeduction: String(Math.round(absenceDeduction * 1000) / 1000),
+          totalDeductions: String(Math.round(totalDed * 1000) / 1000),
+          netSalary: String(Math.round(net * 1000) / 1000),
         });
+        // Update loan balance after deduction
+        if (empLoan && loanDeduction > 0) {
+          const newBalance = Math.max(0, Number(empLoan.balanceRemaining) - loanDeduction);
+          await db.update(salaryLoans)
+            .set({ balanceRemaining: String(newBalance), status: newBalance <= 0 ? "completed" : "active" })
+            .where(eq(salaryLoans.id, empLoan.id));
+        }
       }
       // Update run totals
       await db.update(payrollRuns).set({

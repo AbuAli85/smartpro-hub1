@@ -15,6 +15,13 @@
       "when": 1774722707109,
       "tag": "0001_ancient_stranger",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1775164100006,
+      "tag": "0002_smiling_meteorite",
+      "breakpoints": true
     }
   ]
 }

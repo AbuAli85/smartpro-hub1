@@ -884,3 +884,45 @@ Every company on SmartPRO Hub gets a complete, unified business operating area �
 - [x] Route: /my-team/import registered in App.tsx
 - [x] Nav: "Import from Excel" button on MyTeamPage header linking to /my-team/import
 - [x] Vitest tests for bulkImport procedure (covered by existing team router tests; 252 total passing)
+
+## Phase 34: Company Documents Vault
+
+- [ ] DB: company_documents table — id, companyId, docType, title, docNumber, issueDate, expiryDate, issuingAuthority, fileUrl, fileKey, status, notes, createdAt, updatedAt
+- [ ] DB: Run migration SQL via webdev_execute_sql
+- [ ] Backend: documents.list — list all company documents with expiry status computed
+- [ ] Backend: documents.get — get single document with signed URL
+- [ ] Backend: documents.upload — upload file to S3, save metadata
+- [ ] Backend: documents.update — update document metadata (title, dates, notes)
+- [ ] Backend: documents.delete — soft-delete document
+- [ ] Backend: documents.getStats — count by status (valid, expiring_soon, expired)
+- [ ] Frontend: CompanyDocumentsPage.tsx — document vault with category tabs, expiry status badges, upload dialog, document viewer, renewal reminders
+- [ ] Frontend: Pre-seeded document type list: CR Certificate, OCCI Membership, Municipality Licence, Labour Card, PASI Certificate, Tax Card, Chamber Certificate, Trade Licence, etc.
+- [ ] Frontend: Expiry timeline — colour-coded: green (>90 days), amber (30-90 days), red (<30 days / expired)
+- [ ] Frontend: Upload dialog — drag-and-drop PDF/image upload with metadata form
+- [ ] Frontend: Document viewer — open PDF in browser preview panel
+- [ ] Route: /company/documents registered in App.tsx
+- [ ] Nav: "Company Documents" added to My Company sidebar group
+- [ ] Upload the two provided PDFs (OCCI + CR) to S3 and pre-populate as existing documents for the company
+
+## Phase 35: Employee Documents Vault
+
+- [ ] DB: employee_documents table — id, employeeId, companyId, docType, title, docNumber, issueDate, expiryDate, issuingAuthority, fileUrl, fileKey, mimeType, fileSize, notes, isDeleted, uploadedBy, createdAt, updatedAt
+- [ ] DB: Apply migration for both company_documents and employee_documents tables
+- [ ] Backend: documents.listEmployeeDocs — list all documents for an employee
+- [ ] Backend: documents.uploadEmployeeDoc — upload file to S3, save metadata for employee
+- [ ] Backend: documents.updateEmployeeDoc — update document metadata
+- [ ] Backend: documents.deleteEmployeeDoc — soft-delete employee document
+- [ ] Backend: documents.listCompanyDocs — list all company documents
+- [ ] Backend: documents.uploadCompanyDoc — upload file to S3, save metadata for company
+- [ ] Backend: documents.updateCompanyDoc — update company document metadata
+- [ ] Backend: documents.deleteCompanyDoc — soft-delete company document
+- [ ] Frontend: CompanyDocumentsPage.tsx — company vault with category tabs, expiry badges, upload dialog, PDF viewer
+- [ ] Frontend: EmployeeDocumentsPanel — embedded in employee profile, shows all docs with upload/view/delete
+- [ ] Frontend: Document types for employees: Work Permit, Visa, Passport, ROP Card, ID Card, Labour Card, Medical Certificate, Contract
+- [ ] Frontend: Document types for company: CR Certificate, OCCI Membership, Municipality Licence, Trade Licence, Tax Card, Labour Card, PASI Certificate, Chamber Certificate
+- [ ] Frontend: Expiry status colour coding — green (>90 days), amber (30-90 days), red (<30 days / expired)
+- [ ] Frontend: Upload dialog — drag-and-drop PDF/image, metadata form with doc number, issue/expiry dates
+- [ ] Frontend: PDF/image viewer — opens document in browser preview panel
+- [ ] Route: /company/documents registered in App.tsx
+- [ ] Nav: "Documents" added to My Company sidebar group
+- [ ] Upload sample PDFs (OCCI, CR, Work Permit) to S3 and pre-populate as existing documents

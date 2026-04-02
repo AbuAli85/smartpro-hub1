@@ -34,6 +34,7 @@ export const PORTAL_CLIENT_HREFS = new Set<string>([
   "/my-team/import",
   "/business/dashboard",
   "/company/operations",
+  "/company/documents",
   "/preferences",
   "/",
 ]);
@@ -170,6 +171,8 @@ function pathMatchesRestrictedPrefix(path: string, baseHref: string): boolean {
 function portalShellPathAllowed(path: string): boolean {
   if (PORTAL_CLIENT_HREFS.has(path)) return true;
   if (path.startsWith("/contracts")) return true;
+  if (path.startsWith("/company/documents")) return true;
+  if (path.startsWith("/employee")) return true;
   return false;
 }
 

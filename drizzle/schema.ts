@@ -1895,3 +1895,26 @@ export const companyInvites = mysqlTable("company_invites", {
 });
 export type CompanyInvite = typeof companyInvites.$inferSelect;
 export type InsertCompanyInvite = typeof companyInvites.$inferInsert;
+
+// ─── COMPANY DOCUMENTS VAULT ─────────────────────────────────────────────────
+export const companyDocuments = mysqlTable("company_documents", {
+  id: int("id").autoincrement().primaryKey(),
+  companyId: int("company_id").notNull(),
+  docType: varchar("doc_type", { length: 64 }).notNull(), // e.g. "cr_certificate", "occi_membership", "municipality_licence"
+  title: varchar("title", { length: 255 }).notNull(),
+  docNumber: varchar("doc_number", { length: 128 }),
+  issuingAuthority: varchar("issuing_authority", { length: 255 }),
+  issueDate: date("issue_date"),
+  expiryDate: date("expiry_date"),
+  fileUrl: text("file_url"),
+  fileKey: varchar("file_key", { length: 512 }),
+  mimeType: varchar("mime_type", { length: 64 }),
+  fileSize: int("file_size"), // bytes
+  notes: text("notes"),
+  isDeleted: boolean("is_deleted").notNull().default(false),
+  uploadedBy: int("uploaded_by"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+export type CompanyDocument = typeof companyDocuments.$inferSelect;
+export type InsertCompanyDocument = typeof companyDocuments.$inferInsert;

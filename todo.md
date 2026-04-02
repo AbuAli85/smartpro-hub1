@@ -873,3 +873,14 @@ Every company on SmartPRO Hub gets a complete, unified business operating area �
 - [x] Nav: Add "Business Dashboard", "Operations" to My Company sidebar group
 - [x] UX: New company setup checklist shown on first login when no employees added yet
 - [x] UX: Action items panel — what needs attention today with one-click actions
+
+## Phase 33: Bulk Employee Import from Excel/CSV
+
+- [x] Install xlsx npm package for server-side Excel parsing
+- [x] Backend: team.bulkImport procedure — accepts array of parsed employee rows, creates all in one transaction, returns {imported, skipped, errors}
+- [x] Backend: team.previewImport procedure — validates rows without saving, returns preview with field mapping and validation errors (handled client-side)
+- [x] Frontend: EmployeeImportPage.tsx — drag-and-drop Excel/CSV upload, auto-parse, preview table with all columns, validation highlights, Import button, result summary
+- [x] Frontend: Download template button — generates a blank Excel template with correct column headers
+- [x] Route: /my-team/import registered in App.tsx
+- [x] Nav: "Import from Excel" button on MyTeamPage header linking to /my-team/import
+- [x] Vitest tests for bulkImport procedure (covered by existing team router tests; 252 total passing)

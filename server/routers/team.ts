@@ -6,6 +6,8 @@ import {
   createEmployee,
   updateEmployee,
 } from "../db";
+import { getDb } from "../db";
+import { employees } from "../../drizzle/schema";
 import { getActiveCompanyMembership } from "../_core/membership";
 import { requireNotAuditor } from "../_core/membership";
 import { assertRowBelongsToActiveCompany } from "../_core/tenant";
@@ -24,6 +26,39 @@ async function requireMembership(userId: number) {
   if (!m) throw new TRPCError({ code: "FORBIDDEN", message: "No active company membership." });
   return m;
 }
+
+/** Parse a DD-MM-YYYY or YYYY-MM-DD date string into a Date object, or return undefined */
+function parseDateField(raw: string | null | undefined): Date | undefined {
+  if (!raw) return undefined;
+  const s = String(raw).trim();
+  // DD-MM-YYYY
+  const ddmmyyyy = s.match(/^(\d{2})-(\d{2})-(\d{4})$/);
+  if (ddmmyyyy) {
+    const d = new Date(`${ddmmyyyy[3]}-${ddmmyyyy[2]}-${ddmmyyyy[1]}`);
+    return isNaN(d.getTime()) ? undefined : d;
+  }
+  // YYYY-MM-DD or ISO
+  const d = new Date(s);
+  return isNaN(d.getTime()) ? undefined : d;
+}
+
+// ─── Bulk import row schema ───────────────────────────────────────────────────
+
+const importRowSchema = z.object({
+  // Required
+  name: z.string().min(1, "Employee name is required"),
+  // Optional — mapped from Excel columns
+  civilNumber: z.string().optional(),
+  passportNumber: z.string().optional(),
+  visaNumber: z.string().optional(),
+  occupationCode: z.string().optional(),
+  occupationName: z.string().optional(),
+  workPermitNumber: z.string().optional(),
+  workPermitStatus: z.string().optional(),
+  dateOfIssue: z.string().optional(),
+  dateOfExpiry: z.string().optional(),
+  transferred: z.string().optional(),
+});
 
 // ─── router ──────────────────────────────────────────────────────────────────
 
@@ -183,4 +218,101 @@ export const teamRouter = router({
       recentHires: recentHires.slice(0, 5),
     };
   }),
+
+  /**
+   * Bulk import employees from a parsed Excel/CSV payload.
+   * The frontend parses the file client-side and sends the rows as JSON.
+   * Returns { imported, skipped, errors } summary.
+   */
+  bulkImport: protectedProcedure
+    .input(
+      z.object({
+        rows: z.array(importRowSchema),
+        /** If true, skip rows where civil number already exists in the company */
+        skipDuplicates: z.boolean().default(true),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      const membership = await requireMembership(ctx.user.id);
+      requireNotAuditor(membership.role, "External Auditors cannot import staff.");
+
+      const companyId = membership.companyId;
+
+      // Fetch existing civil IDs and passport numbers to detect duplicates
+      const existing = await getEmployees(companyId, {});
+      const existingCivilIds = new Set(
+        existing.map((e) => e.nationalId?.toLowerCase()).filter(Boolean)
+      );
+      const existingPassports = new Set(
+        existing.map((e) => e.passportNumber?.toLowerCase()).filter(Boolean)
+      );
+
+      let imported = 0;
+      let skipped = 0;
+      const errors: Array<{ row: number; name: string; reason: string }> = [];
+
+      for (let i = 0; i < input.rows.length; i++) {
+        const row = input.rows[i];
+        const rowNum = i + 1;
+
+        try {
+          // Duplicate check
+          if (input.skipDuplicates) {
+            const civilKey = row.civilNumber?.toLowerCase();
+            const passportKey = row.passportNumber?.toLowerCase();
+            if (civilKey && existingCivilIds.has(civilKey)) {
+              skipped++;
+              continue;
+            }
+            if (passportKey && existingPassports.has(passportKey)) {
+              skipped++;
+              continue;
+            }
+          }
+
+          // Split full name into first/last
+          const nameParts = row.name.trim().split(/\s+/);
+          const firstName = nameParts[0] ?? row.name;
+          const lastName = nameParts.slice(1).join(" ") || firstName;
+
+          // Map work permit status → employee status
+          const rawStatus = (row.workPermitStatus ?? "").toLowerCase();
+          let status: "active" | "terminated" | "resigned" = "active";
+          if (rawStatus === "cancelled" || rawStatus === "expired") status = "terminated";
+          else if (rawStatus === "deserted") status = "resigned";
+
+          // Parse dates
+          const hireDate = parseDateField(row.dateOfIssue);
+
+          const dbConn = await getDb();
+          if (!dbConn) throw new Error("Database unavailable");
+          await dbConn.insert(employees).values({
+            companyId,
+            firstName,
+            lastName,
+            nationalId: row.civilNumber ?? null,
+            passportNumber: row.passportNumber ?? null,
+            position: row.occupationName ?? null,
+            employmentType: "full_time",
+            status,
+            hireDate: hireDate ?? null,
+            currency: "OMR",
+          });
+
+          // Update duplicate tracking sets
+          if (row.civilNumber) existingCivilIds.add(row.civilNumber.toLowerCase());
+          if (row.passportNumber) existingPassports.add(row.passportNumber.toLowerCase());
+
+          imported++;
+        } catch (err) {
+          errors.push({
+            row: rowNum,
+            name: row.name,
+            reason: err instanceof Error ? err.message : "Unknown error",
+          });
+        }
+      }
+
+      return { imported, skipped, errors, total: input.rows.length };
+    }),
 });

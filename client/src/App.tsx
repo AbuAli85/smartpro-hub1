@@ -64,6 +64,7 @@ import AcceptInvitePage from "@/pages/AcceptInvitePage";
 import BusinessDashboardPage from "./pages/BusinessDashboardPage";
 import EmployeeLifecyclePage from "./pages/EmployeeLifecyclePage";
 import BusinessOperationsPage from "./pages/BusinessOperationsPage";
+import EmployeeImportPage from "./pages/EmployeeImportPage";
 function PublicRoutes() {
   return (
     <Switch>
@@ -127,6 +128,7 @@ function AppRoutes() {
         <Route path="/compliance" component={ComplianceDashboardPage} />
         <Route path="/company/hub" component={CompanyHubPage} />
         <Route path="/company/workspace" component={CompanyWorkspacePage} />
+        <Route path="/my-team/import" component={EmployeeImportPage} />
         <Route path="/my-team" component={MyTeamPage} />
         <Route path="/business/dashboard" component={BusinessDashboardPage} />
         <Route path="/business/employee/:id" component={EmployeeLifecyclePage} />

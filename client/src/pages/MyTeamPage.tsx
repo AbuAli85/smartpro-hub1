@@ -1,11 +1,12 @@
 import { useState, useMemo } from "react";
+import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import {
   Users, UserPlus, Search, Briefcase, Mail, Phone, Building2,
   ChevronRight, X, Edit2, MoreHorizontal, UserCheck, UserX,
   Calendar, DollarSign, Hash, Globe, Shield, TrendingUp,
-  LayoutGrid, List, AlertTriangle, CheckCircle2, Clock, Star,
+  LayoutGrid, List, AlertTriangle, CheckCircle2, Clock, Star, Upload,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -548,6 +549,7 @@ function StaffCard({
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function MyTeamPage() {
+  const [, navigate] = useLocation();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [deptFilter, setDeptFilter] = useState<string>("all");
@@ -603,12 +605,21 @@ export default function MyTeamPage() {
                 Manage your company's staff — add, edit, and track your entire workforce
               </p>
             </div>
-            <Button
-              onClick={() => setAddOpen(true)}
-              className="bg-[var(--smartpro-orange)] hover:bg-orange-600 text-white gap-2"
-            >
-              <UserPlus size={16} /> Add Staff Member
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                onClick={() => navigate("/my-team/import")}
+                className="gap-2"
+              >
+                <Upload size={16} /> Import from Excel
+              </Button>
+              <Button
+                onClick={() => setAddOpen(true)}
+                className="bg-[var(--smartpro-orange)] hover:bg-orange-600 text-white gap-2"
+              >
+                <UserPlus size={16} /> Add Staff Member
+              </Button>
+            </div>
           </div>
 
           {/* KPI bar */}

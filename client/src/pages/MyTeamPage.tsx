@@ -66,6 +66,10 @@ interface StaffFormState {
   employmentType: "full_time" | "part_time" | "contract" | "intern";
   salary: string; currency: string;
   hireDate: string; employeeNumber: string;
+  // Work permit / visa fields
+  workPermitNumber: string; visaNumber: string;
+  occupationCode: string; occupationName: string;
+  workPermitExpiry: string;
 }
 
 const BLANK_FORM: StaffFormState = {
@@ -73,6 +77,7 @@ const BLANK_FORM: StaffFormState = {
   nationality: "", passportNumber: "", nationalId: "",
   department: "", position: "", employmentType: "full_time",
   salary: "", currency: "OMR", hireDate: "", employeeNumber: "",
+  workPermitNumber: "", visaNumber: "", occupationCode: "", occupationName: "", workPermitExpiry: "",
 };
 
 function StaffFormDialog({
@@ -118,6 +123,11 @@ function StaffFormDialog({
       ...form,
       salary: form.salary ? Number(form.salary) : undefined,
       email: form.email || undefined,
+      workPermitNumber: form.workPermitNumber || undefined,
+      visaNumber: form.visaNumber || undefined,
+      occupationCode: form.occupationCode || undefined,
+      occupationName: form.occupationName || undefined,
+      workPermitExpiry: form.workPermitExpiry || undefined,
     };
     if (isEdit) {
       updateMutation.mutate({ id: editId!, ...payload });
@@ -247,6 +257,36 @@ function StaffFormDialog({
                       <SelectItem value="AED">AED — UAE Dirham</SelectItem>
                     </SelectContent>
                   </Select>
+                </div>
+              </div>
+              {/* Work Permit / Visa */}
+              <div className="pt-1">
+                <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2">Work Permit &amp; Visa (Optional)</div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs font-medium">Work Permit Number</Label>
+                    <Input placeholder="e.g. WP/2024/12345" value={form.workPermitNumber} onChange={f("workPermitNumber")} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs font-medium">Visa / Labour Auth. No.</Label>
+                    <Input placeholder="e.g. V/2024/98765" value={form.visaNumber} onChange={f("visaNumber")} />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3 mt-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs font-medium">Occupation Name</Label>
+                    <Input placeholder="e.g. Accountant" value={form.occupationName} onChange={f("occupationName")} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs font-medium">Occupation Code</Label>
+                    <Input placeholder="e.g. 2411" value={form.occupationCode} onChange={f("occupationCode")} />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3 mt-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs font-medium">Work Permit Expiry</Label>
+                    <Input type="date" value={form.workPermitExpiry} onChange={f("workPermitExpiry")} />
+                  </div>
                 </div>
               </div>
             </>
@@ -487,9 +527,10 @@ function DeptChart({ data }: { data: { dept: string; count: number }[] }) {
 // ─── Staff Card ───────────────────────────────────────────────────────────────
 
 function StaffCard({
-  member, onClick, onEdit, onRemove,
+  member, onClick, onEdit, onRemove, onViewProfile, onDocuments,
 }: {
   member: any; onClick: () => void; onEdit: () => void; onRemove: () => void;
+  onViewProfile: () => void; onDocuments: () => void;
 }) {
   const sm = STATUS_META[member.status] ?? STATUS_META.active;
   const initials = getInitials(member.firstName, member.lastName);
@@ -506,6 +547,9 @@ function StaffCard({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="text-sm">
+            <DropdownMenuItem onClick={onViewProfile}><ChevronRight size={13} className="mr-2" /> View Full Profile</DropdownMenuItem>
+            <DropdownMenuItem onClick={onDocuments}><Shield size={13} className="mr-2" /> Documents</DropdownMenuItem>
+            <DropdownMenuSeparator />
             <DropdownMenuItem onClick={onEdit}><Edit2 size={13} className="mr-2" /> Edit</DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={onRemove} className="text-red-600">
@@ -730,6 +774,8 @@ export default function MyTeamPage() {
                   onClick={() => setSelectedId(m.id)}
                   onEdit={() => setEditId(m.id)}
                   onRemove={() => setRemoveId(m.id)}
+                  onViewProfile={() => navigate(`/business/employee/${m.id}`)}
+                  onDocuments={() => navigate(`/employee/${m.id}/documents`)}
                 />
               ))}
             </div>
@@ -792,6 +838,9 @@ export default function MyTeamPage() {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" className="text-sm">
+                              <DropdownMenuItem onClick={() => navigate(`/business/employee/${m.id}`)}><ChevronRight size={13} className="mr-2" /> View Full Profile</DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => navigate(`/employee/${m.id}/documents`)}><Shield size={13} className="mr-2" /> Documents</DropdownMenuItem>
+                              <DropdownMenuSeparator />
                               <DropdownMenuItem onClick={() => setEditId(m.id)}><Edit2 size={13} className="mr-2" /> Edit</DropdownMenuItem>
                               <DropdownMenuSeparator />
                               <DropdownMenuItem onClick={() => setRemoveId(m.id)} className="text-red-600">

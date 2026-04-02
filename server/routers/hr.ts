@@ -1,5 +1,8 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
+import { eq, and, desc } from "drizzle-orm";
+import { workPermits } from "../../drizzle/schema";
+import { getDb } from "../db";
 import {
   createAttendanceRecord,
   deleteAttendanceRecord,
@@ -59,7 +62,7 @@ export const hrRouter = router({
         lastName: z.string().min(1),
         firstNameAr: z.string().optional(),
         lastNameAr: z.string().optional(),
-        email: z.string().email().optional(),
+        email: z.string().email().optional().or(z.literal("")).transform(v => v || undefined),
         phone: z.string().optional(),
         nationality: z.string().optional(),
         passportNumber: z.string().optional(),
@@ -71,6 +74,14 @@ export const hrRouter = router({
         currency: z.string().default("OMR"),
         hireDate: z.string().optional(),
         employeeNumber: z.string().optional(),
+        // Extended fields
+        workPermitNumber: z.string().optional(),
+        visaNumber: z.string().optional(),
+        occupationCode: z.string().optional(),
+        occupationName: z.string().optional(),
+        workPermitExpiry: z.string().optional(),
+        visaExpiry: z.string().optional(),
+        passportExpiry: z.string().optional(),
       })
     )
     .mutation(async ({ input, ctx }) => {
@@ -78,12 +89,30 @@ export const hrRouter = router({
       if (!membership) throw new TRPCError({ code: "FORBIDDEN", message: "No company membership" });
       requireNotAuditor(membership.role, "External Auditors cannot create employees.");
       const companyId = membership.companyId;
-      await createEmployee({
-        ...input,
+      const { workPermitNumber, visaNumber, occupationCode, occupationName, workPermitExpiry, visaExpiry, passportExpiry, ...empData } = input;
+      const emp = await createEmployee({
+        ...empData,
         companyId,
-        salary: input.salary ? String(input.salary) : undefined,
-        hireDate: input.hireDate ? new Date(input.hireDate) : undefined,
+        salary: empData.salary ? String(empData.salary) : undefined,
+        hireDate: empData.hireDate ? new Date(empData.hireDate) : undefined,
       });
+      // If work permit number provided, create a work permit record
+      if (workPermitNumber && emp) {
+        const db = await getDb();
+        if (db) {
+          await db.insert(workPermits).values({
+            companyId,
+            employeeId: (emp as any).insertId ?? (emp as any).id ?? 0,
+            workPermitNumber,
+            labourAuthorisationNumber: visaNumber ?? null,
+            occupationCode: occupationCode ?? null,
+            occupationTitleEn: occupationName ?? null,
+            issueDate: null,
+            expiryDate: workPermitExpiry ? new Date(workPermitExpiry) : null,
+            permitStatus: "active",
+          }).catch(() => { /* ignore duplicate */ });
+        }
+      }
       return { success: true };
     }),
 
@@ -93,23 +122,94 @@ export const hrRouter = router({
         id: z.number(),
         firstName: z.string().optional(),
         lastName: z.string().optional(),
+        firstNameAr: z.string().optional(),
+        lastNameAr: z.string().optional(),
+        email: z.string().email().optional().or(z.literal("")).transform(v => v || undefined),
+        phone: z.string().optional(),
+        nationality: z.string().optional(),
+        nationalId: z.string().optional(),
+        passportNumber: z.string().optional(),
         department: z.string().optional(),
         position: z.string().optional(),
+        employmentType: z.enum(["full_time", "part_time", "contract", "intern"]).optional(),
         status: z.enum(["active", "on_leave", "terminated", "resigned"]).optional(),
         salary: z.number().optional(),
+        currency: z.string().optional(),
+        hireDate: z.string().optional(),
+        terminationDate: z.string().optional(),
+        employeeNumber: z.string().optional(),
+        // Work permit / visa fields
+        workPermitNumber: z.string().optional(),
+        visaNumber: z.string().optional(),
+        occupationCode: z.string().optional(),
+        occupationName: z.string().optional(),
+        workPermitExpiry: z.string().optional(),
+        visaExpiry: z.string().optional(),
+        passportExpiry: z.string().optional(),
       })
     )
     .mutation(async ({ input, ctx }) => {
       const _auditorCheck = await getActiveCompanyMembership(ctx.user.id);
       if (_auditorCheck) requireNotAuditor(_auditorCheck.role, "External Auditors cannot update employees.");
-      const { id, ...data } = input;
+      const { id, workPermitNumber, visaNumber, occupationCode, occupationName, workPermitExpiry, visaExpiry, passportExpiry, ...data } = input;
       const existing = await getEmployeeById(id);
       if (!existing) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
       await assertRowBelongsToActiveCompany(ctx.user, existing.companyId, "Employee");
       const updateData: any = { ...data };
       if (data.salary !== undefined) updateData.salary = String(data.salary);
+      if (data.hireDate !== undefined) updateData.hireDate = data.hireDate ? new Date(data.hireDate) : null;
+      if (data.terminationDate !== undefined) updateData.terminationDate = data.terminationDate ? new Date(data.terminationDate) : null;
       await updateEmployee(id, updateData);
+      // Update or create work permit record if permit fields provided
+      if (workPermitNumber !== undefined || visaNumber !== undefined || workPermitExpiry !== undefined) {
+        const db = await getDb();
+        if (db) {
+          const existing_permits = await db.select({ id: workPermits.id })
+            .from(workPermits)
+            .where(eq(workPermits.employeeId, id))
+            .limit(1);
+          const permitUpdate: any = {};
+          if (workPermitNumber !== undefined) permitUpdate.workPermitNumber = workPermitNumber;
+          if (visaNumber !== undefined) permitUpdate.labourAuthorisationNumber = visaNumber;
+          if (occupationCode !== undefined) permitUpdate.occupationCode = occupationCode;
+          if (occupationName !== undefined) permitUpdate.occupationTitleEn = occupationName;
+          if (workPermitExpiry !== undefined) permitUpdate.expiryDate = workPermitExpiry ? new Date(workPermitExpiry) : null;
+          if (existing_permits.length > 0) {
+            await db.update(workPermits).set(permitUpdate).where(eq(workPermits.id, existing_permits[0].id));
+          } else if (workPermitNumber) {
+            await db.insert(workPermits).values({
+              companyId: existing.companyId,
+              employeeId: id,
+              workPermitNumber,
+              labourAuthorisationNumber: visaNumber ?? null,
+              occupationCode: occupationCode ?? null,
+              occupationTitleEn: occupationName ?? null,
+              expiryDate: workPermitExpiry ? new Date(workPermitExpiry) : null,
+              permitStatus: "active",
+            }).catch(() => { /* ignore */ });
+          }
+        }
+      }
       return { success: true };
+    }),
+
+  // Get employee with linked work permit details
+  getEmployeeWithPermit: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .query(async ({ input, ctx }) => {
+      const emp = await getEmployeeById(input.id);
+      if (!emp) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
+      await assertRowBelongsToActiveCompany(ctx.user, emp.companyId, "Employee");
+      const db = await getDb();
+      let permit = null;
+      if (db) {
+        const permits = await db.select().from(workPermits)
+          .where(eq(workPermits.employeeId, input.id))
+          .orderBy(desc(workPermits.expiryDate))
+          .limit(1);
+        permit = permits[0] ?? null;
+      }
+      return { ...emp, permit };
     }),
 
   // Job Postings

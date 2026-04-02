@@ -926,3 +926,17 @@ Every company on SmartPRO Hub gets a complete, unified business operating area �
 - [ ] Route: /company/documents registered in App.tsx
 - [ ] Nav: "Documents" added to My Company sidebar group
 - [ ] Upload sample PDFs (OCCI, CR, Work Permit) to S3 and pre-populate as existing documents
+
+## Phase 36: Complete Employee Flow Fixes
+
+- [ ] Backend: extend updateEmployee to accept phone, email, nationality, nationalId, passportNumber, hireDate, terminationDate, employeeNumber, workPermitNumber, visaNumber, occupationCode, occupationName
+- [ ] Backend: extend createEmployee to accept all the same fields
+- [ ] Backend: add getEmployeeWithPermit procedure — returns employee + linked work permit details in one call
+- [ ] UI: MyTeamPage add/edit wizard — Step 1 expanded with phone, email, nationality, civil ID; Step 2 expanded with hire date, employee number, work permit number, visa number, occupation
+- [ ] UI: MyTeamPage staff cards — add "View Profile" button linking to /business/employee/:id
+- [ ] UI: MyTeamPage staff cards — add "Documents" button linking to /employee/:id/documents
+- [ ] UI: MyTeamPage staff profile side panel — show work permit number, visa number, passport number, civil ID, nationality
+- [ ] UI: EmployeeLifecyclePage — show work permit details (number, expiry, occupation, status) in Profile tab
+- [ ] UI: EmployeeLifecyclePage — Documents tab links to /employee/:id/documents (not old workforce hub)
+- [ ] UI: EmployeeLifecyclePage — capture termination date and reason when status set to terminated/resigned
+- [ ] UI: EmployeeLifecyclePage — add "Edit Full Profile" button that opens expanded edit form

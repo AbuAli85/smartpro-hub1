@@ -120,6 +120,11 @@ export const teamRouter = router({
         currency: z.string().default("OMR"),
         hireDate: z.string().optional(),
         employeeNumber: z.string().optional(),
+        workPermitNumber: z.string().optional(),
+        visaNumber: z.string().optional(),
+        occupationCode: z.string().optional(),
+        occupationName: z.string().optional(),
+        workPermitExpiry: z.string().optional(),
       })
     )
     .mutation(async ({ input, ctx }) => {
@@ -154,6 +159,13 @@ export const teamRouter = router({
         nationality: z.string().optional(),
         passportNumber: z.string().optional(),
         nationalId: z.string().optional(),
+        hireDate: z.string().optional(),
+        employeeNumber: z.string().optional(),
+        workPermitNumber: z.string().optional(),
+        visaNumber: z.string().optional(),
+        occupationCode: z.string().optional(),
+        occupationName: z.string().optional(),
+        workPermitExpiry: z.string().optional(),
       })
     )
     .mutation(async ({ input, ctx }) => {

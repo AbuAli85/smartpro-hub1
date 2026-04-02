@@ -122,10 +122,16 @@ function EditDialog({ employee, onClose }: { employee: any; onClose: () => void 
     nationality: employee.nationality ?? "",
     passportNumber: employee.passportNumber ?? "",
     nationalId: employee.nationalId ?? "",
+    hireDate: employee.hireDate ? new Date(employee.hireDate).toISOString().split("T")[0] : "",
+    employeeNumber: employee.employeeNumber ?? "",
+    workPermitNumber: employee.permit?.workPermitNumber ?? "",
+    visaNumber: employee.permit?.labourAuthorisationNumber ?? "",
+    occupationName: employee.permit?.occupationTitleEn ?? "",
+    workPermitExpiry: employee.permit?.expiryDate ? new Date(employee.permit.expiryDate).toISOString().split("T")[0] : "",
   });
   const update = trpc.team.updateMember.useMutation({
     onSuccess: () => {
-      utils.hr.getEmployee.invalidate({ id: employee.id });
+      utils.hr.getEmployeeWithPermit.invalidate({ id: employee.id });
       utils.team.listMembers.invalidate();
       toast.success("Employee record updated");
       onClose();
@@ -150,10 +156,17 @@ function EditDialog({ employee, onClose }: { employee: any; onClose: () => void 
             { key: "passportNumber", label: "Passport No." },
             { key: "nationalId", label: "Civil ID" },
             { key: "salary", label: "Salary (OMR)" },
-          ].map(({ key, label, colSpan }) => (
+            { key: "hireDate", label: "Hire Date", type: "date" },
+            { key: "employeeNumber", label: "Employee No." },
+            { key: "workPermitNumber", label: "Work Permit No.", colSpan: 2 },
+            { key: "visaNumber", label: "Visa / Labour Auth. No.", colSpan: 2 },
+            { key: "occupationName", label: "Occupation" },
+            { key: "workPermitExpiry", label: "Work Permit Expiry", type: "date" },
+          ].map(({ key, label, colSpan, type }) => (
             <div key={key} className={colSpan === 2 ? "col-span-2" : ""}>
               <Label className="text-xs">{label}</Label>
               <Input
+                type={(type as string) || "text"}
                 value={form[key as keyof typeof form]}
                 onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}
                 className="h-8 text-sm mt-1"
@@ -201,7 +214,7 @@ export default function EmployeeLifecyclePage() {
   const employeeId = parseInt(params.id || "0");
   const [editOpen, setEditOpen] = useState(false);
 
-  const { data: employee, isLoading } = trpc.hr.getEmployee.useQuery(
+  const { data: employee, isLoading } = trpc.hr.getEmployeeWithPermit.useQuery(
     { id: employeeId },
     { enabled: employeeId > 0 }
   );
@@ -409,6 +422,26 @@ export default function EmployeeLifecyclePage() {
                   )}
                 </CardContent>
               </Card>
+              {employee.permit && (
+                <Card className="sm:col-span-2">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm flex items-center gap-2">
+                      <Shield size={14} className="text-muted-foreground" /> Work Permit &amp; Visa Details
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="pt-0">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6">
+                      <InfoRow label="Work Permit No." value={employee.permit.workPermitNumber} icon={Hash} />
+                      <InfoRow label="Labour Auth. No." value={employee.permit.labourAuthorisationNumber} icon={FileText} />
+                      <InfoRow label="Occupation Code" value={employee.permit.occupationCode} icon={Briefcase} />
+                      <InfoRow label="Occupation" value={employee.permit.occupationTitleEn} icon={Briefcase} />
+                      <InfoRow label="Issue Date" value={fmtDate(employee.permit.issueDate)} icon={Calendar} />
+                      <InfoRow label="Expiry Date" value={fmtDate(employee.permit.expiryDate)} icon={Calendar} />
+                      <InfoRow label="Status" value={employee.permit.permitStatus} />
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
             </div>
           </TabsContent>
 
@@ -521,7 +554,7 @@ export default function EmployeeLifecyclePage() {
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-sm">Employee Documents</CardTitle>
                   <Button variant="outline" size="sm" className="text-xs h-7 gap-1"
-                    onClick={() => navigate("/workforce/documents")}>
+                    onClick={() => navigate(`/employee/${employeeId}/documents`)}>
                     Document Vault
                   </Button>
                 </div>
@@ -549,8 +582,8 @@ export default function EmployeeLifecyclePage() {
                 </div>
                 <div className="text-center py-4 border border-dashed border-border rounded-lg">
                   <FileText size={20} className="text-muted-foreground mx-auto mb-2" />
-                  <p className="text-sm text-muted-foreground">Full document vault available in Workforce Hub</p>
-                  <Button variant="outline" size="sm" className="mt-2 gap-1.5" onClick={() => navigate("/workforce/documents")}>
+                  <p className="text-sm text-muted-foreground">Upload work permit, passport, visa, ID card and more</p>
+                  <Button variant="outline" size="sm" className="mt-2 gap-1.5" onClick={() => navigate(`/employee/${employeeId}/documents`)}>
                     <FileText size={12} /> Open Document Vault
                   </Button>
                 </div>

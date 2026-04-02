@@ -10,6 +10,8 @@ import {
   employeeSalaryConfigs,
   salaryLoans,
   leaveRequests,
+  workPermits,
+  employeeDocuments,
 } from "../../drizzle/schema";
 import { storagePut } from "../storage";
 import { getActiveCompanyMembership, requireNotAuditor } from "../_core/membership";
@@ -654,5 +656,185 @@ export const payrollRouter = router({
         .set({ status: "cancelled" })
         .where(and(eq(salaryLoans.id, input.loanId), eq(salaryLoans.companyId, m.companyId)));
       return { success: true };
+    }),
+
+  /**
+   * Get compliance flags for all active employees — work permit & visa expiry status.
+   * Returns per-employee compliance level: expired | expiring_30 | expiring_90 | ok | no_data
+   */
+  getComplianceFlags: protectedProcedure
+    .query(async ({ ctx }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+      const m = await getActiveCompanyMembership(ctx.user.id);
+      if (!m) throw new TRPCError({ code: "FORBIDDEN", message: "Not a company member" });
+
+      const now = new Date();
+      const in30 = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+      const in90 = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000);
+
+      type ComplianceLevel = "expired" | "expiring_30" | "expiring_90" | "ok" | "no_data";
+      function getLevel(d: Date | null | undefined): ComplianceLevel {
+        if (!d) return "no_data";
+        if (d < now) return "expired";
+        if (d < in30) return "expiring_30";
+        if (d < in90) return "expiring_90";
+        return "ok";
+      }
+      const priority: Record<ComplianceLevel, number> = { expired: 4, expiring_30: 3, expiring_90: 2, ok: 1, no_data: 0 };
+      const daysUntil = (d: Date | null | undefined) =>
+        d ? Math.ceil((d.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)) : null;
+
+      const empList = await db.select({
+        id: employees.id,
+        firstName: employees.firstName,
+        lastName: employees.lastName,
+        nationality: employees.nationality,
+      }).from(employees).where(and(eq(employees.companyId, m.companyId), eq(employees.status, "active")));
+
+      const permits = await db.select({
+        employeeId: workPermits.employeeId,
+        permitNumber: workPermits.workPermitNumber,
+        expiryDate: workPermits.expiryDate,
+      }).from(workPermits).where(eq(workPermits.companyId, m.companyId)).orderBy(desc(workPermits.expiryDate));
+
+      const docs = await db.select({
+        employeeId: employeeDocuments.employeeId,
+        documentType: employeeDocuments.documentType,
+        expiresAt: employeeDocuments.expiresAt,
+      }).from(employeeDocuments).where(and(
+        eq(employeeDocuments.companyId, m.companyId),
+        sql`${employeeDocuments.documentType} IN ('visa','passport','resident_card','mol_work_permit_certificate')`,
+        sql`${employeeDocuments.expiresAt} IS NOT NULL`
+      )).orderBy(desc(employeeDocuments.expiresAt));
+
+      const flags = empList.map(emp => {
+        const permit = permits.find(p => p.employeeId === emp.id);
+        const visa = docs.find(d => d.employeeId === emp.id && d.documentType === "visa");
+        const passport = docs.find(d => d.employeeId === emp.id && d.documentType === "passport");
+        const rc = docs.find(d => d.employeeId === emp.id && d.documentType === "resident_card");
+        const levels: ComplianceLevel[] = [
+          getLevel(permit?.expiryDate), getLevel(visa?.expiresAt),
+          getLevel(passport?.expiresAt), getLevel(rc?.expiresAt),
+        ];
+        const overallLevel = levels.reduce((w, l) => priority[l] > priority[w] ? l : w, "no_data" as ComplianceLevel);
+        return {
+          employeeId: emp.id,
+          employeeName: `${emp.firstName} ${emp.lastName}`,
+          nationality: emp.nationality,
+          overallLevel,
+          workPermit: { level: getLevel(permit?.expiryDate), expiryDate: permit?.expiryDate ?? null, daysRemaining: daysUntil(permit?.expiryDate), permitNumber: permit?.permitNumber ?? null },
+          visa: { level: getLevel(visa?.expiresAt), expiryDate: visa?.expiresAt ?? null, daysRemaining: daysUntil(visa?.expiresAt) },
+          passport: { level: getLevel(passport?.expiresAt), expiryDate: passport?.expiresAt ?? null, daysRemaining: daysUntil(passport?.expiresAt) },
+          residentCard: { level: getLevel(rc?.expiresAt), expiryDate: rc?.expiresAt ?? null, daysRemaining: daysUntil(rc?.expiresAt) },
+        };
+      });
+
+      const summary = {
+        total: flags.length,
+        expired: flags.filter(f => f.overallLevel === "expired").length,
+        expiring30: flags.filter(f => f.overallLevel === "expiring_30").length,
+        expiring90: flags.filter(f => f.overallLevel === "expiring_90").length,
+        ok: flags.filter(f => f.overallLevel === "ok").length,
+        noData: flags.filter(f => f.overallLevel === "no_data").length,
+      };
+      return { flags, summary };
+    }),
+
+  /**
+   * Get compliance flags scoped to a specific payroll run's employees.
+   * Used to show inline compliance badges on each payroll line item.
+   */
+  getRunCompliance: protectedProcedure
+    .input(z.object({ runId: z.number() }))
+    .query(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+      const m = await getActiveCompanyMembership(ctx.user.id);
+      if (!m) throw new TRPCError({ code: "FORBIDDEN", message: "Not a company member" });
+
+      const [run] = await db.select().from(payrollRuns)
+        .where(and(eq(payrollRuns.id, input.runId), eq(payrollRuns.companyId, m.companyId))).limit(1);
+      if (!run) throw new TRPCError({ code: "NOT_FOUND", message: "Payroll run not found" });
+
+      const lines = await db.select({ employeeId: payrollLineItems.employeeId })
+        .from(payrollLineItems)
+        .where(and(eq(payrollLineItems.payrollRunId, input.runId), eq(payrollLineItems.companyId, m.companyId)));
+
+      const employeeIds = lines.map(l => l.employeeId).filter(Boolean) as number[];
+      if (!employeeIds.length) return { complianceByEmployee: {}, summary: { total: 0, expired: 0, expiring30: 0, expiring90: 0, ok: 0, noData: 0 } };
+
+      const now = new Date();
+      const in30 = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+      const in90 = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000);
+
+      type ComplianceLevel = "expired" | "expiring_30" | "expiring_90" | "ok" | "no_data";
+      function getLevel(d: Date | null | undefined): ComplianceLevel {
+        if (!d) return "no_data";
+        if (d < now) return "expired";
+        if (d < in30) return "expiring_30";
+        if (d < in90) return "expiring_90";
+        return "ok";
+      }
+      const priority: Record<ComplianceLevel, number> = { expired: 4, expiring_30: 3, expiring_90: 2, ok: 1, no_data: 0 };
+      const daysUntil = (d: Date | null | undefined) =>
+        d ? Math.ceil((d.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)) : null;
+
+      const permits = await db.select({
+        employeeId: workPermits.employeeId,
+        permitNumber: workPermits.workPermitNumber,
+        expiryDate: workPermits.expiryDate,
+      }).from(workPermits)
+        .where(and(eq(workPermits.companyId, m.companyId), inArray(workPermits.employeeId, employeeIds)))
+        .orderBy(desc(workPermits.expiryDate));
+
+      const docs = await db.select({
+        employeeId: employeeDocuments.employeeId,
+        documentType: employeeDocuments.documentType,
+        expiresAt: employeeDocuments.expiresAt,
+      }).from(employeeDocuments).where(and(
+        eq(employeeDocuments.companyId, m.companyId),
+        inArray(employeeDocuments.employeeId, employeeIds),
+        sql`${employeeDocuments.documentType} IN ('visa','passport','resident_card','mol_work_permit_certificate')`,
+        sql`${employeeDocuments.expiresAt} IS NOT NULL`
+      )).orderBy(desc(employeeDocuments.expiresAt));
+
+      const complianceByEmployee: Record<number, {
+        overallLevel: ComplianceLevel;
+        workPermit: { level: ComplianceLevel; expiryDate: Date | null; daysRemaining: number | null; permitNumber: string | null };
+        visa: { level: ComplianceLevel; expiryDate: Date | null; daysRemaining: number | null };
+        passport: { level: ComplianceLevel; expiryDate: Date | null; daysRemaining: number | null };
+        residentCard: { level: ComplianceLevel; expiryDate: Date | null; daysRemaining: number | null };
+      }> = {};
+
+      for (const empId of employeeIds) {
+        const permit = permits.find(p => p.employeeId === empId);
+        const visa = docs.find(d => d.employeeId === empId && d.documentType === "visa");
+        const passport = docs.find(d => d.employeeId === empId && d.documentType === "passport");
+        const rc = docs.find(d => d.employeeId === empId && d.documentType === "resident_card");
+        const levels: ComplianceLevel[] = [
+          getLevel(permit?.expiryDate), getLevel(visa?.expiresAt),
+          getLevel(passport?.expiresAt), getLevel(rc?.expiresAt),
+        ];
+        const overallLevel = levels.reduce((w, l) => priority[l] > priority[w] ? l : w, "no_data" as ComplianceLevel);
+        complianceByEmployee[empId] = {
+          overallLevel,
+          workPermit: { level: getLevel(permit?.expiryDate), expiryDate: permit?.expiryDate ?? null, daysRemaining: daysUntil(permit?.expiryDate), permitNumber: permit?.permitNumber ?? null },
+          visa: { level: getLevel(visa?.expiresAt), expiryDate: visa?.expiresAt ?? null, daysRemaining: daysUntil(visa?.expiresAt) },
+          passport: { level: getLevel(passport?.expiresAt), expiryDate: passport?.expiresAt ?? null, daysRemaining: daysUntil(passport?.expiresAt) },
+          residentCard: { level: getLevel(rc?.expiresAt), expiryDate: rc?.expiresAt ?? null, daysRemaining: daysUntil(rc?.expiresAt) },
+        };
+      }
+
+      const allLevels = Object.values(complianceByEmployee).map(c => c.overallLevel);
+      const summary = {
+        total: allLevels.length,
+        expired: allLevels.filter(l => l === "expired").length,
+        expiring30: allLevels.filter(l => l === "expiring_30").length,
+        expiring90: allLevels.filter(l => l === "expiring_90").length,
+        ok: allLevels.filter(l => l === "ok").length,
+        noData: allLevels.filter(l => l === "no_data").length,
+      };
+      return { complianceByEmployee, summary };
     }),
 });

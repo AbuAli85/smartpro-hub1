@@ -959,3 +959,14 @@ Every company on SmartPRO Hub gets a complete, unified business operating area �
 - [ ] UI: Payslip modal — printable payslip view with all salary components, company header
 - [ ] UI: Employee Lifecycle payroll tab — show full payroll history for the employee
 - [ ] Nav: Add /payroll/process route to App.tsx and My Company sidebar
+
+## Phase 38: Payroll Compliance Flags (Work Permit & Visa Expiry)
+
+- [ ] Backend: extend payroll createRun to join work_permits table and attach complianceFlag to each line item (expired/expiring_30/expiring_90/ok)
+- [ ] Backend: extend getRunDetails to return complianceFlag, expiryDate, and documentType per line item
+- [ ] Backend: add payroll.getComplianceFlags procedure — returns all employees with expired/expiring work permits and visas for a company
+- [ ] UI: PayrollProcessingPage — show compliance badge on each employee row (red=expired, amber=expiring soon, green=ok)
+- [ ] UI: Compliance summary panel at top of Run Payroll tab — count of expired, expiring, ok employees
+- [ ] UI: Warning banner when approving a run that has employees with expired documents
+- [ ] UI: Compliance tooltip on each badge showing document type, expiry date, days remaining
+- [ ] UI: "View Details" link from compliance badge to employee documents page

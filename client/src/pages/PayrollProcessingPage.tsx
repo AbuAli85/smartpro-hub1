@@ -16,8 +16,117 @@ import { Separator } from "@/components/ui/separator";
 import {
   DollarSign, Users, CheckCircle, Clock, AlertCircle, Play, Download,
   Eye, Plus, RefreshCw, Banknote, Calculator, CreditCard, Settings,
-  ChevronRight, FileText, TrendingUp, Pencil, Check, X
+  ChevronRight, FileText, TrendingUp, Pencil, Check, X,
+  ShieldAlert, ShieldCheck, ShieldX, ShieldOff, ExternalLink
 } from "lucide-react";
+import { useLocation } from "wouter";
+
+// ─── Compliance helpers ────────────────────────────────────────────────────────
+type ComplianceLevel = "expired" | "expiring_30" | "expiring_90" | "ok" | "no_data";
+
+const COMPLIANCE_CONFIG: Record<ComplianceLevel, {
+  label: string;
+  badgeClass: string;
+  icon: React.ReactNode;
+  rowClass: string;
+}> = {
+  expired: {
+    label: "Expired",
+    badgeClass: "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300 border border-red-200 dark:border-red-700",
+    icon: <ShieldX size={11} />,
+    rowClass: "bg-red-50/40 dark:bg-red-900/10",
+  },
+  expiring_30: {
+    label: "Exp. <30d",
+    badgeClass: "bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300 border border-orange-200 dark:border-orange-700",
+    icon: <ShieldAlert size={11} />,
+    rowClass: "bg-orange-50/30 dark:bg-orange-900/10",
+  },
+  expiring_90: {
+    label: "Exp. <90d",
+    badgeClass: "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 border border-amber-200 dark:border-amber-700",
+    icon: <ShieldAlert size={11} />,
+    rowClass: "",
+  },
+  ok: {
+    label: "Compliant",
+    badgeClass: "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300 border border-green-200 dark:border-green-700",
+    icon: <ShieldCheck size={11} />,
+    rowClass: "",
+  },
+  no_data: {
+    label: "No Docs",
+    badgeClass: "bg-muted text-muted-foreground border border-border",
+    icon: <ShieldOff size={11} />,
+    rowClass: "",
+  },
+};
+
+function ComplianceBadge({ level, tooltip }: { level: ComplianceLevel; tooltip?: string }) {
+  const cfg = COMPLIANCE_CONFIG[level];
+  return (
+    <span title={tooltip} className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${cfg.badgeClass}`}>
+      {cfg.icon}{cfg.label}
+    </span>
+  );
+}
+
+function ComplianceSummaryPanel({ runId }: { runId: number }) {
+  const [, navigate] = useLocation();
+  const { data, isLoading } = trpc.payroll.getRunCompliance.useQuery({ runId });
+  if (isLoading) return <Skeleton className="h-16 rounded-lg" />;
+  if (!data) return null;
+  const { summary } = data;
+  const hasIssues = summary.expired > 0 || summary.expiring30 > 0;
+  return (
+    <div className={`rounded-lg border p-3 ${
+      summary.expired > 0
+        ? "bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800"
+        : summary.expiring30 > 0
+        ? "bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800"
+        : "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800"
+    }`}>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          {summary.expired > 0 ? (
+            <ShieldX size={16} className="text-red-600 dark:text-red-400 shrink-0" />
+          ) : summary.expiring30 > 0 ? (
+            <ShieldAlert size={16} className="text-orange-600 dark:text-orange-400 shrink-0" />
+          ) : (
+            <ShieldCheck size={16} className="text-green-600 dark:text-green-400 shrink-0" />
+          )}
+          <div>
+            <p className={`text-xs font-semibold ${
+              summary.expired > 0 ? "text-red-800 dark:text-red-300"
+              : summary.expiring30 > 0 ? "text-orange-800 dark:text-orange-300"
+              : "text-green-800 dark:text-green-300"
+            }`}>
+              {summary.expired > 0
+                ? `${summary.expired} employee${summary.expired > 1 ? "s" : ""} with EXPIRED documents — action required`
+                : summary.expiring30 > 0
+                ? `${summary.expiring30} employee${summary.expiring30 > 1 ? "s" : ""} with documents expiring within 30 days`
+                : "All employee documents are compliant"}
+            </p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">
+              {summary.expired > 0 && `${summary.expired} expired · `}
+              {summary.expiring30 > 0 && `${summary.expiring30} expiring <30d · `}
+              {summary.expiring90 > 0 && `${summary.expiring90} expiring <90d · `}
+              {summary.ok > 0 && `${summary.ok} compliant · `}
+              {summary.noData > 0 && `${summary.noData} no docs`}
+            </p>
+          </div>
+        </div>
+        {hasIssues && (
+          <button
+            onClick={() => navigate("/company/documents")}
+            className="text-[10px] flex items-center gap-1 text-muted-foreground hover:text-foreground underline shrink-0">
+            View Alerts <ExternalLink size={10} />
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
 
 const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 const fmt = (n: number | string | null | undefined) => `OMR ${Number(n ?? 0).toFixed(3)}`;
@@ -44,6 +153,9 @@ function RunPayrollTab() {
 
   const { data: runs, isLoading: runsLoading, refetch: refetchRuns } = trpc.payroll.listRuns.useQuery({ year: selectedYear });
   const { data: runDetail, isLoading: runDetailLoading } = trpc.payroll.getRun.useQuery(
+    { runId: selectedRunId! }, { enabled: !!selectedRunId }
+  );
+  const { data: runCompliance } = trpc.payroll.getRunCompliance.useQuery(
     { runId: selectedRunId! }, { enabled: !!selectedRunId }
   );
 
@@ -166,6 +278,9 @@ function RunPayrollTab() {
                         ))}
                       </div>
 
+                      {/* Compliance summary panel */}
+                      {selectedRunId && <ComplianceSummaryPanel runId={selectedRunId} />}
+
                       {/* Line items table */}
                       {runDetailLoading ? (
                         <Skeleton className="h-40 rounded-lg" />
@@ -175,6 +290,7 @@ function RunPayrollTab() {
                             <TableHeader>
                               <TableRow className="bg-muted/30">
                                 <TableHead>Employee</TableHead>
+                                <TableHead className="hidden sm:table-cell">Compliance</TableHead>
                                 <TableHead className="text-right">Basic</TableHead>
                                 <TableHead className="text-right">Allowances</TableHead>
                                 <TableHead className="text-right">Gross</TableHead>
@@ -186,10 +302,26 @@ function RunPayrollTab() {
                             <TableBody>
                               {runDetail.lines.map(({ line, emp }) => {
                                 const allowances = Number(line.housingAllowance ?? 0) + Number(line.transportAllowance ?? 0) + Number(line.otherAllowances ?? 0) + Number(line.overtimePay ?? 0);
+                                const empCompliance = line.employeeId && runCompliance?.complianceByEmployee
+                                  ? (runCompliance.complianceByEmployee as Record<number, any>)[line.employeeId]
+                                  : undefined;
+                                const compLevel: ComplianceLevel = empCompliance?.overallLevel ?? "no_data";
+                                const rowHighlight = COMPLIANCE_CONFIG[compLevel].rowClass;
+                                const tooltip = empCompliance ? [
+                                  empCompliance.workPermit?.level !== "ok" && empCompliance.workPermit?.level !== "no_data"
+                                    ? `Work Permit: ${empCompliance.workPermit?.daysRemaining != null ? (empCompliance.workPermit.daysRemaining < 0 ? "EXPIRED" : `${empCompliance.workPermit.daysRemaining}d remaining`) : "no data"}` : "",
+                                  empCompliance.visa?.level !== "ok" && empCompliance.visa?.level !== "no_data"
+                                    ? `Visa: ${empCompliance.visa?.daysRemaining != null ? (empCompliance.visa.daysRemaining < 0 ? "EXPIRED" : `${empCompliance.visa.daysRemaining}d remaining`) : "no data"}` : "",
+                                  empCompliance.passport?.level !== "ok" && empCompliance.passport?.level !== "no_data"
+                                    ? `Passport: ${empCompliance.passport?.daysRemaining != null ? (empCompliance.passport.daysRemaining < 0 ? "EXPIRED" : `${empCompliance.passport.daysRemaining}d remaining`) : "no data"}` : "",
+                                ].filter(Boolean).join(" | ") : "";
                                 return (
-                                  <TableRow key={line.id} className="hover:bg-muted/20">
+                                  <TableRow key={line.id} className={`hover:bg-muted/20 ${rowHighlight}`}>
                                     <TableCell className="font-medium">
                                       {emp?.firstName} {emp?.lastName}
+                                    </TableCell>
+                                    <TableCell className="hidden sm:table-cell">
+                                      <ComplianceBadge level={compLevel} tooltip={tooltip || undefined} />
                                     </TableCell>
                                     <TableCell className="text-right text-sm">{fmtShort(line.basicSalary)}</TableCell>
                                     <TableCell className="text-right text-sm text-blue-600">+{fmtShort(allowances)}</TableCell>
@@ -219,11 +351,24 @@ function RunPayrollTab() {
 
                       {/* Action buttons */}
                       <div className="flex flex-wrap gap-2 pt-2">
-                        {run.status === "draft" && (
-                          <Button size="sm" className="gap-2" onClick={() => setApproveConfirm(run.id)}>
-                            <CheckCircle size={14} /> Approve Payroll
-                          </Button>
-                        )}
+                        {run.status === "draft" && (() => {
+                          const hasExpired = (runCompliance?.summary?.expired ?? 0) > 0;
+                          return (
+                            <div className="flex items-center gap-2">
+                              <Button size="sm" className="gap-2"
+                                disabled={hasExpired}
+                                onClick={() => setApproveConfirm(run.id)}
+                                title={hasExpired ? "Cannot approve: some employees have expired documents. Please renew before approving payroll." : undefined}>
+                                <CheckCircle size={14} /> Approve Payroll
+                              </Button>
+                              {hasExpired && (
+                                <span className="text-xs text-red-600 dark:text-red-400 flex items-center gap-1">
+                                  <ShieldX size={12} /> {runCompliance!.summary.expired} expired doc{runCompliance!.summary.expired > 1 ? "s" : ""} — renew to approve
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })()}
                         {run.status === "approved" && (
                           <Button size="sm" variant="outline" className="gap-2 border-green-500 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20"
                             onClick={() => setMarkPaidConfirm(run.id)}>

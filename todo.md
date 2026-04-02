@@ -984,3 +984,35 @@ Every company on SmartPRO Hub gets a complete, unified business operating area �
 - [x] Nav: "Document Dashboard" link added to My Company section in PlatformLayout sidebar
 - [x] Nav: Add /hr/documents-dashboard to PORTAL_CLIENT_HREFS
 - [x] 252 tests passing, 0 TypeScript errors
+
+## Phase 40: End-to-End Company Operating System
+
+### 40A — Company Profile Page (Complete)
+- [x] Schema: add crNumber, occiNumber, municipalityLicence, laborCardNumber, pasiNumber, bankName, bankAccountNumber, bankIban, omanisationTarget, foundedYear, employeeCount fields to companies table
+- [x] Migration: generate and apply schema migration
+- [x] Backend: companies.update procedure extended to accept all new company fields
+- [x] UI: CompanyProfilePage.tsx — full company identity with tabs: General, Legal & Licences, Bank Details, Omanisation
+- [x] Route: /company/profile registered in App.tsx
+- [x] Nav: "Company Profile" link added to My Company sidebar section
+
+### 40B — Enhanced Employee Form (Nationality Dropdown)
+- [x] Add NATIONALITY_LIST constant with all countries + ISO codes (searchable dropdown)
+- [x] Enhance MyTeamPage add/edit form: 3-step wizard with nationality dropdown, Arabic name, gender, DOB, marital status, PASI, bank, emergency contact
+- [x] Backend: hr.createEmployee and hr.updateEmployee extended with all new employee fields
+
+### 40C — Bulk Excel Import Enhancement
+- [x] Update EmployeeImportPage: 35-column mapping with nationality, profession, visa, work permit, DOB, gender, PASI, bank account, emergency contact
+- [x] Backend: team.bulkImport extended with all new fields
+
+### 40D — Connected Employee Profile (All Tabs)
+- [x] Enhance EmployeeLifecyclePage: 5 tabs — Profile (all fields + Arabic name + PASI + bank + emergency), Leave, Payroll, Attendance, Documents
+- [x] Attendance tab: monthly summary (present/absent/late/remote counts) + full attendance table
+
+### 40E — Leave Management Workflow
+- [x] Backend: hr.createLeave, hr.updateLeave (approve/reject/cancel), hr.listLeave procedures exist and are complete
+- [x] UI: HRLeavePage — full workflow: pending requests, approve/reject buttons, leave balance per type
+
+### 40F — Payroll Workflow Completion
+- [x] Backend: payroll router has listRuns, createRun, approveRun, markPaid, generatePayslip, generateWpsFile, listSalaryConfigs, upsertSalaryConfig, listLoans, createLoan, getComplianceFlags
+- [x] UI: PayrollEnginePage — full payroll workflow: runs, run detail, salary config, loans, WPS export, payslips
+- [x] 252 tests passing, 0 TypeScript errors after all Phase 40 changes

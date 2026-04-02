@@ -218,6 +218,10 @@ export default function EmployeeLifecyclePage() {
     { id: employeeId },
     { enabled: employeeId > 0 }
   );
+  const [attendanceYear] = useState(() => new Date().getFullYear());
+  const [attendanceMonth] = useState(() => new Date().getMonth() + 1);
+  const attendanceMonthStr = `${attendanceYear}-${String(attendanceMonth).padStart(2, "0")}`;
+
   const { data: leaveData } = trpc.hr.listLeave.useQuery(
     { employeeId },
     { enabled: employeeId > 0 }
@@ -226,9 +230,14 @@ export default function EmployeeLifecyclePage() {
     { year: new Date().getFullYear() },
     { enabled: employeeId > 0 }
   );
+  const { data: attendanceData } = trpc.hr.listAttendance.useQuery(
+    { month: attendanceMonthStr },
+    { enabled: employeeId > 0 }
+  );
 
   // Filter payroll records for this employee
   const empPayroll = payrollData?.filter((p: any) => p.employeeId === employeeId) ?? [];
+  const empAttendance = (attendanceData ?? []).filter((a: any) => a.employeeId === employeeId);
 
   if (isLoading) {
     return (
@@ -366,6 +375,7 @@ export default function EmployeeLifecyclePage() {
             <TabsTrigger value="profile" className="gap-1.5"><User size={13} /> Profile</TabsTrigger>
             <TabsTrigger value="leave" className="gap-1.5"><Calendar size={13} /> Leave</TabsTrigger>
             <TabsTrigger value="payroll" className="gap-1.5"><DollarSign size={13} /> Payroll</TabsTrigger>
+            <TabsTrigger value="attendance" className="gap-1.5"><Clock size={13} /> Attendance</TabsTrigger>
             <TabsTrigger value="documents" className="gap-1.5"><FileText size={13} /> Documents</TabsTrigger>
           </TabsList>
 
@@ -380,9 +390,15 @@ export default function EmployeeLifecyclePage() {
                 </CardHeader>
                 <CardContent className="pt-0">
                   <InfoRow label="Full Name" value={fullName} />
+                  {(employee as any).firstNameAr && (
+                    <InfoRow label="الاسم (AR)" value={`${(employee as any).firstNameAr} ${(employee as any).lastNameAr ?? ""}`} />
+                  )}
                   <InfoRow label="Email" value={employee.email} icon={Mail} />
                   <InfoRow label="Phone" value={employee.phone} icon={Phone} />
                   <InfoRow label="Nationality" value={employee.nationality} icon={Globe} />
+                  <InfoRow label="Gender" value={(employee as any).gender} />
+                  <InfoRow label="Date of Birth" value={(employee as any).dateOfBirth ? fmtDate((employee as any).dateOfBirth) : null} icon={Calendar} />
+                  <InfoRow label="Marital Status" value={(employee as any).maritalStatus} />
                   <InfoRow label="Passport No." value={employee.passportNumber} icon={CreditCard} />
                   <InfoRow label="Civil ID" value={employee.nationalId} icon={Hash} />
                   {!employee.email && !employee.phone && !employee.nationality && (
@@ -438,6 +454,25 @@ export default function EmployeeLifecyclePage() {
                       <InfoRow label="Issue Date" value={fmtDate(employee.permit.issueDate)} icon={Calendar} />
                       <InfoRow label="Expiry Date" value={fmtDate(employee.permit.expiryDate)} icon={Calendar} />
                       <InfoRow label="Status" value={employee.permit.permitStatus} />
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+              {/* PASI / Bank / Emergency */}
+              {((employee as any).pasiNumber || (employee as any).bankName || (employee as any).emergencyContactName) && (
+                <Card className="sm:col-span-2">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm flex items-center gap-2">
+                      <Hash size={14} className="text-muted-foreground" /> PASI, Bank &amp; Emergency Contact
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="pt-0">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6">
+                      <InfoRow label="PASI Number" value={(employee as any).pasiNumber} icon={Hash} />
+                      <InfoRow label="Bank Name" value={(employee as any).bankName} icon={Building2} />
+                      <InfoRow label="Bank Account" value={(employee as any).bankAccountNumber} icon={Hash} />
+                      <InfoRow label="Emergency Contact" value={(employee as any).emergencyContactName} icon={User} />
+                      <InfoRow label="Emergency Phone" value={(employee as any).emergencyContactPhone} icon={Phone} />
                     </div>
                   </CardContent>
                 </Card>
@@ -542,6 +577,80 @@ export default function EmployeeLifecyclePage() {
                       </tbody>
                     </table>
                   </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* ── Attendance Tab ── */}
+          <TabsContent value="attendance" className="mt-4">
+            <Card>
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm">Attendance — {MONTH_NAMES[attendanceMonth - 1]} {attendanceYear}</CardTitle>
+                  <Button variant="outline" size="sm" className="text-xs h-7 gap-1"
+                    onClick={() => navigate("/hr/attendance")}>
+                    Full Attendance
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent className="pt-0">
+                {empAttendance.length === 0 ? (
+                  <div className="text-center py-8">
+                    <Clock size={24} className="text-muted-foreground mx-auto mb-2" />
+                    <p className="text-sm text-muted-foreground">No attendance records this month</p>
+                    <Button variant="outline" size="sm" className="mt-3 gap-1.5" onClick={() => navigate("/hr/attendance")}>
+                      Record Attendance
+                    </Button>
+                  </div>
+                ) : (
+                  <>
+                    {/* Summary row */}
+                    <div className="grid grid-cols-4 gap-3 mb-4">
+                      {[
+                        { label: "Present", count: empAttendance.filter((a: any) => a.status === "present").length, color: "text-emerald-600" },
+                        { label: "Absent", count: empAttendance.filter((a: any) => a.status === "absent").length, color: "text-red-600" },
+                        { label: "Late", count: empAttendance.filter((a: any) => a.status === "late").length, color: "text-amber-600" },
+                        { label: "Remote", count: empAttendance.filter((a: any) => a.status === "remote").length, color: "text-blue-600" },
+                      ].map(({ label, count, color }) => (
+                        <div key={label} className="text-center p-3 rounded-lg border border-border bg-muted/30">
+                          <div className={`text-xl font-bold ${color}`}>{count}</div>
+                          <div className="text-xs text-muted-foreground">{label}</div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-border">
+                            <th className="text-left py-2 text-xs font-medium text-muted-foreground">Date</th>
+                            <th className="text-left py-2 text-xs font-medium text-muted-foreground">Status</th>
+                            <th className="text-left py-2 text-xs font-medium text-muted-foreground">Clock In</th>
+                            <th className="text-left py-2 text-xs font-medium text-muted-foreground">Clock Out</th>
+                            <th className="text-left py-2 text-xs font-medium text-muted-foreground">Hours</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {empAttendance.map((a: any) => (
+                            <tr key={a.id} className="border-b border-muted/50 last:border-0">
+                              <td className="py-2.5 text-foreground">{fmtDate(a.date)}</td>
+                              <td className="py-2.5">
+                                <Badge className={`text-xs px-2 py-0 h-5 ${
+                                  a.status === "present" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" :
+                                  a.status === "absent" ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" :
+                                  a.status === "late" ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" :
+                                  "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+                                }`}>{a.status}</Badge>
+                              </td>
+                              <td className="py-2.5 text-muted-foreground">{a.clockIn ?? "—"}</td>
+                              <td className="py-2.5 text-muted-foreground">{a.clockOut ?? "—"}</td>
+                              <td className="py-2.5 text-muted-foreground">{a.hoursWorked ? `${Number(a.hoursWorked).toFixed(1)}h` : "—"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
                 )}
               </CardContent>
             </Card>

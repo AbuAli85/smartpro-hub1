@@ -228,18 +228,30 @@ export const companiesRouter = router({
         city: z.string().optional(),
         address: z.string().optional(),
         phone: z.string().optional(),
-        email: z.string().email().optional(),
+        email: z.string().optional(),
         website: z.string().optional(),
         registrationNumber: z.string().optional(),
         taxNumber: z.string().optional(),
         status: z.enum(["active", "suspended", "pending", "cancelled"]).optional(),
+        // Extended Oman business profile
+        crNumber: z.string().optional(),
+        occiNumber: z.string().optional(),
+        municipalityLicenceNumber: z.string().optional(),
+        laborCardNumber: z.string().optional(),
+        pasiNumber: z.string().optional(),
+        bankName: z.string().optional(),
+        bankAccountNumber: z.string().optional(),
+        bankIban: z.string().optional(),
+        omanisationTarget: z.number().min(0).max(100).optional(),
+        foundedYear: z.number().min(1900).max(2100).optional(),
+        description: z.string().optional(),
       })
     )
     .mutation(async ({ input, ctx }) => {
       const { id, ...data } = input;
       // Must be company_admin or platform admin
       if (!canAccessGlobalAdminProcedures(ctx.user)) await assertCompanyAdmin(ctx.user.id, id);
-      await updateCompany(id, data);
+      await updateCompany(id, data as any);
       return { success: true };
     }),
 

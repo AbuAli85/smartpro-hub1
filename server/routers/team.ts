@@ -58,6 +58,32 @@ const importRowSchema = z.object({
   dateOfIssue: z.string().optional(),
   dateOfExpiry: z.string().optional(),
   transferred: z.string().optional(),
+  // Full employee master data fields
+  firstName: z.string().optional(),
+  lastName: z.string().optional(),
+  firstNameAr: z.string().optional(),
+  lastNameAr: z.string().optional(),
+  email: z.string().optional(),
+  phone: z.string().optional(),
+  nationality: z.string().optional(),
+  department: z.string().optional(),
+  position: z.string().optional(),
+  employmentType: z.string().optional(),
+  salary: z.string().optional(),
+  currency: z.string().optional(),
+  hireDate: z.string().optional(),
+  employeeNumber: z.string().optional(),
+  gender: z.string().optional(),
+  dateOfBirth: z.string().optional(),
+  maritalStatus: z.string().optional(),
+  profession: z.string().optional(),
+  visaExpiryDate: z.string().optional(),
+  workPermitExpiryDate: z.string().optional(),
+  pasiNumber: z.string().optional(),
+  bankName: z.string().optional(),
+  bankAccountNumber: z.string().optional(),
+  emergencyContactName: z.string().optional(),
+  emergencyContactPhone: z.string().optional(),
 });
 
 // ─── router ──────────────────────────────────────────────────────────────────
@@ -282,10 +308,10 @@ export const teamRouter = router({
             }
           }
 
-          // Split full name into first/last
+          // Split full name into first/last (use explicit columns if provided)
           const nameParts = row.name.trim().split(/\s+/);
-          const firstName = nameParts[0] ?? row.name;
-          const lastName = nameParts.slice(1).join(" ") || firstName;
+          const firstName = row.firstName || nameParts[0] || row.name;
+          const lastName = row.lastName || nameParts.slice(1).join(" ") || firstName;
 
           // Map work permit status → employee status
           const rawStatus = (row.workPermitStatus ?? "").toLowerCase();
@@ -294,7 +320,16 @@ export const teamRouter = router({
           else if (rawStatus === "deserted") status = "resigned";
 
           // Parse dates
-          const hireDate = parseDateField(row.dateOfIssue);
+          const hireDate = parseDateField(row.hireDate || row.dateOfIssue);
+
+          // Determine employment type
+          const rawEmpType = (row.employmentType ?? "").toLowerCase().replace(/[\s-]/g, "_");
+          const empTypeMap: Record<string, string> = {
+            full_time: "full_time", fulltime: "full_time",
+            part_time: "part_time", parttime: "part_time",
+            contract: "contract", intern: "intern",
+          };
+          const employmentType = (empTypeMap[rawEmpType] ?? "full_time") as "full_time" | "part_time" | "contract" | "intern";
 
           const dbConn = await getDb();
           if (!dbConn) throw new Error("Database unavailable");
@@ -302,14 +337,22 @@ export const teamRouter = router({
             companyId,
             firstName,
             lastName,
+            firstNameAr: row.firstNameAr ?? null,
+            lastNameAr: row.lastNameAr ?? null,
+            email: row.email ?? null,
+            phone: row.phone ?? null,
+            nationality: row.nationality ?? null,
             nationalId: row.civilNumber ?? null,
             passportNumber: row.passportNumber ?? null,
-            position: row.occupationName ?? null,
-            employmentType: "full_time",
+            department: row.department ?? null,
+            position: row.position || row.occupationName || null,
+            employmentType,
             status,
+            salary: row.salary ? String(Number(row.salary)) : null,
+            currency: row.currency || "OMR",
             hireDate: hireDate ?? null,
-            currency: "OMR",
-          });
+            employeeNumber: row.employeeNumber ?? null,
+          } as any);
 
           // Update duplicate tracking sets
           if (row.civilNumber) existingCivilIds.add(row.civilNumber.toLowerCase());

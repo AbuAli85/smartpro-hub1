@@ -93,6 +93,7 @@ const navGroups = [
     label: "My Company",
     items: [
       { label: "Business Dashboard", href: "/business/dashboard", icon: <LayoutDashboard size={18} /> },
+      { label: "Company Profile", href: "/company/profile", icon: <Building2 size={18} /> },
       { label: "My Team", href: "/my-team", icon: <Users size={18} /> },
       { label: "Operations", href: "/company/operations", icon: <Activity size={18} /> },
       { label: "Company Documents", href: "/company/documents", icon: <FolderOpen size={18} /> },

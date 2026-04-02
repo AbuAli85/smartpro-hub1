@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { useLocation } from "wouter";
+import { NATIONALITIES, PROFESSIONS } from "@/lib/nationalities";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import {
@@ -59,25 +60,34 @@ function fmtSalary(s: string | null | undefined, currency = "OMR") {
 // ─── Add / Edit Staff Dialog ──────────────────────────────────────────────────
 
 interface StaffFormState {
-  firstName: string; lastName: string;
+  firstName: string; lastName: string; firstNameAr: string; lastNameAr: string;
   email: string; phone: string;
   nationality: string; passportNumber: string; nationalId: string;
-  department: string; position: string;
+  dateOfBirth: string; gender: string; maritalStatus: string;
+  department: string; position: string; profession: string;
   employmentType: "full_time" | "part_time" | "contract" | "intern";
   salary: string; currency: string;
   hireDate: string; employeeNumber: string;
+  pasiNumber: string; bankName: string; bankAccountNumber: string;
+  emergencyContactName: string; emergencyContactPhone: string;
   // Work permit / visa fields
   workPermitNumber: string; visaNumber: string;
   occupationCode: string; occupationName: string;
-  workPermitExpiry: string;
+  workPermitExpiry: string; visaExpiryDate: string; workPermitExpiryDate: string;
 }
 
 const BLANK_FORM: StaffFormState = {
-  firstName: "", lastName: "", email: "", phone: "",
+  firstName: "", lastName: "", firstNameAr: "", lastNameAr: "",
+  email: "", phone: "",
   nationality: "", passportNumber: "", nationalId: "",
-  department: "", position: "", employmentType: "full_time",
+  dateOfBirth: "", gender: "", maritalStatus: "",
+  department: "", position: "", profession: "",
+  employmentType: "full_time",
   salary: "", currency: "OMR", hireDate: "", employeeNumber: "",
-  workPermitNumber: "", visaNumber: "", occupationCode: "", occupationName: "", workPermitExpiry: "",
+  pasiNumber: "", bankName: "", bankAccountNumber: "",
+  emergencyContactName: "", emergencyContactPhone: "",
+  workPermitNumber: "", visaNumber: "", occupationCode: "", occupationName: "",
+  workPermitExpiry: "", visaExpiryDate: "", workPermitExpiryDate: "",
 };
 
 function StaffFormDialog({
@@ -128,6 +138,17 @@ function StaffFormDialog({
       occupationCode: form.occupationCode || undefined,
       occupationName: form.occupationName || undefined,
       workPermitExpiry: form.workPermitExpiry || undefined,
+      dateOfBirth: form.dateOfBirth || undefined,
+      gender: (form.gender as any) || undefined,
+      maritalStatus: (form.maritalStatus as any) || undefined,
+      profession: form.profession || undefined,
+      visaExpiryDate: form.visaExpiryDate || undefined,
+      workPermitExpiryDate: form.workPermitExpiryDate || undefined,
+      pasiNumber: form.pasiNumber || undefined,
+      bankName: form.bankName || undefined,
+      bankAccountNumber: form.bankAccountNumber || undefined,
+      emergencyContactName: form.emergencyContactName || undefined,
+      emergencyContactPhone: form.emergencyContactPhone || undefined,
     };
     if (isEdit) {
       updateMutation.mutate({ id: editId!, ...payload });
@@ -154,14 +175,14 @@ function StaffFormDialog({
         {/* Step indicator */}
         {!isEdit && (
           <div className="flex items-center gap-2 px-1">
-            {["Personal Info", "Role & Compensation"].map((label, i) => (
+            {["Personal Info", "Role & Pay", "Additional"].map((label, i) => (
               <div key={i} className="flex items-center gap-2 flex-1">
                 <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition-colors
                   ${step > i + 1 ? "bg-emerald-500 text-white" : step === i + 1 ? "bg-[var(--smartpro-orange)] text-white" : "bg-gray-200 text-gray-500"}`}>
                   {step > i + 1 ? "✓" : i + 1}
                 </div>
                 <span className={`text-xs ${step === i + 1 ? "font-semibold text-gray-900" : "text-gray-400"}`}>{label}</span>
-                {i < 1 && <div className="flex-1 h-px bg-gray-200 mx-1" />}
+                {i < 2 && <div className="flex-1 h-px bg-gray-200 mx-1" />}
               </div>
             ))}
           </div>
@@ -172,12 +193,22 @@ function StaffFormDialog({
             <>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <Label className="text-xs font-medium">First Name <span className="text-red-500">*</span></Label>
+                  <Label className="text-xs font-medium">First Name (EN) <span className="text-red-500">*</span></Label>
                   <Input placeholder="e.g. Ahmed" value={form.firstName} onChange={f("firstName")} />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs font-medium">Last Name <span className="text-red-500">*</span></Label>
+                  <Label className="text-xs font-medium">Last Name (EN) <span className="text-red-500">*</span></Label>
                   <Input placeholder="e.g. Al-Rashidi" value={form.lastName} onChange={f("lastName")} />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs font-medium">الاسم الأول (AR)</Label>
+                  <Input dir="rtl" placeholder="أحمد" value={form.firstNameAr} onChange={f("firstNameAr")} />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs font-medium">اسم العائلة (AR)</Label>
+                  <Input dir="rtl" placeholder="الراشدي" value={form.lastNameAr} onChange={f("lastNameAr")} />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -193,21 +224,73 @@ function StaffFormDialog({
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <Label className="text-xs font-medium">Nationality</Label>
-                  <Input placeholder="e.g. Omani" value={form.nationality} onChange={f("nationality")} />
+                  <select
+                    value={form.nationality}
+                    onChange={e => setForm(p => ({ ...p, nationality: e.target.value }))}
+                    className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                  >
+                    <option value="">— Select Nationality —</option>
+                    {NATIONALITIES.map(n => <option key={n.code} value={n.label}>{n.label}</option>)}
+                  </select>
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs font-medium">National ID / Civil ID</Label>
-                  <Input placeholder="e.g. 12345678" value={form.nationalId} onChange={f("nationalId")} />
+                  <Label className="text-xs font-medium">Gender</Label>
+                  <select
+                    value={form.gender}
+                    onChange={e => setForm(p => ({ ...p, gender: e.target.value }))}
+                    className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                  >
+                    <option value="">— Select —</option>
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                  </select>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
+                  <Label className="text-xs font-medium">Date of Birth</Label>
+                  <Input type="date" value={form.dateOfBirth} onChange={f("dateOfBirth")} />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs font-medium">Marital Status</Label>
+                  <select
+                    value={form.maritalStatus}
+                    onChange={e => setForm(p => ({ ...p, maritalStatus: e.target.value }))}
+                    className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                  >
+                    <option value="">— Select —</option>
+                    <option value="single">Single</option>
+                    <option value="married">Married</option>
+                    <option value="divorced">Divorced</option>
+                    <option value="widowed">Widowed</option>
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs font-medium">National ID / Civil ID</Label>
+                  <Input placeholder="e.g. 12345678" value={form.nationalId} onChange={f("nationalId")} />
+                </div>
+                <div className="space-y-1">
                   <Label className="text-xs font-medium">Passport Number</Label>
                   <Input placeholder="Optional" value={form.passportNumber} onChange={f("passportNumber")} />
                 </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <Label className="text-xs font-medium">Employee Number</Label>
                   <Input placeholder="e.g. EMP-001" value={form.employeeNumber} onChange={f("employeeNumber")} />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs font-medium">Profession</Label>
+                  <select
+                    value={form.profession}
+                    onChange={e => setForm(p => ({ ...p, profession: e.target.value }))}
+                    className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                  >
+                    <option value="">— Select Profession —</option>
+                    {PROFESSIONS.map(p => <option key={p} value={p}>{p}</option>)}
+                  </select>
                 </div>
               </div>
             </>
@@ -287,6 +370,42 @@ function StaffFormDialog({
                     <Label className="text-xs font-medium">Work Permit Expiry</Label>
                     <Input type="date" value={form.workPermitExpiry} onChange={f("workPermitExpiry")} />
                   </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs font-medium">Visa Expiry Date</Label>
+                    <Input type="date" value={form.visaExpiryDate} onChange={f("visaExpiryDate")} />
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Step 3: Additional Info */}
+          {(step === 3 || isEdit) && (
+            <>
+              <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2">PASI &amp; Bank Details</div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs font-medium">PASI Number</Label>
+                  <Input placeholder="e.g. PASI-XXXXX" value={form.pasiNumber} onChange={f("pasiNumber")} />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs font-medium">Bank Name</Label>
+                  <Input placeholder="e.g. Bank Muscat" value={form.bankName} onChange={f("bankName")} />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs font-medium">Bank Account Number</Label>
+                <Input placeholder="e.g. 0123456789" value={form.bankAccountNumber} onChange={f("bankAccountNumber")} />
+              </div>
+              <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2 mt-3">Emergency Contact</div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs font-medium">Contact Name</Label>
+                  <Input placeholder="e.g. Mohammed Al-Rashidi" value={form.emergencyContactName} onChange={f("emergencyContactName")} />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs font-medium">Contact Phone</Label>
+                  <Input placeholder="+968 9X XXX XXXX" value={form.emergencyContactPhone} onChange={f("emergencyContactPhone")} />
                 </div>
               </div>
             </>
@@ -294,17 +413,17 @@ function StaffFormDialog({
         </div>
 
         <DialogFooter className="gap-2">
-          {!isEdit && step === 2 && (
-            <Button variant="outline" onClick={() => setStep(1)}>Back</Button>
+          {!isEdit && step > 1 && (
+            <Button variant="outline" onClick={() => setStep(s => s - 1)}>Back</Button>
           )}
           <Button variant="outline" onClick={() => { onClose(); setStep(1); }}>Cancel</Button>
-          {!isEdit && step === 1 ? (
+          {!isEdit && step < 3 ? (
             <Button
               className="bg-[var(--smartpro-orange)] hover:bg-orange-600 text-white"
-              disabled={!form.firstName.trim() || !form.lastName.trim()}
-              onClick={() => setStep(2)}
+              disabled={step === 1 && (!form.firstName.trim() || !form.lastName.trim())}
+              onClick={() => setStep(s => s + 1)}
             >
-              Next: Role & Pay
+              {step === 1 ? "Next: Role & Pay" : "Next: Additional Info"}
             </Button>
           ) : (
             <Button

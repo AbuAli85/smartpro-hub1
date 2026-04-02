@@ -82,6 +82,18 @@ export const hrRouter = router({
         workPermitExpiry: z.string().optional(),
         visaExpiry: z.string().optional(),
         passportExpiry: z.string().optional(),
+        // New extended HR fields
+        dateOfBirth: z.string().optional(),
+        gender: z.enum(["male", "female"]).optional(),
+        maritalStatus: z.enum(["single", "married", "divorced", "widowed"]).optional(),
+        profession: z.string().optional(),
+        visaExpiryDate: z.string().optional(),
+        workPermitExpiryDate: z.string().optional(),
+        pasiNumber: z.string().optional(),
+        bankName: z.string().optional(),
+        bankAccountNumber: z.string().optional(),
+        emergencyContactName: z.string().optional(),
+        emergencyContactPhone: z.string().optional(),
       })
     )
     .mutation(async ({ input, ctx }) => {
@@ -89,13 +101,17 @@ export const hrRouter = router({
       if (!membership) throw new TRPCError({ code: "FORBIDDEN", message: "No company membership" });
       requireNotAuditor(membership.role, "External Auditors cannot create employees.");
       const companyId = membership.companyId;
-      const { workPermitNumber, visaNumber, occupationCode, occupationName, workPermitExpiry, visaExpiry, passportExpiry, ...empData } = input;
+      const { workPermitNumber, visaNumber, occupationCode, occupationName, workPermitExpiry, visaExpiry, passportExpiry,
+        dateOfBirth, visaExpiryDate, workPermitExpiryDate, ...empData } = input;
       const emp = await createEmployee({
         ...empData,
         companyId,
         salary: empData.salary ? String(empData.salary) : undefined,
         hireDate: empData.hireDate ? new Date(empData.hireDate) : undefined,
-      });
+        dateOfBirth: dateOfBirth || undefined,
+        visaExpiryDate: visaExpiryDate || undefined,
+        workPermitExpiryDate: workPermitExpiryDate || undefined,
+      } as any);
       // If work permit number provided, create a work permit record
       if (workPermitNumber && emp) {
         const db = await getDb();
@@ -146,12 +162,25 @@ export const hrRouter = router({
         workPermitExpiry: z.string().optional(),
         visaExpiry: z.string().optional(),
         passportExpiry: z.string().optional(),
+        // Extended HR fields
+        dateOfBirth: z.string().optional(),
+        gender: z.enum(["male", "female"]).optional(),
+        maritalStatus: z.enum(["single", "married", "divorced", "widowed"]).optional(),
+        profession: z.string().optional(),
+        visaExpiryDate: z.string().optional(),
+        workPermitExpiryDate: z.string().optional(),
+        pasiNumber: z.string().optional(),
+        bankName: z.string().optional(),
+        bankAccountNumber: z.string().optional(),
+        emergencyContactName: z.string().optional(),
+        emergencyContactPhone: z.string().optional(),
       })
     )
     .mutation(async ({ input, ctx }) => {
       const _auditorCheck = await getActiveCompanyMembership(ctx.user.id);
       if (_auditorCheck) requireNotAuditor(_auditorCheck.role, "External Auditors cannot update employees.");
-      const { id, workPermitNumber, visaNumber, occupationCode, occupationName, workPermitExpiry, visaExpiry, passportExpiry, ...data } = input;
+      const { id, workPermitNumber, visaNumber, occupationCode, occupationName, workPermitExpiry, visaExpiry, passportExpiry,
+        dateOfBirth, visaExpiryDate, workPermitExpiryDate, ...data } = input;
       const existing = await getEmployeeById(id);
       if (!existing) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
       await assertRowBelongsToActiveCompany(ctx.user, existing.companyId, "Employee");
@@ -159,6 +188,10 @@ export const hrRouter = router({
       if (data.salary !== undefined) updateData.salary = String(data.salary);
       if (data.hireDate !== undefined) updateData.hireDate = data.hireDate ? new Date(data.hireDate) : null;
       if (data.terminationDate !== undefined) updateData.terminationDate = data.terminationDate ? new Date(data.terminationDate) : null;
+      // Extended date fields (stored as DATE strings in MySQL)
+      if (dateOfBirth !== undefined) updateData.dateOfBirth = dateOfBirth || null;
+      if (visaExpiryDate !== undefined) updateData.visaExpiryDate = visaExpiryDate || null;
+      if (workPermitExpiryDate !== undefined) updateData.workPermitExpiryDate = workPermitExpiryDate || null;
       await updateEmployee(id, updateData);
       // Update or create work permit record if permit fields provided
       if (workPermitNumber !== undefined || visaNumber !== undefined || workPermitExpiry !== undefined) {

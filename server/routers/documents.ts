@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, isNull, gte, lte, or, sql } from "drizzle-orm";
 import { getDb } from "../db";
-import { companyDocuments, employeeDocuments } from "../../drizzle/schema";
+import { companyDocuments, employeeDocuments, employees } from "../../drizzle/schema";
 import { storagePut } from "../storage";
 import {
   getActiveCompanyMembership,
@@ -356,6 +356,222 @@ export const documentsRouter = router({
         );
 
       return { success: true };
+    }),
+
+  // ── Dashboard: aggregate all documents for HR overview ──────────────────
+  getDashboard: protectedProcedure.query(async ({ ctx }) => {
+    const membership = await getActiveCompanyMembership(ctx.user.id);
+    if (!membership)
+      throw new TRPCError({ code: "FORBIDDEN", message: "No active company" });
+
+    const db = await getDb();
+    if (!db) return {
+      companyDocStats: { total: 0, valid: 0, expiringSoon: 0, expired: 0, noExpiry: 0 },
+      employeeDocStats: { total: 0, valid: 0, expiringSoon: 0, expired: 0, noExpiry: 0 },
+      employeesWithMissingDocs: [],
+      expiringIn90Days: [],
+      recentlyUploaded: [],
+      totalEmployees: 0,
+      employeesWithAnyDoc: 0,
+    };
+
+    const companyId = membership.companyId;
+    const now = new Date();
+    const in30 = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+    const in90 = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000);
+
+    // ── Company docs ─────────────────────────────────────────────────────────
+    const cDocs = await db
+      .select()
+      .from(companyDocuments)
+      .where(and(eq(companyDocuments.companyId, companyId), eq(companyDocuments.isDeleted, false)))
+      .orderBy(desc(companyDocuments.createdAt));
+
+    const companyDocStats = { total: 0, valid: 0, expiringSoon: 0, expired: 0, noExpiry: 0 };
+    for (const d of cDocs) {
+      companyDocStats.total++;
+      const s = computeExpiryStatus(d.expiryDate);
+      if (s === "valid") companyDocStats.valid++;
+      else if (s === "expiring_soon") companyDocStats.expiringSoon++;
+      else if (s === "expired") companyDocStats.expired++;
+      else companyDocStats.noExpiry++;
+    }
+
+    // ── Employee docs ─────────────────────────────────────────────────────────
+    const eDocs = await db
+      .select({
+        doc: employeeDocuments,
+        empFirstName: employees.firstName,
+        empLastName: employees.lastName,
+        empDepartment: employees.department,
+        empPosition: employees.position,
+        empStatus: employees.status,
+      })
+      .from(employeeDocuments)
+      .leftJoin(employees, eq(employeeDocuments.employeeId, employees.id))
+      .where(eq(employeeDocuments.companyId, companyId))
+      .orderBy(desc(employeeDocuments.createdAt));
+
+    const employeeDocStats = { total: 0, valid: 0, expiringSoon: 0, expired: 0, noExpiry: 0 };
+    const expiringIn90Days: Array<{
+      id: number; employeeId: number; employeeName: string; department: string | null;
+      documentType: string; fileName: string; expiresAt: Date | null;
+      daysLeft: number; severity: "expired" | "critical" | "warning";
+      fileUrl: string;
+    }> = [];
+    const recentlyUploaded: Array<{
+      id: number; employeeId: number; employeeName: string;
+      documentType: string; fileName: string; createdAt: Date; fileUrl: string;
+    }> = [];
+
+    for (const row of eDocs) {
+      const d = row.doc;
+      employeeDocStats.total++;
+      const s = computeExpiryStatus(d.expiresAt);
+      if (s === "valid") employeeDocStats.valid++;
+      else if (s === "expiring_soon") employeeDocStats.expiringSoon++;
+      else if (s === "expired") employeeDocStats.expired++;
+      else employeeDocStats.noExpiry++;
+
+      const empName = `${row.empFirstName ?? ""} ${row.empLastName ?? ""}`.trim();
+
+      // Expiring within 90 days
+      if (d.expiresAt) {
+        const daysLeft = Math.floor((new Date(d.expiresAt).getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+        if (daysLeft <= 90) {
+          expiringIn90Days.push({
+            id: d.id,
+            employeeId: d.employeeId,
+            employeeName: empName,
+            department: row.empDepartment,
+            documentType: d.documentType,
+            fileName: d.fileName,
+            expiresAt: d.expiresAt,
+            daysLeft,
+            severity: daysLeft < 0 ? "expired" : daysLeft <= 30 ? "critical" : "warning",
+            fileUrl: d.fileUrl,
+          });
+        }
+      }
+
+      // Recently uploaded (last 30 days)
+      const uploadedDaysAgo = Math.floor((now.getTime() - new Date(d.createdAt).getTime()) / (1000 * 60 * 60 * 24));
+      if (uploadedDaysAgo <= 30) {
+        recentlyUploaded.push({
+          id: d.id,
+          employeeId: d.employeeId,
+          employeeName: empName,
+          documentType: d.documentType,
+          fileName: d.fileName,
+          createdAt: d.createdAt,
+          fileUrl: d.fileUrl,
+        });
+      }
+    }
+
+    // Sort expiring by days left ascending
+    expiringIn90Days.sort((a, b) => a.daysLeft - b.daysLeft);
+    // Sort recent by newest first
+    recentlyUploaded.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+    // ── Employees with missing critical docs ──────────────────────────────────
+    const allEmployees = await db
+      .select({ id: employees.id, firstName: employees.firstName, lastName: employees.lastName, department: employees.department, position: employees.position, status: employees.status })
+      .from(employees)
+      .where(and(eq(employees.companyId, companyId), eq(employees.status, "active")));
+
+    const docsByEmployee = new Map<number, Set<string>>();
+    for (const row of eDocs) {
+      const empId = row.doc.employeeId;
+      if (!docsByEmployee.has(empId)) docsByEmployee.set(empId, new Set());
+      docsByEmployee.get(empId)!.add(row.doc.documentType);
+    }
+
+    const CRITICAL_DOC_TYPES = ["mol_work_permit_certificate", "passport", "visa"];
+    const employeesWithMissingDocs = allEmployees
+      .map((emp) => {
+        const empDocs = docsByEmployee.get(emp.id) ?? new Set<string>();
+        const missing = CRITICAL_DOC_TYPES.filter((t) => !empDocs.has(t));
+        return { ...emp, missingDocTypes: missing, uploadedDocTypes: Array.from(empDocs) };
+      })
+      .filter((emp) => emp.missingDocTypes.length > 0);
+
+    return {
+      companyDocStats,
+      employeeDocStats,
+      employeesWithMissingDocs,
+      expiringIn90Days: expiringIn90Days.slice(0, 50),
+      recentlyUploaded: recentlyUploaded.slice(0, 20),
+      totalEmployees: allEmployees.length,
+      employeesWithAnyDoc: docsByEmployee.size,
+    };
+  }),
+
+  // ── All employee docs across all employees (for the full table view) ───────
+  getAllEmployeeDocs: protectedProcedure
+    .input(z.object({
+      search: z.string().optional(),
+      docType: z.string().optional(),
+      status: z.enum(["valid", "expiring_soon", "expired", "no_expiry", "all"]).optional(),
+    }))
+    .query(async ({ ctx, input }) => {
+      const membership = await getActiveCompanyMembership(ctx.user.id);
+      if (!membership)
+        throw new TRPCError({ code: "FORBIDDEN", message: "No active company" });
+
+      const db = await getDb();
+      if (!db) return [];
+
+      const rows = await db
+        .select({
+          doc: employeeDocuments,
+          empFirstName: employees.firstName,
+          empLastName: employees.lastName,
+          empDepartment: employees.department,
+          empPosition: employees.position,
+          empStatus: employees.status,
+        })
+        .from(employeeDocuments)
+        .leftJoin(employees, eq(employeeDocuments.employeeId, employees.id))
+        .where(eq(employeeDocuments.companyId, membership.companyId))
+        .orderBy(desc(employeeDocuments.createdAt));
+
+      const now = new Date();
+      let results = rows.map((row) => {
+        const d = row.doc;
+        const daysLeft = d.expiresAt
+          ? Math.floor((new Date(d.expiresAt).getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+          : null;
+        const expiryStatus = computeExpiryStatus(d.expiresAt);
+        return {
+          ...d,
+          employeeName: `${row.empFirstName ?? ""} ${row.empLastName ?? ""}`.trim(),
+          department: row.empDepartment,
+          position: row.empPosition,
+          employeeStatus: row.empStatus,
+          expiryStatus,
+          daysLeft,
+        };
+      });
+
+      // Apply filters
+      if (input.search) {
+        const q = input.search.toLowerCase();
+        results = results.filter(
+          (r) =>
+            r.employeeName.toLowerCase().includes(q) ||
+            r.documentType.toLowerCase().includes(q) ||
+            r.fileName.toLowerCase().includes(q)
+        );
+      }
+      if (input.docType && input.docType !== "all") {
+        results = results.filter((r) => r.documentType === input.docType);
+      }
+      if (input.status && input.status !== "all") {
+        results = results.filter((r) => r.expiryStatus === input.status);
+      }
+
+      return results;
     }),
 
   // ── Employee: delete document ─────────────────────────────────────────────

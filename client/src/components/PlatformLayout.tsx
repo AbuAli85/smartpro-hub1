@@ -96,6 +96,7 @@ const navGroups = [
       { label: "My Team", href: "/my-team", icon: <Users size={18} /> },
       { label: "Operations", href: "/company/operations", icon: <Activity size={18} /> },
       { label: "Company Documents", href: "/company/documents", icon: <FolderOpen size={18} /> },
+      { label: "Document Dashboard", href: "/hr/documents-dashboard", icon: <FileText size={18} /> },
       { label: "Run Payroll", href: "/payroll/process", icon: <Banknote size={18} /> },
       { label: "Company Workspace", href: "/company/workspace", icon: <Building2 size={18} /> },
     ],

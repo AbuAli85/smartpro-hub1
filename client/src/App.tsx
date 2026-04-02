@@ -68,6 +68,7 @@ import BusinessOperationsPage from "./pages/BusinessOperationsPage";
 import EmployeeImportPage from "./pages/EmployeeImportPage";
 import CompanyDocumentsPage from "./pages/CompanyDocumentsPage";
 import EmployeeDocumentsPage from "./pages/EmployeeDocumentsPage";
+import HRDocumentsDashboardPage from "./pages/HRDocumentsDashboardPage";
 function PublicRoutes() {
   return (
     <Switch>
@@ -135,6 +136,7 @@ function AppRoutes() {
         <Route path="/my-team/import" component={EmployeeImportPage} />
         <Route path="/company/documents" component={CompanyDocumentsPage} />
         <Route path="/employee/:id/documents" component={EmployeeDocumentsPage} />
+        <Route path="/hr/documents-dashboard" component={HRDocumentsDashboardPage} />
         <Route path="/my-team" component={MyTeamPage} />
         <Route path="/business/dashboard" component={BusinessDashboardPage} />
         <Route path="/business/employee/:id" component={EmployeeLifecyclePage} />

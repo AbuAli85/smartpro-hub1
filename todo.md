@@ -970,3 +970,17 @@ Every company on SmartPRO Hub gets a complete, unified business operating area �
 - [ ] UI: Warning banner when approving a run that has employees with expired documents
 - [ ] UI: Compliance tooltip on each badge showing document type, expiry date, days remaining
 - [ ] UI: "View Details" link from compliance badge to employee documents page
+
+## Phase 39: HR Document Management Dashboard (Completed)
+- [x] Backend: documents.getDashboard procedure — aggregate all company docs + all employee docs with expiry status, missing doc counts, stats
+- [x] Backend: documents.getAllEmployeeDocs procedure — all employee documents across all employees with employee name, type, status, expiry
+- [x] UI: HRDocumentsDashboardPage.tsx — KPI tiles (total docs, expiring soon, expired, missing), company docs section, employee docs section
+- [x] UI: Expiry timeline — sorted list of all documents expiring in next 90 days across company and employees
+- [x] UI: Missing documents alert panel — employees with no work permit / no passport / no visa uploaded
+- [x] UI: Search and filter — by employee name, document type, status (expired/expiring/valid/missing)
+- [x] UI: Quick upload action — click any missing doc row to link to employee document upload page
+- [x] UI: Bulk view — table with all employee documents, sortable by expiry date
+- [x] Route: /hr/documents-dashboard registered in App.tsx
+- [x] Nav: "Document Dashboard" link added to My Company section in PlatformLayout sidebar
+- [x] Nav: Add /hr/documents-dashboard to PORTAL_CLIENT_HREFS
+- [x] 252 tests passing, 0 TypeScript errors

@@ -861,3 +861,15 @@ Every company on SmartPRO Hub gets a complete, unified business operating area �
 ### Client Portal
 - [ ] Replace hardcoded blue unread badge with brand orange
 - [ ] Add message count badge on the Messages tab trigger
+
+## Phase 32: All-in-One Business OS — Client Command Centre
+
+- [x] Backend: company.getBusinessDashboard — staff count, payroll status, pending leaves, expiring docs, open PRO cases, action items
+- [x] Backend: hr.getEmployeeLifecycle — full employee record with documents, leave history, payroll summary, status timeline
+- [x] UI: BusinessDashboardPage.tsx — personalised command centre for company clients (action items, KPIs, quick-add, setup guide)
+- [x] UI: EmployeeLifecyclePage.tsx — end-to-end employee record (hire to exit): documents, leave history, payroll, status timeline
+- [x] UI: BusinessOperationsPage.tsx — unified ops hub: pending leaves approve/reject, payroll run, expiring docs, PRO cases
+- [x] Nav: Route company clients to BusinessDashboardPage as their default landing page
+- [x] Nav: Add "Business Dashboard", "Operations" to My Company sidebar group
+- [x] UX: New company setup checklist shown on first login when no employees added yet
+- [x] UX: Action items panel — what needs attention today with one-click actions

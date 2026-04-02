@@ -31,6 +31,8 @@ export const PORTAL_CLIENT_HREFS = new Set<string>([
   "/company/hub",
   "/company/workspace",
   "/my-team",
+  "/business/dashboard",
+  "/company/operations",
   "/preferences",
   "/",
 ]);

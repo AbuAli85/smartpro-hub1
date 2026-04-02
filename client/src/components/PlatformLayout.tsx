@@ -92,8 +92,10 @@ const navGroups = [
   {
     label: "My Company",
     items: [
-      { label: "Company Workspace", href: "/company/workspace", icon: <Building2 size={18} /> },
+      { label: "Business Dashboard", href: "/business/dashboard", icon: <LayoutDashboard size={18} /> },
       { label: "My Team", href: "/my-team", icon: <Users size={18} /> },
+      { label: "Operations", href: "/company/operations", icon: <Activity size={18} /> },
+      { label: "Company Workspace", href: "/company/workspace", icon: <Building2 size={18} /> },
     ],
   },
   {

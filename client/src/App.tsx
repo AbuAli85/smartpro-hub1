@@ -61,6 +61,9 @@ import MyTeamPage from "./pages/MyTeamPage";
 import PreferencesPage from "./pages/PreferencesPage";
 import OnboardingGuidePage from "@/pages/OnboardingGuidePage";
 import AcceptInvitePage from "@/pages/AcceptInvitePage";
+import BusinessDashboardPage from "./pages/BusinessDashboardPage";
+import EmployeeLifecyclePage from "./pages/EmployeeLifecyclePage";
+import BusinessOperationsPage from "./pages/BusinessOperationsPage";
 function PublicRoutes() {
   return (
     <Switch>
@@ -125,6 +128,9 @@ function AppRoutes() {
         <Route path="/company/hub" component={CompanyHubPage} />
         <Route path="/company/workspace" component={CompanyWorkspacePage} />
         <Route path="/my-team" component={MyTeamPage} />
+        <Route path="/business/dashboard" component={BusinessDashboardPage} />
+        <Route path="/business/employee/:id" component={EmployeeLifecyclePage} />
+        <Route path="/company/operations" component={BusinessOperationsPage} />
         <Route path="/preferences" component={PreferencesPage} />
         <Route path="/onboarding-guide" component={OnboardingGuidePage} />
         <Route path="/invite/:token" component={AcceptInvitePage} />

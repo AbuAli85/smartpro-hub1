@@ -31,6 +31,8 @@ interface ActiveCompanyContextValue {
   switchCompany: (companyId: number) => void;
   /** True while the companies list is loading */
   loading: boolean;
+  /** Expiry warning threshold in days (default 30, configurable per company) */
+  expiryWarningDays: number;
 }
 
 const ActiveCompanyContext = createContext<ActiveCompanyContextValue>({
@@ -39,10 +41,12 @@ const ActiveCompanyContext = createContext<ActiveCompanyContextValue>({
   activeCompanyId: null,
   switchCompany: () => {},
   loading: true,
+  expiryWarningDays: 30,
 });
 
 export function ActiveCompanyProvider({ children }: { children: React.ReactNode }) {
   const { data: rawCompanies, isLoading } = trpc.companies.myCompanies.useQuery();
+
 
   const companies: CompanyOption[] = useMemo(
     () =>
@@ -78,6 +82,12 @@ export function ActiveCompanyProvider({ children }: { children: React.ReactNode 
     [companies, activeCompanyId]
   );
 
+  const { data: expirySettings } = trpc.companies.getExpirySettings.useQuery(
+    { companyId: activeCompanyId! },
+    { enabled: activeCompanyId != null }
+  );
+  const expiryWarningDays = expirySettings?.expiryWarningDays ?? 30;
+
   const switchCompany = (companyId: number) => {
     setActiveCompanyId(companyId);
     localStorage.setItem(STORAGE_KEY, String(companyId));
@@ -85,7 +95,7 @@ export function ActiveCompanyProvider({ children }: { children: React.ReactNode 
 
   return (
     <ActiveCompanyContext.Provider
-      value={{ companies, activeCompany, activeCompanyId, switchCompany, loading: isLoading }}
+      value={{ companies, activeCompany, activeCompanyId, switchCompany, loading: isLoading, expiryWarningDays }}
     >
       {children}
     </ActiveCompanyContext.Provider>

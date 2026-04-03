@@ -32,6 +32,8 @@ import {
   CheckCircle2,
   Briefcase,
   Hash,
+  ShieldAlert,
+  Clock,
 } from "lucide-react";
 
 const INDUSTRIES = [
@@ -159,6 +161,39 @@ export default function CompanySettingsPage() {
     taxNumber: "",
     description: "",
   });
+
+  // HR Compliance: expiry warning threshold
+  const [expiryDays, setExpiryDays] = useState<number>(30);
+  const [expiryDaysInput, setExpiryDaysInput] = useState("30");
+  const [savingExpiry, setSavingExpiry] = useState(false);
+
+  const { data: expirySettings } = trpc.companies.getExpirySettings.useQuery(
+    { companyId: activeCompany?.id ?? 0 },
+    { enabled: Boolean(activeCompany?.id) }
+  );
+  useEffect(() => {
+    if (expirySettings?.expiryWarningDays != null) {
+      setExpiryDays(expirySettings.expiryWarningDays);
+      setExpiryDaysInput(String(expirySettings.expiryWarningDays));
+    }
+  }, [expirySettings]);
+
+  const handleSaveExpiry = async () => {
+    if (!activeCompany?.id) return;
+    const days = parseInt(expiryDaysInput, 10);
+    if (isNaN(days) || days < 1 || days > 365) {
+      toast.error("Please enter a value between 1 and 365 days");
+      return;
+    }
+    setSavingExpiry(true);
+    try {
+      await updateMutation.mutateAsync({ companyId: activeCompany.id, expiryWarningDays: days } as any);
+      setExpiryDays(days);
+      toast.success(`Expiry warning threshold set to ${days} days`);
+    } finally {
+      setSavingExpiry(false);
+    }
+  };
 
   // Populate form when company data loads
   useEffect(() => {
@@ -454,6 +489,68 @@ export default function CompanySettingsPage() {
                 disabled={!canEdit}
               />
             </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* HR Compliance Settings */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <ShieldAlert size={16} className="text-amber-500" /> HR Compliance Settings
+          </CardTitle>
+          <CardDescription>Configure document expiry warning thresholds for visas, work permits, and other time-sensitive documents</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-end gap-4">
+            <div className="space-y-1.5 flex-1 max-w-xs">
+              <Label htmlFor="expiryWarningDays" className="flex items-center gap-1.5">
+                <Clock size={12} />
+                Expiry Warning Threshold (days)
+              </Label>
+              <Input
+                id="expiryWarningDays"
+                type="number"
+                min={1}
+                max={365}
+                value={expiryDaysInput}
+                onChange={(e) => setExpiryDaysInput(e.target.value)}
+                placeholder="30"
+                disabled={!canEdit}
+                className="w-32"
+              />
+              <p className="text-xs text-muted-foreground">
+                Documents expiring within this many days will show an amber warning badge. Currently: <strong>{expiryDays} days</strong>.
+              </p>
+            </div>
+            {canEdit && (
+              <Button
+                onClick={handleSaveExpiry}
+                disabled={savingExpiry}
+                variant="outline"
+                className="gap-2 mb-6"
+              >
+                <Save size={14} />
+                {savingExpiry ? "Saving..." : "Save Threshold"}
+              </Button>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-3 text-xs">
+            {[7, 14, 30, 60, 90].map((d) => (
+              <button
+                key={d}
+                type="button"
+                disabled={!canEdit}
+                onClick={() => { setExpiryDaysInput(String(d)); }}
+                className={`px-3 py-1 rounded-full border transition-colors ${
+                  expiryDaysInput === String(d)
+                    ? "bg-amber-100 border-amber-400 text-amber-700 font-semibold"
+                    : "border-border text-muted-foreground hover:border-amber-300 hover:text-amber-600"
+                } disabled:opacity-50 disabled:cursor-not-allowed`}
+              >
+                {d}d
+              </button>
+            ))}
           </div>
         </CardContent>
       </Card>

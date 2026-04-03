@@ -861,6 +861,26 @@ export const companiesRouter = router({
     return getUserCompanies(ctx.user.id);
   }),
 
+  // ─── GET EXPIRY SETTINGS ────────────────────────────────────────────────────
+  getExpirySettings: protectedProcedure
+    .input(z.object({ companyId: z.number() }))
+    .query(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const [member] = await db
+        .select({ role: companyMembers.role })
+        .from(companyMembers)
+        .where(and(eq(companyMembers.userId, ctx.user.id), eq(companyMembers.companyId, input.companyId), eq(companyMembers.isActive, true)))
+        .limit(1);
+      if (!member) throw new TRPCError({ code: "FORBIDDEN" });
+      const [company] = await db
+        .select({ expiryWarningDays: companies.expiryWarningDays })
+        .from(companies)
+        .where(eq(companies.id, input.companyId))
+        .limit(1);
+      return { expiryWarningDays: company?.expiryWarningDays ?? 30 };
+    }),
+
   // ─── UPDATE COMPANY PROFILE ──────────────────────────────────────────────────
   updateMyCompany: protectedProcedure
     .input(
@@ -878,6 +898,7 @@ export const companiesRouter = router({
         registrationNumber: z.string().optional(),
         taxNumber: z.string().optional(),
         description: z.string().optional(),
+        expiryWarningDays: z.number().int().min(1).max(365).optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {

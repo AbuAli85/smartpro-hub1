@@ -479,11 +479,13 @@ function StaffProfilePanel({
   onClose,
   onEdit,
   onRemove,
+  warnDays = 30,
 }: {
   memberId: number;
   onClose: () => void;
   onEdit: (id: number) => void;
   onRemove: (id: number) => void;
+  warnDays?: number;
 }) {
   const { data: member, isLoading } = trpc.team.getMember.useQuery({ id: memberId });
   const utils = trpc.useUtils();
@@ -603,6 +605,7 @@ function StaffProfilePanel({
                   label="Work Permit"
                   value={(member as any).workPermitNumber}
                   expiryDate={(member as any).workPermitExpiryDate}
+                  warnDays={warnDays}
                 />
               )}
               {(member as any).workPermitExpiryDate && !(member as any).workPermitNumber && (
@@ -611,6 +614,7 @@ function StaffProfilePanel({
                   label="WP Expiry"
                   value={fmtDate((member as any).workPermitExpiryDate)}
                   expiryDate={(member as any).workPermitExpiryDate}
+                  warnDays={warnDays}
                 />
               )}
               {(member as any).visaNumber && (
@@ -619,6 +623,7 @@ function StaffProfilePanel({
                   label="Visa No."
                   value={(member as any).visaNumber}
                   expiryDate={(member as any).visaExpiryDate}
+                  warnDays={warnDays}
                 />
               )}
               {(member as any).visaExpiryDate && !(member as any).visaNumber && (
@@ -627,6 +632,7 @@ function StaffProfilePanel({
                   label="Visa Expiry"
                   value={fmtDate((member as any).visaExpiryDate)}
                   expiryDate={(member as any).visaExpiryDate}
+                  warnDays={warnDays}
                 />
               )}
               {(member as any).pasiNumber && (
@@ -686,14 +692,15 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 function InfoRow({
-  icon, label, value, expiryDate,
+  icon, label, value, expiryDate, warnDays = 30,
 }: {
   icon: React.ReactNode;
   label: string;
   value: string;
   expiryDate?: Date | string | null;
+  warnDays?: number;
 }) {
-  const status = expiryDate ? expiryStatus(expiryDate) : "none";
+  const status = expiryDate ? expiryStatus(expiryDate, warnDays) : "none";
   return (
     <div className="flex items-start gap-2">
       <span className="text-muted-foreground mt-0.5 shrink-0">{icon}</span>
@@ -703,7 +710,7 @@ function InfoRow({
         {status !== "none" && (
           <span className={`inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full w-fit ${EXPIRY_BADGE[status]}`}>
             {status === "expired" ? "⚠ " : status === "expiring-soon" ? "⏰ " : "✓ "}
-            {expiryLabel(expiryDate)}
+            {expiryLabel(expiryDate, warnDays)}
           </span>
         )}
       </div>
@@ -736,16 +743,16 @@ function DeptChart({ data }: { data: { dept: string; count: number }[] }) {
 // ─── Staff Card ───────────────────────────────────────────────────────────────
 
 function StaffCard({
-  member, onClick, onEdit, onRemove, onViewProfile, onDocuments,
+  member, onClick, onEdit, onRemove, onViewProfile, onDocuments, warnDays = 30,
 }: {
   member: any; onClick: () => void; onEdit: () => void; onRemove: () => void;
-  onViewProfile: () => void; onDocuments: () => void;
+  onViewProfile: () => void; onDocuments: () => void; warnDays?: number;
 }) {
   const sm = STATUS_META[member.status] ?? STATUS_META.active;
   const initials = getInitials(member.firstName, member.lastName);
   // Compute worst expiry status across all document dates
   const docDates = [member.visaExpiryDate, member.workPermitExpiryDate].filter(Boolean);
-  const docStatuses = docDates.map((d: any) => expiryStatus(d));
+  const docStatuses = docDates.map((d: any) => expiryStatus(d, warnDays));
   const hasExpired = docStatuses.includes("expired");
   const hasExpiringSoon = docStatuses.includes("expiring-soon");
   const cardExpiry = hasExpired ? "expired" : hasExpiringSoon ? "expiring-soon" : "none";
@@ -819,7 +826,7 @@ function StaffCard({
 
 export default function MyTeamPage() {
   const [, navigate] = useLocation();
-  const { activeCompanyId } = useActiveCompany();
+  const { activeCompanyId, expiryWarningDays } = useActiveCompany();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("active");
   const [deptFilter, setDeptFilter] = useState<string>("all");
@@ -1027,6 +1034,7 @@ export default function MyTeamPage() {
                   onRemove={() => setRemoveId(m.id)}
                   onViewProfile={() => navigate(`/business/employee/${m.id}`)}
                   onDocuments={() => navigate(`/employee/${m.id}/documents`)}
+                  warnDays={expiryWarningDays}
                 />
               ))}
             </div>
@@ -1134,6 +1142,7 @@ export default function MyTeamPage() {
           onClose={() => setSelectedId(null)}
           onEdit={(id) => { setEditId(id); setSelectedId(null); }}
           onRemove={(id) => { setRemoveId(id); setSelectedId(null); }}
+          warnDays={expiryWarningDays}
         />
       )}
 

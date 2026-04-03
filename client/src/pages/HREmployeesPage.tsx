@@ -189,6 +189,7 @@ function EmployeeDetailPanel({ employeeId, onClose, onUpdate }: { employeeId: nu
   const { data: emp, refetch } = trpc.hr.getEmployee.useQuery({ id: employeeId });
   const [editSalary, setEditSalary] = useState(false);
   const [salary, setSalary] = useState("");
+  const { expiryWarningDays } = useActiveCompany();
 
   const updateMutation = trpc.hr.updateEmployee.useMutation({
     onSuccess: () => { toast.success("Updated"); refetch(); onUpdate(); },
@@ -288,9 +289,9 @@ function EmployeeDetailPanel({ employeeId, onClose, onUpdate }: { employeeId: nu
                       {(emp as any).visaExpiryDate && (
                         <div className="flex items-center gap-1 mt-0.5 flex-wrap">
                           <p className="text-[10px] text-muted-foreground">Expires: {fmtDate((emp as any).visaExpiryDate)}</p>
-                          {expiryStatus((emp as any).visaExpiryDate) !== "none" && (
-                            <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded-full ${EXPIRY_BADGE[expiryStatus((emp as any).visaExpiryDate)]}`}>
-                              {expiryLabel((emp as any).visaExpiryDate)}
+                          {expiryStatus((emp as any).visaExpiryDate, expiryWarningDays) !== "none" && (
+                            <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded-full ${EXPIRY_BADGE[expiryStatus((emp as any).visaExpiryDate, expiryWarningDays)]}`}>
+                              {expiryLabel((emp as any).visaExpiryDate, expiryWarningDays)}
                             </span>
                           )}
                         </div>
@@ -307,9 +308,9 @@ function EmployeeDetailPanel({ employeeId, onClose, onUpdate }: { employeeId: nu
                       {(emp as any).workPermitExpiryDate && (
                         <div className="flex items-center gap-1 mt-0.5 flex-wrap">
                           <p className="text-[10px] text-muted-foreground">Expires: {fmtDate((emp as any).workPermitExpiryDate)}</p>
-                          {expiryStatus((emp as any).workPermitExpiryDate) !== "none" && (
-                            <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded-full ${EXPIRY_BADGE[expiryStatus((emp as any).workPermitExpiryDate)]}`}>
-                              {expiryLabel((emp as any).workPermitExpiryDate)}
+                          {expiryStatus((emp as any).workPermitExpiryDate, expiryWarningDays) !== "none" && (
+                            <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded-full ${EXPIRY_BADGE[expiryStatus((emp as any).workPermitExpiryDate, expiryWarningDays)]}`}>
+                              {expiryLabel((emp as any).workPermitExpiryDate, expiryWarningDays)}
                             </span>
                           )}
                         </div>
@@ -384,7 +385,7 @@ export default function HREmployeesPage() {
   const [statusFilter, setStatusFilter] = useState("active");
   const [deptFilter, setDeptFilter] = useState("all");
   const [selectedId, setSelectedId] = useState<number | null>(null);
-  const { activeCompanyId } = useActiveCompany();
+  const { activeCompanyId, expiryWarningDays } = useActiveCompany();
 
   const { data: employees, refetch } = trpc.hr.listEmployees.useQuery(
     {

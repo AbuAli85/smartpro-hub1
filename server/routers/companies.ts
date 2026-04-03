@@ -591,7 +591,7 @@ export const companiesRouter = router({
     if (!membership) return [];
     const companyId = membership.company.id;
 
-    // Get all employees for this company
+    // Get only active/on_leave employees — terminated/resigned staff no longer need system access
     const allEmployees = await db
       .select({
         id: employees.id,
@@ -609,7 +609,10 @@ export const companiesRouter = router({
         hireDate: employees.hireDate,
       })
       .from(employees)
-      .where(eq(employees.companyId, companyId))
+      .where(and(
+        eq(employees.companyId, companyId),
+        or(eq(employees.status, 'active'), eq(employees.status, 'on_leave'))
+      ))
       .orderBy(asc(employees.firstName));
 
     // Get all company members

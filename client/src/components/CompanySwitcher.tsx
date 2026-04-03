@@ -2,7 +2,9 @@
  * CompanySwitcher
  *
  * Displays the active company name in the sidebar header.
- * If the user belongs to multiple companies, shows a dropdown to switch.
+ * ALWAYS shows a dropdown (even for single company) so the user can:
+ *   - See all their companies and switch between them
+ *   - Add another company via "+ Add another company"
  */
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import {
@@ -13,8 +15,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Badge } from "@/components/ui/badge";
-import { Building2, ChevronDown, Check } from "lucide-react";
+import { Building2, ChevronDown, Check, Plus } from "lucide-react";
+import { useLocation } from "wouter";
 
 const ROLE_LABELS: Record<string, string> = {
   owner: "Owner",
@@ -29,43 +31,46 @@ const ROLE_LABELS: Record<string, string> = {
 
 export function CompanySwitcher() {
   const { companies, activeCompany, switchCompany, loading } = useActiveCompany();
+  const [, navigate] = useLocation();
 
   if (loading) {
     return (
-      <div className="flex items-center gap-2 px-3 py-2 rounded-lg animate-pulse">
-        <div className="w-7 h-7 rounded-md bg-white/10" />
+      <div className="flex items-center gap-2 px-3 py-2 animate-pulse">
+        <div className="w-7 h-7 rounded-md bg-white/10 flex-shrink-0" />
         <div className="flex-1 min-w-0">
           <div className="h-3 bg-white/10 rounded w-24 mb-1" />
           <div className="h-2 bg-white/10 rounded w-16" />
         </div>
+        <div className="w-3 h-3 bg-white/10 rounded flex-shrink-0" />
       </div>
     );
   }
 
-  if (!activeCompany) return null;
-
-  const roleLabel = ROLE_LABELS[activeCompany.role ?? ""] ?? activeCompany.role ?? "";
-
-  // Single company — no dropdown needed
-  if (companies.length <= 1) {
+  if (!activeCompany) {
+    // No company yet — show add button
     return (
-      <div className="flex items-center gap-2.5 px-3 py-2 rounded-lg">
-        <div className="w-7 h-7 rounded-md bg-red-600 flex items-center justify-center flex-shrink-0">
-          <Building2 size={14} className="text-white" />
+      <button
+        onClick={() => navigate("/company/create")}
+        className="flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-white/10 transition-colors w-full text-left"
+      >
+        <div className="w-7 h-7 rounded-md bg-white/10 flex items-center justify-center flex-shrink-0">
+          <Plus size={14} className="text-white/60" />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-white truncate leading-tight">{activeCompany.name}</p>
-          <p className="text-xs text-white/60 truncate leading-tight">{roleLabel}</p>
+          <p className="text-sm font-medium text-white/70 truncate leading-tight">Add a Company</p>
+          <p className="text-xs text-white/40 truncate leading-tight">Get started</p>
         </div>
-      </div>
+      </button>
     );
   }
 
-  // Multiple companies — show dropdown switcher
+  const roleLabel = ROLE_LABELS[activeCompany.role ?? ""] ?? activeCompany.role ?? "Member";
+
+  // ALWAYS show dropdown — even for single company — so user can add another
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button className="flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-white/10 transition-colors w-full text-left group">
+        <button className="flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-white/10 transition-colors w-full text-left group focus:outline-none">
           <div className="w-7 h-7 rounded-md bg-red-600 flex items-center justify-center flex-shrink-0">
             <Building2 size={14} className="text-white" />
           </div>
@@ -73,40 +78,60 @@ export function CompanySwitcher() {
             <p className="text-sm font-semibold text-white truncate leading-tight">{activeCompany.name}</p>
             <p className="text-xs text-white/60 truncate leading-tight">{roleLabel}</p>
           </div>
-          <ChevronDown size={14} className="text-white/40 group-hover:text-white/70 transition-colors flex-shrink-0" />
+          <ChevronDown
+            size={14}
+            className="text-white/40 group-hover:text-white/70 transition-colors flex-shrink-0"
+          />
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-64">
-        <DropdownMenuLabel className="text-xs text-muted-foreground font-normal">
-          Switch Company
+
+      <DropdownMenuContent align="start" sideOffset={4} className="w-72">
+        <DropdownMenuLabel className="text-xs text-muted-foreground font-normal pb-1">
+          Your Companies
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        {companies.map((company) => {
-          const isActive = company.id === activeCompany.id;
-          const label = ROLE_LABELS[company.role ?? ""] ?? company.role ?? "";
-          return (
-            <DropdownMenuItem
-              key={company.id}
-              onClick={() => switchCompany(company.id)}
-              className="flex items-center gap-3 py-2.5 cursor-pointer"
-            >
-              <div className="w-7 h-7 rounded-md bg-muted flex items-center justify-center flex-shrink-0">
-                <Building2 size={13} className="text-muted-foreground" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">{company.name}</p>
-                <p className="text-xs text-muted-foreground truncate">{label}</p>
-              </div>
-              {isActive && <Check size={14} className="text-primary flex-shrink-0" />}
-            </DropdownMenuItem>
-          );
-        })}
+
+        {companies.length === 0 ? (
+          <DropdownMenuItem disabled className="text-xs text-muted-foreground italic">
+            No companies found
+          </DropdownMenuItem>
+        ) : (
+          companies.map((company) => {
+            const isActive = company.id === activeCompany.id;
+            const label = ROLE_LABELS[company.role ?? ""] ?? company.role ?? "Member";
+            return (
+              <DropdownMenuItem
+                key={company.id}
+                onClick={() => switchCompany(company.id)}
+                className="flex items-center gap-3 py-2.5 cursor-pointer"
+              >
+                <div
+                  className={`w-7 h-7 rounded-md flex items-center justify-center flex-shrink-0 ${
+                    isActive ? "bg-red-600" : "bg-muted"
+                  }`}
+                >
+                  <Building2
+                    size={13}
+                    className={isActive ? "text-white" : "text-muted-foreground"}
+                  />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{company.name}</p>
+                  <p className="text-xs text-muted-foreground truncate">{label}</p>
+                </div>
+                {isActive && <Check size={14} className="text-primary flex-shrink-0" />}
+              </DropdownMenuItem>
+            );
+          })
+        )}
+
         <DropdownMenuSeparator />
         <DropdownMenuItem
-          onClick={() => (window.location.href = "/company/create")}
-          className="text-xs text-muted-foreground cursor-pointer"
+          onClick={() => navigate("/company/create")}
+          className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground cursor-pointer py-2"
         >
-          + Add another company
+          <Plus size={14} className="flex-shrink-0" />
+          Add another company
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

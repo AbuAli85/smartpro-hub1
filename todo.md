@@ -1226,3 +1226,9 @@ Every company on SmartPRO Hub gets a complete, unified business operating area â
 - [x] Update all HR/payroll/leave/attendance pages to use active company ID
 - [x] Add company settings page: edit name, address, industry, phone, email for active company
 - [x] Add companies.updateMyCompany tRPC procedure
+
+## Phase 49: Fix CompanySwitcher Sidebar Bug
+- [x] Debug why CompanySwitcher dropdown is not showing in sidebar (check myCompanies procedure, getUserCompanies db helper)
+- [x] Fix CompanySwitcher: always show dropdown trigger even for single company (with "+ Add another company" at bottom)
+- [x] Fix getUserCompanies to return correct data structure matching what CompanySwitcher expects
+- [x] Ensure the "+ Add another company" link navigates to /company/create correctly

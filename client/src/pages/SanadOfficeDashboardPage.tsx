@@ -36,6 +36,7 @@ import {
   Pie,
   Cell,
 } from "recharts";
+import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -584,7 +585,7 @@ export default function SanadOfficeDashboardPage() {
                             )}
                           </td>
                           <td className="px-4 py-3 text-xs text-muted-foreground">
-                            {new Date(wo.createdAt).toLocaleDateString()}
+                            {fmtDate(wo.createdAt)}
                           </td>
                         </tr>
                       ))}

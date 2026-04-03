@@ -22,6 +22,7 @@ import {
   CheckSquare, Plus, Pencil, Trash2, Clock, AlertCircle,
   CheckCircle2, Circle, Filter, User,
 } from "lucide-react";
+import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
 
 type Priority = "low" | "medium" | "high" | "urgent";
 type Status = "pending" | "in_progress" | "completed" | "cancelled";
@@ -269,7 +270,7 @@ export default function TaskManagerPage() {
                     </span>
                     {task.dueDate && (
                       <span className={`flex items-center gap-1 text-xs ${overdue ? "text-red-600" : "text-muted-foreground"}`}>
-                        <Clock className="w-3 h-3" />Due {new Date(task.dueDate).toLocaleDateString()}
+                        <Clock className="w-3 h-3" />Due {fmtDate(task.dueDate)}
                       </span>
                     )}
                     {task.employeeDepartment && (

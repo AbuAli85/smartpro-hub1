@@ -21,6 +21,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
+import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
 
 const PROVIDER_TYPE_LABELS: Record<string, { label: string; icon: React.ElementType }> = {
   pro_office:    { label: "PRO Office",     icon: Briefcase },
@@ -583,7 +584,7 @@ export default function SanadCentreProfilePage() {
                         </div>
                         <div className="text-right flex-shrink-0">
                           {r.isVerified && <Badge className="bg-blue-100 text-blue-700 text-xs mb-1">Verified</Badge>}
-                          <p className="text-xs text-muted-foreground">{new Date(r.createdAt).toLocaleDateString()}</p>
+                          <p className="text-xs text-muted-foreground">{fmtDate(r.createdAt)}</p>
                         </div>
                       </div>
                       {r.reviewBody && <p className="text-sm text-muted-foreground">{r.reviewBody}</p>}

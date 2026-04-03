@@ -8,6 +8,7 @@ import {
   RefreshCw, Activity, CheckCircle2, AlertTriangle, Clock,
   Wifi, WifiOff, Play, ChevronDown, ChevronRight
 } from "lucide-react";
+import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
 
 const JOB_TYPE_LABELS: Record<string, string> = {
   full_sync: "Full Sync",
@@ -87,7 +88,7 @@ export default function WorkforceSyncPage() {
           { label: "Active Jobs", value: runningJobs.length, icon: RefreshCw, color: "text-blue-600", animate: runningJobs.length > 0 },
           { label: "Completed", value: completedJobs.length, icon: CheckCircle2, color: "text-emerald-600", animate: false },
           { label: "Failed", value: failedJobs.length, icon: AlertTriangle, color: "text-red-600", animate: false },
-          { label: "Last Sync", value: lastSync ? new Date(lastSync.createdAt).toLocaleTimeString() : "Never", icon: Clock, color: "text-muted-foreground", animate: false },
+          { label: "Last Sync", value: lastSync ? fmtTime(lastSync.createdAt) : "Never", icon: Clock, color: "text-muted-foreground", animate: false },
         ].map((stat) => (
           <Card key={stat.label} className="border-0 shadow-sm">
             <CardContent className="p-4 flex items-center gap-3">
@@ -175,7 +176,7 @@ export default function WorkforceSyncPage() {
                         <span className="text-xs text-muted-foreground ml-2">via {job.provider}</span>
                       </span>
                       <span className="text-xs text-muted-foreground">
-                        {new Date(job.createdAt).toLocaleString()}
+                        {fmtDateTime(job.createdAt)}
                       </span>
                       {isExpanded ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
                     </button>
@@ -209,7 +210,7 @@ export default function WorkforceSyncPage() {
                         })()}
                         {job.finishedAt && (
                           <p className="text-xs text-muted-foreground">
-                            Completed: {new Date(job.finishedAt).toLocaleString()}
+                            Completed: {fmtDateTime(job.finishedAt)}
                           </p>
                         )}
                       </div>

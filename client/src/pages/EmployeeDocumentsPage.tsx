@@ -52,6 +52,7 @@ import {
   Briefcase,
   Camera,
 } from "lucide-react";
+import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
 
 // ─── Document type config ─────────────────────────────────────────────────────
 
@@ -281,10 +282,10 @@ export default function EmployeeDocumentsPage() {
                       </div>
                       <div className="text-xs text-muted-foreground space-y-1 mb-3">
                         {doc.issuedAt && (
-                          <div>Issued: {new Date(doc.issuedAt).toLocaleDateString()}</div>
+                          <div>Issued: {fmtDate(doc.issuedAt)}</div>
                         )}
                         {doc.expiresAt && (
-                          <div>Expires: {new Date(doc.expiresAt).toLocaleDateString()}</div>
+                          <div>Expires: {fmtDate(doc.expiresAt)}</div>
                         )}
                         {doc.verificationStatus && (
                           <div className="flex items-center gap-1">

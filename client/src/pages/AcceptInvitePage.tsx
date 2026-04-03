@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { CheckCircle2, XCircle, Clock, Users, AlertTriangle, Loader2, Building2 } from "lucide-react";
 import { toast } from "sonner";
+import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
 
 const ROLE_LABELS: Record<string, string> = {
   company_admin: "Company Admin",
@@ -112,7 +113,7 @@ export default function AcceptInvitePage() {
             </div>
             <CardTitle>Invite Expired</CardTitle>
             <CardDescription>
-              This invite expired on {new Date(invite.expiresAt).toLocaleDateString()}. Please ask your company admin to send a fresh invite.
+              This invite expired on {fmtDate(invite.expiresAt)}. Please ask your company admin to send a fresh invite.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -190,7 +191,7 @@ export default function AcceptInvitePage() {
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground">Expires</span>
-                <span className="font-medium">{new Date(invite.expiresAt).toLocaleDateString()}</span>
+                <span className="font-medium">{fmtDate(invite.expiresAt)}</span>
               </div>
             </div>
             <div className="flex items-start gap-2 text-xs text-muted-foreground bg-yellow-500/5 border border-yellow-500/20 rounded-lg p-3">
@@ -231,7 +232,7 @@ export default function AcceptInvitePage() {
             </div>
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground">Expires</span>
-              <span className="font-medium">{new Date(invite.expiresAt).toLocaleDateString()}</span>
+              <span className="font-medium">{fmtDate(invite.expiresAt)}</span>
             </div>
           </div>
 

@@ -17,6 +17,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
+import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
 
 const STATUS_META: Record<string, { label: string; color: string }> = {
   active:     { label: "Active",      color: "bg-emerald-100 text-emerald-700 border-emerald-200" },
@@ -248,7 +249,7 @@ function EmployeeDetailPanel({ employeeId, onClose, onUpdate }: { employeeId: nu
               { icon: Briefcase, label: "Position", value: emp.position ?? "—" },
               { icon: Building2, label: "Department", value: emp.department ?? "—" },
               { icon: Globe, label: "Nationality", value: emp.nationality ?? "—" },
-              { icon: Calendar, label: "Hire Date", value: emp.hireDate ? new Date(emp.hireDate).toLocaleDateString() : "—" },
+              { icon: Calendar, label: "Hire Date", value: emp.hireDate ? fmtDate(emp.hireDate) : "—" },
               { icon: TrendingUp, label: "Years of Service", value: yearsOfService !== null ? yearsOfService + (yearsOfService === 1 ? " year" : " years") : "—" },
             ].map(({ icon: Icon, label, value }) => (
               <div key={label} className="flex items-start gap-2">
@@ -354,7 +355,7 @@ function EmployeeDetailPanel({ employeeId, onClose, onUpdate }: { employeeId: nu
             </div>
           )}
         </div>
-        <div className="text-xs text-muted-foreground border-t pt-3"><p>Added: {new Date(emp.createdAt).toLocaleString()}</p></div>
+        <div className="text-xs text-muted-foreground border-t pt-3"><p>Added: {fmtDateTime(emp.createdAt)}</p></div>
       </div>
     </div>
   );
@@ -527,7 +528,7 @@ export default function HREmployeesPage() {
                           <td className="px-4 py-3 text-xs"><span className={"flex items-center gap-1 " + (isOmani ? "text-green-700 font-medium" : "text-muted-foreground")}>{isOmani && <Shield size={10} className="text-green-600" />}{emp.nationality ?? "—"}</span></td>
                           <td className="px-4 py-3"><Badge className={"text-xs " + statusMeta.color} variant="outline">{statusMeta.label}</Badge></td>
                           <td className="px-4 py-3 text-xs font-medium">{emp.salary ? (emp.currency ?? "OMR") + " " + parseFloat(emp.salary).toFixed(3) : "—"}</td>
-                          <td className="px-4 py-3 text-xs text-muted-foreground">{emp.hireDate ? new Date(emp.hireDate).toLocaleDateString() : "—"}</td>
+                          <td className="px-4 py-3 text-xs text-muted-foreground">{emp.hireDate ? fmtDate(emp.hireDate) : "—"}</td>
                           <td className="px-4 py-3"><ChevronRight size={14} className={"text-muted-foreground transition-transform " + (isSelected ? "rotate-90 text-[var(--smartpro-orange)]" : "")} /></td>
                         </tr>
                       );

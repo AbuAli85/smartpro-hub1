@@ -17,13 +17,10 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
+import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function fmtDate(d: Date | string | null | undefined) {
-  if (!d) return "—";
-  return new Date(d).toLocaleDateString("en-OM", { day: "2-digit", month: "short", year: "numeric" });
-}
 
 function fmtOMR(n: number | string | null | undefined) {
   return `OMR ${Number(n ?? 0).toFixed(3)}`;

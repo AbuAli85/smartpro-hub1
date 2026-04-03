@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
 
 function NewCompanyDialog({ onSuccess }: { onSuccess: () => void }) {
   const [open, setOpen] = useState(false);
@@ -253,7 +254,7 @@ export default function AdminPage() {
                         </Badge>
                       </td>
                       <td className="px-4 py-3 text-xs text-muted-foreground">
-                        {new Date(company.createdAt).toLocaleDateString()}
+                        {fmtDate(company.createdAt)}
                       </td>
                       <td className="px-4 py-3">
                         <Select value={company.status ?? "active"} onValueChange={(v) => updateCompanyMutation.mutate({ id: company.id, status: v as any })}>
@@ -309,7 +310,7 @@ export default function AdminPage() {
                       <td className="px-4 py-3 text-xs">{log.userId ?? "System"}</td>
                       <td className="px-4 py-3 text-xs text-muted-foreground">{log.ipAddress ?? "—"}</td>
                       <td className="px-4 py-3 text-xs text-muted-foreground">
-                        {new Date(log.createdAt).toLocaleString()}
+                        {fmtDateTime(log.createdAt)}
                       </td>
                     </tr>
                   ))}

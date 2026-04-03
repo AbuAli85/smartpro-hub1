@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
+import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
 
 function StarRating({ value, onChange }: { value: number; onChange: (v: number) => void }) {
   return (
@@ -318,7 +319,7 @@ export default function MarketplacePage() {
                           </Badge>
                         </td>
                         <td className="px-4 py-3 text-xs text-muted-foreground">
-                          {booking.scheduledAt ? new Date(booking.scheduledAt).toLocaleString() : "TBD"}
+                          {booking.scheduledAt ? fmtDateTime(booking.scheduledAt) : "TBD"}
                         </td>
                         <td className="px-4 py-3">
                           {booking.status === "completed"
@@ -327,7 +328,7 @@ export default function MarketplacePage() {
                           }
                         </td>
                         <td className="px-4 py-3 text-xs text-muted-foreground">
-                          {new Date(booking.createdAt).toLocaleDateString()}
+                          {fmtDate(booking.createdAt)}
                         </td>
                       </tr>
                     ))}

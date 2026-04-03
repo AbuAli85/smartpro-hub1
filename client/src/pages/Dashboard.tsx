@@ -17,6 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
+import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
 
 /* ── KPI Stat Card ─────────────────────────────────────────────────────── */
 function StatCard({
@@ -412,7 +413,7 @@ export default function Dashboard() {
                         <div className="text-[10px] text-muted-foreground">{doc.serviceType?.replace(/_/g, " ")}</div>
                       </div>
                       <span className="text-[10px] text-amber-700 font-semibold whitespace-nowrap">
-                        {doc.expiryDate ? new Date(doc.expiryDate).toLocaleDateString("en-OM", { day: "numeric", month: "short" }) : "N/A"}
+                        {doc.expiryDate ? fmtDateLong(doc.expiryDate) : "N/A"}
                       </span>
                     </div>
                   ))}

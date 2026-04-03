@@ -15,6 +15,7 @@ import {
   Users, Briefcase, Calendar, Star, Send, CheckCircle, XCircle,
   Plus, Eye, Clock, Video, MapPin, FileText, RefreshCw, Trash2, Sparkles
 } from "lucide-react";
+import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
 
 const STAGES = ["applied","screening","interview","assessment","offer","hired","rejected"] as const;
 type Stage = typeof STAGES[number];
@@ -259,7 +260,7 @@ export default function HRRecruitmentPage() {
                     </div>
                     <p className="text-sm text-muted-foreground mt-1">{job?.title}</p>
                     <div className="flex items-center gap-4 mt-1 text-sm text-muted-foreground flex-wrap">
-                      <span className="flex flex-wrap items-center gap-1"><Calendar size={12} />{new Date(interview.scheduledAt).toLocaleString()}</span>
+                      <span className="flex flex-wrap items-center gap-1"><Calendar size={12} />{fmtDateTime(interview.scheduledAt)}</span>
                       <span className="flex flex-wrap items-center gap-1"><Clock size={12} />{interview.durationMinutes} min</span>
                       {interview.meetingLink && <a href={interview.meetingLink} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-blue-600 hover:underline"><Video size={12} /> Join</a>}
                       {interview.location && <span className="flex flex-wrap items-center gap-1"><MapPin size={12} />{interview.location}</span>}
@@ -311,8 +312,8 @@ export default function HRRecruitmentPage() {
                     <p className="text-sm text-muted-foreground">{offer.position}{offer.department ? ` — ${offer.department}` : ""}</p>
                     <div className="flex items-center gap-4 mt-1 text-sm text-muted-foreground flex-wrap">
                       <span className="font-medium text-foreground">{fmt(offer.totalPackage)}/month</span>
-                      {offer.startDate && <span>Start: {new Date(offer.startDate).toLocaleDateString()}</span>}
-                      {offer.expiresAt && <span>Expires: {new Date(offer.expiresAt).toLocaleDateString()}</span>}
+                      {offer.startDate && <span>Start: {fmtDate(offer.startDate)}</span>}
+                      {offer.expiresAt && <span>Expires: {fmtDate(offer.expiresAt)}</span>}
                     </div>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
@@ -354,7 +355,7 @@ export default function HRRecruitmentPage() {
                 <div><p className="text-muted-foreground">Email</p><p className="font-medium">{selectedApp.app.applicantEmail}</p></div>
                 <div><p className="text-muted-foreground">Phone</p><p className="font-medium">{selectedApp.app.applicantPhone ?? "—"}</p></div>
                 <div><p className="text-muted-foreground">Position</p><p className="font-medium">{selectedApp.job?.title}</p></div>
-                <div><p className="text-muted-foreground">Applied</p><p className="font-medium">{new Date(selectedApp.app.createdAt).toLocaleDateString()}</p></div>
+                <div><p className="text-muted-foreground">Applied</p><p className="font-medium">{fmtDate(selectedApp.app.createdAt)}</p></div>
               </div>
               {selectedApp.app.resumeUrl && (
                 <a href={selectedApp.app.resumeUrl} target="_blank" rel="noopener noreferrer">

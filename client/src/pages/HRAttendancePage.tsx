@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
 
 const statusColors: Record<string, string> = {
   present: "bg-green-100 text-green-700",
@@ -345,7 +346,7 @@ export default function HRAttendancePage() {
                       <tr key={r.id} className="border-b hover:bg-muted/30 transition-colors">
                         <td className="py-2 px-3 font-medium">Emp #{r.employeeId}</td>
                         <td className="py-2 px-3 text-muted-foreground">
-                          {r.date ? new Date(r.date).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—"}
+                          {r.date ? fmtDateLong(r.date) : "—"}
                         </td>
                         <td className="py-2 px-3">{checkIn ? checkIn.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—"}</td>
                         <td className="py-2 px-3">{checkOut ? checkOut.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—"}</td>

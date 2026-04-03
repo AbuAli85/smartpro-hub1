@@ -14,6 +14,7 @@ import {
   FileText, AlertTriangle, Clock, CheckCircle2, Plus, Search,
   Upload, RefreshCw, Eye, Calendar, Building2, User
 } from "lucide-react";
+import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; icon: typeof CheckCircle2 }> = {
   active: { label: "Active", color: "text-emerald-700", bg: "bg-emerald-100", icon: CheckCircle2 },
@@ -211,10 +212,10 @@ export default function WorkforcePermitsPage() {
                           </span>
                         </td>
                         <td className="px-4 py-3 text-xs text-muted-foreground">
-                          {permit.issueDate ? new Date(permit.issueDate).toLocaleDateString() : "—"}
+                          {permit.issueDate ? fmtDate(permit.issueDate) : "—"}
                         </td>
                         <td className="px-4 py-3 text-xs">
-                          {permit.expiryDate ? new Date(permit.expiryDate).toLocaleDateString() : "—"}
+                          {permit.expiryDate ? fmtDate(permit.expiryDate) : "—"}
                         </td>
                         <td className="px-4 py-3">
                           <span className={`text-xs font-medium ${

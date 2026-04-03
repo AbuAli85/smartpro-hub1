@@ -20,6 +20,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
+import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -381,8 +382,8 @@ function WorkOrderDetailDrawer({ orderId, providers, onClose, onUpdate }: { orde
             {(order as any).nationality && <div><p className="text-muted-foreground">Nationality</p><p className="font-medium">{(order as any).nationality}</p></div>}
             {(order as any).passportNumber && <div><p className="text-muted-foreground">Passport #</p><p className="font-medium font-mono">{(order as any).passportNumber}</p></div>}
             {provider && <div><p className="text-muted-foreground">Provider</p><p className="font-medium">{provider.name}</p></div>}
-            {order.dueDate && <div><p className="text-muted-foreground">Due Date</p><p className="font-medium">{new Date(order.dueDate).toLocaleDateString()}</p></div>}
-            <div><p className="text-muted-foreground">Created</p><p className="font-medium">{new Date(order.createdAt).toLocaleDateString()}</p></div>
+            {order.dueDate && <div><p className="text-muted-foreground">Due Date</p><p className="font-medium">{fmtDate(order.dueDate)}</p></div>}
+            <div><p className="text-muted-foreground">Created</p><p className="font-medium">{fmtDate(order.createdAt)}</p></div>
           </div>
           {/* Fee Breakdown */}
           {order.fees && Number(order.fees) > 0 && (
@@ -414,7 +415,7 @@ function WorkOrderDetailDrawer({ orderId, providers, onClose, onUpdate }: { orde
                   </div>
                   <div className="pt-0.5">
                     <p className={`text-xs font-medium ${step.done ? "text-foreground" : "text-muted-foreground"}`}>{step.label}</p>
-                    {step.date && <p className="text-[10px] text-muted-foreground">{new Date(step.date).toLocaleDateString()}</p>}
+                    {step.date && <p className="text-[10px] text-muted-foreground">{fmtDate(step.date)}</p>}
                   </div>
                 </div>
               ))}
@@ -497,7 +498,7 @@ function WorkOrderRow({ order, providers, onUpdate, onSelect }: { order: any; pr
           <span className="font-mono">{order.referenceNumber}</span>
           {order.beneficiaryName && <span>{order.beneficiaryName}</span>}
           {provider && <span className="flex flex-wrap items-center gap-1"><Building2 size={10} />{provider.name}</span>}
-          {order.dueDate && <span className="flex flex-wrap items-center gap-1"><Clock size={10} />Due {new Date(order.dueDate).toLocaleDateString()}</span>}
+          {order.dueDate && <span className="flex flex-wrap items-center gap-1"><Clock size={10} />Due {fmtDate(order.dueDate)}</span>}
           {order.fees && <span>{Number(order.fees).toFixed(3)} OMR</span>}
         </div>
       </div>

@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
+import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
 
 const planIcons: Record<string, React.ReactNode> = {
   basic: <Zap size={20} />,
@@ -106,7 +107,7 @@ export default function SubscriptionsPage() {
                     <p className="text-lg font-bold capitalize mt-0.5">{currentSub.plan?.name ?? "Free"}</p>
                     <p className="text-xs text-muted-foreground mt-0.5">
                       {currentSub.billingCycle === "monthly" ? "Billed monthly" : "Billed annually"}
-                      {currentSub.currentPeriodEnd && ` · Renews ${new Date(currentSub.currentPeriodEnd).toLocaleDateString()}`}
+                      {currentSub.currentPeriodEnd && ` · Renews ${fmtDate(currentSub.currentPeriodEnd)}`}
                     </p>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
@@ -327,10 +328,10 @@ export default function SubscriptionsPage() {
                   {invoices.map((inv) => (
                     <tr key={inv.id} className="border-b hover:bg-muted/30 transition-colors">
                       <td className="py-2.5 px-3 font-mono text-xs font-medium">{inv.invoiceNumber}</td>
-                      <td className="py-2.5 px-3 text-muted-foreground">{new Date(inv.createdAt).toLocaleDateString()}</td>
+                      <td className="py-2.5 px-3 text-muted-foreground">{fmtDate(inv.createdAt)}</td>
                       <td className="py-2.5 px-3 text-right font-semibold">{inv.currency} {Number(inv.amount).toFixed(3)}</td>
                       <td className="py-2.5 px-3 text-muted-foreground">
-                        {inv.dueDate ? new Date(inv.dueDate).toLocaleDateString() : "—"}
+                        {inv.dueDate ? fmtDate(inv.dueDate) : "—"}
                       </td>
                       <td className="py-2.5 px-3 text-center">
                         <Badge className={`text-[10px] capitalize ${statusColors[inv.status] ?? "bg-gray-100 text-gray-600"}`} variant="outline">

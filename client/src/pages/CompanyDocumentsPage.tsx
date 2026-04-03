@@ -54,6 +54,7 @@ import {
   CreditCard,
   ArrowLeft,
 } from "lucide-react";
+import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
 
 // ─── Document type config ─────────────────────────────────────────────────────
 
@@ -309,9 +310,9 @@ export default function CompanyDocumentsPage() {
                     </div>
                   )}
                   <div className="flex gap-1 text-xs text-muted-foreground">
-                    {doc.issueDate && <span>Issued: {new Date(doc.issueDate).toLocaleDateString()}</span>}
+                    {doc.issueDate && <span>Issued: {fmtDate(doc.issueDate)}</span>}
                     {doc.issueDate && doc.expiryDate && <span>·</span>}
-                    {doc.expiryDate && <span>Expires: {new Date(doc.expiryDate).toLocaleDateString()}</span>}
+                    {doc.expiryDate && <span>Expires: {fmtDate(doc.expiryDate)}</span>}
                   </div>
                   <div className="flex gap-2 pt-1">
                     {doc.fileUrl && (

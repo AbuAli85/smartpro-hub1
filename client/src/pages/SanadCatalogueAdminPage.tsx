@@ -25,6 +25,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
+import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
 
 const SERVICE_TYPES = [
   { value: "work_permit", label: "Work Permit" },
@@ -666,7 +667,7 @@ function ServiceRequestsTab({ officeId }: { officeId?: number }) {
             </Select>
           </div>
           <p className="text-xs text-muted-foreground">
-            Received: {new Date(req.createdAt).toLocaleString()}
+            Received: {fmtDateTime(req.createdAt)}
           </p>
         </div>
       ))}

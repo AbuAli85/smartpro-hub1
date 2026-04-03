@@ -15,6 +15,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { AlertCircle, CheckCircle2, Clock, Edit2, Play, Plus, RefreshCw, Trash2, Zap, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
+import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -610,7 +611,7 @@ export default function RenewalWorkflowsPage() {
                         <TableRow key={i}>
                           <TableCell className="text-sm font-medium">{item.entityLabel}</TableCell>
                           <TableCell><Badge variant="outline" className="text-xs">{item.entityType.replace(/_/g, " ")}</Badge></TableCell>
-                          <TableCell className="text-sm">{new Date(item.expiryDate).toLocaleDateString()}</TableCell>
+                          <TableCell className="text-sm">{fmtDate(item.expiryDate)}</TableCell>
                           <TableCell>
                             <span className={`text-sm font-medium ${item.daysLeft <= 7 ? "text-red-600" : item.daysLeft <= 30 ? "text-orange-500" : "text-muted-foreground"}`}>
                               {item.daysLeft}d

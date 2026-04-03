@@ -17,6 +17,7 @@ import {
   ArrowLeft, Shield, Calendar, User, Building2, MapPin,
   RefreshCw, XCircle, AlertTriangle, CheckCircle2, Clock, Loader2, FileText
 } from "lucide-react";
+import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
 
 function statusColor(status: string) {
   const s = status?.toLowerCase();
@@ -308,7 +309,7 @@ export default function WorkforcePermitDetailPage() {
                         <Badge className={`text-xs ${statusColor(r.status)}`}>{r.status}</Badge>
                       </td>
                       <td className="px-4 py-2.5 text-muted-foreground">
-                        {r.createdAt ? new Date(r.createdAt).toLocaleDateString() : "—"}
+                        {r.createdAt ? fmtDate(r.createdAt) : "—"}
                       </td>
                     </tr>
                   ))}

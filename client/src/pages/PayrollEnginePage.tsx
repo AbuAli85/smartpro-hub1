@@ -18,6 +18,7 @@ import {
   Play, Download, Eye, ChevronRight, Plus, RefreshCw, Banknote,
   TrendingUp, Calculator, CreditCard, Settings, XCircle
 } from "lucide-react";
+import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
 
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 const fmt = (n: number | string | null | undefined) => `OMR ${Number(n ?? 0).toFixed(3)}`;
@@ -466,7 +467,7 @@ export default function PayrollEnginePage() {
                           <div className="flex justify-between"><span className="text-muted-foreground">Housing</span><span>{fmt(cfg.housingAllowance)}</span></div>
                           <div className="flex justify-between"><span className="text-muted-foreground">Transport</span><span>{fmt(cfg.transportAllowance)}</span></div>
                           <div className="flex justify-between"><span className="text-muted-foreground">PASI Rate</span><span>{cfg.pasiRate}%</span></div>
-                          <div className="flex justify-between"><span className="text-muted-foreground">Effective From</span><span>{cfg.effectiveFrom ? new Date(cfg.effectiveFrom).toLocaleDateString() : "—"}</span></div>
+                          <div className="flex justify-between"><span className="text-muted-foreground">Effective From</span><span>{cfg.effectiveFrom ? fmtDate(cfg.effectiveFrom) : "—"}</span></div>
                         </div>
                       ) : (
                         <div className="bg-yellow-50 border border-yellow-200 rounded p-2 text-xs text-yellow-800">
@@ -508,8 +509,8 @@ export default function PayrollEnginePage() {
                     <TableCell>{fmt(cfg.transportAllowance)}</TableCell>
                     <TableCell>{fmt(cfg.otherAllowances)}</TableCell>
                     <TableCell>{cfg.pasiRate}%</TableCell>
-                    <TableCell>{cfg.effectiveFrom ? new Date(cfg.effectiveFrom).toLocaleDateString() : "—"}</TableCell>
-                    <TableCell>{cfg.effectiveTo ? new Date(cfg.effectiveTo).toLocaleDateString() : <span className="text-green-600 text-xs font-medium">Active</span>}</TableCell>
+                    <TableCell>{cfg.effectiveFrom ? fmtDate(cfg.effectiveFrom) : "—"}</TableCell>
+                    <TableCell>{cfg.effectiveTo ? fmtDate(cfg.effectiveTo) : <span className="text-green-600 text-xs font-medium">Active</span>}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>

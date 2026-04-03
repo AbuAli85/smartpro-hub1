@@ -21,6 +21,7 @@ import {
   Phone, Mail, MapPin, Shield, ChevronLeft, ChevronRight as ChevronRightIcon,
   Home, CreditCard, UserCheck,
 } from "lucide-react";
+import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 type TaskStatus = "pending" | "in_progress" | "completed" | "cancelled";
@@ -74,7 +75,7 @@ function formatTime(ts: Date | string | null | undefined): string {
 
 function formatDate(ts: Date | string | null | undefined): string {
   if (!ts) return "—";
-  return new Date(ts).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+  return fmtDateLong(ts);
 }
 
 // ── Loading Skeleton ───────────────────────────────────────────────────────
@@ -473,7 +474,7 @@ export default function EmployeePortalPage() {
                   <Button variant="ghost" size="icon" className="h-7 w-7" onClick={prevMonth}>
                     <ChevronLeft className="w-4 h-4" />
                   </Button>
-                  <span>{new Date(attMonth + "-01").toLocaleDateString("en-US", { month: "long", year: "numeric" })}</span>
+                  <span>{fmtDateLong(attMonth + "-01")}</span>
                   <Button variant="ghost" size="icon" className="h-7 w-7" onClick={nextMonth} disabled={isCurrentMonth}>
                     <ChevronRightIcon className="w-4 h-4" />
                   </Button>
@@ -627,7 +628,7 @@ export default function EmployeePortalPage() {
                 <div key={p.id} className="flex items-center justify-between p-4 rounded-lg border bg-card">
                   <div>
                     <p className="font-medium text-sm">
-                      {new Date(p.periodYear, p.periodMonth - 1).toLocaleDateString("en-US", { month: "long", year: "numeric" })}
+                      {new Date(p.periodYear, p.periodMonth - 1, 1).toLocaleDateString("en-GB", { month: "long", year: "numeric", timeZone: "Asia/Muscat" })}
                     </p>
                     <p className="text-xs text-muted-foreground mt-0.5">
                       Basic: {p.currency ?? "OMR"} {Number(p.basicSalary).toFixed(2)}
@@ -935,7 +936,7 @@ export default function EmployeePortalPage() {
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium">{n.title}</p>
                       <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{n.message}</p>
-                      <p className="text-xs text-muted-foreground mt-1">{new Date(n.createdAt).toLocaleString()}</p>
+                      <p className="text-xs text-muted-foreground mt-1">{fmtDateTime(n.createdAt)}</p>
                     </div>
                     {!n.isRead && <div className="w-2 h-2 rounded-full bg-primary shrink-0 mt-1.5" />}
                   </div>

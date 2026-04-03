@@ -11,6 +11,7 @@ import {
   FolderOpen, Search, Upload, FileText, CheckCircle2,
   AlertTriangle, Clock, Eye, ShieldCheck, Calendar, Filter
 } from "lucide-react";
+import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
 
 const DOC_TYPE_LABELS: Record<string, string> = {
   mol_work_permit_certificate: "MOL Work Permit Certificate",
@@ -246,7 +247,7 @@ export default function WorkforceDocumentsPage() {
                     }`}>
                       <Calendar className="w-3.5 h-3.5" />
                       <span>
-                        Expires: {new Date(doc.expiresAt).toLocaleDateString()}
+                        Expires: {fmtDate(doc.expiresAt)}
                         {doc.daysToExpiry != null && (
                           <span className="ml-1 font-medium">
                             ({isExpiredDoc ? `${Math.abs(doc.daysToExpiry)}d ago` : `${doc.daysToExpiry}d left`})

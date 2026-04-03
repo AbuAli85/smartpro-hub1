@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Shield, Search, RefreshCw, Download, Eye, Clock, User, Building2, AlertTriangle } from "lucide-react";
+import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
 
 const ENTITY_COLORS: Record<string, string> = {
   contract: "bg-blue-100 text-blue-700",
@@ -259,7 +260,7 @@ export default function AuditLogPage() {
                       <TableCell className="text-xs whitespace-nowrap">
                         <div className="flex items-center gap-1.5">
                           <Clock size={12} className="text-muted-foreground" />
-                          {new Date(log.createdAt).toLocaleString()}
+                          {fmtDateTime(log.createdAt)}
                         </div>
                       </TableCell>
                       <TableCell>
@@ -326,7 +327,7 @@ export default function AuditLogPage() {
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-3 text-sm">
                 {[
-                  { label: "Timestamp", value: new Date(selectedEntry.createdAt).toLocaleString() },
+                  { label: "Timestamp", value: fmtDateTime(selectedEntry.createdAt) },
                   { label: "Action", value: selectedEntry.action },
                   { label: "Entity Type", value: selectedEntry.entityType },
                   { label: "Entity ID", value: selectedEntry.entityId ?? "—" },

@@ -10,6 +10,7 @@ import {
   ArrowLeft, User, FileText, Shield, Calendar, Building2,
   Phone, Mail, MapPin, CreditCard, Globe, AlertTriangle
 } from "lucide-react";
+import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
 
 function statusColor(status: string) {
   const s = status?.toLowerCase();
@@ -289,7 +290,7 @@ export default function WorkforceEmployeeDetailPage() {
                           <td className="px-4 py-3 capitalize">{c.priority}</td>
                           <td className="px-4 py-3 font-mono text-xs">{c.governmentReference || "—"}</td>
                           <td className="px-4 py-3 text-muted-foreground">
-                            {c.createdAt ? new Date(c.createdAt).toLocaleDateString() : "—"}
+                            {c.createdAt ? fmtDate(c.createdAt) : "—"}
                           </td>
                         </tr>
                       ))}
@@ -327,7 +328,7 @@ export default function WorkforceEmployeeDetailPage() {
                           </td>
                           <td className="px-4 py-3">{d.expiresAt || "—"}</td>
                           <td className="px-4 py-3 text-muted-foreground">
-                            {d.createdAt ? new Date(d.createdAt).toLocaleDateString() : "—"}
+                            {d.createdAt ? fmtDate(d.createdAt) : "—"}
                           </td>
                         </tr>
                       ))}

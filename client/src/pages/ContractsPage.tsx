@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
+import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
 
 const statusColors: Record<string, string> = {
   draft: "bg-gray-100 text-gray-700",
@@ -202,7 +203,7 @@ function SignersDialog({ contractId, contractTitle }: { contractId: number; cont
                   <div>
                     <div className="font-medium text-sm">{s.signerName}</div>
                     <div className="text-xs text-muted-foreground">{s.signerEmail}{s.signerRole ? ` · ${s.signerRole}` : ""}</div>
-                    {s.signedAt && <div className="text-xs text-green-600">Signed {new Date(s.signedAt).toLocaleDateString()}</div>}
+                    {s.signedAt && <div className="text-xs text-green-600">Signed {fmtDate(s.signedAt)}</div>}
                   </div>
                   <span className={`text-sm font-bold ${statusColor(s.status)}`}>{statusIcon(s.status)} {s.status}</span>
                 </div>
@@ -317,7 +318,7 @@ function AuditTrailDialog({ contractId, contractTitle }: { contractId: number; c
                 {entry.notes && <div className="text-xs text-muted-foreground italic">{entry.notes}</div>}
                 {entry.ipAddress && <div className="text-xs text-muted-foreground">IP: {entry.ipAddress}</div>}
               </div>
-              <div className="text-xs text-muted-foreground whitespace-nowrap">{new Date(entry.createdAt).toLocaleString()}</div>
+              <div className="text-xs text-muted-foreground whitespace-nowrap">{fmtDateTime(entry.createdAt)}</div>
             </div>
           ))}
         </div>
@@ -515,7 +516,7 @@ export default function ContractsPage() {
                     </Badge>
                   </td>
                   <td className="px-4 py-3 text-xs text-muted-foreground">
-                    {contract.endDate ? new Date(contract.endDate).toLocaleDateString() : "—"}
+                    {contract.endDate ? fmtDate(contract.endDate) : "—"}
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex flex-wrap gap-0.5">

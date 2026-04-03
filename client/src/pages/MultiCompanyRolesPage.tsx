@@ -16,6 +16,7 @@ import {
   Users, Search, Building2, ShieldCheck, Pencil, Trash2,
   RefreshCw, ChevronDown, ChevronRight, Globe,
 } from "lucide-react";
+import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
 
 // ── Role helpers ──────────────────────────────────────────────────────────────
 const ROLE_OPTIONS = [
@@ -275,7 +276,7 @@ function UserAccessRow({
           </TableCell>
           <TableCell>
             <span className="text-xs text-muted-foreground">
-              Joined {new Date(m.joinedAt).toLocaleDateString()}
+              Joined {fmtDate(m.joinedAt)}
             </span>
           </TableCell>
           <TableCell className="hidden md:table-cell" />

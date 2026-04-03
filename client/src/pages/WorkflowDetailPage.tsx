@@ -11,6 +11,7 @@ import {
   ArrowLeft, CheckCircle, XCircle, Clock, AlertCircle, User, RefreshCw,
   FileText, ChevronRight, Activity, Zap
 } from "lucide-react";
+import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
 
 const STATUS_COLORS: Record<string, string> = {
   pending: "bg-yellow-100 text-yellow-800",
@@ -81,7 +82,7 @@ export default function WorkflowDetailPage() {
       time: run.triggeredAt,
       icon: Activity,
       color: "text-purple-600",
-      description: `Triggered ${run.daysBeforeExpiry} days before expiry (${run.expiryDate ? new Date(run.expiryDate).toLocaleDateString() : "—"})`,
+      description: `Triggered ${run.daysBeforeExpiry} days before expiry (${run.expiryDate ? fmtDate(run.expiryDate) : "—"})`,
     },
     run.caseId && {
       label: "Government Case Created",
@@ -157,7 +158,7 @@ export default function WorkflowDetailPage() {
           <CardContent className="p-4">
             <p className="text-xs text-muted-foreground mb-1">Expiry Date</p>
             <p className="font-semibold text-sm">
-              {run.expiryDate ? new Date(run.expiryDate).toLocaleDateString() : "—"}
+              {run.expiryDate ? fmtDate(run.expiryDate) : "—"}
             </p>
           </CardContent>
         </Card>
@@ -165,7 +166,7 @@ export default function WorkflowDetailPage() {
           <CardContent className="p-4">
             <p className="text-xs text-muted-foreground mb-1">Created</p>
             <p className="font-semibold text-sm">
-              {run.createdAt ? new Date(run.createdAt).toLocaleDateString() : "—"}
+              {run.createdAt ? fmtDate(run.createdAt) : "—"}
             </p>
           </CardContent>
         </Card>
@@ -197,7 +198,7 @@ export default function WorkflowDetailPage() {
                         <p className="font-medium text-sm">{event.label}</p>
                         {event.time && (
                           <p className="text-xs text-muted-foreground">
-                            {new Date(event.time).toLocaleString()}
+                            {fmtDateTime(event.time)}
                           </p>
                         )}
                       </div>

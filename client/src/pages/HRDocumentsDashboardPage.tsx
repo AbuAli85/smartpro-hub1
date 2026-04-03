@@ -49,6 +49,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -484,7 +485,7 @@ export default function HRDocumentsDashboardPage() {
                               {item.fileName}
                             </TableCell>
                             <TableCell className="text-muted-foreground text-xs">
-                              {new Date(item.createdAt).toLocaleDateString()}
+                              {fmtDate(item.createdAt)}
                             </TableCell>
                             <TableCell>
                               <a href={item.fileUrl} target="_blank" rel="noopener noreferrer">
@@ -550,7 +551,7 @@ export default function HRDocumentsDashboardPage() {
                               {DOC_TYPE_LABELS[item.documentType] ?? item.documentType}
                             </TableCell>
                             <TableCell className="text-muted-foreground text-sm">
-                              {item.expiresAt ? new Date(item.expiresAt).toLocaleDateString() : "—"}
+                              {item.expiresAt ? fmtDate(item.expiresAt) : "—"}
                             </TableCell>
                             <TableCell>
                               <SeverityBadge severity={item.severity} daysLeft={item.daysLeft} />
@@ -752,10 +753,10 @@ export default function HRDocumentsDashboardPage() {
                               {doc.fileName}
                             </TableCell>
                             <TableCell className="text-muted-foreground text-xs">
-                              {doc.issuedAt ? new Date(doc.issuedAt).toLocaleDateString() : "—"}
+                              {doc.issuedAt ? fmtDate(doc.issuedAt) : "—"}
                             </TableCell>
                             <TableCell className="text-muted-foreground text-xs">
-                              {doc.expiresAt ? new Date(doc.expiresAt).toLocaleDateString() : "—"}
+                              {doc.expiresAt ? fmtDate(doc.expiresAt) : "—"}
                             </TableCell>
                             <TableCell>
                               <ExpiryStatusBadge status={doc.expiryStatus} />
@@ -862,7 +863,7 @@ export default function HRDocumentsDashboardPage() {
                             <TableCell className="text-muted-foreground text-sm">{doc.docNumber ?? "—"}</TableCell>
                             <TableCell className="text-muted-foreground text-sm">{doc.issuingAuthority ?? "—"}</TableCell>
                             <TableCell className="text-muted-foreground text-sm">
-                              {doc.expiryDate ? new Date(doc.expiryDate).toLocaleDateString() : "—"}
+                              {doc.expiryDate ? fmtDate(doc.expiryDate) : "—"}
                             </TableCell>
                             <TableCell>
                               <ExpiryStatusBadge status={doc.expiryStatus} />

@@ -15,6 +15,7 @@ import {
   Download, CheckCircle2, AlertTriangle, Clock, Wallet,
   ArrowRight, RefreshCw, Users, TrendingUp, Shield, Zap
 } from "lucide-react";
+import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type Officer = {
@@ -363,7 +364,7 @@ function CertificateDialog({ open, onClose, companyId, companyName }: {
                   MoL Omanisation Compliant
                 </Badge>
                 <p className="text-[10px] text-muted-foreground mt-2">
-                  Generated {new Date(cert.generatedAt).toLocaleDateString()} · SmartPRO Hub Platform
+                  Generated {fmtDate(cert.generatedAt)} · SmartPRO Hub Platform
                 </p>
               </div>
             </div>
@@ -605,7 +606,7 @@ export default function OfficerAssignmentPage() {
                               <div className="text-right">
                                 <p className="text-xs font-medium text-foreground">OMR {a.monthlyFee.toFixed(3)}/mo</p>
                                 <p className="text-[10px] text-muted-foreground">
-                                  Since {new Date(a.assignedAt).toLocaleDateString()}
+                                  Since {fmtDate(a.assignedAt)}
                                 </p>
                               </div>
                               <Button variant="ghost" size="sm"
@@ -657,7 +658,7 @@ export default function OfficerAssignmentPage() {
                               </Badge>
                               {a.terminatedAt && (
                                 <p className="text-[10px] text-muted-foreground mt-1">
-                                  Ended {new Date(a.terminatedAt).toLocaleDateString()}
+                                  Ended {fmtDate(a.terminatedAt)}
                                 </p>
                               )}
                             </div>

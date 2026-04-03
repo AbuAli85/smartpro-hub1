@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
+import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
 
 // ─── Leave type config ────────────────────────────────────────────────────────
 
@@ -47,10 +48,6 @@ function calcDays(start: string, end: string): number {
   return Math.max(0, d);
 }
 
-function fmtDate(d: Date | string | null | undefined): string {
-  if (!d) return "—";
-  return new Date(d).toLocaleDateString("en-OM", { day: "numeric", month: "short", year: "numeric" });
-}
 
 // ─── Leave balance bar ────────────────────────────────────────────────────────
 

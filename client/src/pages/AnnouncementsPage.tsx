@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { Megaphone, Plus, Trash2, Users, User, Bell, AlertTriangle, Clock } from "lucide-react";
+import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
 
 type AnnType = "announcement" | "request" | "alert" | "reminder";
 
@@ -214,7 +215,7 @@ export default function AnnouncementsPage() {
                           {ann.targetEmployeeId ? <><User className="w-3 h-3" />{ann.targetEmployeeName}</> : <><Users className="w-3 h-3" />All Employees</>}
                         </span>
                         <span className="text-xs text-muted-foreground">
-                          {new Date(ann.createdAt).toLocaleDateString()}
+                          {fmtDate(ann.createdAt)}
                         </span>
                       </div>
                       <CardTitle className="text-base mt-1">{ann.title}</CardTitle>

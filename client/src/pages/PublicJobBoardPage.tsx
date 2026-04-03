@@ -14,6 +14,7 @@ import {
   Send, CheckCircle, Calendar, DollarSign, Users, RefreshCw
 } from "lucide-react";
 import { Link } from "wouter";
+import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
 
 const TYPE_LABELS: Record<string, string> = {
   full_time: "Full Time",
@@ -197,7 +198,7 @@ export default function PublicJobBoardPage() {
                       )}
                       {job.applicationDeadline && (
                         <span className="flex items-center gap-1">
-                          <Calendar size={13} /> Deadline: {new Date(job.applicationDeadline).toLocaleDateString()}
+                          <Calendar size={13} /> Deadline: {fmtDate(job.applicationDeadline)}
                         </span>
                       )}
                     </div>

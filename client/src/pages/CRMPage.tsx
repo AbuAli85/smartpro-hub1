@@ -16,6 +16,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { toast } from "sonner";
+import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
 
 const DEAL_STAGE_META: Record<string, { label: string; color: string; icon: any }> = {
   lead:        { label: "Lead",         color: "bg-gray-100 text-gray-700 border-gray-200",       icon: Target },
@@ -241,7 +242,7 @@ function ContactDetailPanel({ contactId, onClose }: { contactId: number; onClose
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2">
                       <p className="text-xs font-semibold truncate">{comm.subject}</p>
-                      <span className="text-[10px] text-muted-foreground shrink-0">{new Date(comm.createdAt).toLocaleDateString()}</span>
+                      <span className="text-[10px] text-muted-foreground shrink-0">{fmtDate(comm.createdAt)}</span>
                     </div>
                     <div className="flex items-center gap-1.5 mt-0.5">
                       <Badge className={"text-[10px] " + colorClass} variant="outline">{comm.type}</Badge>
@@ -473,7 +474,7 @@ export default function CRMPage() {
                           <td className="px-4 py-3 text-xs font-semibold">{deal.value ? `${deal.currency ?? "OMR"} ${Number(deal.value).toLocaleString()}` : "—"}</td>
                           <td className="px-4 py-3"><Badge className={"text-xs " + stageMeta.color} variant="outline">{stageMeta.label}</Badge></td>
                           <td className="px-4 py-3 text-xs">{deal.probability ? deal.probability + "%" : "—"}</td>
-                          <td className="px-4 py-3 text-xs text-muted-foreground">{deal.expectedCloseDate ? new Date(deal.expectedCloseDate).toLocaleDateString() : "—"}</td>
+                          <td className="px-4 py-3 text-xs text-muted-foreground">{deal.expectedCloseDate ? fmtDate(deal.expectedCloseDate) : "—"}</td>
                           <td className="px-4 py-3">
                             <Select value={deal.stage ?? "lead"} onValueChange={(v) => updateDealMutation.mutate({ id: deal.id, stage: v as any })}>
                               <SelectTrigger className="h-7 text-xs w-36"><SelectValue /></SelectTrigger>
@@ -523,7 +524,7 @@ export default function CRMPage() {
                             {deal.expectedCloseDate && (
                               <div className="flex items-center gap-1 mt-1 text-[10px] text-muted-foreground">
                                 <Calendar size={9} />
-                                {new Date(deal.expectedCloseDate).toLocaleDateString()}
+                                {fmtDate(deal.expectedCloseDate)}
                               </div>
                             )}
                           </CardContent>

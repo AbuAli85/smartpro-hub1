@@ -14,13 +14,10 @@ import {
   Building2, Calendar, Briefcase, UserPlus, RefreshCw,
   ArrowRight, Zap, Target, Activity, BarChart3,
 } from "lucide-react";
+import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
 
 function fmtOMR(n: number | string | null | undefined) {
   return `OMR ${Number(n ?? 0).toLocaleString("en-OM", { minimumFractionDigits: 3, maximumFractionDigits: 3 })}`;
-}
-function fmtDate(d: Date | string | null | undefined) {
-  if (!d) return "—";
-  return new Date(d).toLocaleDateString("en-OM", { day: "2-digit", month: "short", year: "numeric" });
 }
 function greeting() {
   const h = new Date().getHours();

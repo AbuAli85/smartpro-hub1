@@ -20,6 +20,7 @@ import {
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
+import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
 
 // ─── Letter type metadata ─────────────────────────────────────────────────────
 const LETTER_TYPES = [
@@ -645,7 +646,7 @@ export default function HRLettersPage() {
                             </span>
                             <span className="flex items-center gap-1">
                               <Clock size={10} />
-                              {new Date(letter.createdAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}
+                              {fmtDateLong(letter.createdAt)}
                             </span>
                             {letter.referenceNumber && (
                               <span className="font-mono text-[10px]">{letter.referenceNumber}</span>

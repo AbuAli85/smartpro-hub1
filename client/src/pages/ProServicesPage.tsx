@@ -16,6 +16,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
+import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
 
 const STATUS_META: Record<string, { label: string; color: string; step: number }> = {
   pending:                { label: "Pending",           color: "bg-amber-100 text-amber-700 border-amber-200",      step: 1 },
@@ -362,9 +363,9 @@ function CaseDetailPanel({ serviceId, onClose, onUpdate }: { serviceId: number; 
               { icon: User, label: "Employee", value: svc.employeeName ?? "—" },
               { icon: Globe, label: "Nationality", value: svc.nationality ?? "—" },
               { icon: Hash, label: "Passport", value: svc.passportNumber ?? "—" },
-              { icon: Calendar, label: "Passport Expiry", value: svc.passportExpiry ? new Date(svc.passportExpiry).toLocaleDateString() : "—" },
+              { icon: Calendar, label: "Passport Expiry", value: svc.passportExpiry ? fmtDate(svc.passportExpiry) : "—" },
               { icon: FileText, label: "Visa / Permit #", value: svc.visaNumber ?? svc.permitNumber ?? "—" },
-              { icon: Calendar, label: "Document Expiry", value: svc.expiryDate ? new Date(svc.expiryDate).toLocaleDateString() : "—" },
+              { icon: Calendar, label: "Document Expiry", value: svc.expiryDate ? fmtDate(svc.expiryDate) : "—" },
             ].map(({ icon: Icon, label, value }) => (
               <div key={label} className="flex items-start gap-2">
                 <Icon size={13} className="text-muted-foreground mt-0.5 shrink-0" />
@@ -403,7 +404,7 @@ function CaseDetailPanel({ serviceId, onClose, onUpdate }: { serviceId: number; 
             {svc.dueDate ? (
               <div>
                 <p className={"text-sm font-bold " + (isOverdue ? "text-red-600" : daysLeft! <= 3 ? "text-orange-600" : "text-foreground")}>
-                  {new Date(svc.dueDate).toLocaleDateString()}
+                  {fmtDate(svc.dueDate)}
                 </p>
                 <p className={"text-xs " + (isOverdue ? "text-red-500" : "text-muted-foreground")}>
                   {isOverdue ? Math.abs(daysLeft!) + "d overdue" : daysLeft + "d remaining"}
@@ -436,8 +437,8 @@ function CaseDetailPanel({ serviceId, onClose, onUpdate }: { serviceId: number; 
         </div>
 
         <div className="text-xs text-muted-foreground border-t pt-3 space-y-1">
-          <p>Created: {new Date(svc.createdAt).toLocaleString()}</p>
-          {svc.completedAt && <p className="text-green-600">Completed: {new Date(svc.completedAt).toLocaleString()}</p>}
+          <p>Created: {fmtDateTime(svc.createdAt)}</p>
+          {svc.completedAt && <p className="text-green-600">Completed: {fmtDateTime(svc.completedAt)}</p>}
         </div>
       </div>
     </div>
@@ -668,13 +669,13 @@ export default function ProServicesPage() {
                             {svc.dueDate ? (
                               <span className={"flex items-center gap-1 " + (isOverdue ? "text-red-600 font-medium" : daysLeft! <= 3 ? "text-orange-600" : "text-muted-foreground")}>
                                 {isOverdue && <AlertTriangle size={11} />}
-                                {new Date(svc.dueDate).toLocaleDateString()}
+                                {fmtDate(svc.dueDate)}
                                 {daysLeft !== null && <span className="text-[10px]">({isOverdue ? Math.abs(daysLeft) + "d late" : daysLeft + "d"})</span>}
                               </span>
                             ) : svc.expiryDate ? (
                               <span className={"flex items-center gap-1 " + (isExpiringSoon ? "text-red-600 font-medium" : "text-muted-foreground")}>
                                 {isExpiringSoon && <AlertTriangle size={11} />}
-                                {new Date(svc.expiryDate).toLocaleDateString()}
+                                {fmtDate(svc.expiryDate)}
                               </span>
                             ) : "—"}
                           </td>
@@ -717,7 +718,7 @@ export default function ProServicesPage() {
                         </div>
                         <div>
                           <p className="font-semibold text-sm">{doc.employeeName}</p>
-                          <p className="text-xs text-muted-foreground">{SERVICE_LABELS[doc.serviceType ?? "other"]} — expires {doc.expiryDate ? new Date(doc.expiryDate).toLocaleDateString() : "—"}</p>
+                          <p className="text-xs text-muted-foreground">{SERVICE_LABELS[doc.serviceType ?? "other"]} — expires {doc.expiryDate ? fmtDate(doc.expiryDate) : "—"}</p>
                         </div>
                       </div>
                       <div className="flex items-center gap-3">

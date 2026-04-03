@@ -27,6 +27,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
 
 // ─── constants ────────────────────────────────────────────────────────────────
 
@@ -553,7 +554,7 @@ function StaffProfilePanel({
             <InfoRow icon={<Briefcase size={13} />} label="Position" value={member.position || "—"} />
             <InfoRow icon={<Hash size={13} />} label="Employee #" value={member.employeeNumber || "—"} />
             <InfoRow icon={<Calendar size={13} />} label="Hire Date"
-              value={member.hireDate ? new Date(member.hireDate).toLocaleDateString("en-OM", { year: "numeric", month: "short", day: "numeric" }) : "—"} />
+              value={member.hireDate ? fmtDateLong(member.hireDate) : "—"} />
           </Section>
 
           <Section title="Identity">

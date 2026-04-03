@@ -42,6 +42,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
+import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
 
 function FinancialIntelligencePanel() {
   const agedQuery = trpc.billing.getAgedReceivables.useQuery();
@@ -493,7 +494,7 @@ export default function BillingEnginePage() {
                         </td>
                         <td className="px-4 py-3 text-right font-semibold">{formatOMR(inv.amountOmr)}</td>
                         <td className="px-4 py-3 text-muted-foreground text-xs">
-                          {inv.dueDate ? new Date(inv.dueDate).toLocaleDateString() : "—"}
+                          {inv.dueDate ? fmtDate(inv.dueDate) : "—"}
                         </td>
                         <td className="px-4 py-3">
                           <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border ${sc.color}`}>
@@ -789,14 +790,14 @@ export default function BillingEnginePage() {
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Due Date</span>
                     <span className={selectedInvoice.status === "overdue" ? "text-red-600 font-medium" : ""}>
-                      {new Date(selectedInvoice.dueDate).toLocaleDateString()}
+                      {fmtDate(selectedInvoice.dueDate)}
                     </span>
                   </div>
                 )}
                 {selectedInvoice.paidAt && (
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Paid On</span>
-                    <span className="text-emerald-700 font-medium">{new Date(selectedInvoice.paidAt).toLocaleDateString()}</span>
+                    <span className="text-emerald-700 font-medium">{fmtDate(selectedInvoice.paidAt)}</span>
                   </div>
                 )}
               </div>
@@ -826,7 +827,7 @@ export default function BillingEnginePage() {
                     <CheckCircle2 size={14} className="text-emerald-600 shrink-0" />
                     <div>
                       <p className="font-medium text-emerald-800">Payment Received</p>
-                      <p className="text-emerald-700">{formatOMR(selectedInvoice.amountOmr)} · {selectedInvoice.paidAt ? new Date(selectedInvoice.paidAt).toLocaleDateString() : "Date unknown"}</p>
+                      <p className="text-emerald-700">{formatOMR(selectedInvoice.amountOmr)} · {selectedInvoice.paidAt ? fmtDate(selectedInvoice.paidAt) : "Date unknown"}</p>
                       {selectedInvoice.notes && <p className="text-emerald-600 mt-0.5">{selectedInvoice.notes}</p>}
                     </div>
                   </div>

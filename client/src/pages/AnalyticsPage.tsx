@@ -25,6 +25,7 @@ import {
   Line,
   Legend,
 } from "recharts";
+import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
 
 const COLORS = ["#f97316", "#3b82f6", "#8b5cf6", "#10b981", "#f59e0b", "#ef4444"];
 
@@ -494,12 +495,12 @@ function ScheduledReportsTab() {
                   <div className="flex items-center gap-4 mt-2">
                     {report.nextRunAt && (
                       <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                        <Clock size={11} /> Next: {new Date(report.nextRunAt).toLocaleDateString()}
+                        <Clock size={11} /> Next: {fmtDate(report.nextRunAt)}
                       </div>
                     )}
                     {report.lastRunAt && (
                       <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                        <Calendar size={11} /> Last: {new Date(report.lastRunAt).toLocaleDateString()}
+                        <Calendar size={11} /> Last: {fmtDate(report.lastRunAt)}
                       </div>
                     )}
                   </div>

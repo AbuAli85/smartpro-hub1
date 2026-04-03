@@ -44,6 +44,7 @@ import {
   Mail, Globe, Phone, MapPin, Hash, FileText, Edit3, UserCheck,
   ChevronRight, BarChart3, Search, X as XIcon
 } from "lucide-react";
+import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -463,7 +464,7 @@ export default function CompanyAdminPage() {
                         {company.status.charAt(0).toUpperCase() + company.status.slice(1)}
                       </Badge>
                       <span className="text-xs text-muted-foreground">
-                        Since {new Date(company.createdAt).toLocaleDateString()}
+                        Since {fmtDate(company.createdAt)}
                       </span>
                     </div>
                   </div>
@@ -694,13 +695,13 @@ export default function CompanyAdminPage() {
                             <TableCell className="hidden md:table-cell">
                               <span className="text-xs text-muted-foreground">
                                 {m.lastSignedIn
-                                  ? new Date(m.lastSignedIn).toLocaleDateString()
+                                  ? fmtDate(m.lastSignedIn)
                                   : "Never"}
                               </span>
                             </TableCell>
                             <TableCell className="hidden md:table-cell">
                               <span className="text-xs text-muted-foreground">
-                                {new Date(m.joinedAt).toLocaleDateString()}
+                                {fmtDate(m.joinedAt)}
                               </span>
                             </TableCell>
                             {isAdmin && (
@@ -840,7 +841,7 @@ export default function CompanyAdminPage() {
                       <TableRow key={inv.id}>
                         <TableCell className="font-medium text-sm">{inv.email}</TableCell>
                         <TableCell><RoleBadge role={inv.role as MemberRole} /></TableCell>
-                        <TableCell className="text-xs text-muted-foreground">{new Date(inv.expiresAt).toLocaleDateString()}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground">{fmtDate(inv.expiresAt)}</TableCell>
                         <TableCell className="text-right">
                           <Button
                             variant="ghost"
@@ -1044,7 +1045,7 @@ export default function CompanyAdminPage() {
           ) : (
             <div className="space-y-4 py-2">
               <div className="rounded-lg bg-muted p-3 space-y-2">
-                <p className="text-xs font-medium text-muted-foreground">Invite Link (valid until {inviteResult.expiresAt.toLocaleDateString()})</p>
+                <p className="text-xs font-medium text-muted-foreground">Invite Link (valid until {fmtDate(inviteResult.expiresAt)})</p>
                 <div className="flex items-center gap-2">
                   <code className="text-xs flex-1 truncate bg-background rounded px-2 py-1.5 border">{inviteResult.inviteUrl}</code>
                   <Button

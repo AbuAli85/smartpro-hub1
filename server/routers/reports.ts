@@ -86,9 +86,9 @@ export const reportsRouter = router({
 
   // ── Billing Summary Report ──────────────────────────────────────────────────
   generateBillingSummary: protectedProcedure
-    .input(z.object({ month: z.number().min(1).max(12), year: z.number().min(2020) }))
+    .input(z.object({ month: z.number().min(1).max(12), year: z.number().min(2020), companyId: z.number().optional() }))
     .mutation(async ({ ctx, input }) => {
-      const { companyId } = await requireActiveCompanyMembership(ctx.user.id);
+      const { companyId } = await requireActiveCompanyMembership(ctx.user.id, input.companyId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
 
@@ -166,9 +166,9 @@ export const reportsRouter = router({
 
   // ── Payslip Report ──────────────────────────────────────────────────────────
   generatePayslip: protectedProcedure
-    .input(z.object({ runId: z.number(), employeeId: z.number() }))
+    .input(z.object({ runId: z.number(), employeeId: z.number(), companyId: z.number().optional() }))
     .mutation(async ({ ctx, input }) => {
-      const { companyId } = await requireActiveCompanyMembership(ctx.user.id);
+      const { companyId } = await requireActiveCompanyMembership(ctx.user.id, input.companyId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
 
@@ -379,9 +379,9 @@ export const reportsRouter = router({
 
   // ── Compliance Certificate Report ───────────────────────────────────────────
   generateComplianceReport: protectedProcedure
-    .input(z.object({ month: z.number().min(1).max(12), year: z.number().min(2020) }))
+    .input(z.object({ month: z.number().min(1).max(12), year: z.number().min(2020), companyId: z.number().optional() }))
     .mutation(async ({ ctx, input }) => {
-      const { companyId } = await requireActiveCompanyMembership(ctx.user.id);
+      const { companyId } = await requireActiveCompanyMembership(ctx.user.id, input.companyId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
 

@@ -25,7 +25,7 @@ const statusColors: Record<string, string> = {
 
 type AttendanceStatus = "present" | "absent" | "late" | "half_day" | "remote";
 
-function ClockInDialog({ employees, onSuccess }: { employees: { id: number; firstName: string; lastName: string; department: string | null }[]; onSuccess: () => void }) {
+function ClockInDialog({ employees, onSuccess, companyId }: { employees: { id: number; firstName: string; lastName: string; department: string | null }[]; onSuccess: () => void; companyId?: number | null }) {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ employeeId: "", status: "present" as AttendanceStatus, notes: "", date: new Date().toISOString().split("T")[0] });
 
@@ -82,7 +82,7 @@ function ClockInDialog({ employees, onSuccess }: { employees: { id: number; firs
             <Input placeholder="Optional notes..." value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} className="text-sm" />
           </div>
           <Button className="w-full" disabled={!form.employeeId || createMutation.isPending}
-            onClick={() => createMutation.mutate({ employeeId: Number(form.employeeId), status: form.status, notes: form.notes || undefined, date: form.date })}>
+            onClick={() => createMutation.mutate({ employeeId: Number(form.employeeId), status: form.status, notes: form.notes || undefined, date: form.date, companyId: companyId ?? undefined })}>
             {createMutation.isPending ? "Recording..." : "Record Attendance"}
           </Button>
         </div>
@@ -194,7 +194,7 @@ export default function HRAttendancePage() {
           <Button size="sm" variant="outline" className="gap-2" onClick={() => toast.info("Export feature coming soon")}>
             <Download size={14} /> Export
           </Button>
-          <ClockInDialog employees={(employees ?? []).map(e => ({ ...e, department: e.department ?? null }))} onSuccess={refetch} />
+          <ClockInDialog employees={(employees ?? []).map(e => ({ ...e, department: e.department ?? null }))} onSuccess={refetch} companyId={activeCompanyId} />
         </div>
       </div>
 

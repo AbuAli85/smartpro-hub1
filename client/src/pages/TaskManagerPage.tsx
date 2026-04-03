@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
+import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -40,12 +41,13 @@ const STATUS_CONFIG: Record<Status, { label: string; icon: React.ReactNode }> = 
 };
 
 function TaskDialog({
-  open, onClose, initial, employees,
+  open, onClose, initial, employees, companyId,
 }: {
   open: boolean;
   onClose: () => void;
   initial?: any;
   employees: { id: number; firstName: string; lastName: string; department?: string | null }[];
+  companyId?: number | null;
 }) {
   const utils = trpc.useUtils();
   const [title, setTitle] = useState(initial?.title ?? "");
@@ -68,9 +70,9 @@ function TaskDialog({
   const handleSave = () => {
     if (!title.trim() || !assignedTo) return;
     if (initial) {
-      update.mutate({ id: initial.id, title, description: description || undefined, priority, status, dueDate: dueDate || undefined, notes: notes || undefined });
+      update.mutate({ id: initial.id, title, description: description || undefined, priority, status, dueDate: dueDate || undefined, notes: notes || undefined, companyId: companyId ?? undefined });
     } else {
-      create.mutate({ assignedToEmployeeId: Number(assignedTo), title, description: description || undefined, priority, dueDate: dueDate || undefined, notes: notes || undefined });
+      create.mutate({ assignedToEmployeeId: Number(assignedTo), title, description: description || undefined, priority, dueDate: dueDate || undefined, notes: notes || undefined, companyId: companyId ?? undefined });
     }
   };
 
@@ -148,15 +150,16 @@ function TaskDialog({
 
 export default function TaskManagerPage() {
   const utils = trpc.useUtils();
+  const { activeCompanyId } = useActiveCompany();
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [filterPriority, setFilterPriority] = useState<string>("all");
   const [search, setSearch] = useState("");
   const [taskDialog, setTaskDialog] = useState<{ open: boolean; item?: any }>({ open: false });
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
 
-  const { data: tasks = [], isLoading } = trpc.tasks.listTasks.useQuery({});
-  const { data: stats } = trpc.tasks.getTaskStats.useQuery();
-  const { data: employees = [] } = trpc.hr.listEmployees.useQuery({});
+  const { data: tasks = [], isLoading } = trpc.tasks.listTasks.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
+  const { data: stats } = trpc.tasks.getTaskStats.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
+  const { data: employees = [] } = trpc.hr.listEmployees.useQuery({ status: "active", companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
 
   const deleteTask = trpc.tasks.deleteTask.useMutation({
     onSuccess: () => { utils.tasks.listTasks.invalidate(); utils.tasks.getTaskStats.invalidate(); toast.success("Task deleted"); setDeleteConfirm(null); },
@@ -299,6 +302,7 @@ export default function TaskManagerPage() {
         onClose={() => setTaskDialog({ open: false })}
         initial={taskDialog.item}
         employees={empList}
+        companyId={activeCompanyId}
       />
 
       <AlertDialog open={deleteConfirm !== null} onOpenChange={() => setDeleteConfirm(null)}>

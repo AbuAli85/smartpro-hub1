@@ -1316,3 +1316,17 @@ Every company on SmartPRO Hub gets a complete, unified business operating area �
 - [x] Add "Clear All Employees" button in MyTeamPage header with confirmation dialog (admin only)
 - [x] Add clearAllEmployees procedure to team router (company_admin role required)
 - [x] Verify end-to-end: import to company A → only shows in company A; import to company B → only shows in company B
+
+## Phase 60: Full End-to-End Audit — All Badges, Counts, Stats Must Be Company-Scoped
+- [ ] Fix Team Access badge (sidebar shows 31 from old company data)
+- [ ] Audit sidebar navigation badges: every badge must use activeCompanyId
+- [ ] Audit Dashboard KPI cards: all counts must be company-scoped
+- [ ] Audit My Team page: Total Staff, Active, On Leave badges must reflect active company
+- [ ] Audit HR Employees page: all counts must reflect active company
+- [ ] Audit Attendance page: employee list and stats must reflect active company
+- [ ] Audit Leave page: leave requests and counts must reflect active company
+- [ ] Audit Payroll page: payroll runs and salary configs must reflect active company
+- [ ] Audit Company Admin page: member list must reflect active company
+- [ ] Audit all notification bell counts: must be company-scoped
+- [ ] Fix any procedure that uses getUserCompany() fallback instead of activeCompanyId
+- [ ] Verify: switching company A to B → ALL badges, counts, lists update immediately

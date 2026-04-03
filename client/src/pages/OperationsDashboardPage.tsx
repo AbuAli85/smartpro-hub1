@@ -1,4 +1,5 @@
 import { trpc } from "@/lib/trpc";
+import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -47,11 +48,13 @@ function KpiCard({ label, value, sub, icon: Icon, color }: { label: string; valu
 }
 
 export default function OperationsDashboardPage() {
-  const { data: snapshot, isLoading, refetch } = trpc.operations.getDailySnapshot.useQuery(undefined, {
-    refetchInterval: 5 * 60 * 1000, // auto-refresh every 5 minutes
-  });
-  const { data: insights } = trpc.operations.getAiInsights.useQuery();
-  const { data: tasks } = trpc.operations.getTodaysTasks.useQuery();
+  const { activeCompanyId } = useActiveCompany();
+  const { data: snapshot, isLoading, refetch } = trpc.operations.getDailySnapshot.useQuery(
+    { companyId: activeCompanyId ?? undefined },
+    { refetchInterval: 5 * 60 * 1000, enabled: activeCompanyId != null }
+  );
+  const { data: insights } = trpc.operations.getAiInsights.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
+  const { data: tasks } = trpc.operations.getTodaysTasks.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
 
   const now = new Date();
 

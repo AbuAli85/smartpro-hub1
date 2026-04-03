@@ -175,9 +175,10 @@ export const hrLettersRouter = router({
     .input(z.object({
       employeeId: z.number().optional(),
       letterType: z.string().optional(),
+      companyId: z.number().optional(),
     }).optional())
     .query(async ({ input, ctx }) => {
-      const membership = await getActiveCompanyMembership(ctx.user.id);
+      const membership = await getActiveCompanyMembership(ctx.user.id, input?.companyId);
       if (!membership) return [];
       const db = await getDb();
       if (!db) return [];
@@ -225,9 +226,10 @@ export const hrLettersRouter = router({
       issuedTo: z.string().optional(),
       purpose: z.string().optional(),
       additionalNotes: z.string().optional(),
+      companyId: z.number().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const membership = await getActiveCompanyMembership(ctx.user.id);
+      const membership = await getActiveCompanyMembership(ctx.user.id, input.companyId);
       if (!membership) throw new TRPCError({ code: "FORBIDDEN", message: "No company membership" });
       requireNotAuditor(membership.role, "External Auditors cannot generate letters.");
 

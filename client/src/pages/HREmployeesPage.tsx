@@ -45,7 +45,7 @@ function getInitials(first: string, last: string) {
   return ((first?.[0] ?? "") + (last?.[0] ?? "")).toUpperCase();
 }
 
-function AddEmployeeWizard({ onSuccess }: { onSuccess: () => void }) {
+function AddEmployeeWizard({ onSuccess, companyId }: { onSuccess: () => void; companyId?: number | null }) {
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState(1);
   const [form, setForm] = useState({
@@ -173,7 +173,7 @@ function AddEmployeeWizard({ onSuccess }: { onSuccess: () => void }) {
             <div className="flex gap-2">
               <Button variant="outline" className="flex-1" onClick={() => setStep(2)}>Back</Button>
               <Button className="flex-1 bg-[var(--smartpro-orange)] hover:bg-orange-600 text-white" disabled={createMutation.isPending}
-                onClick={() => createMutation.mutate({ ...form, salary: form.salary ? Number(form.salary) : undefined })}>
+                onClick={() => createMutation.mutate({ ...form, salary: form.salary ? Number(form.salary) : undefined, companyId: companyId ?? undefined })}>
                 {createMutation.isPending ? "Adding..." : "Add to Workforce"}
               </Button>
             </div>
@@ -414,7 +414,7 @@ export default function HREmployeesPage() {
               ))}
             </div>
           </div>
-          <AddEmployeeWizard onSuccess={refetch} />
+          <AddEmployeeWizard onSuccess={refetch} companyId={activeCompanyId} />
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">

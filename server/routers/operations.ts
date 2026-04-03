@@ -25,11 +25,12 @@ import type { User } from "../../drizzle/schema";
 
 export const operationsRouter = router({
   // ── Daily Snapshot ──────────────────────────────────────────────────────────
-  getDailySnapshot: protectedProcedure.query(async ({ ctx }) => {
+  getDailySnapshot: protectedProcedure
+    .input(z.object({ companyId: z.number().optional() }).optional())
+    .query(async ({ ctx, input }) => {
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-
-    const companyId = await resolvePlatformOrCompanyScope(ctx.user as User);
+    const companyId = await resolvePlatformOrCompanyScope(ctx.user as User, input?.companyId);
     const now = new Date();
     const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const in7Days = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
@@ -239,11 +240,12 @@ export const operationsRouter = router({
   }),
 
   // ── AI Insights ─────────────────────────────────────────────────────────────
-  getAiInsights: protectedProcedure.query(async ({ ctx }) => {
+  getAiInsights: protectedProcedure
+    .input(z.object({ companyId: z.number().optional() }).optional())
+    .query(async ({ ctx, input }) => {
     const db = await getDb();
     if (!db) return [];
-
-    const companyId = await resolvePlatformOrCompanyScope(ctx.user as User);
+    const companyId = await resolvePlatformOrCompanyScope(ctx.user as User, input?.companyId);
     const now = new Date();
     const in14Days = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
 
@@ -369,11 +371,13 @@ export const operationsRouter = router({
     return insights.slice(0, 4);
   }),
 
-  // ── Smart Dashboard (aggregated intelligence) ─────────────────────────────────────────
-  getSmartDashboard: protectedProcedure.query(async ({ ctx }) => {
+  // ── Smart Dashboard (aggregated intelligence) ──────────────────────────────────────────────────────
+  getSmartDashboard: protectedProcedure
+    .input(z.object({ companyId: z.number().optional() }).optional())
+    .query(async ({ ctx, input }) => {
     const db = await getDb();
     if (!db) return null;
-    const companyId = await resolvePlatformOrCompanyScope(ctx.user as User);
+    const companyId = await resolvePlatformOrCompanyScope(ctx.user as User, input?.companyId);
     if (!companyId) return null;
     const now = new Date();
     const in30Days = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
@@ -442,13 +446,14 @@ export const operationsRouter = router({
       actions: actions.sort((a, b) => ["critical", "high", "medium", "low"].indexOf(a.priority) - ["critical", "high", "medium", "low"].indexOf(b.priority)).slice(0, 6),
     };
   }),
-
-  // ── Today's Tasks ────────────────────────────────────────────────────────────────────
-  getTodaysTasks: protectedProcedure.query(async ({ ctx }) => {
+  // ── Today's Tasks ───────────────────────────────────────────────────────────────────────────────────────
+  getTodaysTasks: protectedProcedure
+    .input(z.object({ companyId: z.number().optional() }).optional())
+    .query(async ({ ctx, input }) => {
     const db = await getDb();
     if (!db) return { casesDue: [], pendingLeaveApprovals: [], pendingPayrollApprovals: [], totalTasks: 0 };
 
-    const companyId = await resolvePlatformOrCompanyScope(ctx.user as User);
+    const companyId = await resolvePlatformOrCompanyScope(ctx.user as User, input?.companyId);
     const now = new Date();
     const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
 

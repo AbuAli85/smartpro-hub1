@@ -580,10 +580,14 @@ export const companiesRouter = router({
    *  - memberId: the company_members.id (if any)
    *  - hasLogin: whether they have a users record linked
    */
-  employeesWithAccess: protectedProcedure.query(async ({ ctx }) => {
+  employeesWithAccess: protectedProcedure
+    .input(z.object({ companyId: z.number().optional() }).optional())
+    .query(async ({ input, ctx }) => {
     const db = await getDb();
     if (!db) return [];
-    const membership = await getUserCompany(ctx.user.id);
+    const membership = input?.companyId
+      ? await getUserCompanyById(ctx.user.id, input.companyId)
+      : await getUserCompany(ctx.user.id);
     if (!membership) return [];
     const companyId = membership.company.id;
 
@@ -685,11 +689,14 @@ export const companiesRouter = router({
       employeeId: z.number(),
       role: z.enum(["company_admin", "company_member", "finance_admin", "hr_admin", "reviewer", "external_auditor"]).default("company_member"),
       origin: z.string().url().optional(),
+      companyId: z.number().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      const membership = await getUserCompany(ctx.user.id);
+      const membership = input.companyId
+        ? await getUserCompanyById(ctx.user.id, input.companyId)
+        : await getUserCompany(ctx.user.id);
       if (!membership) throw new TRPCError({ code: "FORBIDDEN" });
       if (!canAccessGlobalAdminProcedures(ctx.user)) await assertCompanyAdmin(ctx.user.id, membership.company.id);
 
@@ -767,11 +774,13 @@ export const companiesRouter = router({
    * Revoke system access from an employee (deactivates their company_member record).
    */
   revokeEmployeeAccess: protectedProcedure
-    .input(z.object({ employeeId: z.number() }))
+    .input(z.object({ employeeId: z.number(), companyId: z.number().optional() }))
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      const membership = await getUserCompany(ctx.user.id);
+      const membership = input.companyId
+        ? await getUserCompanyById(ctx.user.id, input.companyId)
+        : await getUserCompany(ctx.user.id);
       if (!membership) throw new TRPCError({ code: "FORBIDDEN" });
       if (!canAccessGlobalAdminProcedures(ctx.user)) await assertCompanyAdmin(ctx.user.id, membership.company.id);
 
@@ -803,11 +812,14 @@ export const companiesRouter = router({
     .input(z.object({
       employeeId: z.number(),
       role: z.enum(["company_admin", "company_member", "finance_admin", "hr_admin", "reviewer", "external_auditor"]),
+      companyId: z.number().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      const membership = await getUserCompany(ctx.user.id);
+      const membership = input.companyId
+        ? await getUserCompanyById(ctx.user.id, input.companyId)
+        : await getUserCompany(ctx.user.id);
       if (!membership) throw new TRPCError({ code: "FORBIDDEN" });
       if (!canAccessGlobalAdminProcedures(ctx.user)) await assertCompanyAdmin(ctx.user.id, membership.company.id);
 

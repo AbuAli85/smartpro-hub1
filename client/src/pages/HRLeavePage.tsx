@@ -270,6 +270,7 @@ export default function HRLeavePage() {
       endDate: leaveForm.endDate,
       days: leaveDays,
       reason: leaveForm.reason || undefined,
+      companyId: activeCompanyId ?? undefined,
     });
   };
 
@@ -466,6 +467,7 @@ export default function HRLeavePage() {
                         allowances: Number(payrollForm.allowances || 0),
                         deductions: Number(payrollForm.deductions || 0),
                         taxAmount: 0,
+                        companyId: activeCompanyId ?? undefined,
                       });
                     }}
                     disabled={createPayroll.isPending}

@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
+import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -143,6 +144,7 @@ const statusConfig: Record<string, { label: string; color: string; icon: React.R
 // ─── Run Payroll Tab ──────────────────────────────────────────────────────────
 function RunPayrollTab() {
   const now = new Date();
+  const { activeCompanyId } = useActiveCompany();
   const [selectedYear, setSelectedYear] = useState(now.getFullYear());
   const [createOpen, setCreateOpen] = useState(false);
   const [createForm, setCreateForm] = useState({ month: now.getMonth() + 1, year: now.getFullYear(), notes: "" });
@@ -151,7 +153,7 @@ function RunPayrollTab() {
   const [approveConfirm, setApproveConfirm] = useState<number | null>(null);
   const [markPaidConfirm, setMarkPaidConfirm] = useState<number | null>(null);
 
-  const { data: runs, isLoading: runsLoading, refetch: refetchRuns } = trpc.payroll.listRuns.useQuery({ year: selectedYear });
+  const { data: runs, isLoading: runsLoading, refetch: refetchRuns } = trpc.payroll.listRuns.useQuery({ year: selectedYear, companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
   const { data: runDetail, isLoading: runDetailLoading } = trpc.payroll.getRun.useQuery(
     { runId: selectedRunId! }, { enabled: !!selectedRunId }
   );
@@ -435,7 +437,7 @@ function RunPayrollTab() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setCreateOpen(false)}>Cancel</Button>
-            <Button onClick={() => createRun.mutate(createForm)} disabled={createRun.isPending} className="gap-2">
+            <Button onClick={() => createRun.mutate({ ...createForm, companyId: activeCompanyId ?? undefined })} disabled={createRun.isPending} className="gap-2">
               {createRun.isPending ? <RefreshCw size={14} className="animate-spin" /> : <Play size={14} />}
               Run Payroll for {MONTHS[createForm.month - 1]}
             </Button>
@@ -470,7 +472,7 @@ function RunPayrollTab() {
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setEditLine(null)}>Cancel</Button>
-              <Button onClick={() => updateLine.mutate({ lineId: editLine.id, housingAllowance: editLine.housingAllowance, transportAllowance: editLine.transportAllowance, otherAllowances: editLine.otherAllowances, overtimePay: editLine.overtimePay, loanDeduction: editLine.loanDeduction, absenceDeduction: editLine.absenceDeduction, otherDeductions: editLine.otherDeductions })} disabled={updateLine.isPending}>
+              <Button onClick={() => updateLine.mutate({ lineId: editLine.id, housingAllowance: editLine.housingAllowance, transportAllowance: editLine.transportAllowance, otherAllowances: editLine.otherAllowances, overtimePay: editLine.overtimePay, loanDeduction: editLine.loanDeduction, absenceDeduction: editLine.absenceDeduction, otherDeductions: editLine.otherDeductions, companyId: activeCompanyId ?? undefined })} disabled={updateLine.isPending}>
                 Save Changes
               </Button>
             </DialogFooter>
@@ -485,7 +487,7 @@ function RunPayrollTab() {
           <p className="text-sm text-muted-foreground py-2">This will approve the payroll run and allow it to be marked as paid. This action cannot be undone.</p>
           <DialogFooter>
             <Button variant="outline" onClick={() => setApproveConfirm(null)}>Cancel</Button>
-            <Button onClick={() => approveRun.mutate({ runId: approveConfirm! })} disabled={approveRun.isPending}>
+            <Button onClick={() => approveRun.mutate({ runId: approveConfirm!, companyId: activeCompanyId ?? undefined })} disabled={approveRun.isPending}>
               Approve
             </Button>
           </DialogFooter>
@@ -500,7 +502,7 @@ function RunPayrollTab() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setMarkPaidConfirm(null)}>Cancel</Button>
             <Button className="bg-green-600 hover:bg-green-700"
-              onClick={() => markPaid.mutate({ runId: markPaidConfirm! })} disabled={markPaid.isPending}>
+              onClick={() => markPaid.mutate({ runId: markPaidConfirm!, companyId: activeCompanyId ?? undefined })} disabled={markPaid.isPending}>
               Confirm Payment
             </Button>
           </DialogFooter>
@@ -512,8 +514,9 @@ function RunPayrollTab() {
 
 // ─── Salary Setup Tab ─────────────────────────────────────────────────────────
 function SalarySetupTab() {
-  const { data: employees, isLoading } = trpc.team.listMembers.useQuery({ status: "active" });
-  const { data: configs, refetch: refetchConfigs } = trpc.payroll.listSalaryConfigs.useQuery();
+  const { activeCompanyId } = useActiveCompany();
+  const { data: employees, isLoading } = trpc.team.listMembers.useQuery({ status: "active", companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
+  const { data: configs, refetch: refetchConfigs } = trpc.payroll.listSalaryConfigs.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
   const [editEmp, setEditEmp] = useState<any | null>(null);
   const [form, setForm] = useState({
     basicSalary: 0, housingAllowance: 0, transportAllowance: 0,
@@ -665,8 +668,9 @@ function SalarySetupTab() {
 
 // ─── Loans Tab ────────────────────────────────────────────────────────────────
 function LoansTab() {
-  const { data: loans, isLoading, refetch } = trpc.payroll.listLoans.useQuery(undefined);
-  const { data: employees } = trpc.team.listMembers.useQuery({ status: "active" });
+  const { activeCompanyId } = useActiveCompany();
+  const { data: loans, isLoading, refetch } = trpc.payroll.listLoans.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
+  const { data: employees } = trpc.team.listMembers.useQuery({ status: "active", companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
   const [createOpen, setCreateOpen] = useState(false);
   const [form, setForm] = useState({ employeeId: 0, loanAmount: 0, monthlyDeduction: 0, startMonth: new Date().getMonth() + 1, startYear: new Date().getFullYear(), reason: "" });
 
@@ -813,11 +817,12 @@ function LoansTab() {
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function PayrollProcessingPage() {
   const { user } = useAuth();
+  const { activeCompanyId } = useActiveCompany();
   const now = new Date();
 
-  const { data: runs } = trpc.payroll.listRuns.useQuery({ year: now.getFullYear() });
-  const { data: employees } = trpc.team.listMembers.useQuery({ status: "active" });
-  const { data: loans } = trpc.payroll.listLoans.useQuery(undefined);
+  const { data: runs } = trpc.payroll.listRuns.useQuery({ year: now.getFullYear(), companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
+  const { data: employees } = trpc.team.listMembers.useQuery({ status: "active", companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
+  const { data: loans } = trpc.payroll.listLoans.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
 
   const thisMonthRun = runs?.find(r => r.periodMonth === now.getMonth() + 1 && r.periodYear === now.getFullYear());
   const activeLoans = loans?.filter((l: any) => l.status === "active").length ?? 0;

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
+import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -153,10 +154,17 @@ function AccessStatusBadge({ status }: { status: 'active' | 'inactive' | 'no_acc
 export default function TeamAccessPage() {
   const { user } = useAuth();
   const utils = trpc.useUtils();
+  const { activeCompanyId } = useActiveCompany();
 
   // Data
-  const { data: employeesWithAccess = [], isLoading: loadingEmployees, refetch } = trpc.companies.employeesWithAccess.useQuery();
-  const { data: members = [], isLoading: loadingMembers } = trpc.companies.members.useQuery();
+  const { data: employeesWithAccess = [], isLoading: loadingEmployees, refetch } = trpc.companies.employeesWithAccess.useQuery(
+    { companyId: activeCompanyId ?? undefined },
+    { enabled: activeCompanyId != null }
+  );
+  const { data: members = [], isLoading: loadingMembers } = trpc.companies.members.useQuery(
+    { companyId: activeCompanyId ?? undefined },
+    { enabled: activeCompanyId != null }
+  );
 
   // UI state
   const [search, setSearch] = useState("");
@@ -650,6 +658,7 @@ export default function TeamAccessPage() {
                   employeeId: grantTarget.employeeId,
                   role: grantRole as any,
                   origin: window.location.origin,
+                  companyId: activeCompanyId ?? undefined,
                 });
               }}
               className="bg-gray-900 hover:bg-gray-800 text-white"
@@ -691,7 +700,7 @@ export default function TeamAccessPage() {
               disabled={updateEmployeeRole.isPending}
               onClick={() => {
                 if (!roleChangeTarget) return;
-                updateEmployeeRole.mutate({ employeeId: roleChangeTarget.employeeId, role: newRole as any });
+                updateEmployeeRole.mutate({ employeeId: roleChangeTarget.employeeId, role: newRole as any, companyId: activeCompanyId ?? undefined });
               }}
             >
               {updateEmployeeRole.isPending ? "Saving..." : "Save Role"}
@@ -715,7 +724,7 @@ export default function TeamAccessPage() {
               className="bg-red-600 hover:bg-red-700"
               onClick={() => {
                 if (!revokeTarget) return;
-                revokeAccess.mutate({ employeeId: revokeTarget.employeeId });
+                revokeAccess.mutate({ employeeId: revokeTarget.employeeId, companyId: activeCompanyId ?? undefined });
               }}
             >
               Revoke Access
@@ -768,7 +777,7 @@ export default function TeamAccessPage() {
             <Button variant="outline" onClick={() => setInviteOpen(false)}>Cancel</Button>
             <Button
               disabled={!inviteEmail || addMemberByEmail.isPending}
-              onClick={() => addMemberByEmail.mutate({ email: inviteEmail, role: inviteRole as any })}
+              onClick={() => addMemberByEmail.mutate({ email: inviteEmail, role: inviteRole as any, companyId: activeCompanyId ?? undefined })}
             >
               {addMemberByEmail.isPending ? "Adding..." : "Add Member"}
             </Button>
@@ -803,7 +812,7 @@ export default function TeamAccessPage() {
               disabled={updateMemberRole.isPending}
               onClick={() => {
                 if (!memberRoleTarget) return;
-                updateMemberRole.mutate({ memberId: memberRoleTarget.id, role: memberNewRole as any });
+                updateMemberRole.mutate({ memberId: memberRoleTarget.id, role: memberNewRole as any, companyId: activeCompanyId ?? undefined });
               }}
             >
               {updateMemberRole.isPending ? "Saving..." : "Save"}
@@ -827,7 +836,7 @@ export default function TeamAccessPage() {
               className="bg-red-600 hover:bg-red-700"
               onClick={() => {
                 if (!removeMemberTarget) return;
-                removeMember.mutate({ memberId: removeMemberTarget.id });
+                removeMember.mutate({ memberId: removeMemberTarget.id, companyId: activeCompanyId ?? undefined });
               }}
             >
               Remove

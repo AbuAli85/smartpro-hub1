@@ -154,10 +154,10 @@ export default function BusinessDashboardPage() {
   const { data: company } = trpc.companies.myCompany.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
   const { data: stats, isLoading: statsLoading } = trpc.companies.myStats.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
   const { data: teamStats, isLoading: teamLoading } = trpc.team.getTeamStats.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
-  const { data: tasks, isLoading: tasksLoading } = trpc.operations.getTodaysTasks.useQuery();
-  const { data: smartDash } = trpc.operations.getSmartDashboard.useQuery();
-  const { data: payrollRuns } = trpc.payroll.listRuns.useQuery({ year: new Date().getFullYear() });
-  const { data: alertsData } = trpc.alerts.getExpiryAlerts.useQuery({ maxDays: 30 });
+  const { data: tasks, isLoading: tasksLoading } = trpc.operations.getTodaysTasks.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
+  const { data: smartDash } = trpc.operations.getSmartDashboard.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
+  const { data: payrollRuns } = trpc.payroll.listRuns.useQuery({ year: new Date().getFullYear(), companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
+  const { data: alertsData } = trpc.alerts.getExpiryAlerts.useQuery({ maxDays: 30, companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
   const alerts = alertsData?.alerts ?? [];
 
   const companyName = company?.company?.name ?? "Your Company";

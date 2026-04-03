@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
+import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,12 +25,13 @@ import { Building2, Briefcase, Plus, Pencil, Trash2, Users } from "lucide-react"
 
 // ── Department Dialog ────────────────────────────────────────────────────────
 function DeptDialog({
-  open, onClose, initial, employees,
+  open, onClose, initial, employees, companyId,
 }: {
   open: boolean;
   onClose: () => void;
   initial?: { id: number; name: string; nameAr?: string | null; description?: string | null; headEmployeeId?: number | null };
   employees: { id: number; firstName: string; lastName: string }[];
+  companyId?: number | null;
 }) {
   const utils = trpc.useUtils();
   const [name, setName] = useState(initial?.name ?? "");
@@ -48,7 +50,7 @@ function DeptDialog({
 
   const handleSave = () => {
     if (!name.trim()) return;
-    const payload = { name: name.trim(), nameAr: nameAr || undefined, description: description || undefined, headEmployeeId: headId ? Number(headId) : undefined };
+    const payload = { name: name.trim(), nameAr: nameAr || undefined, description: description || undefined, headEmployeeId: headId ? Number(headId) : undefined, companyId: companyId ?? undefined };
     if (initial) update.mutate({ id: initial.id, ...payload });
     else create.mutate(payload);
   };
@@ -96,12 +98,13 @@ function DeptDialog({
 
 // ── Position Dialog ──────────────────────────────────────────────────────────
 function PosDialog({
-  open, onClose, initial, departments,
+  open, onClose, initial, departments, companyId,
 }: {
   open: boolean;
   onClose: () => void;
   initial?: { id: number; title: string; titleAr?: string | null; description?: string | null; departmentId?: number | null };
   departments: { id: number; name: string }[];
+  companyId?: number | null;
 }) {
   const utils = trpc.useUtils();
   const [title, setTitle] = useState(initial?.title ?? "");
@@ -119,7 +122,7 @@ function PosDialog({
 
   const handleSave = () => {
     if (!title.trim()) return;
-    const payload = { title: title.trim(), titleAr: titleAr || undefined, description: description || undefined, departmentId: deptId && deptId !== "none" ? Number(deptId) : undefined };
+    const payload = { title: title.trim(), titleAr: titleAr || undefined, description: description || undefined, departmentId: deptId && deptId !== "none" ? Number(deptId) : undefined, companyId: companyId ?? undefined };
     if (initial) update.mutate({ id: initial.id, ...payload });
     else create.mutate(payload);
   };
@@ -168,9 +171,10 @@ function PosDialog({
 // ── Main Page ────────────────────────────────────────────────────────────────
 export default function OrgStructurePage() {
   const utils = trpc.useUtils();
-  const { data: depts = [], isLoading: deptsLoading } = trpc.orgStructure.listDepartments.useQuery();
-  const { data: positions = [], isLoading: posLoading } = trpc.orgStructure.listPositions.useQuery({});
-  const { data: employees = [] } = trpc.hr.listEmployees.useQuery({});
+  const { activeCompanyId } = useActiveCompany();
+  const { data: depts = [], isLoading: deptsLoading } = trpc.orgStructure.listDepartments.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
+  const { data: positions = [], isLoading: posLoading } = trpc.orgStructure.listPositions.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
+  const { data: employees = [] } = trpc.hr.listEmployees.useQuery({ status: "active", companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
 
   const [deptDialog, setDeptDialog] = useState<{ open: boolean; item?: typeof depts[0] }>({ open: false });
   const [posDialog, setPosDialog] = useState<{ open: boolean; item?: typeof positions[0] }>({ open: false });
@@ -305,12 +309,14 @@ export default function OrgStructurePage() {
         onClose={() => setDeptDialog({ open: false })}
         initial={deptDialog.item}
         employees={empList}
+        companyId={activeCompanyId}
       />
       <PosDialog
         open={posDialog.open}
         onClose={() => setPosDialog({ open: false })}
         initial={posDialog.item}
         departments={depts}
+        companyId={activeCompanyId}
       />
 
       <AlertDialog open={!!deleteConfirm} onOpenChange={() => setDeleteConfirm(null)}>
@@ -327,8 +333,8 @@ export default function OrgStructurePage() {
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={() => {
                 if (!deleteConfirm) return;
-                if (deleteConfirm.type === "dept") deleteDept.mutate({ id: deleteConfirm.id });
-                else deletePos.mutate({ id: deleteConfirm.id });
+                if (deleteConfirm.type === "dept") deleteDept.mutate({ id: deleteConfirm.id, companyId: activeCompanyId ?? undefined });
+                else deletePos.mutate({ id: deleteConfirm.id, companyId: activeCompanyId ?? undefined });
               }}
             >
               Delete

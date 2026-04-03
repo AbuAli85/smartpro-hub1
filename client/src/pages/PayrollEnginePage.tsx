@@ -23,7 +23,7 @@ const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov
 const fmt = (n: number | string | null | undefined) => `OMR ${Number(n ?? 0).toFixed(3)}`;
 
 function PayrollReportButton() {
-  const now = new Date();
+  const { activeCompanyId } = useActiveCompany();
   const generateReport = trpc.reports.generateWorkforceReport.useMutation({
     onSuccess: (data) => {
       toast.success("Workforce report generated!");
@@ -33,7 +33,7 @@ function PayrollReportButton() {
   });
   return (
     <Button variant="outline" size="sm"
-      onClick={() => generateReport.mutate({})}
+      onClick={() => generateReport.mutate({ companyId: activeCompanyId ?? undefined })}
       disabled={generateReport.isPending}
       className="gap-1">
       {generateReport.isPending ? <RefreshCw size={13} className="animate-spin" /> : <Download size={13} />}
@@ -98,7 +98,7 @@ export default function PayrollEnginePage() {
   );
   const { data: salaryConfigs, refetch: refetchConfigs } = trpc.payroll.listSalaryConfigs.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
   const { data: loans, refetch: refetchLoans } = trpc.payroll.listLoans.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
-  const { data: empListData } = trpc.workforce.employees.list.useQuery({});
+  const { data: empListData } = trpc.workforce.employees.list.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
   const empList = empListData?.items;
 
   const createRun = trpc.payroll.createRun.useMutation({
@@ -292,17 +292,17 @@ export default function PayrollEnginePage() {
                           <Eye size={12} /> View
                         </Button>
                         {run.status === "draft" && (
-                          <Button size="sm" variant="ghost" onClick={() => approveRun.mutate({ runId: run.id })} className="gap-1 text-xs text-indigo-600">
+                          <Button size="sm" variant="ghost" onClick={() => approveRun.mutate({ runId: run.id, companyId: activeCompanyId ?? undefined })} className="gap-1 text-xs text-indigo-600">
                             <CheckCircle size={12} /> Approve
                           </Button>
                         )}
                         {run.status === "approved" && (
-                          <Button size="sm" variant="ghost" onClick={() => markPaid.mutate({ runId: run.id })} className="gap-1 text-xs text-green-600">
+                          <Button size="sm" variant="ghost" onClick={() => markPaid.mutate({ runId: run.id, companyId: activeCompanyId ?? undefined })} className="gap-1 text-xs text-green-600">
                             <Banknote size={12} /> Mark Paid
                           </Button>
                         )}
                         {(run.status === "approved" || run.status === "paid") && !run.wpsFileUrl && (
-                          <Button size="sm" variant="ghost" onClick={() => generateWps.mutate({ runId: run.id })} className="gap-1 text-xs text-purple-600">
+                          <Button size="sm" variant="ghost" onClick={() => generateWps.mutate({ runId: run.id, companyId: activeCompanyId ?? undefined })} className="gap-1 text-xs text-purple-600">
                             <FileText size={12} /> WPS
                           </Button>
                         )}
@@ -328,17 +328,17 @@ export default function PayrollEnginePage() {
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   {runDetail.run.status === "draft" && (
-                    <Button onClick={() => approveRun.mutate({ runId: runDetail.run.id })} variant="outline" className="gap-2">
+                    <Button onClick={() => approveRun.mutate({ runId: runDetail.run.id, companyId: activeCompanyId ?? undefined })} variant="outline" className="gap-2">
                       <CheckCircle size={14} /> Approve Run
                     </Button>
                   )}
                   {runDetail.run.status === "approved" && (
                     <>
-                      <Button onClick={() => markPaid.mutate({ runId: runDetail.run.id })} className="gap-2 bg-green-600 hover:bg-green-700">
+                      <Button onClick={() => markPaid.mutate({ runId: runDetail.run.id, companyId: activeCompanyId ?? undefined })} className="gap-2 bg-green-600 hover:bg-green-700">
                         <Banknote size={14} /> Mark All Paid
                       </Button>
                       {!runDetail.run.wpsFileUrl && (
-                        <Button onClick={() => generateWps.mutate({ runId: runDetail.run.id })} variant="outline" className="gap-2">
+                        <Button onClick={() => generateWps.mutate({ runId: runDetail.run.id, companyId: activeCompanyId ?? undefined })} variant="outline" className="gap-2">
                           <FileText size={14} /> Generate WPS File
                         </Button>
                       )}
@@ -417,7 +417,7 @@ export default function PayrollEnginePage() {
                                 Edit
                               </Button>
                             )}
-                            <Button size="sm" variant="ghost" onClick={() => generatePayslip.mutate({ lineId: line.id })} className="gap-1 text-xs text-blue-600">
+                            <Button size="sm" variant="ghost" onClick={() => generatePayslip.mutate({ lineId: line.id, companyId: activeCompanyId ?? undefined })} className="gap-1 text-xs text-blue-600">
                               <FileText size={12} /> Payslip
                             </Button>
                           </div>
@@ -657,7 +657,7 @@ export default function PayrollEnginePage() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setCreateOpen(false)}>Cancel</Button>
-            <Button onClick={() => createRun.mutate(createForm)} disabled={createRun.isPending} className="gap-2">
+            <Button onClick={() => createRun.mutate({ ...createForm, companyId: activeCompanyId ?? undefined })} disabled={createRun.isPending} className="gap-2">
               {createRun.isPending ? <RefreshCw size={14} className="animate-spin" /> : <Play size={14} />}
               Generate Run
             </Button>
@@ -717,6 +717,7 @@ export default function PayrollEnginePage() {
               otherDeductions: Number(editLine.otherDeductions ?? 0),
               bankName: editLine.bankName,
               ibanNumber: editLine.ibanNumber,
+              companyId: activeCompanyId ?? undefined,
             })} disabled={updateLine.isPending}>
               Save Changes
             </Button>

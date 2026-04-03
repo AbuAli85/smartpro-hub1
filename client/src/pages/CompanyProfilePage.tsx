@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
+import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 
 // ─── Industry list ─────────────────────────────────────────────────────────────
 const INDUSTRIES = [
@@ -107,8 +108,9 @@ const EMPTY: CompanyForm = {
 };
 
 export default function CompanyProfilePage() {
-  const { data: membership, isLoading } = trpc.companies.myCompany.useQuery();
-  const { data: employeeStats } = trpc.hr.listEmployees.useQuery({ status: "active" });
+  const { activeCompanyId } = useActiveCompany();
+  const { data: membership, isLoading } = trpc.companies.myCompany.useQuery(activeCompanyId ? { companyId: activeCompanyId } : undefined);
+  const { data: employeeStats } = trpc.hr.listEmployees.useQuery({ status: "active", companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
   const updateMutation = trpc.companies.update.useMutation({
     onSuccess: () => { toast.success("Company profile saved"); setEditing(null); utils.companies.myCompany.invalidate(); },
     onError: (e) => toast.error(e.message || "Failed to save"),

@@ -1,14 +1,19 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { eq, and, desc, asc } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 import { employeeTasks, employees } from "../../drizzle/schema";
-import { getDb, getUserCompany } from "../db";
+import { getDb, getUserCompany, getUserCompanyById } from "../db";
 import { protectedProcedure, router } from "../_core/trpc";
 
 async function requireDb() {
   const db = await getDb();
   if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
   return db;
+}
+
+async function getMembership(userId: number, companyId?: number | null) {
+  if (companyId) return getUserCompanyById(userId, companyId);
+  return getUserCompany(userId);
 }
 
 const taskStatusEnum = z.enum(["pending", "in_progress", "completed", "cancelled"]);
@@ -21,9 +26,10 @@ export const tasksRouter = router({
       employeeId: z.number().optional(),
       status: taskStatusEnum.optional(),
       priority: taskPriorityEnum.optional(),
+      companyId: z.number().optional(),
     }))
     .query(async ({ input, ctx }) => {
-      const membership = await getUserCompany(ctx.user.id);
+      const membership = await getMembership(ctx.user.id, input.companyId);
       if (!membership) return [];
       const db = await requireDb();
 
@@ -53,9 +59,9 @@ export const tasksRouter = router({
     }),
 
   getTask: protectedProcedure
-    .input(z.object({ id: z.number() }))
+    .input(z.object({ id: z.number(), companyId: z.number().optional() }))
     .query(async ({ input, ctx }) => {
-      const membership = await getUserCompany(ctx.user.id);
+      const membership = await getMembership(ctx.user.id, input.companyId);
       if (!membership) throw new TRPCError({ code: "FORBIDDEN" });
       const db = await requireDb();
       const [row] = await db.select().from(employeeTasks).where(eq(employeeTasks.id, input.id));
@@ -72,20 +78,22 @@ export const tasksRouter = router({
       priority: taskPriorityEnum.default("medium"),
       dueDate: z.string().optional(), // ISO date string YYYY-MM-DD
       notes: z.string().optional(),
+      companyId: z.number().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const membership = await getUserCompany(ctx.user.id);
+      const membership = await getMembership(ctx.user.id, input.companyId);
       if (!membership) throw new TRPCError({ code: "FORBIDDEN" });
       const db = await requireDb();
+      const { companyId: _cid, ...rest } = input;
       const [result] = await db.insert(employeeTasks).values({
         companyId: membership.company.id,
-        assignedToEmployeeId: input.assignedToEmployeeId,
+        assignedToEmployeeId: rest.assignedToEmployeeId,
         assignedByUserId: ctx.user.id,
-        title: input.title,
-        description: input.description,
-        priority: input.priority,
-        dueDate: input.dueDate ? new Date(input.dueDate) : undefined,
-        notes: input.notes,
+        title: rest.title,
+        description: rest.description,
+        priority: rest.priority,
+        dueDate: rest.dueDate ? new Date(rest.dueDate) : undefined,
+        notes: rest.notes,
         status: "pending",
       });
       return { id: (result as any).insertId };
@@ -100,15 +108,16 @@ export const tasksRouter = router({
       status: taskStatusEnum.optional(),
       dueDate: z.string().nullable().optional(),
       notes: z.string().optional(),
+      companyId: z.number().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const membership = await getUserCompany(ctx.user.id);
+      const membership = await getMembership(ctx.user.id, input.companyId);
       if (!membership) throw new TRPCError({ code: "FORBIDDEN" });
       const db = await requireDb();
       const [existing] = await db.select().from(employeeTasks).where(eq(employeeTasks.id, input.id));
       if (!existing || existing.companyId !== membership.company.id)
         throw new TRPCError({ code: "NOT_FOUND", message: "Task not found" });
-      const { id, dueDate, ...rest } = input;
+      const { id, dueDate, companyId: _cid, ...rest } = input;
       const updateData: any = { ...rest };
       if (dueDate !== undefined) updateData.dueDate = dueDate ? new Date(dueDate) : null;
       if (input.status === "completed") updateData.completedAt = new Date();
@@ -117,9 +126,9 @@ export const tasksRouter = router({
     }),
 
   deleteTask: protectedProcedure
-    .input(z.object({ id: z.number() }))
+    .input(z.object({ id: z.number(), companyId: z.number().optional() }))
     .mutation(async ({ input, ctx }) => {
-      const membership = await getUserCompany(ctx.user.id);
+      const membership = await getMembership(ctx.user.id, input.companyId);
       if (!membership) throw new TRPCError({ code: "FORBIDDEN" });
       const db = await requireDb();
       const [existing] = await db.select().from(employeeTasks).where(eq(employeeTasks.id, input.id));
@@ -129,24 +138,26 @@ export const tasksRouter = router({
       return { success: true };
     }),
 
-  getTaskStats: protectedProcedure.query(async ({ ctx }) => {
-    const membership = await getUserCompany(ctx.user.id);
-    if (!membership) return { total: 0, pending: 0, inProgress: 0, completed: 0, overdue: 0 };
-    const db = await requireDb();
-    const tasks = await db
-      .select({ status: employeeTasks.status, dueDate: employeeTasks.dueDate })
-      .from(employeeTasks)
-      .where(eq(employeeTasks.companyId, membership.company.id));
-    const now = new Date();
-    return {
-      total: tasks.length,
-      pending: tasks.filter((t) => t.status === "pending").length,
-      inProgress: tasks.filter((t) => t.status === "in_progress").length,
-      completed: tasks.filter((t) => t.status === "completed").length,
-      overdue: tasks.filter((t) =>
-        t.status !== "completed" && t.status !== "cancelled" &&
-        t.dueDate && new Date(t.dueDate) < now
-      ).length,
-    };
-  }),
+  getTaskStats: protectedProcedure
+    .input(z.object({ companyId: z.number().optional() }).optional())
+    .query(async ({ ctx, input }) => {
+      const membership = await getMembership(ctx.user.id, input?.companyId);
+      if (!membership) return { total: 0, pending: 0, inProgress: 0, completed: 0, overdue: 0 };
+      const db = await requireDb();
+      const tasks = await db
+        .select({ status: employeeTasks.status, dueDate: employeeTasks.dueDate })
+        .from(employeeTasks)
+        .where(eq(employeeTasks.companyId, membership.company.id));
+      const now = new Date();
+      return {
+        total: tasks.length,
+        pending: tasks.filter((t) => t.status === "pending").length,
+        inProgress: tasks.filter((t) => t.status === "in_progress").length,
+        completed: tasks.filter((t) => t.status === "completed").length,
+        overdue: tasks.filter((t) =>
+          t.status !== "completed" && t.status !== "cancelled" &&
+          t.dueDate && new Date(t.dueDate) < now
+        ).length,
+      };
+    }),
 });

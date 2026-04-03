@@ -239,9 +239,10 @@ export const workforceRouter = router({
         expiringWithinDays: z.number().optional(),
         page: z.number().default(1),
         pageSize: z.number().default(20),
+        companyId: z.number().optional(),
       }))
       .query(async ({ ctx, input }) => {
-        const companyId = await getMemberCompanyId(ctx.user);
+        const companyId = input.companyId ?? await getMemberCompanyId(ctx.user);
         if (!companyId) return { items: [], total: 0 };
         // Permission check: employees.read
         if (!(await hasPermission(ctx.user, companyId, "employees.read"))) {

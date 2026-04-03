@@ -127,8 +127,8 @@ export default function Dashboard() {
   const { data: expiringDocs } = trpc.pro.expiringDocuments.useQuery({ daysAhead: 30 });
   const { data: platformStats } = trpc.analytics.platformStats.useQuery();
   const { data: alertBadge } = trpc.alerts.getAlertBadgeCount.useQuery();
-  const { data: aiInsights } = trpc.operations.getAiInsights.useQuery();
-  const { data: todaysTasks } = trpc.operations.getTodaysTasks.useQuery();
+  const { data: aiInsights } = trpc.operations.getAiInsights.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
+  const { data: todaysTasks } = trpc.operations.getTodaysTasks.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
   const { data: auditFeed } = trpc.analytics.auditLogs.useQuery({ limit: 8 });
 
   const quickAccessModules = useMemo(() => {

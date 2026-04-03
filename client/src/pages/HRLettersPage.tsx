@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/dialog";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
+import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 
 // ─── Letter type metadata ─────────────────────────────────────────────────────
 const LETTER_TYPES = [
@@ -268,9 +269,10 @@ export default function HRLettersPage() {
   const [viewLetter, setViewLetter] = useState<any | null>(null);
 
   // Data
-  const { data: employees } = trpc.hr.listEmployees.useQuery({ status: "active" });
-  const { data: myCompany } = trpc.companies.myCompany.useQuery();
-  const { data: letters, refetch: refetchLetters } = trpc.hrLetters.listLetters.useQuery();
+  const { activeCompanyId } = useActiveCompany();
+  const { data: employees } = trpc.hr.listEmployees.useQuery({ status: "active", companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
+  const { data: myCompany } = trpc.companies.myCompany.useQuery(activeCompanyId ? { companyId: activeCompanyId } : undefined);
+  const { data: letters, refetch: refetchLetters } = trpc.hrLetters.listLetters.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
 
   const generateMutation = trpc.hrLetters.generateLetter.useMutation({
     onSuccess: (data) => {
@@ -304,6 +306,7 @@ export default function HRLettersPage() {
       issuedTo: issuedTo || undefined,
       purpose: purpose || undefined,
       additionalNotes: additionalNotes || undefined,
+      companyId: activeCompanyId ?? undefined,
     });
   };
 

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
+import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -31,11 +32,12 @@ const TYPE_CONFIG: Record<AnnType, { label: string; icon: React.ReactNode; color
 };
 
 function ComposeDialog({
-  open, onClose, employees,
+  open, onClose, employees, companyId,
 }: {
   open: boolean;
   onClose: () => void;
   employees: { id: number; firstName: string; lastName: string; department?: string | null }[];
+  companyId?: number | null;
 }) {
   const utils = trpc.useUtils();
   const [title, setTitle] = useState("");
@@ -60,6 +62,7 @@ function ComposeDialog({
       body: body.trim(),
       type,
       targetEmployeeId: targetId !== "all" ? Number(targetId) : undefined,
+      companyId: companyId ?? undefined,
     });
   };
 
@@ -117,13 +120,14 @@ function ComposeDialog({
 
 export default function AnnouncementsPage() {
   const utils = trpc.useUtils();
+  const { activeCompanyId } = useActiveCompany();
   const [composeOpen, setComposeOpen] = useState(false);
   const [filterType, setFilterType] = useState<string>("all");
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
   const [expanded, setExpanded] = useState<number | null>(null);
 
-  const { data: announcements = [], isLoading } = trpc.announcements.listAnnouncements.useQuery({});
-  const { data: employees = [] } = trpc.hr.listEmployees.useQuery({});
+  const { data: announcements = [], isLoading } = trpc.announcements.listAnnouncements.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
+  const { data: employees = [] } = trpc.hr.listEmployees.useQuery({ status: "active", companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
 
   const deleteAnn = trpc.announcements.deleteAnnouncement.useMutation({
     onSuccess: () => { utils.announcements.listAnnouncements.invalidate(); toast.success("Deleted"); setDeleteConfirm(null); },
@@ -239,7 +243,7 @@ export default function AnnouncementsPage() {
         </div>
       )}
 
-      <ComposeDialog open={composeOpen} onClose={() => setComposeOpen(false)} employees={empList} />
+      <ComposeDialog open={composeOpen} onClose={() => setComposeOpen(false)} employees={empList} companyId={activeCompanyId} />
 
       <AlertDialog open={deleteConfirm !== null} onOpenChange={() => setDeleteConfirm(null)}>
         <AlertDialogContent>

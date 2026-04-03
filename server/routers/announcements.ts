@@ -2,13 +2,18 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { eq, and, desc, or, isNull } from "drizzle-orm";
 import { announcements, announcementReads, employees } from "../../drizzle/schema";
-import { getDb, getUserCompany } from "../db";
+import { getDb, getUserCompany, getUserCompanyById } from "../db";
 import { protectedProcedure, router } from "../_core/trpc";
 
 async function requireDb() {
   const db = await getDb();
   if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
   return db;
+}
+
+async function getMembership(userId: number, companyId?: number | null) {
+  if (companyId) return getUserCompanyById(userId, companyId);
+  return getUserCompany(userId);
 }
 
 const announcementTypeEnum = z.enum(["announcement", "request", "alert", "reminder"]);
@@ -19,9 +24,10 @@ export const announcementsRouter = router({
     .input(z.object({
       type: announcementTypeEnum.optional(),
       targetEmployeeId: z.number().optional(),
+      companyId: z.number().optional(),
     }))
     .query(async ({ input, ctx }) => {
-      const membership = await getUserCompany(ctx.user.id);
+      const membership = await getMembership(ctx.user.id, input.companyId);
       if (!membership) return [];
       const db = await requireDb();
 
@@ -62,9 +68,10 @@ export const announcementsRouter = router({
       body: z.string().min(1),
       type: announcementTypeEnum.default("announcement"),
       targetEmployeeId: z.number().optional(), // null = all employees
+      companyId: z.number().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const membership = await getUserCompany(ctx.user.id);
+      const membership = await getMembership(ctx.user.id, input.companyId);
       if (!membership) throw new TRPCError({ code: "FORBIDDEN" });
       const db = await requireDb();
       const [result] = await db.insert(announcements).values({
@@ -82,9 +89,10 @@ export const announcementsRouter = router({
     .input(z.object({
       announcementId: z.number(),
       employeeId: z.number(),
+      companyId: z.number().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const membership = await getUserCompany(ctx.user.id);
+      const membership = await getMembership(ctx.user.id, input.companyId);
       if (!membership) throw new TRPCError({ code: "FORBIDDEN" });
       const db = await requireDb();
       // Check if already read
@@ -105,9 +113,9 @@ export const announcementsRouter = router({
     }),
 
   getReadReceipts: protectedProcedure
-    .input(z.object({ announcementId: z.number() }))
+    .input(z.object({ announcementId: z.number(), companyId: z.number().optional() }))
     .query(async ({ input, ctx }) => {
-      const membership = await getUserCompany(ctx.user.id);
+      const membership = await getMembership(ctx.user.id, input.companyId);
       if (!membership) return [];
       const db = await requireDb();
       return db
@@ -122,9 +130,9 @@ export const announcementsRouter = router({
     }),
 
   deleteAnnouncement: protectedProcedure
-    .input(z.object({ id: z.number() }))
+    .input(z.object({ id: z.number(), companyId: z.number().optional() }))
     .mutation(async ({ input, ctx }) => {
-      const membership = await getUserCompany(ctx.user.id);
+      const membership = await getMembership(ctx.user.id, input.companyId);
       if (!membership) throw new TRPCError({ code: "FORBIDDEN" });
       const db = await requireDb();
       const [existing] = await db.select().from(announcements).where(eq(announcements.id, input.id));
@@ -135,9 +143,9 @@ export const announcementsRouter = router({
     }),
 
   getUnreadCount: protectedProcedure
-    .input(z.object({ employeeId: z.number() }))
+    .input(z.object({ employeeId: z.number(), companyId: z.number().optional() }))
     .query(async ({ input, ctx }) => {
-      const membership = await getUserCompany(ctx.user.id);
+      const membership = await getMembership(ctx.user.id, input.companyId);
       if (!membership) return { count: 0 };
       const db = await requireDb();
       // Get all announcements for this employee (targeted + company-wide)

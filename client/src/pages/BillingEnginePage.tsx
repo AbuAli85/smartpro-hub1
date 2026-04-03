@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
+import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -177,7 +178,7 @@ function currentMonth() {
   return { month: d.getMonth() + 1, year: d.getFullYear() };
 }
 
-function BillingReportButton({ month, year }: { month: number; year: number }) {
+function BillingReportButton({ month, year, companyId }: { month: number; year: number; companyId?: number }) {
   const generateReport = trpc.reports.generateBillingSummary.useMutation({
     onSuccess: (data) => {
       toast.success("Report generated!");
@@ -187,7 +188,7 @@ function BillingReportButton({ month, year }: { month: number; year: number }) {
   });
   return (
     <Button variant="outline" size="sm"
-      onClick={() => generateReport.mutate({ month, year })}
+      onClick={() => generateReport.mutate({ month, year, companyId })}
       disabled={generateReport.isPending}
       className="gap-1">
       {generateReport.isPending ? <RefreshCw size={13} className="animate-spin" aria-hidden="true" /> : <Download size={13} aria-hidden="true" />}
@@ -198,6 +199,7 @@ function BillingReportButton({ month, year }: { month: number; year: number }) {
 
 export default function BillingEnginePage() {
   const { user } = useAuth();
+  const { activeCompanyId } = useActiveCompany();
   const now = currentMonth();
   const [filterMonth, setFilterMonth] = useState(String(now.month));
   const [filterYear, setFilterYear] = useState(String(now.year));
@@ -334,7 +336,7 @@ export default function BillingEnginePage() {
             <FileText size={14} className="mr-1.5" />
             Generate Invoices
           </Button>
-          <BillingReportButton month={Number(filterMonth) || now.month} year={Number(filterYear) || now.year} />
+          <BillingReportButton month={Number(filterMonth) || now.month} year={Number(filterYear) || now.year} companyId={activeCompanyId ?? undefined} />
         </div>
       </div>
 

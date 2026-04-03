@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
+import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -38,6 +39,7 @@ function downloadPdf(url: string, filename: string) {
 
 // ─── Billing Summary Report ───────────────────────────────────────────────────
 function BillingReportCard() {
+  const { activeCompanyId } = useActiveCompany();
   const [month, setMonth] = useState(currentMonth);
   const [year, setYear] = useState(currentYear);
   const gen = trpc.reports.generateBillingSummary.useMutation({
@@ -85,7 +87,7 @@ function BillingReportCard() {
         <Button
           className="w-full h-8 text-xs"
           disabled={gen.isPending}
-          onClick={() => gen.mutate({ month, year })}
+          onClick={() => gen.mutate({ month, year, companyId: activeCompanyId ?? undefined })}
         >
           {gen.isPending ? <><Loader2 className="h-3 w-3 mr-1.5 animate-spin" />Generating…</> : <><Download className="h-3 w-3 mr-1.5" />Download PDF</>}
         </Button>
@@ -96,12 +98,13 @@ function BillingReportCard() {
 
 // ─── Payslip Report ───────────────────────────────────────────────────────────
 function PayslipReportCard() {
+  const { activeCompanyId } = useActiveCompany();
   const [month, setMonth] = useState(currentMonth);
   const [year, setYear] = useState(currentYear);
   const [runId, setRunId] = useState("");
   const [employeeId, setEmployeeId] = useState("");
 
-  const { data: runsData } = trpc.payroll.listRuns.useQuery({}, { retry: false });
+  const { data: runsData } = trpc.payroll.listRuns.useQuery({ companyId: activeCompanyId ?? undefined }, { retry: false, enabled: activeCompanyId != null });
   const runs = runsData ?? [];
 
   const gen = trpc.reports.generatePayslip.useMutation({
@@ -151,7 +154,7 @@ function PayslipReportCard() {
         <Button
           className="w-full h-8 text-xs"
           disabled={gen.isPending || !runId || !employeeId}
-          onClick={() => gen.mutate({ runId: Number(runId), employeeId: Number(employeeId) })}
+          onClick={() => gen.mutate({ runId: Number(runId), employeeId: Number(employeeId), companyId: activeCompanyId ?? undefined })}
         >
           {gen.isPending ? <><Loader2 className="h-3 w-3 mr-1.5 animate-spin" />Generating…</> : <><Download className="h-3 w-3 mr-1.5" />Download Payslip</>}
         </Button>
@@ -162,6 +165,7 @@ function PayslipReportCard() {
 
 // ─── Workforce Report ─────────────────────────────────────────────────────────
 function WorkforceReportCard() {
+  const { activeCompanyId } = useActiveCompany();
   const gen = trpc.reports.generateWorkforceReport.useMutation({
     onSuccess: (data) => {
       downloadPdf(data.url, data.filename);
@@ -190,7 +194,7 @@ function WorkforceReportCard() {
         <Button
           className="w-full h-8 text-xs"
           disabled={gen.isPending}
-          onClick={() => gen.mutate({})}
+          onClick={() => gen.mutate({ companyId: activeCompanyId ?? undefined })}
         >
           {gen.isPending ? <><Loader2 className="h-3 w-3 mr-1.5 animate-spin" />Generating…</> : <><Download className="h-3 w-3 mr-1.5" />Download PDF</>}
         </Button>
@@ -201,6 +205,7 @@ function WorkforceReportCard() {
 
 // ─── Compliance Report ────────────────────────────────────────────────────────
 function ComplianceReportCard() {
+  const { activeCompanyId } = useActiveCompany();
   const [month, setMonth] = useState(currentMonth);
   const [year, setYear] = useState(currentYear);
   const gen = trpc.reports.generateComplianceReport.useMutation({
@@ -248,7 +253,7 @@ function ComplianceReportCard() {
         <Button
           className="w-full h-8 text-xs"
           disabled={gen.isPending}
-          onClick={() => gen.mutate({ month, year })}
+          onClick={() => gen.mutate({ month, year, companyId: activeCompanyId ?? undefined })}
         >
           {gen.isPending ? <><Loader2 className="h-3 w-3 mr-1.5 animate-spin" />Generating…</> : <><Download className="h-3 w-3 mr-1.5" />Download PDF</>}
         </Button>

@@ -96,10 +96,11 @@ export const hrRouter = router({
         bankAccountNumber: z.string().optional(),
         emergencyContactName: z.string().optional(),
         emergencyContactPhone: z.string().optional(),
+        companyId: z.number().optional(),
       })
     )
     .mutation(async ({ input, ctx }) => {
-      const membership = await getActiveCompanyMembership(ctx.user.id);
+      const membership = await getActiveCompanyMembership(ctx.user.id, input.companyId);
       if (!membership) throw new TRPCError({ code: "FORBIDDEN", message: "No company membership" });
       requireNotAuditor(membership.role, "External Auditors cannot create employees.");
       const companyId = membership.companyId;
@@ -344,10 +345,11 @@ export const hrRouter = router({
         endDate: z.string(),
         days: z.number(),
         reason: z.string().optional(),
+        companyId: z.number().optional(),
       })
     )
     .mutation(async ({ input, ctx }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id);
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId);
       const emp = await getEmployeeById(input.employeeId);
       if (!emp) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
       if (emp.companyId !== companyId) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
@@ -420,10 +422,11 @@ export const hrRouter = router({
         deductions: z.number().default(0),
         taxAmount: z.number().default(0),
         notes: z.string().optional(),
+        companyId: z.number().optional(),
       })
     )
     .mutation(async ({ input, ctx }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id);
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId);
       const emp = await getEmployeeById(input.employeeId);
       if (!emp) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
       if (emp.companyId !== companyId) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
@@ -490,10 +493,11 @@ export const hrRouter = router({
         improvements: z.string().optional(),
         goals: z.string().optional(),
         comments: z.string().optional(),
+        companyId: z.number().optional(),
       })
     )
     .mutation(async ({ input, ctx }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id);
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId);
       const emp = await getEmployeeById(input.employeeId);
       if (!emp) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
       if (emp.companyId !== companyId) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
@@ -533,9 +537,10 @@ export const hrRouter = router({
       checkOut: z.string().optional(),
       status: z.enum(["present", "absent", "late", "half_day", "remote"]),
       notes: z.string().optional(),
+      companyId: z.number().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id);
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId);
       const emp = await getEmployeeById(input.employeeId);
       if (!emp) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
       if (emp.companyId !== companyId) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });

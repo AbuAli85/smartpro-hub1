@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { useLocation } from "wouter";
+import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -38,6 +39,7 @@ export default function WorkforceEmployeesPage() {
   const [permitStatus, setPermitStatus] = useState<string>("all");
   const [expiringFilter, setExpiringFilter] = useState<string>("all");
   const [page, setPage] = useState(1);
+  const { activeCompanyId } = useActiveCompany();
 
   const { data, isLoading, refetch } = trpc.workforce.employees.list.useQuery({
     query: query || undefined,
@@ -45,7 +47,8 @@ export default function WorkforceEmployeesPage() {
     expiringWithinDays: expiringFilter === "30" ? 30 : expiringFilter === "90" ? 90 : undefined,
     page,
     pageSize: 20,
-  });
+    companyId: activeCompanyId ?? undefined,
+  }, { enabled: activeCompanyId != null });
 
   const employees = data?.items ?? [];
 

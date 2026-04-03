@@ -163,11 +163,11 @@ export const payrollRouter = router({
 
   /** Get a single run with all line items */
   getRun: protectedProcedure
-    .input(z.object({ runId: z.number() }))
+    .input(z.object({ runId: z.number(), companyId: z.number().optional() }))
     .query(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-      const m = await getActiveCompanyMembership(ctx.user.id);
+      const m = await getActiveCompanyMembership(ctx.user.id, input.companyId);
       if (!m) throw new TRPCError({ code: "FORBIDDEN", message: "Not a company member" });
       const [run] = await db.select().from(payrollRuns).where(and(eq(payrollRuns.id, input.runId), eq(payrollRuns.companyId, m.companyId))).limit(1);
       if (!run) throw new TRPCError({ code: "NOT_FOUND", message: "Payroll run not found" });
@@ -188,11 +188,12 @@ export const payrollRouter = router({
       month: z.number().min(1).max(12),
       year: z.number().min(2020).max(2040),
       notes: z.string().optional(),
+      companyId: z.number().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-      const m = await getActiveCompanyMembership(ctx.user.id);
+      const m = await getActiveCompanyMembership(ctx.user.id, input.companyId);
       if (!m) throw new TRPCError({ code: "FORBIDDEN", message: "Not a company member" });
       requireNotAuditor(m.role, "External Auditors cannot create payroll runs.");
       // Check for duplicate run
@@ -306,11 +307,12 @@ export const payrollRouter = router({
       bankName: z.string().optional(),
       ibanNumber: z.string().optional(),
       notes: z.string().optional(),
+      companyId: z.number().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-      const m = await getActiveCompanyMembership(ctx.user.id);
+      const m = await getActiveCompanyMembership(ctx.user.id, input.companyId);
       if (!m) throw new TRPCError({ code: "FORBIDDEN", message: "Not a company member" });
       requireNotAuditor(m.role, "External Auditors cannot modify payroll line items.");
       const [line] = await db.select().from(payrollLineItems).where(and(eq(payrollLineItems.id, input.lineId), eq(payrollLineItems.companyId, m.companyId))).limit(1);
@@ -349,11 +351,11 @@ export const payrollRouter = router({
 
   /** Approve a payroll run */
   approveRun: protectedProcedure
-    .input(z.object({ runId: z.number() }))
+    .input(z.object({ runId: z.number(), companyId: z.number().optional() }))
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-      const m = await getActiveCompanyMembership(ctx.user.id);
+      const m = await getActiveCompanyMembership(ctx.user.id, input.companyId);
       if (!m) throw new TRPCError({ code: "FORBIDDEN", message: "Not a company member" });
       requireNotAuditor(m.role, "External Auditors cannot approve payroll runs.");
       if (m.role !== "company_admin") throw new TRPCError({ code: "FORBIDDEN", message: "Only admins can approve payroll" });
@@ -364,11 +366,11 @@ export const payrollRouter = router({
 
   /** Mark payroll run as paid */
   markPaid: protectedProcedure
-    .input(z.object({ runId: z.number() }))
+    .input(z.object({ runId: z.number(), companyId: z.number().optional() }))
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-      const m = await getActiveCompanyMembership(ctx.user.id);
+      const m = await getActiveCompanyMembership(ctx.user.id, input.companyId);
       if (!m) throw new TRPCError({ code: "FORBIDDEN", message: "Not a company member" });
       requireNotAuditor(m.role, "External Auditors cannot mark payroll as paid.");
       if (m.role !== "company_admin") throw new TRPCError({ code: "FORBIDDEN", message: "Only admins can mark payroll paid" });
@@ -382,11 +384,11 @@ export const payrollRouter = router({
 
   /** Generate payslip HTML and store to S3 for a single line item */
   generatePayslip: protectedProcedure
-    .input(z.object({ lineId: z.number() }))
+    .input(z.object({ lineId: z.number(), companyId: z.number().optional() }))
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-      const m = await getActiveCompanyMembership(ctx.user.id);
+      const m = await getActiveCompanyMembership(ctx.user.id, input.companyId);
       if (!m) throw new TRPCError({ code: "FORBIDDEN", message: "Not a company member" });
       const [row] = await db
         .select({
@@ -433,11 +435,11 @@ export const payrollRouter = router({
 
   /** Generate WPS file for a payroll run and store to S3 */
   generateWpsFile: protectedProcedure
-    .input(z.object({ runId: z.number() }))
+    .input(z.object({ runId: z.number(), companyId: z.number().optional() }))
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-      const m = await getActiveCompanyMembership(ctx.user.id);
+      const m = await getActiveCompanyMembership(ctx.user.id, input.companyId);
       if (!m) throw new TRPCError({ code: "FORBIDDEN", message: "Not a company member" });
       const [run] = await db.select().from(payrollRuns).where(and(eq(payrollRuns.id, input.runId), eq(payrollRuns.companyId, m.companyId))).limit(1);
       if (!run) throw new TRPCError({ code: "NOT_FOUND", message: "Run not found" });

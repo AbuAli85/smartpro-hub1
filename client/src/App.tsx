@@ -83,6 +83,11 @@ import EmployeePortalPage from "./pages/EmployeePortalPage";
 import AttendCheckInPage from "./pages/AttendCheckInPage";
 import AttendanceSitesPage from "./pages/AttendanceSitesPage";
 import EmployeeRequestsAdminPage from "./pages/EmployeeRequestsAdminPage";
+import ShiftTemplatesPage from "./pages/ShiftTemplatesPage";
+import EmployeeSchedulesPage from "./pages/EmployeeSchedulesPage";
+import HolidayCalendarPage from "./pages/HolidayCalendarPage";
+import TodayBoardPage from "./pages/TodayBoardPage";
+import MonthlyReportPage from "./pages/MonthlyReportPage";
 import TeamAccessPage from "./pages/TeamAccessPage";
 import MultiCompanyRolesPage from "./pages/MultiCompanyRolesPage";
 import EmailPreviewPage from "./pages/EmailPreviewPage";
@@ -113,6 +118,11 @@ function AppRoutes() {
         <Route path="/hr/attendance" component={HRAttendancePage} />
         <Route path="/hr/attendance-sites" component={AttendanceSitesPage} />
         <Route path="/hr/employee-requests" component={EmployeeRequestsAdminPage} />
+        <Route path="/hr/shift-templates" component={ShiftTemplatesPage} />
+        <Route path="/hr/employee-schedules" component={EmployeeSchedulesPage} />
+        <Route path="/hr/holidays" component={HolidayCalendarPage} />
+        <Route path="/hr/today-board" component={TodayBoardPage} />
+        <Route path="/hr/monthly-report" component={MonthlyReportPage} />
         <Route path="/client-portal" component={ClientPortalPage} />
         <Route path="/onboarding" component={OnboardingPage} />
         <Route path="/crm" component={CRMPage} />

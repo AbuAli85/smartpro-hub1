@@ -2146,3 +2146,55 @@ export const manualCheckinRequests = mysqlTable("manual_checkin_requests", {
 });
 export type ManualCheckinRequest = typeof manualCheckinRequests.$inferSelect;
 export type InsertManualCheckinRequest = typeof manualCheckinRequests.$inferInsert;
+
+// ─── Shift Templates ──────────────────────────────────────────────────────────
+// Reusable named shift definitions (e.g. "Morning Shift", "Evening Shift")
+export const shiftTemplates = mysqlTable("shift_templates", {
+  id: int("id").primaryKey().autoincrement(),
+  companyId: int("company_id").notNull(),
+  name: varchar("name", { length: 100 }).notNull(),
+  startTime: varchar("start_time", { length: 5 }).notNull(), // "HH:MM" 24h
+  endTime: varchar("end_time", { length: 5 }).notNull(),     // "HH:MM" 24h
+  gracePeriodMinutes: int("grace_period_minutes").notNull().default(15),
+  color: varchar("color", { length: 20 }).default("#ef4444"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+export type ShiftTemplate = typeof shiftTemplates.$inferSelect;
+export type InsertShiftTemplate = typeof shiftTemplates.$inferInsert;
+
+// ─── Employee Schedules ───────────────────────────────────────────────────────
+// Assigns a shift template to an employee for specific days at a specific site
+export const employeeSchedules = mysqlTable("employee_schedules", {
+  id: int("id").primaryKey().autoincrement(),
+  companyId: int("company_id").notNull(),
+  employeeUserId: int("employee_user_id").notNull(),
+  siteId: int("site_id").notNull(),
+  shiftTemplateId: int("shift_template_id").notNull(),
+  workingDays: varchar("working_days", { length: 20 }).notNull().default("0,1,2,3,4"),
+  startDate: date("start_date", { mode: "string" }).notNull(),
+  endDate: date("end_date", { mode: "string" }),
+  isActive: boolean("is_active").notNull().default(true),
+  notes: text("notes"),
+  createdByUserId: int("created_by_user_id").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+export type EmployeeSchedule = typeof employeeSchedules.$inferSelect;
+export type InsertEmployeeSchedule = typeof employeeSchedules.$inferInsert;
+
+// ─── Company Holidays ─────────────────────────────────────────────────────────
+// Public and company-specific holidays — attendance not required on these days
+export const companyHolidays = mysqlTable("company_holidays", {
+  id: int("id").primaryKey().autoincrement(),
+  companyId: int("company_id").notNull(),
+  name: varchar("name", { length: 200 }).notNull(),
+  holidayDate: date("holiday_date", { mode: "string" }).notNull(),
+  type: mysqlEnum("holiday_type", ["public", "company", "optional"]).notNull().default("public"),
+  isRecurringYearly: boolean("is_recurring_yearly").notNull().default(false),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export type CompanyHoliday = typeof companyHolidays.$inferSelect;
+export type InsertCompanyHoliday = typeof companyHolidays.$inferInsert;

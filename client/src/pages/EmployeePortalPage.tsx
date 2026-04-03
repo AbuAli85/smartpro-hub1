@@ -133,6 +133,10 @@ export default function EmployeePortalPage() {
     { limit: 30 }, { enabled: isAuthenticated, refetchInterval: 30000 }
   );
 
+  const { data: todaySchedule } = trpc.scheduling.getMyTodaySchedule.useQuery(
+    {}, { enabled: isAuthenticated }
+  );
+
   const utils = trpc.useUtils();
 
   // ── Mutations ─────────────────────────────────────────────────────────────
@@ -354,6 +358,41 @@ export default function EmployeePortalPage() {
 
           {/* ══ OVERVIEW TAB ══════════════════════════════════════════════════ */}
           <TabsContent value="overview" className="mt-4 space-y-4">
+            {/* Today's Schedule Banner */}
+            {todaySchedule && (
+              todaySchedule.isHoliday ? (
+                <Card className="border-purple-200 bg-purple-50">
+                  <CardContent className="p-4 flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center shrink-0">
+                      <Calendar className="w-5 h-5 text-purple-600" />
+                    </div>
+                    <div>
+                      <p className="font-semibold text-purple-700">{todaySchedule.holiday?.name ?? "Holiday"}</p>
+                      <p className="text-xs text-purple-600">Today is a public holiday — no attendance required</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : todaySchedule.schedule && todaySchedule.shift ? (
+                <Card className="border-primary/20 bg-primary/5">
+                  <CardContent className="p-4 flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                      <Clock className="w-5 h-5 text-primary" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-sm">Today: {todaySchedule.shift.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {todaySchedule.shift.startTime} – {todaySchedule.shift.endTime}
+                        {todaySchedule.site ? ` · ${todaySchedule.site.name}` : ""}
+                      </p>
+                    </div>
+                    <div
+                      className="w-3 h-3 rounded-full shrink-0"
+                      style={{ backgroundColor: (todaySchedule.shift as any).color ?? "#6366f1" }}
+                    />
+                  </CardContent>
+                </Card>
+              ) : null
+            )}
             {/* Leave Balance Bars */}
             <Card>
               <CardHeader className="pb-2">

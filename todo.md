@@ -1495,3 +1495,42 @@ Every company on SmartPRO Hub gets a complete, unified business operating area â
 - [x] Update AttendCheckInPage to show justification form when outside geo-fence
 - [x] Add Manual Requests tab to AttendanceSitesPage with approve/reject review dialog
 - [x] 0 TypeScript errors, 293 tests pass
+
+## Phase 66: Smart Attendance Scheduling System
+- [ ] Add shift_templates, employee_schedules, company_holidays tables to schema.ts
+- [ ] Migrate DB schema for new tables
+- [ ] Add tRPC procedures: createShiftTemplate, listShiftTemplates, deleteShiftTemplate
+- [ ] Add tRPC procedures: assignSchedule, listEmployeeSchedules, updateSchedule, deleteSchedule
+- [ ] Add tRPC procedures: addHoliday, listHolidays, deleteHoliday (with Oman public holidays preloaded)
+- [ ] Add tRPC procedure: getTodayScheduleStatus (for admin today board)
+- [ ] Add tRPC procedure: getMonthlyAttendanceReport (per employee)
+- [ ] Add tRPC procedure: getMyTodaySchedule (for employee check-in page)
+- [ ] Upgrade check-in flow: auto-detect schedule, show shift info, mark late/on-time/holiday
+- [ ] Build Shift Templates management UI
+- [ ] Build Employee Schedule assignment UI (calendar-style monthly view)
+- [ ] Build Holiday Calendar UI with Oman public holidays preloaded
+- [ ] Build Admin Today Board with on-time/late/absent status per employee
+- [ ] Build Monthly Attendance Report page
+- [ ] Register new routes in App.tsx and add nav items
+- [ ] Write tests for schedule logic, holiday detection, late calculation
+- [ ] 0 TypeScript errors, all tests pass
+
+## Phase 66: Smart Attendance Scheduling System (Completed)
+- [x] Add shift_templates, employee_schedules, company_holidays tables to schema.ts
+- [x] Migrate DB schema for new tables (date columns use string mode for MySQL compatibility)
+- [x] Add tRPC procedures: createShiftTemplate, listShiftTemplates, deleteShiftTemplate
+- [x] Add tRPC procedures: assignSchedule, listEmployeeSchedules, updateSchedule, deleteSchedule
+- [x] Add tRPC procedures: addHoliday, listHolidays, deleteHoliday (with Oman public holidays preloaded)
+- [x] Add tRPC procedure: getTodayBoard (admin today board with on-time/late/absent/holiday status)
+- [x] Add tRPC procedure: getMonthlyReport (per-employee attendance summary with rate calculation)
+- [x] Add tRPC procedure: getMyTodaySchedule (employee portal: shows today's shift or holiday banner)
+- [x] Build ShiftTemplatesPage: create/delete shift templates with color picker, grace period, break time
+- [x] Build EmployeeSchedulesPage: assign schedules per employee, working days picker, site/shift selection
+- [x] Build HolidayCalendarPage: add/delete holidays, preload Oman public holidays, recurring yearly option
+- [x] Build TodayBoardPage: live attendance board with on-time/late/absent/holiday status cards
+- [x] Build MonthlyReportPage: per-employee breakdown with attendance rate progress bars
+- [x] Employee Portal: today's schedule banner in overview tab (shift name, hours, site, holiday detection)
+- [x] Register new routes in App.tsx (/hr/shift-templates, /hr/employee-schedules, /hr/holidays, /hr/today-board, /hr/monthly-report)
+- [x] Add nav items to PlatformLayout HR section (Shift Templates, Employee Schedules, Holidays, Today Board, Monthly Report)
+- [x] Write 26 tests for schedule logic, holiday detection, late calculation, attendance rate, date range building
+- [x] 0 TypeScript errors, 319 tests pass

@@ -44,6 +44,7 @@ import {
   AlertTriangle,
   QrCode,
   ClipboardList,
+  CalendarDays,
 } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
 import { Link, useLocation } from "wouter";
@@ -138,6 +139,11 @@ const navGroups = [
       { label: "Payroll Engine", href: "/payroll", icon: <Banknote size={18} /> },
       { label: "Attendance", href: "/hr/attendance", icon: <Clock size={18} /> },
       { label: "Attendance Sites", href: "/hr/attendance-sites", icon: <QrCode size={18} /> },
+      { label: "Shift Templates", href: "/hr/shift-templates", icon: <CalendarDays size={18} /> },
+      { label: "Employee Schedules", href: "/hr/employee-schedules", icon: <CalendarDays size={18} /> },
+      { label: "Holiday Calendar", href: "/hr/holidays", icon: <CalendarDays size={18} /> },
+      { label: "Today's Board", href: "/hr/today-board", icon: <CalendarDays size={18} /> },
+      { label: "Monthly Report", href: "/hr/monthly-report", icon: <CalendarDays size={18} /> },
       { label: "Employee Requests", href: "/hr/employee-requests", icon: <ClipboardList size={18} /> },
       { label: "HR Letters", href: "/hr/letters", icon: <Mail size={18} /> },
       { label: "Leave Balances", href: "/hr/leave-balance", icon: <Calendar size={18} /> },

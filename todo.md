@@ -1277,3 +1277,13 @@ Every company on SmartPRO Hub gets a complete, unified business operating area â
 - [x] Fix MyTeamPage: pass companyId to removeMutation.mutate
 - [x] Fix BusinessDashboardPage: replace Unicode em-dash comments with plain ASCII to resolve Vite syntax error
 - [x] Verify: TypeScript compiles with 0 errors, all 268 tests pass
+
+## Phase 56: Fix Employee Table Company Isolation & Enhance UI
+- [x] Investigate why second company still shows employees from company 30001
+- [x] Fix all 26 queries across 10 pages: added enabled: activeCompanyId != null guard to prevent fallback queries
+- [x] Fix root cause: queries now only fire after activeCompanyId is loaded from localStorage
+- [x] Enhance EmployeeDetailPanel: show Visa Number + expiry, Work Permit + expiry, PASI Number in Government Documents section
+- [x] Enhance EmployeeDetailPanel: show Banking Details (bank name, account number) when available
+- [x] Enhance EmployeeDetailPanel: show Emergency Contact (name, phone) when available
+- [x] Fix empty contact fields: show 'No email on file' / 'No phone on file' placeholders instead of blank
+- [x] Verify company isolation end-to-end: company A employees never appear in company B view

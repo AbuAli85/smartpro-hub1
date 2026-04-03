@@ -168,10 +168,10 @@ function NoCompanyPrompt() {
 export default function CompanyWorkspacePage() {
   const { user } = useAuth();
   const { activeCompanyId } = useActiveCompany();
-  const { data: myCompany, isLoading: companyLoading } = trpc.companies.myCompany.useQuery({ companyId: activeCompanyId ?? undefined });
-  const { data: teamStats, isLoading: teamLoading } = trpc.team.getTeamStats.useQuery({ companyId: activeCompanyId ?? undefined });
+  const { data: myCompany, isLoading: companyLoading } = trpc.companies.myCompany.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
+  const { data: teamStats, isLoading: teamLoading } = trpc.team.getTeamStats.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
   const { data: alertCount } = trpc.alerts.getAlertBadgeCount.useQuery();
-  const { data: companyStats, isLoading: statsLoading } = trpc.companies.myStats.useQuery({ companyId: activeCompanyId ?? undefined });
+  const { data: companyStats, isLoading: statsLoading } = trpc.companies.myStats.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
 
   const company = myCompany?.company;
   const now = new Date();

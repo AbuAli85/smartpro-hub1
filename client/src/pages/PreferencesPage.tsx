@@ -23,7 +23,7 @@ const OPTIONAL_LABELS: Record<string, string> = {
 export default function PreferencesPage() {
   const { activeCompanyId } = useActiveCompany();
   const { user } = useAuth();
-  const { data: myCompany, isLoading: myCompanyLoading } = trpc.companies.myCompany.useQuery({ companyId: activeCompanyId ?? undefined });
+  const { data: myCompany, isLoading: myCompanyLoading } = trpc.companies.myCompany.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
   const [hidden, setHidden] = useState<Set<string>>(() => getHiddenNavHrefs());
 
   useEffect(() => {

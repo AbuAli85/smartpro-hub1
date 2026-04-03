@@ -727,14 +727,19 @@ export default function MyTeamPage() {
 
   const utils = trpc.useUtils();
 
-  const { data: members = [], isLoading } = trpc.team.listMembers.useQuery({
-    companyId: activeCompanyId ?? undefined,
-    search: search || undefined,
-    status: statusFilter !== "all" ? (statusFilter as any) : undefined,
-    department: deptFilter !== "all" ? deptFilter : undefined,
-  });
-
-  const { data: stats } = trpc.team.getTeamStats.useQuery({ companyId: activeCompanyId ?? undefined });
+  const { data: members = [], isLoading } = trpc.team.listMembers.useQuery(
+    {
+      companyId: activeCompanyId ?? undefined,
+      search: search || undefined,
+      status: statusFilter !== "all" ? (statusFilter as any) : undefined,
+      department: deptFilter !== "all" ? deptFilter : undefined,
+    },
+    { enabled: activeCompanyId != null }
+  );
+  const { data: stats } = trpc.team.getTeamStats.useQuery(
+    { companyId: activeCompanyId ?? undefined },
+    { enabled: activeCompanyId != null }
+  );
 
   const removeMutation = trpc.team.removeMember.useMutation({
     onSuccess: () => {

@@ -136,9 +136,9 @@ export default function CompanyAdminPage() {
   const utils = trpc.useUtils();
   const { activeCompanyId } = useActiveCompany();
 
-  const { data: myCompanyData, isLoading: companyLoading } = trpc.companies.myCompany.useQuery({ companyId: activeCompanyId ?? undefined });
-  const { data: members, isLoading: membersLoading } = trpc.companies.members.useQuery({ companyId: activeCompanyId ?? undefined });
-  const { data: stats } = trpc.companies.myStats.useQuery({ companyId: activeCompanyId ?? undefined });
+  const { data: myCompanyData, isLoading: companyLoading } = trpc.companies.myCompany.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
+  const { data: members, isLoading: membersLoading } = trpc.companies.members.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
+  const { data: stats } = trpc.companies.myStats.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
 
   const company = myCompanyData?.company;
   const myMembership = myCompanyData?.member;

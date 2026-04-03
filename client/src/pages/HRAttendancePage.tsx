@@ -152,9 +152,9 @@ export default function HRAttendancePage() {
 
   const utils = trpc.useUtils();
   const { activeCompanyId } = useActiveCompany();
-  const { data: employees } = trpc.hr.listEmployees.useQuery({ department: deptFilter !== "all" ? deptFilter : undefined, companyId: activeCompanyId ?? undefined });
-  const { data: attendance, refetch } = trpc.hr.listAttendance.useQuery({ month: monthFilter, companyId: activeCompanyId ?? undefined });
-  const { data: stats } = trpc.hr.attendanceStats.useQuery({ month: monthFilter, companyId: activeCompanyId ?? undefined });
+  const { data: employees } = trpc.hr.listEmployees.useQuery({ department: deptFilter !== "all" ? deptFilter : undefined, companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
+  const { data: attendance, refetch } = trpc.hr.listAttendance.useQuery({ month: monthFilter, companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
+  const { data: stats } = trpc.hr.attendanceStats.useQuery({ month: monthFilter, companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
 
   const deleteMutation = trpc.hr.deleteAttendance.useMutation({
     onSuccess: () => {

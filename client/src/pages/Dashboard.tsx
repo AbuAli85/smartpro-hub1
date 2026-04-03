@@ -101,8 +101,8 @@ function ComplianceRow({ label, status, pct }: { label: string; status: "ok" | "
 export default function Dashboard() {
   const { user } = useAuth();
   const { activeCompanyId } = useActiveCompany();
-  const { data: stats, isLoading } = trpc.companies.myStats.useQuery({ companyId: activeCompanyId ?? undefined });
-  const { data: myCompany, isLoading: myCompanyLoading } = trpc.companies.myCompany.useQuery({ companyId: activeCompanyId ?? undefined });
+  const { data: stats, isLoading } = trpc.companies.myStats.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
+  const { data: myCompany, isLoading: myCompanyLoading } = trpc.companies.myCompany.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
   const [navPrefsEpoch, setNavPrefsEpoch] = useState(0);
 
   useEffect(() => {

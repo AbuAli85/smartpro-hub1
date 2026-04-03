@@ -90,14 +90,14 @@ export default function PayrollEnginePage() {
     reason: "",
   });
 
-  const { data: summary, refetch: refetchSummary } = trpc.payroll.getSummary.useQuery({ companyId: activeCompanyId ?? undefined });
-  const { data: runs, refetch: refetchRuns } = trpc.payroll.listRuns.useQuery({ year: selectedYear, companyId: activeCompanyId ?? undefined });
+  const { data: summary, refetch: refetchSummary } = trpc.payroll.getSummary.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
+  const { data: runs, refetch: refetchRuns } = trpc.payroll.listRuns.useQuery({ year: selectedYear, companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
   const { data: runDetail, refetch: refetchDetail } = trpc.payroll.getRun.useQuery(
     { runId: selectedRunId! },
     { enabled: !!selectedRunId }
   );
-  const { data: salaryConfigs, refetch: refetchConfigs } = trpc.payroll.listSalaryConfigs.useQuery({ companyId: activeCompanyId ?? undefined });
-  const { data: loans, refetch: refetchLoans } = trpc.payroll.listLoans.useQuery({ companyId: activeCompanyId ?? undefined });
+  const { data: salaryConfigs, refetch: refetchConfigs } = trpc.payroll.listSalaryConfigs.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
+  const { data: loans, refetch: refetchLoans } = trpc.payroll.listLoans.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
   const { data: empListData } = trpc.workforce.employees.list.useQuery({});
   const empList = empListData?.items;
 

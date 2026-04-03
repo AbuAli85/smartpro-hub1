@@ -262,12 +262,79 @@ function EmployeeDetailPanel({ employeeId, onClose, onUpdate }: { employeeId: nu
         <div>
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Contact & Documents</p>
           <div className="space-y-2">
-            {emp.email && <div className="flex items-center gap-2"><Mail size={13} className="text-muted-foreground shrink-0" /><a href={"mailto:" + emp.email} className="text-[var(--smartpro-orange)] hover:underline text-xs">{emp.email}</a></div>}
-            {emp.phone && <div className="flex items-center gap-2"><Phone size={13} className="text-muted-foreground shrink-0" /><span className="text-xs">{emp.phone}</span></div>}
-            {emp.passportNumber && <div className="flex items-center gap-2"><Hash size={13} className="text-muted-foreground shrink-0" /><span className="text-xs">Passport: {emp.passportNumber}</span></div>}
-            {emp.nationalId && <div className="flex items-center gap-2"><Shield size={13} className="text-muted-foreground shrink-0" /><span className="text-xs">Civil ID: {emp.nationalId}</span></div>}
+            {emp.email
+              ? <div className="flex items-center gap-2"><Mail size={13} className="text-muted-foreground shrink-0" /><a href={"mailto:" + emp.email} className="text-[var(--smartpro-orange)] hover:underline text-xs">{emp.email}</a></div>
+              : <div className="flex items-center gap-2"><Mail size={13} className="text-muted-foreground/30 shrink-0" /><span className="text-xs text-muted-foreground/50 italic">No email on file</span></div>}
+            {emp.phone
+              ? <div className="flex items-center gap-2"><Phone size={13} className="text-muted-foreground shrink-0" /><span className="text-xs">{emp.phone}</span></div>
+              : <div className="flex items-center gap-2"><Phone size={13} className="text-muted-foreground/30 shrink-0" /><span className="text-xs text-muted-foreground/50 italic">No phone on file</span></div>}
+            {emp.passportNumber && <div className="flex items-center gap-2"><Hash size={13} className="text-muted-foreground shrink-0" /><span className="text-xs">Passport: <span className="font-mono font-semibold">{emp.passportNumber}</span></span></div>}
+            {emp.nationalId && <div className="flex items-center gap-2"><Shield size={13} className="text-muted-foreground shrink-0" /><span className="text-xs">Civil ID: <span className="font-mono font-semibold">{emp.nationalId}</span></span></div>}
           </div>
         </div>
+        {((emp as any).visaNumber || (emp as any).workPermitNumber || (emp as any).pasiNumber) && (
+          <>
+            <Separator />
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Government Documents</p>
+              <div className="space-y-2">
+                {(emp as any).visaNumber && (
+                  <div className="flex items-start gap-2">
+                    <Hash size={13} className="text-blue-500 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-[10px] text-muted-foreground">Visa Number</p>
+                      <p className="text-xs font-mono font-semibold">{(emp as any).visaNumber}</p>
+                      {(emp as any).visaExpiryDate && <p className="text-[10px] text-muted-foreground">Expires: {new Date((emp as any).visaExpiryDate).toLocaleDateString()}</p>}
+                    </div>
+                  </div>
+                )}
+                {(emp as any).workPermitNumber && (
+                  <div className="flex items-start gap-2">
+                    <Shield size={13} className="text-purple-500 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-[10px] text-muted-foreground">Work Permit</p>
+                      <p className="text-xs font-mono font-semibold">{(emp as any).workPermitNumber}</p>
+                      {(emp as any).workPermitExpiryDate && <p className="text-[10px] text-muted-foreground">Expires: {new Date((emp as any).workPermitExpiryDate).toLocaleDateString()}</p>}
+                    </div>
+                  </div>
+                )}
+                {(emp as any).pasiNumber && (
+                  <div className="flex items-start gap-2">
+                    <Shield size={13} className="text-emerald-500 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-[10px] text-muted-foreground">PASI Number</p>
+                      <p className="text-xs font-mono font-semibold">{(emp as any).pasiNumber}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </>
+        )}
+        {((emp as any).bankName || (emp as any).bankAccountNumber) && (
+          <>
+            <Separator />
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Banking Details</p>
+              <div className="space-y-2">
+                {(emp as any).bankName && <div className="flex items-center gap-2"><DollarSign size={13} className="text-muted-foreground shrink-0" /><span className="text-xs">Bank: <span className="font-medium">{(emp as any).bankName}</span></span></div>}
+                {(emp as any).bankAccountNumber && <div className="flex items-center gap-2"><Hash size={13} className="text-muted-foreground shrink-0" /><span className="text-xs">Account: <span className="font-mono font-semibold">{(emp as any).bankAccountNumber}</span></span></div>}
+              </div>
+            </div>
+          </>
+        )}
+        {((emp as any).emergencyContactName || (emp as any).emergencyContactPhone) && (
+          <>
+            <Separator />
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Emergency Contact</p>
+              <div className="space-y-1">
+                {(emp as any).emergencyContactName && <div className="flex items-center gap-2"><Users size={13} className="text-muted-foreground shrink-0" /><span className="text-xs font-medium">{(emp as any).emergencyContactName}</span></div>}
+                {(emp as any).emergencyContactPhone && <div className="flex items-center gap-2"><Phone size={13} className="text-muted-foreground shrink-0" /><span className="text-xs">{(emp as any).emergencyContactPhone}</span></div>}
+              </div>
+            </div>
+          </>
+        )}
         <Separator />
         <div>
           <div className="flex items-center justify-between mb-2">
@@ -300,13 +367,16 @@ export default function HREmployeesPage() {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const { activeCompanyId } = useActiveCompany();
 
-  const { data: employees, refetch } = trpc.hr.listEmployees.useQuery({
-    status: statusFilter !== "all" ? statusFilter : undefined,
-    department: deptFilter !== "all" ? deptFilter : undefined,
-    companyId: activeCompanyId ?? undefined,
-  });
-  const { data: stats } = trpc.hr.getStats.useQuery({ companyId: activeCompanyId ?? undefined });
-  const { data: departments } = trpc.hr.departments.useQuery({ companyId: activeCompanyId ?? undefined });
+  const { data: employees, refetch } = trpc.hr.listEmployees.useQuery(
+    {
+      status: statusFilter !== "all" ? statusFilter : undefined,
+      department: deptFilter !== "all" ? deptFilter : undefined,
+      companyId: activeCompanyId ?? undefined,
+    },
+    { enabled: activeCompanyId != null }
+  );
+  const { data: stats } = trpc.hr.getStats.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
+  const { data: departments } = trpc.hr.departments.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
 
   const filtered = employees?.filter((e) =>
     !search ||

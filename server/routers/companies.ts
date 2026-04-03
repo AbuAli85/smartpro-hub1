@@ -1101,4 +1101,68 @@ export const companiesRouter = router({
         .where(and(eq(companyMembers.id, input.memberId), eq(companyMembers.companyId, input.companyId)));
       return { success: true };
     }),
+
+  // ─── ROLE REDIRECT SETTINGS ──────────────────────────────────────────────────
+  /**
+   * Get the per-role login redirect configuration for the active company.
+   * Returns a map of memberRole → route (e.g. { hr_admin: "/hr/employees" }).
+   * Falls back to empty object (system defaults apply) if not configured.
+   */
+  getRoleRedirectSettings: protectedProcedure
+    .input(z.object({ companyId: z.number() }))
+    .query(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const [member] = await db
+        .select({ role: companyMembers.role })
+        .from(companyMembers)
+        .where(and(
+          eq(companyMembers.userId, ctx.user.id),
+          eq(companyMembers.companyId, input.companyId),
+          eq(companyMembers.isActive, true),
+        ))
+        .limit(1);
+      if (!member) throw new TRPCError({ code: "FORBIDDEN" });
+      const [company] = await db
+        .select({ roleRedirectSettings: companies.roleRedirectSettings })
+        .from(companies)
+        .where(eq(companies.id, input.companyId))
+        .limit(1);
+      return { settings: (company?.roleRedirectSettings as Record<string, string> | null) ?? {} };
+    }),
+
+  /**
+   * Update the per-role login redirect configuration for the active company.
+   * Only company_admin (or platform admin) can call this.
+   * Pass an empty object to reset all roles to system defaults.
+   */
+  updateRoleRedirectSettings: protectedProcedure
+    .input(z.object({
+      companyId: z.number(),
+      settings: z.record(
+        z.enum(["company_admin", "hr_admin", "finance_admin", "company_member", "reviewer", "external_auditor"]),
+        z.string().min(1).max(200),
+      ),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const [member] = await db
+        .select({ role: companyMembers.role })
+        .from(companyMembers)
+        .where(and(
+          eq(companyMembers.userId, ctx.user.id),
+          eq(companyMembers.companyId, input.companyId),
+          eq(companyMembers.isActive, true),
+        ))
+        .limit(1);
+      const isAdmin = member?.role === "company_admin" || (member?.role as string) === "owner";
+      if (!isAdmin && !canAccessGlobalAdminProcedures(ctx.user)) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Only company admins can update role redirect settings." });
+      }
+      await db.update(companies)
+        .set({ roleRedirectSettings: input.settings })
+        .where(eq(companies.id, input.companyId));
+      return { success: true };
+    }),
 });

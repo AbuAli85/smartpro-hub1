@@ -79,6 +79,8 @@ export const companies = mysqlTable("companies", {
   status: mysqlEnum("status", ["active", "suspended", "pending", "cancelled"]).default("active").notNull(),
   subscriptionPlanId: int("subscriptionPlanId"),
   expiryWarningDays: int("expiryWarningDays").default(30).notNull(),
+  /** Per-role login redirect overrides. JSON: { hr_admin: "/hr/employees", finance_admin: "/payroll", ... } */
+  roleRedirectSettings: json("roleRedirectSettings").$type<Record<string, string>>().default({}),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

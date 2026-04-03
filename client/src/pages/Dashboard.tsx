@@ -107,20 +107,27 @@ export default function Dashboard() {
   const { data: myCompany, isLoading: myCompanyLoading } = trpc.companies.myCompany.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
   const [navPrefsEpoch, setNavPrefsEpoch] = useState(0);
 
-  // Smart redirect: send non-admin roles to their appropriate default page
+  // Fetch custom role redirect settings for this company
+  const { data: roleRedirectData } = trpc.companies.getRoleRedirectSettings.useQuery(
+    { companyId: activeCompanyId ?? 0 },
+    { enabled: activeCompanyId != null && !companyLoading }
+  );
+
+  // Smart redirect: send non-admin roles to their appropriate page (custom or system default)
   useEffect(() => {
     if (companyLoading) return;
     const memberRole = activeCompany?.role ?? null;
     if (!memberRole) return;
     // Platform admins and company_admin stay on the main dashboard
     if (seesPlatformOperatorNav(user)) return;
-    if (memberRole === "company_admin" || memberRole === "owner") return;
-    // All other roles get redirected to their default page
-    const defaultRoute = getRoleDefaultRoute(memberRole);
-    if (defaultRoute && defaultRoute !== "/dashboard" && defaultRoute !== "/") {
-      navigate(defaultRoute);
+    if (memberRole === "company_admin" || (memberRole as string) === "owner") return;
+    // Check for a custom redirect configured by the company admin; fall back to system default
+    const customRoute = roleRedirectData?.settings?.[memberRole];
+    const targetRoute = customRoute || getRoleDefaultRoute(memberRole);
+    if (targetRoute && targetRoute !== "/dashboard" && targetRoute !== "/") {
+      navigate(targetRoute);
     }
-  }, [activeCompany?.role, companyLoading]);
+  }, [activeCompany?.role, companyLoading, roleRedirectData]);
 
   useEffect(() => {
     const fn = () => setNavPrefsEpoch((n) => n + 1);

@@ -34,7 +34,11 @@ import {
   Hash,
   ShieldAlert,
   Clock,
+  RotateCcw,
+  LogIn,
+  ChevronRight,
 } from "lucide-react";
+import { getRoleDefaultRoute } from "@shared/clientNav";
 
 const INDUSTRIES = [
   // Investment & Finance
@@ -177,6 +181,123 @@ export default function CompanySettingsPage() {
       setExpiryDaysInput(String(expirySettings.expiryWarningDays));
     }
   }, [expirySettings]);
+
+  // Role Redirect Settings
+  const ROLE_REDIRECT_OPTIONS: Record<string, { label: string; color: string; routes: { value: string; label: string }[] }> = {
+    company_admin: {
+      label: "Company Admin",
+      color: "bg-violet-100 text-violet-700 border-violet-200",
+      routes: [
+        { value: "/business/dashboard", label: "Business Dashboard" },
+        { value: "/dashboard", label: "Overview Dashboard" },
+        { value: "/operations", label: "Operations Centre" },
+        { value: "/hr/employees", label: "HR — Employees" },
+        { value: "/payroll", label: "Payroll Engine" },
+        { value: "/crm", label: "CRM" },
+        { value: "/company/hub", label: "Company Hub" },
+      ],
+    },
+    hr_admin: {
+      label: "HR Admin",
+      color: "bg-blue-100 text-blue-700 border-blue-200",
+      routes: [
+        { value: "/hr/employees", label: "HR — Employees" },
+        { value: "/hr/recruitment", label: "HR — Recruitment" },
+        { value: "/hr/leave", label: "HR — Leave & Payroll" },
+        { value: "/hr/attendance", label: "HR — Attendance" },
+        { value: "/hr/tasks", label: "HR — Task Manager" },
+        { value: "/hr/announcements", label: "HR — Announcements" },
+        { value: "/hr/expiry-dashboard", label: "HR — Expiry Dashboard" },
+        { value: "/my-team", label: "My Team" },
+        { value: "/business/dashboard", label: "Business Dashboard" },
+      ],
+    },
+    finance_admin: {
+      label: "Finance Admin",
+      color: "bg-emerald-100 text-emerald-700 border-emerald-200",
+      routes: [
+        { value: "/payroll", label: "Payroll Engine" },
+        { value: "/payroll/process", label: "Payroll Process" },
+        { value: "/reports", label: "PDF Reports" },
+        { value: "/business/dashboard", label: "Business Dashboard" },
+      ],
+    },
+    company_member: {
+      label: "Company Member (Staff)",
+      color: "bg-gray-100 text-gray-700 border-gray-200",
+      routes: [
+        { value: "/my-portal", label: "My Portal" },
+        { value: "/dashboard", label: "Overview Dashboard" },
+      ],
+    },
+    reviewer: {
+      label: "Reviewer",
+      color: "bg-amber-100 text-amber-700 border-amber-200",
+      routes: [
+        { value: "/business/dashboard", label: "Business Dashboard" },
+        { value: "/dashboard", label: "Overview Dashboard" },
+        { value: "/company/hub", label: "Company Hub" },
+      ],
+    },
+    external_auditor: {
+      label: "External Auditor",
+      color: "bg-orange-100 text-orange-700 border-orange-200",
+      routes: [
+        { value: "/business/dashboard", label: "Business Dashboard" },
+        { value: "/dashboard", label: "Overview Dashboard" },
+      ],
+    },
+  };
+
+  const [roleRedirects, setRoleRedirects] = useState<Record<string, string>>({});
+  const [savingRoleRedirects, setSavingRoleRedirects] = useState(false);
+
+  const { data: roleRedirectData } = trpc.companies.getRoleRedirectSettings.useQuery(
+    { companyId: activeCompany?.id ?? 0 },
+    { enabled: Boolean(activeCompany?.id) }
+  );
+  useEffect(() => {
+    if (roleRedirectData?.settings) {
+      setRoleRedirects(roleRedirectData.settings);
+    }
+  }, [roleRedirectData]);
+
+  const updateRoleRedirectMutation = trpc.companies.updateRoleRedirectSettings.useMutation({
+    onSuccess: () => {
+      toast.success("Role redirect settings saved successfully");
+    },
+    onError: (err) => {
+      toast.error(err.message || "Failed to save role redirect settings");
+    },
+  });
+
+  const handleSaveRoleRedirects = async () => {
+    if (!activeCompany?.id) return;
+    setSavingRoleRedirects(true);
+    try {
+      await updateRoleRedirectMutation.mutateAsync({
+        companyId: activeCompany.id,
+        settings: roleRedirects as any,
+      });
+    } finally {
+      setSavingRoleRedirects(false);
+    }
+  };
+
+  const handleResetRoleRedirects = async () => {
+    if (!activeCompany?.id) return;
+    setSavingRoleRedirects(true);
+    try {
+      await updateRoleRedirectMutation.mutateAsync({
+        companyId: activeCompany.id,
+        settings: {} as any,
+      });
+      setRoleRedirects({});
+      toast.success("Role redirects reset to system defaults");
+    } finally {
+      setSavingRoleRedirects(false);
+    }
+  };
 
   const handleSaveExpiry = async () => {
     if (!activeCompany?.id) return;
@@ -552,6 +673,97 @@ export default function CompanySettingsPage() {
               </button>
             ))}
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Role Redirect Settings */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <LogIn size={16} className="text-primary" /> Role Login Redirect Settings
+          </CardTitle>
+          <CardDescription>
+            Customize which page each role is redirected to after logging in. Leave a role on "System Default" to use the built-in default.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {Object.entries(ROLE_REDIRECT_OPTIONS).map(([roleKey, roleConfig]) => {
+            const currentValue = roleRedirects[roleKey] ?? "";
+            const systemDefault = getRoleDefaultRoute(roleKey);
+            const systemDefaultLabel = roleConfig.routes.find(r => r.value === systemDefault)?.label ?? systemDefault;
+            return (
+              <div key={roleKey} className="flex items-center gap-4 p-3 rounded-lg border bg-muted/20">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${roleConfig.color}`}>
+                      {roleConfig.label}
+                    </span>
+                    {!currentValue && (
+                      <span className="text-xs text-muted-foreground italic">
+                        Using system default: {systemDefaultLabel}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <ChevronRight size={12} className="text-muted-foreground shrink-0" />
+                    <span className="text-xs text-muted-foreground">Redirects to:</span>
+                    <Select
+                      value={currentValue || "__default__"}
+                      onValueChange={(val) => {
+                        if (val === "__default__") {
+                          setRoleRedirects(prev => {
+                            const next = { ...prev };
+                            delete next[roleKey];
+                            return next;
+                          });
+                        } else {
+                          setRoleRedirects(prev => ({ ...prev, [roleKey]: val }));
+                        }
+                      }}
+                      disabled={!canEdit}
+                    >
+                      <SelectTrigger className="h-8 text-xs w-56">
+                        <SelectValue placeholder="System Default" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__default__">
+                          <span className="text-muted-foreground">System Default ({systemDefaultLabel})</span>
+                        </SelectItem>
+                        {roleConfig.routes.map(route => (
+                          <SelectItem key={route.value} value={route.value}>
+                            {route.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+          {canEdit && (
+            <div className="flex items-center gap-3 pt-2">
+              <Button
+                onClick={handleSaveRoleRedirects}
+                disabled={savingRoleRedirects}
+                size="sm"
+                className="gap-2"
+              >
+                <Save size={13} />
+                {savingRoleRedirects ? "Saving..." : "Save Redirect Settings"}
+              </Button>
+              <Button
+                onClick={handleResetRoleRedirects}
+                disabled={savingRoleRedirects}
+                size="sm"
+                variant="outline"
+                className="gap-2 text-muted-foreground"
+              >
+                <RotateCcw size={13} />
+                Reset All to Defaults
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
 

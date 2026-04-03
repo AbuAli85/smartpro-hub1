@@ -1364,3 +1364,24 @@ Every company on SmartPRO Hub gets a complete, unified business operating area �
 - [x] Date format standardization: DD/MM/YYYY everywhere, Muscat timezone (UTC+4)
 - [x] Employee CRUD: all fields (personal, employment, government docs, banking, emergency contact)
 - [x] Multi-Company Roles page: manage all users' access across all companies
+
+## Phase 62: Role Redirect Customization (Company Admin Feature)
+- [ ] DB: add roleRedirectSettings JSON column to companies table (stores per-role default routes)
+- [ ] Migration: generate and apply ALTER TABLE for roleRedirectSettings column
+- [ ] Backend: companies.getRoleRedirectSettings — return current redirect config for active company
+- [ ] Backend: companies.updateRoleRedirectSettings — save per-role redirect overrides (company_admin only)
+- [ ] Frontend: Role Redirect Settings card in CompanySettingsPage with role-to-route dropdowns
+- [ ] Frontend: show available routes per role (only routes the role can access per RBAC)
+- [ ] Frontend: live preview of what each role will see on login
+- [ ] Frontend: "Reset to defaults" button to clear customizations
+- [ ] Wire: Dashboard.tsx reads custom redirect from getRoleRedirectSettings before falling back to getRoleDefaultRoute()
+- [ ] Tests: vitest tests for getRoleRedirectSettings and updateRoleRedirectSettings procedures
+
+## Phase 62: Role Redirect Customization Feature
+- [x] Add roleRedirectSettings JSON column to companies table in drizzle/schema.ts
+- [x] Run migration script to add column to live database
+- [x] Add getRoleRedirectSettings tRPC query procedure (companies router)
+- [x] Add updateRoleRedirectSettings tRPC mutation procedure (companies router)
+- [x] Build Role Redirect Settings UI card in CompanySettingsPage with per-role dropdowns
+- [x] Wire custom redirects into Dashboard login redirect logic (custom overrides system default)
+- [x] Write 14 vitest tests for role redirect resolution logic (all pass)

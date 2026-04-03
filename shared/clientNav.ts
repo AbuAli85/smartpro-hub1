@@ -19,6 +19,7 @@ export const COMPANY_OWNER_HREFS = new Set<string>([
   "/company-admin",
   "/renewal-workflows",
   "/company/team-access",
+  "/company/multi-company-roles",
 ]);
 
 /** Payroll & executive reports — company_admin + finance_admin + hr_admin */

@@ -17,7 +17,7 @@ import {
   updateCompany,
   getDb,
 } from "../db";
-import { companyInvites, companyMembers, users, employees } from "../../drizzle/schema";
+import { companyInvites, companyMembers, users, employees, companies } from "../../drizzle/schema";
 import { protectedProcedure, router } from "../_core/trpc";
 import { notifyOwner } from "../_core/notification";
 
@@ -990,5 +990,94 @@ export const companiesRouter = router({
       }
 
       return { success: true, results };
+    }),
+
+  /**
+   * Get all users and their roles across all companies the caller manages.
+   * Returns a user-centric view: each user with their memberships per company.
+   */
+  getAllUsersAcrossCompanies: protectedProcedure.query(async ({ ctx }) => {
+    const db = await getDb();
+    if (!db) return [];
+    // Get all companies the caller has admin access to
+    const callerCompanies = await getUserCompanies(ctx.user.id);
+    const adminCompanyIds = callerCompanies
+      .filter(c => c.member.role === "company_admin" || canAccessGlobalAdminProcedures(ctx.user))
+      .map(c => c.company.id);
+    if (adminCompanyIds.length === 0) return [];
+    // Get all members across these companies
+    const rows = await db
+      .select({
+        memberId: companyMembers.id,
+        userId: companyMembers.userId,
+        companyId: companyMembers.companyId,
+        role: companyMembers.role,
+        isActive: companyMembers.isActive,
+        joinedAt: companyMembers.joinedAt,
+        userName: users.name,
+        userEmail: users.email,
+        userAvatarUrl: users.avatarUrl,
+        companyName: companies.name,
+      })
+      .from(companyMembers)
+      .innerJoin(users, eq(users.id, companyMembers.userId))
+      .innerJoin(companies, eq(companies.id, companyMembers.companyId))
+      .where(
+        adminCompanyIds.length === 1
+          ? eq(companyMembers.companyId, adminCompanyIds[0])
+          : or(...adminCompanyIds.map(id => eq(companyMembers.companyId, id)))
+      )
+      .orderBy(asc(users.name), asc(companies.name));
+    // Group by userId
+    const userMap = new Map<number, {
+      userId: number;
+      name: string | null;
+      email: string | null;
+      avatarUrl: string | null;
+      memberships: Array<{ memberId: number; companyId: number; companyName: string; role: string; isActive: boolean; joinedAt: Date }>;
+    }>();
+    for (const row of rows) {
+      if (!userMap.has(row.userId)) {
+        userMap.set(row.userId, {
+          userId: row.userId,
+          name: row.userName,
+          email: row.userEmail,
+          avatarUrl: row.userAvatarUrl,
+          memberships: [],
+        });
+      }
+      userMap.get(row.userId)!.memberships.push({
+        memberId: row.memberId,
+        companyId: row.companyId,
+        companyName: row.companyName,
+        role: row.role,
+        isActive: row.isActive,
+        joinedAt: row.joinedAt,
+      });
+    }
+    return Array.from(userMap.values());
+  }),
+
+  /**
+   * Revoke a user's access to a specific company (admin only) — used by Multi-Company Roles page.
+   */
+  revokeMemberAccess: protectedProcedure
+    .input(z.object({
+      memberId: z.number(),
+      companyId: z.number(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const callerMembership = await getUserCompanyById(ctx.user.id, input.companyId);
+      if (!callerMembership?.member || callerMembership.member.role !== "company_admin") {
+        if (!canAccessGlobalAdminProcedures(ctx.user)) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Only company admins can revoke access" });
+        }
+      }
+      await db.update(companyMembers)
+        .set({ isActive: false })
+        .where(and(eq(companyMembers.id, input.memberId), eq(companyMembers.companyId, input.companyId)));
+      return { success: true };
     }),
 });

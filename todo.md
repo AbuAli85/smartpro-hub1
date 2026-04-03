@@ -1330,3 +1330,8 @@ Every company on SmartPRO Hub gets a complete, unified business operating area �
 - [ ] Audit all notification bell counts: must be company-scoped
 - [ ] Fix any procedure that uses getUserCompany() fallback instead of activeCompanyId
 - [ ] Verify: switching company A to B → ALL badges, counts, lists update immediately
+
+## Multi-Company Access Management
+- [ ] Add backend procedure: companies.grantMultiCompanyAccess — grant one employee access to multiple companies at once with a specified role per company
+- [ ] Update TeamAccessPage: add "Grant to Multiple Companies" button that opens a dialog showing all owner's companies with checkboxes and role selectors
+- [ ] Ensure company switcher shows the user's role label correctly for each company they have access to

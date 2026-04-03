@@ -898,4 +898,97 @@ export const companiesRouter = router({
       await updateCompany(companyId, cleanData as any);
       return { success: true };
     }),
+
+  /**
+   * Grant one employee access to multiple companies at once.
+   * The caller must be company_admin in each target company.
+   * Each entry in `grants` specifies a companyId and the role to assign.
+   */
+  grantMultiCompanyAccess: protectedProcedure
+    .input(z.object({
+      employeeId: z.number(),
+      sourceCompanyId: z.number(), // the company the employee belongs to
+      grants: z.array(z.object({
+        companyId: z.number(),
+        role: z.enum(["company_admin", "company_member", "finance_admin", "hr_admin", "reviewer", "external_auditor"]),
+      })).min(1),
+      origin: z.string().url().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      // Verify caller is admin in the source company (where the employee lives)
+      if (!canAccessGlobalAdminProcedures(ctx.user)) {
+        await assertCompanyAdmin(ctx.user.id, input.sourceCompanyId);
+      }
+
+      // Fetch the employee from the source company
+      const [emp] = await db
+        .select({ id: employees.id, email: employees.email, userId: employees.userId, firstName: employees.firstName, lastName: employees.lastName })
+        .from(employees)
+        .where(and(eq(employees.id, input.employeeId), eq(employees.companyId, input.sourceCompanyId)))
+        .limit(1);
+      if (!emp) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found in source company." });
+      if (!emp.email) throw new TRPCError({ code: "BAD_REQUEST", message: "Employee has no email address. Please update their profile first." });
+
+      const results: Array<{ companyId: number; companyName: string; action: string; message: string }> = [];
+
+      for (const grant of input.grants) {
+        // Verify caller is admin in each target company too
+        const targetMembership = await getUserCompanyById(ctx.user.id, grant.companyId);
+        if (!targetMembership) {
+          results.push({ companyId: grant.companyId, companyName: "Unknown", action: "skipped", message: "You are not a member of this company." });
+          continue;
+        }
+        if (!canAccessGlobalAdminProcedures(ctx.user)) {
+          const [adminCheck] = await db
+            .select({ role: companyMembers.role })
+            .from(companyMembers)
+            .where(and(eq(companyMembers.userId, ctx.user.id), eq(companyMembers.companyId, grant.companyId), eq(companyMembers.isActive, true)))
+            .limit(1);
+          if (!adminCheck || adminCheck.role !== "company_admin") {
+            results.push({ companyId: grant.companyId, companyName: targetMembership.company.name, action: "skipped", message: "You are not an admin of this company." });
+            continue;
+          }
+        }
+
+        // Resolve or create the user account
+        let targetUserId: number | null = emp.userId ?? null;
+        if (!targetUserId && emp.email) {
+          const [existingUser] = await db.select({ id: users.id }).from(users).where(eq(users.email, emp.email.toLowerCase())).limit(1);
+          if (existingUser) {
+            targetUserId = existingUser.id;
+            // Link employee to user in source company
+            await db.update(employees).set({ userId: targetUserId }).where(eq(employees.id, emp.id));
+          }
+        }
+
+        if (targetUserId) {
+          // Grant / update membership in target company
+          const [existing] = await db
+            .select({ id: companyMembers.id })
+            .from(companyMembers)
+            .where(and(eq(companyMembers.userId, targetUserId), eq(companyMembers.companyId, grant.companyId)))
+            .limit(1);
+          if (existing) {
+            await db.update(companyMembers).set({ isActive: true, role: grant.role }).where(eq(companyMembers.id, existing.id));
+          } else {
+            await db.insert(companyMembers).values({ companyId: grant.companyId, userId: targetUserId, role: grant.role, isActive: true, invitedBy: ctx.user.id });
+          }
+          results.push({ companyId: grant.companyId, companyName: targetMembership.company.name, action: "granted", message: `Access granted as ${grant.role}` });
+        } else if (emp.email && input.origin) {
+          // No account yet — send invite for this company
+          const token = randomBytes(32).toString('hex');
+          const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+          await db.update(companyInvites).set({ revokedAt: new Date() }).where(and(eq(companyInvites.email, emp.email.toLowerCase()), eq(companyInvites.companyId, grant.companyId)));
+          await db.insert(companyInvites).values({ companyId: grant.companyId, email: emp.email.toLowerCase(), role: grant.role, token, invitedBy: ctx.user.id, expiresAt });
+          results.push({ companyId: grant.companyId, companyName: targetMembership.company.name, action: "invited", message: `Invite sent to ${emp.email}` });
+        } else {
+          results.push({ companyId: grant.companyId, companyName: targetMembership.company.name, action: "no_account", message: "Employee has no SmartPRO account yet. Add an origin URL to send an invite." });
+        }
+      }
+
+      return { success: true, results };
+    }),
 });

@@ -55,6 +55,7 @@ import {
   ChevronDown,
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Checkbox } from "@/components/ui/checkbox";
 
 // ─── Role Configuration ───────────────────────────────────────────────────────
 
@@ -182,6 +183,27 @@ export default function TeamAccessPage() {
   const [removeMemberTarget, setRemoveMemberTarget] = useState<{ id: number; name: string } | null>(null);
   const [memberRoleTarget, setMemberRoleTarget] = useState<{ id: number; name: string; currentRole: string } | null>(null);
   const [memberNewRole, setMemberNewRole] = useState("");
+  // Multi-company access
+  const { companies: allMyCompanies } = useActiveCompany();
+  const [multiGrantTarget, setMultiGrantTarget] = useState<{ employeeId: number; name: string; email: string | null } | null>(null);
+  const [multiGrantSelections, setMultiGrantSelections] = useState<Record<number, string>>({}); // companyId -> role
+
+  // Multi-company grant mutation
+  const grantMultiCompanyAccess = trpc.companies.grantMultiCompanyAccess.useMutation({
+    onSuccess: (res) => {
+      utils.companies.employeesWithAccess.invalidate();
+      utils.companies.members.invalidate();
+      const granted = res.results.filter(r => r.action === 'granted').length;
+      const invited = res.results.filter(r => r.action === 'invited').length;
+      const skipped = res.results.filter(r => r.action === 'skipped').length;
+      if (granted > 0) toast.success(`Access granted in ${granted} company${granted > 1 ? 'ies' : 'y'}`);
+      if (invited > 0) toast.success(`Invite sent for ${invited} company${invited > 1 ? 'ies' : 'y'}`);
+      if (skipped > 0) toast.warning(`Skipped ${skipped} company${skipped > 1 ? 'ies' : 'y'} (not admin)`);
+      setMultiGrantTarget(null);
+      setMultiGrantSelections({});
+    },
+    onError: (err) => toast.error(err.message),
+  });
 
   // Mutations
   const grantAccess = trpc.companies.grantEmployeeAccess.useMutation({
@@ -433,7 +455,7 @@ export default function TeamAccessPage() {
                         </div>
 
                         {/* Actions */}
-                        <div className="flex items-center gap-2 shrink-0">
+                        <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
                           {emp.accessStatus === 'active' ? (
                             <>
                               <Button
@@ -446,6 +468,17 @@ export default function TeamAccessPage() {
                                 }}
                               >
                                 Change Role
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-8 text-xs gap-1 text-blue-600 hover:text-blue-700 hover:border-blue-300"
+                                onClick={() => {
+                                  setMultiGrantTarget({ employeeId: emp.employeeId, name: fullName, email: emp.email ?? null });
+                                  setMultiGrantSelections({});
+                                }}
+                              >
+                                <Building2 size={12} /> Multi-Company
                               </Button>
                               <Button
                                 variant="outline"
@@ -469,16 +502,31 @@ export default function TeamAccessPage() {
                               <Unlock size={12} /> Restore
                             </Button>
                           ) : (
-                            <Button
-                              size="sm"
-                              className="h-8 text-xs gap-1 bg-gray-900 hover:bg-gray-800 text-white"
-                              onClick={() => {
-                                setGrantTarget({ employeeId: emp.employeeId, name: fullName, email: emp.email ?? null });
-                                setGrantRole("company_member");
-                              }}
-                            >
-                              <Unlock size={12} /> Grant Access
-                            </Button>
+                            <>
+                              <Button
+                                size="sm"
+                                className="h-8 text-xs gap-1 bg-gray-900 hover:bg-gray-800 text-white"
+                                onClick={() => {
+                                  setGrantTarget({ employeeId: emp.employeeId, name: fullName, email: emp.email ?? null });
+                                  setGrantRole("company_member");
+                                }}
+                              >
+                                <Unlock size={12} /> Grant Access
+                              </Button>
+                              {allMyCompanies.length > 1 && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-8 text-xs gap-1 text-blue-600 hover:text-blue-700 hover:border-blue-300"
+                                  onClick={() => {
+                                    setMultiGrantTarget({ employeeId: emp.employeeId, name: fullName, email: emp.email ?? null });
+                                    setMultiGrantSelections({});
+                                  }}
+                                >
+                                  <Building2 size={12} /> Multi-Company
+                                </Button>
+                              )}
+                            </>
                           )}
                         </div>
                       </div>
@@ -609,6 +657,93 @@ export default function TeamAccessPage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* ── Multi-Company Access Dialog ── */}
+      <Dialog open={!!multiGrantTarget} onOpenChange={(open) => { if (!open) { setMultiGrantTarget(null); setMultiGrantSelections({}); } }}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Building2 size={18} className="text-blue-600" />
+              Grant Access to Multiple Companies
+            </DialogTitle>
+            <DialogDescription>
+              Grant <strong>{multiGrantTarget?.name}</strong> access to multiple companies at once.
+              Select which companies and choose a role for each.
+              {!multiGrantTarget?.email && (
+                <span className="block mt-1 text-amber-600">⚠ This employee has no email address. Please update their profile first.</span>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2 max-h-80 overflow-y-auto">
+            {allMyCompanies.filter(c => c.id !== activeCompanyId).length === 0 ? (
+              <p className="text-sm text-gray-500 text-center py-4">You only have one company. Add more companies to use this feature.</p>
+            ) : (
+              allMyCompanies.filter(c => c.id !== activeCompanyId).map((company) => {
+                const isSelected = !!multiGrantSelections[company.id];
+                const selectedRole = multiGrantSelections[company.id] ?? "company_member";
+                return (
+                  <div key={company.id} className={`border rounded-lg p-3 transition-colors ${isSelected ? 'border-blue-300 bg-blue-50' : 'border-gray-200 bg-white'}`}>
+                    <div className="flex items-start gap-3">
+                      <Checkbox
+                        id={`company-${company.id}`}
+                        checked={isSelected}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            setMultiGrantSelections(prev => ({ ...prev, [company.id]: "company_member" }));
+                          } else {
+                            setMultiGrantSelections(prev => { const next = { ...prev }; delete next[company.id]; return next; });
+                          }
+                        }}
+                        className="mt-0.5"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <label htmlFor={`company-${company.id}`} className="text-sm font-semibold text-gray-800 cursor-pointer">{company.name}</label>
+                        <p className="text-xs text-gray-500">{company.country ?? ""}</p>
+                        {isSelected && (
+                          <div className="mt-2">
+                            <Select value={selectedRole} onValueChange={(val) => setMultiGrantSelections(prev => ({ ...prev, [company.id]: val }))}>
+                              <SelectTrigger className="h-8 text-xs">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="company_admin">Owner / Admin — Full access</SelectItem>
+                                <SelectItem value="hr_admin">HR Manager — HR modules</SelectItem>
+                                <SelectItem value="finance_admin">Finance Manager — Payroll & Finance</SelectItem>
+                                <SelectItem value="company_member">Staff / Employee — My Portal only</SelectItem>
+                                <SelectItem value="reviewer">Reviewer — Read-only</SelectItem>
+                                <SelectItem value="external_auditor">External Auditor — Limited read-only</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setMultiGrantTarget(null); setMultiGrantSelections({}); }}>Cancel</Button>
+            <Button
+              disabled={!multiGrantTarget?.email || Object.keys(multiGrantSelections).length === 0 || grantMultiCompanyAccess.isPending}
+              onClick={() => {
+                if (!multiGrantTarget || !activeCompanyId) return;
+                const grants = Object.entries(multiGrantSelections).map(([companyId, role]) => ({ companyId: Number(companyId), role: role as any }));
+                grantMultiCompanyAccess.mutate({
+                  employeeId: multiGrantTarget.employeeId,
+                  sourceCompanyId: activeCompanyId,
+                  grants,
+                  origin: window.location.origin,
+                });
+              }}
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              {grantMultiCompanyAccess.isPending ? "Granting..." : `Grant to ${Object.keys(multiGrantSelections).length} Compan${Object.keys(multiGrantSelections).length === 1 ? 'y' : 'ies'}`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* ── Grant Access Dialog ── */}
       <Dialog open={!!grantTarget} onOpenChange={(open) => { if (!open) setGrantTarget(null); }}>

@@ -4,6 +4,7 @@ import { storagePut } from "../storage";
 import { nanoid } from "nanoid";
 import { z } from "zod";
 import { canAccessGlobalAdminProcedures } from "@shared/rbac";
+import { sendContractSigningEmail } from "../email";
 import {
   createContract,
   getAllContracts,
@@ -229,6 +230,15 @@ Generate a complete, professional contract document with all standard clauses fo
         notes: `Signature requested from ${input.signerName} <${input.signerEmail}>`,
       });
       await updateContract(input.contractId, { status: "pending_signature" });
+      // Send signing notification email to the signer
+      const signingUrl = `${(ctx as any).origin ?? ""}/contracts/${input.contractId}/sign`;
+      await sendContractSigningEmail({
+        to: input.signerEmail,
+        signerName: input.signerName,
+        contractTitle: c.title,
+        companyName: ctx.user.name ?? "SmartPRO",
+        signingUrl,
+      }).catch((e) => console.error("[Email] addSigner signing email failed (non-fatal):", e));
       return { id: insertId };
     }),
 

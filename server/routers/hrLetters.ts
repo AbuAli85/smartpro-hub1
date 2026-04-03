@@ -7,6 +7,7 @@ import { getEmployeeById, getCompanyById } from "../db";
 import { getActiveCompanyMembership, requireNotAuditor } from "../_core/membership";
 import { protectedProcedure, router } from "../_core/trpc";
 import { invokeLLM } from "../_core/llm";
+import { sendHRLetterEmail } from "../email";
 
 // ─── Letter type metadata ──────────────────────────────────────────────────────
 const LETTER_TYPES = {
@@ -356,6 +357,41 @@ export const hrLettersRouter = router({
         createdAt: new Date(),
         updatedAt: new Date(),
       };
+    }),
+
+  // Send letter by email to the employee
+  sendLetterByEmail: protectedProcedure
+    .input(z.object({
+      id: z.number(),
+      employeeEmail: z.string().email(),
+      pdfUrl: z.string().url().optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const membership = await getActiveCompanyMembership(ctx.user.id);
+      if (!membership) throw new TRPCError({ code: "FORBIDDEN" });
+      requireNotAuditor(membership.role, "External Auditors cannot send letters.");
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const [letter] = await db
+        .select()
+        .from(hrLetters)
+        .where(and(eq(hrLetters.id, input.id), eq(hrLetters.companyId, membership.companyId)))
+        .limit(1);
+      if (!letter) throw new TRPCError({ code: "NOT_FOUND", message: "Letter not found" });
+      const employee = await getEmployeeById(letter.employeeId);
+      const company = await getCompanyById(membership.companyId);
+      const result = await sendHRLetterEmail({
+        to: input.employeeEmail,
+        employeeName: employee ? `${employee.firstName} ${employee.lastName}`.trim() : "Employee",
+        letterType: letter.letterType,
+        companyName: company?.name ?? "SmartPRO",
+        issuedBy: ctx.user.name ?? ctx.user.email ?? "HR Team",
+        pdfUrl: input.pdfUrl,
+      });
+      if (!result.success) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: result.error ?? "Failed to send email" });
+      }
+      return { success: true };
     }),
 
   // Delete (soft-delete) a letter

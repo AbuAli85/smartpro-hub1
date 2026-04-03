@@ -20,6 +20,7 @@ import {
 import { companyInvites, companyMembers, users, employees, companies } from "../../drizzle/schema";
 import { protectedProcedure, router } from "../_core/trpc";
 import { notifyOwner } from "../_core/notification";
+import { sendInviteEmail } from "../email";
 
 function companyIdFromCreateResult(row: unknown): number {
   if (row && typeof row === "object") {
@@ -467,6 +468,15 @@ export const companiesRouter = router({
         title: `Team invite sent to ${input.email}`,
         content: `${ctx.user.name ?? ctx.user.email} invited ${input.email} to join ${companyName} as ${input.role.replace(/_/g, " ")}. Invite link: ${inviteUrl} (expires in 7 days)`,
       });
+      // Send invite email to the invitee
+      await sendInviteEmail({
+        to: input.email,
+        inviterName: ctx.user.name ?? ctx.user.email ?? "A team member",
+        companyName,
+        role: input.role,
+        inviteUrl,
+        expiresAt,
+      }).catch((e) => console.error("[Email] createInvite email failed (non-fatal):", e));
       return { success: true, token, inviteUrl, expiresAt };
     }),
 
@@ -761,10 +771,21 @@ export const companiesRouter = router({
             expiresAt,
           });
           const inviteUrl = `${input.origin}/invite/${token}`;
+          const bulkCompanyName = membership?.company.name ?? "SmartPRO";
           await notifyOwner({
             title: `Invite sent to employee ${emp.firstName} ${emp.lastName}`,
             content: `Invite link for ${emp.email}: ${inviteUrl} (expires in 7 days)`,
           });
+          // Send invite email to the employee
+          await sendInviteEmail({
+            to: emp.email.toLowerCase(),
+            inviteeName: `${emp.firstName} ${emp.lastName}`.trim(),
+            inviterName: ctx.user.name ?? ctx.user.email ?? "HR Team",
+            companyName: bulkCompanyName,
+            role: input.role,
+            inviteUrl,
+            expiresAt,
+          }).catch((e) => console.error("[Email] bulkInvite email failed (non-fatal):", e));
           return { success: true, action: 'invited' as const, message: `Invite sent to ${emp.email}`, inviteUrl };
         }
         return { success: true, action: 'no_account' as const, message: `Employee ${emp.firstName} ${emp.lastName} does not have a SmartPRO account yet. Add their email to send an invite.` };

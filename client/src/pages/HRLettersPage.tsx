@@ -2,7 +2,7 @@ import { useState, useRef } from "react";
 import {
   FileText, Wand2, Printer, Copy, Trash2, Eye, Clock,
   ChevronDown, CheckCircle2, Loader2, Building2, User, Globe,
-  Languages, ClipboardList, History, Plus, Search,
+  Languages, ClipboardList, History, Plus, Search, Mail,
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -292,6 +292,23 @@ export default function HRLettersPage() {
     onSuccess: () => {
       refetchLetters();
       toast.success("Letter deleted");
+    },
+  });
+
+  type LetterItem = NonNullable<typeof letters>[number];
+  const [emailDialogLetter, setEmailDialogLetter] = useState<LetterItem | null>(null);
+  const [emailTo, setEmailTo] = useState("");
+  const [isSendingEmail, setIsSendingEmail] = useState(false);
+  const sendEmailMutation = trpc.hrLetters.sendLetterByEmail.useMutation({
+    onSuccess: () => {
+      toast.success("Letter sent by email successfully");
+      setEmailDialogLetter(null);
+      setEmailTo("");
+      setIsSendingEmail(false);
+    },
+    onError: (err) => {
+      toast.error("Failed to send email: " + err.message);
+      setIsSendingEmail(false);
     },
   });
 
@@ -665,6 +682,19 @@ export default function HRLettersPage() {
                           <Button
                             size="sm"
                             variant="outline"
+                            className="gap-1 text-xs h-7 px-2"
+                            title="Send by email"
+                            onClick={() => {
+                              const emp = employees?.find(e => e.id === letter.employeeId);
+                              setEmailTo(emp?.email ?? "");
+                              setEmailDialogLetter(letter);
+                            }}
+                          >
+                            <Mail size={12} />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
                             className="gap-1 text-xs h-7 px-2 text-destructive hover:text-destructive"
                             onClick={() => {
                               if (confirm("Delete this letter?")) deleteMutation.mutate({ id: letter.id });
@@ -706,6 +736,50 @@ export default function HRLettersPage() {
               companyEmail={company?.email}
             />
           )}
+        </DialogContent>
+        </Dialog>
+      {/* Send Letter by Email Dialog */}
+      <Dialog open={!!emailDialogLetter} onOpenChange={(o) => { if (!o) { setEmailDialogLetter(null); setEmailTo(""); } }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Mail size={16} /> Send Letter by Email
+            </DialogTitle>
+            <DialogDescription>
+              The letter will be sent to the employee's email address as a notification with a download link.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="email-to">Recipient Email</Label>
+              <Input
+                id="email-to"
+                type="email"
+                placeholder="employee@example.com"
+                value={emailTo}
+                onChange={(e) => setEmailTo(e.target.value)}
+              />
+            </div>
+            {emailDialogLetter && (
+              <div className="text-sm text-muted-foreground bg-muted/40 rounded-lg px-3 py-2">
+                <span className="font-medium">Letter:</span> {LETTER_TYPES.find(t => t.value === emailDialogLetter.letterType)?.labelEn ?? emailDialogLetter.letterType}
+              </div>
+            )}
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => { setEmailDialogLetter(null); setEmailTo(""); }}>Cancel</Button>
+            <Button
+              disabled={!emailTo || isSendingEmail}
+              onClick={() => {
+                if (!emailDialogLetter) return;
+                setIsSendingEmail(true);
+                sendEmailMutation.mutate({ id: emailDialogLetter.id, employeeEmail: emailTo });
+              }}
+            >
+              {isSendingEmail ? <Loader2 size={14} className="animate-spin mr-1" /> : <Mail size={14} className="mr-1" />}
+              Send Email
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

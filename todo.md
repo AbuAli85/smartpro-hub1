@@ -1385,3 +1385,14 @@ Every company on SmartPRO Hub gets a complete, unified business operating area �
 - [x] Build Role Redirect Settings UI card in CompanySettingsPage with per-role dropdowns
 - [x] Wire custom redirects into Dashboard login redirect logic (custom overrides system default)
 - [x] Write 14 vitest tests for role redirect resolution logic (all pass)
+
+## Phase 63: Gmail Transactional Email Integration
+- [x] Build server-side sendEmail helper using Gmail MCP (server/email.ts)
+- [x] Add sendInviteEmail tRPC mutation — sends invite link to invitee's inbox
+- [x] Wire invite email into createInvite procedure in companies.ts
+- [x] Wire invite email into bulkInviteEmployees procedure in companies.ts
+- [x] Add sendHRLetterEmail tRPC mutation — sends HR letter PDF to employee email
+- [x] Wire email button into HRLettersPage UI
+- [x] Add sendContractEmail tRPC mutation — sends contract signing link to signers
+- [x] Wire email button into ContractsPage UI
+- [x] Write vitest tests for email helper

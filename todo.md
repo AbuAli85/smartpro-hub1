@@ -1287,3 +1287,32 @@ Every company on SmartPRO Hub gets a complete, unified business operating area �
 - [x] Enhance EmployeeDetailPanel: show Emergency Contact (name, phone) when available
 - [x] Fix empty contact fields: show 'No email on file' / 'No phone on file' placeholders instead of blank
 - [x] Verify company isolation end-to-end: company A employees never appear in company B view
+
+## Phase 57: Fix /my-team 403 errors and company isolation
+- [ ] Diagnose exact 403 error source in team router when companyId is passed
+- [ ] Fix team router: listMembers must not throw 403 for valid company members
+- [ ] Fix team router: getTeamStats must not throw 403 for valid company members
+- [ ] Fix MyTeamPage: ensure activeCompanyId is correctly passed to all team queries
+- [ ] Verify: switching companies shows correct employees with no 403 errors
+
+## Phase 58: Fix Employee Import & Status Filtering
+- [ ] Fix EmployeeImportPage: pass activeCompanyId to bulkImport mutation so import goes to selected company
+- [ ] Fix bulkImport procedure: require companyId input (not optional), validate membership
+- [ ] Filter HR Employees page: show all statuses but default to active, add clear status filter UI
+- [ ] Filter Team Access (MyTeamPage): only show active employees by default, hide terminated/cancelled
+- [ ] Filter Attendance page: only show active employees in employee selector
+- [ ] Filter Payroll page: only show active employees in salary config and payroll runs
+- [ ] Filter Leave page: only show active employees in leave request forms
+- [ ] Add status badge colors: active=green, on_leave=yellow, terminated=red, resigned=gray
+- [ ] Verify: importing while company B selected saves to company B, not company A
+
+## Phase 59: Fresh Start — Clear Data & Fix Company Isolation (COMPLETED)
+- [x] Clear all 54 employees from database (DELETE FROM employees)
+- [x] Clear related data: attendance_records, leave_requests, payroll_runs, salary_configs
+- [x] Fix MyTeamPage: default status filter to "active" (not "all")
+- [x] Fix HREmployeesPage: default status filter to "active", allow filter to see terminated
+- [x] Fix Attendance page: only show active employees in dropdowns/selectors
+- [x] Fix Leave page: only show active employees in leave request forms
+- [x] Add "Clear All Employees" button in MyTeamPage header with confirmation dialog (admin only)
+- [x] Add clearAllEmployees procedure to team router (company_admin role required)
+- [x] Verify end-to-end: import to company A → only shows in company A; import to company B → only shows in company B

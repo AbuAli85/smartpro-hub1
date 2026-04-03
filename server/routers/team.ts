@@ -382,4 +382,19 @@ export const teamRouter = router({
 
       return { imported, skipped, errors, total: input.rows.length };
     }),
+
+  /** Clear all employees for the active company (admin only) */
+  clearAllEmployees: protectedProcedure
+    .input(z.object({ companyId: z.number().optional() }))
+    .mutation(async ({ ctx, input }) => {
+      const membership = await requireMembership(ctx.user.id, input.companyId);
+      if (membership.role !== "company_admin") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Only company admins can clear employee data" });
+      }
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      const { eq } = await import("drizzle-orm");
+      const result = await db.delete(employees).where(eq(employees.companyId, membership.companyId));
+      return { deleted: (result as any).affectedRows ?? 0 };
+    }),
 });

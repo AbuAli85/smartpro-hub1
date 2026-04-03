@@ -8,7 +8,7 @@ import {
   Users, UserPlus, Search, Briefcase, Mail, Phone, Building2,
   ChevronRight, X, Edit2, MoreHorizontal, UserCheck, UserX,
   Calendar, DollarSign, Hash, Globe, Shield, TrendingUp,
-  LayoutGrid, List, AlertTriangle, CheckCircle2, Clock, Star, Upload,
+  LayoutGrid, List, AlertTriangle, CheckCircle2, Clock, Star, Upload, Trash2,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -717,7 +717,7 @@ export default function MyTeamPage() {
   const [, navigate] = useLocation();
   const { activeCompanyId } = useActiveCompany();
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<string>("active");
   const [deptFilter, setDeptFilter] = useState<string>("all");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -760,6 +760,17 @@ export default function MyTeamPage() {
   }, [stats?.byDepartment]);
 
   const editMember = members.find((m) => m.id === editId);
+  const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
+
+  const clearAllMutation = trpc.team.clearAllEmployees.useMutation({
+    onSuccess: (data) => {
+      toast.success(`Cleared ${data.deleted} employee records`);
+      utils.team.listMembers.invalidate();
+      utils.team.getTeamStats.invalidate();
+      setClearConfirmOpen(false);
+    },
+    onError: (e) => toast.error(e.message),
+  });
 
   return (
     <div className="flex h-full">
@@ -778,6 +789,14 @@ export default function MyTeamPage() {
               </p>
             </div>
             <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setClearConfirmOpen(true)}
+                className="gap-2 text-red-600 border-red-200 hover:bg-red-50"
+                title="Clear all employees for this company"
+              >
+                <Trash2 size={16} /> Clear All
+              </Button>
               <Button
                 variant="outline"
                 onClick={() => navigate("/my-team/import")}
@@ -1072,6 +1091,33 @@ export default function MyTeamPage() {
               onClick={() => removeId != null && removeMutation.mutate({ id: removeId, companyId: activeCompanyId ?? undefined })}
             >
               {removeMutation.isPending ? "Processing…" : "Confirm Offboard"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Clear All Employees Confirmation Dialog */}
+      <Dialog open={clearConfirmOpen} onOpenChange={setClearConfirmOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <Trash2 size={18} className="text-red-500" />
+              Clear All Employees
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-gray-600">
+            This will <strong>permanently delete all employee records</strong> for this company.
+            All attendance, payroll, and leave data linked to these employees will also be removed.
+            This action <strong>cannot be undone</strong>.
+          </p>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setClearConfirmOpen(false)}>Cancel</Button>
+            <Button
+              className="bg-red-600 hover:bg-red-700 text-white"
+              disabled={clearAllMutation.isPending}
+              onClick={() => clearAllMutation.mutate({ companyId: activeCompanyId ?? undefined })}
+            >
+              {clearAllMutation.isPending ? "Clearing…" : "Yes, Clear All"}
             </Button>
           </DialogFooter>
         </DialogContent>

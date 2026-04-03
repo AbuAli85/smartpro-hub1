@@ -192,7 +192,7 @@ export default function HRLeavePage() {
 
   const { data: leaveRequests, isLoading: leaveLoading, refetch: refetchLeave } = trpc.hr.listLeave.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
   const { data: payrollRecords, isLoading: payrollLoading, refetch: refetchPayroll } = trpc.hr.listPayroll.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
-  const { data: employees } = trpc.hr.listEmployees.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
+  const { data: employees } = trpc.hr.listEmployees.useQuery({ status: "active", companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
 
   // Build employee name lookup
   const empNames = useMemo(() => {

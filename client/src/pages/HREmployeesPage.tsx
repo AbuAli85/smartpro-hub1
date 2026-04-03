@@ -362,7 +362,7 @@ function EmployeeDetailPanel({ employeeId, onClose, onUpdate }: { employeeId: nu
 
 export default function HREmployeesPage() {
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("active");
   const [deptFilter, setDeptFilter] = useState("all");
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const { activeCompanyId } = useActiveCompany();

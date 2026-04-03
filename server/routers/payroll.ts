@@ -144,11 +144,11 @@ function buildWpsCsv(lines: Array<{
 export const payrollRouter = router({
   /** List all payroll runs for the company */
   listRuns: protectedProcedure
-    .input(z.object({ year: z.number().optional(), status: z.string().optional() }))
+    .input(z.object({ year: z.number().optional(), status: z.string().optional(), companyId: z.number().optional() }))
     .query(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-      const m = await getActiveCompanyMembership(ctx.user.id);
+      const m = await getActiveCompanyMembership(ctx.user.id, input.companyId);
       if (!m) throw new TRPCError({ code: "FORBIDDEN", message: "Not a company member" });
       const conditions = [eq(payrollRuns.companyId, m.companyId)];
       if (input.year) conditions.push(eq(payrollRuns.periodYear, input.year));
@@ -467,10 +467,11 @@ export const payrollRouter = router({
 
   /** Get payroll summary stats */
   getSummary: protectedProcedure
-    .query(async ({ ctx }) => {
+    .input(z.object({ companyId: z.number().optional() }).optional())
+    .query(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-      const m = await getActiveCompanyMembership(ctx.user.id);
+      const m = await getActiveCompanyMembership(ctx.user.id, input?.companyId);
       if (!m) throw new TRPCError({ code: "FORBIDDEN", message: "Not a company member" });
       const runs = await db.select().from(payrollRuns).where(eq(payrollRuns.companyId, m.companyId)).orderBy(desc(payrollRuns.periodYear), desc(payrollRuns.periodMonth)).limit(12);
       const totalPaidYTD = runs.filter(r => r.status === "paid").reduce((s, r) => s + Number(r.totalNet ?? 0), 0);
@@ -482,10 +483,11 @@ export const payrollRouter = router({
   // ─── SALARY CONFIG ──────────────────────────────────────────────────────────
   /** List salary configs for all employees in the company */
   listSalaryConfigs: protectedProcedure
-    .query(async ({ ctx }) => {
+    .input(z.object({ companyId: z.number().optional() }).optional())
+    .query(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-      const m = await getActiveCompanyMembership(ctx.user.id);
+      const m = await getActiveCompanyMembership(ctx.user.id, input?.companyId);
       if (!m) throw new TRPCError({ code: "FORBIDDEN", message: "Not a company member" });
       const configs = await db
         .select({
@@ -562,10 +564,11 @@ export const payrollRouter = router({
   // ─── SALARY LOANS ───────────────────────────────────────────────────────────
   /** List salary loans for the company */
   listLoans: protectedProcedure
-    .query(async ({ ctx }) => {
+    .input(z.object({ companyId: z.number().optional() }).optional())
+    .query(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-      const m = await getActiveCompanyMembership(ctx.user.id);
+      const m = await getActiveCompanyMembership(ctx.user.id, input?.companyId);
       if (!m) throw new TRPCError({ code: "FORBIDDEN", message: "Not a company member" });
       const loans = await db
         .select({
@@ -663,10 +666,11 @@ export const payrollRouter = router({
    * Returns per-employee compliance level: expired | expiring_30 | expiring_90 | ok | no_data
    */
   getComplianceFlags: protectedProcedure
-    .query(async ({ ctx }) => {
+    .input(z.object({ companyId: z.number().optional() }).optional())
+    .query(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-      const m = await getActiveCompanyMembership(ctx.user.id);
+      const m = await getActiveCompanyMembership(ctx.user.id, input?.companyId);
       if (!m) throw new TRPCError({ code: "FORBIDDEN", message: "Not a company member" });
 
       const now = new Date();

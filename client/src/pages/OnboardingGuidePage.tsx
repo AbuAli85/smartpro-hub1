@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
+import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import {
   seesPlatformOperatorNav,
   isCompanyOwnerNav,
@@ -143,8 +144,9 @@ function ModuleTag({ href, label, icon }: { href: string; label: string; icon: R
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function OnboardingGuidePage() {
+  const { activeCompanyId } = useActiveCompany();
   const { user } = useAuth();
-  const { data: myCompany } = trpc.companies.myCompany.useQuery();
+  const { data: myCompany } = trpc.companies.myCompany.useQuery({ companyId: activeCompanyId ?? undefined });
 
   const [readSections, setReadSections] = useState<Set<string>>(getReadSections);
 

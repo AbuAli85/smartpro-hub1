@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { useLocation } from "wouter";
 import { NATIONALITIES, PROFESSIONS } from "@/lib/nationalities";
 import { trpc } from "@/lib/trpc";
+import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { toast } from "sonner";
 import {
   Users, UserPlus, Search, Briefcase, Mail, Phone, Building2,
@@ -713,6 +714,7 @@ function StaffCard({
 
 export default function MyTeamPage() {
   const [, navigate] = useLocation();
+  const { activeCompanyId } = useActiveCompany();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [deptFilter, setDeptFilter] = useState<string>("all");
@@ -725,12 +727,13 @@ export default function MyTeamPage() {
   const utils = trpc.useUtils();
 
   const { data: members = [], isLoading } = trpc.team.listMembers.useQuery({
+    companyId: activeCompanyId ?? undefined,
     search: search || undefined,
     status: statusFilter !== "all" ? (statusFilter as any) : undefined,
     department: deptFilter !== "all" ? deptFilter : undefined,
   });
 
-  const { data: stats } = trpc.team.getTeamStats.useQuery();
+  const { data: stats } = trpc.team.getTeamStats.useQuery({ companyId: activeCompanyId ?? undefined });
 
   const removeMutation = trpc.team.removeMember.useMutation({
     onSuccess: () => {

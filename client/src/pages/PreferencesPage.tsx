@@ -10,6 +10,7 @@ import {
 import { OPTIONAL_NAV_HREFS, shouldUsePortalOnlyShell } from "@shared/clientNav";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
+import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 
 const OPTIONAL_LABELS: Record<string, string> = {
   "/analytics": "Analytics",
@@ -20,8 +21,9 @@ const OPTIONAL_LABELS: Record<string, string> = {
 };
 
 export default function PreferencesPage() {
+  const { activeCompanyId } = useActiveCompany();
   const { user } = useAuth();
-  const { data: myCompany, isLoading: myCompanyLoading } = trpc.companies.myCompany.useQuery();
+  const { data: myCompany, isLoading: myCompanyLoading } = trpc.companies.myCompany.useQuery({ companyId: activeCompanyId ?? undefined });
   const [hidden, setHidden] = useState<Set<string>>(() => getHiddenNavHrefs());
 
   useEffect(() => {

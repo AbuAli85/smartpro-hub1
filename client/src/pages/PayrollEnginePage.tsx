@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
+import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -55,6 +56,7 @@ const statusColor: Record<string, string> = {
 
 export default function PayrollEnginePage() {
   const { user } = useAuth();
+  const { activeCompanyId } = useActiveCompany();
   const now = new Date();
   const [selectedYear, setSelectedYear] = useState(now.getFullYear());
   const [selectedRunId, setSelectedRunId] = useState<number | null>(null);
@@ -88,14 +90,14 @@ export default function PayrollEnginePage() {
     reason: "",
   });
 
-  const { data: summary, refetch: refetchSummary } = trpc.payroll.getSummary.useQuery();
-  const { data: runs, refetch: refetchRuns } = trpc.payroll.listRuns.useQuery({ year: selectedYear });
+  const { data: summary, refetch: refetchSummary } = trpc.payroll.getSummary.useQuery({ companyId: activeCompanyId ?? undefined });
+  const { data: runs, refetch: refetchRuns } = trpc.payroll.listRuns.useQuery({ year: selectedYear, companyId: activeCompanyId ?? undefined });
   const { data: runDetail, refetch: refetchDetail } = trpc.payroll.getRun.useQuery(
     { runId: selectedRunId! },
     { enabled: !!selectedRunId }
   );
-  const { data: salaryConfigs, refetch: refetchConfigs } = trpc.payroll.listSalaryConfigs.useQuery();
-  const { data: loans, refetch: refetchLoans } = trpc.payroll.listLoans.useQuery();
+  const { data: salaryConfigs, refetch: refetchConfigs } = trpc.payroll.listSalaryConfigs.useQuery({ companyId: activeCompanyId ?? undefined });
+  const { data: loans, refetch: refetchLoans } = trpc.payroll.listLoans.useQuery({ companyId: activeCompanyId ?? undefined });
   const { data: empListData } = trpc.workforce.employees.list.useQuery({});
   const empList = empListData?.items;
 

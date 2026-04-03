@@ -310,11 +310,12 @@ export const companiesRouter = router({
     .input(z.object({
       memberId: z.number(),
       role: z.enum(["company_admin", "company_member", "finance_admin", "hr_admin", "reviewer", "client", "external_auditor"]),
+      companyId: z.number().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      const membership = await getUserCompany(ctx.user.id);
+      const membership = input.companyId ? await getUserCompanyById(ctx.user.id, input.companyId) : await getUserCompany(ctx.user.id);
       if (!membership) throw new TRPCError({ code: "FORBIDDEN" });
       if (!canAccessGlobalAdminProcedures(ctx.user)) await assertCompanyAdmin(ctx.user.id, membership.company.id);
       const [target] = await db
@@ -336,11 +337,11 @@ export const companiesRouter = router({
 
   /** Deactivate (soft-remove) a member from the caller's company */
   removeMember: protectedProcedure
-    .input(z.object({ memberId: z.number() }))
+    .input(z.object({ memberId: z.number(), companyId: z.number().optional() }))
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      const membership = await getUserCompany(ctx.user.id);
+      const membership = input.companyId ? await getUserCompanyById(ctx.user.id, input.companyId) : await getUserCompany(ctx.user.id);
       if (!membership) throw new TRPCError({ code: "FORBIDDEN" });
       if (!canAccessGlobalAdminProcedures(ctx.user)) await assertCompanyAdmin(ctx.user.id, membership.company.id);
       const [target] = await db
@@ -356,11 +357,11 @@ export const companiesRouter = router({
 
   /** Reactivate a previously removed member */
   reactivateMember: protectedProcedure
-    .input(z.object({ memberId: z.number() }))
+    .input(z.object({ memberId: z.number(), companyId: z.number().optional() }))
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      const membership = await getUserCompany(ctx.user.id);
+      const membership = input.companyId ? await getUserCompanyById(ctx.user.id, input.companyId) : await getUserCompany(ctx.user.id);
       if (!membership) throw new TRPCError({ code: "FORBIDDEN" });
       if (!canAccessGlobalAdminProcedures(ctx.user)) await assertCompanyAdmin(ctx.user.id, membership.company.id);
       const [target] = await db
@@ -378,11 +379,12 @@ export const companiesRouter = router({
     .input(z.object({
       email: z.string().email(),
       role: z.enum(["company_admin", "company_member", "finance_admin", "hr_admin", "reviewer", "client", "external_auditor"]).default("company_member"),
+      companyId: z.number().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      const membership = await getUserCompany(ctx.user.id);
+      const membership = input.companyId ? await getUserCompanyById(ctx.user.id, input.companyId) : await getUserCompany(ctx.user.id);
       if (!membership) throw new TRPCError({ code: "FORBIDDEN" });
       if (!canAccessGlobalAdminProcedures(ctx.user)) await assertCompanyAdmin(ctx.user.id, membership.company.id);
       const [targetUser] = await db
@@ -469,10 +471,12 @@ export const companiesRouter = router({
     }),
 
   /** List all invites for the caller's company (pending, accepted, revoked). */
-  listInvites: protectedProcedure.query(async ({ ctx }) => {
+  listInvites: protectedProcedure
+    .input(z.object({ companyId: z.number().optional() }).optional())
+    .query(async ({ ctx, input }) => {
     const db = await getDb();
     if (!db) return [];
-    const membership = await getUserCompany(ctx.user.id);
+    const membership = input?.companyId ? await getUserCompanyById(ctx.user.id, input.companyId) : await getUserCompany(ctx.user.id);
     if (!membership) return [];
     if (!canAccessGlobalAdminProcedures(ctx.user)) await assertCompanyAdmin(ctx.user.id, membership.company.id);
     return db

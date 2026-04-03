@@ -243,7 +243,7 @@ export default function CompanyAdminPage() {
 
   const isAdmin = user?.role === "admin" || myMembership?.role === "company_admin";
   // Invite pipeline queries and mutations (must be after isAdmin)
-  const { data: pendingInvites, refetch: refetchInvites } = trpc.companies.listInvites.useQuery(undefined, { enabled: isAdmin });
+  const { data: pendingInvites, refetch: refetchInvites } = trpc.companies.listInvites.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: isAdmin });
   const createInvite = trpc.companies.createInvite.useMutation({
     onSuccess: (data) => {
       setInviteResult({ inviteUrl: data.inviteUrl, expiresAt: new Date(data.expiresAt) });
@@ -793,7 +793,7 @@ export default function CompanyAdminPage() {
                                   variant="outline"
                                   size="sm"
                                   className="h-7 px-2 gap-1 text-xs"
-                                  onClick={() => reactivateMember.mutate({ memberId: m.memberId })}
+                                  onClick={() => reactivateMember.mutate({ memberId: m.memberId, companyId: activeCompanyId ?? undefined })}
                                   disabled={reactivateMember.isPending}
                                 >
                                   <RefreshCw className="w-3 h-3" />
@@ -895,7 +895,7 @@ export default function CompanyAdminPage() {
                 onChange={(e) => setAddEmail(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && addEmail && !addMember.isPending)
-                    addMember.mutate({ email: addEmail, role: addRole as Parameters<typeof addMember.mutate>[0]['role'] });
+                    addMember.mutate({ email: addEmail, role: addRole as Parameters<typeof addMember.mutate>[0]['role'], companyId: activeCompanyId ?? undefined });
                 }}
               />
               <p className="text-xs text-muted-foreground">
@@ -929,7 +929,7 @@ export default function CompanyAdminPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setAddMemberDialog(false)}>Cancel</Button>
             <Button
-              onClick={() => addMember.mutate({ email: addEmail, role: addRole as Parameters<typeof addMember.mutate>[0]['role'] })}
+              onClick={() => addMember.mutate({ email: addEmail, role: addRole as Parameters<typeof addMember.mutate>[0]['role'], companyId: activeCompanyId ?? undefined })}
               disabled={!addEmail.trim() || addMember.isPending}
               className="gap-2"
             >
@@ -980,7 +980,7 @@ export default function CompanyAdminPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setRoleDialog(null)}>Cancel</Button>
             <Button
-              onClick={() => roleDialog && updateRole.mutate({ memberId: roleDialog.memberId, role: newRole as Parameters<typeof updateRole.mutate>[0]['role'] })}
+              onClick={() => roleDialog && updateRole.mutate({ memberId: roleDialog.memberId, role: newRole as Parameters<typeof updateRole.mutate>[0]['role'], companyId: activeCompanyId ?? undefined })}
               disabled={!roleDialog || newRole === roleDialog?.currentRole || updateRole.isPending}
               className="gap-2"
             >
@@ -1083,7 +1083,7 @@ export default function CompanyAdminPage() {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={() => removeDialog && removeMember.mutate({ memberId: removeDialog.memberId })}
+              onClick={() => removeDialog && removeMember.mutate({ memberId: removeDialog.memberId, companyId: activeCompanyId ?? undefined })}
             >
               {removeMember.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
               Remove Member

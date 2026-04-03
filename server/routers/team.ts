@@ -8,21 +8,26 @@ import {
 } from "../db";
 import { getDb } from "../db";
 import { employees } from "../../drizzle/schema";
-import { getActiveCompanyMembership } from "../_core/membership";
+import { getActiveCompanyMembership, requireActiveCompanyMembership } from "../_core/membership";
 import { requireNotAuditor } from "../_core/membership";
 import { assertRowBelongsToActiveCompany } from "../_core/tenant";
 import { protectedProcedure, router } from "../_core/trpc";
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
-async function requireCompanyId(userId: number): Promise<number> {
-  const m = await getActiveCompanyMembership(userId);
+/**
+ * Resolves the company ID for the current user.
+ * If companyId is provided, validates the user is a member of that company.
+ * Otherwise falls back to the user's first active company membership.
+ */
+async function requireCompanyId(userId: number, companyId?: number | null): Promise<number> {
+  const m = await getActiveCompanyMembership(userId, companyId);
   if (!m) throw new TRPCError({ code: "FORBIDDEN", message: "No active company membership." });
   return m.companyId;
 }
 
-async function requireMembership(userId: number) {
-  const m = await getActiveCompanyMembership(userId);
+async function requireMembership(userId: number, companyId?: number | null) {
+  const m = await getActiveCompanyMembership(userId, companyId);
   if (!m) throw new TRPCError({ code: "FORBIDDEN", message: "No active company membership." });
   return m;
 }
@@ -93,13 +98,14 @@ export const teamRouter = router({
   listMembers: protectedProcedure
     .input(
       z.object({
+        companyId: z.number().optional(),
         search: z.string().optional(),
         status: z.enum(["active", "on_leave", "terminated", "resigned"]).optional(),
         department: z.string().optional(),
       })
     )
     .query(async ({ input, ctx }) => {
-      const companyId = await requireCompanyId(ctx.user.id);
+      const companyId = await requireCompanyId(ctx.user.id, input.companyId);
       const rows = await getEmployees(companyId, {
         status: input.status,
         department: input.department,
@@ -118,11 +124,11 @@ export const teamRouter = router({
 
   /** Full profile of a single staff member */
   getMember: protectedProcedure
-    .input(z.object({ id: z.number() }))
+    .input(z.object({ id: z.number(), companyId: z.number().optional() }))
     .query(async ({ input, ctx }) => {
       const emp = await getEmployeeById(input.id);
       if (!emp) throw new TRPCError({ code: "NOT_FOUND", message: "Staff member not found." });
-      await assertRowBelongsToActiveCompany(ctx.user, emp.companyId, "Staff member");
+      await assertRowBelongsToActiveCompany(ctx.user, emp.companyId, "Staff member", input.companyId);
       return emp;
     }),
 
@@ -130,6 +136,7 @@ export const teamRouter = router({
   addMember: protectedProcedure
     .input(
       z.object({
+        companyId: z.number().optional(),
         firstName: z.string().min(1, "First name is required"),
         lastName: z.string().min(1, "Last name is required"),
         email: z.string().email().optional().or(z.literal("")),
@@ -154,14 +161,15 @@ export const teamRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
-      const membership = await requireMembership(ctx.user.id);
+      const membership = await requireMembership(ctx.user.id, input.companyId);
       requireNotAuditor(membership.role, "External Auditors cannot add staff.");
+      const { companyId: _cid, ...rest } = input;
       await createEmployee({
-        ...input,
-        email: input.email || undefined,
+        ...rest,
+        email: rest.email || undefined,
         companyId: membership.companyId,
-        salary: input.salary != null ? String(input.salary) : undefined,
-        hireDate: input.hireDate ? new Date(input.hireDate) : undefined,
+        salary: rest.salary != null ? String(rest.salary) : undefined,
+        hireDate: rest.hireDate ? new Date(rest.hireDate) : undefined,
       });
       return { success: true };
     }),
@@ -171,6 +179,7 @@ export const teamRouter = router({
     .input(
       z.object({
         id: z.number(),
+        companyId: z.number().optional(),
         firstName: z.string().optional(),
         lastName: z.string().optional(),
         email: z.string().email().optional().or(z.literal("")),
@@ -195,12 +204,12 @@ export const teamRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
-      const membership = await requireMembership(ctx.user.id);
+      const membership = await requireMembership(ctx.user.id, input.companyId);
       requireNotAuditor(membership.role, "External Auditors cannot update staff.");
-      const { id, ...data } = input;
+      const { id, companyId: _cid, ...data } = input;
       const existing = await getEmployeeById(id);
       if (!existing) throw new TRPCError({ code: "NOT_FOUND", message: "Staff member not found." });
-      await assertRowBelongsToActiveCompany(ctx.user, existing.companyId, "Staff member");
+      await assertRowBelongsToActiveCompany(ctx.user, existing.companyId, "Staff member", input.companyId);
       const updateData: Record<string, unknown> = { ...data };
       if (data.salary != null) updateData.salary = String(data.salary);
       if ("email" in data && data.email === "") updateData.email = null;
@@ -210,13 +219,13 @@ export const teamRouter = router({
 
   /** Soft-delete / offboard a staff member (sets status to terminated) */
   removeMember: protectedProcedure
-    .input(z.object({ id: z.number(), reason: z.string().optional() }))
+    .input(z.object({ id: z.number(), companyId: z.number().optional(), reason: z.string().optional() }))
     .mutation(async ({ input, ctx }) => {
-      const membership = await requireMembership(ctx.user.id);
+      const membership = await requireMembership(ctx.user.id, input.companyId);
       requireNotAuditor(membership.role, "External Auditors cannot remove staff.");
       const existing = await getEmployeeById(input.id);
       if (!existing) throw new TRPCError({ code: "NOT_FOUND", message: "Staff member not found." });
-      await assertRowBelongsToActiveCompany(ctx.user, existing.companyId, "Staff member");
+      await assertRowBelongsToActiveCompany(ctx.user, existing.companyId, "Staff member", input.companyId);
       await updateEmployee(input.id, {
         status: "terminated",
         terminationDate: new Date(),
@@ -225,37 +234,39 @@ export const teamRouter = router({
     }),
 
   /** Team statistics: headcount, status breakdown, department breakdown, recent hires */
-  getTeamStats: protectedProcedure.query(async ({ ctx }) => {
-    const companyId = await requireCompanyId(ctx.user.id);
-    const all = await getEmployees(companyId, {});
+  getTeamStats: protectedProcedure
+    .input(z.object({ companyId: z.number().optional() }).optional())
+    .query(async ({ input, ctx }) => {
+      const companyId = await requireCompanyId(ctx.user.id, input?.companyId);
+      const all = await getEmployees(companyId, {});
 
-    const byStatus: Record<string, number> = {};
-    const byDept: Record<string, number> = {};
-    const recentHires: typeof all = [];
-    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      const byStatus: Record<string, number> = {};
+      const byDept: Record<string, number> = {};
+      const recentHires: typeof all = [];
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
-    for (const e of all) {
-      byStatus[e.status] = (byStatus[e.status] ?? 0) + 1;
-      const dept = e.department ?? "Unassigned";
-      byDept[dept] = (byDept[dept] ?? 0) + 1;
-      if (e.hireDate && new Date(e.hireDate) >= thirtyDaysAgo) {
-        recentHires.push(e);
+      for (const e of all) {
+        byStatus[e.status] = (byStatus[e.status] ?? 0) + 1;
+        const dept = e.department ?? "Unassigned";
+        byDept[dept] = (byDept[dept] ?? 0) + 1;
+        if (e.hireDate && new Date(e.hireDate) >= thirtyDaysAgo) {
+          recentHires.push(e);
+        }
       }
-    }
 
-    return {
-      total: all.length,
-      active: byStatus["active"] ?? 0,
-      onLeave: byStatus["on_leave"] ?? 0,
-      terminated: byStatus["terminated"] ?? 0,
-      resigned: byStatus["resigned"] ?? 0,
-      byStatus,
-      byDepartment: Object.entries(byDept)
-        .map(([dept, count]) => ({ dept, count }))
-        .sort((a, b) => b.count - a.count),
-      recentHires: recentHires.slice(0, 5),
-    };
-  }),
+      return {
+        total: all.length,
+        active: byStatus["active"] ?? 0,
+        onLeave: byStatus["on_leave"] ?? 0,
+        terminated: byStatus["terminated"] ?? 0,
+        resigned: byStatus["resigned"] ?? 0,
+        byStatus,
+        byDepartment: Object.entries(byDept)
+          .map(([dept, count]) => ({ dept, count }))
+          .sort((a, b) => b.count - a.count),
+        recentHires: recentHires.slice(0, 5),
+      };
+    }),
 
   /**
    * Bulk import employees from a parsed Excel/CSV payload.
@@ -265,13 +276,14 @@ export const teamRouter = router({
   bulkImport: protectedProcedure
     .input(
       z.object({
+        companyId: z.number().optional(),
         rows: z.array(importRowSchema),
         /** If true, skip rows where civil number already exists in the company */
         skipDuplicates: z.boolean().default(true),
       })
     )
     .mutation(async ({ input, ctx }) => {
-      const membership = await requireMembership(ctx.user.id);
+      const membership = await requireMembership(ctx.user.id, input.companyId);
       requireNotAuditor(membership.role, "External Auditors cannot import staff.");
 
       const companyId = membership.companyId;

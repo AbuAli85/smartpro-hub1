@@ -153,7 +153,7 @@ export default function BusinessDashboardPage() {
   const { activeCompanyId } = useActiveCompany();
   const { data: company } = trpc.companies.myCompany.useQuery({ companyId: activeCompanyId ?? undefined });
   const { data: stats, isLoading: statsLoading } = trpc.companies.myStats.useQuery({ companyId: activeCompanyId ?? undefined });
-  const { data: teamStats, isLoading: teamLoading } = trpc.team.getTeamStats.useQuery();
+  const { data: teamStats, isLoading: teamLoading } = trpc.team.getTeamStats.useQuery({ companyId: activeCompanyId ?? undefined });
   const { data: tasks, isLoading: tasksLoading } = trpc.operations.getTodaysTasks.useQuery();
   const { data: smartDash } = trpc.operations.getSmartDashboard.useQuery();
   const { data: payrollRuns } = trpc.payroll.listRuns.useQuery({ year: new Date().getFullYear() });

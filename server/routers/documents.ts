@@ -159,9 +159,9 @@ export const documentsRouter = router({
       if (input.issuingAuthority !== undefined)
         updateData.issuingAuthority = input.issuingAuthority;
       if (input.issueDate !== undefined)
-        updateData.issueDate = input.issueDate ?? null;
+        updateData.issueDate = input.issueDate ? new Date(input.issueDate) : null;
       if (input.expiryDate !== undefined)
-        updateData.expiryDate = input.expiryDate ?? null;
+        updateData.expiryDate = input.expiryDate ? new Date(input.expiryDate) : null;
       if (input.notes !== undefined) updateData.notes = input.notes;
 
       await db

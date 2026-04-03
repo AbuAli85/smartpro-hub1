@@ -131,6 +131,15 @@ function StaffFormDialog({
 
   const isPending = addMutation.isPending || updateMutation.isPending;
 
+  // Defensive guard: Superjson may deserialize date columns as Date objects;
+  // always convert to YYYY-MM-DD string before sending to tRPC
+  function toDateStr(v: unknown): string | undefined {
+    if (!v) return undefined;
+    if (v instanceof Date) return v.toISOString().split("T")[0];
+    const s = String(v).trim();
+    return s || undefined;
+  }
+
   function handleSubmit() {
     const payload = {
       ...form,
@@ -140,13 +149,13 @@ function StaffFormDialog({
       visaNumber: form.visaNumber || undefined,
       occupationCode: form.occupationCode || undefined,
       occupationName: form.occupationName || undefined,
-      workPermitExpiry: form.workPermitExpiry || undefined,
-      dateOfBirth: form.dateOfBirth || undefined,
+      workPermitExpiry: toDateStr(form.workPermitExpiry),
+      dateOfBirth: toDateStr(form.dateOfBirth),
       gender: (form.gender as any) || undefined,
       maritalStatus: (form.maritalStatus as any) || undefined,
       profession: form.profession || undefined,
-      visaExpiryDate: form.visaExpiryDate || undefined,
-      workPermitExpiryDate: form.workPermitExpiryDate || undefined,
+      visaExpiryDate: toDateStr(form.visaExpiryDate),
+      workPermitExpiryDate: toDateStr(form.workPermitExpiryDate),
       pasiNumber: form.pasiNumber || undefined,
       bankName: form.bankName || undefined,
       bankAccountNumber: form.bankAccountNumber || undefined,
@@ -1061,7 +1070,7 @@ export default function MyTeamPage() {
             passportNumber: editMember.passportNumber ?? "",
             nationalId: editMember.nationalId ?? "",
             dateOfBirth: editMember.dateOfBirth
-              ? (editMember.dateOfBirth instanceof Date ? editMember.dateOfBirth.toISOString().split("T")[0] : String(editMember.dateOfBirth))
+              ? new Date(editMember.dateOfBirth).toISOString().split("T")[0]
               : "",
             gender: editMember.gender ?? "",
             maritalStatus: editMember.maritalStatus ?? "",
@@ -1078,10 +1087,10 @@ export default function MyTeamPage() {
             workPermitNumber: editMember.workPermitNumber ?? "",
             visaNumber: editMember.visaNumber ?? "",
             visaExpiryDate: editMember.visaExpiryDate
-              ? (editMember.visaExpiryDate instanceof Date ? editMember.visaExpiryDate.toISOString().split("T")[0] : String(editMember.visaExpiryDate))
+              ? new Date(editMember.visaExpiryDate).toISOString().split("T")[0]
               : "",
             workPermitExpiryDate: editMember.workPermitExpiryDate
-              ? (editMember.workPermitExpiryDate instanceof Date ? editMember.workPermitExpiryDate.toISOString().split("T")[0] : String(editMember.workPermitExpiryDate))
+              ? new Date(editMember.workPermitExpiryDate).toISOString().split("T")[0]
               : "",
             pasiNumber: editMember.pasiNumber ?? "",
             bankName: editMember.bankName ?? "",

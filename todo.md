@@ -1261,3 +1261,12 @@ Every company on SmartPRO Hub gets a complete, unified business operating area â
 - [x] Expose activeCompanyId in ActiveCompanyContext so all pages can use it directly
 - [x] Update Dashboard, CompanyWorkspacePage, BusinessDashboardPage to use activeCompanyId
 - [x] Verify: switching companies in sidebar immediately refreshes all page data to show new company's data
+
+## Phase 54: Fix Critical Multi-Company Bugs
+- [x] Fix Excel bulk import: bulkImport procedure must accept companyId and use it when inserting employees
+- [x] Fix Excel bulk import: EmployeeImportPage must pass activeCompanyId when calling bulkImport mutation
+- [x] Fix stat badges: getAlertBadgeCount now accepts companyId and scopes to active company
+- [x] Fix sidebar: PlatformLayout now uses activeCompanyId for myCompany query so memberRole is correct per active company
+- [x] Fix sidebar: NotificationBell now uses activeCompanyId for leave and alert queries
+- [x] Fix sidebar: company_member role correctly blocked from admin-only sections via clientNavItemVisible
+- [x] Fix sidebar: hr_admin/finance_admin roles correctly filtered via clientNavItemVisible

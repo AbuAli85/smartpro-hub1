@@ -67,6 +67,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import { CompanySwitcher } from "@/components/CompanySwitcher";
+import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 
 interface NavItem {
   label: string;
@@ -177,7 +178,8 @@ const navGroups = [
 function SidebarContent({ onClose }: { onClose?: () => void }) {
   const [location] = useLocation();
   const { user, logout } = useAuth();
-  const { data: myCompany, isLoading: myCompanyLoading } = trpc.companies.myCompany.useQuery();
+  const { activeCompanyId } = useActiveCompany();
+  const { data: myCompany, isLoading: myCompanyLoading } = trpc.companies.myCompany.useQuery({ companyId: activeCompanyId ?? undefined });
   const [navPrefsEpoch, setNavPrefsEpoch] = useState(0);
 
   useEffect(() => {
@@ -299,10 +301,11 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
 
 function NotificationBell() {
   const [open, setOpen] = useState(false);
+  const { activeCompanyId } = useActiveCompany();
   const { data: proServices } = trpc.pro.list.useQuery({ status: "expiring_soon" });
   const { data: contracts } = trpc.contracts.list.useQuery({ status: "pending_signature" });
-  const { data: leaveRequests } = trpc.hr.listLeave.useQuery({});
-  const { data: alertBadge } = trpc.alerts.getAlertBadgeCount.useQuery();
+  const { data: leaveRequests } = trpc.hr.listLeave.useQuery({ companyId: activeCompanyId ?? undefined });
+  const { data: alertBadge } = trpc.alerts.getAlertBadgeCount.useQuery({ companyId: activeCompanyId ?? undefined });
   const notifications = useMemo(() => {
     const items: { id: string; title: string; desc: string; type: "warning" | "info" | "action" }[] = [];
     (proServices ?? []).slice(0, 3).forEach((s) => {

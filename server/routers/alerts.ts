@@ -2,7 +2,7 @@ import { TRPCError } from "@trpc/server";
 import { and, asc, eq, gte, lte, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { canAccessGlobalAdminProcedures } from "@shared/rbac";
-import { getDb, getUserCompany } from "../db";
+import { getDb, getUserCompany, getUserCompanyById } from "../db";
 import {
   companies,
   employeeDocuments,
@@ -510,12 +510,16 @@ export const alertsRouter = router({
    * Get a quick badge count for the notification bell.
    * Returns count of items expiring within 30 days.
    */
-  getAlertBadgeCount: protectedProcedure.query(async ({ ctx }) => {
+  getAlertBadgeCount: protectedProcedure
+    .input(z.object({ companyId: z.number().optional() }).optional())
+    .query(async ({ input, ctx }) => {
     const db = await getDb();
     if (!db) return { count: 0, critical: 0 };
 
     const isGlobal = canAccessGlobalAdminProcedures(ctx.user);
-    const tenant = await getUserCompany(ctx.user.id);
+    const tenant = input?.companyId
+      ? await getUserCompanyById(ctx.user.id, input.companyId)
+      : await getUserCompany(ctx.user.id);
     const tenantCompanyId = tenant?.company?.id ?? null;
 
     if (!isGlobal && tenantCompanyId == null) {

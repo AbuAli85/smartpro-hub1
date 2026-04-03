@@ -2,6 +2,7 @@ import { useState, useCallback, useRef } from "react";
 import { useLocation } from "wouter";
 import * as XLSX from "xlsx";
 import { trpc } from "@/lib/trpc";
+import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
@@ -202,6 +203,7 @@ function StatusBadge({ status }: { status: string }) {
 
 export default function EmployeeImportPage() {
   const [, navigate] = useLocation();
+  const { activeCompanyId } = useActiveCompany();
   const [step, setStep] = useState<"upload" | "preview" | "result">("upload");
   const [rows, setRows] = useState<ParsedRow[]>([]);
   const [result, setResult] = useState<ImportResult | null>(null);
@@ -261,6 +263,7 @@ export default function EmployeeImportPage() {
         emergencyContactPhone: r.emergencyContactPhone || undefined,
       })),
       skipDuplicates,
+      companyId: activeCompanyId ?? undefined,
     });
   };
 

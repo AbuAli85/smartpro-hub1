@@ -1016,3 +1016,38 @@ Every company on SmartPRO Hub gets a complete, unified business operating area �
 - [x] Backend: payroll router has listRuns, createRun, approveRun, markPaid, generatePayslip, generateWpsFile, listSalaryConfigs, upsertSalaryConfig, listLoans, createLoan, getComplianceFlags
 - [x] UI: PayrollEnginePage — full payroll workflow: runs, run detail, salary config, loans, WPS export, payslips
 - [x] 252 tests passing, 0 TypeScript errors after all Phase 40 changes
+
+## Phase 41: AI-Powered HR Letter Generator
+
+### 41A — Database Schema
+- [x] Schema: hr_letters table (id, companyId, employeeId, letterType, language, subject, body, generatedAt, createdBy, issuedTo, referenceNumber, status)
+- [x] Migration: apply schema migration for hr_letters table
+
+### 41B — Backend Procedures
+- [x] Backend: hrLetters.generateLetter procedure — accepts letterType, employeeId, language, customFields; fetches employee + company data; calls LLM to produce bilingual official letter body; saves to hr_letters table; returns letter record
+- [x] Backend: hrLetters.listLetters procedure — list all generated letters for the company
+- [x] Backend: hrLetters.getLetter procedure — get full letter content by id
+- [x] Backend: hrLetters.deleteLetter procedure — soft-delete a letter record
+
+### 41C — Frontend: HRLettersPage
+- [x] UI: HRLettersPage.tsx — main page with two panels: left (generator form), right (letter preview + history)
+- [x] UI: Letter type selector — 8 types: Salary Certificate, Employment Verification, NOC, Experience Letter, Promotion Letter, Salary Transfer Letter, Leave Approval Letter, Warning Letter
+- [x] UI: Employee picker — searchable dropdown from company employees
+- [x] UI: Language toggle — English / Arabic / Both (bilingual)
+- [x] UI: Custom fields — addressee name, purpose/reason, additional notes
+- [x] UI: Generate button — calls LLM procedure with loading state (spinner)
+- [x] UI: Letter preview panel — renders the generated letter with company letterhead (company name, CR number, address, phone)
+- [x] UI: Print button — opens browser print dialog with print-optimized CSS (A4, letterhead, signature line)
+- [x] UI: Copy to clipboard button — copies letter text
+- [x] UI: Letter history tab — table of all previously generated letters with employee name, type, date, view/delete actions
+- [x] UI: View saved letter modal — re-display any previously generated letter from history
+
+### 41D — Route & Navigation
+- [x] Route: /hr/letters registered in App.tsx
+- [x] Nav: "HR Letters" link added to Human Resources sidebar section
+- [x] Nav: /hr/letters added to PORTAL_CLIENT_HREFS in clientNav.ts
+
+### 41E — Tests
+- [x] Vitest: test hrLetters.generateLetter requires authentication
+- [x] Vitest: test hrLetters.listLetters returns empty array when no letters exist
+- [x] Vitest: test hrLetters.getLetter returns NOT_FOUND for unknown id

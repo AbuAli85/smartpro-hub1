@@ -28,6 +28,7 @@ import { slaRouter } from "./routers/sla";
 import { complianceRouter } from "./routers/compliance";
 import { teamRouter } from "./routers/team";
 import { documentsRouter } from "./routers/documents";
+import { hrLettersRouter } from "./routers/hrLetters";
 
 export const appRouter = router({
   system: systemRouter,
@@ -67,6 +68,7 @@ export const appRouter = router({
   compliance: complianceRouter,
   team: teamRouter,
   documents: documentsRouter,
+  hrLetters: hrLettersRouter,
 });
 
 export type AppRouter = typeof appRouter;

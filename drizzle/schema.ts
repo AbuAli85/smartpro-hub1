@@ -1944,3 +1944,28 @@ export const companyDocuments = mysqlTable("company_documents", {
 });
 export type CompanyDocument = typeof companyDocuments.$inferSelect;
 export type InsertCompanyDocument = typeof companyDocuments.$inferInsert;
+
+// ─── HR LETTERS ──────────────────────────────────────────────────────────────
+export const hrLetters = mysqlTable("hr_letters", {
+  id: int("id").autoincrement().primaryKey(),
+  companyId: int("company_id").notNull(),
+  employeeId: int("employee_id").notNull(),
+  letterType: varchar("letter_type", { length: 64 }).notNull(),
+  // e.g. salary_certificate | employment_verification | noc | experience_letter
+  //      promotion_letter | salary_transfer_letter | leave_approval | warning_letter
+  language: varchar("language", { length: 8 }).notNull().default("en"),
+  // "en" | "ar" | "both"
+  referenceNumber: varchar("reference_number", { length: 64 }),
+  subject: varchar("subject", { length: 512 }),
+  bodyEn: text("body_en"),   // English letter body (HTML)
+  bodyAr: text("body_ar"),   // Arabic letter body (HTML)
+  issuedTo: varchar("issued_to", { length: 255 }),  // addressee name
+  purpose: text("purpose"),
+  additionalNotes: text("additional_notes"),
+  isDeleted: boolean("is_deleted").notNull().default(false),
+  createdBy: int("created_by"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+export type HrLetter = typeof hrLetters.$inferSelect;
+export type InsertHrLetter = typeof hrLetters.$inferInsert;

@@ -182,12 +182,15 @@ export const teamRouter = router({
         companyId: z.number().optional(),
         firstName: z.string().optional(),
         lastName: z.string().optional(),
+        firstNameAr: z.string().optional(),
+        lastNameAr: z.string().optional(),
         email: z.string().email().optional().or(z.literal("")),
         phone: z.string().optional(),
         department: z.string().optional(),
         position: z.string().optional(),
         status: z.enum(["active", "on_leave", "terminated", "resigned"]).optional(),
         salary: z.number().positive().optional(),
+        currency: z.string().optional(),
         employmentType: z
           .enum(["full_time", "part_time", "contract", "intern"])
           .optional(),
@@ -201,18 +204,36 @@ export const teamRouter = router({
         occupationCode: z.string().optional(),
         occupationName: z.string().optional(),
         workPermitExpiry: z.string().optional(),
+        // Extended HR fields
+        dateOfBirth: z.string().optional(),
+        gender: z.enum(["male", "female"]).optional(),
+        maritalStatus: z.enum(["single", "married", "divorced", "widowed"]).optional(),
+        profession: z.string().optional(),
+        visaExpiryDate: z.string().optional(),
+        workPermitExpiryDate: z.string().optional(),
+        pasiNumber: z.string().optional(),
+        bankName: z.string().optional(),
+        bankAccountNumber: z.string().optional(),
+        emergencyContactName: z.string().optional(),
+        emergencyContactPhone: z.string().optional(),
       })
     )
     .mutation(async ({ input, ctx }) => {
       const membership = await requireMembership(ctx.user.id, input.companyId);
       requireNotAuditor(membership.role, "External Auditors cannot update staff.");
-      const { id, companyId: _cid, ...data } = input;
+      const { id, companyId: _cid, hireDate, dateOfBirth, visaExpiryDate, workPermitExpiryDate, ...data } = input;
       const existing = await getEmployeeById(id);
       if (!existing) throw new TRPCError({ code: "NOT_FOUND", message: "Staff member not found." });
       await assertRowBelongsToActiveCompany(ctx.user, existing.companyId, "Staff member", input.companyId);
       const updateData: Record<string, unknown> = { ...data };
       if (data.salary != null) updateData.salary = String(data.salary);
       if ("email" in data && data.email === "") updateData.email = null;
+      // timestamp columns require Date objects
+      if (hireDate !== undefined) updateData.hireDate = hireDate ? new Date(hireDate) : null;
+      // date columns accept string values (YYYY-MM-DD)
+      if (dateOfBirth !== undefined) updateData.dateOfBirth = dateOfBirth || null;
+      if (visaExpiryDate !== undefined) updateData.visaExpiryDate = visaExpiryDate || null;
+      if (workPermitExpiryDate !== undefined) updateData.workPermitExpiryDate = workPermitExpiryDate || null;
       await updateEmployee(id, updateData as any);
       return { success: true };
     }),

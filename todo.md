@@ -1350,3 +1350,17 @@ Every company on SmartPRO Hub gets a complete, unified business operating area �
 - [x] Create DocumentExpiryDashboard.tsx page with stats cards, filters, and full employee table
 - [x] Register /hr/expiry-dashboard route in App.tsx
 - [x] Add sidebar link under HR section in PlatformLayout
+
+## Phase 61: RBAC Completion & Smart Login Redirect
+- [x] clientNav.ts: filter sidebar by memberRole — company_admin sees all, hr_admin sees HR modules, finance_admin sees payroll/finance, company_member sees My Portal only
+- [x] PlatformLayout: show clear role badge in sidebar company section (company_admin / hr_admin / finance_admin / company_member)
+- [x] CompanySwitcher: color-coded role badges per company
+- [x] Dashboard.tsx: smart redirect on load based on memberRole — hr_admin → /hr/employees, finance_admin → /payroll, company_member → /my-portal, company_admin stays on /dashboard
+- [x] ClientAccessGate: enforce route-level access control — blocks unauthorized routes and redirects to /dashboard
+- [x] getRoleDefaultRoute() in clientNav.ts: maps each memberRole to its default landing page
+- [x] Document Expiry Dashboard: 6-month timeline chart with clickable bar drill-down
+- [x] HR Compliance Settings: customizable expiryWarningDays per company (7/14/30/60/90 day presets)
+- [x] Expiry indicators: red/amber/green badges on employee cards, detail panels, and form fields
+- [x] Date format standardization: DD/MM/YYYY everywhere, Muscat timezone (UTC+4)
+- [x] Employee CRUD: all fields (personal, employment, government docs, banking, emergency contact)
+- [x] Multi-Company Roles page: manage all users' access across all companies

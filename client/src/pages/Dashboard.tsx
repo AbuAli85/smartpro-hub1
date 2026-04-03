@@ -2,7 +2,7 @@ import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { getHiddenNavHrefs } from "@/lib/navVisibility";
-import { clientNavItemVisible, normalizeClientPath, seesPlatformOperatorNav } from "@shared/clientNav";
+import { clientNavItemVisible, normalizeClientPath, seesPlatformOperatorNav, getRoleDefaultRoute } from "@shared/clientNav";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle, ArrowRight, ArrowUpRight, BarChart3,
@@ -11,7 +11,7 @@ import {
   Globe, Zap, RefreshCw, Award, MapPin, Calendar,
   ChevronRight, Activity, Bell,
 } from "lucide-react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -101,10 +101,26 @@ function ComplianceRow({ label, status, pct }: { label: string; status: "ok" | "
 /* ── Main Dashboard ────────────────────────────────────────────────────── */
 export default function Dashboard() {
   const { user } = useAuth();
-  const { activeCompanyId } = useActiveCompany();
+  const { activeCompanyId, activeCompany, loading: companyLoading } = useActiveCompany();
+  const [, navigate] = useLocation();
   const { data: stats, isLoading } = trpc.companies.myStats.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
   const { data: myCompany, isLoading: myCompanyLoading } = trpc.companies.myCompany.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
   const [navPrefsEpoch, setNavPrefsEpoch] = useState(0);
+
+  // Smart redirect: send non-admin roles to their appropriate default page
+  useEffect(() => {
+    if (companyLoading) return;
+    const memberRole = activeCompany?.role ?? null;
+    if (!memberRole) return;
+    // Platform admins and company_admin stay on the main dashboard
+    if (seesPlatformOperatorNav(user)) return;
+    if (memberRole === "company_admin" || memberRole === "owner") return;
+    // All other roles get redirected to their default page
+    const defaultRoute = getRoleDefaultRoute(memberRole);
+    if (defaultRoute && defaultRoute !== "/dashboard" && defaultRoute !== "/") {
+      navigate(defaultRoute);
+    }
+  }, [activeCompany?.role, companyLoading]);
 
   useEffect(() => {
     const fn = () => setNavPrefsEpoch((n) => n + 1);

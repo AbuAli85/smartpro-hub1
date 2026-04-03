@@ -20,6 +20,42 @@ export const COMPANY_OWNER_HREFS = new Set<string>([
   "/renewal-workflows",
   "/company/team-access",
   "/company/multi-company-roles",
+  "/company/settings",
+]);
+
+/**
+ * Government services & Sanad — platform operators + company_admin only.
+ * HR/Finance managers and field employees should not see these.
+ */
+export const GOVERNMENT_SERVICES_HREFS = new Set<string>([
+  "/sanad",
+  "/sanad/marketplace",
+  "/pro",
+  "/workforce",
+  "/workforce/employees",
+  "/workforce/permits",
+  "/workforce/cases",
+  "/workforce/documents",
+  "/workforce/sync",
+]);
+
+/**
+ * Business / commercial pages — company_admin + finance_admin + reviewer.
+ * HR-only managers should not see CRM, quotations, marketplace.
+ */
+export const BUSINESS_MGMT_HREFS = new Set<string>([
+  "/company/hub",
+  "/quotations",
+  "/marketplace",
+  "/crm",
+]);
+
+/**
+ * Overview items restricted to company_admin and above.
+ * hr_admin and finance_admin see Dashboard only, not Operations Centre.
+ */
+export const COMPANY_ADMIN_OVERVIEW_HREFS = new Set<string>([
+  "/operations",
 ]);
 
 /** Payroll & executive reports — company_admin + finance_admin + hr_admin */
@@ -285,6 +321,27 @@ export function clientNavItemVisible(
     return isCompanyAdminMember(mr) || isHrAdminMember(mr);
   }
 
+  // Government services — platform operators and company_admin only
+  if (GOVERNMENT_SERVICES_HREFS.has(href)) {
+    return seesPlatformOperatorNav(user) || isCompanyOwnerNav(user) || isCompanyAdminMember(options?.memberRole);
+  }
+
+  // Business management pages — not for HR-only or Finance-only managers
+  if (BUSINESS_MGMT_HREFS.has(href)) {
+    if (seesPlatformOperatorNav(user)) return true;
+    const mr = options?.memberRole;
+    // hr_admin should not see CRM/quotations/marketplace — those are business/commercial
+    if (isHrAdminMember(mr)) return false;
+    // company_member cannot see these
+    if (isFieldEmployee(mr)) return false;
+    return true;
+  }
+
+  // Operations Centre — company_admin and platform operators only
+  if (COMPANY_ADMIN_OVERVIEW_HREFS.has(href)) {
+    return seesPlatformOperatorNav(user) || isCompanyOwnerNav(user) || isCompanyAdminMember(options?.memberRole);
+  }
+
   // Field employees (company_member) only see My Portal + preferences
   if (isFieldEmployee(options?.memberRole)) {
     return FIELD_EMPLOYEE_HREFS.has(href);
@@ -386,6 +443,32 @@ export function clientRouteAccessible(
       if (seesPlatformOperatorNav(user)) return true;
       const mr = options?.memberRole;
       if (!isCompanyAdminMember(mr) && !isHrAdminMember(mr)) return false;
+    }
+  }
+
+  // Government services routes: platform operators + company_admin only
+  for (const href of Array.from(GOVERNMENT_SERVICES_HREFS)) {
+    if (pathMatchesRestrictedPrefix(path, href)) {
+      if (seesPlatformOperatorNav(user)) return true;
+      if (isCompanyOwnerNav(user) || isCompanyAdminMember(options?.memberRole)) return true;
+      return false;
+    }
+  }
+
+  // Business management routes: not for hr_admin
+  for (const href of Array.from(BUSINESS_MGMT_HREFS)) {
+    if (pathMatchesRestrictedPrefix(path, href)) {
+      if (seesPlatformOperatorNav(user)) return true;
+      const mr = options?.memberRole;
+      if (isHrAdminMember(mr) || isFieldEmployee(mr)) return false;
+      return true;
+    }
+  }
+
+  // Operations Centre: company_admin and platform operators only
+  for (const href of Array.from(COMPANY_ADMIN_OVERVIEW_HREFS)) {
+    if (pathMatchesRestrictedPrefix(path, href)) {
+      return seesPlatformOperatorNav(user) || isCompanyOwnerNav(user) || isCompanyAdminMember(options?.memberRole);
     }
   }
 

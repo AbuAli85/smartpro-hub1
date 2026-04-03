@@ -19,14 +19,27 @@ import { Building2, ChevronDown, Check, Plus } from "lucide-react";
 import { useLocation } from "wouter";
 
 const ROLE_LABELS: Record<string, string> = {
-  owner: "Owner",
-  company_admin: "Admin",
-  hr_admin: "HR Admin",
-  finance_admin: "Finance",
-  company_member: "Member",
+  owner: "Owner / Admin",
+  company_admin: "Owner / Admin",
+  hr_admin: "HR Manager",
+  finance_admin: "Finance Manager",
+  company_member: "Staff / Employee",
   employee: "Employee",
   reviewer: "Reviewer",
-  auditor: "Auditor",
+  auditor: "External Auditor",
+  external_auditor: "External Auditor",
+};
+
+const ROLE_COLORS: Record<string, string> = {
+  owner: "text-orange-400",
+  company_admin: "text-orange-400",
+  hr_admin: "text-blue-400",
+  finance_admin: "text-green-400",
+  company_member: "text-white/50",
+  employee: "text-white/50",
+  reviewer: "text-purple-400",
+  auditor: "text-yellow-400",
+  external_auditor: "text-yellow-400",
 };
 
 export function CompanySwitcher() {
@@ -76,7 +89,7 @@ export function CompanySwitcher() {
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold text-white truncate leading-tight">{activeCompany.name}</p>
-            <p className="text-xs text-white/60 truncate leading-tight">{roleLabel}</p>
+            <p className={`text-xs font-medium truncate leading-tight ${ROLE_COLORS[activeCompany.role ?? ""] ?? "text-white/60"}`}>{roleLabel}</p>
           </div>
           <ChevronDown
             size={14}

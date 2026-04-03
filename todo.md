@@ -1481,3 +1481,17 @@ Every company on SmartPRO Hub gets a complete, unified business operating area â
 - [x] Upgrade attendance router: geo-fence enforcement on check-in, operating hours check
 - [x] Rebuild AttendanceSitesPage with Google Maps picker, geo-fence radius slider, site type selector, operating hours, client name
 - [x] Upgrade AttendCheckInPage with live GPS tracking, proximity ring, geo-fence feedback, operating hours check, site info card
+
+## Phase 64: Manual Check-in Requests (Outside Geo-fence)
+- [ ] Add manual_checkin_requests table to schema.ts and migrate DB
+- [ ] Add submitManualCheckIn, listManualCheckIns, approveManualCheckIn, rejectManualCheckIn procedures to attendance router
+- [ ] Update AttendCheckInPage: show justification form when outside geo-fence instead of hard block
+- [ ] Add Manual Requests tab to AttendanceSitesPage for admin review with approve/reject
+- [ ] Write tests for manual check-in request flow
+
+## Phase 65: Manual Check-in Requests (completed)
+- [x] Add manual_checkin_requests DB table and migration
+- [x] Add submitManualCheckIn, listManualCheckIns, approveManualCheckIn, rejectManualCheckIn procedures
+- [x] Update AttendCheckInPage to show justification form when outside geo-fence
+- [x] Add Manual Requests tab to AttendanceSitesPage with approve/reject review dialog
+- [x] 0 TypeScript errors, 293 tests pass

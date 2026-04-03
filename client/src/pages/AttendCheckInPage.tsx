@@ -19,10 +19,12 @@ import { getLoginUrl } from "@/const";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import { Textarea } from "@/components/ui/textarea";
 import {
   MapPin, Clock, CheckCircle2, LogIn, LogOut,
   Building2, ShieldCheck, ShieldX, AlertCircle,
   Loader2, Navigation, WifiOff, Timer, LogOut as CheckOutIcon,
+  Send, FileText, CheckCheck,
 } from "lucide-react";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -93,8 +95,10 @@ export default function AttendCheckInPage() {
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [geoError, setGeoError] = useState(false);
   const [geoLoading, setGeoLoading] = useState(true);
-  const [done, setDone] = useState<"checked_in" | "checked_out" | null>(null);
+  const [done, setDone] = useState<"checked_in" | "checked_out" | "manual_submitted" | null>(null);
   const [doneTime, setDoneTime] = useState<Date | null>(null);
+  const [justification, setJustification] = useState("");
+  const [showJustificationForm, setShowJustificationForm] = useState(false);
   const watchRef = useRef<number | null>(null);
   const [now, setNow] = useState(() => new Date());
 
@@ -134,6 +138,28 @@ export default function AttendCheckInPage() {
     onError: (err) => toast.error(err.message || "Check-out failed"),
   });
 
+  const manualCheckInMutation = trpc.attendance.submitManualCheckIn.useMutation({
+    onSuccess: () => {
+      setDone("manual_submitted");
+      setDoneTime(new Date());
+    },
+    onError: (err) => toast.error(err.message || "Request submission failed"),
+  });
+
+  function handleManualSubmit() {
+    if (!justification.trim() || justification.trim().length < 10) {
+      toast.error("Please provide at least 10 characters of justification");
+      return;
+    }
+    manualCheckInMutation.mutate({
+      siteToken: token,
+      justification: justification.trim(),
+      lat: coords?.lat,
+      lng: coords?.lng,
+      distanceMeters: distanceM != null ? Math.round(distanceM) : undefined,
+    });
+  }
+
   // GPS watch
   useEffect(() => {
     if (!navigator.geolocation) { setGeoError(true); setGeoLoading(false); return; }
@@ -151,7 +177,7 @@ export default function AttendCheckInPage() {
   }, []);
 
   const isCheckedIn = !!todayRecord && !todayRecord.checkOut;
-  const isMutating = checkInMutation.isPending || checkOutMutation.isPending;
+  const isMutating = checkInMutation.isPending || checkOutMutation.isPending || manualCheckInMutation.isPending;
 
   // Geo-fence calculation
   const siteLat = site?.lat != null ? parseFloat(String(site.lat)) : null;
@@ -253,6 +279,46 @@ export default function AttendCheckInPage() {
               <LogIn className="w-4 h-4 mr-2" /> Sign In to Continue
             </Button>
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Manual request submitted screen ────────────────────────────────────────
+  if (done === "manual_submitted") {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-[#0a0a14] via-[#0f0f1e] to-[#1a0a0a] flex items-center justify-center p-4">
+        <div className="w-full max-w-xs text-center">
+          <div className="w-24 h-24 rounded-full bg-amber-500/15 border-2 border-amber-500/60 flex items-center justify-center mx-auto mb-6 shadow-xl shadow-amber-500/20">
+            <FileText className="w-12 h-12 text-amber-400" />
+          </div>
+          <h2 className="text-white font-bold text-2xl mb-2">Request Submitted</h2>
+          <p className="text-white/50 text-sm mb-5">
+            Your manual check-in request has been sent to HR for review. You will be notified once it is approved.
+          </p>
+          <div className="rounded-xl bg-white/5 border border-white/10 p-4 text-left space-y-2 mb-4">
+            <div className="flex items-center justify-between">
+              <span className="text-white/40 text-xs">Site</span>
+              <span className="text-white text-sm font-medium">{site.name}</span>
+            </div>
+            {site.clientName && (
+              <div className="flex items-center justify-between">
+                <span className="text-white/40 text-xs">Client</span>
+                <span className="text-white text-sm">{site.clientName}</span>
+              </div>
+            )}
+            <div className="flex items-center justify-between">
+              <span className="text-white/40 text-xs">Submitted at</span>
+              <span className="text-white text-sm font-semibold">{fmtDateTime(doneTime)}</span>
+            </div>
+            {distanceM != null && (
+              <div className="flex items-center justify-between">
+                <span className="text-white/40 text-xs">Distance</span>
+                <span className="text-amber-400 text-sm">{Math.round(distanceM)}m from site</span>
+              </div>
+            )}
+          </div>
+          <p className="text-white/30 text-xs">You can close this page.</p>
         </div>
       </div>
     );
@@ -393,14 +459,66 @@ export default function AttendCheckInPage() {
         )}
       </div>
 
-      {/* Blocking messages */}
-      {geoBlocked && (
-        <div className="w-full max-w-xs rounded-xl bg-red-500/10 border border-red-500/25 p-3 text-center">
-          <ShieldX className="w-5 h-5 text-red-400 mx-auto mb-1" />
-          <p className="text-red-300 text-sm font-medium">Outside geo-fence</p>
-          <p className="text-red-400/70 text-xs mt-0.5">
-            You must be within {siteRadius}m of this site to check in.
-          </p>
+      {/* Geo-fence block: show justification form instead of hard block */}
+      {geoBlocked && !isCheckedIn && (
+        <div className="w-full max-w-xs space-y-3">
+          {!showJustificationForm ? (
+            <div className="rounded-xl bg-red-500/10 border border-red-500/25 p-4 text-center">
+              <ShieldX className="w-5 h-5 text-red-400 mx-auto mb-2" />
+              <p className="text-red-300 text-sm font-semibold">Outside geo-fence</p>
+              <p className="text-red-400/70 text-xs mt-1 mb-3">
+                You are {Math.round(distanceM! - siteRadius)}m outside the allowed boundary.
+                You can submit a manual check-in request for HR approval.
+              </p>
+              <Button
+                size="sm"
+                className="w-full bg-amber-600/80 hover:bg-amber-600 text-white text-xs font-semibold rounded-lg"
+                onClick={() => setShowJustificationForm(true)}
+              >
+                <FileText className="w-3.5 h-3.5 mr-1.5" /> Request Manual Check-in
+              </Button>
+            </div>
+          ) : (
+            <div className="rounded-xl bg-amber-500/10 border border-amber-500/30 p-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <FileText className="w-4 h-4 text-amber-400 shrink-0" />
+                <p className="text-amber-300 text-sm font-semibold">Manual Check-in Request</p>
+              </div>
+              <p className="text-amber-400/70 text-xs">
+                Explain why you are unable to check in from within the geo-fence. HR will review and approve or reject your request.
+              </p>
+              <Textarea
+                value={justification}
+                onChange={(e) => setJustification(e.target.value)}
+                placeholder="e.g. I am at the client site but the GPS is not accurate due to the mall's indoor signal..."
+                className="bg-white/5 border-white/15 text-white placeholder:text-white/25 text-sm resize-none min-h-[90px] rounded-xl"
+                maxLength={500}
+              />
+              <p className="text-white/25 text-xs text-right">{justification.length}/500</p>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="flex-1 border-white/15 text-white/50 hover:text-white text-xs rounded-lg"
+                  onClick={() => { setShowJustificationForm(false); setJustification(""); }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  size="sm"
+                  className="flex-1 bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold rounded-lg"
+                  disabled={justification.trim().length < 10 || manualCheckInMutation.isPending}
+                  onClick={handleManualSubmit}
+                >
+                  {manualCheckInMutation.isPending ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <><Send className="w-3.5 h-3.5 mr-1.5" /> Submit Request</>
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       )}
       {hoursBlocked && (

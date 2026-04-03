@@ -6,6 +6,7 @@ import {
   attendanceSites,
   attendanceRecords,
   employees,
+  manualCheckinRequests,
 } from "../../drizzle/schema";
 import { getDb, getUserCompany } from "../db";
 import { protectedProcedure, publicProcedure, router } from "../_core/trpc";
@@ -463,6 +464,207 @@ export const attendanceRouter = router({
           eq(attendanceRecords.employeeId, input.employeeId),
         ))
         .orderBy(desc(attendanceRecords.checkIn))
+        .limit(input.limit);
+    }),
+
+  // ─── Manual Check-in Requests ──────────────────────────────────────────────
+  /**
+   * Employee submits a manual check-in request when outside the geo-fence.
+   * Requires a justification note. HR admin must approve for attendance to be recorded.
+   */
+  submitManualCheckIn: protectedProcedure
+    .input(z.object({
+      siteToken: z.string(),
+      justification: z.string().min(10, "Please provide at least 10 characters of justification"),
+      lat: z.number().optional(),
+      lng: z.number().optional(),
+      distanceMeters: z.number().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await requireDb();
+      const membership = await getUserCompany(ctx.user.id);
+      if (!membership) throw new TRPCError({ code: "FORBIDDEN", message: "No company membership" });
+
+      // Resolve site
+      const [site] = await db
+        .select()
+        .from(attendanceSites)
+        .where(and(
+          eq(attendanceSites.qrToken, input.siteToken),
+          eq(attendanceSites.isActive, true),
+        ))
+        .limit(1);
+      if (!site) throw new TRPCError({ code: "NOT_FOUND", message: "Invalid or inactive site" });
+
+      // Check for duplicate pending request today
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+      const [existing] = await db
+        .select()
+        .from(manualCheckinRequests)
+        .where(and(
+          eq(manualCheckinRequests.employeeUserId, ctx.user.id),
+          eq(manualCheckinRequests.siteId, site.id),
+          eq(manualCheckinRequests.status, "pending"),
+          gte(manualCheckinRequests.requestedAt, todayStart),
+        ))
+        .limit(1);
+      if (existing) throw new TRPCError({ code: "CONFLICT", message: "You already have a pending manual check-in request for today" });
+
+      const [req] = await db
+        .insert(manualCheckinRequests)
+        .values({
+          companyId: membership.company.id,
+          employeeUserId: ctx.user.id,
+          siteId: site.id,
+          justification: input.justification,
+          lat: input.lat != null ? String(input.lat) : undefined,
+          lng: input.lng != null ? String(input.lng) : undefined,
+          distanceMeters: input.distanceMeters,
+          status: "pending",
+        })
+        .$returningId();
+
+      return { id: req.id, status: "pending" as const };
+    }),
+
+  /**
+   * Admin: list all manual check-in requests for the company, optionally filtered by status.
+   */
+  listManualCheckIns: protectedProcedure
+    .input(z.object({
+      status: z.enum(["pending", "approved", "rejected", "all"]).default("pending"),
+      siteId: z.number().optional(),
+      limit: z.number().min(1).max(200).default(50),
+    }))
+    .query(async ({ ctx, input }) => {
+      const membership = await requireAdminOrHR(ctx.user.id);
+      const db = await requireDb();
+
+      const conditions = [eq(manualCheckinRequests.companyId, membership.company.id)];
+      if (input.status !== "all") conditions.push(eq(manualCheckinRequests.status, input.status));
+      if (input.siteId) conditions.push(eq(manualCheckinRequests.siteId, input.siteId));
+
+      const rows = await db
+        .select({
+          req: manualCheckinRequests,
+          site: { id: attendanceSites.id, name: attendanceSites.name, siteType: attendanceSites.siteType, clientName: attendanceSites.clientName },
+        })
+        .from(manualCheckinRequests)
+        .leftJoin(attendanceSites, eq(manualCheckinRequests.siteId, attendanceSites.id))
+        .where(and(...conditions))
+        .orderBy(desc(manualCheckinRequests.requestedAt))
+        .limit(input.limit);
+
+      return rows;
+    }),
+
+  /**
+   * Admin: approve a manual check-in request.
+   * Creates an attendance record for the employee.
+   */
+  approveManualCheckIn: protectedProcedure
+    .input(z.object({
+      requestId: z.number(),
+      adminNote: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const membership = await requireAdminOrHR(ctx.user.id);
+      const db = await requireDb();
+
+      const [req] = await db
+        .select()
+        .from(manualCheckinRequests)
+        .where(and(
+          eq(manualCheckinRequests.id, input.requestId),
+          eq(manualCheckinRequests.companyId, membership.company.id),
+          eq(manualCheckinRequests.status, "pending"),
+        ))
+        .limit(1);
+      if (!req) throw new TRPCError({ code: "NOT_FOUND", message: "Request not found or already reviewed" });
+
+      // Create attendance record
+      const [record] = await db
+        .insert(attendanceRecords)
+        .values({
+          companyId: membership.company.id,
+          employeeId: req.employeeUserId,
+          siteId: req.siteId,
+          checkIn: req.requestedAt,
+          checkInLat: req.lat ?? undefined,
+          checkInLng: req.lng ?? undefined,
+          method: "manual" as const,
+          notes: `Manual check-in approved. Justification: ${req.justification}`,
+        })
+        .$returningId();
+
+      // Update request status
+      await db
+        .update(manualCheckinRequests)
+        .set({
+          status: "approved",
+          reviewedByUserId: ctx.user.id,
+          reviewedAt: new Date(),
+          adminNote: input.adminNote ?? null,
+          attendanceRecordId: record.id,
+        })
+        .where(eq(manualCheckinRequests.id, input.requestId));
+
+      return { success: true, attendanceRecordId: record.id };
+    }),
+
+  /**
+   * Admin: reject a manual check-in request.
+   */
+  rejectManualCheckIn: protectedProcedure
+    .input(z.object({
+      requestId: z.number(),
+      adminNote: z.string().min(5, "Please provide a reason for rejection"),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const membership = await requireAdminOrHR(ctx.user.id);
+      const db = await requireDb();
+
+      const [req] = await db
+        .select()
+        .from(manualCheckinRequests)
+        .where(and(
+          eq(manualCheckinRequests.id, input.requestId),
+          eq(manualCheckinRequests.companyId, membership.company.id),
+          eq(manualCheckinRequests.status, "pending"),
+        ))
+        .limit(1);
+      if (!req) throw new TRPCError({ code: "NOT_FOUND", message: "Request not found or already reviewed" });
+
+      await db
+        .update(manualCheckinRequests)
+        .set({
+          status: "rejected",
+          reviewedByUserId: ctx.user.id,
+          reviewedAt: new Date(),
+          adminNote: input.adminNote,
+        })
+        .where(eq(manualCheckinRequests.id, input.requestId));
+
+      return { success: true };
+    }),
+
+  /**
+   * Employee: get their own manual check-in requests (today and recent).
+   */
+  myManualCheckIns: protectedProcedure
+    .input(z.object({ limit: z.number().min(1).max(50).default(10) }))
+    .query(async ({ ctx, input }) => {
+      const db = await requireDb();
+      return db
+        .select({
+          req: manualCheckinRequests,
+          site: { id: attendanceSites.id, name: attendanceSites.name, siteType: attendanceSites.siteType },
+        })
+        .from(manualCheckinRequests)
+        .leftJoin(attendanceSites, eq(manualCheckinRequests.siteId, attendanceSites.id))
+        .where(eq(manualCheckinRequests.employeeUserId, ctx.user.id))
+        .orderBy(desc(manualCheckinRequests.requestedAt))
         .limit(input.limit);
     }),
 

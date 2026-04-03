@@ -2123,3 +2123,26 @@ export const employeeRequests = mysqlTable("employee_requests", {
 });
 export type EmployeeRequest = typeof employeeRequests.$inferSelect;
 export type InsertEmployeeRequest = typeof employeeRequests.$inferInsert;
+
+// ─── Manual Check-in Requests ─────────────────────────────────────────────────
+// Submitted by employees who are outside the geo-fence and need HR approval
+export const manualCheckinRequests = mysqlTable("manual_checkin_requests", {
+  id: int("id").primaryKey().autoincrement(),
+  companyId: int("company_id").notNull(),
+  employeeUserId: int("employee_user_id").notNull(),
+  siteId: int("site_id").notNull(),
+  requestedAt: timestamp("requested_at").defaultNow().notNull(),
+  justification: text("justification").notNull(),
+  lat: decimal("lat", { precision: 10, scale: 7 }),
+  lng: decimal("lng", { precision: 10, scale: 7 }),
+  distanceMeters: int("distance_meters"),
+  status: mysqlEnum("mcr_status", ["pending", "approved", "rejected"]).notNull().default("pending"),
+  reviewedByUserId: int("reviewed_by_user_id"),
+  reviewedAt: timestamp("reviewed_at"),
+  adminNote: text("admin_note"),
+  attendanceRecordId: int("attendance_record_id"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+export type ManualCheckinRequest = typeof manualCheckinRequests.$inferSelect;
+export type InsertManualCheckinRequest = typeof manualCheckinRequests.$inferInsert;

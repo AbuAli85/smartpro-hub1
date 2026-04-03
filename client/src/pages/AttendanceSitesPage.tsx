@@ -43,11 +43,13 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import {
   MapPin, Plus, QrCode, Users, Clock, Building2,
   ShieldCheck, Copy, Edit2, ToggleLeft, ToggleRight,
   Navigation, Crosshair, CheckCircle2, XCircle, Calendar,
+  FileText, AlertTriangle, ThumbsUp, ThumbsDown,
 } from "lucide-react";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -455,6 +457,8 @@ export default function AttendanceSitesPage() {
   const [qrSite, setQrSite] = useState<any>(null);
   const [mainTab, setMainTab] = useState("sites");
   const [historyDate, setHistoryDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [reviewingRequest, setReviewingRequest] = useState<any>(null);
+  const [reviewNote, setReviewNote] = useState("");
 
   const utils = trpc.useUtils();
   const { data: sites = [], isLoading } = trpc.attendance.listSites.useQuery({});
@@ -470,6 +474,20 @@ export default function AttendanceSitesPage() {
   });
 
   const checkedInNow = board.filter((r) => !r.record.checkOut);
+
+  const { data: manualRequests = [], refetch: refetchManual } = trpc.attendance.listManualCheckIns.useQuery(
+    { status: "pending" },
+    { enabled: mainTab === "manual" }
+  );
+
+  const approveMutation = trpc.attendance.approveManualCheckIn.useMutation({
+    onSuccess: () => { toast.success("Request approved — attendance recorded"); refetchManual(); setReviewingRequest(null); setReviewNote(""); },
+    onError: (e) => toast.error(e.message),
+  });
+  const rejectMutation = trpc.attendance.rejectManualCheckIn.useMutation({
+    onSuccess: () => { toast.success("Request rejected"); refetchManual(); setReviewingRequest(null); setReviewNote(""); },
+    onError: (e) => toast.error(e.message),
+  });
 
   return (
     <div className="p-6 space-y-6">
@@ -540,6 +558,12 @@ export default function AttendanceSitesPage() {
             )}
           </TabsTrigger>
           <TabsTrigger value="history">History</TabsTrigger>
+          <TabsTrigger value="manual" className="flex items-center gap-1.5">
+            <FileText className="h-3.5 w-3.5" /> Manual Requests
+            {manualRequests.length > 0 && (
+              <Badge className="ml-1 bg-amber-500 text-white text-xs px-1.5 py-0">{manualRequests.length}</Badge>
+            )}
+          </TabsTrigger>
         </TabsList>
 
         {/* ── Sites Tab ── */}
@@ -728,7 +752,117 @@ export default function AttendanceSitesPage() {
             </div>
           )}
         </TabsContent>
+
+        {/* ── Manual Check-in Requests Tab ── */}
+        <TabsContent value="manual" className="pt-4">
+          {manualRequests.length === 0 ? (
+            <div className="text-center py-16 border border-dashed rounded-xl">
+              <FileText className="h-10 w-10 mx-auto mb-3 opacity-30" />
+              <p className="font-medium">No pending manual check-in requests</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                When employees are outside the geo-fence and submit a justification, requests appear here.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {manualRequests.map((req: any) => (
+                <div key={req.id} className="rounded-xl border bg-card p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap mb-1">
+                        <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300 border-amber-200">
+                          <AlertTriangle className="h-3 w-3 mr-1" /> Pending Review
+                        </Badge>
+                        {req.distanceMeters != null && (
+                          <span className="text-xs text-muted-foreground">
+                            {req.distanceMeters}m from site
+                          </span>
+                        )}
+                      </div>
+                      <p className="font-semibold">{req.employeeName ?? `Employee #${req.employeeUserId}`}</p>
+                      <p className="text-xs text-muted-foreground">{req.siteName ?? "Unknown site"}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {new Date(req.requestedAt).toLocaleString()}
+                      </p>
+                    </div>
+                    <div className="flex gap-2 shrink-0">
+                      <Button
+                        size="sm"
+                        className="bg-green-600 hover:bg-green-700 text-white"
+                        onClick={() => { setReviewingRequest(req); setReviewNote(""); }}
+                      >
+                        <ThumbsUp className="h-3.5 w-3.5 mr-1" /> Review
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="mt-3 pt-3 border-t">
+                    <p className="text-xs text-muted-foreground mb-1 font-medium">Employee justification:</p>
+                    <p className="text-sm bg-muted/50 rounded-lg p-3 italic">"{req.justification}"</p>
+                  </div>
+                  {req.lat != null && req.lng != null && (
+                    <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
+                      <MapPin className="h-3 w-3" /> GPS: {parseFloat(req.lat).toFixed(5)}, {parseFloat(req.lng).toFixed(5)}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </TabsContent>
       </Tabs>
+
+      {/* Review Dialog */}
+      {reviewingRequest && (
+        <Dialog open onOpenChange={() => { setReviewingRequest(null); setReviewNote(""); }}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Review Manual Check-in Request</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+              <div className="rounded-lg bg-muted/50 p-3 space-y-1 text-sm">
+                <p><span className="text-muted-foreground">Employee:</span> {reviewingRequest.employeeName ?? `#${reviewingRequest.employeeUserId}`}</p>
+                <p><span className="text-muted-foreground">Site:</span> {reviewingRequest.siteName ?? "—"}</p>
+                <p><span className="text-muted-foreground">Requested at:</span> {new Date(reviewingRequest.requestedAt).toLocaleString()}</p>
+                {reviewingRequest.distanceMeters != null && (
+                  <p><span className="text-muted-foreground">Distance from site:</span> <span className="text-amber-600 font-medium">{reviewingRequest.distanceMeters}m</span></p>
+                )}
+              </div>
+              <div>
+                <p className="text-sm font-medium mb-1">Employee justification:</p>
+                <p className="text-sm bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3 italic">
+                  "{reviewingRequest.justification}"
+                </p>
+              </div>
+              <div>
+                <Label className="text-sm">Review note (optional)</Label>
+                <Textarea
+                  value={reviewNote}
+                  onChange={(e) => setReviewNote(e.target.value)}
+                  placeholder="Add a note for the employee..."
+                  className="mt-1 resize-none min-h-[70px]"
+                />
+              </div>
+            </div>
+            <DialogFooter className="gap-2">
+              <Button
+                variant="outline"
+                className="border-red-200 text-red-600 hover:bg-red-50 dark:border-red-800 dark:text-red-400"
+                disabled={rejectMutation.isPending}
+                onClick={() => rejectMutation.mutate({ requestId: reviewingRequest.id, adminNote: reviewNote || "Request rejected by admin" })}
+              >
+                {rejectMutation.isPending ? "Rejecting..." : <><ThumbsDown className="h-4 w-4 mr-1.5" /> Reject</>}
+              </Button>
+              <Button
+                className="bg-green-600 hover:bg-green-700 text-white"
+                disabled={approveMutation.isPending}
+                onClick={() => approveMutation.mutate({ requestId: reviewingRequest.id, adminNote: reviewNote || undefined })}
+              >
+                {approveMutation.isPending ? "Approving..." : <><ThumbsUp className="h-4 w-4 mr-1.5" /> Approve</>}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* Dialogs */}
       {showForm && (

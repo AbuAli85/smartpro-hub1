@@ -1208,3 +1208,11 @@ Every company on SmartPRO Hub gets a complete, unified business operating area �
 - [x] Add "Submit Leave Request" button directly in the Leave tab of My Portal
 - [x] Fix EmployeePortalPage: show correct employee name (not first active employee in company)
 - [ ] Add "My Portal" link in sidebar for company_member / hr_admin / finance_admin roles
+
+## Phase 47: Complete My Portal — All Employee Features End-to-End
+- [x] Add getMyAttendanceSummary procedure (monthly stats: present/absent/late/total days)
+- [x] Add getMyProfile extended: include company name, department, position, manager, hire date
+- [x] Rebuild EmployeePortalPage with 7 tabs: Overview, Attendance, Leave, Payslips, Tasks, Documents, Profile
+- [x] Attendance tab: monthly calendar view showing present/absent/late per day with check-in/check-out times
+- [x] Profile tab: show all employee fields — name, ID, department, position, hire date, visa/permit expiry, emergency contact
+- [x] Overview tab: smart summary cards + announcements + recent leave + upcoming tasks

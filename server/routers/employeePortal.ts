@@ -385,4 +385,57 @@ export const employeePortalRouter = router({
       ));
     return { success: true };
   }),
+
+  // ─── Get attendance summary for a month ──────────────────────────────────
+  getMyAttendanceSummary: protectedProcedure
+    .input(z.object({ month: z.string() })) // YYYY-MM
+    .query(async ({ input, ctx }) => {
+      const membership = await getUserCompany(ctx.user.id);
+      if (!membership) return { records: [], summary: { present: 0, absent: 0, late: 0, halfDay: 0, remote: 0, total: 0 } };
+      const myEmp = await resolveMyEmployee(ctx.user.id, ctx.user.email ?? "", membership.company.id);
+      if (!myEmp) return { records: [], summary: { present: 0, absent: 0, late: 0, halfDay: 0, remote: 0, total: 0 } };
+      const db = await requireDb();
+      const [year, month] = input.month.split("-").map(Number);
+      const start = new Date(year, month - 1, 1);
+      const end = new Date(year, month, 1);
+      const allRecords = await db
+        .select()
+        .from(attendance)
+        .where(and(
+          eq(attendance.companyId, membership.company.id),
+          eq(attendance.employeeId, myEmp.id),
+        ))
+        .orderBy(desc(attendance.date));
+      const records = allRecords.filter((r) => {
+        const d = new Date(r.date);
+        return d >= start && d < end;
+      });
+      const summary = records.reduce(
+        (acc, r) => {
+          acc.total++;
+          if (r.status === "present") acc.present++;
+          else if (r.status === "absent") acc.absent++;
+          else if (r.status === "late") acc.late++;
+          else if (r.status === "half_day") acc.halfDay++;
+          else if (r.status === "remote") acc.remote++;
+          return acc;
+        },
+        { present: 0, absent: 0, late: 0, halfDay: 0, remote: 0, total: 0 }
+      );
+      return { records, summary };
+    }),
+
+  // ─── Get my company info (name, industry, role) ─────────────────────────────
+  getMyCompanyInfo: protectedProcedure.query(async ({ ctx }) => {
+    const membership = await getUserCompany(ctx.user.id);
+    if (!membership) return null;
+    return {
+      id: membership.company.id,
+      name: membership.company.name,
+      nameAr: (membership.company as any).nameAr ?? null,
+      country: membership.company.country,
+      industry: (membership.company as any).industry ?? null,
+      role: membership.member.role ?? null,
+    };
+  }),
 });

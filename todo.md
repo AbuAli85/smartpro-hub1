@@ -1148,3 +1148,47 @@ Every company on SmartPRO Hub gets a complete, unified business operating area �
 - [ ] Each step shows completion status and links to the relevant page
 - [ ] Route: /company/setup registered in App.tsx
 - [ ] Nav: Setup Wizard link shown only when company setup is incomplete
+
+## Phase 44: Role-Based Access System (RBAC) — Clear User Roles
+
+### Roles Defined
+- **Owner / Admin** (platformRole: company_admin) — full access: company profile, all HR, payroll, documents, tasks, announcements, org structure, analytics, team access management
+- **HR Manager** (platformRole: hr_admin) — HR modules: employees, leave, attendance, payroll, letters, documents, tasks, announcements, org structure, leave balances, completeness
+- **Team Member / Staff** (platformRole: company_member) — team tools: my portal, tasks, announcements, attendance, leave, my documents
+- **Field Employee** (platformRole: client) — minimal: My Portal only (attendance, tasks, leave, announcements)
+
+### Build Items
+- [ ] Schema: company_members table (userId, companyId, memberRole enum: owner/hr_manager/staff/field_employee, inviteEmail, inviteToken, status: active/invited/suspended, joinedAt)
+- [ ] Migration: apply schema migration for company_members table
+- [ ] Backend: orgStructure.inviteMember — owner/admin sends invite by email with role assignment
+- [ ] Backend: orgStructure.listMembers — list all company members with role, status, user info
+- [ ] Backend: orgStructure.updateMemberRole — owner changes a member's role
+- [ ] Backend: orgStructure.removeMember — owner removes a member
+- [ ] Backend: orgStructure.acceptInvite — user accepts invite via token
+- [ ] UI: TeamAccessPage.tsx — manage who has access: invite by email, set role, view all members, change role, remove
+- [ ] UI: Role-aware sidebar — Owner sees all sections, HR Manager sees HR sections, Staff sees My Company basics, Field Employee sees My Portal only
+- [ ] UI: Role badge in sidebar — shows current user's role with color-coded badge
+- [ ] UI: Role-aware dashboard — after login, each role sees their correct starting dashboard
+- [ ] UI: Access denied page — clean "You don't have permission" page for unauthorized routes
+- [ ] Route: /hr/team-access registered in App.tsx
+- [ ] Nav: Team Access link added to HR section for owners/admins only
+- [ ] Nav: /hr/team-access added to PORTAL_CLIENT_HREFS
+
+## Phase 44: Role-Based Access System (Clear, Working, User-Friendly)
+
+### 44A — Role-Aware Sidebar Navigation
+- [ ] clientNav.ts: filter sidebar by memberRole — company_admin sees all, hr_admin sees HR modules, finance_admin sees payroll/finance, company_member sees My Portal + My Team, external_auditor read-only
+- [ ] PlatformLayout: show clear role badge in sidebar company section (Owner / HR Manager / Finance / Staff / Field Employee)
+- [ ] PlatformLayout: role-specific mobile bottom nav tabs per role
+
+### 44B — Role-Specific Dashboard Redirect
+- [ ] App.tsx: smart redirect on first load based on memberRole: company_admin → /business/dashboard, hr_admin → /hr/employees, finance_admin → /payroll, company_member → /my-portal
+
+### 44C — Team Access Page (Owner-Friendly)
+- [ ] UI: TeamAccessPage.tsx — clean page: all team members with role badges, invite by email, change role dropdown, remove/reactivate. Replaces need to go to /company-admin for this.
+- [ ] Route: /company/team-access registered in App.tsx
+- [ ] Nav: "Team Access" link added to My Company section (visible to company_admin only via COMPANY_OWNER_HREFS)
+- [ ] Nav: /company/team-access added to PORTAL_CLIENT_HREFS
+
+### 44D — Role Guide Cards
+- [ ] UI: Role explanation section on TeamAccessPage — what each role sees and can do

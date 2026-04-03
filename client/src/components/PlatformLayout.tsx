@@ -50,6 +50,8 @@ import {
   isPortalClientNav,
   isCompanyOwnerNav,
   shouldUsePortalOnlyShell,
+  getMemberRoleLabel,
+  getMemberRoleColor,
 } from "@shared/clientNav";
 import { ClientAccessGate } from "@/components/ClientAccessGate";
 import { AuditModeBanner } from "@/components/AuditModeBanner";
@@ -100,6 +102,7 @@ const navGroups = [
       { label: "Business Dashboard", href: "/business/dashboard", icon: <LayoutDashboard size={18} /> },
       { label: "My Portal", href: "/my-portal", icon: <Home size={18} /> },
       { label: "Company Profile", href: "/company/profile", icon: <Building2 size={18} /> },
+      { label: "Team Access & Roles", href: "/company/team-access", icon: <UserCheck size={18} /> },
       { label: "My Team", href: "/my-team", icon: <Users size={18} /> },
       { label: "Operations", href: "/company/operations", icon: <Activity size={18} /> },
       { label: "Company Documents", href: "/company/documents", icon: <FolderOpen size={18} /> },
@@ -230,14 +233,12 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
             <div className="min-w-0 flex-1">
               <span className="text-xs text-white/70 truncate block">{myCompany.company.name}</span>
               {user && (
-                <span className="text-[10px] text-white/40 uppercase tracking-wide">
+                <span className={`text-[10px] uppercase tracking-wide font-semibold ${getMemberRoleColor(myCompany?.member?.role)}`}>
                   {seesPlatformOperatorNav(user)
-                    ? "Platform"
+                    ? "Platform Operator"
                     : isPortalClientNav(user)
-                      ? "Client access"
-                      : isCompanyOwnerNav(user)
-                        ? "Owner"
-                        : "Team"}
+                      ? "Client Access"
+                      : getMemberRoleLabel(myCompany?.member?.role)}
                 </span>
               )}
             </div>

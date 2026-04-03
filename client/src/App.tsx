@@ -77,6 +77,7 @@ import OrgStructurePage from "./pages/OrgStructurePage";
 import TaskManagerPage from "./pages/TaskManagerPage";
 import AnnouncementsPage from "./pages/AnnouncementsPage";
 import EmployeePortalPage from "./pages/EmployeePortalPage";
+import TeamAccessPage from "./pages/TeamAccessPage";
 function PublicRoutes() {
   return (
     <Switch>
@@ -153,6 +154,7 @@ function AppRoutes() {
         <Route path="/hr/tasks" component={TaskManagerPage} />
         <Route path="/hr/announcements" component={AnnouncementsPage} />
         <Route path="/my-portal" component={EmployeePortalPage} />
+        <Route path="/company/team-access" component={TeamAccessPage} />
         <Route path="/my-team" component={MyTeamPage} />
         <Route path="/business/dashboard" component={BusinessDashboardPage} />
         <Route path="/business/employee/:id" component={EmployeeLifecyclePage} />

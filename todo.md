@@ -1567,3 +1567,51 @@ Every company on SmartPRO Hub gets a complete, unified business operating area �
 - [ ] Correction request: employee submits → admin sees in Attendance page → admin approves/rejects → employee sees updated status
 - [ ] Check-in/out: employee action → immediately visible in admin Today's Board
 - [ ] Attendance Sites: sites created by admin → selectable during employee check-in
+
+## Phase N: Employee Portal (My Portal) Comprehensive Enhancement
+
+### Backend Additions
+- [x] cancelLeaveRequest procedure — cancel pending leave requests
+- [x] updateMyContactInfo procedure — update phone, emergency contact name/phone
+- [x] getMyAttendanceRecords procedure — real QR check-in records with hours worked summary
+- [x] Import attendanceRecords table and gte/lte operators in employeePortal router
+
+### Frontend Enhancements (EmployeePortalPage.tsx full rewrite)
+- [x] Overview tab: 4 quick-stat cards (Annual Leave, Sick Leave, Pending Tasks, This Month Present)
+- [x] Overview tab: Attendance rate bar with on-time/late/absent breakdown
+- [x] Overview tab: Leave balance progress bars with colour-coded remaining days
+- [x] Overview tab: Today's shift schedule banner (from scheduling router)
+- [x] Overview tab: Company announcements with unread indicator
+- [x] Overview tab: Recent leave + tasks side-by-side cards
+- [x] Overview tab: Document expiry alert banner linking to Docs tab
+- [x] Attendance tab: Today's check-in/out status card with hours worked
+- [x] Attendance tab: QR check-in button when site token is available
+- [x] Attendance tab: Attendance correction request form + history list
+- [x] Attendance tab: Month navigation (prev/next) with calendar grid
+- [x] Attendance tab: Summary pills (Present/Absent/Late/Half Day/Remote)
+- [x] Attendance tab: Real QR check-in records list with hours per day
+- [x] Attendance tab: HR attendance records list with status badges
+- [x] Leave tab: Leave balance summary cards (Annual/Sick/Emergency) with mini progress bars
+- [x] Leave tab: Filter by status (All/Pending/Approved/Rejected/Cancelled)
+- [x] Leave tab: Cancel pending leave request button
+- [x] Leave tab: Day count display per leave request
+- [x] Leave tab: HR note display on leave cards
+- [x] Payslips tab: Latest payslip highlight card with net pay, basic, allowances, deductions
+- [x] Payslips tab: Full payslip history list with salary breakdown
+- [x] Tasks tab: Task stats (Pending/In Progress/Completed) summary cards
+- [x] Tasks tab: Filter buttons (Active/All/Completed)
+- [x] Tasks tab: Priority colour badges (low/medium/high/urgent)
+- [x] Tasks tab: Overdue task highlighting in red
+- [x] Tasks tab: Mark as Done button per task
+- [x] Docs tab: Expiry alert banner for documents expiring within 90 days
+- [x] Docs tab: Document type icons (passport, visa, work permit, etc.)
+- [x] Docs tab: Expired/Expiring badges with days remaining
+- [x] Docs tab: View document link button
+- [x] Profile tab: Editable contact info (phone, emergency contact) with Save/Cancel
+- [x] Profile tab: Work information section (company, department, position, hire date)
+- [x] Profile tab: Documents & Visa section (passport, visa, work permit with expiry alerts)
+- [x] Profile tab: Emergency contact card
+- [x] Profile tab: Bank details card
+- [x] Notification bell: Unread count badge, mark-all-read button, notification panel
+- [x] Document expiry alert icon in header (links to Docs tab)
+- [x] 18 vitest tests for all helper logic (calcDays, daysUntilExpiry, hoursWorked, attendance rate, task overdue detection) — all passing

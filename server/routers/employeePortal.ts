@@ -1,10 +1,10 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { eq, and, desc, or, isNull, inArray } from "drizzle-orm";
+import { eq, and, desc, or, isNull, inArray, gte, lte } from "drizzle-orm";
 import {
   employees, attendance, leaveRequests, payrollRecords,
   employeeDocuments, employeeTasks, announcements, announcementReads,
-  notifications, companyMembers, users,
+  notifications, companyMembers, users, attendanceRecords,
 } from "../../drizzle/schema";
 import { getDb, getUserCompany } from "../db";
 import { protectedProcedure, router } from "../_core/trpc";
@@ -438,4 +438,87 @@ export const employeePortalRouter = router({
       role: membership.member.role ?? null,
     };
   }),
+
+  // ─── Cancel a pending leave request ──────────────────────────────────────────
+  cancelLeaveRequest: protectedProcedure
+    .input(z.object({ leaveId: z.number() }))
+    .mutation(async ({ input, ctx }) => {
+      const membership = await getUserCompany(ctx.user.id);
+      if (!membership) throw new TRPCError({ code: "FORBIDDEN" });
+      const myEmp = await resolveMyEmployee(ctx.user.id, ctx.user.email ?? "", membership.company.id);
+      if (!myEmp) throw new TRPCError({ code: "NOT_FOUND" });
+      const db = await requireDb();
+      const [req] = await db.select().from(leaveRequests)
+        .where(and(
+          eq(leaveRequests.id, input.leaveId),
+          eq(leaveRequests.employeeId, myEmp.id),
+          eq(leaveRequests.companyId, membership.company.id),
+        ))
+        .limit(1);
+      if (!req) throw new TRPCError({ code: "NOT_FOUND", message: "Leave request not found" });
+      if (req.status !== "pending") throw new TRPCError({ code: "BAD_REQUEST", message: "Only pending requests can be cancelled" });
+      await db.update(leaveRequests)
+        .set({ status: "cancelled" })
+        .where(eq(leaveRequests.id, input.leaveId));
+      return { success: true };
+    }),
+
+  // ─── Update my contact info (phone, emergency contact) ───────────────────────
+  updateMyContactInfo: protectedProcedure
+    .input(z.object({
+      phone: z.string().optional(),
+      emergencyContactName: z.string().optional(),
+      emergencyContactPhone: z.string().optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const membership = await getUserCompany(ctx.user.id);
+      if (!membership) throw new TRPCError({ code: "FORBIDDEN" });
+      const myEmp = await resolveMyEmployee(ctx.user.id, ctx.user.email ?? "", membership.company.id);
+      if (!myEmp) throw new TRPCError({ code: "NOT_FOUND", message: "Employee record not found" });
+      const db = await requireDb();
+      const updateData: Record<string, any> = {};
+      if (input.phone !== undefined) updateData.phone = input.phone;
+      if (input.emergencyContactName !== undefined) updateData.emergencyContactName = input.emergencyContactName;
+      if (input.emergencyContactPhone !== undefined) updateData.emergencyContactPhone = input.emergencyContactPhone;
+      if (Object.keys(updateData).length > 0) {
+        await db.update(employees).set(updateData).where(eq(employees.id, myEmp.id));
+      }
+      return { success: true };
+    }),
+
+  // ─── Get my real-time attendance records (from attendanceRecords, not attendance) ─
+  getMyAttendanceRecords: protectedProcedure
+    .input(z.object({ month: z.string() })) // YYYY-MM
+    .query(async ({ input, ctx }) => {
+      const membership = await getUserCompany(ctx.user.id);
+      if (!membership) return { records: [], summary: { present: 0, late: 0, total: 0, hoursWorked: 0 } };
+      const myEmp = await resolveMyEmployee(ctx.user.id, ctx.user.email ?? "", membership.company.id);
+      if (!myEmp) return { records: [], summary: { present: 0, late: 0, total: 0, hoursWorked: 0 } };
+      const db = await requireDb();
+      const [year, month] = input.month.split("-").map(Number);
+      const start = new Date(year, month - 1, 1);
+      const end = new Date(year, month, 1);
+      const records = await db
+        .select()
+        .from(attendanceRecords)
+        .where(and(
+          eq(attendanceRecords.employeeId, myEmp.id),
+          gte(attendanceRecords.checkIn, start),
+          lte(attendanceRecords.checkIn, end),
+        ))
+        .orderBy(desc(attendanceRecords.checkIn));
+      let totalHours = 0;
+      records.forEach((r) => {
+        if (r.checkOut && r.checkIn) {
+          totalHours += (new Date(r.checkOut).getTime() - new Date(r.checkIn).getTime()) / 3600000;
+        }
+      });
+      return {
+        records,
+        summary: {
+          total: records.length,
+          hoursWorked: Math.round(totalHours * 10) / 10,
+        },
+      };
+    }),
 });

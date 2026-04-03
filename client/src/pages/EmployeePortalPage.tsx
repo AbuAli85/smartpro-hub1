@@ -247,33 +247,109 @@ export default function EmployeePortalPage() {
     );
   }
 
-  // ── Not linked ────────────────────────────────────────────────────────────
+  // ── Not linked — show Company Member Portal ─────────────────────────────
   if (!profile) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-4">
-        <Card className="max-w-md w-full">
-          <CardContent className="pt-10 pb-10 text-center space-y-5">
-            <div className="w-16 h-16 rounded-full bg-amber-100 dark:bg-amber-900/20 flex items-center justify-center mx-auto">
-              <AlertCircle className="w-8 h-8 text-amber-600" />
+      <div className="min-h-screen bg-background">
+        {/* Header */}
+        <div className="border-b bg-card sticky top-0 z-20 shadow-sm">
+          <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center">
+                <span className="text-primary font-bold text-sm">{user?.name?.[0] ?? user?.email?.[0] ?? "?"}</span>
+              </div>
+              <div>
+                <p className="font-semibold text-sm leading-tight">{user?.name ?? user?.email}</p>
+                <p className="text-xs text-muted-foreground">{companyInfo?.name ?? "Company Member"}</p>
+              </div>
             </div>
-            <div>
-              <h2 className="text-xl font-bold">Account Not Linked</h2>
-              <p className="text-sm text-muted-foreground mt-2 leading-relaxed">
-                You are signed in as <strong>{user?.email}</strong>, but this account is not yet linked to an employee record in your company.
-              </p>
-              <p className="text-sm text-muted-foreground mt-2">
-                Ask your HR manager to go to <strong>HR → Team Access &amp; Roles</strong> and click <strong>Grant Access</strong> next to your name.
-              </p>
-              <p className="text-xs text-muted-foreground mt-3 bg-muted/40 rounded-lg p-3">
-                Once linked, click Refresh below and your full employee portal will appear.
-              </p>
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" onClick={() => window.location.reload()}>Refresh</Button>
+              <Button size="sm" variant="outline" asChild><Link href="/dashboard">Dashboard</Link></Button>
             </div>
-            <div className="flex gap-2 justify-center">
-              <Button variant="outline" onClick={() => window.location.reload()}>Refresh</Button>
-              <Button variant="outline" asChild><Link href="/dashboard">Go to Dashboard</Link></Button>
-            </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
+
+        <div className="max-w-3xl mx-auto px-4 py-8 space-y-6">
+          {/* Setup notice */}
+          <Card className="border-amber-200 bg-amber-50 dark:bg-amber-900/10 dark:border-amber-800">
+            <CardContent className="pt-5 pb-5">
+              <div className="flex gap-4 items-start">
+                <div className="w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center shrink-0 mt-0.5">
+                  <AlertCircle className="w-5 h-5 text-amber-600" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-semibold text-amber-900 dark:text-amber-200">HR Profile Not Yet Linked</h3>
+                  <p className="text-sm text-amber-800 dark:text-amber-300 mt-1 leading-relaxed">
+                    You are a member of <strong>{companyInfo?.name ?? "this company"}</strong> but your HR employee profile has not been linked yet.
+                    Your full payslips, leave, attendance, and documents will appear here once HR completes the setup.
+                  </p>
+                  <p className="text-sm text-amber-700 dark:text-amber-400 mt-2">
+                    Ask your HR manager to go to <strong>HR → Team Access &amp; Roles</strong> and click <strong>Grant Access</strong> next to your name.
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Company info */}
+          {companyInfo && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Building2 className="w-4 h-4 text-primary" />
+                  Your Company
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <p className="text-muted-foreground text-xs uppercase tracking-wide">Company</p>
+                    <p className="font-medium mt-0.5">{companyInfo.name}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground text-xs uppercase tracking-wide">Your Role</p>
+                    <p className="font-medium mt-0.5 capitalize">{(companyInfo.role ?? "Member").replace(/_/g, " ")}</p>
+                  </div>
+                  {companyInfo.industry && (
+                    <div>
+                      <p className="text-muted-foreground text-xs uppercase tracking-wide">Industry</p>
+                      <p className="font-medium mt-0.5">{companyInfo.industry}</p>
+                    </div>
+                  )}
+                  <div>
+                    <p className="text-muted-foreground text-xs uppercase tracking-wide">Country</p>
+                    <p className="font-medium mt-0.5">{companyInfo.country ?? "Oman"}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* What will be available */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">What you will see once linked</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {[
+                  { icon: "📋", label: "Attendance" },
+                  { icon: "🏖️", label: "Leave Requests" },
+                  { icon: "💰", label: "Payslips" },
+                  { icon: "📄", label: "Documents" },
+                  { icon: "✅", label: "Tasks" },
+                  { icon: "📢", label: "Announcements" },
+                ].map((item) => (
+                  <div key={item.label} className="flex items-center gap-2 p-3 rounded-lg bg-muted/40 text-sm">
+                    <span className="text-lg">{item.icon}</span>
+                    <span className="text-muted-foreground">{item.label}</span>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     );
   }

@@ -187,6 +187,9 @@ export default function TeamAccessPage() {
   const { companies: allMyCompanies } = useActiveCompany();
   const [multiGrantTarget, setMultiGrantTarget] = useState<{ employeeId: number; name: string; email: string | null } | null>(null);
   const [multiGrantSelections, setMultiGrantSelections] = useState<Record<number, string>>({}); // companyId -> role
+  // Manual link: link a company member to an employee record
+  const [linkTarget, setLinkTarget] = useState<{ employeeId: number; name: string } | null>(null);
+  const [linkEmail, setLinkEmail] = useState("");
 
   // Multi-company grant mutation
   const grantMultiCompanyAccess = trpc.companies.grantMultiCompanyAccess.useMutation({
@@ -255,6 +258,17 @@ export default function TeamAccessPage() {
       utils.companies.employeesWithAccess.invalidate();
       toast.success("Role updated");
       setMemberRoleTarget(null);
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const linkMemberToEmployee = trpc.companies.linkMemberToEmployee.useMutation({
+    onSuccess: (res) => {
+      utils.companies.employeesWithAccess.invalidate();
+      utils.companies.members.invalidate();
+      toast.success(res.message);
+      setLinkTarget(null);
+      setLinkEmail("");
     },
     onError: (err) => toast.error(err.message),
   });
@@ -479,6 +493,15 @@ export default function TeamAccessPage() {
                                 }}
                               >
                                 <Building2 size={12} /> Multi-Company
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-8 text-xs gap-1 text-purple-600 hover:text-purple-700 hover:border-purple-300"
+                                onClick={() => { setLinkTarget({ employeeId: emp.employeeId, name: fullName }); setLinkEmail(emp.email ?? ""); }}
+                                title="Manually link this employee to a SmartPRO account by email"
+                              >
+                                <UserCheck size={12} /> Link Account
                               </Button>
                               <Button
                                 variant="outline"
@@ -951,6 +974,49 @@ export default function TeamAccessPage() {
               }}
             >
               {updateMemberRole.isPending ? "Saving..." : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Link Account Dialog ── */}
+      <Dialog open={!!linkTarget} onOpenChange={(open) => { if (!open) { setLinkTarget(null); setLinkEmail(""); } }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <UserCheck size={18} className="text-purple-600" />
+              Link Account — {linkTarget?.name}
+            </DialogTitle>
+            <DialogDescription>
+              Enter the SmartPRO login email of the user you want to link to this employee record.
+              Use this when a user accepted an invite but their portal shows "Account Not Linked".
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div>
+              <label className="text-sm font-medium text-gray-700 block mb-1.5">User's Login Email</label>
+              <Input
+                type="email"
+                placeholder="user@company.com"
+                value={linkEmail}
+                onChange={(e) => setLinkEmail(e.target.value)}
+              />
+              <p className="text-xs text-gray-500 mt-1.5">
+                The user must have logged in to SmartPRO at least once before they can be linked.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setLinkTarget(null); setLinkEmail(""); }}>Cancel</Button>
+            <Button
+              disabled={!linkEmail || linkMemberToEmployee.isPending}
+              onClick={() => {
+                if (!linkTarget) return;
+                linkMemberToEmployee.mutate({ employeeId: linkTarget.employeeId, memberEmail: linkEmail, companyId: activeCompanyId ?? undefined });
+              }}
+              className="bg-purple-600 hover:bg-purple-700 text-white"
+            >
+              {linkMemberToEmployee.isPending ? "Linking..." : "Link Account"}
             </Button>
           </DialogFooter>
         </DialogContent>

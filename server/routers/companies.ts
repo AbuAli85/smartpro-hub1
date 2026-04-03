@@ -556,6 +556,23 @@ export const companiesRouter = router({
         });
       }
       await db.update(companyInvites).set({ acceptedAt: new Date() }).where(eq(companyInvites.id, invite.id));
+      // Auto-link: if an employees row with the invited email exists in this company,
+      // set its userId so the Employee Portal works immediately without HR needing to "Grant Access"
+      try {
+        const [empRow] = await db
+          .select({ id: employees.id, userId: employees.userId })
+          .from(employees)
+          .where(and(
+            eq(employees.companyId, invite.companyId),
+            eq(employees.email, invite.email.toLowerCase()),
+          ))
+          .limit(1);
+        if (empRow && !empRow.userId) {
+          await db.update(employees).set({ userId: ctx.user.id }).where(eq(employees.id, empRow.id));
+        }
+      } catch {
+        // Non-critical — don't fail the accept if auto-link fails
+      }
       return { success: true, companyId: invite.companyId, role: invite.role };
     }),
 
@@ -830,6 +847,50 @@ export const companiesRouter = router({
         }
       }
       return { success: true };
+    }),
+
+  /**
+   * Manually link an existing company member (by their login email) to an employee record.
+   * Use this when a user has already accepted an invite but their employee record was not auto-linked.
+   */
+  linkMemberToEmployee: protectedProcedure
+    .input(z.object({
+      employeeId: z.number(),
+      memberEmail: z.string().email(),
+      companyId: z.number().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const membership = input.companyId
+        ? await getUserCompanyById(ctx.user.id, input.companyId)
+        : await getUserCompany(ctx.user.id);
+      if (!membership) throw new TRPCError({ code: "FORBIDDEN" });
+      if (!canAccessGlobalAdminProcedures(ctx.user)) await assertCompanyAdmin(ctx.user.id, membership.company.id);
+      // Verify employee belongs to this company
+      const [emp] = await db
+        .select({ id: employees.id, userId: employees.userId, firstName: employees.firstName, lastName: employees.lastName })
+        .from(employees)
+        .where(and(eq(employees.id, input.employeeId), eq(employees.companyId, membership.company.id)))
+        .limit(1);
+      if (!emp) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found." });
+      // Find user by email
+      const [targetUser] = await db
+        .select({ id: users.id, email: users.email })
+        .from(users)
+        .where(eq(users.email, input.memberEmail.toLowerCase()))
+        .limit(1);
+      if (!targetUser) throw new TRPCError({ code: "NOT_FOUND", message: "No SmartPRO account found with that email. The user must sign in at least once before linking." });
+      // Check they are a member of this company
+      const [member] = await db
+        .select({ id: companyMembers.id, isActive: companyMembers.isActive })
+        .from(companyMembers)
+        .where(and(eq(companyMembers.userId, targetUser.id), eq(companyMembers.companyId, membership.company.id)))
+        .limit(1);
+      if (!member) throw new TRPCError({ code: "BAD_REQUEST", message: "This user is not a member of your company. Send them an invite first." });
+      // Link the employee record to this user
+      await db.update(employees).set({ userId: targetUser.id }).where(eq(employees.id, emp.id));
+      return { success: true, message: `${emp.firstName} ${emp.lastName} is now linked to ${targetUser.email}` };
     }),
 
   /**

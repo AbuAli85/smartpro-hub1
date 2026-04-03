@@ -705,4 +705,88 @@ export const hrRouter = router({
       totalPayroll: Math.round(totalPayroll * 1000) / 1000,
     };
   }),
+
+  // ─── Document Expiry Dashboard ────────────────────────────────────────────
+  getExpiringDocuments: protectedProcedure
+    .input(z.object({
+      companyId: z.number().optional(),
+      warnDays: z.number().int().min(1).max(365).default(30),
+      docType: z.enum(["all", "visa", "work_permit"]).default("all"),
+      status: z.enum(["all", "expired", "expiring_soon"]).default("all"),
+    }))
+    .query(async ({ input, ctx }) => {
+      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId).catch(() => null);
+      if (!cid) return { rows: [], stats: { total: 0, expired: 0, expiringSoon: 0 } };
+      const db = await getDb();
+      if (!db) return { rows: [], stats: { total: 0, expired: 0, expiringSoon: 0 } };
+
+      const allEmps = await db.select().from(employees)
+        .where(and(eq(employees.companyId, cid), eq(employees.status, "active")));
+
+      const now = new Date();
+
+      type DocRow = {
+        employeeId: number;
+        employeeName: string;
+        employeeNumber: string | null;
+        department: string | null;
+        nationality: string | null;
+        docType: "visa" | "work_permit";
+        docNumber: string | null;
+        expiryDate: string | null;
+        daysUntilExpiry: number | null;
+        status: "expired" | "expiring_soon";
+      };
+
+      const rows: DocRow[] = [];
+
+      for (const emp of allEmps) {
+        const fullName = [emp.firstName, emp.lastName].filter(Boolean).join(" ");
+
+        const addDoc = (docType: "visa" | "work_permit", docNumber: string | null, expiryDate: Date | string | null) => {
+          if (!expiryDate) return;
+          const expDate = new Date(expiryDate);
+          const daysUntil = Math.ceil((expDate.getTime() - now.getTime()) / 86400000);
+          const docStatus: "expired" | "expiring_soon" =
+            daysUntil < 0 ? "expired" : "expiring_soon";
+          if (daysUntil > input.warnDays) return; // skip valid docs
+
+          if (input.status === "expired" && docStatus !== "expired") return;
+          if (input.status === "expiring_soon" && docStatus !== "expiring_soon") return;
+          if (input.docType !== "all" && docType !== input.docType) return;
+
+          rows.push({
+            employeeId: emp.id,
+            employeeName: fullName,
+            employeeNumber: emp.employeeNumber ?? null,
+            department: emp.department ?? null,
+            nationality: emp.nationality ?? null,
+            docType,
+            docNumber: docNumber ?? null,
+            expiryDate: expDate.toISOString().split("T")[0],
+            daysUntilExpiry: daysUntil,
+            status: docStatus,
+          });
+        };
+
+        addDoc("visa", (emp as any).visaNumber ?? null, (emp as any).visaExpiryDate ?? null);
+        addDoc("work_permit", (emp as any).workPermitNumber ?? null, (emp as any).workPermitExpiryDate ?? null);
+      }
+
+      // Sort: expired first, then expiring_soon by days ascending
+      rows.sort((a, b) => {
+        if (a.status === "expired" && b.status !== "expired") return -1;
+        if (a.status !== "expired" && b.status === "expired") return 1;
+        return (a.daysUntilExpiry ?? 999) - (b.daysUntilExpiry ?? 999);
+      });
+
+      return {
+        rows,
+        stats: {
+          total: rows.length,
+          expired: rows.filter((r) => r.status === "expired").length,
+          expiringSoon: rows.filter((r) => r.status === "expiring_soon").length,
+        },
+      };
+    }),
 });

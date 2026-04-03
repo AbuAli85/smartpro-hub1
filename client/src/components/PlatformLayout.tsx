@@ -41,6 +41,7 @@ import {
   Megaphone,
   LayoutGrid,
   Home,
+  AlertTriangle,
 } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
 import { Link, useLocation } from "wouter";
@@ -139,6 +140,7 @@ const navGroups = [
       { label: "Org Structure", href: "/hr/org-structure", icon: <LayoutGrid size={18} /> },
       { label: "Task Manager", href: "/hr/tasks", icon: <ListTodo size={18} /> },
       { label: "Announcements", href: "/hr/announcements", icon: <Megaphone size={18} /> },
+      { label: "Expiry Dashboard", href: "/hr/expiry-dashboard", icon: <AlertTriangle size={18} /> },
     ],
   },
   {

@@ -1344,3 +1344,9 @@ Every company on SmartPRO Hub gets a complete, unified business operating area â
 - [x] Apply expiry indicators in HREmployeesPage compliance columns
 - [x] Apply expiry indicators in EmployeeLifecyclePage document fields
 - [ ] Add expiry warning summary count in MyTeam stats bar
+
+## Document Expiry Dashboard
+- [x] Add getExpiringDocuments tRPC procedure in hr.ts returning all employees with expiring/expired docs
+- [x] Create DocumentExpiryDashboard.tsx page with stats cards, filters, and full employee table
+- [x] Register /hr/expiry-dashboard route in App.tsx
+- [x] Add sidebar link under HR section in PlatformLayout

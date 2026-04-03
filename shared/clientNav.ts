@@ -42,6 +42,7 @@ export const HR_ADMIN_HREFS = new Set<string>([
   "/hr/tasks",
   "/hr/announcements",
   "/hr/documents-dashboard",
+  "/hr/expiry-dashboard",
   "/my-team",
   "/my-team/import",
   "/business/employee",

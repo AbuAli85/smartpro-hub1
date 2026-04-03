@@ -27,7 +27,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
+import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime, expiryStatus, expiryLabel, EXPIRY_BADGE, EXPIRY_BORDER, daysUntilExpiry } from "@/lib/dateUtils";
 
 // ─── constants ────────────────────────────────────────────────────────────────
 
@@ -380,11 +380,31 @@ function StaffFormDialog({
                 <div className="grid grid-cols-2 gap-3 mt-3">
                   <div className="space-y-1">
                     <Label className="text-xs font-medium">Work Permit Expiry</Label>
-                    <Input type="date" value={form.workPermitExpiry} onChange={f("workPermitExpiry")} />
+                    <Input
+                      type="date"
+                      value={form.workPermitExpiry}
+                      onChange={f("workPermitExpiry")}
+                      className={form.workPermitExpiry ? EXPIRY_BORDER[expiryStatus(form.workPermitExpiry)] : ""}
+                    />
+                    {form.workPermitExpiry && expiryStatus(form.workPermitExpiry) !== "valid" && (
+                      <p className={`text-[10px] font-medium mt-0.5 ${expiryStatus(form.workPermitExpiry) === "expired" ? "text-red-600" : "text-amber-600"}`}>
+                        {expiryLabel(form.workPermitExpiry)}
+                      </p>
+                    )}
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs font-medium">Visa Expiry Date</Label>
-                    <Input type="date" value={form.visaExpiryDate} onChange={f("visaExpiryDate")} />
+                    <Input
+                      type="date"
+                      value={form.visaExpiryDate}
+                      onChange={f("visaExpiryDate")}
+                      className={form.visaExpiryDate ? EXPIRY_BORDER[expiryStatus(form.visaExpiryDate)] : ""}
+                    />
+                    {form.visaExpiryDate && expiryStatus(form.visaExpiryDate) !== "valid" && (
+                      <p className={`text-[10px] font-medium mt-0.5 ${expiryStatus(form.visaExpiryDate) === "expired" ? "text-red-600" : "text-amber-600"}`}>
+                        {expiryLabel(form.visaExpiryDate)}
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -566,12 +586,54 @@ function StaffProfilePanel({
               value={member.hireDate ? fmtDateLong(member.hireDate) : "—"} />
           </Section>
 
-          <Section title="Identity">
+           <Section title="Identity">
             <InfoRow icon={<Globe size={13} />} label="Nationality" value={member.nationality || "—"} />
             <InfoRow icon={<Shield size={13} />} label="Civil ID" value={member.nationalId || "—"} />
             <InfoRow icon={<Shield size={13} />} label="Passport" value={member.passportNumber || "—"} />
+            {(member as any).dateOfBirth && (
+              <InfoRow icon={<Calendar size={13} />} label="Date of Birth" value={fmtDate((member as any).dateOfBirth)} />
+            )}
           </Section>
-
+          {/* Documents & Expiry */}
+          {((member as any).visaExpiryDate || (member as any).workPermitExpiryDate || (member as any).workPermitNumber || (member as any).visaNumber) && (
+            <Section title="Documents & Expiry">
+              {(member as any).workPermitNumber && (
+                <InfoRow
+                  icon={<Shield size={13} />}
+                  label="Work Permit"
+                  value={(member as any).workPermitNumber}
+                  expiryDate={(member as any).workPermitExpiryDate}
+                />
+              )}
+              {(member as any).workPermitExpiryDate && !(member as any).workPermitNumber && (
+                <InfoRow
+                  icon={<Calendar size={13} />}
+                  label="WP Expiry"
+                  value={fmtDate((member as any).workPermitExpiryDate)}
+                  expiryDate={(member as any).workPermitExpiryDate}
+                />
+              )}
+              {(member as any).visaNumber && (
+                <InfoRow
+                  icon={<Shield size={13} />}
+                  label="Visa No."
+                  value={(member as any).visaNumber}
+                  expiryDate={(member as any).visaExpiryDate}
+                />
+              )}
+              {(member as any).visaExpiryDate && !(member as any).visaNumber && (
+                <InfoRow
+                  icon={<Calendar size={13} />}
+                  label="Visa Expiry"
+                  value={fmtDate((member as any).visaExpiryDate)}
+                  expiryDate={(member as any).visaExpiryDate}
+                />
+              )}
+              {(member as any).pasiNumber && (
+                <InfoRow icon={<Hash size={13} />} label="PASI No." value={(member as any).pasiNumber} />
+              )}
+            </Section>
+          )}
           <Section title="Compensation">
             <InfoRow icon={<DollarSign size={13} />} label="Basic Salary"
               value={fmtSalary(member.salary, member.currency ?? "OMR")} />
@@ -623,12 +685,28 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-function InfoRow({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+function InfoRow({
+  icon, label, value, expiryDate,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  expiryDate?: Date | string | null;
+}) {
+  const status = expiryDate ? expiryStatus(expiryDate) : "none";
   return (
     <div className="flex items-start gap-2">
       <span className="text-muted-foreground mt-0.5 shrink-0">{icon}</span>
       <span className="text-xs text-muted-foreground w-20 shrink-0">{label}</span>
-      <span className="text-xs text-foreground font-medium break-all">{value}</span>
+      <div className="flex flex-col gap-0.5 min-w-0">
+        <span className="text-xs text-foreground font-medium break-all">{value}</span>
+        {status !== "none" && (
+          <span className={`inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full w-fit ${EXPIRY_BADGE[status]}`}>
+            {status === "expired" ? "⚠ " : status === "expiring-soon" ? "⏰ " : "✓ "}
+            {expiryLabel(expiryDate)}
+          </span>
+        )}
+      </div>
     </div>
   );
 }
@@ -665,10 +743,17 @@ function StaffCard({
 }) {
   const sm = STATUS_META[member.status] ?? STATUS_META.active;
   const initials = getInitials(member.firstName, member.lastName);
+  // Compute worst expiry status across all document dates
+  const docDates = [member.visaExpiryDate, member.workPermitExpiryDate].filter(Boolean);
+  const docStatuses = docDates.map((d: any) => expiryStatus(d));
+  const hasExpired = docStatuses.includes("expired");
+  const hasExpiringSoon = docStatuses.includes("expiring-soon");
+  const cardExpiry = hasExpired ? "expired" : hasExpiringSoon ? "expiring-soon" : "none";
   return (
     <div
       onClick={onClick}
-      className="bg-card border border-border rounded-xl p-4 cursor-pointer hover:border-[var(--smartpro-orange)] hover:shadow-md transition-all group relative"
+      className={`bg-card border rounded-xl p-4 cursor-pointer hover:shadow-md transition-all group relative
+        ${cardExpiry === "expired" ? "border-red-400 ring-1 ring-red-300" : cardExpiry === "expiring-soon" ? "border-amber-400 ring-1 ring-amber-200" : "border-border hover:border-[var(--smartpro-orange)]"}`}
     >
       <div className="absolute top-3 right-3" onClick={(e) => e.stopPropagation()}>
         <DropdownMenu>
@@ -715,6 +800,15 @@ function StaffCard({
       {member.email && (
         <div className="mt-2 flex items-center gap-1 text-[10px] text-gray-400 truncate">
           <Mail size={10} /> {member.email}
+        </div>
+      )}
+      {/* Expiry warning strip */}
+      {cardExpiry !== "none" && (
+        <div className={`mt-2 flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-md ${EXPIRY_BADGE[cardExpiry]}`}>
+          {cardExpiry === "expired" ? "⚠" : "⏰"}
+          {hasExpired
+            ? `Document expired — action required`
+            : `Document expiring soon`}
         </div>
       )}
     </div>

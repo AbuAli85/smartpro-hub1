@@ -1335,3 +1335,12 @@ Every company on SmartPRO Hub gets a complete, unified business operating area â
 - [ ] Add backend procedure: companies.grantMultiCompanyAccess â€” grant one employee access to multiple companies at once with a specified role per company
 - [ ] Update TeamAccessPage: add "Grant to Multiple Companies" button that opens a dialog showing all owner's companies with checkboxes and role selectors
 - [ ] Ensure company switcher shows the user's role label correctly for each company they have access to
+
+## Expiry Warning Indicators
+
+- [x] Create shared expiryStatus() utility in dateUtils.ts (expired/expiring-soon/valid)
+- [x] Apply expiry badge/border to work permit, visa, passport date fields in MyTeamPage employee detail panel
+- [x] Apply expiry badge/border to employee cards in MyTeamPage list view
+- [x] Apply expiry indicators in HREmployeesPage compliance columns
+- [x] Apply expiry indicators in EmployeeLifecyclePage document fields
+- [ ] Add expiry warning summary count in MyTeam stats bar

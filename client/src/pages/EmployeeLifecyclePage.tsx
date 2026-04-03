@@ -17,7 +17,7 @@ import {
   CheckCircle2, Clock, Edit2, UserX, TrendingUp, Shield,
   Hash, MapPin,
 } from "lucide-react";
-import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
+import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime, expiryStatus, expiryLabel, EXPIRY_BADGE } from "@/lib/dateUtils";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function fmtOMR(n: number | string | null | undefined) {
@@ -44,15 +44,23 @@ function payrollStatusBadge(status: string) {
 }
 const MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
-function InfoRow({ label, value, icon: Icon }: { label: string; value?: string | null; icon?: React.ElementType }) {
+function InfoRow({ label, value, icon: Icon, expiryDate }: { label: string; value?: string | null; icon?: React.ElementType; expiryDate?: Date | string | null }) {
   if (!value) return null;
+  const status = expiryDate ? expiryStatus(expiryDate) : "none";
   return (
     <div className="flex items-start justify-between py-2.5 border-b border-muted/50 last:border-0 gap-3">
       <div className="flex items-center gap-2 text-sm text-muted-foreground shrink-0">
         {Icon && <Icon size={13} />}
         {label}
       </div>
-      <span className="text-sm font-medium text-foreground text-right">{value}</span>
+      <div className="flex flex-col items-end gap-0.5">
+        <span className="text-sm font-medium text-foreground text-right">{value}</span>
+        {status !== "none" && (
+          <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${EXPIRY_BADGE[status]}`}>
+            {status === "expired" ? "⚠ " : status === "expiring-soon" ? "⏰ " : "✓ "}{expiryLabel(expiryDate)}
+          </span>
+        )}
+      </div>
     </div>
   );
 }
@@ -449,7 +457,7 @@ export default function EmployeeLifecyclePage() {
                       <InfoRow label="Occupation Code" value={employee.permit.occupationCode} icon={Briefcase} />
                       <InfoRow label="Occupation" value={employee.permit.occupationTitleEn} icon={Briefcase} />
                       <InfoRow label="Issue Date" value={fmtDate(employee.permit.issueDate)} icon={Calendar} />
-                      <InfoRow label="Expiry Date" value={fmtDate(employee.permit.expiryDate)} icon={Calendar} />
+                      <InfoRow label="Expiry Date" value={fmtDate(employee.permit.expiryDate)} icon={Calendar} expiryDate={employee.permit.expiryDate} />
                       <InfoRow label="Status" value={employee.permit.permitStatus} />
                     </div>
                   </CardContent>

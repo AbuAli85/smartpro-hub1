@@ -17,7 +17,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
-import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
+import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime, expiryStatus, expiryLabel, EXPIRY_BADGE } from "@/lib/dateUtils";
 
 const STATUS_META: Record<string, { label: string; color: string }> = {
   active:     { label: "Active",      color: "bg-emerald-100 text-emerald-700 border-emerald-200" },
@@ -285,7 +285,16 @@ function EmployeeDetailPanel({ employeeId, onClose, onUpdate }: { employeeId: nu
                     <div>
                       <p className="text-[10px] text-muted-foreground">Visa Number</p>
                       <p className="text-xs font-mono font-semibold">{(emp as any).visaNumber}</p>
-                      {(emp as any).visaExpiryDate && <p className="text-[10px] text-muted-foreground">Expires: {new Date((emp as any).visaExpiryDate).toLocaleDateString()}</p>}
+                      {(emp as any).visaExpiryDate && (
+                        <div className="flex items-center gap-1 mt-0.5 flex-wrap">
+                          <p className="text-[10px] text-muted-foreground">Expires: {fmtDate((emp as any).visaExpiryDate)}</p>
+                          {expiryStatus((emp as any).visaExpiryDate) !== "none" && (
+                            <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded-full ${EXPIRY_BADGE[expiryStatus((emp as any).visaExpiryDate)]}`}>
+                              {expiryLabel((emp as any).visaExpiryDate)}
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
@@ -295,7 +304,16 @@ function EmployeeDetailPanel({ employeeId, onClose, onUpdate }: { employeeId: nu
                     <div>
                       <p className="text-[10px] text-muted-foreground">Work Permit</p>
                       <p className="text-xs font-mono font-semibold">{(emp as any).workPermitNumber}</p>
-                      {(emp as any).workPermitExpiryDate && <p className="text-[10px] text-muted-foreground">Expires: {new Date((emp as any).workPermitExpiryDate).toLocaleDateString()}</p>}
+                      {(emp as any).workPermitExpiryDate && (
+                        <div className="flex items-center gap-1 mt-0.5 flex-wrap">
+                          <p className="text-[10px] text-muted-foreground">Expires: {fmtDate((emp as any).workPermitExpiryDate)}</p>
+                          {expiryStatus((emp as any).workPermitExpiryDate) !== "none" && (
+                            <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded-full ${EXPIRY_BADGE[expiryStatus((emp as any).workPermitExpiryDate)]}`}>
+                              {expiryLabel((emp as any).workPermitExpiryDate)}
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}

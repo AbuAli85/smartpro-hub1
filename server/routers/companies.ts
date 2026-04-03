@@ -12,6 +12,7 @@ import {
   getCompanySubscription,
   getSubscriptionPlans,
   getUserCompany,
+  getUserCompanies,
   updateCompany,
   getDb,
 } from "../db";
@@ -823,6 +824,49 @@ export const companiesRouter = router({
       if (!member) throw new TRPCError({ code: "NOT_FOUND", message: "No active access record found for this employee." });
 
       await db.update(companyMembers).set({ role: input.role }).where(eq(companyMembers.id, member.id));
+      return { success: true };
+    }),
+
+  // ─── LIST ALL COMPANIES FOR USER ─────────────────────────────────────────────
+  myCompanies: protectedProcedure.query(async ({ ctx }) => {
+    return getUserCompanies(ctx.user.id);
+  }),
+
+  // ─── UPDATE COMPANY PROFILE ──────────────────────────────────────────────────
+  updateMyCompany: protectedProcedure
+    .input(
+      z.object({
+        companyId: z.number(),
+        name: z.string().min(2).optional(),
+        nameAr: z.string().optional(),
+        industry: z.string().optional(),
+        country: z.string().optional(),
+        city: z.string().optional(),
+        address: z.string().optional(),
+        phone: z.string().optional(),
+        email: z.string().email().optional(),
+        website: z.string().optional(),
+        registrationNumber: z.string().optional(),
+        taxNumber: z.string().optional(),
+        description: z.string().optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const [member] = await db
+        .select({ role: companyMembers.role })
+        .from(companyMembers)
+        .where(and(eq(companyMembers.userId, ctx.user.id), eq(companyMembers.companyId, input.companyId), eq(companyMembers.isActive, true)))
+        .limit(1);
+      if (!member) throw new TRPCError({ code: "FORBIDDEN", message: "You are not a member of this company." });
+      const adminRoles = ["owner", "company_admin", "hr_admin"];
+      if (!adminRoles.includes(member.role ?? "")) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Only admins can update company settings." });
+      }
+      const { companyId, ...updateData } = input;
+      const cleanData = Object.fromEntries(Object.entries(updateData).filter(([, v]) => v !== undefined));
+      await updateCompany(companyId, cleanData as any);
       return { success: true };
     }),
 });

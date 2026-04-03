@@ -1216,3 +1216,13 @@ Every company on SmartPRO Hub gets a complete, unified business operating area â
 - [x] Attendance tab: monthly calendar view showing present/absent/late per day with check-in/check-out times
 - [x] Profile tab: show all employee fields â€” name, ID, department, position, hire date, visa/permit expiry, emergency contact
 - [x] Overview tab: smart summary cards + announcements + recent leave + upcoming tasks
+
+## Phase 48: Multi-Company Switching
+- [x] Add getUserCompanies() db helper returning all companies for a user
+- [x] Add companies.myCompanies tRPC procedure (list all user's companies with role)
+- [x] Create useActiveCompany React context with localStorage persistence
+- [x] Build CompanySwitcher component in sidebar header (shows active company, dropdown to switch)
+- [x] Update PlatformLayout to use active company context
+- [x] Update all HR/payroll/leave/attendance pages to use active company ID
+- [x] Add company settings page: edit name, address, industry, phone, email for active company
+- [x] Add companies.updateMyCompany tRPC procedure

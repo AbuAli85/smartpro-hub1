@@ -136,6 +136,17 @@ export async function getUserCompany(userId: number) {
   return result[0] ?? null;
 }
 
+export async function getUserCompanies(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select({ company: companies, member: companyMembers })
+    .from(companyMembers)
+    .innerJoin(companies, eq(companies.id, companyMembers.companyId))
+    .where(and(eq(companyMembers.userId, userId), eq(companyMembers.isActive, true)))
+    .orderBy(companies.name);
+}
+
 // ─── SUBSCRIPTION PLANS ───────────────────────────────────────────────────────
 
 export async function getSubscriptionPlans() {

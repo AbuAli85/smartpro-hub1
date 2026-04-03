@@ -66,6 +66,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
+import { CompanySwitcher } from "@/components/CompanySwitcher";
 
 interface NavItem {
   label: string;
@@ -103,6 +104,7 @@ const navGroups = [
       { label: "My Portal", href: "/my-portal", icon: <Home size={18} /> },
       { label: "Company Profile", href: "/company/profile", icon: <Building2 size={18} /> },
       { label: "Team Access & Roles", href: "/company/team-access", icon: <UserCheck size={18} /> },
+      { label: "Company Settings", href: "/company/settings", icon: <Settings size={18} /> },
       { label: "My Team", href: "/my-team", icon: <Users size={18} /> },
       { label: "Operations", href: "/company/operations", icon: <Activity size={18} /> },
       { label: "Company Documents", href: "/company/documents", icon: <FolderOpen size={18} /> },
@@ -225,26 +227,10 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
         )}
       </div>
 
-      {/* Company badge */}
-      {myCompany && (
-        <div className="px-4 py-3 border-b border-[var(--sidebar-border)]">
-          <div className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-white/5">
-            <Building2 size={14} className="text-white/60 shrink-0" />
-            <div className="min-w-0 flex-1">
-              <span className="text-xs text-white/70 truncate block">{myCompany.company.name}</span>
-              {user && (
-                <span className={`text-[10px] uppercase tracking-wide font-semibold ${getMemberRoleColor(myCompany?.member?.role)}`}>
-                  {seesPlatformOperatorNav(user)
-                    ? "Platform Operator"
-                    : isPortalClientNav(user)
-                      ? "Client Access"
-                      : getMemberRoleLabel(myCompany?.member?.role)}
-                </span>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Company Switcher */}
+      <div className="border-b border-[var(--sidebar-border)]">
+        <CompanySwitcher />
+      </div>
 
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-5">

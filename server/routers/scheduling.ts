@@ -123,9 +123,13 @@ export const schedulingRouter = router({
       return Promise.all(schedules.map(async (s) => {
         const [shift] = await db.select().from(shiftTemplates).where(eq(shiftTemplates.id, s.shiftTemplateId)).limit(1);
         const [site] = await db.select().from(attendanceSites).where(eq(attendanceSites.id, s.siteId)).limit(1);
-        const [emp] = await db.select({ id: users.id, name: users.name, email: users.email, avatarUrl: users.avatarUrl })
-          .from(users).where(eq(users.id, s.employeeUserId)).limit(1);
-        return { ...s, shift: shift ?? null, site: site ?? null, employee: emp ?? null };
+        // Try matching by employee record id first (common when dropdown uses e.id), then by userId
+        const [empById] = await db.select({ id: employees.id, userId: employees.userId, firstName: employees.firstName, lastName: employees.lastName, email: employees.email, avatarUrl: employees.avatarUrl })
+          .from(employees).where(and(eq(employees.companyId, companyId), eq(employees.id, s.employeeUserId))).limit(1);
+        const [empByUserId] = empById ? [empById] : await db.select({ id: employees.id, userId: employees.userId, firstName: employees.firstName, lastName: employees.lastName, email: employees.email, avatarUrl: employees.avatarUrl })
+          .from(employees).where(and(eq(employees.companyId, companyId), eq(employees.userId, s.employeeUserId))).limit(1);
+        const emp = empById ?? empByUserId ?? null;
+        return { ...s, shift: shift ?? null, site: site ?? null, employee: emp ? { ...emp, name: `${emp.firstName} ${emp.lastName}`.trim() } : null };
       }));
     }),
 

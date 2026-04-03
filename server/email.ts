@@ -4,8 +4,7 @@
  * Uses the Resend API to send branded HTML emails.
  * All email sending must happen server-side to keep the API key private.
  *
- * From address: onboarding@resend.dev (Resend shared domain, works without custom domain)
- * To use a custom domain: verify it in Resend dashboard and update FROM_ADDRESS.
+ * From address: noreply@thesmartpro.io (requires domain verification in Resend dashboard)
  */
 import { Resend } from "resend";
 import { ENV } from "./_core/env";
@@ -19,53 +18,99 @@ function getResend(): Resend {
   return new Resend(ENV.resendApiKey);
 }
 
-// ── Brand colours ─────────────────────────────────────────────────────────────
-const BRAND_PRIMARY = "#e63946";   // SmartPRO red
-const BRAND_DARK    = "#1a1a2e";   // dark navy/black
-const BRAND_LIGHT   = "#f8f9fa";   // off-white background
+// ── Brand tokens ──────────────────────────────────────────────────────────────
+const C = {
+  primary:    "#e63946",   // SmartPRO red
+  dark:       "#0f0f1a",   // deep navy
+  darkCard:   "#1a1a2e",   // card navy
+  accent:     "#ff6b6b",   // lighter red for gradients
+  white:      "#ffffff",
+  bg:         "#f4f6f9",   // page background
+  cardBg:     "#fafbfc",   // info card background
+  border:     "#e2e8f0",   // subtle border
+  text:       "#1e293b",   // primary text
+  textMuted:  "#64748b",   // secondary text
+  textLight:  "#94a3b8",   // tertiary / footer text
+  success:    "#10b981",   // green for trust indicators
+};
 
-// ── Base HTML layout ──────────────────────────────────────────────────────────
-function baseLayout(title: string, bodyHtml: string): string {
+// ── Shared layout ─────────────────────────────────────────────────────────────
+function baseLayout(title: string, preheader: string, bodyHtml: string): string {
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
   <title>${title}</title>
+  <!--[if mso]><noscript><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript><![endif]-->
 </head>
-<body style="margin:0;padding:0;background:${BRAND_LIGHT};font-family:'Segoe UI',Arial,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:${BRAND_LIGHT};padding:32px 0;">
+<body style="margin:0;padding:0;background:${C.bg};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%;">
+  <!-- Preheader (hidden preview text) -->
+  <div style="display:none;max-height:0;overflow:hidden;mso-hide:all;">${preheader}&nbsp;&#847;&nbsp;&#847;&nbsp;&#847;&nbsp;&#847;&nbsp;&#847;&nbsp;&#847;&nbsp;&#847;&nbsp;&#847;&nbsp;&#847;&nbsp;&#847;&nbsp;&#847;&nbsp;&#847;&nbsp;&#847;&nbsp;&#847;&nbsp;&#847;</div>
+
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${C.bg};padding:40px 16px;">
     <tr>
       <td align="center">
-        <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;">
-          <!-- Header -->
+        <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;">
+
+          <!-- ── HEADER ── -->
           <tr>
-            <td style="background:${BRAND_DARK};border-radius:12px 12px 0 0;padding:24px 32px;">
-              <table width="100%" cellpadding="0" cellspacing="0">
+            <td style="background:${C.dark};border-radius:16px 16px 0 0;padding:0;overflow:hidden;">
+              <!-- Gradient accent bar -->
+              <div style="height:4px;background:linear-gradient(90deg,${C.primary} 0%,${C.accent} 50%,${C.primary} 100%);"></div>
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="padding:28px 36px;">
                 <tr>
                   <td>
-                    <span style="color:${BRAND_PRIMARY};font-size:22px;font-weight:800;letter-spacing:-0.5px;">Smart</span><span style="color:#ffffff;font-size:22px;font-weight:800;letter-spacing:-0.5px;">PRO</span>
-                    <span style="color:#aaaaaa;font-size:13px;margin-left:8px;">Business Services Hub</span>
+                    <!-- Logo -->
+                    <table role="presentation" cellpadding="0" cellspacing="0">
+                      <tr>
+                        <td style="vertical-align:middle;">
+                          <span style="display:inline-block;background:${C.primary};color:${C.white};font-size:11px;font-weight:800;letter-spacing:1.5px;padding:4px 8px;border-radius:4px;text-transform:uppercase;">SP</span>
+                        </td>
+                        <td style="vertical-align:middle;padding-left:10px;">
+                          <span style="color:${C.primary};font-size:20px;font-weight:800;letter-spacing:-0.5px;">Smart</span><span style="color:${C.white};font-size:20px;font-weight:800;letter-spacing:-0.5px;">PRO</span>
+                        </td>
+                        <td style="vertical-align:middle;padding-left:10px;">
+                          <span style="color:#4a5568;font-size:12px;font-weight:400;border-left:1px solid #2d3748;padding-left:10px;">Business Services Hub</span>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                  <td align="right" style="vertical-align:middle;">
+                    <span style="color:#4a5568;font-size:11px;">Sultanate of Oman</span>
                   </td>
                 </tr>
               </table>
             </td>
           </tr>
-          <!-- Body -->
+
+          <!-- ── BODY ── -->
           <tr>
-            <td style="background:#ffffff;padding:32px;border-left:1px solid #e8e8e8;border-right:1px solid #e8e8e8;">
+            <td style="background:${C.white};padding:40px 36px;border-left:1px solid ${C.border};border-right:1px solid ${C.border};">
               ${bodyHtml}
             </td>
           </tr>
-          <!-- Footer -->
+
+          <!-- ── FOOTER ── -->
           <tr>
-            <td style="background:${BRAND_DARK};border-radius:0 0 12px 12px;padding:20px 32px;text-align:center;">
-              <p style="color:#888888;font-size:12px;margin:0;">
-                © ${new Date().getFullYear()} SmartPRO Business Services Hub &nbsp;·&nbsp; Sultanate of Oman<br/>
-                <span style="color:#666666;">This email was sent automatically. Please do not reply to this message.</span>
-              </p>
+            <td style="background:${C.dark};border-radius:0 0 16px 16px;padding:24px 36px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td align="center">
+                    <p style="color:#4a5568;font-size:12px;margin:0 0 6px;">
+                      <span style="color:${C.primary};font-weight:700;">Smart</span><span style="color:${C.white};font-weight:700;">PRO</span>
+                      <span style="color:#4a5568;"> &nbsp;·&nbsp; Business Services Hub &nbsp;·&nbsp; Sultanate of Oman</span>
+                    </p>
+                    <p style="color:#2d3748;font-size:11px;margin:0;">
+                      © ${new Date().getFullYear()} SmartPRO. All rights reserved. &nbsp;·&nbsp; This email was sent automatically — please do not reply.
+                    </p>
+                  </td>
+                </tr>
+              </table>
             </td>
           </tr>
+
         </table>
       </td>
     </tr>
@@ -74,12 +119,64 @@ function baseLayout(title: string, bodyHtml: string): string {
 </html>`;
 }
 
-// ── Button helper ─────────────────────────────────────────────────────────────
-function ctaButton(href: string, label: string): string {
-  return `<a href="${href}" style="display:inline-block;background:${BRAND_PRIMARY};color:#ffffff;font-weight:700;font-size:15px;padding:14px 28px;border-radius:8px;text-decoration:none;margin:20px 0;">${label}</a>`;
+// ── Info card row ─────────────────────────────────────────────────────────────
+function infoRow(label: string, value: string, highlight = false): string {
+  return `
+  <tr>
+    <td style="color:${C.textMuted};font-size:13px;padding:8px 0;border-bottom:1px solid ${C.border};width:45%;">${label}</td>
+    <td style="color:${highlight ? C.primary : C.text};font-size:13px;font-weight:600;text-align:right;padding:8px 0;border-bottom:1px solid ${C.border};">${value}</td>
+  </tr>`;
 }
 
-// ── Email: Team Invite ────────────────────────────────────────────────────────
+// ── CTA button ────────────────────────────────────────────────────────────────
+function ctaButton(href: string, label: string, secondary = false): string {
+  const bg = secondary ? "transparent" : C.primary;
+  const color = secondary ? C.primary : C.white;
+  const border = secondary ? `border:2px solid ${C.primary};` : "";
+  return `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:24px 0;">
+  <tr>
+    <td style="border-radius:10px;background:${bg};${border}">
+      <a href="${href}" style="display:inline-block;background:${bg};color:${color};font-weight:700;font-size:15px;padding:14px 32px;border-radius:10px;text-decoration:none;letter-spacing:0.2px;${border}">${label} &rarr;</a>
+    </td>
+  </tr>
+</table>`;
+}
+
+// ── Role badge ────────────────────────────────────────────────────────────────
+function roleBadge(roleLabel: string): string {
+  return `<span style="display:inline-block;background:#fff0f1;color:${C.primary};font-size:12px;font-weight:700;padding:4px 12px;border-radius:20px;border:1px solid #fecdd3;letter-spacing:0.3px;">${roleLabel}</span>`;
+}
+
+// ── Trust indicator strip ─────────────────────────────────────────────────────
+function trustStrip(): string {
+  return `
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:28px 0 0;background:${C.cardBg};border-radius:10px;border:1px solid ${C.border};padding:14px 20px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" cellpadding="0" cellspacing="0">
+          <tr>
+            <td style="padding:0 16px;text-align:center;border-right:1px solid ${C.border};">
+              <div style="color:${C.success};font-size:18px;margin-bottom:2px;">&#10003;</div>
+              <div style="color:${C.textMuted};font-size:11px;">Secure Link</div>
+            </td>
+            <td style="padding:0 16px;text-align:center;border-right:1px solid ${C.border};">
+              <div style="color:${C.success};font-size:18px;margin-bottom:2px;">&#128274;</div>
+              <div style="color:${C.textMuted};font-size:11px;">Encrypted</div>
+            </td>
+            <td style="padding:0 16px;text-align:center;">
+              <div style="color:${C.success};font-size:18px;margin-bottom:2px;">&#9733;</div>
+              <div style="color:${C.textMuted};font-size:11px;">Verified Platform</div>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>`;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// EMAIL 1 — Team Invite
+// ─────────────────────────────────────────────────────────────────────────────
 export interface InviteEmailParams {
   to: string;
   inviteeName?: string;
@@ -94,35 +191,55 @@ export async function sendInviteEmail(params: InviteEmailParams): Promise<{ succ
   const { to, inviteeName, inviterName, companyName, role, inviteUrl, expiresAt } = params;
   const roleLabel = role.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
   const expiryStr = expiresAt.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
-  const greeting = inviteeName ? `Hi ${inviteeName},` : "Hello,";
+  const greeting = inviteeName ? `Hi <strong>${inviteeName}</strong>,` : "Hello,";
 
   const body = `
-    <h2 style="color:${BRAND_DARK};font-size:22px;margin:0 0 8px;">You've been invited to join ${companyName}</h2>
-    <p style="color:#555555;font-size:15px;line-height:1.6;margin:0 0 20px;">${greeting}</p>
-    <p style="color:#555555;font-size:15px;line-height:1.6;margin:0 0 20px;">
-      <strong>${inviterName}</strong> has invited you to join <strong>${companyName}</strong> on SmartPRO Business Services Hub as a <strong>${roleLabel}</strong>.
+    <!-- Icon banner -->
+    <div style="text-align:center;margin-bottom:28px;">
+      <div style="display:inline-block;background:linear-gradient(135deg,${C.primary},${C.accent});border-radius:50%;width:64px;height:64px;line-height:64px;font-size:28px;color:${C.white};text-align:center;">&#9993;</div>
+    </div>
+
+    <h1 style="color:${C.text};font-size:24px;font-weight:800;margin:0 0 6px;text-align:center;letter-spacing:-0.5px;">You've Been Invited!</h1>
+    <p style="color:${C.textMuted};font-size:14px;text-align:center;margin:0 0 28px;">Join <strong>${companyName}</strong> on SmartPRO Business Services Hub</p>
+
+    <p style="color:${C.textMuted};font-size:15px;line-height:1.7;margin:0 0 6px;">${greeting}</p>
+    <p style="color:${C.textMuted};font-size:15px;line-height:1.7;margin:0 0 24px;">
+      <strong style="color:${C.text};">${inviterName}</strong> has invited you to collaborate on <strong style="color:${C.text};">${companyName}</strong> as:
     </p>
-    <div style="background:${BRAND_LIGHT};border-radius:8px;padding:16px 20px;margin:0 0 24px;">
-      <table width="100%" cellpadding="0" cellspacing="0">
-        <tr>
-          <td style="color:#888888;font-size:13px;padding:4px 0;">Company</td>
-          <td style="color:${BRAND_DARK};font-size:13px;font-weight:600;text-align:right;">${companyName}</td>
-        </tr>
-        <tr>
-          <td style="color:#888888;font-size:13px;padding:4px 0;">Your Role</td>
-          <td style="color:${BRAND_DARK};font-size:13px;font-weight:600;text-align:right;">${roleLabel}</td>
-        </tr>
-        <tr>
-          <td style="color:#888888;font-size:13px;padding:4px 0;">Invite Expires</td>
-          <td style="color:${BRAND_DARK};font-size:13px;font-weight:600;text-align:right;">${expiryStr}</td>
-        </tr>
+
+    <!-- Role highlight -->
+    <div style="text-align:center;margin:0 0 28px;">
+      ${roleBadge(roleLabel)}
+    </div>
+
+    <!-- Info card -->
+    <div style="background:${C.cardBg};border-radius:12px;border:1px solid ${C.border};padding:4px 20px;margin:0 0 28px;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+        ${infoRow("Company", companyName)}
+        ${infoRow("Your Role", roleLabel, true)}
+        ${infoRow("Invite Expires", expiryStr)}
       </table>
     </div>
-    <p style="color:#555555;font-size:15px;line-height:1.6;margin:0 0 8px;">Click the button below to accept your invitation and set up your account:</p>
-    ${ctaButton(inviteUrl, "Accept Invitation")}
-    <p style="color:#999999;font-size:13px;margin:16px 0 0;">Or copy this link: <a href="${inviteUrl}" style="color:${BRAND_PRIMARY};">${inviteUrl}</a></p>
-    <hr style="border:none;border-top:1px solid #eeeeee;margin:24px 0;" />
-    <p style="color:#aaaaaa;font-size:12px;margin:0;">If you did not expect this invitation, you can safely ignore this email.</p>
+
+    <p style="color:${C.textMuted};font-size:14px;line-height:1.6;margin:0 0 4px;text-align:center;">Click below to accept your invitation and create your account:</p>
+
+    <div style="text-align:center;">
+      ${ctaButton(inviteUrl, "Accept Invitation")}
+    </div>
+
+    <!-- Fallback link -->
+    <div style="background:${C.cardBg};border-radius:8px;border:1px solid ${C.border};padding:12px 16px;margin:8px 0 24px;word-break:break-all;">
+      <p style="color:${C.textMuted};font-size:12px;margin:0 0 4px;">Or copy this link into your browser:</p>
+      <a href="${inviteUrl}" style="color:${C.primary};font-size:12px;word-break:break-all;">${inviteUrl}</a>
+    </div>
+
+    ${trustStrip()}
+
+    <hr style="border:none;border-top:1px solid ${C.border};margin:28px 0 20px;" />
+    <p style="color:${C.textLight};font-size:12px;margin:0;text-align:center;line-height:1.6;">
+      If you were not expecting this invitation, you can safely ignore this email.<br/>
+      This invitation link will expire on <strong>${expiryStr}</strong>.
+    </p>
   `;
 
   try {
@@ -130,8 +247,12 @@ export async function sendInviteEmail(params: InviteEmailParams): Promise<{ succ
     const result = await resend.emails.send({
       from: FROM_ADDRESS,
       to: [to],
-      subject: `You've been invited to join ${companyName} on SmartPRO`,
-      html: baseLayout(`Invitation to join ${companyName}`, body),
+      subject: `${inviterName} invited you to join ${companyName} on SmartPRO`,
+      html: baseLayout(
+        `Invitation to join ${companyName}`,
+        `${inviterName} has invited you to join ${companyName} as ${roleLabel}. Accept your invitation before ${expiryStr}.`,
+        body
+      ),
     });
     if (result.error) {
       console.error("[Email] Invite email error:", result.error);
@@ -144,7 +265,9 @@ export async function sendInviteEmail(params: InviteEmailParams): Promise<{ succ
   }
 }
 
-// ── Email: HR Letter Delivery ─────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// EMAIL 2 — HR Letter Delivery
+// ─────────────────────────────────────────────────────────────────────────────
 export interface HRLetterEmailParams {
   to: string;
   employeeName: string;
@@ -157,39 +280,50 @@ export interface HRLetterEmailParams {
 export async function sendHRLetterEmail(params: HRLetterEmailParams): Promise<{ success: boolean; error?: string }> {
   const { to, employeeName, letterType, companyName, issuedBy, pdfUrl } = params;
   const letterLabel = letterType.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  const dateStr = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
 
   const body = `
-    <h2 style="color:${BRAND_DARK};font-size:22px;margin:0 0 16px;">Your ${letterLabel} is Ready</h2>
-    <p style="color:#555555;font-size:15px;line-height:1.6;margin:0 0 20px;">Dear <strong>${employeeName}</strong>,</p>
-    <p style="color:#555555;font-size:15px;line-height:1.6;margin:0 0 20px;">
-      Your <strong>${letterLabel}</strong> has been issued by <strong>${companyName}</strong> and is now available.
+    <!-- Icon banner -->
+    <div style="text-align:center;margin-bottom:28px;">
+      <div style="display:inline-block;background:linear-gradient(135deg,${C.primary},${C.accent});border-radius:50%;width:64px;height:64px;line-height:64px;font-size:28px;color:${C.white};text-align:center;">&#128196;</div>
+    </div>
+
+    <h1 style="color:${C.text};font-size:24px;font-weight:800;margin:0 0 6px;text-align:center;letter-spacing:-0.5px;">Your Official Letter is Ready</h1>
+    <p style="color:${C.textMuted};font-size:14px;text-align:center;margin:0 0 28px;">${letterLabel} &nbsp;·&nbsp; ${companyName}</p>
+
+    <p style="color:${C.textMuted};font-size:15px;line-height:1.7;margin:0 0 20px;">Dear <strong style="color:${C.text};">${employeeName}</strong>,</p>
+    <p style="color:${C.textMuted};font-size:15px;line-height:1.7;margin:0 0 24px;">
+      Your <strong style="color:${C.text};">${letterLabel}</strong> has been officially issued by <strong style="color:${C.text};">${companyName}</strong> and is now available for download.
     </p>
-    <div style="background:${BRAND_LIGHT};border-radius:8px;padding:16px 20px;margin:0 0 24px;">
-      <table width="100%" cellpadding="0" cellspacing="0">
-        <tr>
-          <td style="color:#888888;font-size:13px;padding:4px 0;">Letter Type</td>
-          <td style="color:${BRAND_DARK};font-size:13px;font-weight:600;text-align:right;">${letterLabel}</td>
-        </tr>
-        <tr>
-          <td style="color:#888888;font-size:13px;padding:4px 0;">Issued By</td>
-          <td style="color:${BRAND_DARK};font-size:13px;font-weight:600;text-align:right;">${companyName}</td>
-        </tr>
-        <tr>
-          <td style="color:#888888;font-size:13px;padding:4px 0;">Prepared By</td>
-          <td style="color:${BRAND_DARK};font-size:13px;font-weight:600;text-align:right;">${issuedBy}</td>
-        </tr>
-        <tr>
-          <td style="color:#888888;font-size:13px;padding:4px 0;">Date Issued</td>
-          <td style="color:${BRAND_DARK};font-size:13px;font-weight:600;text-align:right;">${new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}</td>
-        </tr>
+
+    <!-- Info card -->
+    <div style="background:${C.cardBg};border-radius:12px;border:1px solid ${C.border};padding:4px 20px;margin:0 0 28px;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+        ${infoRow("Letter Type", letterLabel, true)}
+        ${infoRow("Issued By", companyName)}
+        ${infoRow("Prepared By", issuedBy)}
+        ${infoRow("Date Issued", dateStr)}
       </table>
     </div>
-    ${pdfUrl ? `
-    <p style="color:#555555;font-size:15px;line-height:1.6;margin:0 0 8px;">You can download your letter using the link below:</p>
-    ${ctaButton(pdfUrl, "Download Letter")}
-    ` : `<p style="color:#555555;font-size:15px;line-height:1.6;margin:0 0 8px;">Please log in to SmartPRO to view and download your letter.</p>`}
-    <hr style="border:none;border-top:1px solid #eeeeee;margin:24px 0;" />
-    <p style="color:#aaaaaa;font-size:12px;margin:0;">This letter was generated by the SmartPRO HR Management System. For any queries, please contact your HR department.</p>
+
+    ${pdfUrl
+      ? `<p style="color:${C.textMuted};font-size:14px;text-align:center;margin:0 0 4px;">Click below to download your official letter:</p>
+         <div style="text-align:center;">${ctaButton(pdfUrl, "Download Letter")}</div>`
+      : `<p style="color:${C.textMuted};font-size:14px;text-align:center;margin:0 0 4px;">Please log in to SmartPRO to view and download your letter:</p>
+         <div style="text-align:center;">${ctaButton("https://smartprohub-q4qjnxjv.manus.space", "Log In to SmartPRO")}</div>`
+    }
+
+    <!-- Official stamp note -->
+    <div style="background:#f0fdf4;border-radius:8px;border:1px solid #bbf7d0;padding:12px 16px;margin:8px 0 24px;">
+      <p style="color:#166534;font-size:13px;margin:0;line-height:1.6;">
+        &#10003; &nbsp;This is an officially generated document from the SmartPRO HR Management System. It carries the same validity as a printed letter.
+      </p>
+    </div>
+
+    <hr style="border:none;border-top:1px solid ${C.border};margin:28px 0 20px;" />
+    <p style="color:${C.textLight};font-size:12px;margin:0;text-align:center;line-height:1.6;">
+      For any queries regarding this letter, please contact your HR department at <strong>${companyName}</strong>.
+    </p>
   `;
 
   try {
@@ -197,8 +331,12 @@ export async function sendHRLetterEmail(params: HRLetterEmailParams): Promise<{ 
     const result = await resend.emails.send({
       from: FROM_ADDRESS,
       to: [to],
-      subject: `Your ${letterLabel} from ${companyName}`,
-      html: baseLayout(`${letterLabel} — ${companyName}`, body),
+      subject: `Your ${letterLabel} from ${companyName} — SmartPRO`,
+      html: baseLayout(
+        `${letterLabel} — ${companyName}`,
+        `Your ${letterLabel} has been issued by ${companyName} and is ready to download.`,
+        body
+      ),
     });
     if (result.error) {
       console.error("[Email] HR letter email error:", result.error);
@@ -211,7 +349,9 @@ export async function sendHRLetterEmail(params: HRLetterEmailParams): Promise<{ 
   }
 }
 
-// ── Email: Contract Signing Notification ──────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// EMAIL 3 — Contract Signing Notification
+// ─────────────────────────────────────────────────────────────────────────────
 export interface ContractSigningEmailParams {
   to: string;
   signerName?: string;
@@ -223,35 +363,57 @@ export interface ContractSigningEmailParams {
 
 export async function sendContractSigningEmail(params: ContractSigningEmailParams): Promise<{ success: boolean; error?: string }> {
   const { to, signerName, contractTitle, companyName, signingUrl, expiresAt } = params;
-  const greeting = signerName ? `Dear ${signerName},` : "Hello,";
-  const expiryNote = expiresAt
-    ? `<tr><td style="color:#888888;font-size:13px;padding:4px 0;">Signing Deadline</td><td style="color:#e63946;font-size:13px;font-weight:600;text-align:right;">${expiresAt.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}</td></tr>`
-    : "";
+  const greeting = signerName ? `Dear <strong style="color:${C.text};">${signerName}</strong>,` : "Hello,";
+  const expiryStr = expiresAt
+    ? expiresAt.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })
+    : null;
 
   const body = `
-    <h2 style="color:${BRAND_DARK};font-size:22px;margin:0 0 16px;">Action Required: Contract Signature</h2>
-    <p style="color:#555555;font-size:15px;line-height:1.6;margin:0 0 20px;">${greeting}</p>
-    <p style="color:#555555;font-size:15px;line-height:1.6;margin:0 0 20px;">
-      <strong>${companyName}</strong> has sent you a contract for your digital signature via SmartPRO.
+    <!-- Icon banner -->
+    <div style="text-align:center;margin-bottom:28px;">
+      <div style="display:inline-block;background:linear-gradient(135deg,${C.primary},${C.accent});border-radius:50%;width:64px;height:64px;line-height:64px;font-size:28px;color:${C.white};text-align:center;">&#9997;</div>
+    </div>
+
+    <!-- Urgency badge -->
+    <div style="text-align:center;margin-bottom:20px;">
+      <span style="display:inline-block;background:#fff7ed;color:#c2410c;font-size:12px;font-weight:700;padding:4px 14px;border-radius:20px;border:1px solid #fed7aa;letter-spacing:0.3px;">&#9888; Action Required</span>
+    </div>
+
+    <h1 style="color:${C.text};font-size:24px;font-weight:800;margin:0 0 6px;text-align:center;letter-spacing:-0.5px;">Contract Signature Requested</h1>
+    <p style="color:${C.textMuted};font-size:14px;text-align:center;margin:0 0 28px;">${contractTitle}</p>
+
+    <p style="color:${C.textMuted};font-size:15px;line-height:1.7;margin:0 0 20px;">${greeting}</p>
+    <p style="color:${C.textMuted};font-size:15px;line-height:1.7;margin:0 0 24px;">
+      <strong style="color:${C.text};">${companyName}</strong> has sent you a contract for your digital signature via the SmartPRO Smart Contracts platform.
     </p>
-    <div style="background:${BRAND_LIGHT};border-radius:8px;padding:16px 20px;margin:0 0 24px;">
-      <table width="100%" cellpadding="0" cellspacing="0">
-        <tr>
-          <td style="color:#888888;font-size:13px;padding:4px 0;">Contract</td>
-          <td style="color:${BRAND_DARK};font-size:13px;font-weight:600;text-align:right;">${contractTitle}</td>
-        </tr>
-        <tr>
-          <td style="color:#888888;font-size:13px;padding:4px 0;">Issued By</td>
-          <td style="color:${BRAND_DARK};font-size:13px;font-weight:600;text-align:right;">${companyName}</td>
-        </tr>
-        ${expiryNote}
+
+    <!-- Info card -->
+    <div style="background:${C.cardBg};border-radius:12px;border:1px solid ${C.border};padding:4px 20px;margin:0 0 28px;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+        ${infoRow("Contract", contractTitle, true)}
+        ${infoRow("Issued By", companyName)}
+        ${expiryStr ? infoRow("Signing Deadline", expiryStr, true) : ""}
       </table>
     </div>
-    <p style="color:#555555;font-size:15px;line-height:1.6;margin:0 0 8px;">Please review and sign the contract by clicking the button below:</p>
-    ${ctaButton(signingUrl, "Review & Sign Contract")}
-    <p style="color:#999999;font-size:13px;margin:16px 0 0;">Or copy this link: <a href="${signingUrl}" style="color:${BRAND_PRIMARY};">${signingUrl}</a></p>
-    <hr style="border:none;border-top:1px solid #eeeeee;margin:24px 0;" />
-    <p style="color:#aaaaaa;font-size:12px;margin:0;">If you were not expecting this contract, please contact ${companyName} directly. Do not sign documents you do not recognise.</p>
+
+    <p style="color:${C.textMuted};font-size:14px;text-align:center;margin:0 0 4px;">Review the full contract and add your digital signature:</p>
+    <div style="text-align:center;">
+      ${ctaButton(signingUrl, "Review & Sign Contract")}
+    </div>
+
+    <!-- Fallback link -->
+    <div style="background:${C.cardBg};border-radius:8px;border:1px solid ${C.border};padding:12px 16px;margin:8px 0 24px;word-break:break-all;">
+      <p style="color:${C.textMuted};font-size:12px;margin:0 0 4px;">Or copy this link into your browser:</p>
+      <a href="${signingUrl}" style="color:${C.primary};font-size:12px;word-break:break-all;">${signingUrl}</a>
+    </div>
+
+    ${trustStrip()}
+
+    <hr style="border:none;border-top:1px solid ${C.border};margin:28px 0 20px;" />
+    <p style="color:${C.textLight};font-size:12px;margin:0;text-align:center;line-height:1.6;">
+      If you were not expecting this contract, please contact <strong>${companyName}</strong> directly.<br/>
+      Do not sign any document you do not recognise or were not expecting.
+    </p>
   `;
 
   try {
@@ -259,8 +421,12 @@ export async function sendContractSigningEmail(params: ContractSigningEmailParam
     const result = await resend.emails.send({
       from: FROM_ADDRESS,
       to: [to],
-      subject: `Signature Required: ${contractTitle}`,
-      html: baseLayout(`Contract Signature — ${contractTitle}`, body),
+      subject: `Signature Required: ${contractTitle} — ${companyName}`,
+      html: baseLayout(
+        `Contract Signature — ${contractTitle}`,
+        `${companyName} requires your digital signature on "${contractTitle}". Please review and sign at your earliest convenience.`,
+        body
+      ),
     });
     if (result.error) {
       console.error("[Email] Contract signing email error:", result.error);

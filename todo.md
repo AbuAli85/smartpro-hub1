@@ -1192,3 +1192,19 @@ Every company on SmartPRO Hub gets a complete, unified business operating area �
 
 ### 44D — Role Guide Cards
 - [ ] UI: Role explanation section on TeamAccessPage — what each role sees and can do
+
+## Phase 46: Employee Access & Notification Workflow Fix
+- [x] Fix employeePortal router: use userId-first lookup (not email-first) in ALL procedures
+- [x] Add in-app notification helper: sendEmployeeNotification(employeeId, companyId, type, title, message, link)
+- [x] Wire HR leave approval/rejection to send in-app notification to the employee
+- [x] Wire HR payroll markPaid to send in-app notification to the employee (payslip ready)
+- [x] Wire task assignment to send in-app notification to the assigned employee
+- [x] Add tRPC procedure: notifications.getMyNotifications (paginated, unread first)
+- [x] Add tRPC procedure: notifications.markRead (single) and notifications.markAllRead
+- [x] Add notification bell to employee portal header with unread count badge
+- [x] Add Notifications tab to EmployeePortalPage showing all in-app notifications
+- [x] Add Leave Request submission confirmation: employee sees "Submitted — pending HR approval"
+- [x] Fix EmployeePortalPage leave tab: show leave balance bar (Annual / Sick / Emergency remaining days)
+- [x] Add "Submit Leave Request" button directly in the Leave tab of My Portal
+- [x] Fix EmployeePortalPage: show correct employee name (not first active employee in company)
+- [ ] Add "My Portal" link in sidebar for company_member / hr_admin / finance_admin roles

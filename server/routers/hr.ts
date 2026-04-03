@@ -1,7 +1,8 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { eq, and, desc } from "drizzle-orm";
-import { workPermits } from "../../drizzle/schema";
+import { workPermits, employees } from "../../drizzle/schema";
+import { sendEmployeeNotification } from "./employeePortal";
 import { getDb } from "../db";
 import {
   createAttendanceRecord,
@@ -373,6 +374,28 @@ export const hrRouter = router({
       if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Leave request not found" });
       await assertRowBelongsToActiveCompany(ctx.user, row.companyId, "Leave request");
       await updateLeaveRequest(id, { ...data, approvedBy: ctx.user.id });
+      // Notify the employee about the leave decision
+      if (input.status === "approved" || input.status === "rejected") {
+        const db = await getDb();
+        if (db) {
+          const [emp] = await db
+            .select({ userId: employees.userId, firstName: employees.firstName, lastName: employees.lastName })
+            .from(employees)
+            .where(eq(employees.id, row.employeeId))
+            .limit(1);
+          if (emp?.userId) {
+            const statusLabel = input.status === "approved" ? "Approved ✅" : "Rejected ❌";
+            await sendEmployeeNotification({
+              toUserId: emp.userId,
+              companyId: row.companyId,
+              type: "leave_decision",
+              title: `Leave Request ${statusLabel}`,
+              message: `Your ${(row.leaveType ?? "").replace("_", " ")} leave request has been ${input.status}.${input.notes ? " Note: " + input.notes : ""}`,
+              link: "/my-portal",
+            });
+          }
+        }
+      }
       return { success: true };
     }),
 
@@ -425,6 +448,27 @@ export const hrRouter = router({
       const updateData: any = { status: input.status };
       if (input.status === "paid") updateData.paidAt = new Date();
       await updatePayrollRecord(input.id, updateData);
+      // Notify the employee when their payslip is marked as paid
+      if (input.status === "paid") {
+        const db = await getDb();
+        if (db) {
+          const [emp] = await db
+            .select({ userId: employees.userId, firstName: employees.firstName })
+            .from(employees)
+            .where(eq(employees.id, row.employeeId))
+            .limit(1);
+          if (emp?.userId) {
+            await sendEmployeeNotification({
+              toUserId: emp.userId,
+              companyId: row.companyId,
+              type: "payslip_ready",
+              title: "💰 Payslip Ready",
+              message: `Your salary for ${row.periodMonth}/${row.periodYear} has been processed and paid. View your payslip in My Portal.`,
+              link: "/my-portal",
+            });
+          }
+        }
+      }
       return { success: true };
     }),
 

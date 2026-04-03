@@ -756,7 +756,7 @@ export default function MyTeamPage() {
   const departments = useMemo(() => {
     const depts = new Set<string>();
     (stats?.byDepartment ?? []).forEach((d) => depts.add(d.dept));
-    return Array.from(depts).filter((d) => d !== "Unassigned");
+    return Array.from(depts).filter((d) => d && d !== "Unassigned");
   }, [stats?.byDepartment]);
 
   const editMember = members.find((m) => m.id === editId);

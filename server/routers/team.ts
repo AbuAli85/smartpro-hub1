@@ -268,7 +268,7 @@ export const teamRouter = router({
 
       for (const e of all) {
         byStatus[e.status] = (byStatus[e.status] ?? 0) + 1;
-        const dept = e.department ?? "Unassigned";
+        const dept = e.department || "Unassigned";
         byDept[dept] = (byDept[dept] ?? 0) + 1;
         if (e.hireDate && new Date(e.hireDate) >= thirtyDaysAgo) {
           recentHires.push(e);

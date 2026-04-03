@@ -1459,3 +1459,25 @@ Every company on SmartPRO Hub gets a complete, unified business operating area �
 - [x] Nav items: Attendance Sites and Employee Requests added to HR section
 - [x] RBAC: /hr/attendance-sites and /hr/employee-requests added to HR_ADMIN_HREFS
 - [x] /attend/:token added as public route (no auth required for QR scan page)
+
+## Phase 64: Smart Map-Powered Attendance Sites (Planned)
+- [ ] DB: Add lat, lng, radiusMeters, siteType, clientName, operatingHoursStart, operatingHoursEnd, timezone to attendance_sites
+- [ ] Backend: Enforce geo-fence radius on checkIn (reject if outside radius)
+- [ ] Backend: Enforce operating hours window on checkIn
+- [ ] Backend: Add siteType and clientName to createSite/updateSite inputs
+- [ ] UI: AttendanceSitesPage — Google Maps picker for lat/lng in create/edit dialog
+- [ ] UI: Geo-fence radius slider (50m–2000m) with visual circle on map
+- [ ] UI: Site type selector (Mall, Brand Store, Office, Warehouse, Client Site, Other)
+- [ ] UI: Client/brand name field for outsourced deployments
+- [ ] UI: Operating hours (start/end time) per site
+- [ ] UI: Site cards show type badge, client name, radius, and map thumbnail
+- [ ] UI: AttendCheckInPage — show live GPS distance from site, geo-fence status indicator
+- [ ] UI: AttendCheckInPage — show site map with geo-fence circle
+- [ ] UI: AttendCheckInPage — clear error if outside geo-fence radius
+
+## Phase 63: Enhanced Smart Attendance Sites (Completed)
+- [x] Add lat/lng, radiusMeters, enforceGeofence, siteType, clientName, operatingHours, timezone, enforceHours columns to attendance_sites
+- [x] Migrate DB schema with new columns
+- [x] Upgrade attendance router: geo-fence enforcement on check-in, operating hours check
+- [x] Rebuild AttendanceSitesPage with Google Maps picker, geo-fence radius slider, site type selector, operating hours, client name
+- [x] Upgrade AttendCheckInPage with live GPS tracking, proximity ring, geo-fence feedback, operating hours check, site info card

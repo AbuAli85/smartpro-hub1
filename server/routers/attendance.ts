@@ -1,13 +1,11 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { eq, and, desc, gte, lte, isNull, sql } from "drizzle-orm";
+import { eq, and, desc, gte, lte, isNull } from "drizzle-orm";
 import { randomBytes } from "crypto";
 import {
   attendanceSites,
   attendanceRecords,
   employees,
-  companyMembers,
-  users,
 } from "../../drizzle/schema";
 import { getDb, getUserCompany } from "../db";
 import { protectedProcedure, publicProcedure, router } from "../_core/trpc";
@@ -48,14 +46,82 @@ async function resolveMyEmployee(userId: number, userEmail: string, companyId: n
   return null;
 }
 
+/**
+ * Haversine distance in metres between two GPS coordinates.
+ */
+function haversineMetres(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371000; // Earth radius in metres
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+/**
+ * Check if current time (UTC) is within the site's operating hours.
+ * operatingHoursStart / End are "HH:MM" strings in the site's timezone.
+ */
+function isWithinOperatingHours(
+  start: string | null | undefined,
+  end: string | null | undefined,
+  tz: string
+): boolean {
+  if (!start || !end) return true; // no restriction
+  try {
+    const now = new Date();
+    const formatter = new Intl.DateTimeFormat("en-GB", {
+      timeZone: tz,
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+    const parts = formatter.formatToParts(now);
+    const h = parts.find((p) => p.type === "hour")?.value ?? "00";
+    const m = parts.find((p) => p.type === "minute")?.value ?? "00";
+    const current = `${h}:${m}`;
+    // Simple string comparison works for HH:MM if start < end (same day)
+    if (start <= end) return current >= start && current <= end;
+    // Overnight shift (e.g. 22:00 – 06:00)
+    return current >= start || current <= end;
+  } catch {
+    return true;
+  }
+}
+
+// Site type options
+const SITE_TYPES = [
+  "mall",
+  "brand_store",
+  "office",
+  "warehouse",
+  "client_site",
+  "showroom",
+  "factory",
+  "other",
+] as const;
+
+const siteInputSchema = z.object({
+  name: z.string().min(1).max(128),
+  location: z.string().max(255).optional(),
+  lat: z.number().min(-90).max(90).optional().nullable(),
+  lng: z.number().min(-180).max(180).optional().nullable(),
+  radiusMeters: z.number().min(30).max(5000).default(200),
+  enforceGeofence: z.boolean().default(false),
+  siteType: z.enum(SITE_TYPES).default("office"),
+  clientName: z.string().max(255).optional().nullable(),
+  operatingHoursStart: z.string().regex(/^\d{2}:\d{2}$/).optional().nullable(),
+  operatingHoursEnd: z.string().regex(/^\d{2}:\d{2}$/).optional().nullable(),
+  timezone: z.string().default("Asia/Muscat"),
+  enforceHours: z.boolean().default(false),
+});
+
 export const attendanceRouter = router({
   // ─── Admin: Create attendance site with QR token ──────────────────────────
   createSite: protectedProcedure
-    .input(z.object({
-      companyId: z.number().optional(),
-      name: z.string().min(1).max(128),
-      location: z.string().max(255).optional(),
-    }))
+    .input(z.object({ companyId: z.number().optional() }).merge(siteInputSchema))
     .mutation(async ({ ctx, input }) => {
       const membership = await requireAdminOrHR(ctx.user.id);
       const companyId = input.companyId ?? membership.company.id;
@@ -65,6 +131,16 @@ export const attendanceRouter = router({
         companyId,
         name: input.name,
         location: input.location ?? null,
+        lat: input.lat != null ? String(input.lat) : null,
+        lng: input.lng != null ? String(input.lng) : null,
+        radiusMeters: input.radiusMeters,
+        enforceGeofence: input.enforceGeofence,
+        siteType: input.siteType,
+        clientName: input.clientName ?? null,
+        operatingHoursStart: input.operatingHoursStart ?? null,
+        operatingHoursEnd: input.operatingHoursEnd ?? null,
+        timezone: input.timezone,
+        enforceHours: input.enforceHours,
         qrToken,
         isActive: true,
         createdByUserId: ctx.user.id,
@@ -102,6 +178,34 @@ export const attendanceRouter = router({
       return { success: true };
     }),
 
+  // ─── Admin: Update site ───────────────────────────────────────────────────
+  updateSite: protectedProcedure
+    .input(z.object({ siteId: z.number() }).merge(siteInputSchema))
+    .mutation(async ({ ctx, input }) => {
+      const membership = await requireAdminOrHR(ctx.user.id);
+      const db = await requireDb();
+      const [existing] = await db.select().from(attendanceSites).where(eq(attendanceSites.id, input.siteId)).limit(1);
+      if (!existing || existing.companyId !== membership.company.id) {
+        throw new TRPCError({ code: "NOT_FOUND" });
+      }
+      await db.update(attendanceSites).set({
+        name: input.name,
+        location: input.location ?? null,
+        lat: input.lat != null ? String(input.lat) : null,
+        lng: input.lng != null ? String(input.lng) : null,
+        radiusMeters: input.radiusMeters,
+        enforceGeofence: input.enforceGeofence,
+        siteType: input.siteType,
+        clientName: input.clientName ?? null,
+        operatingHoursStart: input.operatingHoursStart ?? null,
+        operatingHoursEnd: input.operatingHoursEnd ?? null,
+        timezone: input.timezone,
+        enforceHours: input.enforceHours,
+      }).where(eq(attendanceSites.id, input.siteId));
+      const [updated] = await db.select().from(attendanceSites).where(eq(attendanceSites.id, input.siteId)).limit(1);
+      return updated;
+    }),
+
   // ─── Public: Resolve QR token to site info (for scan page) ───────────────
   getSiteByToken: publicProcedure
     .input(z.object({ token: z.string() }))
@@ -113,7 +217,22 @@ export const attendanceRouter = router({
         .where(and(eq(attendanceSites.qrToken, input.token), eq(attendanceSites.isActive, true)))
         .limit(1);
       if (!site) throw new TRPCError({ code: "NOT_FOUND", message: "Invalid or inactive QR code" });
-      return { id: site.id, name: site.name, location: site.location, companyId: site.companyId };
+      return {
+        id: site.id,
+        name: site.name,
+        location: site.location,
+        companyId: site.companyId,
+        siteType: site.siteType,
+        clientName: site.clientName,
+        lat: site.lat ? parseFloat(site.lat) : null,
+        lng: site.lng ? parseFloat(site.lng) : null,
+        radiusMeters: site.radiusMeters,
+        enforceGeofence: site.enforceGeofence,
+        operatingHoursStart: site.operatingHoursStart,
+        operatingHoursEnd: site.operatingHoursEnd,
+        timezone: site.timezone,
+        enforceHours: site.enforceHours,
+      };
     }),
 
   // ─── Employee: Check in via QR scan ──────────────────────────────────────
@@ -133,13 +252,50 @@ export const attendanceRouter = router({
         .limit(1);
       if (!site) throw new TRPCError({ code: "NOT_FOUND", message: "Invalid or inactive QR code" });
 
+      // ── Geo-fence enforcement ──────────────────────────────────────────────
+      if (site.enforceGeofence && site.lat && site.lng) {
+        if (input.lat == null || input.lng == null) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Location access is required to check in at this site. Please allow location access in your browser.",
+          });
+        }
+        const distance = haversineMetres(
+          parseFloat(site.lat),
+          parseFloat(site.lng),
+          input.lat,
+          input.lng
+        );
+        if (distance > site.radiusMeters) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: `You are ${Math.round(distance)}m away from ${site.name}. You must be within ${site.radiusMeters}m to check in.`,
+          });
+        }
+      }
+
+      // ── Operating hours enforcement ────────────────────────────────────────
+      if (site.enforceHours) {
+        const withinHours = isWithinOperatingHours(
+          site.operatingHoursStart,
+          site.operatingHoursEnd,
+          site.timezone
+        );
+        if (!withinHours) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: `Check-in is only allowed between ${site.operatingHoursStart} and ${site.operatingHoursEnd} (${site.timezone}).`,
+          });
+        }
+      }
+
       // Resolve employee
       const membership = await getUserCompany(ctx.user.id);
       if (!membership || membership.company.id !== site.companyId) {
         throw new TRPCError({ code: "FORBIDDEN", message: "You are not a member of this company" });
       }
       const emp = await resolveMyEmployee(ctx.user.id, ctx.user.email ?? "", site.companyId);
-      if (!emp) throw new TRPCError({ code: "NOT_FOUND", message: "Employee record not found" });
+      if (!emp) throw new TRPCError({ code: "NOT_FOUND", message: "Employee record not found. Please contact HR." });
 
       // Check if already checked in today (no checkout)
       const todayStart = new Date();
@@ -290,29 +446,6 @@ export const attendanceRouter = router({
       return records;
     }),
 
-  // ─── Admin: Update a site name/location/notes ────────────────────────────────
-  updateSite: protectedProcedure
-    .input(z.object({
-      siteId: z.number(),
-      name: z.string().min(1).max(128),
-      location: z.string().max(255).optional(),
-      notes: z.string().optional(),
-    }))
-    .mutation(async ({ ctx, input }) => {
-      const membership = await requireAdminOrHR(ctx.user.id);
-      const db = await requireDb();
-      const [existing] = await db.select().from(attendanceSites).where(eq(attendanceSites.id, input.siteId)).limit(1);
-      if (!existing || existing.companyId !== membership.company.id) {
-        throw new TRPCError({ code: "NOT_FOUND" });
-      }
-      await db.update(attendanceSites).set({
-        name: input.name,
-        location: input.location ?? null,
-      }).where(eq(attendanceSites.id, input.siteId));
-      const [updated] = await db.select().from(attendanceSites).where(eq(attendanceSites.id, input.siteId)).limit(1);
-      return updated;
-    }),
-
   // ─── Admin: Get attendance history for a specific employee ────────────────
   employeeHistory: protectedProcedure
     .input(z.object({
@@ -332,4 +465,18 @@ export const attendanceRouter = router({
         .orderBy(desc(attendanceRecords.checkIn))
         .limit(input.limit);
     }),
+
+  // ─── Utility: List available site types ───────────────────────────────────
+  siteTypes: publicProcedure.query(() => {
+    return [
+      { value: "mall", label: "Shopping Mall", icon: "🏬" },
+      { value: "brand_store", label: "Brand / Retail Store", icon: "🛍️" },
+      { value: "office", label: "Office", icon: "🏢" },
+      { value: "warehouse", label: "Warehouse / Distribution", icon: "🏭" },
+      { value: "client_site", label: "Client Site", icon: "📍" },
+      { value: "showroom", label: "Showroom", icon: "✨" },
+      { value: "factory", label: "Factory", icon: "⚙️" },
+      { value: "other", label: "Other", icon: "📌" },
+    ];
+  }),
 });

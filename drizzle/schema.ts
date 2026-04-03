@@ -2054,6 +2054,20 @@ export const attendanceSites = mysqlTable("attendance_sites", {
   companyId: int("company_id").notNull(),
   name: varchar("name", { length: 128 }).notNull(),
   location: varchar("location", { length: 255 }),
+  // Geo-fence
+  lat: decimal("lat", { precision: 10, scale: 7 }),
+  lng: decimal("lng", { precision: 10, scale: 7 }),
+  radiusMeters: int("radius_meters").notNull().default(200),
+  enforceGeofence: boolean("enforce_geofence").notNull().default(false),
+  // Site classification
+  siteType: varchar("site_type", { length: 50 }).notNull().default("office"),
+  clientName: varchar("client_name", { length: 255 }),
+  // Operating hours
+  operatingHoursStart: varchar("operating_hours_start", { length: 5 }),
+  operatingHoursEnd: varchar("operating_hours_end", { length: 5 }),
+  timezone: varchar("timezone", { length: 64 }).notNull().default("Asia/Muscat"),
+  enforceHours: boolean("enforce_hours").notNull().default(false),
+  // Core
   qrToken: varchar("qr_token", { length: 64 }).notNull().unique(),
   isActive: boolean("is_active").notNull().default(true),
   createdByUserId: int("created_by_user_id").notNull(),

@@ -33,6 +33,8 @@ import { orgStructureRouter } from "./routers/orgStructure";
 import { tasksRouter } from "./routers/tasks";
 import { announcementsRouter } from "./routers/announcements";
 import { employeePortalRouter } from "./routers/employeePortal";
+import { attendanceRouter } from "./routers/attendance";
+import { employeeRequestsRouter } from "./routers/employeeRequests";
 
 export const appRouter = router({
   system: systemRouter,
@@ -77,6 +79,8 @@ export const appRouter = router({
   tasks: tasksRouter,
   announcements: announcementsRouter,
   employeePortal: employeePortalRouter,
+  attendance: attendanceRouter,
+  employeeRequests: employeeRequestsRouter,
 });
 
 export type AppRouter = typeof appRouter;

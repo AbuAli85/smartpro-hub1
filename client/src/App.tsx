@@ -80,6 +80,9 @@ import OrgStructurePage from "./pages/OrgStructurePage";
 import TaskManagerPage from "./pages/TaskManagerPage";
 import AnnouncementsPage from "./pages/AnnouncementsPage";
 import EmployeePortalPage from "./pages/EmployeePortalPage";
+import AttendCheckInPage from "./pages/AttendCheckInPage";
+import AttendanceSitesPage from "./pages/AttendanceSitesPage";
+import EmployeeRequestsAdminPage from "./pages/EmployeeRequestsAdminPage";
 import TeamAccessPage from "./pages/TeamAccessPage";
 import MultiCompanyRolesPage from "./pages/MultiCompanyRolesPage";
 import EmailPreviewPage from "./pages/EmailPreviewPage";
@@ -88,6 +91,7 @@ function PublicRoutes() {
     <Switch>
       <Route path="/jobs" component={PublicJobBoardPage} />
       <Route path="/contracts/:id/sign" component={ContractSignPage} />
+      <Route path="/attend/:token" component={AttendCheckInPage} />
       <Route component={AppRoutes} />
     </Switch>
   );
@@ -107,6 +111,8 @@ function AppRoutes() {
         <Route path="/hr/recruitment" component={HRRecruitmentPage} />
         <Route path="/hr/leave" component={HRLeavePage} />
         <Route path="/hr/attendance" component={HRAttendancePage} />
+        <Route path="/hr/attendance-sites" component={AttendanceSitesPage} />
+        <Route path="/hr/employee-requests" component={EmployeeRequestsAdminPage} />
         <Route path="/client-portal" component={ClientPortalPage} />
         <Route path="/onboarding" component={OnboardingPage} />
         <Route path="/crm" component={CRMPage} />

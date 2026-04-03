@@ -1416,3 +1416,46 @@ Every company on SmartPRO Hub gets a complete, unified business operating area â
 - [x] Add Email Templates nav link in PlatformLayout.tsx under My Company group
 - [x] Add /company/email-preview to COMPANY_OWNER_HREFS in clientNav.ts (company_admin only)
 - [x] All 293 tests pass, 0 TypeScript errors
+
+## Phase 64: Complete Employee Self-Service Portal
+- [ ] DB schema: attendance_sites table (id, companyId, name, location, qrToken, isActive)
+- [ ] DB schema: attendance_records table (id, companyId, employeeId, siteId, checkIn, checkOut, gpsLat, gpsLng, method)
+- [ ] DB schema: employee_requests table (id, companyId, employeeId, type, status, details JSON, adminNote, createdAt)
+- [ ] DB migration: run SQL for new tables
+- [ ] tRPC: attendance.createSite (admin - create attendance site with QR token)
+- [ ] tRPC: attendance.listSites (admin - list all sites)
+- [ ] tRPC: attendance.getSiteByToken (public - resolve QR token to site info)
+- [ ] tRPC: attendance.checkIn (employee - GPS check-in via QR link)
+- [ ] tRPC: attendance.checkOut (employee - GPS check-out)
+- [ ] tRPC: attendance.myToday (employee - today's attendance record)
+- [ ] tRPC: attendance.myHistory (employee - paginated attendance history)
+- [ ] tRPC: attendance.adminBoard (admin - live attendance board for all employees)
+- [ ] tRPC: employeeRequests.submit (employee - submit leave/doc/overtime/expense request)
+- [ ] tRPC: employeeRequests.myRequests (employee - list own requests)
+- [ ] tRPC: employeeRequests.adminList (admin/hr - list all requests with filters)
+- [ ] tRPC: employeeRequests.updateStatus (admin/hr - approve/reject request)
+- [ ] UI: MyPortalPage - redesign as employee home with quick action cards
+- [ ] UI: QR Check-in page (/attend/:token) - mobile-first GPS check-in/out page
+- [ ] UI: Admin Attendance Sites page - create sites, show QR codes, download QR
+- [ ] UI: Admin Attendance Board - live board showing who is in/out today
+- [ ] UI: Employee Requests page - submit and track requests
+- [ ] UI: Admin Requests Management - approve/reject with notes
+- [ ] UI: My Payslips section in portal
+- [ ] UI: My Documents section in portal
+- [ ] UI: My Profile section in portal
+- [ ] UI: Notifications panel in portal
+- [ ] Email: notify employee when request is approved/rejected
+- [ ] Email: notify HR when new request is submitted
+- [ ] RBAC: /attend/:token route is public (no auth required for QR scan)
+- [ ] RBAC: attendance admin pages visible to company_admin and hr_admin only
+
+## Phase 63: Employee Portal & QR Attendance (Completed)
+- [x] DB schema: attendance_sites, attendance_records, employee_requests tables migrated
+- [x] attendance router: createSite, listSites, toggleSite, updateSite, getSiteByToken, checkIn, checkOut, myToday, myHistory, adminBoard, employeeHistory
+- [x] employeeRequests router: submit, myRequests, adminList, updateStatus, deleteRequest
+- [x] AttendCheckInPage: public QR scan page at /attend/:token with GPS location capture
+- [x] AttendanceSitesPage: admin QR site management with live attendance board
+- [x] EmployeeRequestsAdminPage: HR admin request management with status updates
+- [x] Nav items: Attendance Sites and Employee Requests added to HR section
+- [x] RBAC: /hr/attendance-sites and /hr/employee-requests added to HR_ADMIN_HREFS
+- [x] /attend/:token added as public route (no auth required for QR scan page)

@@ -2047,3 +2047,65 @@ export const announcementReads = mysqlTable("announcement_reads", {
 });
 export type AnnouncementRead = typeof announcementReads.$inferSelect;
 export type InsertAnnouncementRead = typeof announcementReads.$inferInsert;
+
+// ─── ATTENDANCE SITES ─────────────────────────────────────────────────────────
+export const attendanceSites = mysqlTable("attendance_sites", {
+  id: int("id").autoincrement().primaryKey(),
+  companyId: int("company_id").notNull(),
+  name: varchar("name", { length: 128 }).notNull(),
+  location: varchar("location", { length: 255 }),
+  qrToken: varchar("qr_token", { length: 64 }).notNull().unique(),
+  isActive: boolean("is_active").notNull().default(true),
+  createdByUserId: int("created_by_user_id").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+export type AttendanceSite = typeof attendanceSites.$inferSelect;
+export type InsertAttendanceSite = typeof attendanceSites.$inferInsert;
+
+// ─── ATTENDANCE RECORDS ───────────────────────────────────────────────────────
+export const attendanceRecords = mysqlTable("attendance_records", {
+  id: int("id").autoincrement().primaryKey(),
+  companyId: int("company_id").notNull(),
+  employeeId: int("employee_id").notNull(),
+  siteId: int("site_id"),
+  siteName: varchar("site_name", { length: 128 }),
+  checkIn: timestamp("check_in").notNull(),
+  checkOut: timestamp("check_out"),
+  checkInLat: decimal("check_in_lat", { precision: 10, scale: 7 }),
+  checkInLng: decimal("check_in_lng", { precision: 10, scale: 7 }),
+  checkOutLat: decimal("check_out_lat", { precision: 10, scale: 7 }),
+  checkOutLng: decimal("check_out_lng", { precision: 10, scale: 7 }),
+  method: mysqlEnum("method", ["qr_scan", "manual", "admin"]).notNull().default("qr_scan"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+export type AttendanceRecord = typeof attendanceRecords.$inferSelect;
+export type InsertAttendanceRecord = typeof attendanceRecords.$inferInsert;
+
+// ─── EMPLOYEE REQUESTS ────────────────────────────────────────────────────────
+export const employeeRequests = mysqlTable("employee_requests", {
+  id: int("id").autoincrement().primaryKey(),
+  companyId: int("company_id").notNull(),
+  employeeId: int("employee_id").notNull(),
+  type: mysqlEnum("type", [
+    "leave",
+    "document",
+    "overtime",
+    "expense",
+    "equipment",
+    "training",
+    "other",
+  ]).notNull(),
+  status: mysqlEnum("status", ["pending", "approved", "rejected", "cancelled"]).notNull().default("pending"),
+  subject: varchar("subject", { length: 255 }).notNull(),
+  details: json("details"),
+  adminNote: text("admin_note"),
+  reviewedByUserId: int("reviewed_by_user_id"),
+  reviewedAt: timestamp("reviewed_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+export type EmployeeRequest = typeof employeeRequests.$inferSelect;
+export type InsertEmployeeRequest = typeof employeeRequests.$inferInsert;

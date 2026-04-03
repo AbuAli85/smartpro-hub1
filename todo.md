@@ -1543,3 +1543,27 @@ Every company on SmartPRO Hub gets a complete, unified business operating area �
 - [x] Add auto-accept flow: if user arrives at /invite/:token already logged in, show one-click accept with email mismatch warning
 - [x] Add companyName to getInviteInfo response so the invite page can show the company name without extra query
 - [x] Improve Account Not Linked message with Refresh button and correct HR navigation path
+
+## Phase 68: Attendance System Full Audit & Enhancement
+
+### Admin Side
+- [ ] Audit AttendancePage.tsx — check what is wired vs placeholder
+- [ ] Audit AttendanceSitesPage.tsx — check if sites are saved and used
+- [ ] Audit TodayBoardPage.tsx — check if live data shows correctly
+- [ ] Audit MonthlyReportPage.tsx — check if data is accurate
+- [ ] Admin: manual check-in/out for any employee from admin panel
+- [ ] Admin: view all attendance records with filters (date, employee, status)
+- [ ] Admin: approve or reject employee correction requests
+- [ ] Admin: export attendance report to CSV/Excel
+
+### Employee Side
+- [ ] Employee Attendance tab: check-in / check-out button wired to backend
+- [ ] Employee Attendance tab: show today's status (on time / late / absent)
+- [ ] Employee Attendance tab: show this month's attendance history table
+- [ ] Employee Attendance tab: correction request form (wrong time, missing record)
+- [ ] Employee: see status of submitted correction requests
+
+### Wire-up
+- [ ] Correction request: employee submits → admin sees in Attendance page → admin approves/rejects → employee sees updated status
+- [ ] Check-in/out: employee action → immediately visible in admin Today's Board
+- [ ] Attendance Sites: sites created by admin → selectable during employee check-in

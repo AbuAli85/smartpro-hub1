@@ -83,6 +83,133 @@ function Skeleton({ className = "" }: { className?: string }) {
   return <div className={`bg-muted animate-pulse rounded-lg ${className}`} />;
 }
 
+// ── Attendance Today Card (check-in/out + correction request) ─────────────
+function AttendanceTodayCard({ employeeId }: { employeeId: number | null }) {
+  const utils = trpc.useUtils();
+  const [showCorrForm, setShowCorrForm] = useState(false);
+  const [corrDate, setCorrDate] = useState(() => new Date().toISOString().split("T")[0]);
+  const [corrCheckIn, setCorrCheckIn] = useState("");
+  const [corrCheckOut, setCorrCheckOut] = useState("");
+  const [corrReason, setCorrReason] = useState("");
+
+  const { data: todayRec, refetch: refetchToday } = trpc.attendance.myToday.useQuery(
+    undefined, { enabled: !!employeeId }
+  );
+  const { data: myCorrList, refetch: refetchCorr } = trpc.attendance.myCorrections.useQuery(
+    {}, { enabled: !!employeeId }
+  );
+
+  const submitCorr = trpc.attendance.submitCorrection.useMutation({
+    onSuccess: () => {
+      toast.success("Correction request submitted — HR will review it");
+      setShowCorrForm(false);
+      setCorrDate(new Date().toISOString().split("T")[0]);
+      setCorrCheckIn(""); setCorrCheckOut(""); setCorrReason("");
+      refetchCorr();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const todayStr = new Date().toISOString().split("T")[0];
+  const checkIn = todayRec?.checkIn ? new Date(todayRec.checkIn) : null;
+  const checkOut = todayRec?.checkOut ? new Date(todayRec.checkOut) : null;
+  const pendingCorr = (myCorrList ?? []).filter((c: any) => c.status === "pending").length;
+
+  return (
+    <div className="space-y-3">
+      {/* Today's check-in status card */}
+      <Card>
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between gap-4 flex-wrap">
+            <div>
+              <p className="text-xs text-muted-foreground mb-0.5">Today — {new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}</p>
+              {checkIn ? (
+                <div className="flex items-center gap-4 flex-wrap">
+                  <div>
+                    <span className="text-xs text-muted-foreground">Checked In</span>
+                    <p className="font-semibold text-green-600">{checkIn.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</p>
+                  </div>
+                  {checkOut && (
+                    <div>
+                      <span className="text-xs text-muted-foreground">Checked Out</span>
+                      <p className="font-semibold text-muted-foreground">{checkOut.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</p>
+                    </div>
+                  )}
+                  {!checkOut && (
+                    <Badge variant="outline" className="border-green-300 text-green-700 bg-green-50">Currently In</Badge>
+                  )}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">No check-in recorded today via QR scan</p>
+              )}
+            </div>
+            <Button size="sm" variant="outline" className="gap-1.5 shrink-0" onClick={() => setShowCorrForm(true)}>
+              <AlertCircle className="h-3.5 w-3.5" /> Request Correction
+              {pendingCorr > 0 && <span className="ml-1 h-4 w-4 rounded-full bg-amber-500 text-white text-[10px] flex items-center justify-center">{pendingCorr}</span>}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Pending correction requests */}
+      {(myCorrList ?? []).length > 0 && (
+        <Card>
+          <CardHeader className="pb-2"><CardTitle className="text-sm">My Correction Requests</CardTitle></CardHeader>
+          <CardContent className="space-y-2">
+            {(myCorrList as any[]).slice(0, 5).map((c: any) => (
+              <div key={c.id} className="flex items-center justify-between text-sm border-b last:border-0 pb-2 last:pb-0">
+                <div>
+                  <p className="font-medium">{c.requestedDate}</p>
+                  <p className="text-xs text-muted-foreground">{c.reason}</p>
+                </div>
+                {c.status === "pending" ? <Badge variant="outline" className="border-yellow-300 text-yellow-700 bg-yellow-50">Pending</Badge>
+                  : c.status === "approved" ? <Badge variant="outline" className="border-green-300 text-green-700 bg-green-50">Approved</Badge>
+                  : <Badge variant="outline" className="border-red-300 text-red-700 bg-red-50">Rejected</Badge>}
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Correction request dialog */}
+      <Dialog open={showCorrForm} onOpenChange={setShowCorrForm}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Request Attendance Correction</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">If your check-in or check-out time is wrong or missing, submit a correction request. HR will review and approve it.</p>
+            <div className="space-y-1.5">
+              <Label htmlFor="corrDate">Date</Label>
+              <Input id="corrDate" type="date" value={corrDate} onChange={(e) => setCorrDate(e.target.value)} max={todayStr} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="corrIn">Correct Check-in Time</Label>
+                <Input id="corrIn" type="time" value={corrCheckIn} onChange={(e) => setCorrCheckIn(e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="corrOut">Correct Check-out Time</Label>
+                <Input id="corrOut" type="time" value={corrCheckOut} onChange={(e) => setCorrCheckOut(e.target.value)} />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="corrReason">Reason <span className="text-red-500">*</span></Label>
+              <Textarea id="corrReason" value={corrReason} onChange={(e) => setCorrReason(e.target.value)} placeholder="Explain why the correction is needed…" rows={3} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCorrForm(false)}>Cancel</Button>
+            <Button
+              disabled={!corrReason.trim() || corrReason.trim().length < 10 || submitCorr.isPending}
+              onClick={() => submitCorr.mutate({ requestedDate: corrDate, requestedCheckIn: corrCheckIn || undefined, requestedCheckOut: corrCheckOut || undefined, reason: corrReason })}>
+              {submitCorr.isPending ? "Submitting…" : "Submit Request"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
 // ── Main Component ─────────────────────────────────────────────────────────
 export default function EmployeePortalPage() {
   const { user, isAuthenticated } = useAuth();
@@ -588,6 +715,8 @@ export default function EmployeePortalPage() {
 
           {/* ══ ATTENDANCE TAB ════════════════════════════════════════════════ */}
           <TabsContent value="attendance" className="mt-4 space-y-4">
+            {/* Today's Status + Correction Request */}
+            <AttendanceTodayCard employeeId={profile?.id ?? null} />
             {/* Month nav + summary */}
             <Card>
               <CardHeader className="pb-2">

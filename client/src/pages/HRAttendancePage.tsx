@@ -3,8 +3,12 @@ import { useState, useMemo } from "react";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import {
   Clock, Users, CheckCircle2, XCircle, AlertCircle, Calendar,
-  TrendingUp, Download, Pencil, Trash2
+  TrendingUp, Download, Pencil, Trash2, CheckCircle, RefreshCw,
+  ClipboardList, CalendarDays
 } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
+import { DialogFooter } from "@/components/ui/dialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -144,6 +148,242 @@ function EditAttendanceDialog({ record, onSuccess }: { record: { id: number; sta
   );
 }
 
+// ─── Today's Live Board ──────────────────────────────────────────────────────
+function TodayBoard() {
+  const { data, isLoading, refetch } = trpc.scheduling.getTodayBoard.useQuery({});
+  if (isLoading) return <div className="py-12 text-center text-muted-foreground">Loading today's board…</div>;
+  if (!data) return <div className="py-12 text-center text-muted-foreground">No data available</div>;
+  const stats = [
+    { label: "On Time", count: data.summary.onTime, color: "text-green-600", bg: "bg-green-50" },
+    { label: "Late", count: data.summary.late, color: "text-yellow-600", bg: "bg-yellow-50" },
+    { label: "Absent", count: data.summary.absent, color: "text-red-600", bg: "bg-red-50" },
+    { label: "Holiday", count: data.summary.holiday, color: "text-blue-600", bg: "bg-blue-50" },
+  ];
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-muted-foreground">{new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</p>
+        <Button variant="outline" size="sm" onClick={() => refetch()}><RefreshCw className="h-3.5 w-3.5 mr-1.5" /> Refresh</Button>
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {stats.map((s) => (
+          <div key={s.label} className={`rounded-lg p-4 ${s.bg}`}>
+            <div className={`text-2xl font-bold ${s.color}`}>{s.count}</div>
+            <div className="text-xs text-muted-foreground mt-0.5">{s.label}</div>
+          </div>
+        ))}
+      </div>
+      <div className="rounded-lg border overflow-hidden">
+        <table className="w-full text-sm">
+          <thead className="bg-muted/50">
+            <tr>
+              <th className="text-left px-4 py-2.5 font-medium">Employee</th>
+              <th className="text-left px-4 py-2.5 font-medium">Shift</th>
+              <th className="text-left px-4 py-2.5 font-medium">Check In</th>
+              <th className="text-left px-4 py-2.5 font-medium">Check Out</th>
+              <th className="text-left px-4 py-2.5 font-medium">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.board.map((row) => (
+              <tr key={row.scheduleId} className="border-t hover:bg-muted/30">
+                <td className="px-4 py-2.5">
+                  <div className="font-medium">{row.employee ? `${(row.employee as { name?: string | null }).name ?? `Emp #${row.scheduleId}`}` : `Emp #${row.scheduleId}`}</div>
+                </td>
+                <td className="px-4 py-2.5 text-muted-foreground text-xs">
+                  {row.shift ? (row.shift as { name?: string | null }).name ?? "—" : "—"}
+                  {row.shift && (row.shift as { startTime?: string | null }).startTime && (row.shift as { endTime?: string | null }).endTime
+                    ? <div>{(row.shift as { startTime: string }).startTime}–{(row.shift as { endTime: string }).endTime}</div>
+                    : null}
+                </td>
+                <td className="px-4 py-2.5">{row.checkInAt ? new Date(row.checkInAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : "—"}</td>
+                <td className="px-4 py-2.5">{row.checkOutAt ? new Date(row.checkOutAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : "—"}</td>
+                <td className="px-4 py-2.5">
+                  {row.status === "holiday" ? <Badge variant="outline" className="border-blue-300 text-blue-700 bg-blue-50">Holiday</Badge>
+                    : row.status === "on_time" ? <Badge variant="outline" className="border-green-300 text-green-700 bg-green-50">On Time</Badge>
+                    : row.status === "late" ? <Badge variant="outline" className="border-yellow-300 text-yellow-700 bg-yellow-50">Late</Badge>
+                    : row.status === "absent" ? <Badge variant="outline" className="border-red-300 text-red-700 bg-red-50">Absent</Badge>
+                    : row.status === "checked_out" ? <Badge variant="outline" className="border-gray-300 text-gray-700 bg-gray-50">Checked Out</Badge>
+                    : <Badge variant="outline" className="text-muted-foreground">Not Scheduled</Badge>}
+                </td>
+              </tr>
+            ))}
+            {data.board.length === 0 && <tr><td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">No employees scheduled today</td></tr>}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ─── Correction Requests ──────────────────────────────────────────────────────
+function CorrectionRequests() {
+  const [statusFilter, setStatusFilter] = useState<"pending" | "approved" | "rejected" | "all">("pending");
+  const [reviewTarget, setReviewTarget] = useState<{ id: number; action: "approve" | "reject" } | null>(null);
+  const [adminNote, setAdminNote] = useState("");
+  const { data, isLoading, refetch } = trpc.attendance.listCorrections.useQuery({ status: statusFilter });
+  const approveMut = trpc.attendance.approveCorrection.useMutation({
+    onSuccess: () => { toast.success("Correction approved"); setReviewTarget(null); refetch(); },
+    onError: (e) => toast.error(e.message),
+  });
+  const rejectMut = trpc.attendance.rejectCorrection.useMutation({
+    onSuccess: () => { toast.success("Correction rejected"); setReviewTarget(null); refetch(); },
+    onError: (e) => toast.error(e.message),
+  });
+  const handleSubmit = () => {
+    if (!reviewTarget) return;
+    if (reviewTarget.action === "approve") approveMut.mutate({ correctionId: reviewTarget.id, adminNote: adminNote || undefined });
+    else {
+      if (!adminNote.trim() || adminNote.trim().length < 5) { toast.error("Please provide a reason for rejection"); return; }
+      rejectMut.mutate({ correctionId: reviewTarget.id, adminNote });
+    }
+  };
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-3">
+        <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as typeof statusFilter)}>
+          <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="pending">Pending</SelectItem>
+            <SelectItem value="approved">Approved</SelectItem>
+            <SelectItem value="rejected">Rejected</SelectItem>
+            <SelectItem value="all">All</SelectItem>
+          </SelectContent>
+        </Select>
+        <Button variant="outline" size="sm" onClick={() => refetch()}><RefreshCw className="h-3.5 w-3.5 mr-1.5" /> Refresh</Button>
+      </div>
+      {isLoading ? <div className="py-12 text-center text-muted-foreground">Loading…</div> : (
+        <div className="space-y-3">
+          {(data ?? []).map(({ correction, employee }) => (
+            <Card key={correction.id}><CardContent className="p-4">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-medium">{employee ? `${employee.firstName} ${employee.lastName}` : "Unknown"}</span>
+                    {employee?.position && <span className="text-xs text-muted-foreground">{employee.position}</span>}
+                    {correction.status === "pending" ? <Badge variant="outline" className="border-yellow-300 text-yellow-700 bg-yellow-50">Pending</Badge>
+                      : correction.status === "approved" ? <Badge variant="outline" className="border-green-300 text-green-700 bg-green-50">Approved</Badge>
+                      : <Badge variant="outline" className="border-red-300 text-red-700 bg-red-50">Rejected</Badge>}
+                  </div>
+                  <div className="mt-1.5 text-sm text-muted-foreground space-y-0.5">
+                    <div><span className="font-medium text-foreground">Date:</span> {correction.requestedDate}{correction.requestedCheckIn && <span className="ml-3"><span className="font-medium text-foreground">In:</span> {correction.requestedCheckIn.slice(0, 5)}</span>}{correction.requestedCheckOut && <span className="ml-3"><span className="font-medium text-foreground">Out:</span> {correction.requestedCheckOut.slice(0, 5)}</span>}</div>
+                    <div><span className="font-medium text-foreground">Reason:</span> {correction.reason}</div>
+                    {correction.adminNote && <div><span className="font-medium text-foreground">Note:</span> {correction.adminNote}</div>}
+                  </div>
+                </div>
+                {correction.status === "pending" && (
+                  <div className="flex gap-2 shrink-0">
+                    <Button size="sm" variant="outline" className="border-green-300 text-green-700 hover:bg-green-50" onClick={() => { setReviewTarget({ id: correction.id, action: "approve" }); setAdminNote(""); }}><CheckCircle className="h-3.5 w-3.5 mr-1" /> Approve</Button>
+                    <Button size="sm" variant="outline" className="border-red-300 text-red-700 hover:bg-red-50" onClick={() => { setReviewTarget({ id: correction.id, action: "reject" }); setAdminNote(""); }}><XCircle className="h-3.5 w-3.5 mr-1" /> Reject</Button>
+                  </div>
+                )}
+              </div>
+            </CardContent></Card>
+          ))}
+          {(data ?? []).length === 0 && <div className="py-12 text-center text-muted-foreground">No {statusFilter === "all" ? "" : statusFilter} correction requests</div>}
+        </div>
+      )}
+      <Dialog open={!!reviewTarget} onOpenChange={() => setReviewTarget(null)}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>{reviewTarget?.action === "approve" ? "Approve Correction" : "Reject Correction"}</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <Label htmlFor="adminNoteCorr">{reviewTarget?.action === "approve" ? "Admin Note (optional)" : "Reason for rejection (required)"}</Label>
+            <Textarea id="adminNoteCorr" value={adminNote} onChange={(e) => setAdminNote(e.target.value)} placeholder={reviewTarget?.action === "approve" ? "Optional note…" : "Explain why…"} rows={3} />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setReviewTarget(null)}>Cancel</Button>
+            <Button onClick={handleSubmit} disabled={approveMut.isPending || rejectMut.isPending} className={reviewTarget?.action === "approve" ? "bg-green-600 hover:bg-green-700" : "bg-red-600 hover:bg-red-700"}>{reviewTarget?.action === "approve" ? "Approve" : "Reject"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ─── Manual Check-in Requests ─────────────────────────────────────────────────
+function ManualCheckInRequests() {
+  const [statusFilter, setStatusFilter] = useState<"pending" | "approved" | "rejected" | "all">("pending");
+  const [reviewTarget, setReviewTarget] = useState<{ id: number; action: "approve" | "reject" } | null>(null);
+  const [adminNote, setAdminNote] = useState("");
+  const { data, isLoading, refetch } = trpc.attendance.listManualCheckIns.useQuery({ status: statusFilter });
+  const approveMut = trpc.attendance.approveManualCheckIn.useMutation({
+    onSuccess: () => { toast.success("Check-in approved"); setReviewTarget(null); refetch(); },
+    onError: (e) => toast.error(e.message),
+  });
+  const rejectMut = trpc.attendance.rejectManualCheckIn.useMutation({
+    onSuccess: () => { toast.success("Check-in rejected"); setReviewTarget(null); refetch(); },
+    onError: (e) => toast.error(e.message),
+  });
+  const handleSubmit = () => {
+    if (!reviewTarget) return;
+    if (reviewTarget.action === "approve") approveMut.mutate({ requestId: reviewTarget.id, adminNote: adminNote || undefined });
+    else {
+      if (!adminNote.trim() || adminNote.trim().length < 5) { toast.error("Please provide a reason"); return; }
+      rejectMut.mutate({ requestId: reviewTarget.id, adminNote });
+    }
+  };
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-3">
+        <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as typeof statusFilter)}>
+          <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="pending">Pending</SelectItem>
+            <SelectItem value="approved">Approved</SelectItem>
+            <SelectItem value="rejected">Rejected</SelectItem>
+            <SelectItem value="all">All</SelectItem>
+          </SelectContent>
+        </Select>
+        <Button variant="outline" size="sm" onClick={() => refetch()}><RefreshCw className="h-3.5 w-3.5 mr-1.5" /> Refresh</Button>
+      </div>
+      {isLoading ? <div className="py-12 text-center text-muted-foreground">Loading…</div> : (
+        <div className="space-y-3">
+          {(data ?? []).map(({ req, site }) => (
+            <Card key={req.id}><CardContent className="p-4">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-medium">User #{req.employeeUserId}</span>
+                    {site?.name && <span className="text-xs text-muted-foreground">@ {site.name}</span>}
+                    {req.status === "pending" ? <Badge variant="outline" className="border-yellow-300 text-yellow-700 bg-yellow-50">Pending</Badge>
+                      : req.status === "approved" ? <Badge variant="outline" className="border-green-300 text-green-700 bg-green-50">Approved</Badge>
+                      : <Badge variant="outline" className="border-red-300 text-red-700 bg-red-50">Rejected</Badge>}
+                  </div>
+                  <div className="mt-1.5 text-sm text-muted-foreground space-y-0.5">
+                    <div><span className="font-medium text-foreground">Justification:</span> {req.justification}</div>
+                    {req.adminNote && <div><span className="font-medium text-foreground">Admin Note:</span> {req.adminNote}</div>}
+                    <div className="text-xs">{req.requestedAt ? new Date(req.requestedAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : ""}</div>
+                  </div>
+                </div>
+                {req.status === "pending" && (
+                  <div className="flex gap-2 shrink-0">
+                    <Button size="sm" variant="outline" className="border-green-300 text-green-700 hover:bg-green-50" onClick={() => { setReviewTarget({ id: req.id, action: "approve" }); setAdminNote(""); }}><CheckCircle className="h-3.5 w-3.5 mr-1" /> Approve</Button>
+                    <Button size="sm" variant="outline" className="border-red-300 text-red-700 hover:bg-red-50" onClick={() => { setReviewTarget({ id: req.id, action: "reject" }); setAdminNote(""); }}><XCircle className="h-3.5 w-3.5 mr-1" /> Reject</Button>
+                  </div>
+                )}
+              </div>
+            </CardContent></Card>
+          ))}
+          {(data ?? []).length === 0 && <div className="py-12 text-center text-muted-foreground">No {statusFilter === "all" ? "" : statusFilter} manual check-in requests</div>}
+        </div>
+      )}
+      <Dialog open={!!reviewTarget} onOpenChange={() => setReviewTarget(null)}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>{reviewTarget?.action === "approve" ? "Approve Manual Check-in" : "Reject Manual Check-in"}</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <Label htmlFor="adminNoteManual">{reviewTarget?.action === "approve" ? "Admin Note (optional)" : "Reason for rejection (required)"}</Label>
+            <Textarea id="adminNoteManual" value={adminNote} onChange={(e) => setAdminNote(e.target.value)} placeholder={reviewTarget?.action === "approve" ? "Optional note…" : "Explain why…"} rows={3} />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setReviewTarget(null)}>Cancel</Button>
+            <Button onClick={handleSubmit} disabled={approveMut.isPending || rejectMut.isPending} className={reviewTarget?.action === "approve" ? "bg-green-600 hover:bg-green-700" : "bg-red-600 hover:bg-red-700"}>{reviewTarget?.action === "approve" ? "Approve" : "Reject"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
 export default function HRAttendancePage() {
   const [monthFilter, setMonthFilter] = useState(() => {
     const now = new Date();
@@ -180,6 +420,11 @@ export default function HRAttendancePage() {
     return d === today;
   });
 
+  const { data: pendingCorrections } = trpc.attendance.listCorrections.useQuery({ status: "pending", limit: 1 });
+  const { data: pendingManual } = trpc.attendance.listManualCheckIns.useQuery({ status: "pending", limit: 1 });
+  const pendingCorrDot = (pendingCorrections ?? []).length > 0;
+  const pendingManualDot = (pendingManual ?? []).length > 0;
+
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
       {/* Header */}
@@ -187,9 +432,9 @@ export default function HRAttendancePage() {
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <Clock size={24} className="text-[var(--smartpro-orange)]" />
-            Attendance Tracking
+            Attendance Management
           </h1>
-          <p className="text-muted-foreground text-sm mt-1">Monitor employee attendance, punctuality, and presence</p>
+          <p className="text-muted-foreground text-sm mt-1">Monitor daily attendance, review records, and manage correction requests</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button size="sm" variant="outline" className="gap-2" onClick={() => toast.info("Export feature coming soon")}>
@@ -198,6 +443,19 @@ export default function HRAttendancePage() {
           <ClockInDialog employees={(employees ?? []).map(e => ({ ...e, department: e.department ?? null }))} onSuccess={refetch} companyId={activeCompanyId} />
         </div>
       </div>
+
+      {/* Tabs: Today Board | HR Records | Corrections | Manual Check-ins */}
+      <Tabs defaultValue="today">
+        <TabsList className="flex-wrap h-auto gap-1">
+          <TabsTrigger value="today" className="gap-1.5"><Users className="h-3.5 w-3.5" /> Today's Board</TabsTrigger>
+          <TabsTrigger value="records" className="gap-1.5"><CalendarDays className="h-3.5 w-3.5" /> HR Records</TabsTrigger>
+          <TabsTrigger value="corrections" className="gap-1.5"><ClipboardList className="h-3.5 w-3.5" /> Corrections{pendingCorrDot && <span className="ml-1 h-2 w-2 rounded-full bg-red-500 inline-block" />}</TabsTrigger>
+          <TabsTrigger value="manual" className="gap-1.5"><AlertCircle className="h-3.5 w-3.5" /> Manual Check-ins{pendingManualDot && <span className="ml-1 h-2 w-2 rounded-full bg-red-500 inline-block" />}</TabsTrigger>
+        </TabsList>
+        <TabsContent value="today" className="mt-4"><TodayBoard /></TabsContent>
+        <TabsContent value="corrections" className="mt-4"><CorrectionRequests /></TabsContent>
+        <TabsContent value="manual" className="mt-4"><ManualCheckInRequests /></TabsContent>
+        <TabsContent value="records" className="mt-4">
 
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
@@ -383,6 +641,9 @@ export default function HRAttendancePage() {
           )}
         </CardContent>
       </Card>
+
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

@@ -2147,7 +2147,29 @@ export const manualCheckinRequests = mysqlTable("manual_checkin_requests", {
 export type ManualCheckinRequest = typeof manualCheckinRequests.$inferSelect;
 export type InsertManualCheckinRequest = typeof manualCheckinRequests.$inferInsert;
 
-// ─── Shift Templates ──────────────────────────────────────────────────────────
+// ─── Attendance Correction Requests ──────────────────────────────────────────
+// Submitted by employees when their check-in/out time is wrong or missing
+export const attendanceCorrections = mysqlTable("attendance_corrections", {
+  id: int("id").primaryKey().autoincrement(),
+  companyId: int("company_id").notNull(),
+  employeeId: int("employee_id").notNull(),
+  employeeUserId: int("employee_user_id").notNull(),
+  attendanceRecordId: int("attendance_record_id"),
+  requestedDate: varchar("requested_date", { length: 10 }).notNull(), // YYYY-MM-DD
+  requestedCheckIn: varchar("requested_check_in", { length: 8 }),     // HH:MM:SS
+  requestedCheckOut: varchar("requested_check_out", { length: 8 }),   // HH:MM:SS
+  reason: text("reason").notNull(),
+  status: mysqlEnum("ac_status", ["pending", "approved", "rejected"]).notNull().default("pending"),
+  adminNote: text("admin_note"),
+  reviewedByUserId: int("reviewed_by_user_id"),
+  reviewedAt: timestamp("reviewed_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+export type AttendanceCorrection = typeof attendanceCorrections.$inferSelect;
+export type InsertAttendanceCorrection = typeof attendanceCorrections.$inferInsert;
+
+// ─── Shift Templatess ──────────────────────────────────────────────────────────
 // Reusable named shift definitions (e.g. "Morning Shift", "Evening Shift")
 export const shiftTemplates = mysqlTable("shift_templates", {
   id: int("id").primaryKey().autoincrement(),

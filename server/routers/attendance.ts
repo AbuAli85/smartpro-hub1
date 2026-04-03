@@ -5,6 +5,7 @@ import { randomBytes } from "crypto";
 import {
   attendanceSites,
   attendanceRecords,
+  attendanceCorrections,
   employees,
   manualCheckinRequests,
 } from "../../drizzle/schema";
@@ -668,7 +669,182 @@ export const attendanceRouter = router({
         .limit(input.limit);
     }),
 
-  // ─── Utility: List available site types ───────────────────────────────────
+  // ─── Employee: Submit a time correction request ─────────────────────────────
+  submitCorrection: protectedProcedure
+    .input(z.object({
+      requestedDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      requestedCheckIn: z.string().regex(/^\d{2}:\d{2}$/).optional(),
+      requestedCheckOut: z.string().regex(/^\d{2}:\d{2}$/).optional(),
+      reason: z.string().min(10, "Please provide a reason (at least 10 characters)"),
+      attendanceRecordId: z.number().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await requireDb();
+      const membership = await getUserCompany(ctx.user.id);
+      if (!membership) throw new TRPCError({ code: "FORBIDDEN", message: "No company membership" });
+      const emp = await resolveMyEmployee(ctx.user.id, ctx.user.email ?? "", membership.company.id);
+      if (!emp) throw new TRPCError({ code: "FORBIDDEN", message: "No employee record found" });
+      // Prevent duplicate pending requests for the same date
+      const [existing] = await db
+        .select()
+        .from(attendanceCorrections)
+        .where(and(
+          eq(attendanceCorrections.employeeId, emp.id),
+          eq(attendanceCorrections.requestedDate, input.requestedDate),
+          eq(attendanceCorrections.status, "pending"),
+        ))
+        .limit(1);
+      if (existing) throw new TRPCError({ code: "CONFLICT", message: "You already have a pending correction request for this date" });
+      const [row] = await db.insert(attendanceCorrections).values({
+        companyId: membership.company.id,
+        employeeId: emp.id,
+        employeeUserId: ctx.user.id,
+        attendanceRecordId: input.attendanceRecordId ?? null,
+        requestedDate: input.requestedDate,
+        requestedCheckIn: input.requestedCheckIn ? input.requestedCheckIn + ":00" : null,
+        requestedCheckOut: input.requestedCheckOut ? input.requestedCheckOut + ":00" : null,
+        reason: input.reason,
+        status: "pending",
+      }).$returningId();
+      return { id: row.id, status: "pending" as const };
+    }),
+
+  // ─── Employee: List own correction requests ────────────────────────────────────────
+  myCorrections: protectedProcedure
+    .input(z.object({ limit: z.number().min(1).max(50).default(20) }))
+    .query(async ({ ctx, input }) => {
+      const db = await requireDb();
+      return db
+        .select()
+        .from(attendanceCorrections)
+        .where(eq(attendanceCorrections.employeeUserId, ctx.user.id))
+        .orderBy(desc(attendanceCorrections.createdAt))
+        .limit(input.limit);
+    }),
+
+  // ─── Admin: List all correction requests for the company ──────────────────────
+  listCorrections: protectedProcedure
+    .input(z.object({
+      status: z.enum(["pending", "approved", "rejected", "all"]).default("pending"),
+      limit: z.number().min(1).max(200).default(50),
+    }))
+    .query(async ({ ctx, input }) => {
+      const membership = await requireAdminOrHR(ctx.user.id);
+      const db = await requireDb();
+      const conditions = [eq(attendanceCorrections.companyId, membership.company.id)];
+      if (input.status !== "all") conditions.push(eq(attendanceCorrections.status, input.status));
+      const rows = await db
+        .select({
+          correction: attendanceCorrections,
+          employee: {
+            id: employees.id,
+            firstName: employees.firstName,
+            lastName: employees.lastName,
+            email: employees.email,
+            position: employees.position,
+          },
+        })
+        .from(attendanceCorrections)
+        .leftJoin(employees, eq(attendanceCorrections.employeeId, employees.id))
+        .where(and(...conditions))
+        .orderBy(desc(attendanceCorrections.createdAt))
+        .limit(input.limit);
+      return rows;
+    }),
+
+  // ─── Admin: Approve a correction request ───────────────────────────────────────────
+  approveCorrection: protectedProcedure
+    .input(z.object({
+      correctionId: z.number(),
+      adminNote: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const membership = await requireAdminOrHR(ctx.user.id);
+      const db = await requireDb();
+      const [req] = await db
+        .select()
+        .from(attendanceCorrections)
+        .where(and(
+          eq(attendanceCorrections.id, input.correctionId),
+          eq(attendanceCorrections.companyId, membership.company.id),
+          eq(attendanceCorrections.status, "pending"),
+        ))
+        .limit(1);
+      if (!req) throw new TRPCError({ code: "NOT_FOUND", message: "Request not found or already reviewed" });
+      // If there is an existing attendance record, update its times
+      if (req.attendanceRecordId && (req.requestedCheckIn || req.requestedCheckOut)) {
+        const updates: Record<string, Date | null> = {};
+        if (req.requestedCheckIn) {
+          const [h, m] = req.requestedCheckIn.split(":").map(Number);
+          const dt = new Date(req.requestedDate + "T00:00:00");
+          dt.setHours(h, m, 0, 0);
+          updates.checkIn = dt;
+        }
+        if (req.requestedCheckOut) {
+          const [h, m] = req.requestedCheckOut.split(":").map(Number);
+          const dt = new Date(req.requestedDate + "T00:00:00");
+          dt.setHours(h, m, 0, 0);
+          updates.checkOut = dt;
+        }
+        await db.update(attendanceRecords).set(updates).where(eq(attendanceRecords.id, req.attendanceRecordId));
+      } else if (!req.attendanceRecordId && req.requestedCheckIn) {
+        // Create a new attendance record
+        const [h, m] = req.requestedCheckIn.split(":").map(Number);
+        const checkInDt = new Date(req.requestedDate + "T00:00:00");
+        checkInDt.setHours(h, m, 0, 0);
+        let checkOutDt: Date | undefined;
+        if (req.requestedCheckOut) {
+          const [ho, mo] = req.requestedCheckOut.split(":").map(Number);
+          checkOutDt = new Date(req.requestedDate + "T00:00:00");
+          checkOutDt.setHours(ho, mo, 0, 0);
+        }
+        await db.insert(attendanceRecords).values({
+          companyId: membership.company.id,
+          employeeId: req.employeeId,
+          checkIn: checkInDt,
+          checkOut: checkOutDt,
+          method: "manual" as const,
+          notes: `Correction approved: ${req.reason}`,
+        });
+      }
+      await db.update(attendanceCorrections).set({
+        status: "approved",
+        reviewedByUserId: ctx.user.id,
+        reviewedAt: new Date(),
+        adminNote: input.adminNote ?? null,
+      }).where(eq(attendanceCorrections.id, input.correctionId));
+      return { success: true };
+    }),
+
+  // ─── Admin: Reject a correction request ────────────────────────────────────────────
+  rejectCorrection: protectedProcedure
+    .input(z.object({
+      correctionId: z.number(),
+      adminNote: z.string().min(5, "Please provide a reason"),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const membership = await requireAdminOrHR(ctx.user.id);
+      const db = await requireDb();
+      const [req] = await db
+        .select()
+        .from(attendanceCorrections)
+        .where(and(
+          eq(attendanceCorrections.id, input.correctionId),
+          eq(attendanceCorrections.companyId, membership.company.id),
+          eq(attendanceCorrections.status, "pending"),
+        ))
+        .limit(1);
+      if (!req) throw new TRPCError({ code: "NOT_FOUND", message: "Request not found or already reviewed" });
+      await db.update(attendanceCorrections).set({
+        status: "rejected",
+        reviewedByUserId: ctx.user.id,
+        reviewedAt: new Date(),
+        adminNote: input.adminNote,
+      }).where(eq(attendanceCorrections.id, input.correctionId));
+      return { success: true };
+    }),
+
+  // ─── Utility: List available site types ─────────────────────────────────────────
   siteTypes: publicProcedure.query(() => {
     return [
       { value: "mall", label: "Shopping Mall", icon: "🏬" },

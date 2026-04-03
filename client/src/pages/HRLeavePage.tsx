@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
+import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import {
   Calendar, DollarSign, Plus, Clock, CheckCircle2,
   XCircle, AlertCircle, Users, FileText, ChevronRight,
@@ -169,6 +170,7 @@ function LeaveCard({
 
 export default function HRLeavePage() {
   const { user } = useAuth();
+  const { activeCompanyId } = useActiveCompany();
   const [leaveOpen, setLeaveOpen] = useState(false);
   const [payrollOpen, setPayrollOpen] = useState(false);
   const [leaveFilter, setLeaveFilter] = useState<string>("all");
@@ -188,9 +190,9 @@ export default function HRLeavePage() {
     deductions: "",
   });
 
-  const { data: leaveRequests, isLoading: leaveLoading, refetch: refetchLeave } = trpc.hr.listLeave.useQuery({});
-  const { data: payrollRecords, isLoading: payrollLoading, refetch: refetchPayroll } = trpc.hr.listPayroll.useQuery({});
-  const { data: employees } = trpc.hr.listEmployees.useQuery({});
+  const { data: leaveRequests, isLoading: leaveLoading, refetch: refetchLeave } = trpc.hr.listLeave.useQuery({ companyId: activeCompanyId ?? undefined });
+  const { data: payrollRecords, isLoading: payrollLoading, refetch: refetchPayroll } = trpc.hr.listPayroll.useQuery({ companyId: activeCompanyId ?? undefined });
+  const { data: employees } = trpc.hr.listEmployees.useQuery({ companyId: activeCompanyId ?? undefined });
 
   // Build employee name lookup
   const empNames = useMemo(() => {

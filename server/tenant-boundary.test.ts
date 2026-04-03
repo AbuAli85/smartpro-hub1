@@ -116,9 +116,9 @@ describe("resolveStatsCompanyFilter", () => {
     });
   });
 
-  it("throws NOT_FOUND when tenant passes another company id", async () => {
+  it("throws FORBIDDEN when tenant passes another company id", async () => {
     vi.mocked(db.getUserCompany).mockResolvedValue({ company: { id: 5 }, member: {} } as any);
-    await expect(resolveStatsCompanyFilter(memberUser as any, 99)).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(resolveStatsCompanyFilter(memberUser as any, 99)).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 });
 

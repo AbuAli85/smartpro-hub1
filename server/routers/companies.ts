@@ -12,6 +12,7 @@ import {
   getCompanySubscription,
   getSubscriptionPlans,
   getUserCompany,
+  getUserCompanyById,
   getUserCompanies,
   updateCompany,
   getDb,
@@ -117,15 +118,21 @@ export const companiesRouter = router({
     return company;
   }),
 
-  myCompany: protectedProcedure.query(async ({ ctx }) => {
-    return getUserCompany(ctx.user.id);
-  }),
-
-  myStats: protectedProcedure.query(async ({ ctx }) => {
-    const membership = await getUserCompany(ctx.user.id);
-    if (!membership) return null;
-    return getCompanyStats(membership.company.id);
-  }),
+  myCompany: protectedProcedure
+    .input(z.object({ companyId: z.number().optional() }).optional())
+    .query(async ({ input, ctx }) => {
+      if (input?.companyId) return getUserCompanyById(ctx.user.id, input.companyId);
+      return getUserCompany(ctx.user.id);
+    }),
+  myStats: protectedProcedure
+    .input(z.object({ companyId: z.number().optional() }).optional())
+    .query(async ({ input, ctx }) => {
+      const membership = input?.companyId
+        ? await getUserCompanyById(ctx.user.id, input.companyId)
+        : await getUserCompany(ctx.user.id);
+      if (!membership) return null;
+      return getCompanyStats(membership.company.id);
+    }),
 
   create: protectedProcedure
     .input(
@@ -266,8 +273,12 @@ export const companiesRouter = router({
   // ── Member Management ──────────────────────────────────────────────────────
 
   /** List all members of the caller's company with user details */
-  members: protectedProcedure.query(async ({ ctx }) => {
-    const membership = await getUserCompany(ctx.user.id);
+  members: protectedProcedure
+    .input(z.object({ companyId: z.number().optional() }).optional())
+    .query(async ({ input, ctx }) => {
+    const membership = input?.companyId
+      ? await getUserCompanyById(ctx.user.id, input.companyId)
+      : await getUserCompany(ctx.user.id);
     if (!membership) return [];
     const db = await getDb();
     if (!db) return [];

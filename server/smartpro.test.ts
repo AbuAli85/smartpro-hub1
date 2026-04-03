@@ -582,15 +582,15 @@ describe("companies.onboarding", () => {
     expect(result).toHaveProperty("teammatesAdded", 0);
   });
 
-  it("create company rejects tenant users who already have a workspace", async () => {
+  it("create company allows tenant users who already have a workspace (multi-company support)", async () => {
     vi.mocked(db.getUserCompany).mockResolvedValueOnce({
       company: { id: 99 },
       member: {},
     } as any);
     const caller = appRouter.createCaller(makeCtx({ role: "user", platformRole: "company_member" }));
-    await expect(caller.companies.create({ name: "Another LLC", country: "OM" })).rejects.toThrow(
-      /already belong to a company/,
-    );
+    // Users can now create multiple companies — no restriction
+    const result = await caller.companies.create({ name: "Another LLC", country: "OM" });
+    expect(result).toHaveProperty("success", true);
   });
 
   it("subscriptionPlans returns array of plans", async () => {

@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
+import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -133,10 +134,11 @@ function StatCard({ icon, label, value, sub }: { icon: React.ReactNode; label: s
 export default function CompanyAdminPage() {
   const { user } = useAuth();
   const utils = trpc.useUtils();
+  const { activeCompanyId } = useActiveCompany();
 
-  const { data: myCompanyData, isLoading: companyLoading } = trpc.companies.myCompany.useQuery();
-  const { data: members, isLoading: membersLoading } = trpc.companies.members.useQuery();
-  const { data: stats } = trpc.companies.myStats.useQuery();
+  const { data: myCompanyData, isLoading: companyLoading } = trpc.companies.myCompany.useQuery({ companyId: activeCompanyId ?? undefined });
+  const { data: members, isLoading: membersLoading } = trpc.companies.members.useQuery({ companyId: activeCompanyId ?? undefined });
+  const { data: stats } = trpc.companies.myStats.useQuery({ companyId: activeCompanyId ?? undefined });
 
   const company = myCompanyData?.company;
   const myMembership = myCompanyData?.member;

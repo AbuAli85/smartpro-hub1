@@ -42,11 +42,12 @@ import { protectedProcedure, router } from "../_core/trpc";
 export const hrRouter = router({
   // Employees
   listEmployees: protectedProcedure
-    .input(z.object({ status: z.string().optional(), department: z.string().optional() }))
+    .input(z.object({ status: z.string().optional(), department: z.string().optional(), companyId: z.number().optional() }))
     .query(async ({ input, ctx }) => {
-      const membership = await getUserCompany(ctx.user.id);
-      if (!membership) return [];
-      return getEmployees(membership.company.id, input);
+      const { companyId: inputCid, ...filters } = input;
+      const cid = await requireActiveCompanyId(ctx.user.id, inputCid).catch(() => null);
+      if (!cid) return [];
+      return getEmployees(cid, filters);
     }),
 
   getEmployee: protectedProcedure.input(z.object({ id: z.number() })).query(async ({ input, ctx }) => {
@@ -327,11 +328,11 @@ export const hrRouter = router({
 
   // Leave Requests
   listLeave: protectedProcedure
-    .input(z.object({ employeeId: z.number().optional() }))
+    .input(z.object({ employeeId: z.number().optional(), companyId: z.number().optional() }))
     .query(async ({ input, ctx }) => {
-      const membership = await getUserCompany(ctx.user.id);
-      if (!membership) return [];
-      return getLeaveRequests(membership.company.id, input.employeeId);
+      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId).catch(() => null);
+      if (!cid) return [];
+      return getLeaveRequests(cid, input.employeeId);
     }),
 
   createLeave: protectedProcedure
@@ -401,11 +402,11 @@ export const hrRouter = router({
 
   // Payroll
   listPayroll: protectedProcedure
-    .input(z.object({ year: z.number().optional(), month: z.number().optional() }))
+    .input(z.object({ year: z.number().optional(), month: z.number().optional(), companyId: z.number().optional() }))
     .query(async ({ input, ctx }) => {
-      const membership = await getUserCompany(ctx.user.id);
-      if (!membership) return [];
-      return getPayrollRecords(membership.company.id, input.year, input.month);
+      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId).catch(() => null);
+      if (!cid) return [];
+      return getPayrollRecords(cid, input.year, input.month);
     }),
 
   createPayroll: protectedProcedure
@@ -505,21 +506,23 @@ export const hrRouter = router({
       return { success: true };
     }),
 
-  departments: protectedProcedure.query(async ({ ctx }) => {
-    const membership = await getUserCompany(ctx.user.id);
-    if (!membership) return [];
-    const emps = await getEmployees(membership.company.id);
-    const depts = Array.from(new Set(emps.map((e) => e.department).filter(Boolean)));
-    return depts;
-  }),
+  departments: protectedProcedure
+    .input(z.object({ companyId: z.number().optional() }).optional())
+    .query(async ({ input, ctx }) => {
+      const cid = await requireActiveCompanyId(ctx.user.id, input?.companyId).catch(() => null);
+      if (!cid) return [];
+      const emps = await getEmployees(cid);
+      const depts = Array.from(new Set(emps.map((e) => e.department).filter(Boolean)));
+      return depts;
+    }),
 
   // ── Attendance ──────────────────────────────────────────────────────────────
   listAttendance: protectedProcedure
-    .input(z.object({ month: z.string().optional() }))
+    .input(z.object({ month: z.string().optional(), companyId: z.number().optional() }))
     .query(async ({ input, ctx }) => {
-      const membership = await getUserCompany(ctx.user.id);
-      if (!membership) return [];
-      return getAttendance(membership.company.id, input.month);
+      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId).catch(() => null);
+      if (!cid) return [];
+      return getAttendance(cid, input.month);
     }),
 
   createAttendance: protectedProcedure
@@ -580,20 +583,20 @@ export const hrRouter = router({
     }),
 
   attendanceStats: protectedProcedure
-    .input(z.object({ month: z.string().optional() }))
+    .input(z.object({ month: z.string().optional(), companyId: z.number().optional() }))
     .query(async ({ input, ctx }) => {
-      const membership = await getUserCompany(ctx.user.id);
-      if (!membership) return { present: 0, absent: 0, late: 0, half_day: 0, remote: 0, byDay: [] };
-      return getAttendanceStats(membership.company.id, input.month);
+      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId).catch(() => null);
+      if (!cid) return { present: 0, absent: 0, late: 0, half_day: 0, remote: 0, byDay: [] };
+      return getAttendanceStats(cid, input.month);
     }),
 
   // ── Leave Balance ─────────────────────────────────────────────────────────
   getLeaveBalance: protectedProcedure
-    .input(z.object({ employeeId: z.number() }))
+    .input(z.object({ employeeId: z.number(), companyId: z.number().optional() }))
     .query(async ({ input, ctx }) => {
-      const membership = await getUserCompany(ctx.user.id);
-      if (!membership) throw new TRPCError({ code: "FORBIDDEN", message: "No company" });
-      const allLeave = await getLeaveRequests(membership.company.id, input.employeeId);
+      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId).catch(() => null);
+      if (!cid) throw new TRPCError({ code: "FORBIDDEN", message: "No company" });
+      const allLeave = await getLeaveRequests(cid, input.employeeId);
       const ENTITLEMENTS: Record<string, number> = { annual: 30, sick: 10, emergency: 6, maternity: 50, paternity: 3, unpaid: 0, other: 0 };
       const usedByType: Record<string, number> = {};
       const pendingByType: Record<string, number> = {};
@@ -612,12 +615,14 @@ export const hrRouter = router({
       }));
     }),
 
-  getLeaveBalanceSummary: protectedProcedure.query(async ({ ctx }) => {
-    const membership = await getUserCompany(ctx.user.id);
-    if (!membership) return [];
-    const emps = await getEmployees(membership.company.id);
+  getLeaveBalanceSummary: protectedProcedure
+    .input(z.object({ companyId: z.number().optional() }).optional())
+    .query(async ({ input, ctx }) => {
+    const cid = await requireActiveCompanyId(ctx.user.id, input?.companyId).catch(() => null);
+    if (!cid) return [];
+    const emps = await getEmployees(cid);
     const activeEmps = emps.filter((e) => e.status === "active");
-    const allLeave = await getLeaveRequests(membership.company.id);
+    const allLeave = await getLeaveRequests(cid);
     const ENTITLEMENTS: Record<string, number> = { annual: 30, sick: 10, emergency: 6 };
     return activeEmps.map((emp) => {
       const empLeave = allLeave.filter((r) => r.employeeId === emp.id);
@@ -643,10 +648,12 @@ export const hrRouter = router({
   }),
 
   // ── Employee Profile Completeness ─────────────────────────────────────────
-  getEmployeeCompleteness: protectedProcedure.query(async ({ ctx }) => {
-    const membership = await getUserCompany(ctx.user.id);
-    if (!membership) return [];
-    const emps = await getEmployees(membership.company.id);
+  getEmployeeCompleteness: protectedProcedure
+    .input(z.object({ companyId: z.number().optional() }).optional())
+    .query(async ({ input, ctx }) => {
+    const cid = await requireActiveCompanyId(ctx.user.id, input?.companyId).catch(() => null);
+    if (!cid) return [];
+    const emps = await getEmployees(cid);
     const REQUIRED_FIELDS = ["firstName", "lastName", "email", "phone", "nationality", "department", "position", "hireDate", "salary"];
     const OPTIONAL_FIELDS = ["passportNumber", "nationalId", "dateOfBirth", "gender", "pasiNumber", "bankAccountNumber", "emergencyContactName", "workPermitNumber", "visaNumber"];
     return emps.map((emp) => {
@@ -665,10 +672,12 @@ export const hrRouter = router({
     });
   }),
 
-  getStats: protectedProcedure.query(async ({ ctx }) => {
-    const membership = await getUserCompany(ctx.user.id);
-    if (!membership) return { total: 0, active: 0, onLeave: 0, terminated: 0, omani: 0, expat: 0, omanisationRate: 0, departments: 0, avgSalary: 0, totalPayroll: 0 };
-    const emps = await getEmployees(membership.company.id);
+  getStats: protectedProcedure
+    .input(z.object({ companyId: z.number().optional() }).optional())
+    .query(async ({ input, ctx }) => {
+    const cid = await requireActiveCompanyId(ctx.user.id, input?.companyId).catch(() => null);
+    if (!cid) return { total: 0, active: 0, onLeave: 0, terminated: 0, omani: 0, expat: 0, omanisationRate: 0, departments: 0, avgSalary: 0, totalPayroll: 0 };
+    const emps = await getEmployees(cid);
     const active = emps.filter((e) => e.status === "active");
     const onLeave = emps.filter((e) => e.status === "on_leave");
     const terminated = emps.filter((e) => ["terminated", "resigned"].includes(e.status ?? ""));

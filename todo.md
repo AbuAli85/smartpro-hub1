@@ -1243,3 +1243,21 @@ Every company on SmartPRO Hub gets a complete, unified business operating area â
 - [x] Create proper CreateCompanyPage.tsx with blank form for adding a new company
 - [x] Wire /company/create route to CreateCompanyPage (not CompanyAdminPage)
 - [x] Expand industry list in CompanySettingsPage and CreateCompanyPage to 60+ industries including: Services, Investment, Cleaning, Maintenance, Security, Catering, Transport, Logistics, IT & Technology, Telecommunications, Media, Advertising, Tourism, Travel, Insurance, Banking, Legal, Consulting, Engineering, Architecture, Interior Design, Events, Agriculture, Fishing, Mining, Energy, Utilities, Waste Management, Printing, Textile, Food & Beverage, Pharmaceuticals, Medical, Automotive, Furniture, Jewelry, Perfume, Cosmetics, Trading, Import & Export, and more
+
+## Phase 52: Fix Active Company Context â€” All Pages Must Use Active Company ID
+- [x] Audit all HR/payroll/leave/attendance/team pages to identify which ones use getUserCompany (picks first) vs. companyId input
+- [x] Fix hr.ts router: all list/create/update procedures must accept companyId as input and validate user is member of that company
+- [x] Fix payroll.ts router: all procedures must accept companyId as input
+- [x] Fix leave.ts router: all procedures must accept companyId as input
+- [x] Fix attendance.ts router: all procedures must accept companyId as input
+- [x] Fix companies.ts router: myCompany, members, team access procedures must accept companyId as input
+- [x] Update HREmployeesPage to pass activeCompanyId from useActiveCompany() to all trpc queries
+- [x] Update HRPayrollPage to pass activeCompanyId from useActiveCompany() to all trpc queries
+- [x] Update HRLeavePage to pass activeCompanyId from useActiveCompany() to all trpc queries
+- [x] Update HRAttendancePage to pass activeCompanyId from useActiveCompany() to all trpc queries
+- [x] Update TeamAccessPage to pass activeCompanyId from useActiveCompany() to all trpc queries
+- [x] Update CompanySettingsPage to pass activeCompanyId from useActiveCompany() to all trpc queries
+- [x] Update CompanyAdminPage to pass activeCompanyId from useActiveCompany() to all trpc queries
+- [x] Expose activeCompanyId in ActiveCompanyContext so all pages can use it directly
+- [x] Update Dashboard, CompanyWorkspacePage, BusinessDashboardPage to use activeCompanyId
+- [x] Verify: switching companies in sidebar immediately refreshes all page data to show new company's data

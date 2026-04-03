@@ -25,6 +25,8 @@ interface ActiveCompanyContextValue {
   companies: CompanyOption[];
   /** The currently active company (null while loading) */
   activeCompany: CompanyOption | null;
+  /** The ID of the currently active company (null while loading) */
+  activeCompanyId: number | null;
   /** Switch to a different company */
   switchCompany: (companyId: number) => void;
   /** True while the companies list is loading */
@@ -34,6 +36,7 @@ interface ActiveCompanyContextValue {
 const ActiveCompanyContext = createContext<ActiveCompanyContextValue>({
   companies: [],
   activeCompany: null,
+  activeCompanyId: null,
   switchCompany: () => {},
   loading: true,
 });
@@ -82,7 +85,7 @@ export function ActiveCompanyProvider({ children }: { children: React.ReactNode 
 
   return (
     <ActiveCompanyContext.Provider
-      value={{ companies, activeCompany, switchCompany, loading: isLoading }}
+      value={{ companies, activeCompany, activeCompanyId, switchCompany, loading: isLoading }}
     >
       {children}
     </ActiveCompanyContext.Provider>

@@ -1,5 +1,6 @@
 import { trpc } from "@/lib/trpc";
 import { useState, useMemo } from "react";
+import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import {
   Clock, Users, CheckCircle2, XCircle, AlertCircle, Calendar,
   TrendingUp, Download, Pencil, Trash2
@@ -150,9 +151,10 @@ export default function HRAttendancePage() {
   const [deptFilter, setDeptFilter] = useState("all");
 
   const utils = trpc.useUtils();
-  const { data: employees } = trpc.hr.listEmployees.useQuery({ department: deptFilter !== "all" ? deptFilter : undefined });
-  const { data: attendance, refetch } = trpc.hr.listAttendance.useQuery({ month: monthFilter });
-  const { data: stats } = trpc.hr.attendanceStats.useQuery({ month: monthFilter });
+  const { activeCompanyId } = useActiveCompany();
+  const { data: employees } = trpc.hr.listEmployees.useQuery({ department: deptFilter !== "all" ? deptFilter : undefined, companyId: activeCompanyId ?? undefined });
+  const { data: attendance, refetch } = trpc.hr.listAttendance.useQuery({ month: monthFilter, companyId: activeCompanyId ?? undefined });
+  const { data: stats } = trpc.hr.attendanceStats.useQuery({ month: monthFilter, companyId: activeCompanyId ?? undefined });
 
   const deleteMutation = trpc.hr.deleteAttendance.useMutation({
     onSuccess: () => {

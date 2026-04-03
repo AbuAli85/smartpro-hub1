@@ -1,6 +1,6 @@
 import { TRPCError } from "@trpc/server";
 import { eq } from "drizzle-orm";
-import { getContractById, getDb, getUserCompany } from "../db";
+import { getContractById, getDb, getUserCompany, getUserCompanyById } from "../db";
 import { canAccessGlobalAdminProcedures } from "@shared/rbac";
 import type { User } from "../../drizzle/schema";
 import { contractSignatures } from "../../drizzle/schema";
@@ -29,8 +29,16 @@ export function normalizeEmail(e: string | null | undefined): string {
 
 /**
  * Active company for the user. Fails if the user has no company membership.
+ * If companyId is provided, validates the user is a member of that specific company.
  */
-export async function requireActiveCompanyId(userId: number): Promise<number> {
+export async function requireActiveCompanyId(userId: number, companyId?: number | null): Promise<number> {
+  if (companyId != null) {
+    const m = await getUserCompanyById(userId, companyId);
+    if (!m?.company?.id) {
+      throw new TRPCError({ code: "FORBIDDEN", message: "You are not a member of this company" });
+    }
+    return m.company.id;
+  }
   const m = await getUserCompany(userId);
   if (!m?.company?.id) {
     throw new TRPCError({ code: "FORBIDDEN", message: "No company membership" });
@@ -44,13 +52,14 @@ export async function requireActiveCompanyId(userId: number): Promise<number> {
 export async function assertRowBelongsToActiveCompany(
   user: User,
   rowCompanyId: number | null | undefined,
-  entityLabel = "Record"
+  entityLabel = "Record",
+  activeCompanyId?: number | null
 ): Promise<void> {
   if (rowCompanyId == null) {
     throw new TRPCError({ code: "NOT_FOUND", message: `${entityLabel} not found` });
   }
   if (canAccessGlobalAdminProcedures(user)) return;
-  const cid = await requireActiveCompanyId(user.id);
+  const cid = await requireActiveCompanyId(user.id, activeCompanyId);
   if (rowCompanyId !== cid) {
     throw new TRPCError({ code: "NOT_FOUND", message: `${entityLabel} not found` });
   }
@@ -105,16 +114,16 @@ export async function assertSignatureActor(user: User, signerEmail: string | nul
 
 /**
  * Stats / dashboard / compliance-style endpoints: platform may aggregate all tenants or pass `inputCompanyId`;
- * company users are scoped to active membership and must not pass another tenant’s id (NOT_FOUND).
+ * company users are scoped to active membership and must not pass another tenant's id (NOT_FOUND).
  */
 export type StatsCompanyFilterResult =
   | { aggregateAllTenants: true }
   | { aggregateAllTenants: false; companyId: number };
 
 /** Dashboard / operations: `null` = platform may aggregate all tenants; otherwise active company id. */
-export async function resolvePlatformOrCompanyScope(user: User): Promise<number | null> {
+export async function resolvePlatformOrCompanyScope(user: User, inputCompanyId?: number | null): Promise<number | null> {
   if (canAccessGlobalAdminProcedures(user)) return null;
-  return requireActiveCompanyId(user.id);
+  return requireActiveCompanyId(user.id, inputCompanyId);
 }
 
 export async function resolveStatsCompanyFilter(
@@ -125,12 +134,6 @@ export async function resolveStatsCompanyFilter(
     if (inputCompanyId != null) return { aggregateAllTenants: false, companyId: inputCompanyId };
     return { aggregateAllTenants: true };
   }
-  const m = await getUserCompany(user.id);
-  if (!m?.company?.id) {
-    throw new TRPCError({ code: "FORBIDDEN", message: "No company membership" });
-  }
-  if (inputCompanyId != null && inputCompanyId !== m.company.id) {
-    throw new TRPCError({ code: "NOT_FOUND", message: "Not found" });
-  }
-  return { aggregateAllTenants: false, companyId: m.company.id };
+  const cid = await requireActiveCompanyId(user.id, inputCompanyId);
+  return { aggregateAllTenants: false, companyId: cid };
 }

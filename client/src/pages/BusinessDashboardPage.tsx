@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
+import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -149,9 +150,9 @@ function ModuleCard({
 export default function BusinessDashboardPage() {
   const { user } = useAuth();
   const [, navigate] = useLocation();
-
-  const { data: company } = trpc.companies.myCompany.useQuery();
-  const { data: stats, isLoading: statsLoading } = trpc.companies.myStats.useQuery();
+  const { activeCompanyId } = useActiveCompany();
+  const { data: company } = trpc.companies.myCompany.useQuery({ companyId: activeCompanyId ?? undefined });
+  const { data: stats, isLoading: statsLoading } = trpc.companies.myStats.useQuery({ companyId: activeCompanyId ?? undefined });
   const { data: teamStats, isLoading: teamLoading } = trpc.team.getTeamStats.useQuery();
   const { data: tasks, isLoading: tasksLoading } = trpc.operations.getTodaysTasks.useQuery();
   const { data: smartDash } = trpc.operations.getSmartDashboard.useQuery();

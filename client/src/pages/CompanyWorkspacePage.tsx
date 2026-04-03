@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
+import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import {
   Users, DollarSign, FileText, Shield, Building2, BarChart3,
   ChevronRight, CheckCircle2, Clock, AlertTriangle, TrendingUp,
@@ -166,10 +167,11 @@ function NoCompanyPrompt() {
 
 export default function CompanyWorkspacePage() {
   const { user } = useAuth();
-  const { data: myCompany, isLoading: companyLoading } = trpc.companies.myCompany.useQuery();
+  const { activeCompanyId } = useActiveCompany();
+  const { data: myCompany, isLoading: companyLoading } = trpc.companies.myCompany.useQuery({ companyId: activeCompanyId ?? undefined });
   const { data: teamStats, isLoading: teamLoading } = trpc.team.getTeamStats.useQuery();
   const { data: alertCount } = trpc.alerts.getAlertBadgeCount.useQuery();
-  const { data: companyStats, isLoading: statsLoading } = trpc.companies.myStats.useQuery();
+  const { data: companyStats, isLoading: statsLoading } = trpc.companies.myStats.useQuery({ companyId: activeCompanyId ?? undefined });
 
   const company = myCompany?.company;
   const now = new Date();

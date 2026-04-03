@@ -1,5 +1,6 @@
 import { trpc } from "@/lib/trpc";
 import { useState } from "react";
+import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import {
   Users, Search, UserCheck, Clock, ChevronRight, X,
   Edit2, Phone, Mail, Globe, Hash, Briefcase, Calendar, DollarSign,
@@ -297,13 +298,15 @@ export default function HREmployeesPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [deptFilter, setDeptFilter] = useState("all");
   const [selectedId, setSelectedId] = useState<number | null>(null);
+  const { activeCompanyId } = useActiveCompany();
 
   const { data: employees, refetch } = trpc.hr.listEmployees.useQuery({
     status: statusFilter !== "all" ? statusFilter : undefined,
     department: deptFilter !== "all" ? deptFilter : undefined,
+    companyId: activeCompanyId ?? undefined,
   });
-  const { data: stats } = trpc.hr.getStats.useQuery();
-  const { data: departments } = trpc.hr.departments.useQuery();
+  const { data: stats } = trpc.hr.getStats.useQuery({ companyId: activeCompanyId ?? undefined });
+  const { data: departments } = trpc.hr.departments.useQuery({ companyId: activeCompanyId ?? undefined });
 
   const filtered = employees?.filter((e) =>
     !search ||

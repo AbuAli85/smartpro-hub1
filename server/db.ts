@@ -136,6 +136,17 @@ export async function getUserCompany(userId: number) {
   return result[0] ?? null;
 }
 
+export async function getUserCompanyById(userId: number, companyId: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const result = await db
+    .select({ company: companies, member: companyMembers })
+    .from(companyMembers)
+    .innerJoin(companies, eq(companies.id, companyMembers.companyId))
+    .where(and(eq(companyMembers.userId, userId), eq(companyMembers.companyId, companyId), eq(companyMembers.isActive, true)))
+    .limit(1);
+  return result[0] ?? null;
+}
 export async function getUserCompanies(userId: number) {
   const db = await getDb();
   if (!db) return [];

@@ -1,5 +1,6 @@
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
+import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { getHiddenNavHrefs } from "@/lib/navVisibility";
 import { clientNavItemVisible, normalizeClientPath, seesPlatformOperatorNav } from "@shared/clientNav";
 import React, { useEffect, useMemo, useState } from "react";
@@ -99,8 +100,9 @@ function ComplianceRow({ label, status, pct }: { label: string; status: "ok" | "
 /* ── Main Dashboard ────────────────────────────────────────────────────── */
 export default function Dashboard() {
   const { user } = useAuth();
-  const { data: stats, isLoading } = trpc.companies.myStats.useQuery();
-  const { data: myCompany, isLoading: myCompanyLoading } = trpc.companies.myCompany.useQuery();
+  const { activeCompanyId } = useActiveCompany();
+  const { data: stats, isLoading } = trpc.companies.myStats.useQuery({ companyId: activeCompanyId ?? undefined });
+  const { data: myCompany, isLoading: myCompanyLoading } = trpc.companies.myCompany.useQuery({ companyId: activeCompanyId ?? undefined });
   const [navPrefsEpoch, setNavPrefsEpoch] = useState(0);
 
   useEffect(() => {

@@ -29,6 +29,10 @@ import { complianceRouter } from "./routers/compliance";
 import { teamRouter } from "./routers/team";
 import { documentsRouter } from "./routers/documents";
 import { hrLettersRouter } from "./routers/hrLetters";
+import { orgStructureRouter } from "./routers/orgStructure";
+import { tasksRouter } from "./routers/tasks";
+import { announcementsRouter } from "./routers/announcements";
+import { employeePortalRouter } from "./routers/employeePortal";
 
 export const appRouter = router({
   system: systemRouter,
@@ -69,6 +73,10 @@ export const appRouter = router({
   team: teamRouter,
   documents: documentsRouter,
   hrLetters: hrLettersRouter,
+  orgStructure: orgStructureRouter,
+  tasks: tasksRouter,
+  announcements: announcementsRouter,
+  employeePortal: employeePortalRouter,
 });
 
 export type AppRouter = typeof appRouter;

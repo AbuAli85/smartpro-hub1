@@ -1100,3 +1100,51 @@ Every company on SmartPRO Hub gets a complete, unified business operating area �
 - [ ] UI: Employee cards in MyTeamPage — show document expiry warning badge if any doc expires in 30 days
 - [ ] UI: Payroll run page — show compliance flags per employee (expired doc = red badge, expiring = amber)
 - [ ] UI: Leave approval — show employee leave balance remaining before approving
+
+## Phase 43: Complete A-to-Z Business Operating System
+
+### 43A — Departments & Positions Management
+- [ ] Schema: departments table (id, companyId, name, description, headEmployeeId, createdAt)
+- [ ] Schema: positions table (id, companyId, departmentId, title, description, isActive, createdAt)
+- [ ] Migration: apply schema migration for departments and positions tables
+- [ ] Backend: hr.listDepartments, hr.createDepartment, hr.updateDepartment, hr.deleteDepartment
+- [ ] Backend: hr.listPositions, hr.createPosition, hr.updatePosition, hr.deletePosition
+- [ ] UI: DepartmentsPage.tsx — manage departments and positions in one page (add/edit/delete, employee count per dept)
+- [ ] Route: /hr/departments registered in App.tsx
+- [ ] Nav: Departments link added to Human Resources sidebar section
+
+### 43B — Task Assignment System (Admin → Employee)
+- [ ] Schema: employee_tasks table (id, companyId, assignedToEmployeeId, assignedByUserId, title, description, priority, status, dueDate, completedAt, createdAt)
+- [ ] Migration: apply schema migration for employee_tasks table
+- [ ] Backend: tasks.listTasks (admin: all tasks; employee: their own tasks), tasks.createTask, tasks.updateTask, tasks.deleteTask, tasks.completeTask
+- [ ] UI: TaskManagementPage.tsx — admin view: create tasks, assign to employees, filter by status/employee/priority, mark complete
+- [ ] Route: /hr/tasks registered in App.tsx
+- [ ] Nav: Tasks link added to Human Resources sidebar section
+
+### 43C — Announcements & Requests System
+- [ ] Schema: announcements table (id, companyId, createdByUserId, title, body, type [announcement|request|alert], targetEmployeeId [null=all], isRead tracking via separate table, createdAt)
+- [ ] Schema: announcement_reads table (id, announcementId, employeeId, readAt)
+- [ ] Migration: apply schema migration
+- [ ] Backend: announcements.listAnnouncements (admin: all; employee: their own + company-wide), announcements.createAnnouncement, announcements.markRead, announcements.deleteAnnouncement
+- [ ] UI: AnnouncementsPage.tsx — admin: compose and send announcements/requests to all or specific employee; view read receipts
+- [ ] Route: /hr/announcements registered in App.tsx
+- [ ] Nav: Announcements link added to Human Resources sidebar section
+
+### 43D — Employee Self-Service Portal
+- [ ] UI: EmployeePortalPage.tsx — employee's own dashboard: profile summary, today's attendance status, leave balance, pending tasks, unread announcements, recent payslips, document expiry warnings
+- [ ] Backend: portal.getMyProfile — employee's own profile data (from employees table matched by user email)
+- [ ] Backend: portal.getMyAttendance — employee's own attendance records for current month
+- [ ] Backend: portal.getMyLeave — employee's own leave requests + balance
+- [ ] Backend: portal.getMyTasks — employee's own assigned tasks
+- [ ] Backend: portal.getMyAnnouncements — announcements addressed to this employee or all-company
+- [ ] Backend: portal.getMyPayslips — employee's own payroll records
+- [ ] Backend: portal.submitLeaveRequest — employee submits leave request from portal
+- [ ] Backend: portal.completeTask — employee marks their task as complete
+- [ ] Route: /my-portal registered in App.tsx
+- [ ] Nav: My Portal link added for employee-role users in sidebar
+
+### 43E — Company Setup Wizard (First-Time Flow)
+- [ ] UI: CompanySetupPage.tsx — guided 5-step setup: 1) Company Info → 2) Add Departments → 3) Add First Employee → 4) Upload Company Documents → 5) Done
+- [ ] Each step shows completion status and links to the relevant page
+- [ ] Route: /company/setup registered in App.tsx
+- [ ] Nav: Setup Wizard link shown only when company setup is incomplete

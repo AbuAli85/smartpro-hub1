@@ -1969,3 +1969,78 @@ export const hrLetters = mysqlTable("hr_letters", {
 });
 export type HrLetter = typeof hrLetters.$inferSelect;
 export type InsertHrLetter = typeof hrLetters.$inferInsert;
+
+// ─── DEPARTMENTS ──────────────────────────────────────────────────────────────
+export const departments = mysqlTable("departments", {
+  id: int("id").autoincrement().primaryKey(),
+  companyId: int("company_id").notNull(),
+  name: varchar("name", { length: 128 }).notNull(),
+  nameAr: varchar("name_ar", { length: 128 }),
+  description: text("description"),
+  headEmployeeId: int("head_employee_id"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+export type Department = typeof departments.$inferSelect;
+export type InsertDepartment = typeof departments.$inferInsert;
+
+// ─── POSITIONS ────────────────────────────────────────────────────────────────
+export const positions = mysqlTable("positions", {
+  id: int("id").autoincrement().primaryKey(),
+  companyId: int("company_id").notNull(),
+  departmentId: int("department_id"),
+  title: varchar("title", { length: 128 }).notNull(),
+  titleAr: varchar("title_ar", { length: 128 }),
+  description: text("description"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+export type Position = typeof positions.$inferSelect;
+export type InsertPosition = typeof positions.$inferInsert;
+
+// ─── EMPLOYEE TASKS ───────────────────────────────────────────────────────────
+export const employeeTasks = mysqlTable("employee_tasks", {
+  id: int("id").autoincrement().primaryKey(),
+  companyId: int("company_id").notNull(),
+  assignedToEmployeeId: int("assigned_to_employee_id").notNull(),
+  assignedByUserId: int("assigned_by_user_id").notNull(),
+  title: varchar("title", { length: 255 }).notNull(),
+  description: text("description"),
+  priority: mysqlEnum("priority", ["low", "medium", "high", "urgent"]).notNull().default("medium"),
+  status: mysqlEnum("status", ["pending", "in_progress", "completed", "cancelled"]).notNull().default("pending"),
+  dueDate: date("due_date"),
+  completedAt: timestamp("completed_at"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+export type EmployeeTask = typeof employeeTasks.$inferSelect;
+export type InsertEmployeeTask = typeof employeeTasks.$inferInsert;
+
+// ─── ANNOUNCEMENTS ────────────────────────────────────────────────────────────
+export const announcements = mysqlTable("announcements", {
+  id: int("id").autoincrement().primaryKey(),
+  companyId: int("company_id").notNull(),
+  createdByUserId: int("created_by_user_id").notNull(),
+  title: varchar("title", { length: 255 }).notNull(),
+  body: text("body").notNull(),
+  type: mysqlEnum("type", ["announcement", "request", "alert", "reminder"]).notNull().default("announcement"),
+  targetEmployeeId: int("target_employee_id"), // null = all employees
+  isDeleted: boolean("is_deleted").notNull().default(false),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+export type Announcement = typeof announcements.$inferSelect;
+export type InsertAnnouncement = typeof announcements.$inferInsert;
+
+// ─── ANNOUNCEMENT READS ───────────────────────────────────────────────────────
+export const announcementReads = mysqlTable("announcement_reads", {
+  id: int("id").autoincrement().primaryKey(),
+  announcementId: int("announcement_id").notNull(),
+  employeeId: int("employee_id").notNull(),
+  readAt: timestamp("read_at").defaultNow().notNull(),
+});
+export type AnnouncementRead = typeof announcementReads.$inferSelect;
+export type InsertAnnouncementRead = typeof announcementReads.$inferInsert;

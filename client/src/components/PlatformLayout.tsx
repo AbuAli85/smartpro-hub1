@@ -36,6 +36,10 @@ import {
   Users,
   X,
   Zap,
+  ListTodo,
+  Megaphone,
+  LayoutGrid,
+  Home,
 } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
 import { Link, useLocation } from "wouter";
@@ -94,6 +98,7 @@ const navGroups = [
     label: "My Company",
     items: [
       { label: "Business Dashboard", href: "/business/dashboard", icon: <LayoutDashboard size={18} /> },
+      { label: "My Portal", href: "/my-portal", icon: <Home size={18} /> },
       { label: "Company Profile", href: "/company/profile", icon: <Building2 size={18} /> },
       { label: "My Team", href: "/my-team", icon: <Users size={18} /> },
       { label: "Operations", href: "/company/operations", icon: <Activity size={18} /> },
@@ -125,6 +130,9 @@ const navGroups = [
       { label: "HR Letters", href: "/hr/letters", icon: <Mail size={18} /> },
       { label: "Leave Balances", href: "/hr/leave-balance", icon: <Calendar size={18} /> },
       { label: "Profile Completeness", href: "/hr/completeness", icon: <UserCheck size={18} /> },
+      { label: "Org Structure", href: "/hr/org-structure", icon: <LayoutGrid size={18} /> },
+      { label: "Task Manager", href: "/hr/tasks", icon: <ListTodo size={18} /> },
+      { label: "Announcements", href: "/hr/announcements", icon: <Megaphone size={18} /> },
     ],
   },
   {

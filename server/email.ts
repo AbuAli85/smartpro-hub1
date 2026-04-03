@@ -10,7 +10,7 @@
 import { Resend } from "resend";
 import { ENV } from "./_core/env";
 
-const FROM_ADDRESS = "SmartPRO Hub <onboarding@resend.dev>";
+const FROM_ADDRESS = "SmartPRO Hub <noreply@thesmartpro.io>";
 
 function getResend(): Resend {
   if (!ENV.resendApiKey) {

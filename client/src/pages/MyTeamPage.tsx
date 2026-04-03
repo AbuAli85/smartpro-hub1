@@ -1052,13 +1052,19 @@ export default function MyTeamPage() {
           initial={{
             firstName: editMember.firstName,
             lastName: editMember.lastName,
+            firstNameAr: editMember.firstNameAr ?? "",
+            lastNameAr: editMember.lastNameAr ?? "",
             email: editMember.email ?? "",
             phone: editMember.phone ?? "",
             nationality: editMember.nationality ?? "",
             passportNumber: editMember.passportNumber ?? "",
             nationalId: editMember.nationalId ?? "",
+            dateOfBirth: editMember.dateOfBirth ?? "",
+            gender: editMember.gender ?? "",
+            maritalStatus: editMember.maritalStatus ?? "",
             department: editMember.department ?? "",
             position: editMember.position ?? "",
+            profession: editMember.profession ?? "",
             employmentType: (editMember.employmentType as any) ?? "full_time",
             salary: editMember.salary ?? "",
             currency: editMember.currency ?? "OMR",
@@ -1066,6 +1072,15 @@ export default function MyTeamPage() {
               ? new Date(editMember.hireDate).toISOString().split("T")[0]
               : "",
             employeeNumber: editMember.employeeNumber ?? "",
+            workPermitNumber: editMember.workPermitNumber ?? "",
+            visaNumber: editMember.visaNumber ?? "",
+            visaExpiryDate: editMember.visaExpiryDate ?? "",
+            workPermitExpiryDate: editMember.workPermitExpiryDate ?? "",
+            pasiNumber: editMember.pasiNumber ?? "",
+            bankName: editMember.bankName ?? "",
+            bankAccountNumber: editMember.bankAccountNumber ?? "",
+            emergencyContactName: editMember.emergencyContactName ?? "",
+            emergencyContactPhone: editMember.emergencyContactPhone ?? "",
           }}
         />
       )}

@@ -45,6 +45,11 @@ import {
   QrCode,
   ClipboardList,
   CalendarDays,
+  CalendarCheck,
+  CalendarClock,
+  CalendarRange,
+  SunMedium,
+  ClipboardCheck,
 } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
 import { Link, useLocation } from "wouter";
@@ -83,6 +88,7 @@ interface NavItem {
 }
 
 const navGroups = [
+  // ── OVERVIEW ──────────────────────────────────────────────────────────────
   {
     label: "Overview",
     items: [
@@ -92,6 +98,7 @@ const navGroups = [
       { label: "Compliance", href: "/compliance", icon: <CheckCircle2 size={18} /> },
     ],
   },
+  // ── GOVERNMENT SERVICES ───────────────────────────────────────────────────
   {
     label: "Government Services",
     items: [
@@ -103,68 +110,80 @@ const navGroups = [
       { label: "PRO Services", href: "/pro", icon: <Shield size={18} /> },
     ],
   },
+  // ── MY COMPANY ────────────────────────────────────────────────────────────
+  // Purpose: company identity, settings, access control, and company-level documents.
+  // Employee/HR data lives exclusively under Human Resources.
   {
     label: "My Company",
     items: [
-      { label: "Business Dashboard", href: "/business/dashboard", icon: <LayoutDashboard size={18} /> },
       { label: "My Portal", href: "/my-portal", icon: <Home size={18} /> },
       { label: "Company Profile", href: "/company/profile", icon: <Building2 size={18} /> },
       { label: "Team Access & Roles", href: "/company/team-access", icon: <UserCheck size={18} /> },
       { label: "Multi-Company Roles", href: "/company/multi-company-roles", icon: <ShieldCheck size={18} /> },
       { label: "Company Settings", href: "/company/settings", icon: <Settings size={18} /> },
       { label: "Email Templates", href: "/company/email-preview", icon: <Mail size={18} /> },
-      { label: "My Team", href: "/my-team", icon: <Users size={18} /> },
-      { label: "Operations", href: "/company/operations", icon: <Activity size={18} /> },
       { label: "Company Documents", href: "/company/documents", icon: <FolderOpen size={18} /> },
-      { label: "Document Dashboard", href: "/hr/documents-dashboard", icon: <FileText size={18} /> },
-      { label: "Company Workspace", href: "/company/workspace", icon: <Building2 size={18} /> },
     ],
   },
+  // ── BUSINESS ──────────────────────────────────────────────────────────────
   {
     label: "Business",
     items: [
-      { label: "Company hub", href: "/company/hub", icon: <Building2 size={18} /> },
+      { label: "Company Hub", href: "/company/hub", icon: <Building2 size={18} /> },
+      { label: "Business Dashboard", href: "/business/dashboard", icon: <BarChart2 size={18} /> },
       { label: "Quotations", href: "/quotations", icon: <Target size={18} /> },
       { label: "Contracts", href: "/contracts", icon: <FileText size={18} /> },
       { label: "Marketplace", href: "/marketplace", icon: <ShoppingBag size={18} /> },
       { label: "CRM", href: "/crm", icon: <Users size={18} /> },
     ],
   },
+  // ── HUMAN RESOURCES ───────────────────────────────────────────────────────
+  // Single source of truth for all employee and HR data.
+  // "My Team" and "Employees" are the same data — only Employees is kept here.
   {
     label: "Human Resources",
     items: [
-      { label: "Employees", href: "/hr/employees", icon: <Briefcase size={18} /> },
+      // People
+      { label: "Employees", href: "/hr/employees", icon: <Users size={18} /> },
       { label: "Recruitment", href: "/hr/recruitment", icon: <BookOpen size={18} /> },
-      { label: "Leave & Payroll", href: "/hr/leave", icon: <Calendar size={18} /> },
+      { label: "Org Structure", href: "/hr/org-structure", icon: <LayoutGrid size={18} /> },
+      { label: "Profile Completeness", href: "/hr/completeness", icon: <UserCheck size={18} /> },
+      // Pay & Leave
+      { label: "Leave & Requests", href: "/hr/leave", icon: <Calendar size={18} /> },
+      { label: "Leave Balances", href: "/hr/leave-balance", icon: <CalendarCheck size={18} /> },
       { label: "Payroll Engine", href: "/payroll", icon: <Banknote size={18} /> },
+      // Attendance & Scheduling
       { label: "Attendance", href: "/hr/attendance", icon: <Clock size={18} /> },
       { label: "Attendance Sites", href: "/hr/attendance-sites", icon: <QrCode size={18} /> },
       { label: "Shift Templates", href: "/hr/shift-templates", icon: <CalendarDays size={18} /> },
-      { label: "Employee Schedules", href: "/hr/employee-schedules", icon: <CalendarDays size={18} /> },
-      { label: "Holiday Calendar", href: "/hr/holidays", icon: <CalendarDays size={18} /> },
-      { label: "Today's Board", href: "/hr/today-board", icon: <CalendarDays size={18} /> },
-      { label: "Monthly Report", href: "/hr/monthly-report", icon: <CalendarDays size={18} /> },
-      { label: "Employee Requests", href: "/hr/employee-requests", icon: <ClipboardList size={18} /> },
+      { label: "Employee Schedules", href: "/hr/employee-schedules", icon: <CalendarRange size={18} /> },
+      { label: "Holiday Calendar", href: "/hr/holidays", icon: <SunMedium size={18} /> },
+      { label: "Today's Board", href: "/hr/today-board", icon: <CalendarClock size={18} /> },
+      { label: "Monthly Report", href: "/hr/monthly-report", icon: <BarChart2 size={18} /> },
+      // Documents & Comms
+      { label: "HR Documents", href: "/hr/documents-dashboard", icon: <FileText size={18} /> },
+      { label: "Document Expiry", href: "/hr/expiry-dashboard", icon: <AlertTriangle size={18} /> },
       { label: "HR Letters", href: "/hr/letters", icon: <Mail size={18} /> },
-      { label: "Leave Balances", href: "/hr/leave-balance", icon: <Calendar size={18} /> },
-      { label: "Profile Completeness", href: "/hr/completeness", icon: <UserCheck size={18} /> },
-      { label: "Org Structure", href: "/hr/org-structure", icon: <LayoutGrid size={18} /> },
+      { label: "Employee Requests", href: "/hr/employee-requests", icon: <ClipboardList size={18} /> },
       { label: "Task Manager", href: "/hr/tasks", icon: <ListTodo size={18} /> },
       { label: "Announcements", href: "/hr/announcements", icon: <Megaphone size={18} /> },
-      { label: "Expiry Dashboard", href: "/hr/expiry-dashboard", icon: <AlertTriangle size={18} /> },
     ],
   },
+  // ── WORKFORCE HUB ─────────────────────────────────────────────────────────
+  // Government workforce compliance: work permits, MOL cases, portal sync.
+  // Distinct from HR: focuses on regulatory/government data, not day-to-day HR.
   {
     label: "Workforce Hub",
     items: [
       { label: "WF Dashboard", href: "/workforce", icon: <BarChart3 size={18} /> },
-      { label: "WF Employees", href: "/workforce/employees", icon: <Users size={18} /> },
+      { label: "WF Employees", href: "/workforce/employees", icon: <Briefcase size={18} /> },
       { label: "Work Permits", href: "/workforce/permits", icon: <Shield size={18} /> },
-      { label: "Gov. Cases", href: "/workforce/cases", icon: <Briefcase size={18} /> },
+      { label: "Gov. Cases", href: "/workforce/cases", icon: <ClipboardCheck size={18} /> },
       { label: "Document Vault", href: "/workforce/documents", icon: <FolderOpen size={18} /> },
       { label: "Portal Sync", href: "/workforce/sync", icon: <RefreshCw size={18} /> },
     ],
   },
+  // ── SHARED OMANI PRO ──────────────────────────────────────────────────────
   {
     label: "Shared Omani PRO",
     items: [
@@ -174,6 +193,7 @@ const navGroups = [
       { label: "SLA Management", href: "/sla-management", icon: <Shield size={18} /> },
     ],
   },
+  // ── PLATFORM (admin-only) ─────────────────────────────────────────────────
   {
     label: "Platform",
     items: [

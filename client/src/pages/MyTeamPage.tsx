@@ -164,7 +164,7 @@ function StaffFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) { onClose(); setStep(1); } }}>
-      <DialogContent className="max-w-xl">
+      <DialogContent className="max-w-xl max-h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-base">
             <div className="w-7 h-7 rounded-lg bg-[var(--smartpro-orange)] flex items-center justify-center">
@@ -190,7 +190,7 @@ function StaffFormDialog({
           </div>
         )}
 
-        <div className="space-y-4 py-2">
+        <div className="space-y-4 py-2 overflow-y-auto flex-1 pr-1">
           {(step === 1 || isEdit) && (
             <>
               <div className="grid grid-cols-2 gap-3">

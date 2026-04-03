@@ -74,7 +74,7 @@ function AddEmployeeWizard({ onSuccess, companyId }: { onSuccess: () => void; co
           <UserPlus size={16} /> Add Employee
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-lg max-h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Users size={18} className="text-[var(--smartpro-orange)]" />

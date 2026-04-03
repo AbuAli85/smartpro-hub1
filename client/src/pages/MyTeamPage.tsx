@@ -1059,7 +1059,9 @@ export default function MyTeamPage() {
             nationality: editMember.nationality ?? "",
             passportNumber: editMember.passportNumber ?? "",
             nationalId: editMember.nationalId ?? "",
-            dateOfBirth: editMember.dateOfBirth ?? "",
+            dateOfBirth: editMember.dateOfBirth
+              ? (editMember.dateOfBirth instanceof Date ? editMember.dateOfBirth.toISOString().split("T")[0] : String(editMember.dateOfBirth))
+              : "",
             gender: editMember.gender ?? "",
             maritalStatus: editMember.maritalStatus ?? "",
             department: editMember.department ?? "",
@@ -1074,8 +1076,12 @@ export default function MyTeamPage() {
             employeeNumber: editMember.employeeNumber ?? "",
             workPermitNumber: editMember.workPermitNumber ?? "",
             visaNumber: editMember.visaNumber ?? "",
-            visaExpiryDate: editMember.visaExpiryDate ?? "",
-            workPermitExpiryDate: editMember.workPermitExpiryDate ?? "",
+            visaExpiryDate: editMember.visaExpiryDate
+              ? (editMember.visaExpiryDate instanceof Date ? editMember.visaExpiryDate.toISOString().split("T")[0] : String(editMember.visaExpiryDate))
+              : "",
+            workPermitExpiryDate: editMember.workPermitExpiryDate
+              ? (editMember.workPermitExpiryDate instanceof Date ? editMember.workPermitExpiryDate.toISOString().split("T")[0] : String(editMember.workPermitExpiryDate))
+              : "",
             pasiNumber: editMember.pasiNumber ?? "",
             bankName: editMember.bankName ?? "",
             bankAccountNumber: editMember.bankAccountNumber ?? "",

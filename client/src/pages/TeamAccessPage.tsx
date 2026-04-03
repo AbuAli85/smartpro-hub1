@@ -20,6 +20,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import {
   AlertDialog,
@@ -41,9 +42,20 @@ import {
   Shield,
   Banknote,
   Eye,
-  Building2,
   Info,
+  CheckCircle2,
+  XCircle,
+  Clock,
+  Search,
+  Building2,
+  RefreshCw,
+  Lock,
+  Unlock,
+  ChevronDown,
 } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
+// ─── Role Configuration ───────────────────────────────────────────────────────
 
 const ROLE_CONFIG: Record<string, {
   label: string;
@@ -58,7 +70,7 @@ const ROLE_CONFIG: Record<string, {
     description: "Full access to everything — all modules, all settings, team management",
     color: "text-orange-600",
     bgColor: "bg-orange-50 border-orange-200",
-    icon: <Crown size={16} className="text-orange-500" />,
+    icon: <Crown size={14} className="text-orange-500" />,
     access: ["All modules", "Team management", "Payroll & Finance", "Company settings", "HR & Employees"],
   },
   hr_admin: {
@@ -66,31 +78,31 @@ const ROLE_CONFIG: Record<string, {
     description: "Full access to all HR modules — employees, payroll, leave, attendance, letters, tasks",
     color: "text-blue-600",
     bgColor: "bg-blue-50 border-blue-200",
-    icon: <UserCheck size={16} className="text-blue-500" />,
-    access: ["Employees & Team", "Payroll Engine", "Leave Management", "Attendance", "HR Letters", "Tasks & Announcements"],
+    icon: <UserCheck size={14} className="text-blue-500" />,
+    access: ["Employees & Team", "Payroll Engine", "Leave Management", "Attendance", "HR Letters"],
   },
   finance_admin: {
     label: "Finance Manager",
     description: "Access to payroll, billing, financial reports and subscriptions",
     color: "text-green-600",
     bgColor: "bg-green-50 border-green-200",
-    icon: <Banknote size={16} className="text-green-500" />,
+    icon: <Banknote size={14} className="text-green-500" />,
     access: ["Payroll Engine", "Run Payroll", "Financial Reports", "Subscriptions & Billing"],
   },
   company_member: {
-    label: "Staff / Field Employee",
-    description: "Access to My Portal only — their own attendance, tasks, leave, announcements, documents",
+    label: "Staff / Employee",
+    description: "Access to My Portal only — their own attendance, tasks, leave, announcements",
     color: "text-gray-600",
     bgColor: "bg-gray-50 border-gray-200",
-    icon: <Users size={16} className="text-gray-500" />,
-    access: ["My Portal (personal dashboard)", "My Attendance", "My Tasks", "My Leave", "My Documents"],
+    icon: <Users size={14} className="text-gray-500" />,
+    access: ["My Portal (personal dashboard)", "My Attendance", "My Tasks", "My Leave"],
   },
   reviewer: {
     label: "Reviewer",
     description: "Read-only access to most company data for review and approval workflows",
     color: "text-purple-600",
     bgColor: "bg-purple-50 border-purple-200",
-    icon: <Eye size={16} className="text-purple-500" />,
+    icon: <Eye size={14} className="text-purple-500" />,
     access: ["View all modules (read-only)", "Approve/review workflows"],
   },
   external_auditor: {
@@ -98,14 +110,14 @@ const ROLE_CONFIG: Record<string, {
     description: "Limited read-only access — cannot see payroll, HR management, or admin pages",
     color: "text-yellow-600",
     bgColor: "bg-yellow-50 border-yellow-200",
-    icon: <Shield size={16} className="text-yellow-500" />,
+    icon: <Shield size={14} className="text-yellow-500" />,
     access: ["View company data (limited)", "No payroll access", "No HR management"],
   },
 };
 
 function RoleBadge({ role }: { role: string }) {
   const config = ROLE_CONFIG[role];
-  if (!config) return <Badge variant="outline">{role}</Badge>;
+  if (!config) return <Badge variant="outline" className="text-xs">{role}</Badge>;
   return (
     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold border ${config.bgColor} ${config.color}`}>
       {config.icon}
@@ -114,34 +126,105 @@ function RoleBadge({ role }: { role: string }) {
   );
 }
 
+function AccessStatusBadge({ status }: { status: 'active' | 'inactive' | 'no_access' }) {
+  if (status === 'active') {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-green-50 text-green-700 border border-green-200">
+        <CheckCircle2 size={11} /> Active
+      </span>
+    );
+  }
+  if (status === 'inactive') {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-500 border border-gray-200">
+        <XCircle size={11} /> Suspended
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+      <Clock size={11} /> No Access
+    </span>
+  );
+}
+
+// ─── Main Page ────────────────────────────────────────────────────────────────
+
 export default function TeamAccessPage() {
   const { user } = useAuth();
   const utils = trpc.useUtils();
 
-  const { data: members = [], isLoading } = trpc.companies.members.useQuery();
+  // Data
+  const { data: employeesWithAccess = [], isLoading: loadingEmployees, refetch } = trpc.companies.employeesWithAccess.useQuery();
+  const { data: members = [], isLoading: loadingMembers } = trpc.companies.members.useQuery();
 
+  // UI state
+  const [search, setSearch] = useState("");
+  const [filterStatus, setFilterStatus] = useState<"all" | "active" | "no_access" | "inactive">("all");
+  const [grantTarget, setGrantTarget] = useState<{ employeeId: number; name: string; email: string | null } | null>(null);
+  const [grantRole, setGrantRole] = useState<string>("company_member");
+  const [revokeTarget, setRevokeTarget] = useState<{ employeeId: number; name: string } | null>(null);
+  const [roleChangeTarget, setRoleChangeTarget] = useState<{ employeeId: number; name: string; currentRole: string } | null>(null);
+  const [newRole, setNewRole] = useState("");
+  // For legacy email-based add
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<string>("company_member");
   const [inviteOpen, setInviteOpen] = useState(false);
-  const [removeTarget, setRemoveTarget] = useState<{ id: number; name: string } | null>(null);
-  const [roleChangeTarget, setRoleChangeTarget] = useState<{ id: number; name: string; currentRole: string } | null>(null);
-  const [newRole, setNewRole] = useState("");
+  // Member management
+  const [removeMemberTarget, setRemoveMemberTarget] = useState<{ id: number; name: string } | null>(null);
+  const [memberRoleTarget, setMemberRoleTarget] = useState<{ id: number; name: string; currentRole: string } | null>(null);
+  const [memberNewRole, setMemberNewRole] = useState("");
 
-  const addMember = trpc.companies.addMemberByEmail.useMutation({
+  // Mutations
+  const grantAccess = trpc.companies.grantEmployeeAccess.useMutation({
     onSuccess: (res) => {
+      utils.companies.employeesWithAccess.invalidate();
       utils.companies.members.invalidate();
-      toast.success(res.action === "reactivated" ? "Member reactivated successfully" : "Member added successfully");
+      if (res.action === 'linked') toast.success(res.message);
+      else if (res.action === 'invited') toast.success(`Invite sent to ${grantTarget?.email}`);
+      else toast.info(res.message);
+      setGrantTarget(null);
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const revokeAccess = trpc.companies.revokeEmployeeAccess.useMutation({
+    onSuccess: () => {
+      utils.companies.employeesWithAccess.invalidate();
+      utils.companies.members.invalidate();
+      toast.success("Access revoked");
+      setRevokeTarget(null);
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const updateEmployeeRole = trpc.companies.updateEmployeeAccessRole.useMutation({
+    onSuccess: () => {
+      utils.companies.employeesWithAccess.invalidate();
+      utils.companies.members.invalidate();
+      toast.success("Role updated");
+      setRoleChangeTarget(null);
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const addMemberByEmail = trpc.companies.addMemberByEmail.useMutation({
+    onSuccess: () => {
+      utils.companies.members.invalidate();
+      utils.companies.employeesWithAccess.invalidate();
+      toast.success("Member added successfully");
       setInviteEmail("");
       setInviteOpen(false);
     },
     onError: (err) => toast.error(err.message),
   });
 
-  const updateRole = trpc.companies.updateMemberRole.useMutation({
+  const updateMemberRole = trpc.companies.updateMemberRole.useMutation({
     onSuccess: () => {
       utils.companies.members.invalidate();
-      toast.success("Role updated successfully");
-      setRoleChangeTarget(null);
+      utils.companies.employeesWithAccess.invalidate();
+      toast.success("Role updated");
+      setMemberRoleTarget(null);
     },
     onError: (err) => toast.error(err.message),
   });
@@ -149,192 +232,510 @@ export default function TeamAccessPage() {
   const removeMember = trpc.companies.removeMember.useMutation({
     onSuccess: () => {
       utils.companies.members.invalidate();
+      utils.companies.employeesWithAccess.invalidate();
       toast.success("Member removed");
-      setRemoveTarget(null);
+      setRemoveMemberTarget(null);
     },
     onError: (err) => toast.error(err.message),
   });
 
-  const reactivateMember = trpc.companies.reactivateMember.useMutation({
-    onSuccess: () => {
-      utils.companies.members.invalidate();
-      toast.success("Member reactivated");
-    },
-    onError: (err) => toast.error(err.message),
+  // Filtered employees
+  const filteredEmployees = employeesWithAccess.filter((emp) => {
+    const name = `${emp.firstName} ${emp.lastName}`.toLowerCase();
+    const matchSearch = !search || name.includes(search.toLowerCase()) || emp.email?.toLowerCase().includes(search.toLowerCase()) || emp.department?.toLowerCase().includes(search.toLowerCase());
+    const matchStatus = filterStatus === "all" || emp.accessStatus === filterStatus;
+    return matchSearch && matchStatus;
   });
 
+  // Stats
+  const totalEmployees = employeesWithAccess.length;
+  const withAccess = employeesWithAccess.filter((e) => e.accessStatus === 'active').length;
+  const noAccess = employeesWithAccess.filter((e) => e.accessStatus === 'no_access').length;
+  const suspended = employeesWithAccess.filter((e) => e.accessStatus === 'inactive').length;
   const activeMembers = members.filter((m) => m.isActive);
-  const inactiveMembers = members.filter((m) => !m.isActive);
 
   return (
-    <div className="p-6 max-w-5xl mx-auto space-y-6">
+    <div className="p-6 max-w-6xl mx-auto space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Team Access & Roles</h1>
           <p className="text-sm text-gray-500 mt-1">
-            Manage who has access to your company and what they can see and do.
+            Control who can log in to SmartPRO and what they can see. All your employees are shown below.
           </p>
         </div>
-        <Button onClick={() => setInviteOpen(true)} className="gap-2">
-          <Plus size={16} /> Add Team Member
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => { refetch(); }} className="gap-2">
+            <RefreshCw size={14} /> Refresh
+          </Button>
+          <Button onClick={() => setInviteOpen(true)} className="gap-2">
+            <Plus size={16} /> Add by Email
+          </Button>
+        </div>
       </div>
 
-      {/* Role Guide */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-            <Info size={15} className="text-blue-500" /> Role Guide — What Each Role Can Access
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            {Object.entries(ROLE_CONFIG).map(([key, config]) => (
-              <div key={key} className={`rounded-lg border p-3 ${config.bgColor}`}>
-                <div className="flex items-center gap-2 mb-1.5">
-                  {config.icon}
-                  <span className={`text-sm font-semibold ${config.color}`}>{config.label}</span>
-                </div>
-                <p className="text-xs text-gray-500 mb-2">{config.description}</p>
-                <div className="space-y-0.5">
-                  {config.access.map((item) => (
-                    <div key={item} className="text-xs text-gray-600 flex items-center gap-1">
-                      <span className="w-1 h-1 rounded-full bg-gray-400 shrink-0" />
-                      {item}
-                    </div>
-                  ))}
+      {/* Stats Bar */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="bg-white border rounded-xl p-4 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center">
+            <Users size={18} className="text-gray-600" />
+          </div>
+          <div>
+            <div className="text-2xl font-bold text-gray-900">{totalEmployees}</div>
+            <div className="text-xs text-gray-500">Total Employees</div>
+          </div>
+        </div>
+        <div className="bg-white border rounded-xl p-4 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center">
+            <CheckCircle2 size={18} className="text-green-600" />
+          </div>
+          <div>
+            <div className="text-2xl font-bold text-green-700">{withAccess}</div>
+            <div className="text-xs text-gray-500">With Active Access</div>
+          </div>
+        </div>
+        <div className="bg-white border rounded-xl p-4 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center">
+            <Clock size={18} className="text-amber-600" />
+          </div>
+          <div>
+            <div className="text-2xl font-bold text-amber-700">{noAccess}</div>
+            <div className="text-xs text-gray-500">No Access Yet</div>
+          </div>
+        </div>
+        <div className="bg-white border rounded-xl p-4 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-red-100 flex items-center justify-center">
+            <XCircle size={18} className="text-red-600" />
+          </div>
+          <div>
+            <div className="text-2xl font-bold text-red-700">{suspended}</div>
+            <div className="text-xs text-gray-500">Suspended</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Tabs */}
+      <Tabs defaultValue="employees">
+        <TabsList className="mb-4">
+          <TabsTrigger value="employees" className="gap-2">
+            <Users size={14} /> All Employees ({totalEmployees})
+          </TabsTrigger>
+          <TabsTrigger value="members" className="gap-2">
+            <CheckCircle2 size={14} /> Active Logins ({activeMembers.length})
+          </TabsTrigger>
+          <TabsTrigger value="roles" className="gap-2">
+            <Info size={14} /> Role Guide
+          </TabsTrigger>
+        </TabsList>
+
+        {/* ── Tab 1: All Employees ── */}
+        <TabsContent value="employees">
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
+                <CardTitle className="text-base font-semibold text-gray-800">
+                  All Employees — Access Status
+                </CardTitle>
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <div className="relative flex-1 sm:w-64">
+                    <Search size={14} className="absolute left-2.5 top-2.5 text-gray-400" />
+                    <Input
+                      placeholder="Search name, email, department..."
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      className="pl-8 h-9 text-sm"
+                    />
+                  </div>
+                  <Select value={filterStatus} onValueChange={(v) => setFilterStatus(v as any)}>
+                    <SelectTrigger className="h-9 w-36 text-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Status</SelectItem>
+                      <SelectItem value="active">Active Access</SelectItem>
+                      <SelectItem value="no_access">No Access</SelectItem>
+                      <SelectItem value="inactive">Suspended</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+            </CardHeader>
+            <CardContent className="p-0">
+              {loadingEmployees ? (
+                <div className="py-12 text-center text-sm text-gray-400">Loading employees...</div>
+              ) : filteredEmployees.length === 0 ? (
+                <div className="py-12 text-center text-sm text-gray-400">
+                  {totalEmployees === 0
+                    ? "No employees found. Add employees in the HR module first."
+                    : "No employees match your search."}
+                </div>
+              ) : (
+                <div className="divide-y divide-gray-100">
+                  {filteredEmployees.map((emp) => {
+                    const fullName = `${emp.firstName} ${emp.lastName}`;
+                    const initials = `${emp.firstName[0]}${emp.lastName[0]}`.toUpperCase();
+                    return (
+                      <div key={emp.employeeId} className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors">
+                        {/* Avatar */}
+                        <Avatar className="w-9 h-9 shrink-0">
+                          <AvatarFallback className="bg-gray-200 text-gray-700 text-sm font-semibold">
+                            {initials}
+                          </AvatarFallback>
+                        </Avatar>
 
-      {/* Active Members */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center justify-between">
-            <span className="flex items-center gap-2 text-base">
-              <Users size={18} className="text-gray-500" />
-              Active Team Members
-            </span>
-            <Badge variant="secondary">{activeMembers.length}</Badge>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="text-sm text-gray-400 py-4 text-center">Loading members...</div>
-          ) : activeMembers.length === 0 ? (
-            <div className="text-sm text-gray-400 py-8 text-center">
-              No team members yet. Click "Add Team Member" to get started.
-            </div>
-          ) : (
-            <div className="divide-y divide-gray-100">
-              {activeMembers.map((member) => {
-                const isCurrentUser = member.userId === user?.id;
-                const isOwner = member.role === "company_admin";
-                return (
-                  <div key={member.memberId} className="flex items-center gap-4 py-3">
-                    <Avatar className="w-9 h-9 shrink-0">
-                      <AvatarFallback className="bg-gray-200 text-gray-700 text-sm font-semibold">
-                        {member.name?.charAt(0)?.toUpperCase() ?? "?"}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-gray-900 truncate">{member.name}</span>
-                        {isCurrentUser && (
-                          <span className="text-xs text-gray-400 font-normal">(you)</span>
+                        {/* Employee Info */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-sm font-medium text-gray-900">{fullName}</span>
+                            {emp.employeeNumber && (
+                              <span className="text-xs text-gray-400">#{emp.employeeNumber}</span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-3 mt-0.5 flex-wrap">
+                            {emp.department && (
+                              <span className="text-xs text-gray-500 flex items-center gap-1">
+                                <Building2 size={10} className="text-gray-400" />
+                                {emp.department}
+                              </span>
+                            )}
+                            {emp.position && (
+                              <span className="text-xs text-gray-500">{emp.position}</span>
+                            )}
+                            {emp.email && (
+                              <span className="text-xs text-gray-400 flex items-center gap-1">
+                                <Mail size={10} />
+                                {emp.email}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Access Status */}
+                        <div className="shrink-0 hidden sm:block">
+                          <AccessStatusBadge status={emp.accessStatus as any} />
+                        </div>
+
+                        {/* Role (if has access) */}
+                        <div className="shrink-0 hidden md:block">
+                          {emp.memberRole ? (
+                            <RoleBadge role={emp.memberRole} />
+                          ) : (
+                            <span className="text-xs text-gray-400">—</span>
+                          )}
+                        </div>
+
+                        {/* Actions */}
+                        <div className="flex items-center gap-2 shrink-0">
+                          {emp.accessStatus === 'active' ? (
+                            <>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-8 text-xs gap-1"
+                                onClick={() => {
+                                  setRoleChangeTarget({ employeeId: emp.employeeId, name: fullName, currentRole: emp.memberRole ?? "company_member" });
+                                  setNewRole(emp.memberRole ?? "company_member");
+                                }}
+                              >
+                                Change Role
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-8 text-xs gap-1 text-red-600 hover:text-red-700 hover:border-red-300"
+                                onClick={() => setRevokeTarget({ employeeId: emp.employeeId, name: fullName })}
+                              >
+                                <Lock size={12} /> Revoke
+                              </Button>
+                            </>
+                          ) : emp.accessStatus === 'inactive' ? (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-8 text-xs gap-1 text-green-600 hover:text-green-700"
+                              onClick={() => {
+                                setGrantTarget({ employeeId: emp.employeeId, name: fullName, email: emp.email ?? null });
+                                setGrantRole(emp.memberRole ?? "company_member");
+                              }}
+                            >
+                              <Unlock size={12} /> Restore
+                            </Button>
+                          ) : (
+                            <Button
+                              size="sm"
+                              className="h-8 text-xs gap-1 bg-gray-900 hover:bg-gray-800 text-white"
+                              onClick={() => {
+                                setGrantTarget({ employeeId: emp.employeeId, name: fullName, email: emp.email ?? null });
+                                setGrantRole("company_member");
+                              }}
+                            >
+                              <Unlock size={12} /> Grant Access
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ── Tab 2: Active Logins ── */}
+        <TabsContent value="members">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base font-semibold text-gray-800 flex items-center justify-between">
+                <span className="flex items-center gap-2">
+                  <CheckCircle2 size={16} className="text-green-500" />
+                  Active System Logins
+                </span>
+                <Badge variant="secondary">{activeMembers.length}</Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              {loadingMembers ? (
+                <div className="py-8 text-center text-sm text-gray-400">Loading...</div>
+              ) : activeMembers.length === 0 ? (
+                <div className="py-8 text-center text-sm text-gray-400">
+                  No active members yet. Grant access to employees from the "All Employees" tab.
+                </div>
+              ) : (
+                <div className="divide-y divide-gray-100">
+                  {activeMembers.map((member) => {
+                    const isCurrentUser = member.userId === user?.id;
+                    return (
+                      <div key={member.memberId} className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50">
+                        <Avatar className="w-9 h-9 shrink-0">
+                          <AvatarFallback className="bg-gray-200 text-gray-700 text-sm font-semibold">
+                            {member.name?.charAt(0)?.toUpperCase() ?? "?"}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium text-gray-900">{member.name}</span>
+                            {isCurrentUser && <span className="text-xs text-gray-400">(you)</span>}
+                          </div>
+                          <div className="flex items-center gap-1 mt-0.5">
+                            <Mail size={11} className="text-gray-400" />
+                            <span className="text-xs text-gray-500">{member.email}</span>
+                          </div>
+                        </div>
+                        <div className="shrink-0">
+                          <RoleBadge role={member.role} />
+                        </div>
+                        {!isCurrentUser && (
+                          <div className="flex items-center gap-2 shrink-0">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-8 text-xs"
+                              onClick={() => {
+                                setMemberRoleTarget({ id: member.memberId, name: member.name ?? "", currentRole: member.role });
+                                setMemberNewRole(member.role);
+                              }}
+                            >
+                              Change Role
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-8 text-xs text-red-600 hover:text-red-700 hover:border-red-300"
+                              onClick={() => setRemoveMemberTarget({ id: member.memberId, name: member.name ?? "" })}
+                            >
+                              Remove
+                            </Button>
+                          </div>
                         )}
                       </div>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        <Mail size={11} className="text-gray-400" />
-                        <span className="text-xs text-gray-500 truncate">{member.email}</span>
-                      </div>
-                    </div>
-                    <div className="shrink-0">
-                      <RoleBadge role={member.role} />
-                    </div>
-                    {!isCurrentUser && (
-                      <div className="flex items-center gap-2 shrink-0">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            setRoleChangeTarget({ id: member.memberId, name: member.name ?? "", currentRole: member.role });
-                            setNewRole(member.role);
-                          }}
-                        >
-                          Change Role
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="text-red-600 hover:text-red-700 hover:border-red-300"
-                          onClick={() => setRemoveTarget({ id: member.memberId, name: member.name ?? "" })}
-                        >
-                          <UserX size={14} />
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Inactive Members */}
-      {inactiveMembers.length > 0 && (
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center justify-between text-base">
-              <span className="flex items-center gap-2 text-gray-500">
-                <UserX size={18} />
-                Deactivated Members
-              </span>
-              <Badge variant="outline">{inactiveMembers.length}</Badge>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="divide-y divide-gray-100">
-              {inactiveMembers.map((member) => (
-                <div key={member.memberId} className="flex items-center gap-4 py-3 opacity-60">
-                  <Avatar className="w-9 h-9 shrink-0">
-                    <AvatarFallback className="bg-gray-100 text-gray-400 text-sm">
-                      {member.name?.charAt(0)?.toUpperCase() ?? "?"}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium text-gray-600 truncate">{member.name}</div>
-                    <div className="text-xs text-gray-400 truncate">{member.email}</div>
-                  </div>
-                  <RoleBadge role={member.role} />
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => reactivateMember.mutate({ memberId: member.memberId })}
-                    disabled={reactivateMember.isPending}
-                  >
-                    Reactivate
-                  </Button>
+                    );
+                  })}
                 </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-      {/* Add Member Dialog */}
-      <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
-        <DialogContent className="max-w-md">
+        {/* ── Tab 3: Role Guide ── */}
+        <TabsContent value="roles">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {Object.entries(ROLE_CONFIG).map(([key, config]) => (
+              <Card key={key} className={`border ${config.bgColor}`}>
+                <CardContent className="pt-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    {config.icon}
+                    <span className={`text-sm font-semibold ${config.color}`}>{config.label}</span>
+                  </div>
+                  <p className="text-xs text-gray-500 mb-3">{config.description}</p>
+                  <div className="space-y-1">
+                    {config.access.map((item) => (
+                      <div key={item} className="text-xs text-gray-600 flex items-center gap-1.5">
+                        <CheckCircle2 size={10} className="text-gray-400 shrink-0" />
+                        {item}
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          {/* How it works */}
+          <Card className="mt-4 border-blue-100 bg-blue-50">
+            <CardContent className="pt-4">
+              <div className="flex items-start gap-3">
+                <Info size={18} className="text-blue-500 mt-0.5 shrink-0" />
+                <div>
+                  <p className="text-sm font-semibold text-blue-800 mb-1">How Access Works</p>
+                  <div className="space-y-1.5 text-xs text-blue-700">
+                    <p><strong>Step 1:</strong> Add employees in the HR module (My Team / Employees page)</p>
+                    <p><strong>Step 2:</strong> Come to this page → "All Employees" tab → click "Grant Access" on any employee</p>
+                    <p><strong>Step 3:</strong> Choose their role (Staff, HR Manager, Finance, etc.)</p>
+                    <p><strong>Step 4:</strong> If they have a SmartPRO account (same email), they get access immediately. If not, an invite link is generated.</p>
+                    <p><strong>Step 5:</strong> They log in at SmartPRO and see only what their role allows.</p>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+
+      {/* ── Grant Access Dialog ── */}
+      <Dialog open={!!grantTarget} onOpenChange={(open) => { if (!open) setGrantTarget(null); }}>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Building2 size={18} className="text-orange-500" />
-              Add Team Member
+              <Unlock size={18} className="text-green-600" />
+              Grant System Access
             </DialogTitle>
+            <DialogDescription>
+              Grant <strong>{grantTarget?.name}</strong> access to SmartPRO.
+              {grantTarget?.email ? (
+                <span className="block mt-1 text-gray-500">Email: {grantTarget.email}</span>
+              ) : (
+                <span className="block mt-1 text-amber-600">⚠ This employee has no email address. Please update their profile first.</span>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div>
+              <label className="text-sm font-medium text-gray-700 block mb-1.5">Role</label>
+              <Select value={grantRole} onValueChange={setGrantRole}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="company_admin">Owner / Admin — Full access</SelectItem>
+                  <SelectItem value="hr_admin">HR Manager — HR modules</SelectItem>
+                  <SelectItem value="finance_admin">Finance Manager — Payroll & Finance</SelectItem>
+                  <SelectItem value="company_member">Staff / Employee — My Portal only</SelectItem>
+                  <SelectItem value="reviewer">Reviewer — Read-only</SelectItem>
+                  <SelectItem value="external_auditor">External Auditor — Limited read-only</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-gray-500 mt-1.5">
+                {ROLE_CONFIG[grantRole]?.description}
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setGrantTarget(null)}>Cancel</Button>
+            <Button
+              disabled={!grantTarget?.email || grantAccess.isPending}
+              onClick={() => {
+                if (!grantTarget) return;
+                grantAccess.mutate({
+                  employeeId: grantTarget.employeeId,
+                  role: grantRole as any,
+                  origin: window.location.origin,
+                });
+              }}
+              className="bg-gray-900 hover:bg-gray-800 text-white"
+            >
+              {grantAccess.isPending ? "Granting..." : "Grant Access"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Change Role Dialog (Employee) ── */}
+      <Dialog open={!!roleChangeTarget} onOpenChange={(open) => { if (!open) setRoleChangeTarget(null); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Change Role — {roleChangeTarget?.name}</DialogTitle>
+            <DialogDescription>
+              Select a new role for this team member.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-2">
+            <Select value={newRole} onValueChange={setNewRole}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="company_admin">Owner / Admin</SelectItem>
+                <SelectItem value="hr_admin">HR Manager</SelectItem>
+                <SelectItem value="finance_admin">Finance Manager</SelectItem>
+                <SelectItem value="company_member">Staff / Employee</SelectItem>
+                <SelectItem value="reviewer">Reviewer</SelectItem>
+                <SelectItem value="external_auditor">External Auditor</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-gray-500 mt-2">{ROLE_CONFIG[newRole]?.description}</p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRoleChangeTarget(null)}>Cancel</Button>
+            <Button
+              disabled={updateEmployeeRole.isPending}
+              onClick={() => {
+                if (!roleChangeTarget) return;
+                updateEmployeeRole.mutate({ employeeId: roleChangeTarget.employeeId, role: newRole as any });
+              }}
+            >
+              {updateEmployeeRole.isPending ? "Saving..." : "Save Role"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Revoke Access Confirm ── */}
+      <AlertDialog open={!!revokeTarget} onOpenChange={(open) => { if (!open) setRevokeTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Revoke Access — {revokeTarget?.name}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will prevent {revokeTarget?.name} from logging in to SmartPRO. Their HR data (payroll, attendance, leave) will not be deleted. You can restore access at any time.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700"
+              onClick={() => {
+                if (!revokeTarget) return;
+                revokeAccess.mutate({ employeeId: revokeTarget.employeeId });
+              }}
+            >
+              Revoke Access
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* ── Add by Email Dialog ── */}
+      <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Mail size={18} className="text-gray-600" />
+              Add Team Member by Email
+            </DialogTitle>
+            <DialogDescription>
+              Use this if the person already has a SmartPRO account but is not in your employee list.
+              For employees already in your HR system, use the "Grant Access" button in the All Employees tab.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div>
@@ -345,7 +746,6 @@ export default function TeamAccessPage() {
                 value={inviteEmail}
                 onChange={(e) => setInviteEmail(e.target.value)}
               />
-              <p className="text-xs text-gray-400 mt-1">The person must already have a SmartPRO account.</p>
             </div>
             <div>
               <label className="text-sm font-medium text-gray-700 block mb-1.5">Role</label>
@@ -354,91 +754,81 @@ export default function TeamAccessPage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {Object.entries(ROLE_CONFIG).map(([key, config]) => (
-                    <SelectItem key={key} value={key}>
-                      <div className="flex items-center gap-2">
-                        {config.icon}
-                        <span>{config.label}</span>
-                      </div>
-                    </SelectItem>
-                  ))}
+                  <SelectItem value="company_admin">Owner / Admin</SelectItem>
+                  <SelectItem value="hr_admin">HR Manager</SelectItem>
+                  <SelectItem value="finance_admin">Finance Manager</SelectItem>
+                  <SelectItem value="company_member">Staff / Employee</SelectItem>
+                  <SelectItem value="reviewer">Reviewer</SelectItem>
+                  <SelectItem value="external_auditor">External Auditor</SelectItem>
                 </SelectContent>
               </Select>
-              {inviteRole && ROLE_CONFIG[inviteRole] && (
-                <p className="text-xs text-gray-500 mt-1.5">{ROLE_CONFIG[inviteRole].description}</p>
-              )}
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setInviteOpen(false)}>Cancel</Button>
             <Button
-              onClick={() => addMember.mutate({ email: inviteEmail, role: inviteRole as any })}
-              disabled={!inviteEmail || addMember.isPending}
+              disabled={!inviteEmail || addMemberByEmail.isPending}
+              onClick={() => addMemberByEmail.mutate({ email: inviteEmail, role: inviteRole as any })}
             >
-              {addMember.isPending ? "Adding..." : "Add Member"}
+              {addMemberByEmail.isPending ? "Adding..." : "Add Member"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Change Role Dialog */}
-      <Dialog open={!!roleChangeTarget} onOpenChange={(o) => !o && setRoleChangeTarget(null)}>
-        <DialogContent className="max-w-md">
+      {/* ── Member Role Change Dialog ── */}
+      <Dialog open={!!memberRoleTarget} onOpenChange={(open) => { if (!open) setMemberRoleTarget(null); }}>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Change Role — {roleChangeTarget?.name}</DialogTitle>
+            <DialogTitle>Change Role — {memberRoleTarget?.name}</DialogTitle>
           </DialogHeader>
-          <div className="py-2 space-y-3">
-            <p className="text-sm text-gray-500">
-              Current role: <RoleBadge role={roleChangeTarget?.currentRole ?? ""} />
-            </p>
-            <div>
-              <label className="text-sm font-medium text-gray-700 block mb-1.5">New Role</label>
-              <Select value={newRole} onValueChange={setNewRole}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {Object.entries(ROLE_CONFIG).map(([key, config]) => (
-                    <SelectItem key={key} value={key}>
-                      <div className="flex items-center gap-2">
-                        {config.icon}
-                        <span>{config.label}</span>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {newRole && ROLE_CONFIG[newRole] && (
-                <p className="text-xs text-gray-500 mt-1.5">{ROLE_CONFIG[newRole].description}</p>
-              )}
-            </div>
+          <div className="py-2">
+            <Select value={memberNewRole} onValueChange={setMemberNewRole}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="company_admin">Owner / Admin</SelectItem>
+                <SelectItem value="hr_admin">HR Manager</SelectItem>
+                <SelectItem value="finance_admin">Finance Manager</SelectItem>
+                <SelectItem value="company_member">Staff / Employee</SelectItem>
+                <SelectItem value="reviewer">Reviewer</SelectItem>
+                <SelectItem value="external_auditor">External Auditor</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setRoleChangeTarget(null)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setMemberRoleTarget(null)}>Cancel</Button>
             <Button
-              onClick={() => roleChangeTarget && updateRole.mutate({ memberId: roleChangeTarget.id, role: newRole as any })}
-              disabled={!newRole || newRole === roleChangeTarget?.currentRole || updateRole.isPending}
+              disabled={updateMemberRole.isPending}
+              onClick={() => {
+                if (!memberRoleTarget) return;
+                updateMemberRole.mutate({ memberId: memberRoleTarget.id, role: memberNewRole as any });
+              }}
             >
-              {updateRole.isPending ? "Saving..." : "Save Role"}
+              {updateMemberRole.isPending ? "Saving..." : "Save"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Remove Confirmation */}
-      <AlertDialog open={!!removeTarget} onOpenChange={(o) => !o && setRemoveTarget(null)}>
+      {/* ── Remove Member Confirm ── */}
+      <AlertDialog open={!!removeMemberTarget} onOpenChange={(open) => { if (!open) setRemoveMemberTarget(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Remove {removeTarget?.name}?</AlertDialogTitle>
+            <AlertDialogTitle>Remove {removeMemberTarget?.name}?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will remove their access to your company. You can reactivate them later if needed.
+              This will remove their system access. Their HR data will not be deleted.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               className="bg-red-600 hover:bg-red-700"
-              onClick={() => removeTarget && removeMember.mutate({ memberId: removeTarget.id })}
+              onClick={() => {
+                if (!removeMemberTarget) return;
+                removeMember.mutate({ memberId: removeMemberTarget.id });
+              }}
             >
               Remove
             </AlertDialogAction>

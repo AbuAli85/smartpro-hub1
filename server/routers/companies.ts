@@ -1,5 +1,5 @@
 import { TRPCError } from "@trpc/server";
-import { and, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, isNull, or } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { randomBytes } from "crypto";
 import { z } from "zod";
@@ -15,7 +15,7 @@ import {
   updateCompany,
   getDb,
 } from "../db";
-import { companyInvites, companyMembers, users } from "../../drizzle/schema";
+import { companyInvites, companyMembers, users, employees } from "../../drizzle/schema";
 import { protectedProcedure, router } from "../_core/trpc";
 import { notifyOwner } from "../_core/notification";
 
@@ -554,5 +554,275 @@ export const companiesRouter = router({
         .limit(1);
       if (!invite) throw new TRPCError({ code: "NOT_FOUND", message: "Invite not found." });
       return invite;
+    }),
+
+  /**
+   * Returns all employees for the company with their system access status.
+   * Each employee row includes:
+   *  - HR profile data (name, department, position, email, status)
+   *  - accessStatus: 'active' | 'inactive' | 'no_access'
+   *  - memberRole: the role they have in company_members (if any)
+   *  - memberId: the company_members.id (if any)
+   *  - hasLogin: whether they have a users record linked
+   */
+  employeesWithAccess: protectedProcedure.query(async ({ ctx }) => {
+    const db = await getDb();
+    if (!db) return [];
+    const membership = await getUserCompany(ctx.user.id);
+    if (!membership) return [];
+    const companyId = membership.company.id;
+
+    // Get all employees for this company
+    const allEmployees = await db
+      .select({
+        id: employees.id,
+        firstName: employees.firstName,
+        lastName: employees.lastName,
+        firstNameAr: employees.firstNameAr,
+        lastNameAr: employees.lastNameAr,
+        email: employees.email,
+        department: employees.department,
+        position: employees.position,
+        status: employees.status,
+        userId: employees.userId,
+        employeeNumber: employees.employeeNumber,
+        nationality: employees.nationality,
+        hireDate: employees.hireDate,
+      })
+      .from(employees)
+      .where(eq(employees.companyId, companyId))
+      .orderBy(asc(employees.firstName));
+
+    // Get all company members
+    const allMembers = await db
+      .select({
+        id: companyMembers.id,
+        userId: companyMembers.userId,
+        role: companyMembers.role,
+        isActive: companyMembers.isActive,
+        joinedAt: companyMembers.joinedAt,
+      })
+      .from(companyMembers)
+      .where(eq(companyMembers.companyId, companyId));
+
+    // Get user details for members
+    const memberUserIds = allMembers.map((m) => m.userId);
+    const userDetails = memberUserIds.length > 0
+      ? await db
+          .select({ id: users.id, name: users.name, email: users.email, lastSignedIn: users.lastSignedIn })
+          .from(users)
+          .where(or(...memberUserIds.map((uid) => eq(users.id, uid))))
+      : [];
+
+    const userMap = new Map(userDetails.map((u) => [u.id, u]));
+    const memberByUserId = new Map(allMembers.map((m) => [m.userId, m]));
+
+    return allEmployees.map((emp) => {
+      const member = emp.userId ? memberByUserId.get(emp.userId) : null;
+      const userInfo = emp.userId ? userMap.get(emp.userId) : null;
+
+      // Also try to match by email if userId not set
+      let emailMatchedMember: typeof member = null;
+      if (!member && emp.email) {
+        const emailUser = userDetails.find((u) => u.email?.toLowerCase() === emp.email?.toLowerCase());
+        if (emailUser) {
+          emailMatchedMember = memberByUserId.get(emailUser.id) ?? null;
+        }
+      }
+
+      const activeMember = member ?? emailMatchedMember;
+      const accessStatus = activeMember
+        ? activeMember.isActive ? 'active' : 'inactive'
+        : 'no_access';
+
+      return {
+        employeeId: emp.id,
+        firstName: emp.firstName,
+        lastName: emp.lastName,
+        firstNameAr: emp.firstNameAr,
+        lastNameAr: emp.lastNameAr,
+        email: emp.email,
+        department: emp.department,
+        position: emp.position,
+        employeeStatus: emp.status,
+        employeeNumber: emp.employeeNumber,
+        nationality: emp.nationality,
+        hireDate: emp.hireDate,
+        // Access info
+        accessStatus,
+        memberRole: activeMember?.role ?? null,
+        memberId: activeMember?.id ?? null,
+        hasLogin: !!(emp.userId || emailMatchedMember),
+        lastSignedIn: userInfo?.lastSignedIn ?? null,
+        loginEmail: userInfo?.email ?? null,
+      };
+    });
+  }),
+
+  /**
+   * Grant system access to an existing employee by their employee ID.
+   * Looks up the employee's email, finds or creates a company_member record.
+   * If the employee has a SmartPRO account (matched by email), links them directly.
+   * Otherwise creates a pending invite.
+   */
+  grantEmployeeAccess: protectedProcedure
+    .input(z.object({
+      employeeId: z.number(),
+      role: z.enum(["company_admin", "company_member", "finance_admin", "hr_admin", "reviewer", "external_auditor"]).default("company_member"),
+      origin: z.string().url().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const membership = await getUserCompany(ctx.user.id);
+      if (!membership) throw new TRPCError({ code: "FORBIDDEN" });
+      if (!canAccessGlobalAdminProcedures(ctx.user)) await assertCompanyAdmin(ctx.user.id, membership.company.id);
+
+      const [emp] = await db
+        .select({ id: employees.id, email: employees.email, userId: employees.userId, firstName: employees.firstName, lastName: employees.lastName })
+        .from(employees)
+        .where(and(eq(employees.id, input.employeeId), eq(employees.companyId, membership.company.id)))
+        .limit(1);
+      if (!emp) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found." });
+
+      // If employee has a userId already, just update/create their member record
+      if (emp.userId) {
+        const [existing] = await db
+          .select({ id: companyMembers.id, isActive: companyMembers.isActive })
+          .from(companyMembers)
+          .where(and(eq(companyMembers.userId, emp.userId), eq(companyMembers.companyId, membership.company.id)))
+          .limit(1);
+        if (existing) {
+          await db.update(companyMembers).set({ isActive: true, role: input.role }).where(eq(companyMembers.id, existing.id));
+        } else {
+          await db.insert(companyMembers).values({ companyId: membership.company.id, userId: emp.userId, role: input.role, isActive: true, invitedBy: ctx.user.id });
+        }
+        return { success: true, action: 'linked' as const, message: `Access granted to ${emp.firstName} ${emp.lastName}` };
+      }
+
+      // Try to find user by email
+      if (emp.email) {
+        const [targetUser] = await db.select({ id: users.id }).from(users).where(eq(users.email, emp.email.toLowerCase())).limit(1);
+        if (targetUser) {
+          // Link employee userId
+          await db.update(employees).set({ userId: targetUser.id }).where(eq(employees.id, emp.id));
+          const [existing] = await db
+            .select({ id: companyMembers.id, isActive: companyMembers.isActive })
+            .from(companyMembers)
+            .where(and(eq(companyMembers.userId, targetUser.id), eq(companyMembers.companyId, membership.company.id)))
+            .limit(1);
+          if (existing) {
+            await db.update(companyMembers).set({ isActive: true, role: input.role }).where(eq(companyMembers.id, existing.id));
+          } else {
+            await db.insert(companyMembers).values({ companyId: membership.company.id, userId: targetUser.id, role: input.role, isActive: true, invitedBy: ctx.user.id });
+          }
+          return { success: true, action: 'linked' as const, message: `Access granted to ${emp.firstName} ${emp.lastName}` };
+        }
+
+        // No SmartPRO account — create invite
+        if (input.origin) {
+          const token = randomBytes(32).toString('hex');
+          const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+          await db
+            .update(companyInvites)
+            .set({ revokedAt: new Date() })
+            .where(and(eq(companyInvites.email, emp.email.toLowerCase()), eq(companyInvites.companyId, membership.company.id)));
+          await db.insert(companyInvites).values({
+            companyId: membership.company.id,
+            email: emp.email.toLowerCase(),
+            role: input.role,
+            token,
+            invitedBy: ctx.user.id,
+            expiresAt,
+          });
+          const inviteUrl = `${input.origin}/invite/${token}`;
+          await notifyOwner({
+            title: `Invite sent to employee ${emp.firstName} ${emp.lastName}`,
+            content: `Invite link for ${emp.email}: ${inviteUrl} (expires in 7 days)`,
+          });
+          return { success: true, action: 'invited' as const, message: `Invite sent to ${emp.email}`, inviteUrl };
+        }
+        return { success: true, action: 'no_account' as const, message: `Employee ${emp.firstName} ${emp.lastName} does not have a SmartPRO account yet. Add their email to send an invite.` };
+      }
+
+      throw new TRPCError({ code: "BAD_REQUEST", message: "Employee has no email address. Please update their profile first." });
+    }),
+
+  /**
+   * Revoke system access from an employee (deactivates their company_member record).
+   */
+  revokeEmployeeAccess: protectedProcedure
+    .input(z.object({ employeeId: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const membership = await getUserCompany(ctx.user.id);
+      if (!membership) throw new TRPCError({ code: "FORBIDDEN" });
+      if (!canAccessGlobalAdminProcedures(ctx.user)) await assertCompanyAdmin(ctx.user.id, membership.company.id);
+
+      const [emp] = await db
+        .select({ id: employees.id, email: employees.email, userId: employees.userId })
+        .from(employees)
+        .where(and(eq(employees.id, input.employeeId), eq(employees.companyId, membership.company.id)))
+        .limit(1);
+      if (!emp) throw new TRPCError({ code: "NOT_FOUND" });
+
+      if (emp.userId) {
+        await db.update(companyMembers).set({ isActive: false }).where(and(eq(companyMembers.userId, emp.userId), eq(companyMembers.companyId, membership.company.id)));
+        return { success: true };
+      }
+      if (emp.email) {
+        const [targetUser] = await db.select({ id: users.id }).from(users).where(eq(users.email, emp.email.toLowerCase())).limit(1);
+        if (targetUser) {
+          await db.update(companyMembers).set({ isActive: false }).where(and(eq(companyMembers.userId, targetUser.id), eq(companyMembers.companyId, membership.company.id)));
+          return { success: true };
+        }
+      }
+      return { success: true };
+    }),
+
+  /**
+   * Update the role of an employee's system access.
+   */
+  updateEmployeeAccessRole: protectedProcedure
+    .input(z.object({
+      employeeId: z.number(),
+      role: z.enum(["company_admin", "company_member", "finance_admin", "hr_admin", "reviewer", "external_auditor"]),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const membership = await getUserCompany(ctx.user.id);
+      if (!membership) throw new TRPCError({ code: "FORBIDDEN" });
+      if (!canAccessGlobalAdminProcedures(ctx.user)) await assertCompanyAdmin(ctx.user.id, membership.company.id);
+
+      const [emp] = await db
+        .select({ id: employees.id, email: employees.email, userId: employees.userId })
+        .from(employees)
+        .where(and(eq(employees.id, input.employeeId), eq(employees.companyId, membership.company.id)))
+        .limit(1);
+      if (!emp) throw new TRPCError({ code: "NOT_FOUND" });
+
+      const resolveUserId = async (): Promise<number | null> => {
+        if (emp.userId) return emp.userId;
+        if (emp.email) {
+          const [u] = await db!.select({ id: users.id }).from(users).where(eq(users.email, emp.email.toLowerCase())).limit(1);
+          return u?.id ?? null;
+        }
+        return null;
+      };
+
+      const userId = await resolveUserId();
+      if (!userId) throw new TRPCError({ code: "BAD_REQUEST", message: "Employee has no linked SmartPRO account." });
+
+      const [member] = await db
+        .select({ id: companyMembers.id })
+        .from(companyMembers)
+        .where(and(eq(companyMembers.userId, userId), eq(companyMembers.companyId, membership.company.id)))
+        .limit(1);
+      if (!member) throw new TRPCError({ code: "NOT_FOUND", message: "No active access record found for this employee." });
+
+      await db.update(companyMembers).set({ role: input.role }).where(eq(companyMembers.id, member.id));
+      return { success: true };
     }),
 });

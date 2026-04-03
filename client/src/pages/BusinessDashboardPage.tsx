@@ -30,7 +30,7 @@ function greeting() {
 }
 const MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
-// ─── Setup Checklist ──────────────────────────────────────────────────────────
+// --- Setup Checklist ----------------------------------------------------------
 const SETUP_STEPS = [
   { key: "company", label: "Company profile created", icon: Building2, href: "/company/workspace" },
   { key: "employees", label: "Add your first employee", icon: UserPlus, href: "/my-team" },
@@ -39,7 +39,7 @@ const SETUP_STEPS = [
   { key: "pro", label: "Submit a PRO service request", icon: Shield, href: "/pro" },
 ];
 
-// ─── Action Item Card ─────────────────────────────────────────────────────────
+// --- Action Item Card ---------------------------------------------------------
 function ActionItem({
   icon: Icon, title, description, badge, badgeVariant = "secondary", href, urgent,
 }: {
@@ -76,7 +76,7 @@ function ActionItem({
   );
 }
 
-// ─── KPI Tile ─────────────────────────────────────────────────────────────────
+// --- KPI Tile -----------------------------------------------------------------
 function KpiTile({
   icon: Icon, label, value, sub, color, href,
 }: {
@@ -102,7 +102,7 @@ function KpiTile({
   );
 }
 
-// ─── Module Card ──────────────────────────────────────────────────────────────
+// --- Module Card --------------------------------------------------------------
 function ModuleCard({
   icon: Icon, title, description, status, statusColor, href, actions,
 }: {
@@ -146,7 +146,7 @@ function ModuleCard({
   );
 }
 
-// ─── Main Page ────────────────────────────────────────────────────────────────
+// --- Main Page ----------------------------------------------------------------
 export default function BusinessDashboardPage() {
   const { user } = useAuth();
   const [, navigate] = useLocation();

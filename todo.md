@@ -1270,3 +1270,10 @@ Every company on SmartPRO Hub gets a complete, unified business operating area â
 - [x] Fix sidebar: NotificationBell now uses activeCompanyId for leave and alert queries
 - [x] Fix sidebar: company_member role correctly blocked from admin-only sections via clientNavItemVisible
 - [x] Fix sidebar: hr_admin/finance_admin roles correctly filtered via clientNavItemVisible
+
+## Phase 55: Fix Employee Add/Edit/Remove to Use Active Company ID
+- [x] Fix StaffFormDialog: accept companyId prop and pass it to addMember and updateMember mutations
+- [x] Fix MyTeamPage: pass activeCompanyId to StaffFormDialog (add and edit dialogs)
+- [x] Fix MyTeamPage: pass companyId to removeMutation.mutate
+- [x] Fix BusinessDashboardPage: replace Unicode em-dash comments with plain ASCII to resolve Vite syntax error
+- [x] Verify: TypeScript compiles with 0 errors, all 268 tests pass

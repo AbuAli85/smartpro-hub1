@@ -93,13 +93,14 @@ const BLANK_FORM: StaffFormState = {
 
 function StaffFormDialog({
   open, onClose, onSuccess,
-  initial, editId,
+  initial, editId, companyId,
 }: {
   open: boolean;
   onClose: () => void;
   onSuccess: () => void;
   initial?: Partial<StaffFormState>;
   editId?: number;
+  companyId?: number | null;
 }) {
   const [step, setStep] = useState(1);
   const [form, setForm] = useState<StaffFormState>({ ...BLANK_FORM, ...initial });
@@ -152,9 +153,9 @@ function StaffFormDialog({
       emergencyContactPhone: form.emergencyContactPhone || undefined,
     };
     if (isEdit) {
-      updateMutation.mutate({ id: editId!, ...payload });
+      updateMutation.mutate({ id: editId!, companyId: companyId ?? undefined, ...payload });
     } else {
-      addMutation.mutate(payload);
+      addMutation.mutate({ companyId: companyId ?? undefined, ...payload });
     }
   }
 
@@ -1013,6 +1014,7 @@ export default function MyTeamPage() {
         open={addOpen}
         onClose={() => setAddOpen(false)}
         onSuccess={() => {}}
+        companyId={activeCompanyId}
       />
 
       {/* Edit dialog */}
@@ -1022,6 +1024,7 @@ export default function MyTeamPage() {
           onClose={() => setEditId(null)}
           onSuccess={() => setEditId(null)}
           editId={editId}
+          companyId={activeCompanyId}
           initial={{
             firstName: editMember.firstName,
             lastName: editMember.lastName,
@@ -1061,7 +1064,7 @@ export default function MyTeamPage() {
             <Button
               className="bg-red-600 hover:bg-red-700 text-white"
               disabled={removeMutation.isPending}
-              onClick={() => removeId != null && removeMutation.mutate({ id: removeId })}
+              onClick={() => removeId != null && removeMutation.mutate({ id: removeId, companyId: activeCompanyId ?? undefined })}
             >
               {removeMutation.isPending ? "Processing…" : "Confirm Offboard"}
             </Button>

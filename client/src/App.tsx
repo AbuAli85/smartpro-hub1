@@ -35,6 +35,7 @@ import WorkforcePermitDetailPage from "./pages/WorkforcePermitDetailPage";
 import WorkforceEmployeeDetailPage from "./pages/WorkforceEmployeeDetailPage";
 import WorkforceCaseNewPage from "./pages/WorkforceCaseNewPage";
 import CompanyAdminPage from "./pages/CompanyAdminPage";
+import CreateCompanyPage from "./pages/CreateCompanyPage";
 import CompanyProfilePage from "./pages/CompanyProfilePage";
 import CompanySettingsPage from "./pages/CompanySettingsPage";
 import OmaniOfficersPage from "./pages/OmaniOfficersPage";
@@ -124,7 +125,7 @@ function AppRoutes() {
         <Route path="/company-admin" component={CompanyAdminPage} />
         <Route path="/company/profile" component={CompanyProfilePage} />
         <Route path="/company/settings" component={CompanySettingsPage} />
-        <Route path="/company/create" component={CompanyAdminPage} />
+        <Route path="/company/create" component={CreateCompanyPage} />
         <Route path="/omani-officers" component={OmaniOfficersPage} />
         <Route path="/officer-assignments" component={OfficerAssignmentPage} />
         {/* Sanad Marketplace — specific routes before parameterized */}

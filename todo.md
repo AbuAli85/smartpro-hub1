@@ -1237,3 +1237,9 @@ Every company on SmartPRO Hub gets a complete, unified business operating area �
 - [x] Fix 404 on /company/create — add route to App.tsx pointing to CompanyCreatePage or CreateCompanyPage
 - [x] Fix duplicate nav keys /payroll and /contracts in PlatformLayout sidebar
 - [x] Fix Uncaught promise errors on /my-portal — handle missing employee record gracefully
+
+## Phase 51: Fix Company Switcher, Create Company Page, Industry List
+- [x] Fix myCompanies procedure to return ALL companies the user is a member of (currently only returns 1)
+- [x] Create proper CreateCompanyPage.tsx with blank form for adding a new company
+- [x] Wire /company/create route to CreateCompanyPage (not CompanyAdminPage)
+- [x] Expand industry list in CompanySettingsPage and CreateCompanyPage to 60+ industries including: Services, Investment, Cleaning, Maintenance, Security, Catering, Transport, Logistics, IT & Technology, Telecommunications, Media, Advertising, Tourism, Travel, Insurance, Banking, Legal, Consulting, Engineering, Architecture, Interior Design, Events, Agriculture, Fishing, Mining, Energy, Utilities, Waste Management, Printing, Textile, Food & Beverage, Pharmaceuticals, Medical, Automotive, Furniture, Jewelry, Perfume, Cosmetics, Trading, Import & Export, and more

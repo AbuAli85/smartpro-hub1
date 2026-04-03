@@ -35,20 +35,80 @@ import {
 } from "lucide-react";
 
 const INDUSTRIES = [
-  "Construction & Real Estate",
+  // Investment & Finance
+  "Investment & Asset Management",
+  "Banking & Financial Services",
+  "Insurance",
+  "Accounting & Auditing",
+  "Financial Consulting",
+  // Real Estate & Construction
+  "Real Estate",
+  "Construction & Contracting",
+  "Architecture & Engineering",
+  "Interior Design & Fit-Out",
+  "Facilities Management",
+  // Oil, Gas & Energy
   "Oil & Gas",
-  "Retail & Trading",
-  "Hospitality & Tourism",
-  "Healthcare",
-  "Education",
-  "IT & Technology",
-  "Finance & Banking",
+  "Energy & Utilities",
+  "Renewable Energy",
+  "Mining & Quarrying",
+  // Technology & Telecom
+  "Information Technology (IT)",
+  "Telecommunications",
+  "Software Development",
+  "Cybersecurity",
+  "Digital Media & Marketing",
+  // Trade & Commerce
+  "Retail & E-Commerce",
+  "Import & Export",
+  "Trading & Distribution",
+  "Wholesale",
+  "Automotive & Vehicles",
+  // Services
+  "Cleaning & Facility Services",
+  "Security Services",
+  "Maintenance & Repair",
+  "Catering & Food Services",
+  "Laundry & Dry Cleaning",
+  "Printing & Packaging",
+  // Hospitality & Tourism
+  "Hospitality & Hotels",
+  "Tourism & Travel",
+  "Restaurants & Cafes",
+  "Events & Entertainment",
+  // Healthcare & Education
+  "Healthcare & Medical",
+  "Pharmaceuticals",
+  "Education & Training",
+  "Childcare & Nurseries",
+  // Transport & Logistics
+  "Transport & Logistics",
+  "Shipping & Freight",
+  "Aviation",
+  "Maritime",
+  // Manufacturing & Industry
   "Manufacturing",
-  "Logistics & Transport",
-  "Agriculture & Fisheries",
+  "Food & Beverage Production",
+  "Textile & Garments",
+  "Furniture & Woodwork",
+  "Jewelry & Accessories",
+  "Cosmetics & Perfume",
+  // Agriculture & Environment
+  "Agriculture & Farming",
+  "Fishing & Aquaculture",
+  "Environmental Services",
+  "Waste Management",
+  // Professional Services
+  "Legal Services",
+  "Management Consulting",
+  "HR & Recruitment",
+  "Public Relations",
+  "Research & Development",
+  // Government & Non-Profit
   "Government & Public Sector",
-  "Consulting & Professional Services",
-  "Media & Entertainment",
+  "Non-Profit & NGO",
+  "Social Services",
+  // Other
   "Other",
 ];
 

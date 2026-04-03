@@ -151,13 +151,8 @@ export const companiesRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
+      // Users can create multiple companies — no restriction
       const existingMembership = await getUserCompany(ctx.user.id);
-      if (existingMembership && !canAccessGlobalAdminProcedures(ctx.user)) {
-        throw new TRPCError({
-          code: "CONFLICT",
-          message: "You already belong to a company. Use Company Admin to invite teammates.",
-        });
-      }
 
       const { inviteEmails = [], ownerEmail, ...companyFields } = input;
       const slug = companyFields.name.toLowerCase().replace(/\s+/g, "-") + "-" + nanoid(6);
@@ -167,9 +162,13 @@ export const companiesRouter = router({
       let teammatesAdded = 0;
       const db = await getDb();
       if (db) {
-        // Tenant onboarding: creator becomes company admin. Platform users who already have a
-        // workspace can still provision another company (e.g. Admin UI) without a second self-membership.
-        if (!existingMembership) {
+        // Creator always becomes company admin of the new company
+        const [alreadyMember] = await db
+          .select({ id: companyMembers.id })
+          .from(companyMembers)
+          .where(and(eq(companyMembers.userId, ctx.user.id), eq(companyMembers.companyId, companyId)))
+          .limit(1);
+        if (!alreadyMember) {
           await db.insert(companyMembers).values({
             companyId,
             userId: ctx.user.id,

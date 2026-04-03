@@ -82,6 +82,7 @@ import AnnouncementsPage from "./pages/AnnouncementsPage";
 import EmployeePortalPage from "./pages/EmployeePortalPage";
 import TeamAccessPage from "./pages/TeamAccessPage";
 import MultiCompanyRolesPage from "./pages/MultiCompanyRolesPage";
+import EmailPreviewPage from "./pages/EmailPreviewPage";
 function PublicRoutes() {
   return (
     <Switch>
@@ -127,6 +128,7 @@ function AppRoutes() {
         <Route path="/company-admin" component={CompanyAdminPage} />
         <Route path="/company/profile" component={CompanyProfilePage} />
         <Route path="/company/settings" component={CompanySettingsPage} />
+        <Route path="/company/email-preview" component={EmailPreviewPage} />
         <Route path="/company/create" component={CreateCompanyPage} />
         <Route path="/omani-officers" component={OmaniOfficersPage} />
         <Route path="/officer-assignments" component={OfficerAssignmentPage} />

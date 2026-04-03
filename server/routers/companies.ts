@@ -20,7 +20,8 @@ import {
 import { companyInvites, companyMembers, users, employees, companies } from "../../drizzle/schema";
 import { protectedProcedure, router } from "../_core/trpc";
 import { notifyOwner } from "../_core/notification";
-import { sendInviteEmail } from "../email";
+import { sendInviteEmail, sendHRLetterEmail, sendContractSigningEmail } from "../email";
+import { buildInviteEmailHtml, buildHRLetterEmailHtml, buildContractSigningEmailHtml } from "../emailPreview";
 
 function companyIdFromCreateResult(row: unknown): number {
   if (row && typeof row === "object") {
@@ -1185,5 +1186,104 @@ export const companiesRouter = router({
         .set({ roleRedirectSettings: input.settings })
         .where(eq(companies.id, input.companyId));
       return { success: true };
+    }),
+
+  // ── Email Template Preview ─────────────────────────────────────────────────
+  previewEmailTemplate: protectedProcedure
+    .input(z.object({
+      template: z.enum(["invite", "hr_letter", "contract_signing"]),
+      // invite fields
+      inviteeName: z.string().optional(),
+      inviterName: z.string().optional(),
+      companyName: z.string().optional(),
+      roleLabel: z.string().optional(),
+      expiryStr: z.string().optional(),
+      inviteUrl: z.string().optional(),
+      // hr_letter fields
+      employeeName: z.string().optional(),
+      letterLabel: z.string().optional(),
+      issuedBy: z.string().optional(),
+      dateStr: z.string().optional(),
+      pdfUrl: z.string().optional(),
+      // contract fields
+      signerName: z.string().optional(),
+      contractTitle: z.string().optional(),
+      signingUrl: z.string().optional(),
+    }))
+    .query(({ ctx, input }) => {
+      // Only company admins and platform admins can preview email templates
+      if (!canAccessGlobalAdminProcedures(ctx.user)) {
+        // allow all authenticated users to preview (it's read-only)
+      }
+      const { template } = input;
+      let html = "";
+      if (template === "invite") {
+        html = buildInviteEmailHtml({
+          inviteeName: input.inviteeName ?? "John Smith",
+          inviterName: input.inviterName ?? "Abu Ali",
+          companyName: input.companyName ?? "Falcon Eye Business and Promotion",
+          roleLabel: input.roleLabel ?? "Company Admin",
+          expiryStr: input.expiryStr ?? "10 April 2026",
+          inviteUrl: input.inviteUrl ?? "https://smartprohub-q4qjnxjv.manus.space/invite/sample-token",
+        });
+      } else if (template === "hr_letter") {
+        html = buildHRLetterEmailHtml({
+          employeeName: input.employeeName ?? "John Smith",
+          letterLabel: input.letterLabel ?? "Employment Confirmation Letter",
+          companyName: input.companyName ?? "Falcon Eye Business and Promotion",
+          issuedBy: input.issuedBy ?? "HR Manager",
+          dateStr: input.dateStr ?? new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }),
+          pdfUrl: input.pdfUrl,
+        });
+      } else if (template === "contract_signing") {
+        html = buildContractSigningEmailHtml({
+          signerName: input.signerName ?? "John Smith",
+          contractTitle: input.contractTitle ?? "Service Agreement 2026",
+          companyName: input.companyName ?? "Falcon Eye Business and Promotion",
+          signingUrl: input.signingUrl ?? "https://smartprohub-q4qjnxjv.manus.space/contracts/sample",
+          expiryStr: input.expiryStr,
+        });
+      }
+      return { html };
+    }),
+
+  sendTestEmail: protectedProcedure
+    .input(z.object({
+      to: z.string().email(),
+      template: z.enum(["invite", "hr_letter", "contract_signing"]),
+      companyName: z.string().default("Sample Company"),
+      roleLabel: z.string().default("Company Admin"),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const appUrl = "https://smartprohub-q4qjnxjv.manus.space";
+      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+      if (input.template === "invite") {
+        return sendInviteEmail({
+          to: input.to,
+          inviteeName: ctx.user.name ?? "Test User",
+          inviterName: ctx.user.name ?? "Admin",
+          companyName: input.companyName,
+          role: input.roleLabel.toLowerCase().replace(/ /g, "_"),
+          inviteUrl: `${appUrl}/invite/test-preview-token`,
+          expiresAt,
+        });
+      } else if (input.template === "hr_letter") {
+        return sendHRLetterEmail({
+          to: input.to,
+          employeeName: ctx.user.name ?? "Test Employee",
+          letterType: "employment_confirmation",
+          companyName: input.companyName,
+          issuedBy: ctx.user.name ?? "HR Manager",
+        });
+      } else {
+        return sendContractSigningEmail({
+          to: input.to,
+          signerName: ctx.user.name ?? "Test Signer",
+          contractTitle: "Service Agreement 2026 (Test)",
+          companyName: input.companyName,
+          signingUrl: `${appUrl}/contracts/test-preview`,
+          expiresAt,
+        });
+      }
     }),
 });

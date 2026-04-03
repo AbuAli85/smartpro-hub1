@@ -21,6 +21,7 @@ export const COMPANY_OWNER_HREFS = new Set<string>([
   "/company/team-access",
   "/company/multi-company-roles",
   "/company/settings",
+  "/company/email-preview",
 ]);
 
 /**

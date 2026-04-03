@@ -109,6 +109,7 @@ const navGroups = [
       { label: "Team Access & Roles", href: "/company/team-access", icon: <UserCheck size={18} /> },
       { label: "Multi-Company Roles", href: "/company/multi-company-roles", icon: <ShieldCheck size={18} /> },
       { label: "Company Settings", href: "/company/settings", icon: <Settings size={18} /> },
+      { label: "Email Templates", href: "/company/email-preview", icon: <Mail size={18} /> },
       { label: "My Team", href: "/my-team", icon: <Users size={18} /> },
       { label: "Operations", href: "/company/operations", icon: <Activity size={18} /> },
       { label: "Company Documents", href: "/company/documents", icon: <FolderOpen size={18} /> },

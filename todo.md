@@ -1396,3 +1396,23 @@ Every company on SmartPRO Hub gets a complete, unified business operating area â
 - [x] Add sendContractEmail tRPC mutation â€” sends contract signing link to signers
 - [x] Wire email button into ContractsPage UI
 - [x] Write vitest tests for email helper
+
+## Phase 65: Email Template Preview Feature
+- [ ] Add previewEmailTemplate tRPC procedure (server-side HTML render with sample data)
+- [ ] Build EmailPreviewPage with template switcher, editable sample fields, and iframe preview
+- [ ] Add "Send Test Email" button to send a real test email from the preview page
+- [ ] Register /settings/email-preview route in App.tsx
+- [ ] Add Email Templates nav link in company settings sidebar
+- [ ] Write vitest tests for the preview procedure
+
+## Phase 63: Email Template Preview
+- [x] Add emailPreview.ts with buildInviteEmailHtml, buildHRLetterEmailHtml, buildContractSigningEmailHtml
+- [x] Add previewEmailTemplate tRPC query procedure in companies router
+- [x] Add sendTestEmail tRPC mutation procedure in companies router
+- [x] Build EmailPreviewPage with template switcher, editable sample data fields, live iframe preview
+- [x] Add desktop/mobile view toggle in preview
+- [x] Add Send Test Email form with email address input
+- [x] Register /company/email-preview route in App.tsx
+- [x] Add Email Templates nav link in PlatformLayout.tsx under My Company group
+- [x] Add /company/email-preview to COMPANY_OWNER_HREFS in clientNav.ts (company_admin only)
+- [x] All 293 tests pass, 0 TypeScript errors

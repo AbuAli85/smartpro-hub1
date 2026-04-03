@@ -154,6 +154,7 @@ export default function BusinessDashboardPage() {
   const { data: stats, isLoading: statsLoading } = trpc.companies.myStats.useQuery();
   const { data: teamStats, isLoading: teamLoading } = trpc.team.getTeamStats.useQuery();
   const { data: tasks, isLoading: tasksLoading } = trpc.operations.getTodaysTasks.useQuery();
+  const { data: smartDash } = trpc.operations.getSmartDashboard.useQuery();
   const { data: payrollRuns } = trpc.payroll.listRuns.useQuery({ year: new Date().getFullYear() });
   const { data: alertsData } = trpc.alerts.getExpiryAlerts.useQuery({ maxDays: 30 });
   const alerts = alertsData?.alerts ?? [];
@@ -181,12 +182,12 @@ export default function BusinessDashboardPage() {
   const setupTotal = SETUP_STEPS.length;
   const isNewCompany = setupComplete < 3;
 
-  // Action items
+  // Action items — merge smart dashboard actions with legacy task counts
   const pendingLeaves = tasks?.pendingLeaveApprovals?.length ?? 0;
   const pendingPayrolls = tasks?.pendingPayrollApprovals?.length ?? 0;
   const criticalAlerts = alerts.filter((a: any) => a.severity === "critical" || a.severity === "high").length;
-
-  const totalActions = pendingLeaves + pendingPayrolls + criticalAlerts;
+  const smartActions = smartDash?.actions ?? [];
+  const totalActions = Math.max(pendingLeaves + pendingPayrolls + criticalAlerts, smartActions.filter(a => a.priority === "critical" || a.priority === "high").length);
 
   return (
     <div className="min-h-screen bg-background">
@@ -279,23 +280,35 @@ export default function BusinessDashboardPage() {
         {/* ── KPI Tiles ── */}
         <div>
           <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Company Overview</h2>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-8 gap-3">
             {statsLoading || teamLoading ? (
-              Array.from({ length: 6 }).map((_, i) => (
+              Array.from({ length: 8 }).map((_, i) => (
                 <Skeleton key={i} className="h-28 rounded-xl" />
               ))
             ) : (
               <>
                 <KpiTile icon={Users} label="Total Staff" value={teamStats?.total ?? 0}
                   sub={`${teamStats?.active ?? 0} active`} color="bg-blue-500" href="/my-team" />
-                <KpiTile icon={UserPlus} label="On Leave" value={teamStats?.onLeave ?? 0}
+                <KpiTile icon={UserPlus} label="On Leave" value={smartDash?.headcount?.onLeave ?? teamStats?.onLeave ?? 0}
                   sub="Currently away" color="bg-amber-500" href="/hr/leave" />
-                <KpiTile icon={DollarSign} label="Payroll" value={currentPayroll ? fmtOMR(currentPayroll.totalNet) : "Not run"}
-                  sub={`${currentMonth} ${currentYear}`} color={payrollStatus === "paid" ? "bg-emerald-500" : "bg-gray-500"} href="/payroll" />
+                <KpiTile icon={Target} label="Omanisation"
+                  value={`${smartDash?.omanisation?.rate ?? 0}%`}
+                  sub={`${smartDash?.omanisation?.omani ?? 0} Omani / ${smartDash?.omanisation?.expat ?? 0} expat`}
+                  color={(smartDash?.omanisation?.rate ?? 0) >= 35 ? "bg-emerald-500" : "bg-orange-500"}
+                  href="/company/profile" />
+                <KpiTile icon={DollarSign} label="Monthly Payroll"
+                  value={smartDash?.payroll?.monthlyTotal ? fmtOMR(smartDash.payroll.monthlyTotal) : (currentPayroll ? fmtOMR(currentPayroll.totalNet) : "Not run")}
+                  sub={`${currentMonth} ${currentYear} • ${smartDash?.payroll?.thisMonthStatus?.replace("_", " ") ?? payrollStatus}`}
+                  color={payrollStatus === "paid" ? "bg-emerald-500" : "bg-gray-500"} href="/payroll" />
                 <KpiTile icon={FileText} label="Contracts" value={stats?.contracts ?? 0}
                   sub="Active agreements" color="bg-violet-500" href="/contracts" />
                 <KpiTile icon={Shield} label="PRO Cases" value={stats?.proServices ?? 0}
                   sub="Managed services" color="bg-teal-500" href="/pro" />
+                <KpiTile icon={AlertTriangle} label="Expiring Docs"
+                  value={(smartDash?.documents?.expiring30d ?? 0) + (smartDash?.permits?.expiring30d ?? 0)}
+                  sub={`${(smartDash?.documents?.expired ?? 0) + (smartDash?.permits?.expired ?? 0)} already expired`}
+                  color={((smartDash?.documents?.expired ?? 0) + (smartDash?.permits?.expired ?? 0)) > 0 ? "bg-red-500" : "bg-orange-500"}
+                  href="/hr/documents-dashboard" />
                 <KpiTile icon={Bell} label="Expiry Alerts" value={alerts.length}
                   sub={`${criticalAlerts} critical`} color={criticalAlerts > 0 ? "bg-red-500" : "bg-gray-500"} href="/alerts" />
               </>
@@ -318,54 +331,49 @@ export default function BusinessDashboardPage() {
             <div className="space-y-2">
               {tasksLoading ? (
                 Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-16 rounded-lg" />)
-              ) : totalActions === 0 ? (
+              ) : smartActions.length === 0 && totalActions === 0 ? (
                 <div className="flex flex-col items-center justify-center py-8 text-center border border-dashed border-border rounded-xl">
                   <CheckCircle2 size={28} className="text-emerald-500 mb-2" />
                   <p className="text-sm font-medium text-foreground">All caught up!</p>
                   <p className="text-xs text-muted-foreground mt-1">No pending actions today</p>
                 </div>
+              ) : smartActions.length > 0 ? (
+                // Smart dashboard actions (richer, from getSmartDashboard)
+                <>
+                  {smartActions.map((action, i) => (
+                    <ActionItem
+                      key={i}
+                      icon={action.priority === "critical" ? AlertTriangle : action.priority === "high" ? Bell : Clock}
+                      title={action.title}
+                      description={action.description}
+                      badge={action.count > 1 ? action.count : undefined}
+                      badgeVariant={action.priority === "critical" ? "destructive" : action.priority === "high" ? "destructive" : "secondary"}
+                      href={action.url}
+                      urgent={action.priority === "critical" || action.priority === "high"}
+                    />
+                  ))}
+                </>
               ) : (
+                // Fallback legacy actions
                 <>
                   {pendingLeaves > 0 && (
-                    <ActionItem
-                      icon={Calendar}
-                      title="Pending Leave Requests"
+                    <ActionItem icon={Calendar} title="Pending Leave Requests"
                       description={`${pendingLeaves} employee${pendingLeaves > 1 ? "s" : ""} waiting for approval`}
-                      badge={pendingLeaves}
-                      badgeVariant="destructive"
-                      href="/hr/leave"
-                      urgent
-                    />
+                      badge={pendingLeaves} badgeVariant="destructive" href="/hr/leave" urgent />
                   )}
                   {pendingPayrolls > 0 && (
-                    <ActionItem
-                      icon={DollarSign}
-                      title="Payroll Awaiting Approval"
+                    <ActionItem icon={DollarSign} title="Payroll Awaiting Approval"
                       description={`${pendingPayrolls} payroll run${pendingPayrolls > 1 ? "s" : ""} ready to approve`}
-                      badge={pendingPayrolls}
-                      badgeVariant="destructive"
-                      href="/payroll"
-                      urgent
-                    />
+                      badge={pendingPayrolls} badgeVariant="destructive" href="/payroll" urgent />
                   )}
                   {criticalAlerts > 0 && (
-                    <ActionItem
-                      icon={AlertTriangle}
-                      title="Critical Document Expiries"
+                    <ActionItem icon={AlertTriangle} title="Critical Document Expiries"
                       description={`${criticalAlerts} document${criticalAlerts > 1 ? "s" : ""} expiring very soon`}
-                      badge={criticalAlerts}
-                      badgeVariant="destructive"
-                      href="/alerts"
-                      urgent
-                    />
+                      badge={criticalAlerts} badgeVariant="destructive" href="/alerts" urgent />
                   )}
                   {payrollStatus === "not_started" && (teamStats?.total ?? 0) > 0 && (
-                    <ActionItem
-                      icon={Play}
-                      title={`Run ${currentMonth} Payroll`}
-                      description={`${teamStats?.active ?? 0} active employees ready for payroll`}
-                      href="/payroll"
-                    />
+                    <ActionItem icon={Play} title={`Run ${currentMonth} Payroll`}
+                      description={`${teamStats?.active ?? 0} active employees ready for payroll`} href="/payroll" />
                   )}
                 </>
               )}

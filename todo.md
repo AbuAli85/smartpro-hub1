@@ -1051,3 +1051,52 @@ Every company on SmartPRO Hub gets a complete, unified business operating area �
 - [x] Vitest: test hrLetters.generateLetter requires authentication
 - [x] Vitest: test hrLetters.listLetters returns empty array when no letters exist
 - [x] Vitest: test hrLetters.getLetter returns NOT_FOUND for unknown id
+
+## Phase 42: Smart & Intelligent Platform — Full End-to-End Completion
+
+### 42A — Smart Business Dashboard (Intelligence Hub)
+- [ ] Backend: operations.getSmartDashboard — aggregates employees, payroll, leave, documents, compliance, alerts into one call with AI-generated priority actions
+- [ ] Backend: operations.getAiInsights enhanced — add HR-specific insights (expiring docs, pending leave, payroll due, Omanisation gap)
+- [ ] UI: BusinessDashboardPage.tsx — full rewrite as intelligent hub: live KPIs (headcount, payroll cost, compliance score, open alerts), smart action items, upcoming deadlines, module quick-links with live counts
+- [ ] UI: Smart alert banner — top-of-page banner when critical items need attention (expired docs, payroll overdue, compliance breach)
+- [ ] UI: Omanisation gauge — live progress bar showing current % vs target with trend arrow
+
+### 42B — Payroll Intelligence: Attendance-to-Payroll Auto-Link
+- [ ] Backend: payroll.createRun enhanced — auto-calculate absence deductions from leave records (unpaid leave days × daily rate)
+- [ ] Backend: payroll.previewRun — returns per-employee salary breakdown without saving (for review before committing)
+- [ ] Backend: payroll.getEmployeePayrollHistory — list all payroll records for one employee
+- [ ] UI: PayrollProcessingPage — add Preview tab showing per-employee breakdown before running
+- [ ] UI: Employee payroll tab in EmployeeLifecyclePage — show full payroll history with monthly breakdown chart
+
+### 42C — Leave Intelligence: Auto-Balance Calculation
+- [ ] Backend: hr.getLeaveBalance — per-employee leave balance (annual/sick/emergency: entitled - used - pending)
+- [ ] Backend: hr.getLeaveBalanceSummary — all employees leave balance for HR overview
+- [ ] UI: HRLeavePage — add leave balance summary table showing each employee's remaining days per type
+- [ ] UI: EmployeeLifecyclePage leave tab — show live balance bar (used/remaining) per leave type
+
+### 42D — Document Intelligence: Expiry Auto-Alerts
+- [ ] Backend: alerts.getDocumentExpiryAlerts — cross-company + employee docs expiring in 7/30/90 days
+- [ ] Backend: alerts.getSmartAlertSummary — single call returning counts: expired docs, expiring permits, pending leave, payroll due, compliance issues
+- [ ] UI: ExpiryAlertsPage — rewrite with smart categories: Critical (expired), Warning (7-30 days), Upcoming (30-90 days), All Clear
+- [ ] UI: Dashboard alert badge — live count on bell icon showing total critical items
+
+### 42E — Compliance Intelligence
+- [ ] Backend: compliance.getFullComplianceReport — comprehensive report: Omanisation %, PASI status, WPS status, work permit matrix, document coverage score
+- [ ] UI: ComplianceDashboardPage — rewrite with 5 compliance pillars: Omanisation, PASI, WPS, Work Permits, Document Coverage — each with score, status, and action items
+- [ ] UI: Compliance score card on BusinessDashboardPage — single score (0-100) with color coding
+
+### 42F — Employee Intelligence: Smart Profile Completeness
+- [ ] Backend: hr.getEmployeeCompleteness — per-employee profile completeness score (% of required fields filled)
+- [ ] UI: MyTeamPage — add completeness badge on each employee card (green/amber/red)
+- [ ] UI: EmployeeLifecyclePage — add profile completeness progress bar at top of profile tab with missing fields list
+
+### 42G — Smart Onboarding Flow
+- [ ] UI: OnboardingPage — step-by-step company setup wizard: 1) Company Profile → 2) Add Departments → 3) Add First Employee → 4) Upload Documents → 5) Configure Payroll → 6) Done
+- [ ] UI: Each step shows completion status and links to the relevant page
+- [ ] UI: Dashboard setup checklist — shows incomplete setup steps with direct action buttons
+
+### 42H — Cross-Module Navigation Intelligence
+- [ ] UI: Add "Quick Actions" floating button on all HR pages — links to: Add Employee, Run Payroll, Generate Letter, Upload Document
+- [ ] UI: Employee cards in MyTeamPage — show document expiry warning badge if any doc expires in 30 days
+- [ ] UI: Payroll run page — show compliance flags per employee (expired doc = red badge, expiring = amber)
+- [ ] UI: Leave approval — show employee leave balance remaining before approving

@@ -15,6 +15,9 @@ import {
   officerCompanyAssignments,
   renewalWorkflowRuns,
   serviceQuotations,
+  employees,
+  employeeDocuments,
+  companyDocuments,
 } from "../../drizzle/schema";
 import { and, eq, gte, lte, lt, count, sum, desc, isNull, ne } from "drizzle-orm";
 import { resolvePlatformOrCompanyScope } from "../_core/tenant";
@@ -366,7 +369,81 @@ export const operationsRouter = router({
     return insights.slice(0, 4);
   }),
 
-  // ── Today's Tasks ────────────────────────────────────────────────────────────
+  // ── Smart Dashboard (aggregated intelligence) ─────────────────────────────────────────
+  getSmartDashboard: protectedProcedure.query(async ({ ctx }) => {
+    const db = await getDb();
+    if (!db) return null;
+    const companyId = await resolvePlatformOrCompanyScope(ctx.user as User);
+    if (!companyId) return null;
+    const now = new Date();
+    const in30Days = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+    const currentMonth = now.getMonth() + 1;
+    const currentYear = now.getFullYear();
+    // Employees
+    const allEmployees = await db.select({
+      id: employees.id, status: employees.status, nationality: employees.nationality,
+      salary: employees.salary, department: employees.department,
+      firstName: employees.firstName, lastName: employees.lastName,
+    }).from(employees).where(eq(employees.companyId, companyId));
+    const activeEmps = allEmployees.filter(e => e.status === "active");
+    const omaniEmps = activeEmps.filter(e => (e.nationality ?? "").toLowerCase().includes("oman"));
+    const omanisationRate = activeEmps.length > 0 ? Math.round((omaniEmps.length / activeEmps.length) * 100) : 0;
+    const totalPayrollCost = activeEmps.reduce((s, e) => s + parseFloat(e.salary ?? "0"), 0);
+    // Leave
+    const pendingLeave = await db.select({ cnt: count() }).from(leaveRequests)
+      .where(and(eq(leaveRequests.companyId, companyId), eq(leaveRequests.status, "pending")));
+    // Payroll
+    const thisMonthRun = await db.select({ id: payrollRuns.id, status: payrollRuns.status, totalNet: payrollRuns.totalNet })
+      .from(payrollRuns).where(and(
+        eq(payrollRuns.companyId, companyId),
+        eq(payrollRuns.periodMonth, currentMonth),
+        eq(payrollRuns.periodYear, currentYear)
+      )).limit(1);
+    // Work permits expiring
+    const expiringPermits = await db.select({ cnt: count() }).from(workPermits)
+      .where(and(eq(workPermits.companyId, companyId), gte(workPermits.expiryDate, now), lte(workPermits.expiryDate, in30Days)));
+    const expiredPermits = await db.select({ cnt: count() }).from(workPermits)
+      .where(and(eq(workPermits.companyId, companyId), lt(workPermits.expiryDate, now)));
+    // Employee docs expiring
+    const expiringEmpDocs = await db.select({ cnt: count() }).from(employeeDocuments)
+      .where(and(eq(employeeDocuments.companyId, companyId), gte(employeeDocuments.expiresAt, now), lte(employeeDocuments.expiresAt, in30Days)));
+    const expiredEmpDocs = await db.select({ cnt: count() }).from(employeeDocuments)
+      .where(and(eq(employeeDocuments.companyId, companyId), lt(employeeDocuments.expiresAt, now)));
+    // Company docs expiring
+    const expiringCompDocs = await db.select({ cnt: count() }).from(companyDocuments)
+      .where(and(eq(companyDocuments.companyId, companyId), gte(companyDocuments.expiryDate, now), lte(companyDocuments.expiryDate, in30Days), eq(companyDocuments.isDeleted, false)));
+    // Pending contracts
+    const pendingContracts = await db.select({ cnt: count() }).from(contracts)
+      .where(and(eq(contracts.status, "pending_signature"), eq(contracts.companyId, companyId)));
+    // Build action items
+    const actions: Array<{ priority: string; title: string; description: string; url: string; count: number }> = [];
+    const expiredPermitCount = Number(expiredPermits[0]?.cnt ?? 0);
+    if (expiredPermitCount > 0) actions.push({ priority: "critical", title: `${expiredPermitCount} expired work permit${expiredPermitCount > 1 ? "s" : ""}`, description: "Immediate renewal required to avoid MOL fines", url: "/renewal-workflows", count: expiredPermitCount });
+    const expiredDocCount = Number(expiredEmpDocs[0]?.cnt ?? 0);
+    if (expiredDocCount > 0) actions.push({ priority: "critical", title: `${expiredDocCount} expired employee document${expiredDocCount > 1 ? "s" : ""}`, description: "Upload renewed documents immediately", url: "/hr/documents-dashboard", count: expiredDocCount });
+    const expiringPermitCount = Number(expiringPermits[0]?.cnt ?? 0);
+    if (expiringPermitCount > 0) actions.push({ priority: "high", title: `${expiringPermitCount} work permit${expiringPermitCount > 1 ? "s" : ""} expiring in 30 days`, description: "Start renewal process now — MOL takes 3-5 business days", url: "/renewal-workflows", count: expiringPermitCount });
+    const expiringDocCount = Number(expiringEmpDocs[0]?.cnt ?? 0) + Number(expiringCompDocs[0]?.cnt ?? 0);
+    if (expiringDocCount > 0) actions.push({ priority: "high", title: `${expiringDocCount} document${expiringDocCount > 1 ? "s" : ""} expiring in 30 days`, description: "Review and renew before expiry to maintain compliance", url: "/hr/documents-dashboard", count: expiringDocCount });
+    const pendingLeaveCount = Number(pendingLeave[0]?.cnt ?? 0);
+    if (pendingLeaveCount > 0) actions.push({ priority: "medium", title: `${pendingLeaveCount} leave request${pendingLeaveCount > 1 ? "s" : ""} awaiting approval`, description: "Review and approve or reject pending requests", url: "/hr/leave", count: pendingLeaveCount });
+    const contractCount = Number(pendingContracts[0]?.cnt ?? 0);
+    if (contractCount > 0) actions.push({ priority: "medium", title: `${contractCount} contract${contractCount > 1 ? "s" : ""} pending signature`, description: "Follow up with signers to unblock service commencement", url: "/contracts", count: contractCount });
+    const payrollRun = thisMonthRun[0];
+    if (!payrollRun) actions.push({ priority: "high", title: "Payroll not run for this month", description: `${new Date().toLocaleString("en", { month: "long" })} ${currentYear} payroll has not been created yet`, url: "/payroll", count: 1 });
+    else if (payrollRun.status === "draft") actions.push({ priority: "medium", title: "Payroll draft awaiting approval", description: "Review and approve the current month payroll run", url: "/payroll", count: 1 });
+    return {
+      headcount: { total: allEmployees.length, active: activeEmps.length, onLeave: allEmployees.filter(e => e.status === "on_leave").length },
+      omanisation: { rate: omanisationRate, omani: omaniEmps.length, expat: activeEmps.length - omaniEmps.length },
+      payroll: { monthlyTotal: Math.round(totalPayrollCost * 1000) / 1000, thisMonthStatus: payrollRun?.status ?? "not_run", thisMonthNet: parseFloat(payrollRun?.totalNet ?? "0") },
+      leave: { pending: pendingLeaveCount },
+      permits: { expiring30d: expiringPermitCount, expired: expiredPermitCount },
+      documents: { expiring30d: expiringDocCount, expired: expiredDocCount },
+      actions: actions.sort((a, b) => ["critical", "high", "medium", "low"].indexOf(a.priority) - ["critical", "high", "medium", "low"].indexOf(b.priority)).slice(0, 6),
+    };
+  }),
+
+  // ── Today's Tasks ────────────────────────────────────────────────────────────────────
   getTodaysTasks: protectedProcedure.query(async ({ ctx }) => {
     const db = await getDb();
     if (!db) return { casesDue: [], pendingLeaveApprovals: [], pendingPayrollApprovals: [], totalTasks: 0 };

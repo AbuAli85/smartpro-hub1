@@ -71,6 +71,8 @@ import CompanyDocumentsPage from "./pages/CompanyDocumentsPage";
 import EmployeeDocumentsPage from "./pages/EmployeeDocumentsPage";
 import HRDocumentsDashboardPage from "./pages/HRDocumentsDashboardPage";
 import HRLettersPage from "./pages/HRLettersPage";
+import LeaveBalancePage from "./pages/LeaveBalancePage";
+import EmployeeCompletenessPage from "./pages/EmployeeCompletenessPage";
 function PublicRoutes() {
   return (
     <Switch>
@@ -141,6 +143,8 @@ function AppRoutes() {
         <Route path="/employee/:id/documents" component={EmployeeDocumentsPage} />
         <Route path="/hr/documents-dashboard" component={HRDocumentsDashboardPage} />
         <Route path="/hr/letters" component={HRLettersPage} />
+        <Route path="/hr/leave-balance" component={LeaveBalancePage} />
+        <Route path="/hr/completeness" component={EmployeeCompletenessPage} />
         <Route path="/my-team" component={MyTeamPage} />
         <Route path="/business/dashboard" component={BusinessDashboardPage} />
         <Route path="/business/employee/:id" component={EmployeeLifecyclePage} />

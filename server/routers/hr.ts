@@ -543,6 +543,84 @@ export const hrRouter = router({
       return getAttendanceStats(membership.company.id, input.month);
     }),
 
+  // ── Leave Balance ─────────────────────────────────────────────────────────
+  getLeaveBalance: protectedProcedure
+    .input(z.object({ employeeId: z.number() }))
+    .query(async ({ input, ctx }) => {
+      const membership = await getUserCompany(ctx.user.id);
+      if (!membership) throw new TRPCError({ code: "FORBIDDEN", message: "No company" });
+      const allLeave = await getLeaveRequests(membership.company.id, input.employeeId);
+      const ENTITLEMENTS: Record<string, number> = { annual: 30, sick: 10, emergency: 6, maternity: 50, paternity: 3, unpaid: 0, other: 0 };
+      const usedByType: Record<string, number> = {};
+      const pendingByType: Record<string, number> = {};
+      for (const r of allLeave) {
+        const t = r.leaveType ?? "annual";
+        const days = parseFloat(r.days?.toString() ?? "0");
+        if (r.status === "approved") usedByType[t] = (usedByType[t] ?? 0) + days;
+        if (r.status === "pending") pendingByType[t] = (pendingByType[t] ?? 0) + days;
+      }
+      return Object.entries(ENTITLEMENTS).map(([type, entitled]) => ({
+        type,
+        entitled,
+        used: usedByType[type] ?? 0,
+        pending: pendingByType[type] ?? 0,
+        remaining: Math.max(0, entitled - (usedByType[type] ?? 0)),
+      }));
+    }),
+
+  getLeaveBalanceSummary: protectedProcedure.query(async ({ ctx }) => {
+    const membership = await getUserCompany(ctx.user.id);
+    if (!membership) return [];
+    const emps = await getEmployees(membership.company.id);
+    const activeEmps = emps.filter((e) => e.status === "active");
+    const allLeave = await getLeaveRequests(membership.company.id);
+    const ENTITLEMENTS: Record<string, number> = { annual: 30, sick: 10, emergency: 6 };
+    return activeEmps.map((emp) => {
+      const empLeave = allLeave.filter((r) => r.employeeId === emp.id);
+      const usedByType: Record<string, number> = {};
+      for (const r of empLeave) {
+        if (r.status === "approved") {
+          const t = r.leaveType ?? "annual";
+          usedByType[t] = (usedByType[t] ?? 0) + parseFloat(r.days?.toString() ?? "0");
+        }
+      }
+      return {
+        employeeId: emp.id,
+        name: `${emp.firstName} ${emp.lastName}`,
+        department: emp.department ?? "",
+        balances: Object.entries(ENTITLEMENTS).map(([type, entitled]) => ({
+          type,
+          entitled,
+          used: usedByType[type] ?? 0,
+          remaining: Math.max(0, entitled - (usedByType[type] ?? 0)),
+        })),
+      };
+    });
+  }),
+
+  // ── Employee Profile Completeness ─────────────────────────────────────────
+  getEmployeeCompleteness: protectedProcedure.query(async ({ ctx }) => {
+    const membership = await getUserCompany(ctx.user.id);
+    if (!membership) return [];
+    const emps = await getEmployees(membership.company.id);
+    const REQUIRED_FIELDS = ["firstName", "lastName", "email", "phone", "nationality", "department", "position", "hireDate", "salary"];
+    const OPTIONAL_FIELDS = ["passportNumber", "nationalId", "dateOfBirth", "gender", "pasiNumber", "bankAccountNumber", "emergencyContactName", "workPermitNumber", "visaNumber"];
+    return emps.map((emp) => {
+      const reqFilled = REQUIRED_FIELDS.filter((f) => !!(emp as any)[f]).length;
+      const optFilled = OPTIONAL_FIELDS.filter((f) => !!(emp as any)[f]).length;
+      const score = Math.round(((reqFilled / REQUIRED_FIELDS.length) * 70) + ((optFilled / OPTIONAL_FIELDS.length) * 30));
+      const missing = REQUIRED_FIELDS.filter((f) => !(emp as any)[f]);
+      return {
+        employeeId: emp.id,
+        name: `${emp.firstName} ${emp.lastName}`,
+        department: emp.department ?? "",
+        score,
+        missingRequired: missing,
+        status: score >= 90 ? "complete" : score >= 60 ? "partial" : "incomplete",
+      };
+    });
+  }),
+
   getStats: protectedProcedure.query(async ({ ctx }) => {
     const membership = await getUserCompany(ctx.user.id);
     if (!membership) return { total: 0, active: 0, onLeave: 0, terminated: 0, omani: 0, expat: 0, omanisationRate: 0, departments: 0, avgSalary: 0, totalPayroll: 0 };

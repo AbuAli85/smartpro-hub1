@@ -38,6 +38,8 @@ export const PORTAL_CLIENT_HREFS = new Set<string>([
   "/company/profile",
   "/hr/documents-dashboard",
   "/hr/letters",
+  "/hr/leave-balance",
+  "/hr/completeness",
   "/payroll/process",
   "/preferences",
   "/",
@@ -178,6 +180,8 @@ function portalShellPathAllowed(path: string): boolean {
   if (path.startsWith("/company/documents")) return true;
   if (path.startsWith("/hr/documents-dashboard")) return true;
   if (path.startsWith("/hr/letters")) return true;
+  if (path.startsWith("/hr/leave-balance")) return true;
+  if (path.startsWith("/hr/completeness")) return true;
   if (path.startsWith("/employee")) return true;
   return false;
 }

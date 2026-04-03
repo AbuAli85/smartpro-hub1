@@ -123,6 +123,8 @@ const navGroups = [
       { label: "Run Payroll", href: "/payroll/process", icon: <Banknote size={18} /> },
       { label: "Attendance", href: "/hr/attendance", icon: <Clock size={18} /> },
       { label: "HR Letters", href: "/hr/letters", icon: <Mail size={18} /> },
+      { label: "Leave Balances", href: "/hr/leave-balance", icon: <Calendar size={18} /> },
+      { label: "Profile Completeness", href: "/hr/completeness", icon: <UserCheck size={18} /> },
     ],
   },
   {

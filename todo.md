@@ -1232,3 +1232,8 @@ Every company on SmartPRO Hub gets a complete, unified business operating area �
 - [x] Fix CompanySwitcher: always show dropdown trigger even for single company (with "+ Add another company" at bottom)
 - [x] Fix getUserCompanies to return correct data structure matching what CompanySwitcher expects
 - [x] Ensure the "+ Add another company" link navigates to /company/create correctly
+
+## Phase 50: Fix Console Errors (404, Duplicate Keys, My Portal)
+- [x] Fix 404 on /company/create — add route to App.tsx pointing to CompanyCreatePage or CreateCompanyPage
+- [x] Fix duplicate nav keys /payroll and /contracts in PlatformLayout sidebar
+- [x] Fix Uncaught promise errors on /my-portal — handle missing employee record gracefully

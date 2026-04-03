@@ -109,7 +109,6 @@ const navGroups = [
       { label: "Operations", href: "/company/operations", icon: <Activity size={18} /> },
       { label: "Company Documents", href: "/company/documents", icon: <FolderOpen size={18} /> },
       { label: "Document Dashboard", href: "/hr/documents-dashboard", icon: <FileText size={18} /> },
-      { label: "Run Payroll", href: "/payroll/process", icon: <Banknote size={18} /> },
       { label: "Company Workspace", href: "/company/workspace", icon: <Building2 size={18} /> },
     ],
   },
@@ -130,7 +129,6 @@ const navGroups = [
       { label: "Recruitment", href: "/hr/recruitment", icon: <BookOpen size={18} /> },
       { label: "Leave & Payroll", href: "/hr/leave", icon: <Calendar size={18} /> },
       { label: "Payroll Engine", href: "/payroll", icon: <Banknote size={18} /> },
-      { label: "Run Payroll", href: "/payroll/process", icon: <Banknote size={18} /> },
       { label: "Attendance", href: "/hr/attendance", icon: <Clock size={18} /> },
       { label: "HR Letters", href: "/hr/letters", icon: <Mail size={18} /> },
       { label: "Leave Balances", href: "/hr/leave-balance", icon: <Calendar size={18} /> },
@@ -244,7 +242,7 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
                 const isActive = location === item.href || location.startsWith(item.href + "/");
                 return (
                   <Link
-                    key={item.href}
+                    key={`${group.label}-${item.href}`}
                     href={item.href}
                     onClick={onClose}
                     className={`sidebar-nav-item ${isActive ? "active" : ""}`}

@@ -124,6 +124,7 @@ function AppRoutes() {
         <Route path="/company-admin" component={CompanyAdminPage} />
         <Route path="/company/profile" component={CompanyProfilePage} />
         <Route path="/company/settings" component={CompanySettingsPage} />
+        <Route path="/company/create" component={CompanyAdminPage} />
         <Route path="/omani-officers" component={OmaniOfficersPage} />
         <Route path="/officer-assignments" component={OfficerAssignmentPage} />
         {/* Sanad Marketplace — specific routes before parameterized */}

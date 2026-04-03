@@ -259,13 +259,19 @@ export default function EmployeePortalPage() {
             <div>
               <h2 className="text-xl font-bold">Account Not Linked</h2>
               <p className="text-sm text-muted-foreground mt-2 leading-relaxed">
-                Your login (<strong>{user?.email}</strong>) is not yet linked to an employee record.
+                You are signed in as <strong>{user?.email}</strong>, but this account is not yet linked to an employee record in your company.
               </p>
               <p className="text-sm text-muted-foreground mt-2">
-                Ask your HR manager to go to <strong>Company → Team Access</strong> and click <strong>Grant Access</strong> on your name.
+                Ask your HR manager to go to <strong>HR → Team Access &amp; Roles</strong> and click <strong>Grant Access</strong> next to your name.
+              </p>
+              <p className="text-xs text-muted-foreground mt-3 bg-muted/40 rounded-lg p-3">
+                Once linked, click Refresh below and your full employee portal will appear.
               </p>
             </div>
-            <Button variant="outline" asChild><Link href="/">Go to Dashboard</Link></Button>
+            <div className="flex gap-2 justify-center">
+              <Button variant="outline" onClick={() => window.location.reload()}>Refresh</Button>
+              <Button variant="outline" asChild><Link href="/dashboard">Go to Dashboard</Link></Button>
+            </div>
           </CardContent>
         </Card>
       </div>

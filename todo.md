@@ -1534,3 +1534,12 @@ Every company on SmartPRO Hub gets a complete, unified business operating area â
 - [x] Add nav items to PlatformLayout HR section (Shift Templates, Employee Schedules, Holidays, Today Board, Monthly Report)
 - [x] Write 26 tests for schedule logic, holiday detection, late calculation, attendance rate, date range building
 - [x] 0 TypeScript errors, 319 tests pass
+
+## Phase 67: Fix Invitation Acceptance Flow (Bug Fix) â€” COMPLETED
+- [x] Make getInviteInfo a publicProcedure so unauthenticated users can preview the invite before logging in
+- [x] Fix getLoginUrl to include return path (/invite/:token) in state so OAuth redirects back to invite page after login
+- [x] After acceptInvite succeeds, auto-set the new companyId as active company in localStorage before redirecting
+- [x] Fix Dashboard "No company linked" state: after accepting invite, invalidate myCompanies query and switch to new company
+- [x] Add auto-accept flow: if user arrives at /invite/:token already logged in, show one-click accept with email mismatch warning
+- [x] Add companyName to getInviteInfo response so the invite page can show the company name without extra query
+- [x] Improve Account Not Linked message with Refresh button and correct HR navigation path

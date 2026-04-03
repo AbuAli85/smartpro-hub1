@@ -18,7 +18,7 @@ import {
   getDb,
 } from "../db";
 import { companyInvites, companyMembers, users, employees, companies } from "../../drizzle/schema";
-import { protectedProcedure, router } from "../_core/trpc";
+import { protectedProcedure, publicProcedure, router } from "../_core/trpc";
 import { notifyOwner } from "../_core/notification";
 import { sendInviteEmail, sendHRLetterEmail, sendContractSigningEmail } from "../email";
 import { buildInviteEmailHtml, buildHRLetterEmailHtml, buildContractSigningEmailHtml } from "../emailPreview";
@@ -560,12 +560,12 @@ export const companiesRouter = router({
     }),
 
   /** Fetch invite metadata for the accept-invite page (no auth required for preview). */
-  getInviteInfo: protectedProcedure
+  getInviteInfo: publicProcedure
     .input(z.object({ token: z.string() }))
     .query(async ({ input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      const [invite] = await db
+      const [row] = await db
         .select({
           id: companyInvites.id,
           email: companyInvites.email,
@@ -574,12 +574,14 @@ export const companiesRouter = router({
           acceptedAt: companyInvites.acceptedAt,
           revokedAt: companyInvites.revokedAt,
           companyId: companyInvites.companyId,
+          companyName: companies.name,
         })
         .from(companyInvites)
+        .leftJoin(companies, eq(companies.id, companyInvites.companyId))
         .where(eq(companyInvites.token, input.token))
         .limit(1);
-      if (!invite) throw new TRPCError({ code: "NOT_FOUND", message: "Invite not found." });
-      return invite;
+      if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Invite not found." });
+      return { ...row, companyName: row.companyName ?? "Your Company" };
     }),
 
   /**

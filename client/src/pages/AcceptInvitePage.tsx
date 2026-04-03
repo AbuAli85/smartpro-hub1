@@ -8,7 +8,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { CheckCircle2, XCircle, Clock, Users, AlertTriangle, Loader2, Building2 } from "lucide-react";
 import { toast } from "sonner";
-import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
+import { fmtDate } from "@/lib/dateUtils";
+
+const STORAGE_KEY = "smartpro_active_company_id";
 
 const ROLE_LABELS: Record<string, string> = {
   company_admin: "Company Admin",
@@ -16,6 +18,8 @@ const ROLE_LABELS: Record<string, string> = {
   finance_admin: "Finance Admin",
   hr_admin: "HR Admin",
   reviewer: "Reviewer",
+  client: "Client",
+  external_auditor: "External Auditor",
 };
 
 export default function AcceptInvitePage() {
@@ -24,27 +28,42 @@ export default function AcceptInvitePage() {
   const { user, loading: authLoading } = useAuth();
   const [accepted, setAccepted] = useState(false);
 
+  // Bug Fix 1: getInviteInfo is now a publicProcedure — works without login
   const { data: invite, isLoading: inviteLoading, error: inviteError } = trpc.companies.getInviteInfo.useQuery(
     { token: token ?? "" },
     { enabled: !!token, retry: false }
   );
 
+  const utils = trpc.useUtils();
+
   const acceptMutation = trpc.companies.acceptInvite.useMutation({
-    onSuccess: () => {
+    onSuccess: (data) => {
       setAccepted(true);
+      // Bug Fix 3: immediately set the newly joined company as active in localStorage
+      // so the dashboard loads the correct company without "No company linked" error
+      if (data.companyId) {
+        localStorage.setItem(STORAGE_KEY, String(data.companyId));
+      }
+      // Invalidate companies list so ActiveCompanyContext picks up the new membership
+      utils.companies.myCompanies.invalidate();
       toast.success("Welcome to the team! Redirecting to your dashboard…");
       setTimeout(() => navigate("/dashboard"), 2000);
     },
     onError: (e) => toast.error(e.message),
   });
 
-  // If not logged in, redirect to login with return path
-  const loginUrl = getLoginUrl();
+  // Bug Fix 2: include the invite path as returnPath so OAuth redirects back here after login
+  const loginUrl = getLoginUrl(`/invite/${token}`);
 
   const isExpired = invite && !invite.acceptedAt && !invite.revokedAt && new Date() > new Date(invite.expiresAt);
   const isRevoked = invite?.revokedAt != null;
   const isAlreadyAccepted = invite?.acceptedAt != null;
   const isValid = invite && !isExpired && !isRevoked && !isAlreadyAccepted;
+
+  // If user just logged in and arrived here, and invite is valid, show accept UI immediately
+  useEffect(() => {
+    // Nothing to auto-accept — user must click the button
+  }, [user, isValid]);
 
   if (authLoading || inviteLoading) {
     return (
@@ -136,7 +155,7 @@ export default function AcceptInvitePage() {
             </div>
             <CardTitle>Already Accepted</CardTitle>
             <CardDescription>
-              This invite was already accepted. You should already be a member of the company.
+              This invite was already accepted. You should already be a member of <strong>{invite.companyName}</strong>.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -158,14 +177,16 @@ export default function AcceptInvitePage() {
               <CheckCircle2 className="w-7 h-7 text-green-500" />
             </div>
             <CardTitle>Welcome aboard!</CardTitle>
-            <CardDescription>You have joined the company. Redirecting to your dashboard…</CardDescription>
+            <CardDescription>
+              You have joined <strong>{invite.companyName}</strong>. Redirecting to your dashboard…
+            </CardDescription>
           </CardHeader>
         </Card>
       </div>
     );
   }
 
-  // Not logged in — show sign-in prompt
+  // Not logged in — show sign-in prompt with return path encoded
   if (!user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
@@ -174,32 +195,39 @@ export default function AcceptInvitePage() {
             <div className="mx-auto w-14 h-14 rounded-full bg-orange-500/10 flex items-center justify-center mb-2">
               <Building2 className="w-7 h-7 text-orange-500" />
             </div>
-            <CardTitle>You've been invited!</CardTitle>
+            <CardTitle>You've Been Invited!</CardTitle>
             <CardDescription>
-              Sign in to your SmartPRO account to accept this invitation and join the team.
+              Sign in to accept your invitation and join <strong>{invite.companyName}</strong>.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="rounded-lg border bg-muted/40 p-4 space-y-2 text-sm">
               <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Company</span>
+                <span className="font-medium">{invite.companyName}</span>
+              </div>
+              <div className="flex items-center justify-between">
                 <span className="text-muted-foreground">Invited email</span>
                 <span className="font-medium">{invite.email}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Role</span>
+                <span className="text-muted-foreground">Your role</span>
                 <Badge variant="secondary">{ROLE_LABELS[invite.role] ?? invite.role}</Badge>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Expires</span>
+                <span className="text-muted-foreground">Invite expires</span>
                 <span className="font-medium">{fmtDate(invite.expiresAt)}</span>
               </div>
             </div>
             <div className="flex items-start gap-2 text-xs text-muted-foreground bg-yellow-500/5 border border-yellow-500/20 rounded-lg p-3">
               <AlertTriangle className="w-4 h-4 text-yellow-500 shrink-0 mt-0.5" />
-              <span>Sign in with the email address <strong>{invite.email}</strong> to accept this invite. If you don't have an account yet, create one with that email first.</span>
+              <span>
+                Sign in with <strong>{invite.email}</strong> to accept this invite. After signing in you will be returned to this page automatically.
+              </span>
             </div>
-            <Button asChild className="w-full bg-orange-500 hover:bg-orange-600 text-white">
-              <a href={loginUrl}>Sign in to accept invite</a>
+            {/* Bug Fix 2: loginUrl includes /invite/:token as returnPath */}
+            <Button asChild className="w-full bg-red-600 hover:bg-red-700 text-white">
+              <a href={loginUrl}>Sign in to Accept Invitation</a>
             </Button>
           </CardContent>
         </Card>
@@ -207,7 +235,7 @@ export default function AcceptInvitePage() {
     );
   }
 
-  // Logged in — show accept button
+  // Logged in — show one-click accept button
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
@@ -215,13 +243,17 @@ export default function AcceptInvitePage() {
           <div className="mx-auto w-14 h-14 rounded-full bg-orange-500/10 flex items-center justify-center mb-2">
             <Users className="w-7 h-7 text-orange-500" />
           </div>
-          <CardTitle>Join Your Team</CardTitle>
+          <CardTitle>Join {invite.companyName}</CardTitle>
           <CardDescription>
-            You have been invited to join a company workspace on SmartPRO.
+            You have been invited to join <strong>{invite.companyName}</strong> on SmartPRO.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="rounded-lg border bg-muted/40 p-4 space-y-2 text-sm">
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">Company</span>
+              <span className="font-medium">{invite.companyName}</span>
+            </div>
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground">Invited email</span>
               <span className="font-medium">{invite.email}</span>
@@ -231,7 +263,7 @@ export default function AcceptInvitePage() {
               <Badge variant="secondary">{ROLE_LABELS[invite.role] ?? invite.role}</Badge>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">Expires</span>
+              <span className="text-muted-foreground">Invite expires</span>
               <span className="font-medium">{fmtDate(invite.expiresAt)}</span>
             </div>
           </div>
@@ -247,14 +279,14 @@ export default function AcceptInvitePage() {
           )}
 
           <Button
-            className="w-full bg-orange-500 hover:bg-orange-600 text-white"
+            className="w-full bg-red-600 hover:bg-red-700 text-white"
             disabled={acceptMutation.isPending}
             onClick={() => acceptMutation.mutate({ token: token ?? "" })}
           >
             {acceptMutation.isPending ? (
               <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Accepting…</>
             ) : (
-              <><CheckCircle2 className="w-4 h-4 mr-2" /> Accept Invitation</>
+              <><CheckCircle2 className="w-4 h-4 mr-2" /> Accept Invitation & Join Team</>
             )}
           </Button>
           <Button variant="ghost" className="w-full" onClick={() => navigate("/dashboard")}>

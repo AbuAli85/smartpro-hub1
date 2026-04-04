@@ -256,7 +256,7 @@ The Audit Log tab on the page provides a paginated, filterable view of this hist
 | Technical Reviewer | SmartPRO Engineering Review | ✅ Approved | 4 April 2026 |
 | Platform Owner | SmartPRO Hub | ✅ Approved for Phase 1 Release | 4 April 2026 |
 
-**Phase 2 start condition:** Phase 2 normalization work should begin after the platform has been operating with the Phase 1 page for at least 30 days, giving the team time to observe real-world role data patterns before committing to a schema migration.
+**Phase 2 start condition:** Phase 2 should begin when the five entry criteria listed in Section 10 are met in production — not after a fixed calendar period, but after sufficient operational evidence exists to validate real role patterns and anomalies.
 
 ---
 

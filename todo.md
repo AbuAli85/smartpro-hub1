@@ -1867,3 +1867,9 @@ Every company on SmartPRO Hub gets a complete, unified business operating area �
 - [ ] Add primary company indicator in expanded row when user has multiple memberships
 - [ ] Verify group counts match visible row counts
 - [ ] Update vitest tests to use shared roleHelpers.ts
+
+## Departments & Org Structure Fix (Apr 4, 2026)
+- [ ] Rebuild /hr/departments: full management page — dept list with inline edit, positions panel per dept, stats cards, dept head assignment, employee count per dept
+- [ ] Rebuild /hr/org-structure: visual org chart — tree diagram showing dept → positions → employees, expand/collapse nodes, reporting lines, dept head badges
+- [ ] Add getOrgChartData procedure to orgStructure router (returns departments with their positions and employees)
+- [ ] Remove duplication: OrgStructurePage no longer does list management, DepartmentsPage no longer shows chart

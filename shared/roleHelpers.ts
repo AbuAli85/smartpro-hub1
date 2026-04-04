@@ -58,7 +58,7 @@ export type AccountType =
  * Every possible input must land in a bucket — no user disappears.
  */
 export function deriveAccountType(platformRole: string | null | undefined): AccountType {
-  const role = platformRole ?? "";
+  const role = (platformRole ?? "").toLowerCase().trim();
   if (PLATFORM_STAFF_ROLES.has(role)) return "platform_staff";
   if (BUSINESS_USER_ROLES.has(role)) return "business_user";
   if (role === "external_auditor") return "auditor";
@@ -83,7 +83,8 @@ export function deriveEffectiveAccess(
   bestMemberRole: string | null | undefined,
   activeMemberRoles: string[],
 ): string {
-  const role = platformRole ?? "";
+  const role = (platformRole ?? "").toLowerCase().trim();
+  const bestRole = (bestMemberRole ?? "").toLowerCase().trim() || null;
 
   // Platform staff: always from platformRole
   if (role === "super_admin") return "Super Admin";
@@ -102,7 +103,7 @@ export function deriveEffectiveAccess(
       reviewer: "Reviewer",
       external_auditor: "External Auditor",
     };
-    return memberLabels[bestMemberRole] ?? "Business User";
+    return memberLabels[bestRole ?? ""] ?? "Business User";
   }
 
   // Fallback: derive from platformRole when no active memberships
@@ -129,7 +130,7 @@ export function deriveScope(
 ): string {
   if (accountType === "platform_staff") return "All companies";
   if (activeMemberships.length === 0) {
-    if (platformRole === "external_auditor") return "Read-only scope";
+    if ((platformRole ?? "").toLowerCase().trim() === "external_auditor") return "Read-only scope";
     return "No company";
   }
   if (activeMemberships.length === 1) return activeMemberships[0].companyName;
@@ -152,7 +153,7 @@ export function deriveEdgeCaseWarning(
   platformRole: string | null | undefined,
   activeMemberRoles: string[],
 ): EdgeCaseWarning {
-  const role = platformRole ?? "";
+  const role = (platformRole ?? "").toLowerCase().trim();
 
   // Unknown or null role
   if (!role || (!PLATFORM_STAFF_ROLES.has(role) && !BUSINESS_USER_ROLES.has(role) && role !== "client" && role !== "external_auditor")) {
@@ -180,7 +181,9 @@ export function deriveEdgeCaseWarning(
  */
 export function deriveBestMemberRole(activeMemberRoles: string[]): string | null {
   if (activeMemberRoles.length === 0) return null;
-  const sorted = [...activeMemberRoles].sort(
+  // Normalize each role before sorting to handle mixed-case bad data
+  const normalized = activeMemberRoles.map((r) => r.toLowerCase().trim());
+  const sorted = [...normalized].sort(
     (a, b) =>
       MEMBERSHIP_ROLE_PRECEDENCE.indexOf(a as typeof MEMBERSHIP_ROLE_PRECEDENCE[number]) -
       MEMBERSHIP_ROLE_PRECEDENCE.indexOf(b as typeof MEMBERSHIP_ROLE_PRECEDENCE[number]),

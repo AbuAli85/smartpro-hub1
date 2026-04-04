@@ -821,7 +821,7 @@ Every company on SmartPRO Hub gets a complete, unified business operating area �
 - [x] Add consistent page-level loading skeleton to all data-heavy pages
 - [x] Add `PageHeader` reusable component with breadcrumb, title, subtitle, and action slot
 - [x] Improve empty state components — consistent icon + message + CTA pattern
-- [ ] Fix dark mode on CompanyWorkspacePage KPI tiles (remove hardcoded bg-white)
+- [x] Fix dark mode on CompanyWorkspacePage KPI tiles (remove hardcoded bg-white)
 
 ### Navigation
 - [x] Add "My Company" group visibility rule — only show when user has a company workspace
@@ -902,7 +902,7 @@ Every company on SmartPRO Hub gets a complete, unified business operating area �
 - [x] Frontend: Document viewer — open PDF in browser preview panel
 - [x] Route: /company/documents registered in App.tsx
 - [x] Nav: "Company Documents" added to My Company sidebar group
-- [ ] Upload the two provided PDFs (OCCI + CR) to S3 and pre-populate as existing documents for the company
+- [x] Upload the two provided PDFs (OCCI + CR) to S3 and pre-populate as existing documents for the company
 
 ## Phase 35: Employee Documents Vault
 
@@ -925,7 +925,7 @@ Every company on SmartPRO Hub gets a complete, unified business operating area �
 - [x] Frontend: PDF/image viewer — opens document in browser preview panel
 - [x] Route: /company/documents registered in App.tsx
 - [x] Nav: "Documents" added to My Company sidebar group
-- [ ] Upload sample PDFs (OCCI, CR, Work Permit) to S3 and pre-populate as existing documents
+- [x] Upload sample PDFs (OCCI, CR, Work Permit) to S3 and pre-populate as existing documents
 
 ## Phase 36: Complete Employee Flow Fixes
 
@@ -944,7 +944,7 @@ Every company on SmartPRO Hub gets a complete, unified business operating area �
 ## Phase 37: Complete Payroll Processing Module
 
 - [x] Backend: Enhance createRun to auto-pickup active salary loans and deduct monthly amount
-- [ ] Backend: Enhance createRun to auto-calculate absence deductions from leave records (unpaid leave days)
+- [x] Backend: Enhance createRun to auto-calculate absence deductions from leave records (unpaid leave days)
 - [x] Backend: Add previewRun procedure — returns per-employee salary breakdown without saving
 - [x] Backend: Add generatePayslip procedure — generates HTML payslip for a single employee/run and stores to S3
 - [x] Backend: Add generateWPS procedure — generates WPS-format CSV for bank submission
@@ -955,20 +955,20 @@ Every company on SmartPRO Hub gets a complete, unified business operating area �
 - [x] UI: Payslips tab — list all generated payslips, search by employee, download/view PDF
 - [x] UI: Salary Setup tab — set basic salary, housing, transport allowances per employee before running payroll
 - [x] UI: Loans tab — manage salary loans per employee (create, view balance, cancel)
-- [ ] UI: WPS Export button — download CSV file formatted for Oman WPS bank submission
-- [ ] UI: Payslip modal — printable payslip view with all salary components, company header
-- [ ] UI: Employee Lifecycle payroll tab — show full payroll history for the employee
-- [ ] Nav: Add /payroll/process route to App.tsx and My Company sidebar
+- [x] UI: WPS Export button — download CSV file formatted for Oman WPS bank submission
+- [x] UI: Payslip modal — printable payslip view with all salary components, company header
+- [x] UI: Employee Lifecycle payroll tab — show full payroll history for the employee
+- [x] Nav: Add /payroll/process route to App.tsx and My Company sidebar
 
 ## Phase 38: Payroll Compliance Flags (Work Permit & Visa Expiry)
 
-- [ ] Backend: extend payroll createRun to join work_permits table and attach complianceFlag to each line item (expired/expiring_30/expiring_90/ok)
-- [ ] Backend: extend getRunDetails to return complianceFlag, expiryDate, and documentType per line item
-- [ ] Backend: add payroll.getComplianceFlags procedure — returns all employees with expired/expiring work permits and visas for a company
-- [ ] UI: PayrollProcessingPage — show compliance badge on each employee row (red=expired, amber=expiring soon, green=ok)
-- [ ] UI: Compliance summary panel at top of Run Payroll tab — count of expired, expiring, ok employees
-- [ ] UI: Warning banner when approving a run that has employees with expired documents
-- [ ] UI: Compliance tooltip on each badge showing document type, expiry date, days remaining
+- [x] Backend: extend payroll createRun to join work_permits table and attach complianceFlag to each line item (expired/expiring_30/expiring_90/ok)
+- [x] Backend: extend getRunDetails to return complianceFlag, expiryDate, and documentType per line item
+- [x] Backend: add payroll.getComplianceFlags procedure — returns all employees with expired/expiring work permits and visas for a company
+- [x] UI: PayrollProcessingPage — show compliance badge on each employee row (red=expired, amber=expiring soon, green=ok)
+- [x] UI: Compliance summary panel at top of Run Payroll tab — count of expired, expiring, ok employees
+- [x] UI: Warning banner when approving a run that has employees with expired documents
+- [x] UI: Compliance tooltip on each badge showing document type, expiry date, days remaining
 - [ ] UI: "View Details" link from compliance badge to employee documents page
 
 ## Phase 39: HR Document Management Dashboard (Completed)
@@ -1055,99 +1055,99 @@ Every company on SmartPRO Hub gets a complete, unified business operating area �
 ## Phase 42: Smart & Intelligent Platform — Full End-to-End Completion
 
 ### 42A — Smart Business Dashboard (Intelligence Hub)
-- [ ] Backend: operations.getSmartDashboard — aggregates employees, payroll, leave, documents, compliance, alerts into one call with AI-generated priority actions
-- [ ] Backend: operations.getAiInsights enhanced — add HR-specific insights (expiring docs, pending leave, payroll due, Omanisation gap)
-- [ ] UI: BusinessDashboardPage.tsx — full rewrite as intelligent hub: live KPIs (headcount, payroll cost, compliance score, open alerts), smart action items, upcoming deadlines, module quick-links with live counts
-- [ ] UI: Smart alert banner — top-of-page banner when critical items need attention (expired docs, payroll overdue, compliance breach)
-- [ ] UI: Omanisation gauge — live progress bar showing current % vs target with trend arrow
+- [x] Backend: operations.getSmartDashboard — aggregates employees, payroll, leave, documents, compliance, alerts into one call with AI-generated priority actions
+- [x] Backend: operations.getAiInsights enhanced — add HR-specific insights (expiring docs, pending leave, payroll due, Omanisation gap)
+- [x] UI: BusinessDashboardPage.tsx — full rewrite as intelligent hub: live KPIs (headcount, payroll cost, compliance score, open alerts), smart action items, upcoming deadlines, module quick-links with live counts
+- [x] UI: Smart alert banner — top-of-page banner when critical items need attention (expired docs, payroll overdue, compliance breach)
+- [x] UI: Omanisation gauge — live progress bar showing current % vs target with trend arrow
 
 ### 42B — Payroll Intelligence: Attendance-to-Payroll Auto-Link
-- [ ] Backend: payroll.createRun enhanced — auto-calculate absence deductions from leave records (unpaid leave days × daily rate)
-- [ ] Backend: payroll.previewRun — returns per-employee salary breakdown without saving (for review before committing)
-- [ ] Backend: payroll.getEmployeePayrollHistory — list all payroll records for one employee
-- [ ] UI: PayrollProcessingPage — add Preview tab showing per-employee breakdown before running
-- [ ] UI: Employee payroll tab in EmployeeLifecyclePage — show full payroll history with monthly breakdown chart
+- [x] Backend: payroll.createRun enhanced — auto-calculate absence deductions from leave records (unpaid leave days × daily rate)
+- [x] Backend: payroll.previewRun — returns per-employee salary breakdown without saving (for review before committing)
+- [x] Backend: payroll.getEmployeePayrollHistory — list all payroll records for one employee
+- [x] UI: PayrollProcessingPage — add Preview tab showing per-employee breakdown before running
+- [x] UI: Employee payroll tab in EmployeeLifecyclePage — show full payroll history with monthly breakdown chart
 
 ### 42C — Leave Intelligence: Auto-Balance Calculation
-- [ ] Backend: hr.getLeaveBalance — per-employee leave balance (annual/sick/emergency: entitled - used - pending)
-- [ ] Backend: hr.getLeaveBalanceSummary — all employees leave balance for HR overview
-- [ ] UI: HRLeavePage — add leave balance summary table showing each employee's remaining days per type
+- [x] Backend: hr.getLeaveBalance — per-employee leave balance (annual/sick/emergency: entitled - used - pending)
+- [x] Backend: hr.getLeaveBalanceSummary — all employees leave balance for HR overview
+- [x] UI: HRLeavePage — add leave balance summary table showing each employee's remaining days per type
 - [x] UI: EmployeeLifecyclePage leave tab — show live balance bar (used/remaining) per leave type
 
 ### 42D — Document Intelligence: Expiry Auto-Alerts
-- [ ] Backend: alerts.getDocumentExpiryAlerts — cross-company + employee docs expiring in 7/30/90 days
-- [ ] Backend: alerts.getSmartAlertSummary — single call returning counts: expired docs, expiring permits, pending leave, payroll due, compliance issues
-- [ ] UI: ExpiryAlertsPage — rewrite with smart categories: Critical (expired), Warning (7-30 days), Upcoming (30-90 days), All Clear
-- [ ] UI: Dashboard alert badge — live count on bell icon showing total critical items
+- [x] Backend: alerts.getDocumentExpiryAlerts — cross-company + employee docs expiring in 7/30/90 days
+- [x] Backend: alerts.getSmartAlertSummary — single call returning counts: expired docs, expiring permits, pending leave, payroll due, compliance issues
+- [x] UI: ExpiryAlertsPage — rewrite with smart categories: Critical (expired), Warning (7-30 days), Upcoming (30-90 days), All Clear
+- [x] UI: Dashboard alert badge — live count on bell icon showing total critical items
 
 ### 42E — Compliance Intelligence
-- [ ] Backend: compliance.getFullComplianceReport — comprehensive report: Omanisation %, PASI status, WPS status, work permit matrix, document coverage score
-- [ ] UI: ComplianceDashboardPage — rewrite with 5 compliance pillars: Omanisation, PASI, WPS, Work Permits, Document Coverage — each with score, status, and action items
-- [ ] UI: Compliance score card on BusinessDashboardPage — single score (0-100) with color coding
+- [x] Backend: compliance.getFullComplianceReport — comprehensive report: Omanisation %, PASI status, WPS status, work permit matrix, document coverage score
+- [x] UI: ComplianceDashboardPage — rewrite with 5 compliance pillars: Omanisation, PASI, WPS, Work Permits, Document Coverage — each with score, status, and action items
+- [x] UI: Compliance score card on BusinessDashboardPage — single score (0-100) with color coding
 
 ### 42F — Employee Intelligence: Smart Profile Completeness
-- [ ] Backend: hr.getEmployeeCompleteness — per-employee profile completeness score (% of required fields filled)
-- [ ] UI: MyTeamPage — add completeness badge on each employee card (green/amber/red)
+- [x] Backend: hr.getEmployeeCompleteness — per-employee profile completeness score (% of required fields filled)
+- [x] UI: MyTeamPage — add completeness badge on each employee card (green/amber/red)
 - [x] UI: EmployeeLifecyclePage — add profile completeness progress bar at top of profile tab with missing fields list
 
 ### 42G — Smart Onboarding Flow
-- [ ] UI: OnboardingPage — step-by-step company setup wizard: 1) Company Profile → 2) Add Departments → 3) Add First Employee → 4) Upload Documents → 5) Configure Payroll → 6) Done
-- [ ] UI: Each step shows completion status and links to the relevant page
-- [ ] UI: Dashboard setup checklist — shows incomplete setup steps with direct action buttons
+- [x] UI: OnboardingPage — step-by-step company setup wizard: 1) Company Profile → 2) Add Departments → 3) Add First Employee → 4) Upload Documents → 5) Configure Payroll → 6) Done
+- [x] UI: Each step shows completion status and links to the relevant page
+- [x] UI: Dashboard setup checklist — shows incomplete setup steps with direct action buttons
 
 ### 42H — Cross-Module Navigation Intelligence
 - [ ] UI: Add "Quick Actions" floating button on all HR pages — links to: Add Employee, Run Payroll, Generate Letter, Upload Document
-- [ ] UI: Employee cards in MyTeamPage — show document expiry warning badge if any doc expires in 30 days
-- [ ] UI: Payroll run page — show compliance flags per employee (expired doc = red badge, expiring = amber)
-- [ ] UI: Leave approval — show employee leave balance remaining before approving
+- [x] UI: Employee cards in MyTeamPage — show document expiry warning badge if any doc expires in 30 days
+- [x] UI: Payroll run page — show compliance flags per employee (expired doc = red badge, expiring = amber)
+- [x] UI: Leave approval — show employee leave balance remaining before approving
 
 ## Phase 43: Complete A-to-Z Business Operating System
 
 ### 43A — Departments & Positions Management
-- [ ] Schema: departments table (id, companyId, name, description, headEmployeeId, createdAt)
-- [ ] Schema: positions table (id, companyId, departmentId, title, description, isActive, createdAt)
-- [ ] Migration: apply schema migration for departments and positions tables
-- [ ] Backend: hr.listDepartments, hr.createDepartment, hr.updateDepartment, hr.deleteDepartment
-- [ ] Backend: hr.listPositions, hr.createPosition, hr.updatePosition, hr.deletePosition
-- [ ] UI: DepartmentsPage.tsx — manage departments and positions in one page (add/edit/delete, employee count per dept)
-- [ ] Route: /hr/departments registered in App.tsx
-- [ ] Nav: Departments link added to Human Resources sidebar section
+- [x] Schema: departments table (id, companyId, name, description, headEmployeeId, createdAt)
+- [x] Schema: positions table (id, companyId, departmentId, title, description, isActive, createdAt)
+- [x] Migration: apply schema migration for departments and positions tables
+- [x] Backend: hr.listDepartments, hr.createDepartment, hr.updateDepartment, hr.deleteDepartment
+- [x] Backend: hr.listPositions, hr.createPosition, hr.updatePosition, hr.deletePosition
+- [x] UI: DepartmentsPage.tsx — manage departments and positions in one page (add/edit/delete, employee count per dept)
+- [x] Route: /hr/departments registered in App.tsx
+- [x] Nav: Departments link added to Human Resources sidebar section
 
 ### 43B — Task Assignment System (Admin → Employee)
-- [ ] Schema: employee_tasks table (id, companyId, assignedToEmployeeId, assignedByUserId, title, description, priority, status, dueDate, completedAt, createdAt)
-- [ ] Migration: apply schema migration for employee_tasks table
-- [ ] Backend: tasks.listTasks (admin: all tasks; employee: their own tasks), tasks.createTask, tasks.updateTask, tasks.deleteTask, tasks.completeTask
-- [ ] UI: TaskManagementPage.tsx — admin view: create tasks, assign to employees, filter by status/employee/priority, mark complete
-- [ ] Route: /hr/tasks registered in App.tsx
-- [ ] Nav: Tasks link added to Human Resources sidebar section
+- [x] Schema: employee_tasks table (id, companyId, assignedToEmployeeId, assignedByUserId, title, description, priority, status, dueDate, completedAt, createdAt)
+- [x] Migration: apply schema migration for employee_tasks table
+- [x] Backend: tasks.listTasks (admin: all tasks; employee: their own tasks), tasks.createTask, tasks.updateTask, tasks.deleteTask, tasks.completeTask
+- [x] UI: TaskManagementPage.tsx — admin view: create tasks, assign to employees, filter by status/employee/priority, mark complete
+- [x] Route: /hr/tasks registered in App.tsx
+- [x] Nav: Tasks link added to Human Resources sidebar section
 
 ### 43C — Announcements & Requests System
-- [ ] Schema: announcements table (id, companyId, createdByUserId, title, body, type [announcement|request|alert], targetEmployeeId [null=all], isRead tracking via separate table, createdAt)
-- [ ] Schema: announcement_reads table (id, announcementId, employeeId, readAt)
-- [ ] Migration: apply schema migration
-- [ ] Backend: announcements.listAnnouncements (admin: all; employee: their own + company-wide), announcements.createAnnouncement, announcements.markRead, announcements.deleteAnnouncement
-- [ ] UI: AnnouncementsPage.tsx — admin: compose and send announcements/requests to all or specific employee; view read receipts
-- [ ] Route: /hr/announcements registered in App.tsx
-- [ ] Nav: Announcements link added to Human Resources sidebar section
+- [x] Schema: announcements table (id, companyId, createdByUserId, title, body, type [announcement|request|alert], targetEmployeeId [null=all], isRead tracking via separate table, createdAt)
+- [x] Schema: announcement_reads table (id, announcementId, employeeId, readAt)
+- [x] Migration: apply schema migration
+- [x] Backend: announcements.listAnnouncements (admin: all; employee: their own + company-wide), announcements.createAnnouncement, announcements.markRead, announcements.deleteAnnouncement
+- [x] UI: AnnouncementsPage.tsx — admin: compose and send announcements/requests to all or specific employee; view read receipts
+- [x] Route: /hr/announcements registered in App.tsx
+- [x] Nav: Announcements link added to Human Resources sidebar section
 
 ### 43D — Employee Self-Service Portal
-- [ ] UI: EmployeePortalPage.tsx — employee's own dashboard: profile summary, today's attendance status, leave balance, pending tasks, unread announcements, recent payslips, document expiry warnings
-- [ ] Backend: portal.getMyProfile — employee's own profile data (from employees table matched by user email)
-- [ ] Backend: portal.getMyAttendance — employee's own attendance records for current month
-- [ ] Backend: portal.getMyLeave — employee's own leave requests + balance
-- [ ] Backend: portal.getMyTasks — employee's own assigned tasks
-- [ ] Backend: portal.getMyAnnouncements — announcements addressed to this employee or all-company
-- [ ] Backend: portal.getMyPayslips — employee's own payroll records
-- [ ] Backend: portal.submitLeaveRequest — employee submits leave request from portal
-- [ ] Backend: portal.completeTask — employee marks their task as complete
-- [ ] Route: /my-portal registered in App.tsx
-- [ ] Nav: My Portal link added for employee-role users in sidebar
+- [x] UI: EmployeePortalPage.tsx — employee's own dashboard: profile summary, today's attendance status, leave balance, pending tasks, unread announcements, recent payslips, document expiry warnings
+- [x] Backend: portal.getMyProfile — employee's own profile data (from employees table matched by user email)
+- [x] Backend: portal.getMyAttendance — employee's own attendance records for current month
+- [x] Backend: portal.getMyLeave — employee's own leave requests + balance
+- [x] Backend: portal.getMyTasks — employee's own assigned tasks
+- [x] Backend: portal.getMyAnnouncements — announcements addressed to this employee or all-company
+- [x] Backend: portal.getMyPayslips — employee's own payroll records
+- [x] Backend: portal.submitLeaveRequest — employee submits leave request from portal
+- [x] Backend: portal.completeTask — employee marks their task as complete
+- [x] Route: /my-portal registered in App.tsx
+- [x] Nav: My Portal link added for employee-role users in sidebar
 
 ### 43E — Company Setup Wizard (First-Time Flow)
-- [ ] UI: CompanySetupPage.tsx — guided 5-step setup: 1) Company Info → 2) Add Departments → 3) Add First Employee → 4) Upload Company Documents → 5) Done
-- [ ] Each step shows completion status and links to the relevant page
-- [ ] Route: /company/setup registered in App.tsx
-- [ ] Nav: Setup Wizard link shown only when company setup is incomplete
+- [x] UI: CompanySetupPage.tsx — guided 5-step setup: 1) Company Info → 2) Add Departments → 3) Add First Employee → 4) Upload Company Documents → 5) Done
+- [x] Each step shows completion status and links to the relevant page
+- [x] Route: /company/setup registered in App.tsx
+- [x] Nav: Setup Wizard link shown only when company setup is incomplete
 
 ## Phase 44: Role-Based Access System (RBAC) — Clear User Roles
 
@@ -1158,35 +1158,35 @@ Every company on SmartPRO Hub gets a complete, unified business operating area �
 - **Field Employee** (platformRole: client) — minimal: My Portal only (attendance, tasks, leave, announcements)
 
 ### Build Items
-- [ ] Schema: company_members table (userId, companyId, memberRole enum: owner/hr_manager/staff/field_employee, inviteEmail, inviteToken, status: active/invited/suspended, joinedAt)
-- [ ] Migration: apply schema migration for company_members table
-- [ ] Backend: orgStructure.inviteMember — owner/admin sends invite by email with role assignment
-- [ ] Backend: orgStructure.listMembers — list all company members with role, status, user info
-- [ ] Backend: orgStructure.updateMemberRole — owner changes a member's role
-- [ ] Backend: orgStructure.removeMember — owner removes a member
-- [ ] Backend: orgStructure.acceptInvite — user accepts invite via token
-- [ ] UI: TeamAccessPage.tsx — manage who has access: invite by email, set role, view all members, change role, remove
-- [ ] UI: Role-aware sidebar — Owner sees all sections, HR Manager sees HR sections, Staff sees My Company basics, Field Employee sees My Portal only
-- [ ] UI: Role badge in sidebar — shows current user's role with color-coded badge
-- [ ] UI: Role-aware dashboard — after login, each role sees their correct starting dashboard
-- [ ] UI: Access denied page — clean "You don't have permission" page for unauthorized routes
-- [ ] Route: /hr/team-access registered in App.tsx
-- [ ] Nav: Team Access link added to HR section for owners/admins only
-- [ ] Nav: /hr/team-access added to PORTAL_CLIENT_HREFS
+- [x] Schema: company_members table (userId, companyId, memberRole enum: owner/hr_manager/staff/field_employee, inviteEmail, inviteToken, status: active/invited/suspended, joinedAt)
+- [x] Migration: apply schema migration for company_members table
+- [x] Backend: orgStructure.inviteMember — owner/admin sends invite by email with role assignment
+- [x] Backend: orgStructure.listMembers — list all company members with role, status, user info
+- [x] Backend: orgStructure.updateMemberRole — owner changes a member's role
+- [x] Backend: orgStructure.removeMember — owner removes a member
+- [x] Backend: orgStructure.acceptInvite — user accepts invite via token
+- [x] UI: TeamAccessPage.tsx — manage who has access: invite by email, set role, view all members, change role, remove
+- [x] UI: Role-aware sidebar — Owner sees all sections, HR Manager sees HR sections, Staff sees My Company basics, Field Employee sees My Portal only
+- [x] UI: Role badge in sidebar — shows current user's role with color-coded badge
+- [x] UI: Role-aware dashboard — after login, each role sees their correct starting dashboard
+- [x] UI: Access denied page — clean "You don't have permission" page for unauthorized routes
+- [x] Route: /hr/team-access registered in App.tsx
+- [x] Nav: Team Access link added to HR section for owners/admins only
+- [x] Nav: /hr/team-access added to PORTAL_CLIENT_HREFS
 
 ## Phase 44: Role-Based Access System (Clear, Working, User-Friendly)
 
 ### 44A — Role-Aware Sidebar Navigation
-- [ ] clientNav.ts: filter sidebar by memberRole — company_admin sees all, hr_admin sees HR modules, finance_admin sees payroll/finance, company_member sees My Portal + My Team, external_auditor read-only
-- [ ] PlatformLayout: show clear role badge in sidebar company section (Owner / HR Manager / Finance / Staff / Field Employee)
-- [ ] PlatformLayout: role-specific mobile bottom nav tabs per role
+- [x] clientNav.ts: filter sidebar by memberRole — company_admin sees all, hr_admin sees HR modules, finance_admin sees payroll/finance, company_member sees My Portal + My Team, external_auditor read-only
+- [x] PlatformLayout: show clear role badge in sidebar company section (Owner / HR Manager / Finance / Staff / Field Employee)
+- [x] PlatformLayout: role-specific mobile bottom nav tabs per role
 
 ### 44B — Role-Specific Dashboard Redirect
-- [ ] App.tsx: smart redirect on first load based on memberRole: company_admin → /business/dashboard, hr_admin → /hr/employees, finance_admin → /payroll, company_member → /my-portal
+- [x] App.tsx: smart redirect on first load based on memberRole: company_admin → /business/dashboard, hr_admin → /hr/employees, finance_admin → /payroll, company_member → /my-portal
 
 ### 44C — Team Access Page (Owner-Friendly)
-- [ ] UI: TeamAccessPage.tsx — clean page: all team members with role badges, invite by email, change role dropdown, remove/reactivate. Replaces need to go to /company-admin for this.
-- [ ] Route: /company/team-access registered in App.tsx
+- [x] UI: TeamAccessPage.tsx — clean page: all team members with role badges, invite by email, change role dropdown, remove/reactivate. Replaces need to go to /company-admin for this.
+- [x] Route: /company/team-access registered in App.tsx
 - [ ] Nav: "Team Access" link added to My Company section (visible to company_admin only via COMPANY_OWNER_HREFS)
 - [ ] Nav: /company/team-access added to PORTAL_CLIENT_HREFS
 
@@ -1374,7 +1374,7 @@ Every company on SmartPRO Hub gets a complete, unified business operating area �
 - [ ] Frontend: show available routes per role (only routes the role can access per RBAC)
 - [ ] Frontend: live preview of what each role will see on login
 - [ ] Frontend: "Reset to defaults" button to clear customizations
-- [ ] Wire: Dashboard.tsx reads custom redirect from getRoleRedirectSettings before falling back to getRoleDefaultRoute()
+- [x] Wire: Dashboard.tsx reads custom redirect from getRoleRedirectSettings before falling back to getRoleDefaultRoute()
 - [ ] Tests: vitest tests for getRoleRedirectSettings and updateRoleRedirectSettings procedures
 
 ## Phase 62: Role Redirect Customization Feature
@@ -1548,9 +1548,9 @@ Every company on SmartPRO Hub gets a complete, unified business operating area �
 
 ### Admin Side
 - [ ] Audit AttendancePage.tsx — check what is wired vs placeholder
-- [ ] Audit AttendanceSitesPage.tsx — check if sites are saved and used
-- [ ] Audit TodayBoardPage.tsx — check if live data shows correctly
-- [ ] Audit MonthlyReportPage.tsx — check if data is accurate
+- [x] Audit AttendanceSitesPage.tsx — check if sites are saved and used
+- [x] Audit TodayBoardPage.tsx — check if live data shows correctly
+- [x] Audit MonthlyReportPage.tsx — check if data is accurate
 - [ ] Admin: manual check-in/out for any employee from admin panel
 - [ ] Admin: view all attendance records with filters (date, employee, status)
 - [ ] Admin: approve or reject employee correction requests

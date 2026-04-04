@@ -1,5 +1,6 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { getLoginUrl } from "@/const";
+import QuickActionsButton from "@/components/QuickActionsButton";
 import {
   Activity,
   BarChart2,
@@ -524,6 +525,8 @@ export default function PlatformLayout({ children }: { children: React.ReactNode
           )}
           <ClientAccessGate>{children}</ClientAccessGate>
         </main>
+        {/* Quick Actions floating button */}
+        <QuickActionsButton />
       </div>
       {/* Mobile bottom navigation */}
       <MobileBottomNav />

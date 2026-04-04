@@ -750,6 +750,16 @@ function StaffCard({
 }) {
   const sm = STATUS_META[member.status] ?? STATUS_META.active;
   const initials = getInitials(member.firstName, member.lastName);
+  // Compute profile completeness score (inline, no extra API call)
+  const completenessFields = [
+    member.firstName, member.lastName, member.email, member.phone,
+    member.department, member.position, member.nationality, member.nationalId,
+    member.passportNumber, member.hireDate, member.employeeNumber,
+  ];
+  const filledCount = completenessFields.filter(Boolean).length;
+  const completenessScore = Math.round((filledCount / completenessFields.length) * 100);
+  const completenessBarColor = completenessScore >= 80 ? "bg-emerald-500" : completenessScore >= 50 ? "bg-amber-500" : "bg-red-500";
+  const completenessTextColor = completenessScore >= 80 ? "text-emerald-600" : completenessScore >= 50 ? "text-amber-600" : "text-red-500";
   // Compute worst expiry status across all document dates
   const docDates = [member.visaExpiryDate, member.workPermitExpiryDate].filter(Boolean);
   const docStatuses = docDates.map((d: any) => expiryStatus(d, warnDays));
@@ -809,6 +819,16 @@ function StaffCard({
           <Mail size={10} /> {member.email}
         </div>
       )}
+      {/* Profile completeness bar */}
+      <div className="mt-2 flex items-center gap-1.5">
+        <div className="flex-1 h-1 bg-muted rounded-full overflow-hidden">
+          <div
+            className={`h-full rounded-full transition-all ${completenessBarColor}`}
+            style={{ width: `${completenessScore}%` }}
+          />
+        </div>
+        <span className={`text-[9px] font-medium shrink-0 ${completenessTextColor}`}>{completenessScore}%</span>
+      </div>
       {/* Expiry warning strip */}
       {cardExpiry !== "none" && (
         <div className={`mt-2 flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-md ${EXPIRY_BADGE[cardExpiry]}`}>

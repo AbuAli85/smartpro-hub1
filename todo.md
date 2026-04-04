@@ -1758,3 +1758,12 @@ Every company on SmartPRO Hub gets a complete, unified business operating area �
 - [x] Employee Portal KPI tab with progress cards, Log Activity dialog (metric type, value, client name), leaderboard
 - [x] Admin KPI Management page /hr/kpi with team progress, leaderboard, set/edit/delete targets, view logs
 - [x] KPI & Performance nav item added to HR section in PlatformLayout
+
+## Bug Fix: Team Access & Roles — Full System Repair
+- [x] Fix: TeamAccessPage "All Employees" tab should show ALL company members (not just HR employees)
+- [x] Fix: addMemberByEmail should auto-create invite when user has no SmartPRO account yet
+- [x] Fix: TeamAccessPage should show a unified view — members with/without HR employee records
+- [ ] Fix: When user is added as company_admin via team access, they should see full admin sidebar immediately
+- [x] Fix: Pending invites section should be visible and actionable in TeamAccessPage
+- [ ] Fix: Admin Panel should allow promoting any user to company_admin role for a specific company
+- [x] Enhancement: "Quick Add Admin" flow — add by email, auto-detect if they have account, grant access or send invite

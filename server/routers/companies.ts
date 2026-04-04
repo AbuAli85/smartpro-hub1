@@ -382,6 +382,8 @@ export const companiesRouter = router({
       email: z.string().email(),
       role: z.enum(["company_admin", "company_member", "finance_admin", "hr_admin", "reviewer", "client", "external_auditor"]).default("company_member"),
       companyId: z.number().optional(),
+      /** Frontend origin — used to build the invite link when the user has no SmartPRO account yet */
+      origin: z.string().url().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
@@ -389,30 +391,71 @@ export const companiesRouter = router({
       const membership = input.companyId ? await getUserCompanyById(ctx.user.id, input.companyId) : await getUserCompany(ctx.user.id);
       if (!membership) throw new TRPCError({ code: "FORBIDDEN" });
       if (!canAccessGlobalAdminProcedures(ctx.user)) await assertCompanyAdmin(ctx.user.id, membership.company.id);
+      const companyId = membership.company.id;
+      const emailNorm = input.email.toLowerCase().trim();
       const [targetUser] = await db
         .select({ id: users.id, name: users.name })
         .from(users)
-        .where(eq(users.email, input.email))
+        .where(eq(users.email, emailNorm))
         .limit(1);
-      if (!targetUser) throw new TRPCError({ code: "NOT_FOUND", message: "No user found with that email address." });
-      const [existing] = await db
-        .select({ id: companyMembers.id, isActive: companyMembers.isActive })
-        .from(companyMembers)
-        .where(and(eq(companyMembers.userId, targetUser.id), eq(companyMembers.companyId, membership.company.id)))
-        .limit(1);
-      if (existing) {
-        if (existing.isActive) throw new TRPCError({ code: "CONFLICT", message: "This user is already a member." });
-        await db.update(companyMembers).set({ isActive: true, role: input.role }).where(eq(companyMembers.id, existing.id));
-        return { success: true, action: "reactivated" as const };
+      // ── User has a SmartPRO account — add directly ──────────────────────────
+      if (targetUser) {
+        const [existing] = await db
+          .select({ id: companyMembers.id, isActive: companyMembers.isActive })
+          .from(companyMembers)
+          .where(and(eq(companyMembers.userId, targetUser.id), eq(companyMembers.companyId, companyId)))
+          .limit(1);
+        if (existing) {
+          if (existing.isActive) throw new TRPCError({ code: "CONFLICT", message: "This user is already a member." });
+          await db.update(companyMembers).set({ isActive: true, role: input.role }).where(eq(companyMembers.id, existing.id));
+          return { success: true, action: "reactivated" as const, message: `${targetUser.name ?? emailNorm} has been re-activated.` };
+        }
+        await db.insert(companyMembers).values({
+          companyId,
+          userId: targetUser.id,
+          role: input.role,
+          isActive: true,
+          invitedBy: ctx.user.id,
+        });
+        return { success: true, action: "added" as const, message: `${targetUser.name ?? emailNorm} has been added to the team.` };
       }
-      await db.insert(companyMembers).values({
-        companyId: membership.company.id,
-        userId: targetUser.id,
+      // ── No SmartPRO account yet — create an invite automatically ────────────
+      // Revoke any existing pending invite for same email+company
+      await db
+        .update(companyInvites)
+        .set({ revokedAt: new Date() })
+        .where(and(
+          eq(companyInvites.email, emailNorm),
+          eq(companyInvites.companyId, companyId),
+          isNull(companyInvites.acceptedAt),
+          isNull(companyInvites.revokedAt),
+        ));
+      const token = randomBytes(32).toString("hex");
+      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+      await db.insert(companyInvites).values({
+        companyId,
+        email: emailNorm,
         role: input.role,
-        isActive: true,
+        token,
         invitedBy: ctx.user.id,
+        expiresAt,
       });
-      return { success: true, action: "added" as const };
+      const origin = input.origin ?? "https://smartprohub-q4qjnxjv.manus.space";
+      const inviteUrl = `${origin}/invite/${token}`;
+      const companyName = membership.company.name ?? "SmartPRO";
+      await notifyOwner({
+        title: `Team invite sent to ${emailNorm}`,
+        content: `${ctx.user.name ?? ctx.user.email} invited ${emailNorm} to join ${companyName} as ${input.role.replace(/_/g, " ")}. Invite link: ${inviteUrl} (expires in 7 days)`,
+      });
+      await sendInviteEmail({
+        to: emailNorm,
+        inviterName: ctx.user.name ?? ctx.user.email ?? "A team member",
+        companyName,
+        role: input.role,
+        inviteUrl,
+        expiresAt,
+      }).catch((e) => console.error("[Email] addMemberByEmail invite email failed (non-fatal):", e));
+      return { success: true, action: "invited" as const, message: `Invite sent to ${emailNorm}. They will receive a link to join the team.`, inviteUrl };
     }),
 
   // ── Invite Pipeline (for users without SmartPRO accounts) ─────────────────

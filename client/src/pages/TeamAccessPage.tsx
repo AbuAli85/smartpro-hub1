@@ -166,6 +166,14 @@ export default function TeamAccessPage() {
     { companyId: activeCompanyId ?? undefined },
     { enabled: activeCompanyId != null }
   );
+  const { data: pendingInvites = [], refetch: refetchInvites } = trpc.companies.listInvites.useQuery(
+    { companyId: activeCompanyId ?? undefined },
+    { enabled: activeCompanyId != null }
+  );
+  const revokeInviteMutation = trpc.companies.revokeInvite.useMutation({
+    onSuccess: () => { utils.companies.listInvites.invalidate(); toast.success("Invite revoked"); },
+    onError: (err) => toast.error(err.message),
+  });
 
   // UI state
   const [search, setSearch] = useState("");
@@ -242,10 +250,17 @@ export default function TeamAccessPage() {
   });
 
   const addMemberByEmail = trpc.companies.addMemberByEmail.useMutation({
-    onSuccess: () => {
+    onSuccess: (res) => {
       utils.companies.members.invalidate();
       utils.companies.employeesWithAccess.invalidate();
-      toast.success("Member added successfully");
+      utils.companies.listInvites.invalidate();
+      const msg = (res as any).message ?? "Done";
+      if ((res as any).action === "invited") {
+        const url = (res as any).inviteUrl;
+        toast.success(url ? `Invite sent! Share this link: ${url}` : msg, { duration: 10000 });
+      } else {
+        toast.success(msg);
+      }
       setInviteEmail("");
       setInviteOpen(false);
     },
@@ -291,12 +306,18 @@ export default function TeamAccessPage() {
     return matchSearch && matchStatus;
   });
 
-  // Stats
+  // Stats — combine HR employees + direct members for a complete picture
   const totalEmployees = employeesWithAccess.length;
   const withAccess = employeesWithAccess.filter((e) => e.accessStatus === 'active').length;
   const noAccess = employeesWithAccess.filter((e) => e.accessStatus === 'no_access').length;
   const suspended = employeesWithAccess.filter((e) => e.accessStatus === 'inactive').length;
   const activeMembers = members.filter((m) => m.isActive);
+  const pendingInvitesList = pendingInvites.filter((i) => !i.acceptedAt && !i.revokedAt && new Date(i.expiresAt) > new Date());
+  // Total unique people = HR employees + direct members not already in HR list
+  // Build set of memberId values already represented in HR employee list
+  const hrMemberIds = new Set(employeesWithAccess.map((e) => e.memberId).filter(Boolean));
+  const directOnlyMembers = activeMembers.filter((m) => !hrMemberIds.has(m.memberId));
+  const totalTeamSize = totalEmployees + directOnlyMembers.length;
 
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-6">
@@ -325,7 +346,7 @@ export default function TeamAccessPage() {
             <Users size={18} className="text-gray-600" />
           </div>
           <div>
-            <div className="text-2xl font-bold text-gray-900">{totalEmployees}</div>
+            <div className="text-2xl font-bold text-gray-900">{totalTeamSize}</div>
             <div className="text-xs text-gray-500">Total Employees</div>
           </div>
         </div>
@@ -334,7 +355,7 @@ export default function TeamAccessPage() {
             <CheckCircle2 size={18} className="text-green-600" />
           </div>
           <div>
-            <div className="text-2xl font-bold text-green-700">{withAccess}</div>
+            <div className="text-2xl font-bold text-green-700">{activeMembers.length}</div>
             <div className="text-xs text-gray-500">With Active Access</div>
           </div>
         </div>
@@ -343,8 +364,8 @@ export default function TeamAccessPage() {
             <Clock size={18} className="text-amber-600" />
           </div>
           <div>
-            <div className="text-2xl font-bold text-amber-700">{noAccess}</div>
-            <div className="text-xs text-gray-500">No Access Yet</div>
+            <div className="text-2xl font-bold text-amber-700">{pendingInvitesList.length}</div>
+            <div className="text-xs text-gray-500">Pending Invites</div>
           </div>
         </div>
         <div className="bg-white border rounded-xl p-4 flex items-center gap-3">
@@ -359,14 +380,19 @@ export default function TeamAccessPage() {
       </div>
 
       {/* Main Tabs */}
-      <Tabs defaultValue="employees">
+      <Tabs defaultValue="members">
         <TabsList className="mb-4">
-          <TabsTrigger value="employees" className="gap-2">
-            <Users size={14} /> All Employees ({totalEmployees})
-          </TabsTrigger>
           <TabsTrigger value="members" className="gap-2">
-            <CheckCircle2 size={14} /> Active Logins ({activeMembers.length})
+            <CheckCircle2 size={14} /> Active Members ({activeMembers.length})
           </TabsTrigger>
+          <TabsTrigger value="employees" className="gap-2">
+            <Users size={14} /> HR Employees ({totalEmployees})
+          </TabsTrigger>
+          {pendingInvitesList.length > 0 && (
+            <TabsTrigger value="invites" className="gap-2">
+              <Clock size={14} /> Pending Invites ({pendingInvitesList.length})
+            </TabsTrigger>
+          )}
           <TabsTrigger value="roles" className="gap-2">
             <Info size={14} /> Role Guide
           </TabsTrigger>
@@ -679,8 +705,71 @@ export default function TeamAccessPage() {
             </CardContent>
           </Card>
         </TabsContent>
-      </Tabs>
 
+        {/* ── Tab: Pending Invites ── */}
+        <TabsContent value="invites">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base font-semibold text-gray-800 flex items-center justify-between">
+                <span className="flex items-center gap-2">
+                  <Clock size={16} className="text-amber-500" />
+                  Pending Invites
+                </span>
+                <Badge variant="secondary">{pendingInvitesList.length}</Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              {pendingInvitesList.length === 0 ? (
+                <div className="py-8 text-center text-sm text-gray-400">No pending invites.</div>
+              ) : (
+                <div className="divide-y divide-gray-100">
+                  {pendingInvitesList.map((invite) => {
+                    const expiresAt = new Date(invite.expiresAt);
+                    const daysLeft = Math.ceil((expiresAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+                    return (
+                      <div key={invite.id} className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50">
+                        <div className="w-9 h-9 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
+                          <Mail size={16} className="text-amber-600" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium text-gray-900">{invite.email}</div>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <RoleBadge role={invite.role} />
+                            <span className="text-xs text-gray-400">Invited by {invite.inviterName ?? "Admin"}</span>
+                            <span className="text-xs text-amber-600">{daysLeft}d left</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 text-xs gap-1"
+                            onClick={() => {
+                              const url = `${window.location.origin}/invite/${invite.token}`;
+                              navigator.clipboard.writeText(url).then(() => toast.success("Invite link copied!")).catch(() => toast.info(`Link: ${url}`));
+                            }}
+                          >
+                            Copy Link
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 text-xs gap-1 text-red-600 hover:text-red-700 hover:border-red-300"
+                            disabled={revokeInviteMutation.isPending}
+                            onClick={() => revokeInviteMutation.mutate({ id: invite.id })}
+                          >
+                            Revoke
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
       {/* ── Multi-Company Access Dialog ── */}
       <Dialog open={!!multiGrantTarget} onOpenChange={(open) => { if (!open) { setMultiGrantTarget(null); setMultiGrantSelections({}); } }}>
         <DialogContent className="sm:max-w-lg">
@@ -900,8 +989,8 @@ export default function TeamAccessPage() {
               Add Team Member by Email
             </DialogTitle>
             <DialogDescription>
-              Use this if the person already has a SmartPRO account but is not in your employee list.
-              For employees already in your HR system, use the "Grant Access" button in the All Employees tab.
+              Enter any email address. If they already have a SmartPRO account they will be added immediately.
+              If not, an invite link will be created and sent to them automatically.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
@@ -935,7 +1024,7 @@ export default function TeamAccessPage() {
             <Button variant="outline" onClick={() => setInviteOpen(false)}>Cancel</Button>
             <Button
               disabled={!inviteEmail || addMemberByEmail.isPending}
-              onClick={() => addMemberByEmail.mutate({ email: inviteEmail, role: inviteRole as any, companyId: activeCompanyId ?? undefined })}
+              onClick={() => addMemberByEmail.mutate({ email: inviteEmail, role: inviteRole as any, companyId: activeCompanyId ?? undefined, origin: window.location.origin })}
             >
               {addMemberByEmail.isPending ? "Adding..." : "Add Member"}
             </Button>

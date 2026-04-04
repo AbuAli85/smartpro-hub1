@@ -486,48 +486,76 @@ export const platformOpsRouter = router({
         membershipMap.get(m.userId)!.push(m);
       }
 
-      const ROLE_ORDER = ["company_admin", "hr_admin", "finance_admin", "reviewer", "company_member", "external_auditor", "client"];
+      // Strict precedence for company membership roles (document-specified order)
+      // company_admin > hr_admin > finance_admin > company_member (reviewer/auditor are separate tracks)
+      const ROLE_ORDER = ["company_admin", "hr_admin", "finance_admin", "company_member", "reviewer", "external_auditor", "client"];
       const PLATFORM_STAFF_ROLES = new Set(["super_admin", "platform_admin", "regional_manager", "client_services", "reviewer"]);
       const BUSINESS_USER_ROLES = new Set(["company_admin", "hr_admin", "finance_admin", "company_member"]);
 
+      // Account Type: classification layer (what kind of user are they)
       function computeAccountType(pr: string | null): string {
         const role = pr ?? "client";
         if (PLATFORM_STAFF_ROLES.has(role)) return "platform_staff";
         if (BUSINESS_USER_ROLES.has(role)) return "business_user";
-        if (role === "external_auditor") return "auditor";
+        if (role === "external_auditor") return "auditor"; // separate from customers
         return "customer";
       }
 
-      function computeEffectiveAccess(pr: string | null, bestMemberRole: string | null, activeMemberRoles: string[]): string {
+      // Effective Access: permission summary label (what can they do)
+      // Platform staff: always from platformRole. Business users: from highest active membership.
+      function computeEffectiveAccess(
+        pr: string | null,
+        bestMemberRole: string | null,
+        activeMemberRoles: string[],
+      ): string {
         const role = pr ?? "client";
+        // Platform staff always derive from platformRole, not memberships
         if (role === "super_admin") return "Super Admin";
         if (role === "platform_admin") return "Platform Admin";
         if (role === "regional_manager") return "Regional Manager";
         if (role === "client_services") return "Client Services";
+        if (role === "reviewer" && activeMemberRoles.length === 0) return "Reviewer";
+        // Business users: derive from highest active company membership (strict precedence)
         if (activeMemberRoles.length > 0 && bestMemberRole) {
-          if (bestMemberRole === "company_admin") return "Company Owner";
-          if (bestMemberRole === "hr_admin") return "HR Manager";
-          if (bestMemberRole === "finance_admin") return "Finance Manager";
-          if (bestMemberRole === "reviewer") return "Reviewer";
-          if (bestMemberRole === "external_auditor") return "External Auditor";
-          if (bestMemberRole === "company_member") return "Company Member";
+          const memberLabels: Record<string, string> = {
+            company_admin: "Company Admin",  // NOT "Company Owner" — no ownership signal in data
+            hr_admin: "HR Manager",
+            finance_admin: "Finance Manager",
+            company_member: "Team Member",
+            reviewer: "Reviewer",
+            external_auditor: "External Auditor",
+          };
+          return memberLabels[bestMemberRole] ?? "Business User";
         }
-        if (role === "company_admin") return "Company Owner";
+        // Fallback: derive from platformRole when no active memberships
+        if (role === "company_admin") return "Company Admin";
         if (role === "hr_admin") return "HR Manager";
         if (role === "finance_admin") return "Finance Manager";
+        if (role === "company_member") return "Team Member";
         if (role === "reviewer") return "Reviewer";
-        if (role === "company_member") return "Company Member";
         if (role === "external_auditor") return "External Auditor";
         if (role === "client") return "Customer Portal";
         return "No Assigned Access";
       }
 
-      function computeScope(acctType: string, mships: { companyName: string; isActive: boolean }[]): string {
+      // Scope: which companies does this user have access to
+      function computeScope(acctType: string, mships: { companyName: string; isActive: boolean }[], pr: string | null): string {
         if (acctType === "platform_staff") return "All companies";
         const active = mships.filter((m) => m.isActive).map((m) => m.companyName);
-        if (active.length === 0) return "No company";
+        if (active.length === 0) {
+          if (pr === "external_auditor") return "Read-only scope"; // auditor with no company attached
+          return "No company";
+        }
         if (active.length === 1) return active[0];
-        return `${active[0]} +${active.length - 1} more`;
+        return `${active.length} companies`; // multi-company: show count, details in expanded row
+      }
+
+      // Edge case flags for UI warnings
+      function computeEdgeCaseWarning(pr: string | null, activeMemberRoles: string[]): string | null {
+        const role = pr ?? "client";
+        if (BUSINESS_USER_ROLES.has(role) && activeMemberRoles.length === 0) return "business_role_no_membership";
+        if (role === "client" && activeMemberRoles.length > 0) return "client_has_membership";
+        return null;
       }
 
       let result = allUsers.map((u) => {
@@ -549,7 +577,8 @@ export const platformOpsRouter = router({
         const hasMismatch = activeMemberRoles.length > 0 && currentPlatformRole !== expectedPlatformRole;
         const accountType = computeAccountType(u.platformRole);
         const effectiveAccess = computeEffectiveAccess(u.platformRole, bestMemberRole, activeMemberRoles);
-        const scope = computeScope(accountType, userMemberships);
+        const scope = computeScope(accountType, userMemberships, u.platformRole);
+        const edgeCaseWarning = computeEdgeCaseWarning(u.platformRole, activeMemberRoles);
 
         return {
           ...u,
@@ -561,6 +590,7 @@ export const platformOpsRouter = router({
           accountType,
           effectiveAccess,
           scope,
+          edgeCaseWarning,
         };
       });
 
@@ -583,7 +613,8 @@ export const platformOpsRouter = router({
         suspended: allUsers.filter((u) => !u.isActive).length,
         platformStaff: allUsers.filter((u) => PLATFORM_STAFF_ROLES.has(u.platformRole ?? "client")).length,
         businessUsers: allUsers.filter((u) => BUSINESS_USER_ROLES.has(u.platformRole ?? "client")).length,
-        customers: allUsers.filter((u) => !PLATFORM_STAFF_ROLES.has(u.platformRole ?? "client") && !BUSINESS_USER_ROLES.has(u.platformRole ?? "client")).length,
+        customers: allUsers.filter((u) => (u.platformRole ?? "client") === "client").length,
+        auditors: allUsers.filter((u) => (u.platformRole ?? "client") === "external_auditor").length,
       };
       return { users: result, stats };
     }),

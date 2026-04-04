@@ -65,6 +65,7 @@ type AuditUser = {
   accountType: string;
   effectiveAccess: string;
   scope: string;
+  edgeCaseWarning: string | null;
 };
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -96,11 +97,11 @@ const EFFECTIVE_ACCESS_COLORS: Record<string, string> = {
   "Platform Admin": "bg-red-100 text-red-800 border-red-200",
   "Regional Manager": "bg-orange-100 text-orange-800 border-orange-200",
   "Client Services": "bg-orange-100 text-orange-800 border-orange-200",
-  "Company Owner": "bg-emerald-100 text-emerald-800 border-emerald-200",
+  "Company Admin": "bg-emerald-100 text-emerald-800 border-emerald-200",
   "HR Manager": "bg-purple-100 text-purple-800 border-purple-200",
   "Finance Manager": "bg-blue-100 text-blue-800 border-blue-200",
   "Reviewer": "bg-teal-100 text-teal-800 border-teal-200",
-  "Company Member": "bg-gray-100 text-gray-700 border-gray-200",
+  "Team Member": "bg-gray-100 text-gray-700 border-gray-200",
   "External Auditor": "bg-yellow-100 text-yellow-800 border-yellow-200",
   "Customer Portal": "bg-slate-100 text-slate-600 border-slate-200",
   "No Assigned Access": "bg-red-50 text-red-500 border-red-200",
@@ -265,6 +266,16 @@ function UserRow({
                   <AlertTriangle size={10} /> Mismatch
                 </span>
               )}
+              {user.edgeCaseWarning === "business_role_no_membership" && !user.hasMismatch && (
+                <span className="text-xs bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded border border-orange-200 flex items-center gap-1">
+                  <AlertTriangle size={10} /> No membership
+                </span>
+              )}
+              {user.edgeCaseWarning === "client_has_membership" && (
+                <span className="text-xs bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded border border-purple-200 flex items-center gap-1">
+                  <AlertTriangle size={10} /> Inconsistent
+                </span>
+              )}
             </div>
             <p className="text-xs text-muted-foreground truncate">{user.email ?? "—"}</p>
           </div>
@@ -337,6 +348,40 @@ function UserRow({
                   disabled={fixMismatch.isPending}
                 >
                   Fix Now
+                </Button>
+              </div>
+            )}
+            {/* Edge case: business role but no company membership */}
+            {user.edgeCaseWarning === "business_role_no_membership" && !user.hasMismatch && (
+              <div className="flex items-start gap-3 p-3 rounded-lg border border-orange-300 bg-orange-50">
+                <AlertTriangle size={16} className="text-orange-600 mt-0.5 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-orange-900">Business Role Without Company Membership</p>
+                  <p className="text-xs text-orange-700 mt-0.5">
+                    This user has a business platformRole (<strong>{user.platformRole}</strong>) but is not a member of any company.
+                    Their Effective Access shows <strong>No Assigned Access</strong> until they are added to a company.
+                  </p>
+                </div>
+              </div>
+            )}
+            {/* Edge case: client platformRole but has company membership */}
+            {user.edgeCaseWarning === "client_has_membership" && (
+              <div className="flex items-start gap-3 p-3 rounded-lg border border-purple-300 bg-purple-50">
+                <AlertTriangle size={16} className="text-purple-600 mt-0.5 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-purple-900">Inconsistent Data: Client with Company Membership</p>
+                  <p className="text-xs text-purple-700 mt-0.5">
+                    This user's platformRole is <strong>client</strong> but they have active company memberships.
+                    Consider fixing the platformRole to match their membership role.
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  className="shrink-0 bg-purple-600 hover:bg-purple-700 text-white h-7 text-xs"
+                  onClick={() => fixMismatch.mutate({ userId: user.id })}
+                  disabled={fixMismatch.isPending}
+                >
+                  Fix Role
                 </Button>
               </div>
             )}

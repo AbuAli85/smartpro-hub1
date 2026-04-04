@@ -1783,3 +1783,11 @@ Every company on SmartPRO Hub gets a complete, unified business operating area �
 - [x] Operations Dashboard: Added Pending Leave Approvals card (shows pending leave requests with Review button)
 - [x] Operations Dashboard: Added Payroll Awaiting Payment card (shows approved payroll runs with Pay Now button)
 - [x] All 337 tests passing
+
+## Database Role Fixes (Apr 4, 2026)
+- [x] Fix: Chairman user (chairman@falconeyegroup.net, id 31942) platformRole updated from company_member to company_admin
+- [x] Fix: Chairman's company_members role updated to company_admin for company 30001 (Falcon Eye Business and Promotion)
+- [x] Fix: Duplicate Abu Ali account (luxsess2001@gmail.com, id 33064) deactivated — main account id 695 retained
+- [x] Fix: Operations user (operations@falconeyegroup.net) added to company 30001 with company_member role
+- [x] Verified: "Present Today: 0 of 16 active" is correct — 16 active employees, 0 checked in today (31 total including terminated/resigned)
+- [x] Verified: All 342 tests passing after fixes

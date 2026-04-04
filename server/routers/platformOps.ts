@@ -487,6 +487,48 @@ export const platformOpsRouter = router({
       }
 
       const ROLE_ORDER = ["company_admin", "hr_admin", "finance_admin", "reviewer", "company_member", "external_auditor", "client"];
+      const PLATFORM_STAFF_ROLES = new Set(["super_admin", "platform_admin", "regional_manager", "client_services", "reviewer"]);
+      const BUSINESS_USER_ROLES = new Set(["company_admin", "hr_admin", "finance_admin", "company_member"]);
+
+      function computeAccountType(pr: string | null): string {
+        const role = pr ?? "client";
+        if (PLATFORM_STAFF_ROLES.has(role)) return "platform_staff";
+        if (BUSINESS_USER_ROLES.has(role)) return "business_user";
+        if (role === "external_auditor") return "auditor";
+        return "customer";
+      }
+
+      function computeEffectiveAccess(pr: string | null, bestMemberRole: string | null, activeMemberRoles: string[]): string {
+        const role = pr ?? "client";
+        if (role === "super_admin") return "Super Admin";
+        if (role === "platform_admin") return "Platform Admin";
+        if (role === "regional_manager") return "Regional Manager";
+        if (role === "client_services") return "Client Services";
+        if (activeMemberRoles.length > 0 && bestMemberRole) {
+          if (bestMemberRole === "company_admin") return "Company Owner";
+          if (bestMemberRole === "hr_admin") return "HR Manager";
+          if (bestMemberRole === "finance_admin") return "Finance Manager";
+          if (bestMemberRole === "reviewer") return "Reviewer";
+          if (bestMemberRole === "external_auditor") return "External Auditor";
+          if (bestMemberRole === "company_member") return "Company Member";
+        }
+        if (role === "company_admin") return "Company Owner";
+        if (role === "hr_admin") return "HR Manager";
+        if (role === "finance_admin") return "Finance Manager";
+        if (role === "reviewer") return "Reviewer";
+        if (role === "company_member") return "Company Member";
+        if (role === "external_auditor") return "External Auditor";
+        if (role === "client") return "Customer Portal";
+        return "No Assigned Access";
+      }
+
+      function computeScope(acctType: string, mships: { companyName: string; isActive: boolean }[]): string {
+        if (acctType === "platform_staff") return "All companies";
+        const active = mships.filter((m) => m.isActive).map((m) => m.companyName);
+        if (active.length === 0) return "No company";
+        if (active.length === 1) return active[0];
+        return `${active[0]} +${active.length - 1} more`;
+      }
 
       let result = allUsers.map((u) => {
         const userMemberships = (membershipMap.get(u.id) ?? []).map((m) => ({
@@ -505,6 +547,9 @@ export const platformOpsRouter = router({
         const expectedPlatformRole = bestMemberRole ? mapMemberRoleToPlatformRole(bestMemberRole) : "client";
         const currentPlatformRole = u.platformRole ?? "client";
         const hasMismatch = activeMemberRoles.length > 0 && currentPlatformRole !== expectedPlatformRole;
+        const accountType = computeAccountType(u.platformRole);
+        const effectiveAccess = computeEffectiveAccess(u.platformRole, bestMemberRole, activeMemberRoles);
+        const scope = computeScope(accountType, userMemberships);
 
         return {
           ...u,
@@ -513,6 +558,9 @@ export const platformOpsRouter = router({
           bestMemberRole,
           expectedPlatformRole,
           hasMismatch,
+          accountType,
+          effectiveAccess,
+          scope,
         };
       });
 
@@ -521,7 +569,7 @@ export const platformOpsRouter = router({
       if (input?.filterPlatformRole) result = result.filter((u) => u.platformRole === input.filterPlatformRole);
       if (input?.filterCompanyId) result = result.filter((u) => u.companies.some((c) => c.companyId === input.filterCompanyId));
 
-      const stats = {
+       const stats = {
         total: allUsers.length,
         mismatches: allUsers.reduce((acc, u) => {
           const userMemberships = membershipMap.get(u.id) ?? [];
@@ -533,8 +581,10 @@ export const platformOpsRouter = router({
         }, 0),
         admins: allUsers.filter((u) => u.platformRole === "company_admin" || u.platformRole === "platform_admin").length,
         suspended: allUsers.filter((u) => !u.isActive).length,
+        platformStaff: allUsers.filter((u) => PLATFORM_STAFF_ROLES.has(u.platformRole ?? "client")).length,
+        businessUsers: allUsers.filter((u) => BUSINESS_USER_ROLES.has(u.platformRole ?? "client")).length,
+        customers: allUsers.filter((u) => !PLATFORM_STAFF_ROLES.has(u.platformRole ?? "client") && !BUSINESS_USER_ROLES.has(u.platformRole ?? "client")).length,
       };
-
       return { users: result, stats };
     }),
 

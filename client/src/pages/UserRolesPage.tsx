@@ -27,18 +27,19 @@ import {
   Search,
   Shield,
   ShieldCheck,
-  UserCheck,
   Users,
   XCircle,
   Plus,
   Trash2,
   Wrench,
-  Clock,
   Building2,
+  Globe,
+  Briefcase,
+  UserCircle2,
+  Lock,
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-
 type MembershipEntry = {
   memberId: number;
   companyId: number;
@@ -61,42 +62,48 @@ type AuditUser = {
   bestMemberRole: string | null;
   expectedPlatformRole: string;
   hasMismatch: boolean;
+  accountType: string;
+  effectiveAccess: string;
+  scope: string;
 };
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-const PLATFORM_ROLE_LABELS: Record<string, string> = {
-  platform_admin: "Platform Admin",
-  super_admin: "Super Admin",
-  company_admin: "Company Admin",
-  hr_admin: "HR Admin",
-  finance_admin: "Finance Admin",
-  company_member: "Member",
-  reviewer: "Reviewer",
-  external_auditor: "Auditor",
-  client: "Client",
+// ─── Constants ────────────────────────────────────────────────────────────────
+const ACCOUNT_TYPE_CONFIG: Record<string, { label: string; color: string; description: string }> = {
+  platform_staff: {
+    label: "Platform Staff",
+    color: "border-red-200 bg-red-50",
+    description: "SmartPRO internal team — access to all companies",
+  },
+  business_user: {
+    label: "Business Users",
+    color: "border-gray-200 bg-gray-50",
+    description: "Company owners, managers, and staff",
+  },
+  customer: {
+    label: "Customers",
+    color: "border-slate-200 bg-slate-50",
+    description: "End customers with portal access only",
+  },
+  auditor: {
+    label: "Auditors",
+    color: "border-yellow-200 bg-yellow-50",
+    description: "Read-only external auditors",
+  },
 };
 
-const PLATFORM_ROLE_COLORS: Record<string, string> = {
-  platform_admin: "bg-red-100 text-red-800 border-red-200",
-  super_admin: "bg-red-100 text-red-800 border-red-200",
-  company_admin: "bg-orange-100 text-orange-800 border-orange-200",
-  hr_admin: "bg-purple-100 text-purple-800 border-purple-200",
-  finance_admin: "bg-blue-100 text-blue-800 border-blue-200",
-  company_member: "bg-gray-100 text-gray-700 border-gray-200",
-  reviewer: "bg-teal-100 text-teal-800 border-teal-200",
-  external_auditor: "bg-yellow-100 text-yellow-800 border-yellow-200",
-  client: "bg-slate-100 text-slate-600 border-slate-200",
-};
-
-const MEMBER_ROLE_LABELS: Record<string, string> = {
-  company_admin: "Admin",
-  hr_admin: "HR Admin",
-  finance_admin: "Finance Admin",
-  company_member: "Member",
-  reviewer: "Reviewer",
-  external_auditor: "Auditor",
-  client: "Client",
+const EFFECTIVE_ACCESS_COLORS: Record<string, string> = {
+  "Super Admin": "bg-red-100 text-red-800 border-red-200",
+  "Platform Admin": "bg-red-100 text-red-800 border-red-200",
+  "Regional Manager": "bg-orange-100 text-orange-800 border-orange-200",
+  "Client Services": "bg-orange-100 text-orange-800 border-orange-200",
+  "Company Owner": "bg-emerald-100 text-emerald-800 border-emerald-200",
+  "HR Manager": "bg-purple-100 text-purple-800 border-purple-200",
+  "Finance Manager": "bg-blue-100 text-blue-800 border-blue-200",
+  "Reviewer": "bg-teal-100 text-teal-800 border-teal-200",
+  "Company Member": "bg-gray-100 text-gray-700 border-gray-200",
+  "External Auditor": "bg-yellow-100 text-yellow-800 border-yellow-200",
+  "Customer Portal": "bg-slate-100 text-slate-600 border-slate-200",
+  "No Assigned Access": "bg-red-50 text-red-500 border-red-200",
 };
 
 const ACTION_LABELS: Record<string, string> = {
@@ -108,9 +115,9 @@ const ACTION_LABELS: Record<string, string> = {
   remove_user_from_company: "Removed from company",
 };
 
-function RoleBadge({ role }: { role: string | null }) {
-  const label = role ? (PLATFORM_ROLE_LABELS[role] ?? role) : "—";
-  const color = role ? (PLATFORM_ROLE_COLORS[role] ?? "bg-gray-100 text-gray-700") : "bg-gray-100 text-gray-400";
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function EffectiveAccessBadge({ label }: { label: string }) {
+  const color = EFFECTIVE_ACCESS_COLORS[label] ?? "bg-gray-100 text-gray-700 border-gray-200";
   return (
     <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${color}`}>
       {label}
@@ -118,14 +125,26 @@ function RoleBadge({ role }: { role: string | null }) {
   );
 }
 
-// ─── Add to Company Dialog ────────────────────────────────────────────────────
+function AccountTypePill({ accountType }: { accountType: string }) {
+  const cfg = ACCOUNT_TYPE_CONFIG[accountType];
+  if (!cfg) return null;
+  const iconMap: Record<string, React.ReactNode> = {
+    platform_staff: <Shield size={12} className="text-red-600" />,
+    business_user: <Briefcase size={12} className="text-gray-600" />,
+    customer: <UserCircle2 size={12} className="text-slate-500" />,
+    auditor: <Lock size={12} className="text-yellow-600" />,
+  };
+  return (
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-muted text-muted-foreground border border-border">
+      {iconMap[accountType]}
+      {cfg.label}
+    </span>
+  );
+}
 
+// ─── Add to Company Dialog ────────────────────────────────────────────────────
 function AddToCompanyDialog({
-  user,
-  companies,
-  open,
-  onClose,
-  onSuccess,
+  user, companies, open, onClose, onSuccess,
 }: {
   user: AuditUser;
   companies: { id: number; name: string }[];
@@ -135,52 +154,36 @@ function AddToCompanyDialog({
 }) {
   const [companyId, setCompanyId] = useState<string>("");
   const [role, setRole] = useState<string>("company_member");
-
   const addMutation = trpc.platformOps.addUserToCompany.useMutation({
-    onSuccess: () => {
-      toast.success(`${user.name ?? user.email} has been added successfully.`);
-      onSuccess();
-      onClose();
-    },
+    onSuccess: () => { toast.success(`${user.name ?? user.email} added successfully.`); onSuccess(); onClose(); },
     onError: (err) => toast.error(err.message),
   });
-
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>Add to Company</DialogTitle>
-        </DialogHeader>
+        <DialogHeader><DialogTitle>Add to Company</DialogTitle></DialogHeader>
         <div className="space-y-4 py-2">
-          <div>
-            <p className="text-sm text-muted-foreground mb-3">
-              Adding <strong>{user.name ?? user.email}</strong> to a company.
-            </p>
-          </div>
+          <p className="text-sm text-muted-foreground">
+            Adding <strong>{user.name ?? user.email}</strong> to a company.
+          </p>
           <div className="space-y-2">
             <label className="text-sm font-medium">Company</label>
             <Select value={companyId} onValueChange={setCompanyId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select company…" />
-              </SelectTrigger>
+              <SelectTrigger><SelectValue placeholder="Select company…" /></SelectTrigger>
               <SelectContent>
-                {companies.map((c) => (
-                  <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
-                ))}
+                {companies.map((c) => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-medium">Role</label>
+            <label className="text-sm font-medium">Role in Company</label>
             <Select value={role} onValueChange={setRole}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
+              <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="company_admin">Company Admin</SelectItem>
-                <SelectItem value="hr_admin">HR Admin</SelectItem>
-                <SelectItem value="finance_admin">Finance Admin</SelectItem>
-                <SelectItem value="company_member">Member</SelectItem>
+                <SelectItem value="company_admin">Company Admin (Owner)</SelectItem>
+                <SelectItem value="hr_admin">HR Manager</SelectItem>
+                <SelectItem value="finance_admin">Finance Manager</SelectItem>
+                <SelectItem value="company_member">Member (Employee)</SelectItem>
                 <SelectItem value="reviewer">Reviewer</SelectItem>
                 <SelectItem value="external_auditor">External Auditor</SelectItem>
               </SelectContent>
@@ -191,7 +194,11 @@ function AddToCompanyDialog({
           <Button variant="outline" onClick={onClose}>Cancel</Button>
           <Button
             disabled={!companyId || addMutation.isPending}
-            onClick={() => addMutation.mutate({ userId: user.id, companyId: Number(companyId), role: role as "company_admin" | "company_member" | "finance_admin" | "hr_admin" | "reviewer" | "external_auditor" })}
+            onClick={() => addMutation.mutate({
+              userId: user.id,
+              companyId: Number(companyId),
+              role: role as "company_admin" | "company_member" | "finance_admin" | "hr_admin" | "reviewer" | "external_auditor",
+            })}
           >
             {addMutation.isPending ? "Adding…" : "Add to Company"}
           </Button>
@@ -202,11 +209,8 @@ function AddToCompanyDialog({
 }
 
 // ─── User Row ─────────────────────────────────────────────────────────────────
-
 function UserRow({
-  user,
-  companies,
-  onRefresh,
+  user, companies, onRefresh,
 }: {
   user: AuditUser;
   companies: { id: number; name: string }[];
@@ -214,49 +218,26 @@ function UserRow({
 }) {
   const [expanded, setExpanded] = useState(false);
   const [showAddDialog, setShowAddDialog] = useState(false);
-
   const utils = trpc.useUtils();
 
   const fixMismatch = trpc.platformOps.fixRoleMismatch.useMutation({
-    onSuccess: (data) => {
-      toast.success(`Role fixed: ${data.oldPlatformRole} → ${data.newPlatformRole}`);
-      utils.platformOps.getRoleAuditReport.invalidate();
-      utils.platformOps.getRoleAuditLogs.invalidate();
-    },
+    onSuccess: () => { toast.success("Role mismatch fixed."); onRefresh(); },
     onError: (err) => toast.error(err.message),
   });
-
   const updatePlatformRole = trpc.platformOps.updateUserRole.useMutation({
-    onSuccess: () => {
-      toast.success("Platform role updated");
-      utils.platformOps.getRoleAuditReport.invalidate();
-      utils.platformOps.getRoleAuditLogs.invalidate();
-    },
+    onSuccess: () => { toast.success("Platform role updated."); onRefresh(); },
     onError: (err) => toast.error(err.message),
   });
-
-  const toggleActive = trpc.platformOps.updateUserRole.useMutation({
-    onSuccess: () => {
-      toast.success(user.isActive ? "Account suspended" : "Account activated");
-      utils.platformOps.getRoleAuditReport.invalidate();
-    },
-    onError: (err) => toast.error(err.message),
-  });
-
   const updateMemberRole = trpc.platformOps.updateCompanyMemberRole.useMutation({
-    onSuccess: () => {
-      toast.success("Membership role updated");
-      utils.platformOps.getRoleAuditReport.invalidate();
-      utils.platformOps.getRoleAuditLogs.invalidate();
-    },
+    onSuccess: () => { toast.success("Membership role updated."); onRefresh(); },
     onError: (err) => toast.error(err.message),
   });
-
   const removeMember = trpc.platformOps.removeUserFromCompany.useMutation({
-    onSuccess: () => {
-      toast.success("Removed from company");
-      utils.platformOps.getRoleAuditReport.invalidate();
-    },
+    onSuccess: () => { toast.success("Removed from company."); onRefresh(); },
+    onError: (err) => toast.error(err.message),
+  });
+  const toggleActive = trpc.platformOps.updateUserRole.useMutation({
+    onSuccess: () => { toast.success(user.isActive ? "Account suspended." : "Account reactivated."); onRefresh(); },
     onError: (err) => toast.error(err.message),
   });
 
@@ -264,22 +245,15 @@ function UserRow({
 
   return (
     <>
-      <div
-        className={`border rounded-lg mb-2 overflow-hidden transition-all ${
-          user.hasMismatch ? "border-amber-300 bg-amber-50/30" : "border-border bg-card"
-        }`}
-      >
+      <div className={`border rounded-lg mb-2 overflow-hidden transition-all ${user.hasMismatch ? "border-amber-300 bg-amber-50/20" : "border-border bg-card"}`}>
         {/* Main row */}
         <div
-          className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-muted/30"
+          className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-muted/20"
           onClick={() => setExpanded((e) => !e)}
         >
-          {/* Avatar */}
           <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary shrink-0">
             {initials}
           </div>
-
-          {/* Name + email */}
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="font-medium text-sm">{user.name ?? "—"}</span>
@@ -288,42 +262,36 @@ function UserRow({
               )}
               {user.hasMismatch && (
                 <span className="text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded border border-amber-200 flex items-center gap-1">
-                  <AlertTriangle size={10} /> Role Mismatch
+                  <AlertTriangle size={10} /> Mismatch
                 </span>
               )}
             </div>
             <p className="text-xs text-muted-foreground truncate">{user.email ?? "—"}</p>
           </div>
-
-          {/* Platform role */}
+          {/* Effective Access — primary display, replaces raw platformRole */}
           <div className="hidden sm:block shrink-0">
-            <RoleBadge role={user.platformRole} />
+            <EffectiveAccessBadge label={user.effectiveAccess} />
           </div>
-
-          {/* Company count */}
-          <div className="hidden md:flex items-center gap-1 text-xs text-muted-foreground shrink-0">
-            <Building2 size={12} />
-            {user.companies.filter((c) => c.isActive).length} co.
+          {/* Scope */}
+          <div className="hidden lg:flex items-center gap-1 text-xs text-muted-foreground shrink-0 max-w-[150px]">
+            {user.accountType === "platform_staff"
+              ? <><Globe size={11} /><span>All companies</span></>
+              : user.scope === "No company"
+                ? <span className="opacity-50">No company</span>
+                : <><Building2 size={11} /><span className="truncate">{user.scope}</span></>
+            }
           </div>
-
-          {/* Mismatch fix button */}
           {user.hasMismatch && (
             <Button
               size="sm"
               variant="outline"
               className="shrink-0 text-amber-700 border-amber-300 hover:bg-amber-50 h-7 text-xs"
-              onClick={(e) => {
-                e.stopPropagation();
-                fixMismatch.mutate({ userId: user.id });
-              }}
+              onClick={(e) => { e.stopPropagation(); fixMismatch.mutate({ userId: user.id }); }}
               disabled={fixMismatch.isPending}
             >
-              <Wrench size={12} className="mr-1" />
-              Fix
+              <Wrench size={12} className="mr-1" />Fix
             </Button>
           )}
-
-          {/* Expand toggle */}
           <div className="text-muted-foreground shrink-0">
             {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
           </div>
@@ -331,260 +299,346 @@ function UserRow({
 
         {/* Expanded detail */}
         {expanded && (
-          <div className="border-t px-4 py-4 bg-muted/10 space-y-4">
-            {/* Platform role editor */}
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="flex-1 min-w-[200px]">
-                <p className="text-xs font-medium text-muted-foreground mb-1">Platform Role</p>
-                <div className="flex items-center gap-2">
-                  <Select
-                    value={user.platformRole ?? "client"}
-                    onValueChange={(v) =>
-                      updatePlatformRole.mutate({
-                        userId: user.id,
-                        platformRole: v as "client" | "company_admin" | "platform_admin",
-                      })
-                    }
-                  >
-                    <SelectTrigger className="h-8 text-xs w-44">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="platform_admin">Platform Admin</SelectItem>
-                      <SelectItem value="company_admin">Company Admin</SelectItem>
-                      <SelectItem value="company_member">Member</SelectItem>
-                      <SelectItem value="client">Client</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  {user.hasMismatch && (
-                    <span className="text-xs text-amber-600">
-                      Expected: <strong>{PLATFORM_ROLE_LABELS[user.expectedPlatformRole] ?? user.expectedPlatformRole}</strong>
-                    </span>
-                  )}
-                </div>
+          <div className="border-t px-4 py-4 bg-muted/10 space-y-5">
+            {/* Summary row */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">Account Type</p>
+                <AccountTypePill accountType={user.accountType} />
               </div>
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">Effective Access</p>
+                <EffectiveAccessBadge label={user.effectiveAccess} />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">Scope</p>
+                <p className="text-sm font-medium">{user.scope}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">Login Method</p>
+                <p className="text-sm">{user.loginMethod ?? "—"}</p>
+              </div>
+            </div>
 
-              <div className="flex items-center gap-2">
+            {/* Mismatch warning */}
+            {user.hasMismatch && (
+              <div className="flex items-start gap-3 p-3 rounded-lg border border-amber-300 bg-amber-50">
+                <AlertTriangle size={16} className="text-amber-600 mt-0.5 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-amber-900">Role Mismatch Detected</p>
+                  <p className="text-xs text-amber-700 mt-0.5">
+                    Platform role is <strong>{user.platformRole}</strong> but company membership suggests it should be <strong>{user.expectedPlatformRole}</strong>.
+                  </p>
+                </div>
                 <Button
                   size="sm"
-                  variant="outline"
-                  className="h-8 text-xs"
-                  onClick={() => setShowAddDialog(true)}
+                  className="shrink-0 bg-amber-600 hover:bg-amber-700 text-white h-7 text-xs"
+                  onClick={() => fixMismatch.mutate({ userId: user.id })}
+                  disabled={fixMismatch.isPending}
                 >
-                  <Plus size={12} className="mr-1" />
-                  Add to Company
+                  Fix Now
                 </Button>
-                <Button
-                  size="sm"
-                  variant={user.isActive ? "outline" : "default"}
-                  className={`h-8 text-xs ${user.isActive ? "text-red-600 border-red-300 hover:bg-red-50" : ""}`}
-                  onClick={() => toggleActive.mutate({ userId: user.id, isActive: !user.isActive })}
-                  disabled={toggleActive.isPending}
+              </div>
+            )}
+
+            {/* Platform role editor */}
+            <div>
+              <p className="text-xs font-medium text-muted-foreground mb-2">Change Platform Role</p>
+              <div className="flex items-center gap-3 flex-wrap">
+                <Select
+                  value={user.platformRole ?? "client"}
+                  onValueChange={(v) =>
+                    updatePlatformRole.mutate({
+                      userId: user.id,
+                      platformRole: v as "client" | "company_admin" | "platform_admin",
+                    })
+                  }
                 >
-                  {user.isActive ? (
-                    <><XCircle size={12} className="mr-1" />Suspend</>
-                  ) : (
-                    <><CheckCircle2 size={12} className="mr-1" />Activate</>
-                  )}
-                </Button>
+                  <SelectTrigger className="h-8 text-xs w-56"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="super_admin">Super Admin (Platform Staff)</SelectItem>
+                    <SelectItem value="platform_admin">Platform Admin (Platform Staff)</SelectItem>
+                    <SelectItem value="regional_manager">Regional Manager (Platform Staff)</SelectItem>
+                    <SelectItem value="client_services">Client Services (Platform Staff)</SelectItem>
+                    <SelectItem value="company_admin">Company Owner (Business User)</SelectItem>
+                    <SelectItem value="hr_admin">HR Manager (Business User)</SelectItem>
+                    <SelectItem value="finance_admin">Finance Manager (Business User)</SelectItem>
+                    <SelectItem value="company_member">Company Member (Business User)</SelectItem>
+                    <SelectItem value="reviewer">Reviewer</SelectItem>
+                    <SelectItem value="external_auditor">External Auditor</SelectItem>
+                    <SelectItem value="client">Customer Portal</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">Use "Fix Mismatch" for auto-correction.</p>
               </div>
             </div>
 
             {/* Company memberships */}
             <div>
-              <p className="text-xs font-medium text-muted-foreground mb-2">Company Memberships ({user.companies.length})</p>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs font-medium text-muted-foreground">Company Memberships</p>
+                <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setShowAddDialog(true)}>
+                  <Plus size={11} className="mr-1" />Add to Company
+                </Button>
+              </div>
               {user.companies.length === 0 ? (
-                <p className="text-xs text-muted-foreground italic">No company memberships</p>
+                <p className="text-xs text-muted-foreground italic">No company memberships — Customer Portal access only.</p>
               ) : (
                 <div className="space-y-2">
                   {user.companies.map((m) => (
                     <div
                       key={m.memberId}
-                      className={`flex items-center gap-3 p-2 rounded border text-sm ${
-                        m.isActive ? "bg-background border-border" : "bg-muted/30 border-dashed opacity-60"
-                      }`}
+                      className={`flex items-center gap-3 p-2.5 rounded-lg border ${m.isActive ? "border-border bg-background" : "border-dashed border-muted-foreground/30 bg-muted/20 opacity-60"}`}
                     >
                       <Building2 size={14} className="text-muted-foreground shrink-0" />
-                      <span className="flex-1 font-medium text-xs">{m.companyName}</span>
-                      {!m.isActive && <span className="text-xs text-muted-foreground">(inactive)</span>}
-                      {m.isActive && (
-                        <Select
-                          value={m.memberRole}
-                          onValueChange={(v) =>
-                            updateMemberRole.mutate({
-                              memberId: m.memberId,
-                              role: v as "company_admin" | "company_member" | "finance_admin" | "hr_admin" | "reviewer" | "external_auditor",
-                            })
-                          }
-                        >
-                          <SelectTrigger className="h-7 text-xs w-36">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="company_admin">Company Admin</SelectItem>
-                            <SelectItem value="hr_admin">HR Admin</SelectItem>
-                            <SelectItem value="finance_admin">Finance Admin</SelectItem>
-                            <SelectItem value="company_member">Member</SelectItem>
-                            <SelectItem value="reviewer">Reviewer</SelectItem>
-                            <SelectItem value="external_auditor">Auditor</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      )}
-                      {m.isActive && (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-7 w-7 p-0 text-red-500 hover:bg-red-50"
-                          onClick={() => removeMember.mutate({ memberId: m.memberId })}
-                          disabled={removeMember.isPending}
-                          title="Remove from company"
-                        >
-                          <Trash2 size={12} />
-                        </Button>
-                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{m.companyName}</p>
+                        {!m.isActive && <p className="text-xs text-muted-foreground">Inactive membership</p>}
+                      </div>
+                      <Select
+                        value={m.memberRole}
+                        onValueChange={(v) =>
+                          updateMemberRole.mutate({
+                            memberId: m.memberId,
+                            role: v as "company_admin" | "company_member" | "finance_admin" | "hr_admin" | "reviewer" | "external_auditor",
+                          })
+                        }
+                      >
+                        <SelectTrigger className="h-7 text-xs w-40"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="company_admin">Company Admin</SelectItem>
+                          <SelectItem value="hr_admin">HR Manager</SelectItem>
+                          <SelectItem value="finance_admin">Finance Manager</SelectItem>
+                          <SelectItem value="company_member">Member</SelectItem>
+                          <SelectItem value="reviewer">Reviewer</SelectItem>
+                          <SelectItem value="external_auditor">External Auditor</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 w-7 p-0 text-muted-foreground hover:text-red-600"
+                        onClick={() => removeMember.mutate({ memberId: m.memberId })}
+                        disabled={removeMember.isPending}
+                      >
+                        <Trash2 size={13} />
+                      </Button>
                     </div>
                   ))}
                 </div>
               )}
             </div>
 
-            {/* Meta */}
-            <div className="flex flex-wrap gap-4 text-xs text-muted-foreground pt-1 border-t">
-              <span>ID: {user.id}</span>
-              <span>Login: {user.loginMethod ?? "—"}</span>
-              <span>Last seen: {user.lastSignedIn ? new Date(user.lastSignedIn).toLocaleDateString() : "—"}</span>
-              <span>Joined: {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : "—"}</span>
+            {/* Account actions */}
+            <div className="flex items-center gap-2 pt-1 border-t">
+              <Button
+                size="sm"
+                variant="outline"
+                className={`h-8 text-xs ${user.isActive ? "text-red-600 border-red-300 hover:bg-red-50" : "text-green-700 border-green-300 hover:bg-green-50"}`}
+                onClick={() => toggleActive.mutate({ userId: user.id, isActive: !user.isActive })}
+                disabled={toggleActive.isPending}
+              >
+                {user.isActive
+                  ? <><XCircle size={12} className="mr-1" />Suspend Account</>
+                  : <><CheckCircle2 size={12} className="mr-1" />Reactivate Account</>
+                }
+              </Button>
+              <p className="text-xs text-muted-foreground">
+                Joined {new Date(user.createdAt).toLocaleDateString()}
+                {user.lastSignedIn ? ` · Last seen ${new Date(user.lastSignedIn).toLocaleDateString()}` : ""}
+              </p>
             </div>
           </div>
         )}
       </div>
 
-      {showAddDialog && (
-        <AddToCompanyDialog
-          user={user}
-          companies={companies}
-          open={showAddDialog}
-          onClose={() => setShowAddDialog(false)}
-          onSuccess={() => {
-            utils.platformOps.getRoleAuditReport.invalidate();
-            utils.platformOps.getRoleAuditLogs.invalidate();
-          }}
-        />
-      )}
+      <AddToCompanyDialog
+        user={user}
+        companies={companies}
+        open={showAddDialog}
+        onClose={() => setShowAddDialog(false)}
+        onSuccess={() => {
+          utils.platformOps.getRoleAuditReport.invalidate();
+          utils.platformOps.getRoleAuditLogs.invalidate();
+        }}
+      />
     </>
   );
 }
 
-// ─── Audit Log Panel ──────────────────────────────────────────────────────────
-
-function AuditLogPanel() {
-  const { data: logs, isLoading } = trpc.platformOps.getRoleAuditLogs.useQuery({ limit: 30 });
-
-  if (isLoading) return <div className="text-sm text-muted-foreground p-4">Loading audit log…</div>;
-  if (!logs || logs.length === 0) return <div className="text-sm text-muted-foreground p-4 italic">No role change events yet.</div>;
+// ─── Grouped Section ──────────────────────────────────────────────────────────
+function UserGroup({
+  accountType, users, companies, onRefresh,
+}: {
+  accountType: string;
+  users: AuditUser[];
+  companies: { id: number; name: string }[];
+  onRefresh: () => void;
+}) {
+  const [collapsed, setCollapsed] = useState(false);
+  const cfg = ACCOUNT_TYPE_CONFIG[accountType] ?? { label: accountType, color: "border-gray-200 bg-gray-50", description: "" };
+  const mismatches = users.filter((u) => u.hasMismatch).length;
+  const iconMap: Record<string, React.ReactNode> = {
+    platform_staff: <Shield size={16} className="text-red-600" />,
+    business_user: <Briefcase size={16} className="text-gray-600" />,
+    customer: <UserCircle2 size={16} className="text-slate-500" />,
+    auditor: <Lock size={16} className="text-yellow-600" />,
+  };
 
   return (
-    <div className="space-y-2">
-      {logs.map((log) => (
-        <div key={log.id} className="flex items-start gap-3 p-3 rounded-lg border bg-card text-sm">
-          <div className="w-7 h-7 rounded-full bg-muted flex items-center justify-center shrink-0 mt-0.5">
-            <Shield size={13} className="text-muted-foreground" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="font-medium text-xs">{ACTION_LABELS[log.action] ?? log.action}</span>
-              <span className="text-xs text-muted-foreground">by {log.actorName ?? log.actorEmail ?? `User #${log.actorId}`}</span>
-            </div>
-            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-              {(() => {
-                const ov = log.oldValues as Record<string, unknown> | null;
-                const nv = log.newValues as Record<string, unknown> | null;
-                if (ov && typeof ov === "object" && "platformRole" in ov) {
-                  return (
-                    <span className="text-xs text-muted-foreground">
-                      {String(ov.platformRole)} → {nv && "platformRole" in nv ? String(nv.platformRole) : "—"}
-                    </span>
-                  );
-                }
-                if (ov && typeof ov === "object" && "role" in ov) {
-                  return (
-                    <span className="text-xs text-muted-foreground">
-                      {String(ov.role)} → {nv && "role" in nv ? String(nv.role) : "—"}
-                    </span>
-                  );
-                }
-                return null;
-              })()}
-              <span className="text-xs text-muted-foreground flex items-center gap-1">
-                <Clock size={10} />
-                {new Date(log.createdAt).toLocaleString()}
+    <div className={`rounded-xl border-2 ${cfg.color} mb-4 overflow-hidden`}>
+      <button
+        className="w-full flex items-center gap-3 px-5 py-3.5 text-left hover:bg-black/5 transition-colors"
+        onClick={() => setCollapsed((c) => !c)}
+      >
+        <div className="shrink-0">{iconMap[accountType] ?? <Users size={16} />}</div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-3 flex-wrap">
+            <span className="font-semibold text-sm">{cfg.label}</span>
+            <span className="text-xs text-muted-foreground bg-background/80 px-2 py-0.5 rounded-full border">
+              {users.length} user{users.length !== 1 ? "s" : ""}
+            </span>
+            {mismatches > 0 && (
+              <span className="text-xs bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full border border-amber-300 flex items-center gap-1">
+                <AlertTriangle size={10} /> {mismatches} mismatch{mismatches !== 1 ? "es" : ""}
               </span>
-            </div>
+            )}
           </div>
+          <p className="text-xs text-muted-foreground mt-0.5">{cfg.description}</p>
         </div>
-      ))}
+        <div className="text-muted-foreground shrink-0">
+          {collapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
+        </div>
+      </button>
+
+      {!collapsed && (
+        <div className="px-4 pb-3 pt-1 bg-background/60">
+          {users.map((user) => (
+            <UserRow key={user.id} user={user} companies={companies} onRefresh={onRefresh} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Audit Log Panel ──────────────────────────────────────────────────────────
+function AuditLogPanel() {
+  const { data, isLoading } = trpc.platformOps.getRoleAuditLogs.useQuery({ limit: 30 });
+  if (isLoading) {
+    return (
+      <div className="space-y-2">
+        {[1,2,3,4,5].map((i) => <div key={i} className="h-12 rounded bg-muted animate-pulse" />)}
+      </div>
+    );
+  }
+  if (!data?.logs?.length) {
+    return <p className="text-sm text-muted-foreground text-center py-8">No role change events recorded yet.</p>;
+  }
+  return (
+    <div className="space-y-2">
+      {data.logs.map((log) => {
+        const oldVals = (log.oldValues as Record<string, unknown>) ?? {};
+        const newVals = (log.newValues as Record<string, unknown>) ?? {};
+        return (
+          <div key={log.id} className="flex items-start gap-3 p-3 rounded-lg border bg-muted/20">
+            <ShieldCheck size={14} className="text-muted-foreground mt-0.5 shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm">
+                <span className="font-medium">{ACTION_LABELS[log.action] ?? log.action}</span>
+                {log.targetUserEmail && (
+                  <span className="text-muted-foreground"> for <strong>{log.targetUserEmail}</strong></span>
+                )}
+              </p>
+              {(Object.keys(oldVals).length > 0 || Object.keys(newVals).length > 0) && (
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {Object.entries(newVals).map(([k, v]) => (
+                    <span key={k}>{k}: <strong>{String(oldVals[k] ?? "—")}</strong> → <strong>{String(v)}</strong> </span>
+                  ))}
+                </p>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground shrink-0">
+              {new Date(log.createdAt).toLocaleString()}
+            </p>
+          </div>
+        );
+      })}
     </div>
   );
 }
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
-
 export default function UserRolesPage() {
   const [search, setSearch] = useState("");
+  const [filterAccountType, setFilterAccountType] = useState<string>("all");
   const [filterMismatches, setFilterMismatches] = useState(false);
-  const [filterPlatformRole, setFilterPlatformRole] = useState<string>("all");
   const [filterCompanyId, setFilterCompanyId] = useState<string>("all");
   const [activeTab, setActiveTab] = useState<"users" | "audit">("users");
 
+  const { data, isLoading, refetch } = trpc.platformOps.getRoleAuditReport.useQuery(
+    {
+      search: search || undefined,
+      filterMismatches: filterMismatches || undefined,
+      filterCompanyId: filterCompanyId !== "all" ? Number(filterCompanyId) : undefined,
+    },
+    { refetchOnWindowFocus: false }
+  );
+
+  const { data: companiesData } = trpc.platformOps.listCompanies.useQuery();
   const utils = trpc.useUtils();
 
-  const { data: reportData, isLoading, refetch } = trpc.platformOps.getRoleAuditReport.useQuery({
-    search: search || undefined,
-    filterMismatches: filterMismatches || undefined,
-    filterPlatformRole: filterPlatformRole !== "all" ? filterPlatformRole : undefined,
-    filterCompanyId: filterCompanyId !== "all" ? Number(filterCompanyId) : undefined,
-  });
-
-  const { data: companies } = trpc.platformOps.listCompanies.useQuery();
-
   const bulkFix = trpc.platformOps.bulkFixMismatches.useMutation({
-    onSuccess: (data) => {
-      toast.success(`Fixed ${data.fixedCount} mismatches — all role inconsistencies resolved.`);
+    onSuccess: (res) => {
+      toast.success(`Fixed ${res.fixed} mismatch${res.fixed !== 1 ? "es" : ""}.`);
       utils.platformOps.getRoleAuditReport.invalidate();
       utils.platformOps.getRoleAuditLogs.invalidate();
     },
     onError: (err) => toast.error(err.message),
   });
 
-  const stats = reportData?.stats ?? { total: 0, mismatches: 0, admins: 0, suspended: 0 };
-  const userList = reportData?.users ?? [];
+  const handleRefresh = () => {
+    utils.platformOps.getRoleAuditReport.invalidate();
+    utils.platformOps.getRoleAuditLogs.invalidate();
+  };
+
+  const stats = data?.stats ?? { total: 0, mismatches: 0, admins: 0, suspended: 0, platformStaff: 0, businessUsers: 0, customers: 0 };
+  const allUsers = (data?.users ?? []) as AuditUser[];
+  const companies = companiesData ?? [];
+
+  // Apply account type filter client-side
+  const filteredUsers = filterAccountType === "all"
+    ? allUsers
+    : allUsers.filter((u) => u.accountType === filterAccountType);
+
+  // Group by accountType in defined order
+  const GROUP_ORDER = ["platform_staff", "business_user", "customer", "auditor"];
+  const grouped = GROUP_ORDER.reduce<Record<string, AuditUser[]>>((acc, key) => {
+    const group = filteredUsers.filter((u) => u.accountType === key);
+    if (group.length > 0) acc[key] = group;
+    return acc;
+  }, {});
 
   return (
-    <div className="p-6 space-y-6 max-w-6xl mx-auto">
+    <div className="p-6 max-w-5xl mx-auto space-y-6">
       {/* Header */}
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <ShieldCheck size={24} className="text-primary" />
-            User Roles & Access
+          <h1 className="text-xl font-bold flex items-center gap-2">
+            <Shield size={20} className="text-primary" />
+            User Roles &amp; Access
           </h1>
-          <p className="text-muted-foreground text-sm mt-1">
-            Review all user roles, detect mismatches, and manage company access from one place.
+          <p className="text-sm text-muted-foreground mt-1">
+            Review and manage all user identities, effective access levels, and company memberships.
           </p>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => { refetch(); utils.platformOps.getRoleAuditLogs.invalidate(); }}
-          className="gap-1 shrink-0"
-        >
-          <RefreshCw size={14} />
-          Refresh
+        <Button variant="outline" size="sm" onClick={() => { handleRefresh(); refetch(); }} className="gap-1 shrink-0">
+          <RefreshCw size={14} />Refresh
         </Button>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      {/* Stats — by account type */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Card>
           <CardContent className="pt-4 pb-3">
             <div className="flex items-center gap-3">
@@ -598,43 +652,44 @@ export default function UserRolesPage() {
             </div>
           </CardContent>
         </Card>
+        <Card>
+          <CardContent className="pt-4 pb-3">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg bg-red-50 flex items-center justify-center">
+                <Shield size={18} className="text-red-600" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{stats.platformStaff}</p>
+                <p className="text-xs text-muted-foreground">Platform Staff</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4 pb-3">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg bg-gray-100 flex items-center justify-center">
+                <Briefcase size={18} className="text-gray-600" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{stats.businessUsers}</p>
+                <p className="text-xs text-muted-foreground">Business Users</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
         <Card className={stats.mismatches > 0 ? "border-amber-300" : ""}>
           <CardContent className="pt-4 pb-3">
             <div className="flex items-center gap-3">
               <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${stats.mismatches > 0 ? "bg-amber-50" : "bg-green-50"}`}>
                 {stats.mismatches > 0
                   ? <AlertTriangle size={18} className="text-amber-600" />
-                  : <CheckCircle2 size={18} className="text-green-600" />}
+                  : <CheckCircle2 size={18} className="text-green-600" />
+                }
               </div>
               <div>
                 <p className="text-2xl font-bold">{stats.mismatches}</p>
                 <p className="text-xs text-muted-foreground">Mismatches</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-3">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-lg bg-orange-50 flex items-center justify-center">
-                <UserCheck size={18} className="text-orange-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{stats.admins}</p>
-                <p className="text-xs text-muted-foreground">Admins</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-3">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-lg bg-red-50 flex items-center justify-center">
-                <XCircle size={18} className="text-red-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{stats.suspended}</p>
-                <p className="text-xs text-muted-foreground">Suspended</p>
               </div>
             </div>
           </CardContent>
@@ -651,7 +706,7 @@ export default function UserRolesPage() {
                 {stats.mismatches} user{stats.mismatches !== 1 ? "s have" : " has"} a role mismatch
               </p>
               <p className="text-xs text-amber-700">
-                Their platform role doesn't match their highest company membership role. This can cause incorrect sidebar navigation.
+                Their platform role does not match their highest company membership role, which can cause incorrect sidebar access.
               </p>
             </div>
           </div>
@@ -670,26 +725,16 @@ export default function UserRolesPage() {
       {/* Tabs */}
       <div className="flex gap-1 border-b">
         <button
-          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-            activeTab === "users" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
-          }`}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === "users" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
           onClick={() => setActiveTab("users")}
         >
-          <span className="flex items-center gap-2">
-            <Users size={14} />
-            Users ({userList.length})
-          </span>
+          <span className="flex items-center gap-2"><Users size={14} />Users &amp; Roles ({allUsers.length})</span>
         </button>
         <button
-          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-            activeTab === "audit" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
-          }`}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === "audit" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
           onClick={() => setActiveTab("audit")}
         >
-          <span className="flex items-center gap-2">
-            <Shield size={14} />
-            Audit Log
-          </span>
+          <span className="flex items-center gap-2"><Shield size={14} />Audit Log</span>
         </button>
       </div>
 
@@ -706,29 +751,21 @@ export default function UserRolesPage() {
                 className="pl-8 h-9 text-sm"
               />
             </div>
-            <Select value={filterPlatformRole} onValueChange={setFilterPlatformRole}>
-              <SelectTrigger className="w-40 h-9 text-sm">
-                <SelectValue placeholder="All roles" />
-              </SelectTrigger>
+            <Select value={filterAccountType} onValueChange={setFilterAccountType}>
+              <SelectTrigger className="w-44 h-9 text-sm"><SelectValue placeholder="All types" /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Roles</SelectItem>
-                <SelectItem value="platform_admin">Platform Admin</SelectItem>
-                <SelectItem value="company_admin">Company Admin</SelectItem>
-                <SelectItem value="hr_admin">HR Admin</SelectItem>
-                <SelectItem value="finance_admin">Finance Admin</SelectItem>
-                <SelectItem value="company_member">Member</SelectItem>
-                <SelectItem value="reviewer">Reviewer</SelectItem>
-                <SelectItem value="external_auditor">Auditor</SelectItem>
-                <SelectItem value="client">Client</SelectItem>
+                <SelectItem value="all">All Account Types</SelectItem>
+                <SelectItem value="platform_staff">Platform Staff</SelectItem>
+                <SelectItem value="business_user">Business Users</SelectItem>
+                <SelectItem value="customer">Customers</SelectItem>
+                <SelectItem value="auditor">Auditors</SelectItem>
               </SelectContent>
             </Select>
             <Select value={filterCompanyId} onValueChange={setFilterCompanyId}>
-              <SelectTrigger className="w-44 h-9 text-sm">
-                <SelectValue placeholder="All companies" />
-              </SelectTrigger>
+              <SelectTrigger className="w-44 h-9 text-sm"><SelectValue placeholder="All companies" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Companies</SelectItem>
-                {(companies ?? []).map((c) => (
+                {companies.map((c) => (
                   <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
                 ))}
               </SelectContent>
@@ -739,19 +776,23 @@ export default function UserRolesPage() {
               className="h-9 text-sm gap-1"
               onClick={() => setFilterMismatches((f) => !f)}
             >
-              <AlertTriangle size={13} />
-              Mismatches Only
+              <AlertTriangle size={13} />Mismatches Only
             </Button>
           </div>
 
-          {/* User list */}
+          {/* Model explanation */}
+          <div className="p-3 rounded-lg border bg-muted/30 text-xs text-muted-foreground">
+            <strong>How this works:</strong> Each user has one <strong>Account Type</strong> (Platform Staff / Business User / Customer),
+            an <strong>Effective Access</strong> label computed from their highest role, and a <strong>Scope</strong> showing which companies they can access.
+            The legacy <em>admin/user</em> system field is hidden — use Effective Access instead.
+          </div>
+
+          {/* Grouped user list */}
           {isLoading ? (
             <div className="space-y-2">
-              {[1, 2, 3, 4].map((i) => (
-                <div key={i} className="h-16 rounded-lg bg-muted animate-pulse" />
-              ))}
+              {[1, 2, 3].map((i) => <div key={i} className="h-16 rounded-xl bg-muted animate-pulse" />)}
             </div>
-          ) : userList.length === 0 ? (
+          ) : filteredUsers.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
               <Users size={40} className="mx-auto mb-3 opacity-30" />
               <p className="font-medium">No users found</p>
@@ -759,15 +800,13 @@ export default function UserRolesPage() {
             </div>
           ) : (
             <div>
-              {userList.map((user) => (
-                <UserRow
-                  key={user.id}
-                  user={user as AuditUser}
-                  companies={companies ?? []}
-                  onRefresh={() => {
-                    utils.platformOps.getRoleAuditReport.invalidate();
-                    utils.platformOps.getRoleAuditLogs.invalidate();
-                  }}
+              {Object.entries(grouped).map(([accountType, groupUsers]) => (
+                <UserGroup
+                  key={accountType}
+                  accountType={accountType}
+                  users={groupUsers}
+                  companies={companies}
+                  onRefresh={handleRefresh}
                 />
               ))}
             </div>
@@ -779,8 +818,7 @@ export default function UserRolesPage() {
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center gap-2">
-              <Shield size={16} />
-              Recent Role Change Events
+              <Shield size={16} />Role Change History
             </CardTitle>
           </CardHeader>
           <CardContent>

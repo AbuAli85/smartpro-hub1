@@ -1845,3 +1845,14 @@ Every company on SmartPRO Hub gets a complete, unified business operating area �
 - [x] Navigation: "User Roles & Access" link added under Platform section in PlatformLayout
 - [x] clientNav: /user-roles added to PLATFORM_ONLY_HREFS and AUDITOR_BLOCKED_HREFS
 - [x] Tests: 15 vitest tests for mismatch detection, role mapping, and bulk fix logic (357 total passing)
+
+## User Roles Page — Clean UI Redesign (Phase 1, Apr 4, 2026)
+
+- [ ] Backend: compute accountType from platformRole
+- [ ] Backend: compute effectiveAccess label
+- [ ] Backend: compute scope string
+- [ ] UI: group users into 3 sections — Platform Staff / Business Users / Customers
+- [ ] UI: replace raw platformRole with Effective Access label
+- [ ] UI: hide legacy users.role field
+- [ ] UI: show Scope column
+- [ ] UI: summary cards by account type

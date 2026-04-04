@@ -1296,15 +1296,15 @@ Every company on SmartPRO Hub gets a complete, unified business operating area �
 - [x] Verify: switching companies shows correct employees with no 403 errors
 
 ## Phase 58: Fix Employee Import & Status Filtering
-- [ ] Fix EmployeeImportPage: pass activeCompanyId to bulkImport mutation so import goes to selected company
-- [ ] Fix bulkImport procedure: require companyId input (not optional), validate membership
+- [x] Fix EmployeeImportPage: pass activeCompanyId to bulkImport mutation so import goes to selected company
+- [x] Fix bulkImport procedure: require companyId input (not optional), validate membership
 - [x] Filter HR Employees page: show all statuses but default to active, add clear status filter UI
 - [x] Filter Team Access (MyTeamPage): only show active employees by default, hide terminated/cancelled
 - [x] Filter Attendance page: only show active employees in employee selector
 - [x] Filter Payroll page: only show active employees in salary config and payroll runs
 - [x] Filter Leave page: only show active employees in leave request forms
 - [x] Add status badge colors: active=green, on_leave=yellow, terminated=red, resigned=gray
-- [ ] Verify: importing while company B selected saves to company B, not company A
+- [x] Verify: importing while company B selected saves to company B, not company A
 
 ## Phase 59: Fresh Start — Clear Data & Fix Company Isolation (COMPLETED)
 - [x] Clear all 54 employees from database (DELETE FROM employees)
@@ -1318,8 +1318,8 @@ Every company on SmartPRO Hub gets a complete, unified business operating area �
 - [x] Verify end-to-end: import to company A → only shows in company A; import to company B → only shows in company B
 
 ## Phase 60: Full End-to-End Audit — All Badges, Counts, Stats Must Be Company-Scoped
-- [ ] Fix Team Access badge (sidebar shows 31 from old company data)
-- [ ] Audit sidebar navigation badges: every badge must use activeCompanyId
+- [x] Fix Team Access badge (sidebar shows 31 from old company data)
+- [x] Audit sidebar navigation badges: every badge must use activeCompanyId
 - [x] Audit Dashboard KPI cards: all counts must be company-scoped
 - [x] Audit My Team page: Total Staff, Active, On Leave badges must reflect active company
 - [x] Audit HR Employees page: all counts must reflect active company
@@ -1332,9 +1332,9 @@ Every company on SmartPRO Hub gets a complete, unified business operating area �
 - [x] Verify: switching company A to B → ALL badges, counts, lists update immediately
 
 ## Multi-Company Access Management
-- [ ] Add backend procedure: companies.grantMultiCompanyAccess — grant one employee access to multiple companies at once with a specified role per company
-- [ ] Update TeamAccessPage: add "Grant to Multiple Companies" button that opens a dialog showing all owner's companies with checkboxes and role selectors
-- [ ] Ensure company switcher shows the user's role label correctly for each company they have access to
+- [x] Add backend procedure: companies.grantMultiCompanyAccess — grant one employee access to multiple companies at once with a specified role per company
+- [x] Update TeamAccessPage: add "Grant to Multiple Companies" button that opens a dialog showing all owner's companies with checkboxes and role selectors
+- [x] Ensure company switcher shows the user's role label correctly for each company they have access to
 
 ## Expiry Warning Indicators
 
@@ -1434,20 +1434,20 @@ Every company on SmartPRO Hub gets a complete, unified business operating area �
 - [x] tRPC: employeeRequests.myRequests (employee - list own requests)
 - [x] tRPC: employeeRequests.adminList (admin/hr - list all requests with filters)
 - [x] tRPC: employeeRequests.updateStatus (admin/hr - approve/reject request)
-- [ ] UI: MyPortalPage - redesign as employee home with quick action cards
+- [x] UI: MyPortalPage - redesign as employee home with quick action cards
 - [x] UI: QR Check-in page (/attend/:token) - mobile-first GPS check-in/out page
-- [ ] UI: Admin Attendance Sites page - create sites, show QR codes, download QR
-- [ ] UI: Admin Attendance Board - live board showing who is in/out today
-- [ ] UI: Employee Requests page - submit and track requests
-- [ ] UI: Admin Requests Management - approve/reject with notes
-- [ ] UI: My Payslips section in portal
-- [ ] UI: My Documents section in portal
-- [ ] UI: My Profile section in portal
-- [ ] UI: Notifications panel in portal
-- [ ] Email: notify employee when request is approved/rejected
-- [ ] Email: notify HR when new request is submitted
-- [ ] RBAC: /attend/:token route is public (no auth required for QR scan)
-- [ ] RBAC: attendance admin pages visible to company_admin and hr_admin only
+- [x] UI: Admin Attendance Sites page - create sites, show QR codes, download QR
+- [x] UI: Admin Attendance Board - live board showing who is in/out today
+- [x] UI: Employee Requests page - submit and track requests
+- [x] UI: Admin Requests Management - approve/reject with notes
+- [x] UI: My Payslips section in portal
+- [x] UI: My Documents section in portal
+- [x] UI: My Profile section in portal
+- [x] UI: Notifications panel in portal
+- [x] Email: notify employee when request is approved/rejected
+- [x] Email: notify HR when new request is submitted
+- [x] RBAC: /attend/:token route is public (no auth required for QR scan)
+- [x] RBAC: attendance admin pages visible to company_admin and hr_admin only
 
 ## Phase 63: Employee Portal & QR Attendance (Completed)
 - [x] DB schema: attendance_sites, attendance_records, employee_requests tables migrated
@@ -1461,19 +1461,19 @@ Every company on SmartPRO Hub gets a complete, unified business operating area �
 - [x] /attend/:token added as public route (no auth required for QR scan page)
 
 ## Phase 64: Smart Map-Powered Attendance Sites (Planned)
-- [ ] DB: Add lat, lng, radiusMeters, siteType, clientName, operatingHoursStart, operatingHoursEnd, timezone to attendance_sites
-- [ ] Backend: Enforce geo-fence radius on checkIn (reject if outside radius)
-- [ ] Backend: Enforce operating hours window on checkIn
-- [ ] Backend: Add siteType and clientName to createSite/updateSite inputs
-- [ ] UI: AttendanceSitesPage — Google Maps picker for lat/lng in create/edit dialog
-- [ ] UI: Geo-fence radius slider (50m–2000m) with visual circle on map
-- [ ] UI: Site type selector (Mall, Brand Store, Office, Warehouse, Client Site, Other)
-- [ ] UI: Client/brand name field for outsourced deployments
-- [ ] UI: Operating hours (start/end time) per site
-- [ ] UI: Site cards show type badge, client name, radius, and map thumbnail
-- [ ] UI: AttendCheckInPage — show live GPS distance from site, geo-fence status indicator
-- [ ] UI: AttendCheckInPage — show site map with geo-fence circle
-- [ ] UI: AttendCheckInPage — clear error if outside geo-fence radius
+- [x] DB: Add lat, lng, radiusMeters, siteType, clientName, operatingHoursStart, operatingHoursEnd, timezone to attendance_sites
+- [x] Backend: Enforce geo-fence radius on checkIn (reject if outside radius)
+- [x] Backend: Enforce operating hours window on checkIn
+- [x] Backend: Add siteType and clientName to createSite/updateSite inputs
+- [x] UI: AttendanceSitesPage — Google Maps picker for lat/lng in create/edit dialog
+- [x] UI: Geo-fence radius slider (50m–2000m) with visual circle on map
+- [x] UI: Site type selector (Mall, Brand Store, Office, Warehouse, Client Site, Other)
+- [x] UI: Client/brand name field for outsourced deployments
+- [x] UI: Operating hours (start/end time) per site
+- [x] UI: Site cards show type badge, client name, radius, and map thumbnail
+- [x] UI: AttendCheckInPage — show live GPS distance from site, geo-fence status indicator
+- [x] UI: AttendCheckInPage — show site map with geo-fence circle
+- [x] UI: AttendCheckInPage — clear error if outside geo-fence radius
 
 ## Phase 63: Enhanced Smart Attendance Sites (Completed)
 - [x] Add lat/lng, radiusMeters, enforceGeofence, siteType, clientName, operatingHours, timezone, enforceHours columns to attendance_sites
@@ -1483,11 +1483,11 @@ Every company on SmartPRO Hub gets a complete, unified business operating area �
 - [x] Upgrade AttendCheckInPage with live GPS tracking, proximity ring, geo-fence feedback, operating hours check, site info card
 
 ## Phase 64: Manual Check-in Requests (Outside Geo-fence)
-- [ ] Add manual_checkin_requests table to schema.ts and migrate DB
-- [ ] Add submitManualCheckIn, listManualCheckIns, approveManualCheckIn, rejectManualCheckIn procedures to attendance router
-- [ ] Update AttendCheckInPage: show justification form when outside geo-fence instead of hard block
-- [ ] Add Manual Requests tab to AttendanceSitesPage for admin review with approve/reject
-- [ ] Write tests for manual check-in request flow
+- [x] Add manual_checkin_requests table to schema.ts and migrate DB
+- [x] Add submitManualCheckIn, listManualCheckIns, approveManualCheckIn, rejectManualCheckIn procedures to attendance router
+- [x] Update AttendCheckInPage: show justification form when outside geo-fence instead of hard block
+- [x] Add Manual Requests tab to AttendanceSitesPage for admin review with approve/reject
+- [x] Write tests for manual check-in request flow
 
 ## Phase 65: Manual Check-in Requests (completed)
 - [x] Add manual_checkin_requests DB table and migration
@@ -1497,23 +1497,23 @@ Every company on SmartPRO Hub gets a complete, unified business operating area �
 - [x] 0 TypeScript errors, 293 tests pass
 
 ## Phase 66: Smart Attendance Scheduling System
-- [ ] Add shift_templates, employee_schedules, company_holidays tables to schema.ts
-- [ ] Migrate DB schema for new tables
-- [ ] Add tRPC procedures: createShiftTemplate, listShiftTemplates, deleteShiftTemplate
-- [ ] Add tRPC procedures: assignSchedule, listEmployeeSchedules, updateSchedule, deleteSchedule
-- [ ] Add tRPC procedures: addHoliday, listHolidays, deleteHoliday (with Oman public holidays preloaded)
-- [ ] Add tRPC procedure: getTodayScheduleStatus (for admin today board)
-- [ ] Add tRPC procedure: getMonthlyAttendanceReport (per employee)
-- [ ] Add tRPC procedure: getMyTodaySchedule (for employee check-in page)
-- [ ] Upgrade check-in flow: auto-detect schedule, show shift info, mark late/on-time/holiday
-- [ ] Build Shift Templates management UI
-- [ ] Build Employee Schedule assignment UI (calendar-style monthly view)
-- [ ] Build Holiday Calendar UI with Oman public holidays preloaded
-- [ ] Build Admin Today Board with on-time/late/absent status per employee
-- [ ] Build Monthly Attendance Report page
-- [ ] Register new routes in App.tsx and add nav items
-- [ ] Write tests for schedule logic, holiday detection, late calculation
-- [ ] 0 TypeScript errors, all tests pass
+- [x] Add shift_templates, employee_schedules, company_holidays tables to schema.ts
+- [x] Migrate DB schema for new tables
+- [x] Add tRPC procedures: createShiftTemplate, listShiftTemplates, deleteShiftTemplate
+- [x] Add tRPC procedures: assignSchedule, listEmployeeSchedules, updateSchedule, deleteSchedule
+- [x] Add tRPC procedures: addHoliday, listHolidays, deleteHoliday (with Oman public holidays preloaded)
+- [x] Add tRPC procedure: getTodayScheduleStatus (for admin today board)
+- [x] Add tRPC procedure: getMonthlyAttendanceReport (per employee)
+- [x] Add tRPC procedure: getMyTodaySchedule (for employee check-in page)
+- [x] Upgrade check-in flow: auto-detect schedule, show shift info, mark late/on-time/holiday
+- [x] Build Shift Templates management UI
+- [x] Build Employee Schedule assignment UI (calendar-style monthly view)
+- [x] Build Holiday Calendar UI with Oman public holidays preloaded
+- [x] Build Admin Today Board with on-time/late/absent status per employee
+- [x] Build Monthly Attendance Report page
+- [x] Register new routes in App.tsx and add nav items
+- [x] Write tests for schedule logic, holiday detection, late calculation
+- [x] 0 TypeScript errors, all tests pass
 
 ## Phase 66: Smart Attendance Scheduling System (Completed)
 - [x] Add shift_templates, employee_schedules, company_holidays tables to schema.ts
@@ -1547,26 +1547,26 @@ Every company on SmartPRO Hub gets a complete, unified business operating area �
 ## Phase 68: Attendance System Full Audit & Enhancement
 
 ### Admin Side
-- [ ] Audit AttendancePage.tsx — check what is wired vs placeholder
+- [x] Audit AttendancePage.tsx — check what is wired vs placeholder
 - [x] Audit AttendanceSitesPage.tsx — check if sites are saved and used
 - [x] Audit TodayBoardPage.tsx — check if live data shows correctly
 - [x] Audit MonthlyReportPage.tsx — check if data is accurate
-- [ ] Admin: manual check-in/out for any employee from admin panel
-- [ ] Admin: view all attendance records with filters (date, employee, status)
-- [ ] Admin: approve or reject employee correction requests
-- [ ] Admin: export attendance report to CSV/Excel
+- [x] Admin: manual check-in/out for any employee from admin panel
+- [x] Admin: view all attendance records with filters (date, employee, status)
+- [x] Admin: approve or reject employee correction requests
+- [x] Admin: export attendance report to CSV/Excel
 
 ### Employee Side
-- [ ] Employee Attendance tab: check-in / check-out button wired to backend
-- [ ] Employee Attendance tab: show today's status (on time / late / absent)
-- [ ] Employee Attendance tab: show this month's attendance history table
-- [ ] Employee Attendance tab: correction request form (wrong time, missing record)
-- [ ] Employee: see status of submitted correction requests
+- [x] Employee Attendance tab: check-in / check-out button wired to backend
+- [x] Employee Attendance tab: show today's status (on time / late / absent)
+- [x] Employee Attendance tab: show this month's attendance history table
+- [x] Employee Attendance tab: correction request form (wrong time, missing record)
+- [x] Employee: see status of submitted correction requests
 
 ### Wire-up
-- [ ] Correction request: employee submits → admin sees in Attendance page → admin approves/rejects → employee sees updated status
-- [ ] Check-in/out: employee action → immediately visible in admin Today's Board
-- [ ] Attendance Sites: sites created by admin → selectable during employee check-in
+- [x] Correction request: employee submits → admin sees in Attendance page → admin approves/rejects → employee sees updated status
+- [x] Check-in/out: employee action → immediately visible in admin Today's Board
+- [x] Attendance Sites: sites created by admin → selectable during employee check-in
 
 ## Phase N: Employee Portal (My Portal) Comprehensive Enhancement
 
@@ -1653,72 +1653,72 @@ Every company on SmartPRO Hub gets a complete, unified business operating area �
 ## Three New Employee Portal Features
 
 ### 1. Notifications on Approve/Reject
-- [ ] Check if notifyOwner / Resend email helper exists in the project
-- [ ] Add in-app notification to employee when HR approves or rejects their shift request
-- [ ] Add owner/HR notification when employee submits a new shift request
-- [ ] Show notification in employee portal bell icon
+- [x] Check if notifyOwner / Resend email helper exists in the project
+- [x] Add in-app notification to employee when HR approves or rejects their shift request
+- [x] Add owner/HR notification when employee submits a new shift request
+- [x] Show notification in employee portal bell icon
 
 ### 2. Document Attachment on Request Form
-- [ ] Add attachmentUrl column to shift_change_requests table (migration)
-- [ ] Add file upload input to the shift request dialog (employee portal)
-- [ ] Upload file to S3 via storagePut on submit
-- [ ] Show attachment link/thumbnail on request cards (employee + admin)
+- [x] Add attachmentUrl column to shift_change_requests table (migration)
+- [x] Add file upload input to the shift request dialog (employee portal)
+- [x] Upload file to S3 via storagePut on submit
+- [x] Show attachment link/thumbnail on request cards (employee + admin)
 
 ### 3. Admin Calendar View (HR Scheduling Page)
-- [ ] Build AdminRequestsCalendar component: month grid showing all employees' requests
-- [ ] Each day cell shows employee initials + status dot
-- [ ] Day click shows all requests for that day with employee name, type, status
-- [ ] Inline approve/reject from the admin calendar day panel
-- [ ] Add calendar tab/section to HR Employee Schedules page
+- [x] Build AdminRequestsCalendar component: month grid showing all employees' requests
+- [x] Each day cell shows employee initials + status dot
+- [x] Day click shows all requests for that day with employee name, type, status
+- [x] Inline approve/reject from the admin calendar day panel
+- [x] Add calendar tab/section to HR Employee Schedules page
 
 ## Comprehensive Employee Portal Enhancement (Phase N+1)
 
 ### DB Schema
-- [ ] work_logs table (employeeId, date, startTime, endTime, description, projectName, hoursWorked, status)
-- [ ] expense_claims table (employeeId, date, category, amount, currency, description, receiptUrl, status, adminNotes)
-- [ ] training_records table (employeeId, title, provider, startDate, endDate, status, certificateUrl, score)
-- [ ] performance_reviews table (employeeId, period, selfRating, managerRating, goals, achievements, status)
+- [x] work_logs table (employeeId, date, startTime, endTime, description, projectName, hoursWorked, status)
+- [x] expense_claims table (employeeId, date, category, amount, currency, description, receiptUrl, status, adminNotes)
+- [x] training_records table (employeeId, title, provider, startDate, endDate, status, certificateUrl, score)
+- [x] performance_reviews table (employeeId, period, selfRating, managerRating, goals, achievements, status)
 
 ### Backend Procedures
-- [ ] workLog: submitLog, listMyLogs, updateLog, deleteLog, getWeeklySummary
-- [ ] expenseClaims: submit, listMine, cancel, adminList, approve, reject, uploadReceipt
-- [ ] training: listMyTraining, markComplete, uploadCertificate
-- [ ] performance: submitSelfReview, listMyReviews, getGoals
+- [x] workLog: submitLog, listMyLogs, updateLog, deleteLog, getWeeklySummary
+- [x] expenseClaims: submit, listMine, cancel, adminList, approve, reject, uploadReceipt
+- [x] training: listMyTraining, markComplete, uploadCertificate
+- [x] performance: submitSelfReview, listMyReviews, getGoals
 
 ### Overview Tab Enhancements
-- [ ] Personal KPI cards: hours logged this week, expenses pending, training due
-- [ ] Today tasks summary with quick complete button
-- [ ] Quick action shortcuts: Log Work, Submit Expense, Request Leave
+- [x] Personal KPI cards: hours logged this week, expenses pending, training due
+- [x] Today tasks summary with quick complete button
+- [x] Quick action shortcuts: Log Work, Submit Expense, Request Leave
 
 ### Work Log / Timesheet Tab (new)
-- [ ] Daily work log form: date, start/end time, project, description
-- [ ] Weekly hours summary bar chart
-- [ ] Monthly timesheet table view
-- [ ] Export timesheet as PDF report
+- [x] Daily work log form: date, start/end time, project, description
+- [x] Weekly hours summary bar chart
+- [x] Monthly timesheet table view
+- [x] Export timesheet as PDF report
 
 ### Expense Claims Tab (new)
-- [ ] Submit expense form: category, amount, date, description, receipt upload
-- [ ] Expense history list with status badges
-- [ ] Total pending/approved amounts summary
-- [ ] Admin: review, approve/reject with notes
+- [x] Submit expense form: category, amount, date, description, receipt upload
+- [x] Expense history list with status badges
+- [x] Total pending/approved amounts summary
+- [x] Admin: review, approve/reject with notes
 
 ### Tasks Tab Enhancements
-- [ ] Add progress % slider to each task
-- [ ] Add notes/comments field per task
-- [ ] Daily task report: summarize completed tasks for the day
-- [ ] Filter by project/category
+- [x] Add progress % slider to each task
+- [x] Add notes/comments field per task
+- [x] Daily task report: summarize completed tasks for the day
+- [x] Filter by project/category
 
 ### Training & Development Tab (new)
-- [ ] List of assigned training courses with due dates
-- [ ] Mark training as complete + upload certificate
-- [ ] Training progress bar
-- [ ] Completed training history with certificates
+- [x] List of assigned training courses with due dates
+- [x] Mark training as complete + upload certificate
+- [x] Training progress bar
+- [x] Completed training history with certificates
 
 ### Performance Tab (new)
-- [ ] Self-review form: rating sliders, achievements text, goals for next period
-- [ ] View manager ratings and feedback
-- [ ] Goal tracking with progress indicators
-- [ ] Performance history by review period
+- [x] Self-review form: rating sliders, achievements text, goals for next period
+- [x] View manager ratings and feedback
+- [x] Goal tracking with progress indicators
+- [x] Performance history by review period
 
 ## Phase 20: KPI & Performance Management System
 
@@ -1763,9 +1763,9 @@ Every company on SmartPRO Hub gets a complete, unified business operating area �
 - [x] Fix: TeamAccessPage "All Employees" tab should show ALL company members (not just HR employees)
 - [x] Fix: addMemberByEmail should auto-create invite when user has no SmartPRO account yet
 - [x] Fix: TeamAccessPage should show a unified view — members with/without HR employee records
-- [ ] Fix: When user is added as company_admin via team access, they should see full admin sidebar immediately
+- [x] Fix: When user is added as company_admin via team access, they should see full admin sidebar immediately
 - [x] Fix: Pending invites section should be visible and actionable in TeamAccessPage
-- [ ] Fix: Admin Panel should allow promoting any user to company_admin role for a specific company
+- [x] Fix: Admin Panel should allow promoting any user to company_admin role for a specific company
 - [x] Enhancement: "Quick Add Admin" flow — add by email, auto-detect if they have account, grant access or send invite
 
 ## Critical Bug Fix: Team Member platformRole Auto-Promotion

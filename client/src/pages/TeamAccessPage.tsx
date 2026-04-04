@@ -286,7 +286,8 @@ export default function TeamAccessPage() {
     onSuccess: () => {
       utils.companies.employeesWithAccess.invalidate();
       utils.companies.members.invalidate();
-      toast.success("Role updated");
+      utils.auth.me.invalidate();
+      toast.success("Role updated — sidebar will refresh automatically");
       setRoleChangeTarget(null);
     },
     onError: (err) => toast.error(err.message),
@@ -297,6 +298,7 @@ export default function TeamAccessPage() {
       utils.companies.members.invalidate();
       utils.companies.employeesWithAccess.invalidate();
       utils.companies.listInvites.invalidate();
+      utils.auth.me.invalidate();
       const msg = (res as any).message ?? "Done";
       if ((res as any).action === "invited") {
         const url = (res as any).inviteUrl;
@@ -314,7 +316,8 @@ export default function TeamAccessPage() {
     onSuccess: () => {
       utils.companies.members.invalidate();
       utils.companies.employeesWithAccess.invalidate();
-      toast.success("Role updated");
+      utils.auth.me.invalidate();
+      toast.success("Role updated — sidebar will refresh automatically");
       setMemberRoleTarget(null);
     },
     onError: (err) => toast.error(err.message),

@@ -897,6 +897,52 @@ export const hrRouter = router({
     }),
 
   // ── Departments & Positions ────────────────────────────────────────────────
+  // Assign one or more employees to a department (or remove them)
+  assignDepartment: protectedProcedure
+    .input(z.object({
+      employeeIds: z.array(z.number()).min(1),
+      departmentName: z.string().nullable(), // null = unassign
+      companyId: z.number().optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId);
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+      for (const empId of input.employeeIds) {
+        const [emp] = await db.select({ id: employees.id, companyId: employees.companyId })
+          .from(employees).where(eq(employees.id, empId));
+        if (!emp || emp.companyId !== cid) continue;
+        await db.update(employees).set({ department: input.departmentName ?? "" }).where(eq(employees.id, empId));
+      }
+      return { success: true, updated: input.employeeIds.length };
+    }),
+
+  // List employees belonging to a specific department
+  listDepartmentMembers: protectedProcedure
+    .input(z.object({ departmentName: z.string(), companyId: z.number().optional() }))
+    .query(async ({ input, ctx }) => {
+      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId).catch(() => null);
+      if (!cid) return [];
+      const db = await getDb();
+      if (!db) return [];
+      return db.select({
+        id: employees.id,
+        firstName: employees.firstName,
+        lastName: employees.lastName,
+        position: employees.position,
+        status: employees.status,
+        employmentType: employees.employmentType,
+        avatarUrl: employees.avatarUrl,
+        department: employees.department,
+      }).from(employees).where(
+        and(
+          eq(employees.companyId, cid),
+          eq(employees.department, input.departmentName),
+          eq(employees.status, "active")
+        )
+      );
+    }),
+
   listDepartments: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }).optional())
     .query(async ({ input, ctx }) => {
@@ -915,8 +961,11 @@ export const hrRouter = router({
   createDepartment: protectedProcedure
     .input(z.object({
       name: z.string().min(1).max(128),
+      nameAr: z.string().max(128).optional(),
       description: z.string().optional(),
       headEmployeeId: z.number().optional(),
+      color: z.string().max(32).optional(),
+      icon: z.string().max(32).optional(),
       companyId: z.number().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
@@ -926,6 +975,7 @@ export const hrRouter = router({
       const [result] = await db.insert(departments).values({
         companyId: cid,
         name: input.name,
+        nameAr: input.nameAr,
         description: input.description,
         headEmployeeId: input.headEmployeeId,
       });
@@ -936,8 +986,11 @@ export const hrRouter = router({
     .input(z.object({
       id: z.number(),
       name: z.string().min(1).max(128).optional(),
+      nameAr: z.string().max(128).optional(),
       description: z.string().optional(),
       headEmployeeId: z.number().nullable().optional(),
+      color: z.string().max(32).optional(),
+      icon: z.string().max(32).optional(),
       companyId: z.number().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
@@ -948,6 +1001,7 @@ export const hrRouter = router({
       if (!existing) throw new TRPCError({ code: "NOT_FOUND", message: "Department not found" });
       const updateData: any = {};
       if (input.name !== undefined) updateData.name = input.name;
+      if (input.nameAr !== undefined) updateData.nameAr = input.nameAr;
       if (input.description !== undefined) updateData.description = input.description;
       if (input.headEmployeeId !== undefined) updateData.headEmployeeId = input.headEmployeeId;
       await db.update(departments).set(updateData).where(eq(departments.id, input.id));

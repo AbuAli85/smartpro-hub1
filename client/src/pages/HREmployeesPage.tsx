@@ -57,6 +57,18 @@ function AddEmployeeWizard({ onSuccess, companyId }: { onSuccess: () => void; co
     salary: "", currency: "OMR", hireDate: "", employeeNumber: "",
   });
 
+  // Load real departments for the dropdown
+  const { data: deptList = [] } = trpc.hr.listDepartments.useQuery(
+    { companyId: companyId ?? undefined },
+    { enabled: !!companyId }
+  );
+  // Load positions filtered by selected department
+  const selectedDeptObj = (deptList as any[]).find((d) => d.name === form.department);
+  const { data: posList = [] } = trpc.hr.listPositions.useQuery(
+    { departmentId: selectedDeptObj?.id, companyId: companyId ?? undefined },
+    { enabled: !!selectedDeptObj }
+  );
+
   const createMutation = trpc.hr.createEmployee.useMutation({
     onSuccess: () => {
       toast.success(form.firstName + " " + form.lastName + " added to workforce");
@@ -121,8 +133,38 @@ function AddEmployeeWizard({ onSuccess, companyId }: { onSuccess: () => void; co
         {step === 2 && (
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5"><Label>Department</Label><Input value={form.department} onChange={(e) => setForm({ ...form, department: e.target.value })} placeholder="e.g. Operations" /></div>
-              <div className="space-y-1.5"><Label>Position / Job Title</Label><Input value={form.position} onChange={(e) => setForm({ ...form, position: e.target.value })} placeholder="e.g. PRO Officer" /></div>
+              <div className="space-y-1.5">
+                <Label>Department</Label>
+                {(deptList as any[]).length === 0 ? (
+                  <Input value={form.department} onChange={(e) => setForm({ ...form, department: e.target.value })} placeholder="e.g. Operations" />
+                ) : (
+                  <Select value={form.department || "__none__"} onValueChange={(v) => setForm({ ...form, department: v === "__none__" ? "" : v, position: "" })}>
+                    <SelectTrigger><SelectValue placeholder="Select department..." /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">No Department</SelectItem>
+                      {(deptList as any[]).map((d) => (
+                        <SelectItem key={d.id} value={d.name}>{d.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+              <div className="space-y-1.5">
+                <Label>Position / Job Title</Label>
+                {posList.length > 0 ? (
+                  <Select value={form.position || "__none__"} onValueChange={(v) => setForm({ ...form, position: v === "__none__" ? "" : v })}>
+                    <SelectTrigger><SelectValue placeholder="Select position..." /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">Custom / Other</SelectItem>
+                      {(posList as any[]).map((p) => (
+                        <SelectItem key={p.id} value={p.title}>{p.title}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Input value={form.position} onChange={(e) => setForm({ ...form, position: e.target.value })} placeholder="e.g. PRO Officer" />
+                )}
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
@@ -415,7 +457,7 @@ export default function HREmployeesPage() {
     { enabled: activeCompanyId != null }
   );
   const { data: stats } = trpc.hr.getStats.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
-  const { data: departments } = trpc.hr.departments.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
+  const { data: departments } = trpc.hr.listDepartments.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
 
   const filtered = employees?.filter((e) =>
     !search ||
@@ -514,10 +556,12 @@ export default function HREmployeesPage() {
                 </SelectContent>
               </Select>
               <Select value={deptFilter} onValueChange={setDeptFilter}>
-                <SelectTrigger className="w-40"><SelectValue placeholder="All Departments" /></SelectTrigger>
+                <SelectTrigger className="w-44"><SelectValue placeholder="All Departments" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Departments</SelectItem>
-                  {departments?.map((d) => d && <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                  {(departments as any[] ?? []).map((d) => (
+                    <SelectItem key={d.id} value={d.name}>{d.name}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -577,17 +621,17 @@ export default function HREmployeesPage() {
             </Card>
           </TabsContent>
           <TabsContent value="departments" className="mt-4">
-            {departments && departments.length > 0 ? (
+            {departments && (departments as any[]).length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {departments.filter(Boolean).map((dept, i) => {
-                  const deptEmps = employees?.filter((e) => e.department === dept && e.status === "active") ?? [];
+                {(departments as any[]).map((dept, i) => {
+                  const deptEmps = employees?.filter((e) => e.department === dept.name && e.status === "active") ?? [];
                   const omani = deptEmps.filter((e) => (e.nationality ?? "").toLowerCase().includes("oman"));
                   const totalPayroll = deptEmps.filter((e) => e.salary).reduce((sum, e) => sum + parseFloat(e.salary ?? "0"), 0);
                   return (
-                    <Card key={dept} className="hover:shadow-sm transition-shadow">
+                    <Card key={dept.id} className="hover:shadow-sm transition-shadow">
                       <CardContent className="p-4">
                         <div className="flex items-center justify-between mb-3">
-                          <div className={"inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold " + DEPT_COLORS[i % DEPT_COLORS.length]}><Building2 size={12} />{dept}</div>
+                          <div className={"inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold " + DEPT_COLORS[i % DEPT_COLORS.length]}><Building2 size={12} />{dept.name}</div>
                           <span className="text-2xl font-black text-foreground">{deptEmps.length}</span>
                         </div>
                         <div className="space-y-2 text-xs text-muted-foreground">
@@ -611,7 +655,7 @@ export default function HREmployeesPage() {
               <Card className="border-dashed"><CardContent className="p-12 text-center">
                 <Building2 size={40} className="mx-auto text-muted-foreground mb-3 opacity-30" />
                 <h3 className="font-semibold">No departments yet</h3>
-                <p className="text-sm text-muted-foreground">Add employees with departments to see the breakdown here.</p>
+                <p className="text-sm text-muted-foreground">Go to Departments &amp; Positions to create departments, then assign employees.</p>
               </CardContent></Card>
             )}
           </TabsContent>

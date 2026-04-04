@@ -1063,4 +1063,82 @@ export const hrRouter = router({
       await db.update(positions).set({ isActive: false }).where(eq(positions.id, input.id));
       return { success: true };
     }),
+
+  // ── Org Chart ─────────────────────────────────────────────────────────────────
+  getOrgChart: protectedProcedure
+    .input(z.object({ companyId: z.number().optional() }).optional())
+    .query(async ({ input, ctx }) => {
+      const cid = await requireActiveCompanyId(ctx.user.id, input?.companyId).catch(() => null);
+      if (!cid) return { departments: [], unassigned: [] };
+      const db = await getDb();
+      if (!db) return { departments: [], unassigned: [] };
+
+      // Load all active departments
+      const depts = await db.select().from(departments)
+        .where(and(eq(departments.companyId, cid), eq(departments.isActive, true)))
+        .orderBy(departments.name);
+
+      // Load all active employees
+      const emps = await db.select({
+        id: employees.id,
+        firstName: employees.firstName,
+        lastName: employees.lastName,
+        department: employees.department,
+        position: employees.position,
+        managerId: employees.managerId,
+        employmentType: employees.employmentType,
+        nationality: employees.nationality,
+        avatarUrl: employees.avatarUrl,
+      }).from(employees)
+        .where(and(eq(employees.companyId, cid), eq(employees.status, "active")));
+
+      // Load all active positions per department
+      const posRows = await db.select().from(positions)
+        .where(and(eq(positions.companyId, cid), eq(positions.isActive, true)));
+
+      // Build department nodes
+      const deptNodes = depts.map((d) => {
+        const members = emps.filter((e) => e.department === d.name);
+        const head = d.headEmployeeId ? emps.find((e) => e.id === d.headEmployeeId) ?? null : null;
+        const deptPositions = posRows.filter((p) => p.departmentId === d.id);
+        return {
+          id: d.id,
+          name: d.name,
+          nameAr: d.nameAr,
+          description: d.description,
+          color: (d as any).color ?? null,
+          icon: (d as any).icon ?? null,
+          headEmployeeId: d.headEmployeeId,
+          head: head ? { id: head.id, firstName: head.firstName, lastName: head.lastName, position: head.position } : null,
+          memberCount: members.length,
+          members: members.map((e) => ({
+            id: e.id,
+            firstName: e.firstName,
+            lastName: e.lastName,
+            position: e.position,
+            managerId: e.managerId,
+            employmentType: e.employmentType,
+            nationality: e.nationality,
+            avatarUrl: e.avatarUrl,
+          })),
+          positions: deptPositions.map((p) => ({ id: p.id, title: p.title, description: p.description })),
+        };
+      });
+
+      // Employees not assigned to any department
+      const assignedNames = new Set(depts.map((d) => d.name));
+      const unassigned = emps
+        .filter((e) => !e.department || !assignedNames.has(e.department))
+        .map((e) => ({
+          id: e.id,
+          firstName: e.firstName,
+          lastName: e.lastName,
+          position: e.position,
+          department: e.department,
+          employmentType: e.employmentType,
+          nationality: e.nationality,
+        }));
+
+      return { departments: deptNodes, unassigned };
+    }),
 });

@@ -1,7 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { eq, and, desc, gte, lte, count, sum } from "drizzle-orm";
-import { workPermits, employees, attendanceRecords, leaveRequests, kpiTargets, kpiAchievements, payrollRuns, departments, positions } from "../../drizzle/schema";
+import { workPermits, employees, attendanceRecords, leaveRequests, kpiTargets, kpiAchievements, payrollRuns, departments, positions, payrollRecords, performanceReviews } from "../../drizzle/schema";
 import { sendEmployeeNotification } from "./employeePortal";
 import { getDb } from "../db";
 import {
@@ -1140,5 +1140,192 @@ export const hrRouter = router({
         }));
 
       return { departments: deptNodes, unassigned };
+    }),
+
+  // ─── Employee Lifecycle Timeline ─────────────────────────────────────────
+  getEmployeeTimeline: protectedProcedure
+    .input(z.object({ employeeId: z.number(), companyId: z.number().optional() }))
+    .query(async ({ input, ctx }) => {
+      const emp = await getEmployeeById(input.employeeId);
+      if (!emp) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
+      await assertRowBelongsToActiveCompany(ctx.user, emp.companyId, "Employee");
+      const db = await getDb();
+      if (!db) return [];
+
+      type TimelineEvent = {
+        id: string;
+        type: "joined" | "department" | "position" | "status" | "salary" | "document" | "leave" | "payroll" | "performance" | "compliance";
+        title: string;
+        description: string;
+        date: Date;
+        icon: string;
+        color: string;
+      };
+      const events: TimelineEvent[] = [];
+
+      // Joined event
+      if (emp.hireDate) {
+        events.push({ id: "joined", type: "joined", title: "Joined Company",
+          description: `${emp.firstName} ${emp.lastName} joined as ${emp.position ?? "employee"} in ${emp.department ?? "the company"}`,
+          date: new Date(emp.hireDate), icon: "UserCheck", color: "emerald" });
+      } else {
+        events.push({ id: "created", type: "joined", title: "Employee Record Created",
+          description: `Profile created for ${emp.firstName} ${emp.lastName}`,
+          date: new Date(emp.createdAt), icon: "UserPlus", color: "blue" });
+      }
+
+      // Department/position set
+      if (emp.department) {
+        events.push({ id: "dept", type: "department", title: "Department Assigned",
+          description: `Assigned to ${emp.department}${emp.position ? ` as ${emp.position}` : ""}`,
+          date: new Date(emp.createdAt), icon: "Building2", color: "purple" });
+      }
+
+      // Salary set
+      if (emp.salary) {
+        events.push({ id: "salary", type: "salary", title: "Salary Configured",
+          description: `Base salary set to ${emp.currency ?? "OMR"} ${parseFloat(String(emp.salary)).toFixed(3)} per month`,
+          date: new Date(emp.createdAt), icon: "DollarSign", color: "orange" });
+      }
+
+      // Visa / work permit compliance events
+      if ((emp as any).visaNumber) {
+        events.push({ id: "visa", type: "compliance", title: "Visa Recorded",
+          description: `Visa number ${(emp as any).visaNumber} recorded${(emp as any).visaExpiryDate ? `, expires ${(emp as any).visaExpiryDate}` : ""}`,
+          date: new Date(emp.createdAt), icon: "Shield", color: "blue" });
+      }
+      if ((emp as any).workPermitNumber) {
+        events.push({ id: "permit", type: "compliance", title: "Work Permit Recorded",
+          description: `Work permit ${(emp as any).workPermitNumber} recorded${(emp as any).workPermitExpiryDate ? `, expires ${(emp as any).workPermitExpiryDate}` : ""}`,
+          date: new Date(emp.createdAt), icon: "FileText", color: "indigo" });
+      }
+
+      // Leave requests
+      const leaves = await db.select().from(leaveRequests)
+        .where(eq(leaveRequests.employeeId, input.employeeId))
+        .orderBy(desc(leaveRequests.createdAt)).limit(5);
+      for (const lr of leaves) {
+        events.push({ id: `leave-${lr.id}`, type: "leave", title: `Leave Request — ${lr.leaveType.replace(/_/g, " ")}`,
+          description: `${lr.days ?? "?"} day(s) ${lr.status === "approved" ? "approved" : lr.status === "rejected" ? "rejected" : "pending"} from ${lr.startDate ? new Date(lr.startDate).toLocaleDateString() : "?"}`,
+          date: new Date(lr.createdAt), icon: "Calendar", color: lr.status === "approved" ? "emerald" : lr.status === "rejected" ? "red" : "amber" });
+      }
+
+      // Payroll records
+      const payrolls = await db.select().from(payrollRecords)
+        .where(eq(payrollRecords.employeeId, input.employeeId))
+        .orderBy(desc(payrollRecords.createdAt)).limit(6);
+      for (const pr of payrolls) {
+        events.push({ id: `payroll-${pr.id}`, type: "payroll", title: `Payroll — ${pr.periodMonth}/${pr.periodYear}`,
+          description: `Net salary ${pr.currency ?? "OMR"} ${parseFloat(String(pr.netSalary)).toFixed(3)} — ${pr.status}`,
+          date: new Date(pr.createdAt), icon: "Banknote", color: pr.status === "paid" ? "emerald" : "gray" });
+      }
+
+      // Performance reviews
+      const reviews = await db.select().from(performanceReviews)
+        .where(eq(performanceReviews.employeeId, input.employeeId))
+        .orderBy(desc(performanceReviews.createdAt)).limit(5);
+      for (const rv of reviews) {
+        events.push({ id: `perf-${rv.id}`, type: "performance", title: `Performance Review — ${rv.period}`,
+          description: `Score: ${rv.overallScore ?? "Pending"} — ${rv.status}`,
+          date: new Date(rv.createdAt), icon: "TrendingUp", color: "purple" });
+      }
+
+      // Termination event
+      if (emp.terminationDate) {
+        events.push({ id: "terminated", type: "status", title: "Employment Ended",
+          description: `Status changed to ${emp.status ?? "terminated"}`,
+          date: new Date(emp.terminationDate), icon: "UserX", color: "red" });
+      }
+
+      // Sort newest first
+      events.sort((a, b) => b.date.getTime() - a.date.getTime());
+      return events;
+    }),
+
+  // ─── Workforce Health Summary (for Dashboard widget) ─────────────────────
+  getWorkforceHealth: protectedProcedure
+    .input(z.object({ companyId: z.number().optional() }).optional())
+    .query(async ({ input, ctx }) => {
+      const cid = await requireActiveCompanyId(ctx.user.id, input?.companyId).catch(() => null);
+      if (!cid) return {
+        total: 0, critical: 0, warning: 0, incomplete: 0, healthy: 0,
+        criticalEmployees: [] as Array<{ id: number; name: string; reason: string }>,
+        warningEmployees: [] as Array<{ id: number; name: string; reason: string }>,
+        incompleteEmployees: [] as Array<{ id: number; name: string; score: number; missing: string[] }>,
+        overallScore: 0,
+      };
+      const emps = await getEmployees(cid);
+      const today = new Date();
+      const warnDays = 30;
+
+      const REQUIRED_FIELDS = ["firstName", "lastName", "email", "phone", "nationality",
+        "department", "position", "hireDate", "salary"];
+      const OPTIONAL_FIELDS = ["passportNumber", "nationalId", "dateOfBirth", "gender",
+        "pasiNumber", "bankAccountNumber", "emergencyContactName", "workPermitNumber", "visaNumber"];
+
+      function calcScore(emp: typeof emps[0]) {
+        const reqFilled = REQUIRED_FIELDS.filter((f) => !!(emp as any)[f]).length;
+        const optFilled = OPTIONAL_FIELDS.filter((f) => !!(emp as any)[f]).length;
+        return Math.round(((reqFilled / REQUIRED_FIELDS.length) * 70) + ((optFilled / OPTIONAL_FIELDS.length) * 30));
+      }
+
+      function daysLeft(d: string | Date | null | undefined): number | null {
+        if (!d) return null;
+        const dt = d instanceof Date ? d : new Date(String(d));
+        if (isNaN(dt.getTime())) return null;
+        return Math.floor((dt.getTime() - today.getTime()) / 86400000);
+      }
+
+      const criticalEmployees: Array<{ id: number; name: string; reason: string }> = [];
+      const warningEmployees: Array<{ id: number; name: string; reason: string }> = [];
+      const incompleteEmployees: Array<{ id: number; name: string; score: number; missing: string[] }> = [];
+      const seenCritical = new Set<number>();
+      const seenWarning = new Set<number>();
+
+      for (const emp of emps) {
+        const name = `${emp.firstName} ${emp.lastName}`;
+        const visaDays = daysLeft((emp as any).visaExpiryDate);
+        const permitDays = daysLeft((emp as any).workPermitExpiryDate);
+
+        if (visaDays !== null && visaDays < 0 && !seenCritical.has(emp.id)) {
+          criticalEmployees.push({ id: emp.id, name, reason: `Visa expired ${Math.abs(visaDays)}d ago` });
+          seenCritical.add(emp.id);
+        } else if (permitDays !== null && permitDays < 0 && !seenCritical.has(emp.id)) {
+          criticalEmployees.push({ id: emp.id, name, reason: `Work permit expired ${Math.abs(permitDays)}d ago` });
+          seenCritical.add(emp.id);
+        } else if (visaDays !== null && visaDays >= 0 && visaDays <= warnDays && !seenWarning.has(emp.id)) {
+          warningEmployees.push({ id: emp.id, name, reason: `Visa expires in ${visaDays}d` });
+          seenWarning.add(emp.id);
+        } else if (permitDays !== null && permitDays >= 0 && permitDays <= warnDays && !seenWarning.has(emp.id)) {
+          warningEmployees.push({ id: emp.id, name, reason: `Work permit expires in ${permitDays}d` });
+          seenWarning.add(emp.id);
+        }
+
+        const score = calcScore(emp);
+        if (score < 60) {
+          const missing = REQUIRED_FIELDS.filter((f) => !(emp as any)[f]);
+          incompleteEmployees.push({ id: emp.id, name, score, missing });
+        }
+      }
+
+      const scores = emps.map(calcScore);
+      const overallScore = scores.length ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : 0;
+
+      const criticalSet = new Set(criticalEmployees.map((e) => e.id));
+      const warningSet = new Set(warningEmployees.map((e) => e.id));
+      const incompleteSet = new Set(incompleteEmployees.map((e) => e.id));
+      const healthy = emps.filter((e) => !criticalSet.has(e.id) && !warningSet.has(e.id) && !incompleteSet.has(e.id)).length;
+
+      return {
+        total: emps.length,
+        critical: criticalEmployees.length,
+        warning: warningEmployees.length,
+        incomplete: incompleteEmployees.length,
+        healthy,
+        criticalEmployees: criticalEmployees.slice(0, 5),
+        warningEmployees: warningEmployees.slice(0, 5),
+        incompleteEmployees: incompleteEmployees.slice(0, 5),
+        overallScore,
+      };
     }),
 });

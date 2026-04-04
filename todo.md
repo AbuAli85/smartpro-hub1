@@ -1873,3 +1873,16 @@ Every company on SmartPRO Hub gets a complete, unified business operating area �
 - [ ] Rebuild /hr/org-structure: visual org chart — tree diagram showing dept → positions → employees, expand/collapse nodes, reporting lines, dept head badges
 - [ ] Add getOrgChartData procedure to orgStructure router (returns departments with their positions and employees)
 - [ ] Remove duplication: OrgStructurePage no longer does list management, DepartmentsPage no longer shows chart
+
+## Phase 19: Workforce Layer Upgrades (Executive Assessment)
+
+- [ ] Weighted completeness scoring model: Identity 30%, Employment 20%, Compliance 30%, Financial 20%
+- [ ] Workforce Health Dashboard widget with Critical/Warning/Incomplete severity levels
+- [ ] Bulk actions: bulk assign department to selected employees
+- [ ] Bulk actions: bulk update position for selected employees
+- [ ] Bulk actions: bulk send reminder notification to selected employees
+- [ ] Employee lifecycle timeline: joined, docs added, visa issued, permit renewed, salary updated
+- [ ] Sortable columns in HR table: completeness%, expiry date
+- [ ] Icon-based indicators (not just color) for accessibility
+- [ ] Enriched tooltips: show missing fields + urgency (e.g. "Visa expires in 12 days")
+- [ ] Save-as-draft in Add Employee wizard

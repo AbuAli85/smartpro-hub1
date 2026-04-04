@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
 import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
+import { WorkforceHealthWidget } from "@/components/WorkforceHealthWidget";
 
 /* ── KPI Stat Card ─────────────────────────────────────────────────────── */
 function StatCard({
@@ -462,6 +463,8 @@ export default function Dashboard() {
 
         {/* Right column */}
         <div className="space-y-4">
+          {/* Workforce Health Widget */}
+          {showHref("/hr/employees") && <WorkforceHealthWidget />}
           {/* Compliance Status */}
           <Card>
             <CardHeader className="pb-2">

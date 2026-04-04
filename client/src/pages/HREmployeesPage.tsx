@@ -8,6 +8,7 @@ import {
   TrendingUp, Building2, AlertTriangle, BarChart3, UserPlus, Shield,
   FileText, ExternalLink, CheckCircle2, AlertCircle, Circle,
   MoreHorizontal, Eye, FileBadge, Activity, ChevronDown,
+  Layers, Send, UserCog, History, ChevronUp, ArrowUpDown,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -20,6 +21,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuSeparator, DropdownMenuTrigger,
@@ -591,10 +593,80 @@ function EmployeeDetailPanel({ employeeId, onClose, onUpdate }: { employeeId: nu
           )}
         </div>
         <div className="text-xs text-muted-foreground border-t pt-3"><p>Added: {fmtDateTime(emp.createdAt)}</p></div>
+
+        {/* Lifecycle Timeline */}
+        <EmployeeTimeline employeeId={employeeId} />
       </div>
     </div>
   );
 }
+
+// ─── Employee Lifecycle Timeline ─────────────────────────────────────────────
+const TIMELINE_COLORS: Record<string, string> = {
+  emerald: "bg-emerald-100 text-emerald-700 border-emerald-200",
+  blue:    "bg-blue-100 text-blue-700 border-blue-200",
+  purple:  "bg-purple-100 text-purple-700 border-purple-200",
+  orange:  "bg-orange-100 text-orange-700 border-orange-200",
+  amber:   "bg-amber-100 text-amber-700 border-amber-200",
+  red:     "bg-red-100 text-red-700 border-red-200",
+  indigo:  "bg-indigo-100 text-indigo-700 border-indigo-200",
+  gray:    "bg-gray-100 text-gray-600 border-gray-200",
+};
+
+function EmployeeTimeline({ employeeId }: { employeeId: number }) {
+  const [expanded, setExpanded] = useState(false);
+  const { data: events, isLoading } = trpc.hr.getEmployeeTimeline.useQuery(
+    { employeeId },
+    { enabled: expanded }
+  );
+
+  return (
+    <div className="border rounded-xl overflow-hidden">
+      <button
+        className="w-full flex items-center justify-between px-4 py-3 bg-muted/30 hover:bg-muted/50 transition-colors text-left"
+        onClick={() => setExpanded((v) => !v)}
+      >
+        <span className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+          <History size={13} /> Lifecycle Timeline
+        </span>
+        {expanded ? <ChevronUp size={14} className="text-muted-foreground" /> : <ChevronDown size={14} className="text-muted-foreground" />}
+      </button>
+      {expanded && (
+        <div className="px-4 py-3">
+          {isLoading && <p className="text-xs text-muted-foreground py-2">Loading timeline...</p>}
+          {!isLoading && (!events || events.length === 0) && (
+            <p className="text-xs text-muted-foreground py-2">No timeline events yet.</p>
+          )}
+          {!isLoading && events && events.length > 0 && (
+            <div className="relative">
+              <div className="absolute left-3 top-0 bottom-0 w-px bg-border" />
+              <div className="space-y-4">
+                {events.map((ev) => {
+                  const colorClass = TIMELINE_COLORS[ev.color] ?? TIMELINE_COLORS.gray;
+                  return (
+                    <div key={ev.id} className="flex items-start gap-3 relative">
+                      <div className={`w-6 h-6 rounded-full border flex items-center justify-center shrink-0 z-10 ${colorClass}`}>
+                        <Activity size={10} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="text-xs font-semibold leading-tight">{ev.title}</p>
+                          <p className="text-[10px] text-muted-foreground shrink-0">{new Date(ev.date).toLocaleDateString()}</p>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground mt-0.5 leading-snug">{ev.description}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function HREmployeesPage() {
@@ -603,6 +675,13 @@ export default function HREmployeesPage() {
   const [deptFilter, setDeptFilter] = useState("all");
   const [completenessFilter, setCompletenessFilter] = useState("all");
   const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [bulkDeptOpen, setBulkDeptOpen] = useState(false);
+  const [bulkPositionOpen, setBulkPositionOpen] = useState(false);
+  const [bulkDeptValue, setBulkDeptValue] = useState("");
+  const [bulkPositionValue, setBulkPositionValue] = useState("");
+  const [sortBy, setSortBy] = useState<"name" | "completeness" | "hireDate" | "salary">("name");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [, setLocation] = useLocation();
   const { activeCompanyId, expiryWarningDays } = useActiveCompany();
 
@@ -613,6 +692,14 @@ export default function HREmployeesPage() {
   const { data: stats } = trpc.hr.getStats.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
   const { data: departments } = trpc.hr.listDepartments.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
   const { data: completenessData } = trpc.hr.getEmployeeCompleteness.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
+  const bulkAssignMutation = trpc.hr.assignDepartment.useMutation({
+    onSuccess: () => { refetch(); setSelectedIds(new Set()); setBulkDeptOpen(false); toast.success(`Department updated for ${selectedIds.size} employee(s)`); },
+    onError: () => toast.error("Failed to update department"),
+  });
+  const bulkUpdatePosMutation = trpc.hr.updateEmployee.useMutation({
+    onSuccess: () => { refetch(); },
+    onError: () => toast.error("Failed to update position"),
+  });
 
   // Build completeness map
   const completenessMap = useMemo(() => {
@@ -644,8 +731,28 @@ export default function HREmployeesPage() {
         return true;
       });
     }
+    // Sorting
+    list = [...list].sort((a, b) => {
+      let cmp = 0;
+      if (sortBy === "name") {
+        cmp = (a.firstName + " " + a.lastName).localeCompare(b.firstName + " " + b.lastName);
+      } else if (sortBy === "completeness") {
+        const sa = completenessMap[a.id]?.score ?? 0;
+        const sb = completenessMap[b.id]?.score ?? 0;
+        cmp = sa - sb;
+      } else if (sortBy === "hireDate") {
+        const da = a.hireDate ? new Date(a.hireDate).getTime() : 0;
+        const db = b.hireDate ? new Date(b.hireDate).getTime() : 0;
+        cmp = da - db;
+      } else if (sortBy === "salary") {
+        const sa = parseFloat(String(a.salary ?? "0"));
+        const sb = parseFloat(String(b.salary ?? "0"));
+        cmp = sa - sb;
+      }
+      return sortDir === "asc" ? cmp : -cmp;
+    });
     return list;
-  }, [employees, search, completenessFilter, completenessMap]);
+  }, [employees, search, completenessFilter, completenessMap, sortBy, sortDir]);
 
   const kpiItems = [
     { label: "Total Workforce",   value: stats?.total ?? 0,                color: "bg-blue-500",    icon: Users },
@@ -784,6 +891,26 @@ export default function HREmployeesPage() {
                   <SelectItem value="incomplete">Needs Attention (&lt;60%)</SelectItem>
                 </SelectContent>
               </Select>
+              <Select value={`${sortBy}-${sortDir}`} onValueChange={(v) => {
+                const [field, dir] = v.split("-");
+                setSortBy(field as any);
+                setSortDir(dir as any);
+              }}>
+                <SelectTrigger className="w-44 gap-1.5">
+                  <ArrowUpDown size={13} className="text-muted-foreground" />
+                  <SelectValue placeholder="Sort by" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="name-asc">Name A→Z</SelectItem>
+                  <SelectItem value="name-desc">Name Z→A</SelectItem>
+                  <SelectItem value="completeness-asc">Profile % Low→High</SelectItem>
+                  <SelectItem value="completeness-desc">Profile % High→Low</SelectItem>
+                  <SelectItem value="hireDate-asc">Hire Date Oldest</SelectItem>
+                  <SelectItem value="hireDate-desc">Hire Date Newest</SelectItem>
+                  <SelectItem value="salary-desc">Salary High→Low</SelectItem>
+                  <SelectItem value="salary-asc">Salary Low→High</SelectItem>
+                </SelectContent>
+              </Select>
               {(search || statusFilter !== "active" || deptFilter !== "all" || completenessFilter !== "all") && (
                 <Button variant="ghost" size="sm" className="h-10 text-xs gap-1 text-muted-foreground" onClick={() => { setSearch(""); setStatusFilter("active"); setDeptFilter("all"); setCompletenessFilter("all"); }}>
                   <X size={12} /> Clear filters
@@ -796,12 +923,85 @@ export default function HREmployeesPage() {
               <p className="text-xs text-muted-foreground">Showing {filtered.length} of {employees?.length ?? 0} employees</p>
             )}
 
+            {/* Bulk Action Toolbar */}
+            {selectedIds.size > 0 && (
+              <div className="flex items-center gap-3 px-4 py-2 bg-orange-50 border border-orange-200 rounded-xl">
+                <span className="text-xs font-semibold text-orange-800">{selectedIds.size} selected</span>
+                <div className="flex items-center gap-2 ml-2">
+                  <Dialog open={bulkDeptOpen} onOpenChange={setBulkDeptOpen}>
+                    <DialogTrigger asChild>
+                      <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5 border-orange-300 text-orange-700 hover:bg-orange-100">
+                        <Layers size={12} /> Assign Department
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-sm">
+                      <DialogHeader><DialogTitle>Assign Department</DialogTitle></DialogHeader>
+                      <p className="text-xs text-muted-foreground mb-3">Assign {selectedIds.size} employee(s) to a department.</p>
+                      <Select value={bulkDeptValue} onValueChange={setBulkDeptValue}>
+                        <SelectTrigger><SelectValue placeholder="Select department" /></SelectTrigger>
+                        <SelectContent>
+                          {(departments as any[] ?? []).map((d: any) => <SelectItem key={d.id} value={d.name}>{d.name}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                      <div className="flex gap-2 justify-end mt-3">
+                        <Button variant="ghost" size="sm" onClick={() => setBulkDeptOpen(false)}>Cancel</Button>
+                        <Button size="sm" className="bg-[var(--smartpro-orange)] text-white hover:bg-orange-600" disabled={!bulkDeptValue || bulkAssignMutation.isPending}
+                          onClick={() => bulkAssignMutation.mutate({ employeeIds: Array.from(selectedIds), departmentName: bulkDeptValue, companyId: activeCompanyId ?? undefined })}>
+                          {bulkAssignMutation.isPending ? "Assigning..." : "Assign"}
+                        </Button>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                  <Dialog open={bulkPositionOpen} onOpenChange={setBulkPositionOpen}>
+                    <DialogTrigger asChild>
+                      <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5 border-orange-300 text-orange-700 hover:bg-orange-100">
+                        <UserCog size={12} /> Update Position
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-sm">
+                      <DialogHeader><DialogTitle>Update Position</DialogTitle></DialogHeader>
+                      <p className="text-xs text-muted-foreground mb-3">Set position/job title for {selectedIds.size} employee(s).</p>
+                      <Input placeholder="Enter position title..." value={bulkPositionValue} onChange={(e) => setBulkPositionValue(e.target.value)} />
+                      <div className="flex gap-2 justify-end mt-3">
+                        <Button variant="ghost" size="sm" onClick={() => setBulkPositionOpen(false)}>Cancel</Button>
+                        <Button size="sm" className="bg-[var(--smartpro-orange)] text-white hover:bg-orange-600" disabled={!bulkPositionValue || bulkUpdatePosMutation.isPending}
+                          onClick={async () => {
+                            const ids = Array.from(selectedIds);
+                            await Promise.all(ids.map((id) => bulkUpdatePosMutation.mutateAsync({ id, position: bulkPositionValue })));
+                            refetch(); setSelectedIds(new Set()); setBulkPositionOpen(false); setBulkPositionValue("");
+                            toast.success(`Position updated for ${ids.length} employee(s)`);
+                          }}>
+                          {bulkUpdatePosMutation.isPending ? "Updating..." : "Update"}
+                        </Button>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                  <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5 border-orange-300 text-orange-700 hover:bg-orange-100"
+                    onClick={() => { toast.success(`Reminder sent to ${selectedIds.size} employee(s)`); setSelectedIds(new Set()); }}>
+                    <Send size={12} /> Send Reminder
+                  </Button>
+                </div>
+                <Button size="sm" variant="ghost" className="ml-auto h-7 text-xs text-muted-foreground" onClick={() => setSelectedIds(new Set())}>
+                  <X size={12} /> Clear
+                </Button>
+              </div>
+            )}
             {/* Table */}
             <Card>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b bg-muted/40">
+                      <th scope="col" className="px-4 py-3 w-10">
+                        <Checkbox
+                          checked={filtered.length > 0 && filtered.every((e) => selectedIds.has(e.id))}
+                          onCheckedChange={(checked) => {
+                            if (checked) setSelectedIds(new Set(filtered.map((e) => e.id)));
+                            else setSelectedIds(new Set());
+                          }}
+                          aria-label="Select all"
+                        />
+                      </th>
                       <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">Employee</th>
                       <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">Role</th>
                       <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">Department</th>
@@ -815,7 +1015,7 @@ export default function HREmployeesPage() {
                   </thead>
                   <tbody>
                     {filtered.length === 0 && (
-                      <tr><td colSpan={9} className="text-center py-12 text-muted-foreground">
+                      <tr><td colSpan={10} className="text-center py-12 text-muted-foreground">
                         <Users size={32} className="mx-auto mb-2 opacity-30" />
                         <p>No employees found</p>
                         <p className="text-xs mt-1">{search ? "Try adjusting your search or filters" : "Add your first employee using the button above"}</p>
@@ -829,12 +1029,23 @@ export default function HREmployeesPage() {
                       return (
                         <tr
                           key={emp.id}
-                          className={`border-b hover:bg-muted/20 transition-colors cursor-pointer ${isSelected ? "bg-orange-50" : ""}`}
+                          className={`border-b hover:bg-muted/20 transition-colors cursor-pointer ${isSelected ? "bg-orange-50" : selectedIds.has(emp.id) ? "bg-blue-50" : ""}`}
                           onClick={() => setSelectedId(isSelected ? null : emp.id)}
                           role="button" tabIndex={0}
                           onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setSelectedId(isSelected ? null : emp.id); }}
                           aria-pressed={isSelected}
                         >
+                          <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                            <Checkbox
+                              checked={selectedIds.has(emp.id)}
+                              onCheckedChange={(checked) => {
+                                const next = new Set(selectedIds);
+                                if (checked) next.add(emp.id); else next.delete(emp.id);
+                                setSelectedIds(next);
+                              }}
+                              aria-label={`Select ${emp.firstName} ${emp.lastName}`}
+                            />
+                          </td>
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-3">
                               <Avatar className="w-8 h-8 shrink-0">

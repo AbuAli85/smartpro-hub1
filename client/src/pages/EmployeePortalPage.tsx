@@ -171,11 +171,15 @@ function AttendanceTodayCard({ employeeId, todaySchedule }: { employeeId: number
     ? ((checkOut.getTime() - checkIn.getTime()) / 3600000).toFixed(1)
     : checkIn ? "In progress" : null;
 
-  // Derive shift info from todaySchedule
+  // Derive shift info from todaySchedule (now getMyActiveSchedule)
   const shift = todaySchedule?.shift ?? null;
   const site = todaySchedule?.site ?? null;
   const isHoliday = todaySchedule?.isHoliday ?? false;
-  const hasSchedule = !isHoliday && !!shift;
+  const hasSchedule = todaySchedule?.hasSchedule ?? (!!shift);
+  const isWorkingDay = todaySchedule?.isWorkingDay ?? (!isHoliday && !!shift);
+  const workingDays: number[] = todaySchedule?.workingDays ?? [];
+  const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const workingDayNames = workingDays.map((d: number) => DAY_NAMES[d]).join(", ");
   const siteToken: string | null = site?.qrToken ?? null;
 
   function handleCheckIn() {
@@ -219,8 +223,8 @@ function AttendanceTodayCard({ employeeId, todaySchedule }: { employeeId: number
             </div>
           </CardContent>
         </Card>
-      ) : hasSchedule ? (
-        <Card className="border-primary/20 bg-primary/5">
+      ) : hasSchedule && shift ? (
+        <Card className={isWorkingDay ? "border-primary/20 bg-primary/5" : "border-muted bg-muted/30"}>
           <CardContent className="p-4">
             <div className="flex items-center justify-between gap-3 flex-wrap">
               <div className="flex items-center gap-3">
@@ -231,23 +235,31 @@ function AttendanceTodayCard({ employeeId, todaySchedule }: { employeeId: number
                   <Clock className="w-5 h-5" style={{ color: shift?.color ?? "#6366f1" }} />
                 </div>
                 <div>
-                  <p className="font-semibold text-sm">{shift!.name}</p>
+                  <p className="font-semibold text-sm">{shift.name}</p>
                   <p className="text-xs text-muted-foreground">
-                    {shift!.startTime} – {shift!.endTime}
+                    {shift.startTime} – {shift.endTime}
                     {site ? ` · ${site.name}` : ""}
-                    {shift!.gracePeriodMinutes > 0 ? ` · ${shift!.gracePeriodMinutes}min grace` : ""}
+                    {shift.gracePeriodMinutes > 0 ? ` · ${shift.gracePeriodMinutes}min grace` : ""}
                   </p>
+                  {workingDayNames && (
+                    <p className="text-xs text-muted-foreground mt-0.5">Working days: {workingDayNames}</p>
+                  )}
                 </div>
               </div>
-              <Badge variant="outline" className="text-xs">Today's Shift</Badge>
+              <Badge
+                variant="outline"
+                className={`text-xs ${isWorkingDay ? "border-green-300 text-green-700 bg-green-50" : "border-gray-300 text-gray-600 bg-gray-50"}`}
+              >
+                {isWorkingDay ? "Working Day" : "Day Off"}
+              </Badge>
             </div>
           </CardContent>
         </Card>
-      ) : todaySchedule !== undefined && todaySchedule !== null && !todaySchedule.schedule ? (
+      ) : todaySchedule !== undefined && todaySchedule !== null && !todaySchedule.hasSchedule ? (
         <Card className="border-muted">
           <CardContent className="p-4 flex items-center gap-3">
             <Info className="w-5 h-5 text-muted-foreground shrink-0" />
-            <p className="text-sm text-muted-foreground">No shift scheduled for today. Contact HR if this is incorrect.</p>
+            <p className="text-sm text-muted-foreground">No shift assigned yet. Contact HR to get your schedule.</p>
           </CardContent>
         </Card>
       ) : null}
@@ -296,17 +308,28 @@ function AttendanceTodayCard({ employeeId, todaySchedule }: { employeeId: number
                   </div>
                 ) : (
                   <div>
-                    <p className="font-medium text-amber-700 dark:text-amber-400">Not checked in yet</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      {hasSchedule && shift ? `Shift starts at ${shift.startTime}` : "No shift scheduled"}
-                    </p>
+                    {!isWorkingDay && hasSchedule ? (
+                      <>
+                        <p className="font-medium text-gray-600 dark:text-gray-400">Day Off</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {shift ? `Your shift (${shift.startTime}–${shift.endTime}) runs on ${workingDayNames}` : "No shift today"}
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="font-medium text-amber-700 dark:text-amber-400">Not checked in yet</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {hasSchedule && shift ? `Shift starts at ${shift.startTime}` : "No shift scheduled"}
+                        </p>
+                      </>
+                    )}
                   </div>
                 )}
               </div>
             </div>
             {/* Action buttons */}
             <div className="flex flex-col gap-2 shrink-0">
-              {!checkIn && hasSchedule && (
+              {!checkIn && hasSchedule && isWorkingDay && (
                 <Button
                   size="sm"
                   className="gap-1.5 bg-green-600 hover:bg-green-700 text-white"
@@ -479,7 +502,7 @@ export default function EmployeePortalPage() {
   const { data: notifData, refetch: refetchNotifs } = trpc.employeePortal.getMyNotifications.useQuery(
     { limit: 30 }, { enabled: isAuthenticated, refetchInterval: 30000 }
   );
-  const { data: todaySchedule } = trpc.scheduling.getMyTodaySchedule.useQuery(
+  const { data: myActiveSchedule } = trpc.scheduling.getMyActiveSchedule.useQuery(
     {}, { enabled: isAuthenticated }
   );
 
@@ -788,33 +811,33 @@ export default function EmployeePortalPage() {
           {/* ══ OVERVIEW TAB ══════════════════════════════════════════════════ */}
           <TabsContent value="overview" className="mt-4 space-y-4">
             {/* Today's Schedule Banner */}
-            {todaySchedule && (
-              todaySchedule.isHoliday ? (
+            {myActiveSchedule && (
+              myActiveSchedule.isHoliday ? (
                 <Card className="border-purple-200 bg-purple-50 dark:bg-purple-950/10">
                   <CardContent className="p-4 flex items-center gap-3">
                     <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center shrink-0">
                       <Calendar className="w-5 h-5 text-purple-600" />
                     </div>
                     <div>
-                      <p className="font-semibold text-purple-700">{todaySchedule.holiday?.name ?? "Holiday"}</p>
+                      <p className="font-semibold text-purple-700">{myActiveSchedule.holiday?.name ?? "Holiday"}</p>
                       <p className="text-xs text-purple-600">Today is a public holiday — no attendance required</p>
                     </div>
                   </CardContent>
                 </Card>
-              ) : todaySchedule.schedule && todaySchedule.shift ? (
+              ) : myActiveSchedule.schedule && myActiveSchedule.shift ? (
                 <Card className="border-primary/20 bg-primary/5">
                   <CardContent className="p-4 flex items-center gap-3">
                     <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
                       <Clock className="w-5 h-5 text-primary" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-sm">Today's Shift: {todaySchedule.shift.name}</p>
+                      <p className="font-semibold text-sm">Today's Shift: {myActiveSchedule.shift.name}</p>
                       <p className="text-xs text-muted-foreground">
-                        {todaySchedule.shift.startTime} – {todaySchedule.shift.endTime}
-                        {todaySchedule.site ? ` · ${todaySchedule.site.name}` : ""}
+                        {myActiveSchedule.shift.startTime} – {myActiveSchedule.shift.endTime}
+                        {myActiveSchedule.site ? ` · ${myActiveSchedule.site.name}` : ""}
                       </p>
                     </div>
-                    <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: (todaySchedule.shift as any).color ?? "#6366f1" }} />
+                    <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: (myActiveSchedule.shift as any).color ?? "#6366f1" }} />
                   </CardContent>
                 </Card>
               ) : null
@@ -1021,7 +1044,7 @@ export default function EmployeePortalPage() {
           {/* ══ ATTENDANCE TAB ════════════════════════════════════════════════ */}
           <TabsContent value="attendance" className="mt-4 space-y-4">
             {/* Today's Status + Correction Request */}
-            <AttendanceTodayCard employeeId={emp.id} todaySchedule={todaySchedule} />
+            <AttendanceTodayCard employeeId={emp.id} todaySchedule={myActiveSchedule} />
 
             {/* Real-time attendance stats */}
             {realAttSummary.total > 0 && (

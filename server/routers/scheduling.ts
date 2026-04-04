@@ -399,6 +399,41 @@ export const schedulingRouter = router({
       return { isHoliday: false, holiday: null, schedule: mySchedule, shift: shift ?? null, site: site ?? null };
     }),
 
+  // Returns the employee's active schedule regardless of today's day of week.
+  // Shows schedule info even on days off (isWorkingDay = false).
+  getMyActiveSchedule: protectedProcedure
+    .input(z.object({ companyId: z.number().optional() }))
+    .query(async ({ ctx, input }) => {
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId);
+      const db = await requireDb();
+      const today = todayStr();
+      const dow = todayDow();
+      // Check holiday
+      const holidays = await db.select().from(companyHolidays)
+        .where(and(eq(companyHolidays.companyId, companyId), eq(companyHolidays.holidayDate, today)));
+      const holiday = holidays[0] ?? null;
+      // Get all active schedules for this user
+      const allMySchedules = await db.select().from(employeeSchedules)
+        .where(and(
+          eq(employeeSchedules.companyId, companyId),
+          eq(employeeSchedules.employeeUserId, ctx.user.id),
+          eq(employeeSchedules.isActive, true),
+          lte(employeeSchedules.startDate, today),
+          or(isNull(employeeSchedules.endDate), gte(employeeSchedules.endDate, today))
+        ));
+      if (allMySchedules.length === 0) {
+        return { hasSchedule: false, isHoliday: !!holiday, holiday: holiday ?? null, isWorkingDay: false, schedule: null, shift: null, site: null, workingDays: [] as number[] };
+      }
+      // Pick today's schedule if it is a working day, otherwise pick the first active schedule
+      const todayScheduleRow = allMySchedules.find(s => s.workingDays.split(",").map(Number).includes(dow));
+      const mySchedule = todayScheduleRow ?? allMySchedules[0];
+      const isWorkingDay = !!todayScheduleRow && !holiday;
+      const [shift] = await db.select().from(shiftTemplates).where(eq(shiftTemplates.id, mySchedule.shiftTemplateId)).limit(1);
+      const [site] = await db.select().from(attendanceSites).where(eq(attendanceSites.id, mySchedule.siteId)).limit(1);
+      const workingDays = mySchedule.workingDays.split(",").map(Number);
+      return { hasSchedule: true, isHoliday: !!holiday, holiday: holiday ?? null, isWorkingDay, schedule: mySchedule, shift: shift ?? null, site: site ?? null, workingDays };
+    }),
+
   getMonthlyReport: protectedProcedure
     .input(z.object({
       companyId: z.number().optional(),

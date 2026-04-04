@@ -18,7 +18,13 @@ Phase 1 scope was intentionally limited to **UI-layer interpretation improvement
 
 ## 2. Acceptance Decision
 
-**Phase 1 is approved for production release.**
+**Phase 1 of SmartPRO Hub User Roles & Access Management is accepted as complete, with low release risk and a suitable foundation for Phase 2 RBAC normalization.**
+
+| Attribute | Value |
+|-----------|-------|
+| Overall Status | ✅ Approved |
+| Delivery Confidence | **High** |
+| Release Risk | **Low** |
 
 The following conditions were verified as met before this sign-off was issued:
 
@@ -192,6 +198,20 @@ The following items are **intentionally out of scope for Phase 1** and are track
 
 The following items are the recommended next steps for RBAC normalization. They are ordered by dependency — each item should be completed before the next.
 
+### Phase 2 Entry Criteria
+
+Phase 2 should begin when the following conditions are met in production — not after a fixed calendar period, but after sufficient operational evidence exists to validate real role patterns and anomalies:
+
+| Criterion | Description |
+|-----------|-------------|
+| Real workflow usage | The support and admin team has used the User Roles page in real day-to-day workflows |
+| Mismatch volume understood | The frequency and patterns of role mismatches and `needs_review` users are documented |
+| Multi-company behavior observed | Multi-company user behavior has been observed on real accounts, not just test data |
+| No hidden legacy dependencies | No critical flows remain that depend on raw `platformRole` semantics in ways that would break under a schema change |
+| Pain points documented | The top permission pain points (procedures that are too permissive or too restrictive) are documented |
+
+The 30-day window mentioned in earlier drafts is a reasonable default, but it should not be treated as a hard rule. If production reveals clear structural pain earlier, Phase 2 can begin sooner.
+
 | Priority | Item | Description | Effort |
 |----------|------|-------------|--------|
 | 1 | **Introduce formal `accountType` column** | Add `accountType` as a stored, indexed column in the `users` table. Populate it via a migration using `deriveAccountType()`. This enables efficient filtering and querying without re-deriving at runtime. | Medium |
@@ -202,7 +222,18 @@ The following items are the recommended next steps for RBAC normalization. They 
 
 ---
 
-## 11. Audit Trail
+## 11. What Was Technically Strongest in Phase 1
+
+The most significant technical improvement in Phase 1 was not the visual redesign. It was the combination of four structural decisions that materially reduce drift, admin confusion, and operational risk:
+
+1. **Centralized `roleHelpers.ts`** — all derivation logic in one place, imported by both backend and frontend
+2. **Input normalization** — `.toLowerCase().trim()` on every role input before any comparison
+3. **Shared consumption** — frontend and backend use the same helper outputs, eliminating the possibility of display/enforcement divergence
+4. **No silent disappearance** — the `needs_review` fallback group ensures malformed users are always visible and recoverable
+
+These four properties together form a stable bridge between the current legacy role model and the future normalized RBAC system planned for Phase 2.
+
+## 12. Audit Trail
 
 Every role change made through the User Roles & Access Management page is recorded in the `audit_logs` table with the following fields:
 

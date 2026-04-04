@@ -38,6 +38,7 @@ import {
   Users,
   UserCheck,
   UserX,
+  UserPlus,
   Mail,
   Plus,
   Shield,
@@ -54,6 +55,7 @@ import {
   Unlock,
   ChevronDown,
 } from "lucide-react";
+import { useLocation } from "wouter";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 
@@ -147,6 +149,47 @@ function AccessStatusBadge({ status }: { status: 'active' | 'inactive' | 'no_acc
     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
       <Clock size={11} /> No Access
     </span>
+  );
+}
+
+// ─── Empty State ────────────────────────────────────────────────────────────────
+
+function EmptyEmployeesState({ totalEmployees }: { totalEmployees: number }) {
+  const [, setLocation] = useLocation();
+  if (totalEmployees > 0) {
+    return (
+      <div className="py-12 text-center text-sm text-gray-400">
+        No employees match your search.
+      </div>
+    );
+  }
+  return (
+    <div className="py-12 text-center space-y-4">
+      <Users size={40} className="mx-auto text-gray-200" />
+      <div>
+        <p className="text-sm font-semibold text-gray-600">No employees added yet</p>
+        <p className="text-xs text-gray-400 mt-1 max-w-sm mx-auto">
+          Add your employees in the HR module first. Once added, you can grant them system access and assign roles here.
+        </p>
+      </div>
+      <div className="flex items-center justify-center gap-2">
+        <Button
+          size="sm"
+          className="gap-2 bg-[var(--smartpro-orange)] hover:bg-orange-600 text-white"
+          onClick={() => setLocation("/my-team")}
+        >
+          <UserPlus size={14} /> Go to My Team
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          className="gap-2"
+          onClick={() => setLocation("/hr/employees")}
+        >
+          <Users size={14} /> HR Employees
+        </Button>
+      </div>
+    </div>
   );
 }
 
@@ -326,7 +369,7 @@ export default function TeamAccessPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Team Access & Roles</h1>
           <p className="text-sm text-gray-500 mt-1">
-            Control who can log in to SmartPRO and what they can see. All your employees are shown below.
+            Manage who can log in to SmartPRO and what they can see. Add employees in HR → My Team first, then grant access here.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -434,11 +477,7 @@ export default function TeamAccessPage() {
               {loadingEmployees ? (
                 <div className="py-12 text-center text-sm text-gray-400">Loading employees...</div>
               ) : filteredEmployees.length === 0 ? (
-                <div className="py-12 text-center text-sm text-gray-400">
-                  {totalEmployees === 0
-                    ? "No employees found. Add employees in the HR module first."
-                    : "No employees match your search."}
-                </div>
+                <EmptyEmployeesState totalEmployees={totalEmployees} />
               ) : (
                 <div className="divide-y divide-gray-100">
                   {filteredEmployees.map((emp) => {
@@ -604,7 +643,7 @@ export default function TeamAccessPage() {
                 <div className="py-8 text-center text-sm text-gray-400">Loading...</div>
               ) : activeMembers.length === 0 ? (
                 <div className="py-8 text-center text-sm text-gray-400">
-                  No active members yet. Grant access to employees from the "All Employees" tab.
+                  No active members yet. Add employees in HR → My Team, then grant them system access from the HR Employees tab.
                 </div>
               ) : (
                 <div className="divide-y divide-gray-100">

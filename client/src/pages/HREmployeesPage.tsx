@@ -1,5 +1,6 @@
 import { trpc } from "@/lib/trpc";
 import { useState } from "react";
+import { useLocation } from "wouter";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import {
   Users, Search, UserCheck, Clock, ChevronRight, X,
@@ -185,6 +186,21 @@ function AddEmployeeWizard({ onSuccess, companyId }: { onSuccess: () => void; co
   );
 }
 
+function EditProfileLink({ employeeId }: { employeeId: number }) {
+  const [, setLocation] = useLocation();
+  return (
+    <Button
+      variant="outline"
+      size="sm"
+      className="h-8 text-xs gap-1.5 border-orange-300 text-orange-700 hover:bg-orange-50"
+      onClick={() => setLocation("/my-team")}
+      title="Go to My Team to edit full employee profile"
+    >
+      <Edit2 size={12} /> Edit Full Profile
+    </Button>
+  );
+}
+
 function EmployeeDetailPanel({ employeeId, onClose, onUpdate }: { employeeId: number; onClose: () => void; onUpdate: () => void }) {
   const { data: emp, refetch } = trpc.hr.getEmployee.useQuery({ id: employeeId });
   const [editSalary, setEditSalary] = useState(false);
@@ -224,7 +240,10 @@ function EmployeeDetailPanel({ employeeId, onClose, onUpdate }: { employeeId: nu
             </div>
           </div>
         </div>
-        <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close employee panel"><X size={16} aria-hidden="true" /></Button>
+        <div className="flex items-center gap-1">
+          <EditProfileLink employeeId={employeeId} />
+          <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close employee panel"><X size={16} aria-hidden="true" /></Button>
+        </div>
       </div>
       <div className="flex-1 overflow-y-auto p-4 space-y-5">
         {emp.status === "active" && (

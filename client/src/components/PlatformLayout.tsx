@@ -139,12 +139,11 @@ const navGroups = [
   },
   // ── HUMAN RESOURCES ───────────────────────────────────────────────────────
   // Single source of truth for all employee and HR data.
-  // "My Team" and "Employees" are the same data — only Employees is kept here.
   {
     label: "Human Resources",
     items: [
       // People
-      { label: "Employees", href: "/hr/employees", icon: <Users size={18} /> },
+      { label: "My Team", href: "/my-team", icon: <Users size={18} /> },
       { label: "Recruitment", href: "/hr/recruitment", icon: <BookOpen size={18} /> },
       { label: "Org Structure", href: "/hr/org-structure", icon: <LayoutGrid size={18} /> },
       { label: "Profile Completeness", href: "/hr/completeness", icon: <UserCheck size={18} /> },

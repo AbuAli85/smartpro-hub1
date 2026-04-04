@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Progress } from "@/components/ui/progress";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -375,6 +376,40 @@ export default function EmployeeLifecyclePage() {
             <div className="text-xs text-muted-foreground mt-0.5">Months Employed</div>
           </div>
         </div>
+
+        {/* ── Profile Completeness ── */}
+        {(() => {
+          const REQUIRED_FIELDS = ["firstName", "lastName", "email", "phone", "nationality", "department", "position", "hireDate", "salary"] as const;
+          const OPTIONAL_FIELDS = ["passportNumber", "nationalId", "dateOfBirth", "gender", "pasiNumber", "bankAccountNumber", "emergencyContactName"] as const;
+          const reqFilled = REQUIRED_FIELDS.filter((f) => !!(employee as any)[f]).length;
+          const optFilled = OPTIONAL_FIELDS.filter((f) => !!(employee as any)[f]).length;
+          const score = Math.round(((reqFilled / REQUIRED_FIELDS.length) * 70) + ((optFilled / OPTIONAL_FIELDS.length) * 30));
+          const missing = REQUIRED_FIELDS.filter((f) => !(employee as any)[f]);
+          const color = score >= 90 ? "text-emerald-600 dark:text-emerald-400" : score >= 60 ? "text-amber-600 dark:text-amber-400" : "text-red-600 dark:text-red-400";
+          return (
+            <div className="p-4 rounded-xl border border-border bg-card">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-semibold text-foreground">Profile Completeness</span>
+                <span className={`text-sm font-bold ${color}`}>{score}%</span>
+              </div>
+              <Progress value={score} className="h-2" />
+              {missing.length > 0 ? (
+                <div className="mt-2.5 flex flex-wrap gap-1.5">
+                  {missing.map((f) => (
+                    <span key={f} className="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 border border-red-200 dark:border-red-800">
+                      Missing: {f.replace(/([A-Z])/g, " $1").toLowerCase()}
+                    </span>
+                  ))}
+                  <button onClick={() => setEditOpen(true)} className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20 transition-colors">
+                    + Fill in details
+                  </button>
+                </div>
+              ) : (
+                <p className="mt-1.5 text-xs text-emerald-600 dark:text-emerald-400">All required fields are complete ✓</p>
+              )}
+            </div>
+          );
+        })()}
 
         {/* ── Tabs ── */}
         <Tabs defaultValue="profile">

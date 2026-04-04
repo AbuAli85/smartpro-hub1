@@ -764,25 +764,25 @@ As a business services provider in Oman/GCC, here is what I need every single da
 Any company member (admin or regular) can add, view, edit, and manage their own staff directly from the platform without needing to navigate the full HR module.
 
 ### Backend tRPC Procedures
-- [ ] tRPC: team.listMembers — list all employees for the caller's company (with search, status, department filters)
-- [ ] tRPC: team.getMember — get full profile of a single team member
-- [ ] tRPC: team.addMember — add a new staff member (simplified 2-step form: personal + role)
-- [ ] tRPC: team.updateMember — update name, position, department, phone, email, status
-- [ ] tRPC: team.deleteMember — soft-delete / terminate a team member (status → terminated)
+- [x] tRPC: team.listMembers — list all employees for the caller's company (with search, status, department filters)
+- [x] tRPC: team.getMember — get full profile of a single team member
+- [x] tRPC: team.addMember — add a new staff member (simplified 2-step form: personal + role)
+- [x] tRPC: team.updateMember — update name, position, department, phone, email, status
+- [x] tRPC: team.deleteMember — soft-delete / terminate a team member (status → terminated)
 
 ### Frontend Pages
-- [ ] UI: MyTeamPage.tsx — staff directory with card grid + table toggle, search, filter by department/status, headcount stats bar
-- [ ] UI: Add Staff dialog — 2-step wizard (Step 1: name/email/phone/nationality; Step 2: department/position/employment type/hire date)
-- [ ] UI: Staff profile side panel — full details, edit inline, quick actions (email, call), status change with confirmation
-- [ ] UI: Department breakdown — mini chart showing headcount by department
-- [ ] UI: Empty state — friendly prompt when no staff added yet
+- [x] UI: MyTeamPage.tsx — staff directory with card grid + table toggle, search, filter by department/status, headcount stats bar
+- [x] UI: Add Staff dialog — 2-step wizard (Step 1: name/email/phone/nationality; Step 2: department/position/employment type/hire date)
+- [x] UI: Staff profile side panel — full details, edit inline, quick actions (email, call), status change with confirmation
+- [x] UI: Department breakdown — mini chart showing headcount by department
+- [x] UI: Empty state — friendly prompt when no staff added yet
 
 ### Routes & Navigation
 - [x] Route: /my-team registered in App.tsx
-- [ ] Nav: "My Team" link in PlatformLayout sidebar under Company section (visible to all company roles)
+- [x] Nav: "My Team" link in PlatformLayout sidebar under Company section (visible to all company roles)
 
 ### Tests
-- [ ] Vitest tests for team router procedures
+- [x] Vitest tests for team router procedures
 
 ## Phase 30: All-in-One Company Workspace
 
@@ -887,18 +887,18 @@ Every company on SmartPRO Hub gets a complete, unified business operating area �
 
 ## Phase 34: Company Documents Vault
 
-- [ ] DB: company_documents table — id, companyId, docType, title, docNumber, issueDate, expiryDate, issuingAuthority, fileUrl, fileKey, status, notes, createdAt, updatedAt
-- [ ] DB: Run migration SQL via webdev_execute_sql
-- [ ] Backend: documents.list — list all company documents with expiry status computed
-- [ ] Backend: documents.get — get single document with signed URL
-- [ ] Backend: documents.upload — upload file to S3, save metadata
-- [ ] Backend: documents.update — update document metadata (title, dates, notes)
-- [ ] Backend: documents.delete — soft-delete document
-- [ ] Backend: documents.getStats — count by status (valid, expiring_soon, expired)
-- [ ] Frontend: CompanyDocumentsPage.tsx — document vault with category tabs, expiry status badges, upload dialog, document viewer, renewal reminders
-- [ ] Frontend: Pre-seeded document type list: CR Certificate, OCCI Membership, Municipality Licence, Labour Card, PASI Certificate, Tax Card, Chamber Certificate, Trade Licence, etc.
-- [ ] Frontend: Expiry timeline — colour-coded: green (>90 days), amber (30-90 days), red (<30 days / expired)
-- [ ] Frontend: Upload dialog — drag-and-drop PDF/image upload with metadata form
+- [x] DB: company_documents table — id, companyId, docType, title, docNumber, issueDate, expiryDate, issuingAuthority, fileUrl, fileKey, status, notes, createdAt, updatedAt
+- [x] DB: Run migration SQL via webdev_execute_sql
+- [x] Backend: documents.list — list all company documents with expiry status computed
+- [x] Backend: documents.get — get single document with signed URL
+- [x] Backend: documents.upload — upload file to S3, save metadata
+- [x] Backend: documents.update — update document metadata (title, dates, notes)
+- [x] Backend: documents.delete — soft-delete document
+- [x] Backend: documents.getStats — count by status (valid, expiring_soon, expired)
+- [x] Frontend: CompanyDocumentsPage.tsx — document vault with category tabs, expiry status badges, upload dialog, document viewer, renewal reminders
+- [x] Frontend: Pre-seeded document type list: CR Certificate, OCCI Membership, Municipality Licence, Labour Card, PASI Certificate, Tax Card, Chamber Certificate, Trade Licence, etc.
+- [x] Frontend: Expiry timeline — colour-coded: green (>90 days), amber (30-90 days), red (<30 days / expired)
+- [x] Frontend: Upload dialog — drag-and-drop PDF/image upload with metadata form
 - [ ] Frontend: Document viewer — open PDF in browser preview panel
 - [ ] Route: /company/documents registered in App.tsx
 - [ ] Nav: "Company Documents" added to My Company sidebar group
@@ -908,20 +908,20 @@ Every company on SmartPRO Hub gets a complete, unified business operating area �
 
 - [ ] DB: employee_documents table — id, employeeId, companyId, docType, title, docNumber, issueDate, expiryDate, issuingAuthority, fileUrl, fileKey, mimeType, fileSize, notes, isDeleted, uploadedBy, createdAt, updatedAt
 - [ ] DB: Apply migration for both company_documents and employee_documents tables
-- [ ] Backend: documents.listEmployeeDocs — list all documents for an employee
-- [ ] Backend: documents.uploadEmployeeDoc — upload file to S3, save metadata for employee
-- [ ] Backend: documents.updateEmployeeDoc — update document metadata
-- [ ] Backend: documents.deleteEmployeeDoc — soft-delete employee document
-- [ ] Backend: documents.listCompanyDocs — list all company documents
-- [ ] Backend: documents.uploadCompanyDoc — upload file to S3, save metadata for company
-- [ ] Backend: documents.updateCompanyDoc — update company document metadata
-- [ ] Backend: documents.deleteCompanyDoc — soft-delete company document
-- [ ] Frontend: CompanyDocumentsPage.tsx — company vault with category tabs, expiry badges, upload dialog, PDF viewer
+- [x] Backend: documents.listEmployeeDocs — list all documents for an employee
+- [x] Backend: documents.uploadEmployeeDoc — upload file to S3, save metadata for employee
+- [x] Backend: documents.updateEmployeeDoc — update document metadata
+- [x] Backend: documents.deleteEmployeeDoc — soft-delete employee document
+- [x] Backend: documents.listCompanyDocs — list all company documents
+- [x] Backend: documents.uploadCompanyDoc — upload file to S3, save metadata for company
+- [x] Backend: documents.updateCompanyDoc — update company document metadata
+- [x] Backend: documents.deleteCompanyDoc — soft-delete company document
+- [x] Frontend: CompanyDocumentsPage.tsx — company vault with category tabs, expiry badges, upload dialog, PDF viewer
 - [ ] Frontend: EmployeeDocumentsPanel — embedded in employee profile, shows all docs with upload/view/delete
 - [ ] Frontend: Document types for employees: Work Permit, Visa, Passport, ROP Card, ID Card, Labour Card, Medical Certificate, Contract
 - [ ] Frontend: Document types for company: CR Certificate, OCCI Membership, Municipality Licence, Trade Licence, Tax Card, Labour Card, PASI Certificate, Chamber Certificate
 - [ ] Frontend: Expiry status colour coding — green (>90 days), amber (30-90 days), red (<30 days / expired)
-- [ ] Frontend: Upload dialog — drag-and-drop PDF/image, metadata form with doc number, issue/expiry dates
+- [x] Frontend: Upload dialog — drag-and-drop PDF/image, metadata form with doc number, issue/expiry dates
 - [ ] Frontend: PDF/image viewer — opens document in browser preview panel
 - [ ] Route: /company/documents registered in App.tsx
 - [ ] Nav: "Documents" added to My Company sidebar group

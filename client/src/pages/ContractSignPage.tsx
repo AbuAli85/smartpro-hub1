@@ -94,7 +94,7 @@ function SignatureCanvas({ onCapture }: { onCapture: (dataUrl: string) => void }
       </div>
 
       {mode === "draw" ? (
-        <div className="border-2 border-dashed border-border rounded-lg overflow-hidden bg-white">
+        <div className="border-2 border-dashed border-border rounded-lg overflow-hidden bg-background">
           <canvas
             ref={canvasRef}
             width={500}
@@ -361,7 +361,7 @@ export default function ContractSignPage() {
                 <SignatureCanvas onCapture={setSignatureDataUrl} />
               ) : (
                 <div className="space-y-3">
-                  <div className="border rounded-lg overflow-hidden bg-white">
+                  <div className="border rounded-lg overflow-hidden bg-background">
                     <img src={signatureDataUrl} alt="Your signature" className="w-full max-h-36 object-contain" />
                   </div>
                   <div className="flex gap-2">

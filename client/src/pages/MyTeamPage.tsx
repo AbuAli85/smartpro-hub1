@@ -946,12 +946,18 @@ export default function MyTeamPage() {
 
           {/* KPI bar */}
           {stats && (
-            <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="mt-4 grid grid-cols-2 sm:grid-cols-5 gap-3">
               {[
                 { label: "Total Staff", value: stats.total, color: "text-foreground", bg: "bg-muted/60 border-border" },
                 { label: "Active", value: stats.active, color: "text-emerald-700", bg: "bg-emerald-50 border-emerald-200" },
                 { label: "On Leave", value: stats.onLeave, color: "text-amber-700", bg: "bg-amber-50 border-amber-200" },
                 { label: "Departments", value: stats.byDepartment.length, color: "text-blue-700", bg: "bg-blue-50 border-blue-200" },
+                {
+                  label: "Expiry Warnings",
+                  value: (stats as any).expiryWarnings ?? 0,
+                  color: ((stats as any).expiryWarnings ?? 0) > 0 ? "text-red-700" : "text-muted-foreground",
+                  bg: ((stats as any).expiryWarnings ?? 0) > 0 ? "bg-red-50 border-red-200" : "bg-muted/60 border-border",
+                },
               ].map((k) => (
                 <div key={k.label} className={`rounded-lg border px-3 py-2 ${k.bg}`}>
                   <div className={`text-2xl font-black ${k.color}`}>{k.value}</div>

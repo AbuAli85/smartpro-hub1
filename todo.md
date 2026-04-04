@@ -969,7 +969,7 @@ Every company on SmartPRO Hub gets a complete, unified business operating area �
 - [x] UI: Compliance summary panel at top of Run Payroll tab — count of expired, expiring, ok employees
 - [x] UI: Warning banner when approving a run that has employees with expired documents
 - [x] UI: Compliance tooltip on each badge showing document type, expiry date, days remaining
-- [ ] UI: "View Details" link from compliance badge to employee documents page
+- [x] UI: "View Details" link from compliance badge to employee documents page
 
 ## Phase 39: HR Document Management Dashboard (Completed)
 - [x] Backend: documents.getDashboard procedure — aggregate all company docs + all employee docs with expiry status, missing doc counts, stats
@@ -1096,7 +1096,7 @@ Every company on SmartPRO Hub gets a complete, unified business operating area �
 - [x] UI: Dashboard setup checklist — shows incomplete setup steps with direct action buttons
 
 ### 42H — Cross-Module Navigation Intelligence
-- [ ] UI: Add "Quick Actions" floating button on all HR pages — links to: Add Employee, Run Payroll, Generate Letter, Upload Document
+- [x] UI: Add "Quick Actions" floating button on all HR pages — links to: Add Employee, Run Payroll, Generate Letter, Upload Document
 - [x] UI: Employee cards in MyTeamPage — show document expiry warning badge if any doc expires in 30 days
 - [x] UI: Payroll run page — show compliance flags per employee (expired doc = red badge, expiring = amber)
 - [x] UI: Leave approval — show employee leave balance remaining before approving
@@ -1187,11 +1187,11 @@ Every company on SmartPRO Hub gets a complete, unified business operating area �
 ### 44C — Team Access Page (Owner-Friendly)
 - [x] UI: TeamAccessPage.tsx — clean page: all team members with role badges, invite by email, change role dropdown, remove/reactivate. Replaces need to go to /company-admin for this.
 - [x] Route: /company/team-access registered in App.tsx
-- [ ] Nav: "Team Access" link added to My Company section (visible to company_admin only via COMPANY_OWNER_HREFS)
-- [ ] Nav: /company/team-access added to PORTAL_CLIENT_HREFS
+- [x] Nav: "Team Access" link added to My Company section (visible to company_admin only via COMPANY_OWNER_HREFS)
+- [x] Nav: /company/team-access added to PORTAL_CLIENT_HREFS
 
 ### 44D — Role Guide Cards
-- [ ] UI: Role explanation section on TeamAccessPage — what each role sees and can do
+- [x] UI: Role explanation section on TeamAccessPage — what each role sees and can do
 
 ## Phase 46: Employee Access & Notification Workflow Fix
 - [x] Fix employeePortal router: use userId-first lookup (not email-first) in ALL procedures
@@ -1207,7 +1207,7 @@ Every company on SmartPRO Hub gets a complete, unified business operating area �
 - [x] Fix EmployeePortalPage leave tab: show leave balance bar (Annual / Sick / Emergency remaining days)
 - [x] Add "Submit Leave Request" button directly in the Leave tab of My Portal
 - [x] Fix EmployeePortalPage: show correct employee name (not first active employee in company)
-- [ ] Add "My Portal" link in sidebar for company_member / hr_admin / finance_admin roles
+- [x] Add "My Portal" link in sidebar for company_member / hr_admin / finance_admin roles
 
 ## Phase 47: Complete My Portal — All Employee Features End-to-End
 - [x] Add getMyAttendanceSummary procedure (monthly stats: present/absent/late/total days)
@@ -1289,21 +1289,21 @@ Every company on SmartPRO Hub gets a complete, unified business operating area �
 - [x] Verify company isolation end-to-end: company A employees never appear in company B view
 
 ## Phase 57: Fix /my-team 403 errors and company isolation
-- [ ] Diagnose exact 403 error source in team router when companyId is passed
-- [ ] Fix team router: listMembers must not throw 403 for valid company members
-- [ ] Fix team router: getTeamStats must not throw 403 for valid company members
-- [ ] Fix MyTeamPage: ensure activeCompanyId is correctly passed to all team queries
-- [ ] Verify: switching companies shows correct employees with no 403 errors
+- [x] Diagnose exact 403 error source in team router when companyId is passed
+- [x] Fix team router: listMembers must not throw 403 for valid company members
+- [x] Fix team router: getTeamStats must not throw 403 for valid company members
+- [x] Fix MyTeamPage: ensure activeCompanyId is correctly passed to all team queries
+- [x] Verify: switching companies shows correct employees with no 403 errors
 
 ## Phase 58: Fix Employee Import & Status Filtering
 - [ ] Fix EmployeeImportPage: pass activeCompanyId to bulkImport mutation so import goes to selected company
 - [ ] Fix bulkImport procedure: require companyId input (not optional), validate membership
-- [ ] Filter HR Employees page: show all statuses but default to active, add clear status filter UI
-- [ ] Filter Team Access (MyTeamPage): only show active employees by default, hide terminated/cancelled
-- [ ] Filter Attendance page: only show active employees in employee selector
-- [ ] Filter Payroll page: only show active employees in salary config and payroll runs
-- [ ] Filter Leave page: only show active employees in leave request forms
-- [ ] Add status badge colors: active=green, on_leave=yellow, terminated=red, resigned=gray
+- [x] Filter HR Employees page: show all statuses but default to active, add clear status filter UI
+- [x] Filter Team Access (MyTeamPage): only show active employees by default, hide terminated/cancelled
+- [x] Filter Attendance page: only show active employees in employee selector
+- [x] Filter Payroll page: only show active employees in salary config and payroll runs
+- [x] Filter Leave page: only show active employees in leave request forms
+- [x] Add status badge colors: active=green, on_leave=yellow, terminated=red, resigned=gray
 - [ ] Verify: importing while company B selected saves to company B, not company A
 
 ## Phase 59: Fresh Start — Clear Data & Fix Company Isolation (COMPLETED)
@@ -1320,16 +1320,16 @@ Every company on SmartPRO Hub gets a complete, unified business operating area �
 ## Phase 60: Full End-to-End Audit — All Badges, Counts, Stats Must Be Company-Scoped
 - [ ] Fix Team Access badge (sidebar shows 31 from old company data)
 - [ ] Audit sidebar navigation badges: every badge must use activeCompanyId
-- [ ] Audit Dashboard KPI cards: all counts must be company-scoped
-- [ ] Audit My Team page: Total Staff, Active, On Leave badges must reflect active company
-- [ ] Audit HR Employees page: all counts must reflect active company
-- [ ] Audit Attendance page: employee list and stats must reflect active company
-- [ ] Audit Leave page: leave requests and counts must reflect active company
-- [ ] Audit Payroll page: payroll runs and salary configs must reflect active company
-- [ ] Audit Company Admin page: member list must reflect active company
-- [ ] Audit all notification bell counts: must be company-scoped
-- [ ] Fix any procedure that uses getUserCompany() fallback instead of activeCompanyId
-- [ ] Verify: switching company A to B → ALL badges, counts, lists update immediately
+- [x] Audit Dashboard KPI cards: all counts must be company-scoped
+- [x] Audit My Team page: Total Staff, Active, On Leave badges must reflect active company
+- [x] Audit HR Employees page: all counts must reflect active company
+- [x] Audit Attendance page: employee list and stats must reflect active company
+- [x] Audit Leave page: leave requests and counts must reflect active company
+- [x] Audit Payroll page: payroll runs and salary configs must reflect active company
+- [x] Audit Company Admin page: member list must reflect active company
+- [x] Audit all notification bell counts: must be company-scoped
+- [x] Fix any procedure that uses getUserCompany() fallback instead of activeCompanyId
+- [x] Verify: switching company A to B → ALL badges, counts, lists update immediately
 
 ## Multi-Company Access Management
 - [ ] Add backend procedure: companies.grantMultiCompanyAccess — grant one employee access to multiple companies at once with a specified role per company
@@ -1343,7 +1343,7 @@ Every company on SmartPRO Hub gets a complete, unified business operating area �
 - [x] Apply expiry badge/border to employee cards in MyTeamPage list view
 - [x] Apply expiry indicators in HREmployeesPage compliance columns
 - [x] Apply expiry indicators in EmployeeLifecyclePage document fields
-- [ ] Add expiry warning summary count in MyTeam stats bar
+- [x] Add expiry warning summary count in MyTeam stats bar
 
 ## Document Expiry Dashboard
 - [x] Add getExpiringDocuments tRPC procedure in hr.ts returning all employees with expiring/expired docs
@@ -1366,16 +1366,16 @@ Every company on SmartPRO Hub gets a complete, unified business operating area �
 - [x] Multi-Company Roles page: manage all users' access across all companies
 
 ## Phase 62: Role Redirect Customization (Company Admin Feature)
-- [ ] DB: add roleRedirectSettings JSON column to companies table (stores per-role default routes)
-- [ ] Migration: generate and apply ALTER TABLE for roleRedirectSettings column
-- [ ] Backend: companies.getRoleRedirectSettings — return current redirect config for active company
-- [ ] Backend: companies.updateRoleRedirectSettings — save per-role redirect overrides (company_admin only)
-- [ ] Frontend: Role Redirect Settings card in CompanySettingsPage with role-to-route dropdowns
-- [ ] Frontend: show available routes per role (only routes the role can access per RBAC)
-- [ ] Frontend: live preview of what each role will see on login
-- [ ] Frontend: "Reset to defaults" button to clear customizations
+- [x] DB: add roleRedirectSettings JSON column to companies table (stores per-role default routes)
+- [x] Migration: generate and apply ALTER TABLE for roleRedirectSettings column
+- [x] Backend: companies.getRoleRedirectSettings — return current redirect config for active company
+- [x] Backend: companies.updateRoleRedirectSettings — save per-role redirect overrides (company_admin only)
+- [x] Frontend: Role Redirect Settings card in CompanySettingsPage with role-to-route dropdowns
+- [x] Frontend: show available routes per role (only routes the role can access per RBAC)
+- [x] Frontend: live preview of what each role will see on login
+- [x] Frontend: "Reset to defaults" button to clear customizations
 - [x] Wire: Dashboard.tsx reads custom redirect from getRoleRedirectSettings before falling back to getRoleDefaultRoute()
-- [ ] Tests: vitest tests for getRoleRedirectSettings and updateRoleRedirectSettings procedures
+- [x] Tests: vitest tests for getRoleRedirectSettings and updateRoleRedirectSettings procedures
 
 ## Phase 62: Role Redirect Customization Feature
 - [x] Add roleRedirectSettings JSON column to companies table in drizzle/schema.ts
@@ -1398,12 +1398,12 @@ Every company on SmartPRO Hub gets a complete, unified business operating area �
 - [x] Write vitest tests for email helper
 
 ## Phase 65: Email Template Preview Feature
-- [ ] Add previewEmailTemplate tRPC procedure (server-side HTML render with sample data)
-- [ ] Build EmailPreviewPage with template switcher, editable sample fields, and iframe preview
-- [ ] Add "Send Test Email" button to send a real test email from the preview page
-- [ ] Register /settings/email-preview route in App.tsx
-- [ ] Add Email Templates nav link in company settings sidebar
-- [ ] Write vitest tests for the preview procedure
+- [x] Add previewEmailTemplate tRPC procedure (server-side HTML render with sample data)
+- [x] Build EmailPreviewPage with template switcher, editable sample fields, and iframe preview
+- [x] Add "Send Test Email" button to send a real test email from the preview page
+- [x] Register /settings/email-preview route in App.tsx
+- [x] Add Email Templates nav link in company settings sidebar
+- [x] Write vitest tests for the preview procedure
 
 ## Phase 63: Email Template Preview
 - [x] Add emailPreview.ts with buildInviteEmailHtml, buildHRLetterEmailHtml, buildContractSigningEmailHtml
@@ -1418,24 +1418,24 @@ Every company on SmartPRO Hub gets a complete, unified business operating area �
 - [x] All 293 tests pass, 0 TypeScript errors
 
 ## Phase 64: Complete Employee Self-Service Portal
-- [ ] DB schema: attendance_sites table (id, companyId, name, location, qrToken, isActive)
-- [ ] DB schema: attendance_records table (id, companyId, employeeId, siteId, checkIn, checkOut, gpsLat, gpsLng, method)
-- [ ] DB schema: employee_requests table (id, companyId, employeeId, type, status, details JSON, adminNote, createdAt)
-- [ ] DB migration: run SQL for new tables
-- [ ] tRPC: attendance.createSite (admin - create attendance site with QR token)
-- [ ] tRPC: attendance.listSites (admin - list all sites)
-- [ ] tRPC: attendance.getSiteByToken (public - resolve QR token to site info)
-- [ ] tRPC: attendance.checkIn (employee - GPS check-in via QR link)
-- [ ] tRPC: attendance.checkOut (employee - GPS check-out)
-- [ ] tRPC: attendance.myToday (employee - today's attendance record)
-- [ ] tRPC: attendance.myHistory (employee - paginated attendance history)
-- [ ] tRPC: attendance.adminBoard (admin - live attendance board for all employees)
-- [ ] tRPC: employeeRequests.submit (employee - submit leave/doc/overtime/expense request)
-- [ ] tRPC: employeeRequests.myRequests (employee - list own requests)
-- [ ] tRPC: employeeRequests.adminList (admin/hr - list all requests with filters)
-- [ ] tRPC: employeeRequests.updateStatus (admin/hr - approve/reject request)
+- [x] DB schema: attendance_sites table (id, companyId, name, location, qrToken, isActive)
+- [x] DB schema: attendance_records table (id, companyId, employeeId, siteId, checkIn, checkOut, gpsLat, gpsLng, method)
+- [x] DB schema: employee_requests table (id, companyId, employeeId, type, status, details JSON, adminNote, createdAt)
+- [x] DB migration: run SQL for new tables
+- [x] tRPC: attendance.createSite (admin - create attendance site with QR token)
+- [x] tRPC: attendance.listSites (admin - list all sites)
+- [x] tRPC: attendance.getSiteByToken (public - resolve QR token to site info)
+- [x] tRPC: attendance.checkIn (employee - GPS check-in via QR link)
+- [x] tRPC: attendance.checkOut (employee - GPS check-out)
+- [x] tRPC: attendance.myToday (employee - today's attendance record)
+- [x] tRPC: attendance.myHistory (employee - paginated attendance history)
+- [x] tRPC: attendance.adminBoard (admin - live attendance board for all employees)
+- [x] tRPC: employeeRequests.submit (employee - submit leave/doc/overtime/expense request)
+- [x] tRPC: employeeRequests.myRequests (employee - list own requests)
+- [x] tRPC: employeeRequests.adminList (admin/hr - list all requests with filters)
+- [x] tRPC: employeeRequests.updateStatus (admin/hr - approve/reject request)
 - [ ] UI: MyPortalPage - redesign as employee home with quick action cards
-- [ ] UI: QR Check-in page (/attend/:token) - mobile-first GPS check-in/out page
+- [x] UI: QR Check-in page (/attend/:token) - mobile-first GPS check-in/out page
 - [ ] UI: Admin Attendance Sites page - create sites, show QR codes, download QR
 - [ ] UI: Admin Attendance Board - live board showing who is in/out today
 - [ ] UI: Employee Requests page - submit and track requests

@@ -265,6 +265,8 @@ export const teamRouter = router({
       const byDept: Record<string, number> = {};
       const recentHires: typeof all = [];
       const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      const warnCutoff = new Date(Date.now() + 60 * 24 * 60 * 60 * 1000); // 60 days ahead
+      let expiryWarnings = 0;
 
       for (const e of all) {
         byStatus[e.status] = (byStatus[e.status] ?? 0) + 1;
@@ -272,6 +274,21 @@ export const teamRouter = router({
         byDept[dept] = (byDept[dept] ?? 0) + 1;
         if (e.hireDate && new Date(e.hireDate) >= thirtyDaysAgo) {
           recentHires.push(e);
+        }
+        // Count active employees with expired or expiring-soon docs
+        if (e.status === "active") {
+          const checkExpiry = (d: Date | string | null | undefined) => {
+            if (!d) return false;
+            const dt = new Date(d as string);
+            return !isNaN(dt.getTime()) && dt <= warnCutoff;
+          };
+          if (
+            checkExpiry((e as any).visaExpiryDate) ||
+            checkExpiry((e as any).workPermitExpiryDate) ||
+            checkExpiry((e as any).passportExpiry)
+          ) {
+            expiryWarnings++;
+          }
         }
       }
 
@@ -281,6 +298,7 @@ export const teamRouter = router({
         onLeave: byStatus["on_leave"] ?? 0,
         terminated: byStatus["terminated"] ?? 0,
         resigned: byStatus["resigned"] ?? 0,
+        expiryWarnings,
         byStatus,
         byDepartment: Object.entries(byDept)
           .map(([dept, count]) => ({ dept, count }))

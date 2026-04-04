@@ -573,6 +573,32 @@ export default function EmployeePortalPage() {
     onError: (e: any) => toast.error(e.message),
   });
 
+  // Training records queries
+  const { data: myTraining, refetch: refetchTraining } = trpc.financeHR.myTraining.useQuery(
+    undefined, { enabled: isAuthenticated }
+  );
+  const updateTrainingMut = trpc.financeHR.updateTrainingStatus.useMutation({
+    onSuccess: () => { refetchTraining(); toast.success("Training status updated"); },
+    onError: (e: any) => toast.error(e.message),
+  });
+  // Self-review queries & mutations
+  const { data: mySelfReviews, refetch: refetchReviews } = trpc.financeHR.mySelfReviews.useQuery(
+    undefined, { enabled: isAuthenticated }
+  );
+  const [showReviewDialog, setShowReviewDialog] = useState(false);
+  const [reviewPeriod, setReviewPeriod] = useState("");
+  const [reviewRating, setReviewRating] = useState(3);
+  const [reviewAchievements, setReviewAchievements] = useState("");
+  const [reviewGoals, setReviewGoals] = useState("");
+  const submitReviewMut = trpc.financeHR.submitSelfReview.useMutation({
+    onSuccess: () => {
+      refetchReviews();
+      setShowReviewDialog(false);
+      setReviewPeriod(""); setReviewRating(3); setReviewAchievements(""); setReviewGoals("");
+      toast.success("Self-review submitted successfully");
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
   // Expense claims queries & mutations
   const { data: myExpenses, refetch: refetchExpenses } = trpc.financeHR.myExpenses.useQuery(
     undefined, { enabled: isAuthenticated }
@@ -915,7 +941,7 @@ export default function EmployeePortalPage() {
 
         {/* ── Main Tabs ── */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="w-full grid grid-cols-11 h-auto">
+          <TabsList className="w-full grid grid-cols-13 h-auto">
             {[
               { value: "overview", icon: Home, label: "Overview" },
               { value: "attendance", icon: UserCheck, label: "Attendance" },
@@ -927,6 +953,8 @@ export default function EmployeePortalPage() {
               { value: "kpi", icon: Target, label: "KPI", badge: 0 },
               { value: "expenses", icon: Wallet, label: "Expenses", badge: (myExpenses ?? []).filter((e: any) => e.expenseStatus === "pending").length },
               { value: "worklog", icon: Timer, label: "Work Log", badge: 0 },
+              { value: "training", icon: Award, label: "Training", badge: ((myTraining as any[]) ?? []).filter((t: any) => t.trainingStatus === "assigned" || t.trainingStatus === "overdue").length },
+              { value: "reviews", icon: Star, label: "Reviews", badge: 0 },
               { value: "profile", icon: User, label: "Profile" },
             ].map(({ value, icon: Icon, label, badge }) => (
               <TabsTrigger key={value} value={value} className="py-2 text-xs flex flex-col gap-0.5 h-auto relative">
@@ -2522,8 +2550,213 @@ export default function EmployeePortalPage() {
             </Card>
           </TabsContent>
 
+          {/* ══ TRAINING TAB ══════════════════════════════════════════════════ */}
+          <TabsContent value="training" className="mt-4 space-y-4">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div>
+                <h2 className="text-base font-semibold flex items-center gap-2">
+                  <Award className="w-4 h-4 text-primary" />
+                  My Training
+                </h2>
+                <p className="text-xs text-muted-foreground">Assigned courses and certifications</p>
+              </div>
+            </div>
+            {((myTraining as any[]) ?? []).length === 0 ? (
+              <Card>
+                <CardContent className="py-12 text-center text-muted-foreground">
+                  <Award className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                  <p className="text-sm font-medium">No training assigned yet</p>
+                  <p className="text-xs mt-1">Your HR team will assign training courses here</p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-3">
+                {((myTraining as any[]) ?? []).map((t: any) => {
+                  const statusColor: Record<string, string> = {
+                    assigned: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
+                    in_progress: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
+                    completed: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
+                    overdue: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
+                  };
+                  return (
+                    <Card key={t.id} className="hover:shadow-sm transition-shadow">
+                      <CardContent className="p-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="font-medium text-sm">{t.title}</p>
+                              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusColor[t.trainingStatus] ?? "bg-gray-100 text-gray-700"}`}>
+                                {t.trainingStatus.replace("_", " ")}
+                              </span>
+                            </div>
+                            {t.provider && <p className="text-xs text-muted-foreground mt-0.5">{t.provider}</p>}
+                            <div className="flex items-center gap-3 mt-1.5 text-xs text-muted-foreground">
+                              {t.dueDate && <span>Due: {t.dueDate}</span>}
+                              {t.durationHours && <span>{t.durationHours}h</span>}
+                              <span className="capitalize">{t.trainingCategory.replace("_", " ")}</span>
+                            </div>
+                            {t.score != null && <p className="text-xs font-medium text-green-600 mt-1">Score: {t.score}%</p>}
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            {t.trainingStatus === "assigned" && (
+                              <Button size="sm" variant="outline" onClick={() => updateTrainingMut.mutate({ id: t.id, status: "in_progress" })}>
+                                Start
+                              </Button>
+                            )}
+                            {t.trainingStatus === "in_progress" && (
+                              <Button size="sm" onClick={() => updateTrainingMut.mutate({ id: t.id, status: "completed" })}>
+                                <Check className="w-3.5 h-3.5 mr-1" /> Complete
+                              </Button>
+                            )}
+                            {t.certificateUrl && (
+                              <a href={t.certificateUrl} target="_blank" rel="noopener noreferrer">
+                                <Button size="sm" variant="ghost"><ExternalLink className="w-3.5 h-3.5" /></Button>
+                              </a>
+                            )}
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
+          </TabsContent>
+
+          {/* ══ REVIEWS TAB ══════════════════════════════════════════════════ */}
+          <TabsContent value="reviews" className="mt-4 space-y-4">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div>
+                <h2 className="text-base font-semibold flex items-center gap-2">
+                  <Star className="w-4 h-4 text-primary" />
+                  Performance Reviews
+                </h2>
+                <p className="text-xs text-muted-foreground">Your self-assessments and manager feedback</p>
+              </div>
+              <Button size="sm" onClick={() => setShowReviewDialog(true)}>
+                <Plus className="w-3.5 h-3.5 mr-1" /> New Review
+              </Button>
+            </div>
+            {((mySelfReviews as any[]) ?? []).length === 0 ? (
+              <Card>
+                <CardContent className="py-12 text-center text-muted-foreground">
+                  <Star className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                  <p className="text-sm font-medium">No reviews submitted yet</p>
+                  <p className="text-xs mt-1">Submit a self-review to share your achievements and goals</p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-3">
+                {((mySelfReviews as any[]) ?? []).map((r: any) => {
+                  const statusColor: Record<string, string> = {
+                    draft: "bg-gray-100 text-gray-700",
+                    submitted: "bg-blue-100 text-blue-700",
+                    reviewed: "bg-green-100 text-green-700",
+                    acknowledged: "bg-purple-100 text-purple-700",
+                  };
+                  return (
+                    <Card key={r.id}>
+                      <CardContent className="p-4 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <p className="font-medium text-sm">{r.reviewPeriod}</p>
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusColor[r.reviewStatus] ?? "bg-gray-100 text-gray-700"}`}>
+                            {r.reviewStatus}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <p className="text-xs text-muted-foreground mb-1">Self Rating</p>
+                            <div className="flex gap-0.5">
+                              {[1,2,3,4,5].map(i => (
+                                <Star key={i} className={`w-3.5 h-3.5 ${i <= (r.selfRating ?? 0) ? "text-amber-400 fill-amber-400" : "text-gray-200"}`} />
+                              ))}
+                            </div>
+                          </div>
+                          {r.managerRating != null && (
+                            <div>
+                              <p className="text-xs text-muted-foreground mb-1">Manager Rating</p>
+                              <div className="flex gap-0.5">
+                                {[1,2,3,4,5].map(i => (
+                                  <Star key={i} className={`w-3.5 h-3.5 ${i <= r.managerRating ? "text-blue-400 fill-blue-400" : "text-gray-200"}`} />
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                        {r.selfAchievements && (
+                          <div>
+                            <p className="text-xs font-medium text-muted-foreground">Achievements</p>
+                            <p className="text-xs mt-0.5">{r.selfAchievements}</p>
+                          </div>
+                        )}
+                        {r.selfGoals && (
+                          <div>
+                            <p className="text-xs font-medium text-muted-foreground">Goals</p>
+                            <p className="text-xs mt-0.5">{r.selfGoals}</p>
+                          </div>
+                        )}
+                        {r.managerFeedback && (
+                          <div className="bg-blue-50 dark:bg-blue-950/20 rounded p-2">
+                            <p className="text-xs font-medium text-blue-700 dark:text-blue-400">Manager Feedback</p>
+                            <p className="text-xs mt-0.5">{r.managerFeedback}</p>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
+          </TabsContent>
+
         </Tabs>
       </div>
+      {/* ── Self-Review Dialog ── */}
+      <Dialog open={showReviewDialog} onOpenChange={setShowReviewDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader><DialogTitle>Submit Self-Review</DialogTitle></DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label>Review Period</Label>
+              <Input placeholder="e.g. Q1 2026, Jan-Mar 2026" value={reviewPeriod} onChange={(e) => setReviewPeriod(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Self Rating (1–5)</Label>
+              <div className="flex gap-2">
+                {[1,2,3,4,5].map(i => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => setReviewRating(i)}
+                    className={`w-9 h-9 rounded-full border-2 text-sm font-bold transition-colors ${
+                      i <= reviewRating ? "border-amber-400 bg-amber-400 text-white" : "border-gray-200 text-gray-400 hover:border-amber-300"
+                    }`}
+                  >
+                    {i}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Achievements this period</Label>
+              <Textarea placeholder="What did you accomplish? Be specific." value={reviewAchievements} onChange={(e) => setReviewAchievements(e.target.value)} rows={3} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Goals for next period</Label>
+              <Textarea placeholder="What are your goals for the next period?" value={reviewGoals} onChange={(e) => setReviewGoals(e.target.value)} rows={3} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowReviewDialog(false)}>Cancel</Button>
+            <Button
+              disabled={!reviewPeriod || reviewAchievements.length < 10 || reviewGoals.length < 10 || submitReviewMut.isPending}
+              onClick={() => submitReviewMut.mutate({ reviewPeriod, selfRating: reviewRating, selfAchievements: reviewAchievements, selfGoals: reviewGoals })}
+            >
+              {submitReviewMut.isPending ? "Submitting..." : "Submit Review"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       {/* ── Leave Request Dialog ── */}
       <Dialog open={showLeaveDialog} onOpenChange={setShowLeaveDialog}>
         <DialogContent className="sm:max-w-md">

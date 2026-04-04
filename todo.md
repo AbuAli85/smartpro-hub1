@@ -1615,3 +1615,11 @@ Every company on SmartPRO Hub gets a complete, unified business operating area �
 - [x] Notification bell: Unread count badge, mark-all-read button, notification panel
 - [x] Document expiry alert icon in header (links to Docs tab)
 - [x] 18 vitest tests for all helper logic (calcDays, daysUntilExpiry, hoursWorked, attendance rate, task overdue detection) — all passing
+
+## Attendance Tab Fix (Employee Portal)
+- [x] Show today's assigned shift (start time, end time, site name) from admin schedule at top of Attendance tab
+- [x] Direct Check In button (calls attendance.checkIn with site qrToken from schedule) — no QR link needed
+- [x] Direct Check Out button (calls attendance.checkOut) when already checked in
+- [x] Show daily attendance records with status message (Present/Late/Absent), check-in time, check-out time, hours worked
+- [x] Pass todaySchedule from scheduling.getMyTodaySchedule to AttendanceTodayCard
+- [x] Show "No shift scheduled" message when no schedule is found for today

@@ -118,21 +118,20 @@ function Skeleton({ className = "" }: { className?: string }) {
 }
 
 // ── Attendance Today Card ──────────────────────────────────────────────────
-function AttendanceTodayCard({ employeeId, attendSiteToken }: { employeeId: number | null; attendSiteToken?: string | null }) {
+// ── Attendance Today Card ──────────────────────────────────────────────────
+function AttendanceTodayCard({ employeeId, todaySchedule }: { employeeId: number | null; todaySchedule?: any }) {
   const utils = trpc.useUtils();
   const [showCorrForm, setShowCorrForm] = useState(false);
   const [corrDate, setCorrDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [corrCheckIn, setCorrCheckIn] = useState("");
   const [corrCheckOut, setCorrCheckOut] = useState("");
   const [corrReason, setCorrReason] = useState("");
-
   const { data: todayRec, refetch: refetchToday } = trpc.attendance.myToday.useQuery(
     undefined, { enabled: !!employeeId }
   );
   const { data: myCorrList, refetch: refetchCorr } = trpc.attendance.myCorrections.useQuery(
     {}, { enabled: !!employeeId }
   );
-
   const submitCorr = trpc.attendance.submitCorrection.useMutation({
     onSuccess: () => {
       toast.success("Correction request submitted — HR will review it");
@@ -143,20 +142,117 @@ function AttendanceTodayCard({ employeeId, attendSiteToken }: { employeeId: numb
     },
     onError: (e) => toast.error(e.message),
   });
+  // Direct check-in / check-out mutations
+  const doCheckIn = trpc.attendance.checkIn.useMutation({
+    onSuccess: () => {
+      toast.success("Checked in successfully!");
+      refetchToday();
+      utils.employeePortal.getMyAttendanceRecords.invalidate();
+      utils.employeePortal.getMyAttendanceSummary.invalidate();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+  const doCheckOut = trpc.attendance.checkOut.useMutation({
+    onSuccess: () => {
+      toast.success("Checked out successfully!");
+      refetchToday();
+      utils.employeePortal.getMyAttendanceRecords.invalidate();
+      utils.employeePortal.getMyAttendanceSummary.invalidate();
+    },
+    onError: (e) => toast.error(e.message),
+  });
 
   const todayStr = new Date().toISOString().split("T")[0];
   const checkIn = todayRec?.checkIn ? new Date(todayRec.checkIn) : null;
   const checkOut = todayRec?.checkOut ? new Date(todayRec.checkOut) : null;
   const pendingCorr = (myCorrList ?? []).filter((c: any) => c.status === "pending").length;
 
-  // Calculate hours worked today
   const hoursToday = checkIn && checkOut
     ? ((checkOut.getTime() - checkIn.getTime()) / 3600000).toFixed(1)
     : checkIn ? "In progress" : null;
 
+  // Derive shift info from todaySchedule
+  const shift = todaySchedule?.shift ?? null;
+  const site = todaySchedule?.site ?? null;
+  const isHoliday = todaySchedule?.isHoliday ?? false;
+  const hasSchedule = !isHoliday && !!shift;
+  const siteToken: string | null = site?.qrToken ?? null;
+
+  function handleCheckIn() {
+    if (!siteToken) {
+      toast.error("No attendance site assigned to your schedule. Please contact HR.");
+      return;
+    }
+    if (site?.enforceGeofence) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => doCheckIn.mutate({ siteToken: siteToken!, lat: pos.coords.latitude, lng: pos.coords.longitude }),
+        () => doCheckIn.mutate({ siteToken: siteToken! })
+      );
+    } else {
+      doCheckIn.mutate({ siteToken: siteToken! });
+    }
+  }
+
+  function handleCheckOut() {
+    if (site?.enforceGeofence) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => doCheckOut.mutate({ siteToken: siteToken ?? undefined, lat: pos.coords.latitude, lng: pos.coords.longitude }),
+        () => doCheckOut.mutate({ siteToken: siteToken ?? undefined })
+      );
+    } else {
+      doCheckOut.mutate({ siteToken: siteToken ?? undefined });
+    }
+  }
+
   return (
     <div className="space-y-3">
-      {/* Today's status card */}
+      {/* Shift / Schedule Banner */}
+      {isHoliday ? (
+        <Card className="border-purple-200 bg-purple-50/60 dark:bg-purple-950/10">
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="w-9 h-9 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center shrink-0">
+              <Calendar className="w-5 h-5 text-purple-600" />
+            </div>
+            <div>
+              <p className="font-semibold text-purple-700 dark:text-purple-300">{todaySchedule?.holiday?.name ?? "Public Holiday"}</p>
+              <p className="text-xs text-purple-600 dark:text-purple-400">Today is a holiday — no attendance required</p>
+            </div>
+          </CardContent>
+        </Card>
+      ) : hasSchedule ? (
+        <Card className="border-primary/20 bg-primary/5">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex items-center gap-3">
+                <div
+                  className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
+                  style={{ backgroundColor: shift?.color ? `${shift.color}22` : "#6366f122" }}
+                >
+                  <Clock className="w-5 h-5" style={{ color: shift?.color ?? "#6366f1" }} />
+                </div>
+                <div>
+                  <p className="font-semibold text-sm">{shift!.name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {shift!.startTime} – {shift!.endTime}
+                    {site ? ` · ${site.name}` : ""}
+                    {shift!.gracePeriodMinutes > 0 ? ` · ${shift!.gracePeriodMinutes}min grace` : ""}
+                  </p>
+                </div>
+              </div>
+              <Badge variant="outline" className="text-xs">Today's Shift</Badge>
+            </div>
+          </CardContent>
+        </Card>
+      ) : todaySchedule !== undefined && todaySchedule !== null && !todaySchedule.schedule ? (
+        <Card className="border-muted">
+          <CardContent className="p-4 flex items-center gap-3">
+            <Info className="w-5 h-5 text-muted-foreground shrink-0" />
+            <p className="text-sm text-muted-foreground">No shift scheduled for today. Contact HR if this is incorrect.</p>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {/* Today's check-in/out status card */}
       <Card className={checkIn ? "border-green-200 bg-green-50/50 dark:bg-green-950/10" : "border-amber-200 bg-amber-50/50 dark:bg-amber-950/10"}>
         <CardContent className="p-4">
           <div className="flex items-start justify-between gap-3 flex-wrap">
@@ -201,23 +297,45 @@ function AttendanceTodayCard({ employeeId, attendSiteToken }: { employeeId: numb
                 ) : (
                   <div>
                     <p className="font-medium text-amber-700 dark:text-amber-400">Not checked in yet</p>
-                    {attendSiteToken && (
-                      <Button size="sm" variant="outline" className="mt-2 gap-1.5 border-green-300 text-green-700 hover:bg-green-50" asChild>
-                        <a href={`/attend/${attendSiteToken}`} target="_blank" rel="noopener noreferrer">
-                          <QrCode className="w-3.5 h-3.5" /> Check In Now
-                        </a>
-                      </Button>
-                    )}
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {hasSchedule && shift ? `Shift starts at ${shift.startTime}` : "No shift scheduled"}
+                    </p>
                   </div>
                 )}
               </div>
             </div>
-            <Button size="sm" variant="outline" className="gap-1.5 shrink-0" onClick={() => setShowCorrForm(true)}>
-              <AlertCircle className="h-3.5 w-3.5" /> Request Correction
-              {pendingCorr > 0 && (
-                <span className="ml-1 h-4 w-4 rounded-full bg-amber-500 text-white text-[10px] flex items-center justify-center">{pendingCorr}</span>
+            {/* Action buttons */}
+            <div className="flex flex-col gap-2 shrink-0">
+              {!checkIn && hasSchedule && (
+                <Button
+                  size="sm"
+                  className="gap-1.5 bg-green-600 hover:bg-green-700 text-white"
+                  disabled={doCheckIn.isPending}
+                  onClick={handleCheckIn}
+                >
+                  <UserCheck className="w-3.5 h-3.5" />
+                  {doCheckIn.isPending ? "Checking in…" : "Check In"}
+                </Button>
               )}
-            </Button>
+              {checkIn && !checkOut && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-1.5 border-red-300 text-red-700 hover:bg-red-50"
+                  disabled={doCheckOut.isPending}
+                  onClick={handleCheckOut}
+                >
+                  <LogIn className="w-3.5 h-3.5 rotate-180" />
+                  {doCheckOut.isPending ? "Checking out…" : "Check Out"}
+                </Button>
+              )}
+              <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setShowCorrForm(true)}>
+                <AlertCircle className="h-3.5 w-3.5" /> Correction
+                {pendingCorr > 0 && (
+                  <span className="ml-1 h-4 w-4 rounded-full bg-amber-500 text-white text-[10px] flex items-center justify-center">{pendingCorr}</span>
+                )}
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -297,7 +415,6 @@ function AttendanceTodayCard({ employeeId, attendSiteToken }: { employeeId: numb
     </div>
   );
 }
-
 // ── Main Component ─────────────────────────────────────────────────────────
 export default function EmployeePortalPage() {
   const { user, isAuthenticated } = useAuth();
@@ -904,7 +1021,7 @@ export default function EmployeePortalPage() {
           {/* ══ ATTENDANCE TAB ════════════════════════════════════════════════ */}
           <TabsContent value="attendance" className="mt-4 space-y-4">
             {/* Today's Status + Correction Request */}
-            <AttendanceTodayCard employeeId={emp.id} />
+            <AttendanceTodayCard employeeId={emp.id} todaySchedule={todaySchedule} />
 
             {/* Real-time attendance stats */}
             {realAttSummary.total > 0 && (
@@ -1017,77 +1134,86 @@ export default function EmployeePortalPage() {
               </CardContent>
             </Card>
 
-            {/* QR Check-in records */}
-            {realAttRecords.length > 0 && (
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm flex items-center gap-2">
-                    <QrCode className="w-3.5 h-3.5" /> QR Check-in Records
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  {realAttRecords.slice(0, 10).map((r: any) => {
-                    const cin = new Date(r.checkIn);
-                    const cout = r.checkOut ? new Date(r.checkOut) : null;
-                    const hours = cout ? ((cout.getTime() - cin.getTime()) / 3600000).toFixed(1) : null;
-                    return (
-                      <div key={r.id} className="flex items-center justify-between py-2 border-b last:border-0 text-sm">
-                        <div>
-                          <p className="font-medium">{cin.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}</p>
-                          <p className="text-xs text-muted-foreground">
-                            In: {formatTime(r.checkIn)}
-                            {cout ? ` · Out: ${formatTime(r.checkOut)}` : " · Still in"}
-                            {r.siteName ? ` · ${r.siteName}` : ""}
-                          </p>
+            {/* Daily Attendance Records — combined QR + HR */}
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <CalendarCheck className="w-3.5 h-3.5" /> Daily Attendance Records
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {attLoading ? (
+                  <div className="space-y-2">
+                    {Array(5).fill(0).map((_, i) => <Skeleton key={i} className="h-12" />)}
+                  </div>
+                ) : realAttRecords.length === 0 && attRecords.length === 0 ? (
+                  <div className="text-center py-10 text-muted-foreground">
+                    <UserCheck className="w-10 h-10 mx-auto mb-2 opacity-30" />
+                    <p className="text-sm">No attendance records for this month</p>
+                    <p className="text-xs mt-1">Use the Check In button above when you arrive at work</p>
+                  </div>
+                ) : (
+                  <div className="space-y-1">
+                    {/* QR / direct check-in records */}
+                    {realAttRecords.map((r: any) => {
+                      const cin = new Date(r.checkIn);
+                      const cout = r.checkOut ? new Date(r.checkOut) : null;
+                      const hours = cout ? ((cout.getTime() - cin.getTime()) / 3600000).toFixed(1) : null;
+                      return (
+                        <div key={`qr-${r.id}`} className="flex items-center justify-between py-2.5 border-b last:border-0 text-sm">
+                          <div className="flex items-center gap-3">
+                            <div className={`w-2 h-8 rounded-full shrink-0 ${cout ? "bg-green-500" : "bg-blue-400"}`} />
+                            <div>
+                              <p className="font-medium">{cin.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}</p>
+                              <p className="text-xs text-muted-foreground">
+                                In: {formatTime(r.checkIn)}
+                                {cout ? ` · Out: ${formatTime(r.checkOut)}` : " · Still working"}
+                                {r.siteName ? ` · ${r.siteName}` : ""}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="text-right space-y-0.5">
+                            {hours && <p className="text-sm font-semibold text-green-700">{hours}h</p>}
+                            <Badge variant="outline" className={`text-xs ${cout ? "border-green-300 text-green-700 bg-green-50" : "border-blue-300 text-blue-700 bg-blue-50"}`}>
+                              {!cout ? "In Progress" : "Present"}
+                            </Badge>
+                          </div>
                         </div>
-                        <div className="text-right">
-                          {hours && <p className="text-sm font-semibold text-green-700">{hours}h</p>}
-                          <Badge variant="outline" className="text-xs capitalize">{r.method?.replace("_", " ") ?? "QR"}</Badge>
+                      );
+                    })}
+                    {/* HR-entered attendance records */}
+                    {attRecords.map((r: any) => (
+                      <div key={`hr-${r.id}`} className="flex items-center justify-between py-2.5 border-b last:border-0 text-sm">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-2 h-8 rounded-full shrink-0 ${
+                            r.status === "present" ? "bg-green-500" :
+                            r.status === "late" ? "bg-amber-400" :
+                            r.status === "absent" ? "bg-red-500" :
+                            r.status === "half_day" ? "bg-blue-400" :
+                            r.status === "remote" ? "bg-purple-500" : "bg-gray-400"
+                          }`} />
+                          <div>
+                            <p className="font-medium">{formatDate(r.date)}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {r.checkIn ? `In: ${formatTime(r.checkIn)}` : ""}
+                              {r.checkOut ? ` · Out: ${formatTime(r.checkOut)}` : ""}
+                              {!r.checkIn && !r.checkOut ? "No time recorded" : ""}
+                            </p>
+                          </div>
                         </div>
+                        <Badge
+                          variant={r.status === "present" ? "default" : r.status === "absent" ? "destructive" : "secondary"}
+                          className="capitalize text-xs"
+                        >
+                          {r.status?.replace("_", " ") ?? r.status}
+                        </Badge>
                       </div>
-                    );
-                  })}
-                </CardContent>
-              </Card>
-            )}
-
-            {/* HR Attendance Records */}
-            {attRecords.length > 0 && (
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm flex items-center gap-2">
-                    <CalendarCheck className="w-3.5 h-3.5" /> HR Attendance Records
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  {attRecords.map((r: any) => (
-                    <div key={r.id} className="flex items-center justify-between py-2 border-b last:border-0 text-sm">
-                      <div>
-                        <p className="font-medium">{formatDate(r.date)}</p>
-                        <p className="text-xs text-muted-foreground">
-                          In: {formatTime(r.checkIn)} · Out: {formatTime(r.checkOut)}
-                        </p>
-                      </div>
-                      <Badge
-                        variant={r.status === "present" ? "default" : r.status === "absent" ? "destructive" : "secondary"}
-                        className="capitalize"
-                      >
-                        {r.status?.replace("_", " ") ?? r.status}
-                      </Badge>
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
-            )}
-
-            {attRecords.length === 0 && realAttRecords.length === 0 && !attLoading && (
-              <div className="text-center py-12 text-muted-foreground">
-                <UserCheck className="w-10 h-10 mx-auto mb-2 opacity-30" />
-                <p>No attendance records for this month</p>
-              </div>
-            )}
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </TabsContent>
-
           {/* ══ LEAVE TAB ════════════════════════════════════════════════════ */}
           <TabsContent value="leave" className="mt-4 space-y-4">
             {/* Leave Balance Summary */}

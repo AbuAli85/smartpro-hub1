@@ -32,7 +32,9 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, CalendarDays, MapPin, Clock } from "lucide-react";
+import { Plus, Pencil, Trash2, CalendarDays, MapPin, Clock, ArrowLeftRight, Check, X, ChevronDown, ChevronUp } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { CardHeader, CardTitle } from "@/components/ui/card";
 
 const DAYS = [
   { value: 0, label: "Sun" },
@@ -71,6 +73,10 @@ export default function EmployeeSchedulesPage() {
   const [editId, setEditId] = useState<number | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [form, setForm] = useState<SchedForm>(defaultForm);
+  const [shiftReqFilter, setShiftReqFilter] = useState<string>("pending");
+  const [adminNoteId, setAdminNoteId] = useState<number | null>(null);
+  const [adminNote, setAdminNote] = useState("");
+  const [showRequestsPanel, setShowRequestsPanel] = useState(true);
 
   const { data: schedules = [], isLoading } = trpc.scheduling.listEmployeeSchedules.useQuery(
     { companyId: activeCompanyId ?? undefined },
@@ -118,6 +124,20 @@ export default function EmployeeSchedulesPage() {
       setDeleteId(null);
       toast.success("Schedule removed");
     },
+    onError: (e) => toast.error(e.message),
+  });
+
+  // Shift requests
+  const { data: shiftRequestsData } = trpc.shiftRequests.adminList.useQuery(
+    { companyId: activeCompanyId ?? undefined },
+    { enabled: !!activeCompanyId }
+  );
+  const approveShiftReq = trpc.shiftRequests.approve.useMutation({
+    onSuccess: () => { utils.shiftRequests.adminList.invalidate(); toast.success("Request approved"); setAdminNoteId(null); setAdminNote(""); },
+    onError: (e) => toast.error(e.message),
+  });
+  const rejectShiftReq = trpc.shiftRequests.reject.useMutation({
+    onSuccess: () => { utils.shiftRequests.adminList.invalidate(); toast.success("Request rejected"); setAdminNoteId(null); setAdminNote(""); },
     onError: (e) => toast.error(e.message),
   });
 
@@ -285,6 +305,120 @@ export default function EmployeeSchedulesPage() {
           ))}
         </div>
       )}
+
+      {/* ══ SHIFT CHANGE & TIME OFF REQUESTS REVIEW ═══════════════════ */}
+      <Card>
+        <CardHeader className="pb-2 cursor-pointer" onClick={() => setShowRequestsPanel(p => !p)}>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base flex items-center gap-2">
+              <ArrowLeftRight className="w-4 h-4 text-primary" />
+              Shift Change & Time Off Requests
+              {(() => {
+                const pending = (shiftRequestsData ?? []).filter((r: any) => r.status === "pending").length;
+                return pending > 0 ? (
+                  <span className="ml-1 bg-amber-500 text-white text-xs rounded-full px-1.5 py-0.5 font-bold">{pending}</span>
+                ) : null;
+              })()}
+            </CardTitle>
+            {showRequestsPanel ? <ChevronUp size={16} className="text-muted-foreground" /> : <ChevronDown size={16} className="text-muted-foreground" />}
+          </div>
+          {/* Filter tabs */}
+          {showRequestsPanel && (
+            <div className="flex gap-1.5 mt-2 flex-wrap" onClick={e => e.stopPropagation()}>
+              {(["pending", "all", "approved", "rejected"] as const).map(f => (
+                <button key={f} onClick={() => setShiftReqFilter(f)}
+                  className={`px-2.5 py-0.5 rounded-full text-xs font-medium transition-colors ${
+                    shiftReqFilter === f ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"
+                  }`}>
+                  {f.charAt(0).toUpperCase() + f.slice(1)}
+                  {f === "pending" && (shiftRequestsData ?? []).filter((r: any) => r.status === "pending").length > 0 && (
+                    <span className="ml-1 bg-amber-500 text-white rounded-full px-1 text-[10px]">
+                      {(shiftRequestsData ?? []).filter((r: any) => r.status === "pending").length}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+        </CardHeader>
+        {showRequestsPanel && (
+          <CardContent className="pt-0">
+            {(() => {
+              const allReqs = (shiftRequestsData ?? []) as any[];
+              const filtered = shiftReqFilter === "all" ? allReqs : allReqs.filter((r: any) => r.status === shiftReqFilter);
+              const typeLabels: Record<string, string> = {
+                shift_change: "Shift Change", time_off: "Time Off",
+                early_leave: "Early Leave", late_arrival: "Late Arrival", day_swap: "Day Swap",
+              };
+              const statusColors: Record<string, string> = {
+                pending: "bg-amber-100 text-amber-700 border-amber-200",
+                approved: "bg-green-100 text-green-700 border-green-200",
+                rejected: "bg-red-100 text-red-700 border-red-200",
+                cancelled: "bg-gray-100 text-gray-500 border-gray-200",
+              };
+              if (filtered.length === 0) return (
+                <div className="text-center py-8 text-muted-foreground">
+                  <ArrowLeftRight className="w-8 h-8 mx-auto mb-2 opacity-20" />
+                  <p className="text-sm">{shiftReqFilter === "pending" ? "No pending requests" : "No requests found"}</p>
+                </div>
+              );
+              return (
+                <div className="divide-y">
+                  {filtered.map((req: any) => (
+                    <div key={req.id} className="py-3">
+                      <div className="flex items-start justify-between gap-3 flex-wrap">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-semibold text-sm">{req.employeeName ?? "Employee"}</span>
+                            <span className="text-xs text-muted-foreground">• {typeLabels[req.requestType] ?? req.requestType}</span>
+                            <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${statusColors[req.status] ?? "bg-muted text-muted-foreground"}`}>
+                              {req.status?.charAt(0).toUpperCase() + req.status?.slice(1)}
+                            </span>
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {req.requestedDate}
+                            {req.requestedEndDate && req.requestedEndDate !== req.requestedDate ? ` → ${req.requestedEndDate}` : ""}
+                            {req.requestedTime ? ` at ${req.requestedTime}` : ""}
+                          </p>
+                          <p className="text-xs mt-0.5 text-foreground/80">{req.reason}</p>
+                          {req.adminNotes && (
+                            <p className="text-xs mt-1 text-primary italic">Your note: {req.adminNotes}</p>
+                          )}
+                          {/* Admin note input for this request */}
+                          {adminNoteId === req.id && (
+                            <div className="mt-2 space-y-1.5">
+                              <Textarea rows={2} placeholder="Add a note (optional)..." value={adminNote} onChange={e => setAdminNote(e.target.value)} className="text-xs" />
+                              <div className="flex gap-2">
+                                <Button size="sm" className="gap-1 h-7 text-xs bg-green-600 hover:bg-green-700"
+                                  onClick={() => approveShiftReq.mutate({ id: req.id, adminNotes: adminNote || undefined })}>
+                                  <Check size={12} /> Approve
+                                </Button>
+                                <Button size="sm" variant="destructive" className="gap-1 h-7 text-xs"
+                                  onClick={() => rejectShiftReq.mutate({ id: req.id, adminNotes: adminNote || "No reason provided" })}>
+                                  <X size={12} /> Reject
+                                </Button>
+                                <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => { setAdminNoteId(null); setAdminNote(""); }}>Cancel</Button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                        {req.status === "pending" && adminNoteId !== req.id && (
+                          <div className="flex gap-1.5 shrink-0">
+                            <Button size="sm" className="gap-1 h-7 text-xs bg-green-600 hover:bg-green-700"
+                              onClick={() => { setAdminNoteId(req.id); setAdminNote(""); }}>
+                              <Check size={12} /> Review
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+          </CardContent>
+        )}
+      </Card>
 
       {/* Assign / Edit Dialog */}
       <Dialog open={open} onOpenChange={setOpen}>

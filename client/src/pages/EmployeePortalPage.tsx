@@ -22,7 +22,7 @@ import {
   Phone, Mail, MapPin, Shield, ChevronLeft, ChevronRight as ChevronRightIcon,
   Home, CreditCard, UserCheck, Edit2, Save, Download, QrCode,
   AlertTriangle, Info, Wallet, Timer, BarChart2, CalendarCheck,
-  FileCheck, FilePlus, ExternalLink, RefreshCw, Star,
+  FileCheck, FilePlus, ExternalLink, RefreshCw, Star, ArrowLeftRight, Repeat,
 } from "lucide-react";
 import { fmtDateLong, fmtDateTime } from "@/lib/dateUtils";
 
@@ -464,6 +464,14 @@ export default function EmployeePortalPage() {
 
   // Task filter
   const [taskFilter, setTaskFilter] = useState<string>("active");
+  // Shift request dialog
+  const [showShiftRequestDialog, setShowShiftRequestDialog] = useState(false);
+  const [shiftReqType, setShiftReqType] = useState<string>("time_off");
+  const [shiftReqDate, setShiftReqDate] = useState("");
+  const [shiftReqEndDate, setShiftReqEndDate] = useState("");
+  const [shiftReqTime, setShiftReqTime] = useState("");
+  const [shiftReqReason, setShiftReqReason] = useState("");
+  const [shiftReqFilter, setShiftReqFilter] = useState<string>("all");
 
   // Profile edit state
   const [editingContact, setEditingContact] = useState(false);
@@ -504,6 +512,12 @@ export default function EmployeePortalPage() {
   );
   const { data: myActiveSchedule } = trpc.scheduling.getMyActiveSchedule.useQuery(
     {}, { enabled: isAuthenticated }
+  );
+  const { data: myShiftRequests } = trpc.shiftRequests.listMine.useQuery(
+    {}, { enabled: isAuthenticated }
+  );
+  const { data: shiftTemplatesList } = trpc.scheduling.listShiftTemplates.useQuery(
+    {}, { enabled: isAuthenticated, retry: false }
   );
 
   const utils = trpc.useUtils();
@@ -550,6 +564,26 @@ export default function EmployeePortalPage() {
       toast.success("Task marked as complete");
       utils.employeePortal.getMyTasks.invalidate();
     },
+  });
+  const submitShiftRequest = trpc.shiftRequests.submit.useMutation({
+    onSuccess: () => {
+      toast.success("Request submitted — HR will review and notify you.");
+      setShowShiftRequestDialog(false);
+      setShiftReqType("time_off");
+      setShiftReqDate("");
+      setShiftReqEndDate("");
+      setShiftReqTime("");
+      setShiftReqReason("");
+      utils.shiftRequests.listMine.invalidate();
+    },
+    onError: (err) => toast.error(err.message),
+  });
+  const cancelShiftRequest = trpc.shiftRequests.cancel.useMutation({
+    onSuccess: () => {
+      toast.success("Request cancelled");
+      utils.shiftRequests.listMine.invalidate();
+    },
+    onError: (err) => toast.error(err.message),
   });
 
   // ── Derived data ──────────────────────────────────────────────────────────
@@ -1236,6 +1270,94 @@ export default function EmployeePortalPage() {
                 )}
               </CardContent>
             </Card>
+            {/* ══ SHIFT CHANGE & TIME OFF REQUESTS ══════════════════════ */}
+            <Card>
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <ArrowLeftRight className="w-4 h-4 text-primary" /> Shift Change & Time Off Requests
+                  </CardTitle>
+                  <Button size="sm" className="gap-1.5" onClick={() => setShowShiftRequestDialog(true)}>
+                    <Plus className="w-3.5 h-3.5" /> New Request
+                  </Button>
+                </div>
+                {/* Filter */}
+                <div className="flex gap-1.5 mt-2 flex-wrap">
+                  {(["all", "pending", "approved", "rejected", "cancelled"] as const).map(f => (
+                    <button key={f} onClick={() => setShiftReqFilter(f)}
+                      className={`px-2.5 py-0.5 rounded-full text-xs font-medium transition-colors ${
+                        shiftReqFilter === f ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"
+                      }`}>
+                      {f.charAt(0).toUpperCase() + f.slice(1)}
+                    </button>
+                  ))}
+                </div>
+              </CardHeader>
+              <CardContent className="pt-0">
+                {(() => {
+                  const allReqs = (myShiftRequests ?? []) as any[];
+                  const filtered = shiftReqFilter === "all" ? allReqs : allReqs.filter((r: any) => r.request?.status === shiftReqFilter);
+                  if (filtered.length === 0) return (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <Repeat className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                      <p className="text-sm">No requests yet</p>
+                      <p className="text-xs mt-1">Use the button above to submit a shift change or time off request</p>
+                    </div>
+                  );
+                  return (
+                    <div className="divide-y">
+                      {filtered.map((item: any) => {
+                        const req = item.request ?? item;
+                        const ps = item.preferredShift;
+                        const statusColors: Record<string, string> = {
+                          pending: "bg-amber-100 text-amber-700 border-amber-200",
+                          approved: "bg-green-100 text-green-700 border-green-200",
+                          rejected: "bg-red-100 text-red-700 border-red-200",
+                          cancelled: "bg-gray-100 text-gray-500 border-gray-200",
+                        };
+                        const typeLabels: Record<string, string> = {
+                          shift_change: "Shift Change",
+                          time_off: "Time Off",
+                          early_leave: "Early Leave",
+                          late_arrival: "Late Arrival",
+                          day_swap: "Day Swap",
+                        };
+                        return (
+                          <div key={req.id} className="py-3">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="font-medium text-sm">{typeLabels[req.requestType] ?? req.requestType}</span>
+                                  <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${statusColors[req.status] ?? "bg-muted text-muted-foreground"}`}>
+                                    {req.status?.charAt(0).toUpperCase() + req.status?.slice(1)}
+                                  </span>
+                                </div>
+                                <p className="text-xs text-muted-foreground mt-0.5">
+                                  {formatDate(req.requestedDate)}
+                                  {req.requestedEndDate && req.requestedEndDate !== req.requestedDate ? ` → ${formatDate(req.requestedEndDate)}` : ""}
+                                  {req.requestedTime ? ` at ${req.requestedTime}` : ""}
+                                  {ps ? ` · Preferred: ${ps.name} (${ps.startTime}–${ps.endTime})` : ""}
+                                </p>
+                                <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{req.reason}</p>
+                                {req.adminNotes && (
+                                  <p className="text-xs mt-1 text-primary italic">HR note: {req.adminNotes}</p>
+                                )}
+                              </div>
+                              {req.status === "pending" && (
+                                <Button size="sm" variant="ghost" className="text-xs text-red-500 hover:text-red-600 shrink-0"
+                                  onClick={() => cancelShiftRequest.mutate({ id: req.id })}>
+                                  Cancel
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
+              </CardContent>
+            </Card>
           </TabsContent>
           {/* ══ LEAVE TAB ════════════════════════════════════════════════════ */}
           <TabsContent value="leave" className="mt-4 space-y-4">
@@ -1919,6 +2041,88 @@ export default function EmployeePortalPage() {
               ))
             )}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Shift Change / Time Off Request Dialog ── */}
+      <Dialog open={showShiftRequestDialog} onOpenChange={setShowShiftRequestDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ArrowLeftRight className="w-4 h-4 text-primary" /> Shift Change / Time Off Request
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div>
+              <Label className="text-xs text-muted-foreground uppercase tracking-wide">Request Type</Label>
+              <Select value={shiftReqType} onValueChange={setShiftReqType}>
+                <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="time_off">Time Off</SelectItem>
+                  <SelectItem value="shift_change">Shift Change</SelectItem>
+                  <SelectItem value="early_leave">Early Leave</SelectItem>
+                  <SelectItem value="late_arrival">Late Arrival</SelectItem>
+                  <SelectItem value="day_swap">Day Swap</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs text-muted-foreground uppercase tracking-wide">
+                  {shiftReqType === "time_off" ? "Start Date" : "Date"}
+                </Label>
+                <Input type="date" className="mt-1" value={shiftReqDate} onChange={e => setShiftReqDate(e.target.value)} />
+              </div>
+              {shiftReqType === "time_off" && (
+                <div>
+                  <Label className="text-xs text-muted-foreground uppercase tracking-wide">End Date</Label>
+                  <Input type="date" className="mt-1" value={shiftReqEndDate} onChange={e => setShiftReqEndDate(e.target.value)} />
+                </div>
+              )}
+              {(shiftReqType === "early_leave" || shiftReqType === "late_arrival") && (
+                <div>
+                  <Label className="text-xs text-muted-foreground uppercase tracking-wide">
+                    {shiftReqType === "early_leave" ? "Leave Time" : "Arrival Time"}
+                  </Label>
+                  <Input type="time" className="mt-1" value={shiftReqTime} onChange={e => setShiftReqTime(e.target.value)} />
+                </div>
+              )}
+            </div>
+            {shiftReqType === "shift_change" && (shiftTemplatesList ?? []).length > 0 && (
+              <div>
+                <Label className="text-xs text-muted-foreground uppercase tracking-wide">Preferred Shift (optional)</Label>
+                <Select onValueChange={() => {}}>
+                  <SelectTrigger className="mt-1"><SelectValue placeholder="Select preferred shift..." /></SelectTrigger>
+                  <SelectContent>
+                    {(shiftTemplatesList ?? []).map((s: any) => (
+                      <SelectItem key={s.id} value={String(s.id)}>{s.name} ({s.startTime}–{s.endTime})</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            <div>
+              <Label className="text-xs text-muted-foreground uppercase tracking-wide">Reason *</Label>
+              <Textarea className="mt-1" rows={3}
+                placeholder="Please explain the reason for your request..."
+                value={shiftReqReason} onChange={e => setShiftReqReason(e.target.value)} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowShiftRequestDialog(false)}>Cancel</Button>
+            <Button
+              disabled={!shiftReqDate || shiftReqReason.trim().length < 5 || submitShiftRequest.isPending}
+              onClick={() => submitShiftRequest.mutate({
+                requestType: shiftReqType as any,
+                requestedDate: shiftReqDate,
+                requestedEndDate: shiftReqEndDate || undefined,
+                requestedTime: shiftReqTime || undefined,
+                reason: shiftReqReason,
+              })}
+            >
+              {submitShiftRequest.isPending ? "Submitting..." : "Submit Request"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

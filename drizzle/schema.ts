@@ -2220,3 +2220,31 @@ export const companyHolidays = mysqlTable("company_holidays", {
 });
 export type CompanyHoliday = typeof companyHolidays.$inferSelect;
 export type InsertCompanyHoliday = typeof companyHolidays.$inferInsert;
+
+// ─── Shift Change & Time Off Requests ─────────────────────────────────────────
+// Employee-initiated requests for schedule changes, time off, early leave, etc.
+export const shiftChangeRequests = mysqlTable("shift_change_requests", {
+  id: int("id").primaryKey().autoincrement(),
+  companyId: int("company_id").notNull(),
+  employeeUserId: int("employee_user_id").notNull(),
+  requestType: mysqlEnum("request_type", [
+    "shift_change",
+    "time_off",
+    "early_leave",
+    "late_arrival",
+    "day_swap",
+  ]).notNull(),
+  requestedDate: date("requested_date", { mode: "string" }).notNull(),
+  requestedEndDate: date("requested_end_date", { mode: "string" }),
+  preferredShiftId: int("preferred_shift_id"),
+  requestedTime: varchar("requested_time", { length: 5 }),
+  reason: text("reason").notNull(),
+  status: mysqlEnum("request_status", ["pending", "approved", "rejected", "cancelled"]).notNull().default("pending"),
+  adminNotes: text("admin_notes"),
+  reviewedByUserId: int("reviewed_by_user_id"),
+  reviewedAt: timestamp("reviewed_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+export type ShiftChangeRequest = typeof shiftChangeRequests.$inferSelect;
+export type InsertShiftChangeRequest = typeof shiftChangeRequests.$inferInsert;

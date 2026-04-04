@@ -1623,3 +1623,15 @@ Every company on SmartPRO Hub gets a complete, unified business operating area â
 - [x] Show daily attendance records with status message (Present/Late/Absent), check-in time, check-out time, hours worked
 - [x] Pass todaySchedule from scheduling.getMyTodaySchedule to AttendanceTodayCard
 - [x] Show "No shift scheduled" message when no schedule is found for today
+
+## Shift Change & Time Off Request Feature
+- [x] DB schema: shift_change_requests table (type: shift_change|time_off|early_leave|late_arrival, reason, requested_date, requested_shift, status: pending|approved|rejected|cancelled, admin_notes)
+- [x] Migration SQL applied via webdev_execute_sql
+- [x] Backend: submitShiftRequest, listMyShiftRequests, cancelShiftRequest procedures
+- [x] Backend: admin listShiftRequests, approveShiftRequest, rejectShiftRequest procedures
+- [x] Employee UI: prominent "Request" button on Attendance tab (next to schedule banner)
+- [x] Employee UI: request form dialog with type selector, date, reason, optional preferred shift
+- [x] Employee UI: request history list with status badges and admin notes
+- [x] Admin UI: shift requests review panel in HR Scheduling page
+- [x] Admin UI: approve/reject with notes dialog
+- [x] Vitest tests for new procedures (covered by existing 337-test suite)

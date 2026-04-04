@@ -20,8 +20,46 @@ import {
 import { toast } from "sonner";
 import {
   Building2, Plus, Pencil, Trash2, Users, Briefcase, Search,
-  ChevronRight, UserCheck, BarChart3, TrendingUp, X,
+  ChevronRight, UserCheck, BarChart3, TrendingUp, X, Palette,
+  Layers, Globe, Shield, Wrench, HeartPulse, BookOpen, Truck,
+  DollarSign, Megaphone, Code2, FlaskConical, Headphones,
 } from "lucide-react";
+
+// ─── Dept color & icon palettes ───────────────────────────────────────────────
+const DEPT_COLORS = [
+  { value: "blue",    dot: "bg-blue-500",    classes: "bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-400/40" },
+  { value: "emerald", dot: "bg-emerald-500",  classes: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-400/40" },
+  { value: "amber",   dot: "bg-amber-500",    classes: "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-400/40" },
+  { value: "violet",  dot: "bg-violet-500",   classes: "bg-violet-500/15 text-violet-600 dark:text-violet-400 border-violet-400/40" },
+  { value: "rose",    dot: "bg-rose-500",     classes: "bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-400/40" },
+  { value: "cyan",    dot: "bg-cyan-500",     classes: "bg-cyan-500/15 text-cyan-600 dark:text-cyan-400 border-cyan-400/40" },
+  { value: "orange",  dot: "bg-orange-500",   classes: "bg-orange-500/15 text-orange-600 dark:text-orange-400 border-orange-400/40" },
+  { value: "teal",    dot: "bg-teal-500",     classes: "bg-teal-500/15 text-teal-600 dark:text-teal-400 border-teal-400/40" },
+  { value: "slate",   dot: "bg-slate-500",    classes: "bg-slate-500/15 text-slate-600 dark:text-slate-400 border-slate-400/40" },
+];
+const DEPT_ICONS = [
+  { value: "building",   Icon: Building2,   label: "General" },
+  { value: "users",      Icon: Users,        label: "People" },
+  { value: "dollar",     Icon: DollarSign,   label: "Finance" },
+  { value: "shield",     Icon: Shield,       label: "Legal" },
+  { value: "wrench",     Icon: Wrench,       label: "Operations" },
+  { value: "layers",     Icon: Layers,       label: "Product" },
+  { value: "code",       Icon: Code2,        label: "Tech" },
+  { value: "megaphone",  Icon: Megaphone,    label: "Marketing" },
+  { value: "globe",      Icon: Globe,        label: "International" },
+  { value: "truck",      Icon: Truck,        label: "Logistics" },
+  { value: "flask",      Icon: FlaskConical, label: "R&D" },
+  { value: "heart",      Icon: HeartPulse,   label: "Health" },
+  { value: "book",       Icon: BookOpen,     label: "Training" },
+  { value: "headphones", Icon: Headphones,   label: "Support" },
+  { value: "briefcase",  Icon: Briefcase,    label: "Business" },
+];
+function getDeptColorClasses(c?: string | null) {
+  return DEPT_COLORS.find((x) => x.value === c)?.classes ?? DEPT_COLORS[0].classes;
+}
+function getDeptIcon(v?: string | null) {
+  return DEPT_ICONS.find((x) => x.value === v)?.Icon ?? Building2;
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type Dept = {
@@ -176,6 +214,13 @@ function DeptDialog({
   const [nameAr, setNameAr] = useState(initial?.nameAr ?? "");
   const [description, setDescription] = useState(initial?.description ?? "");
   const [headId, setHeadId] = useState<string>(initial?.headEmployeeId?.toString() ?? "");
+  const [color, setColor] = useState("blue");
+  const [iconVal, setIconVal] = useState("building");
+  const [touched, setTouched] = useState(false);
+
+  const nameError = touched && !name.trim();
+  const colorClasses = getDeptColorClasses(color);
+  const PreviewIcon = getDeptIcon(iconVal);
 
   const create = trpc.hr.createDepartment.useMutation({
     onSuccess: () => { utils.hr.listDepartments.invalidate(); toast.success("Department created"); onClose(); },
@@ -187,6 +232,7 @@ function DeptDialog({
   });
 
   const handleSave = () => {
+    setTouched(true);
     if (!name.trim()) return toast.error("Department name is required");
     const payload = {
       name: name.trim(),
@@ -201,46 +247,150 @@ function DeptDialog({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>{initial ? "Edit Department" : "Add New Department"}</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-4 py-2">
-          <div className="space-y-1.5">
-            <Label>Department Name (English) <span className="text-destructive">*</span></Label>
-            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Human Resources" />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Department Name (Arabic)</Label>
-            <Input value={nameAr} onChange={(e) => setNameAr(e.target.value)} placeholder="e.g. الموارد البشرية" dir="rtl" />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Description</Label>
-            <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} placeholder="Brief description of this department's role..." />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Department Head</Label>
-            <Select value={headId || "none"} onValueChange={setHeadId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select department head..." />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">— No Head Assigned —</SelectItem>
-                {employees.map((e) => (
-                  <SelectItem key={e.id} value={e.id.toString()}>
-                    {e.firstName} {e.lastName}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+      <DialogContent className="max-w-lg p-0 overflow-hidden">
+        {/* Coloured header */}
+        <div className={`px-6 pt-5 pb-4 border-b ${colorClasses}`}>
+          <div className="flex items-center gap-3">
+            <div className={`w-12 h-12 rounded-2xl border-2 flex items-center justify-center shrink-0 bg-background/60 ${colorClasses}`}>
+              <PreviewIcon size={22} />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold leading-tight">
+                {initial ? "Edit Department" : "New Department"}
+              </h2>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {initial ? `Editing: ${initial.name}` : "Define a new department for your organisation"}
+              </p>
+            </div>
           </div>
         </div>
-        <DialogFooter>
+
+        <div className="px-6 py-4 space-y-4">
+          {/* Names row */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                English Name <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                value={name}
+                onChange={(e) => { setName(e.target.value); if (touched) setTouched(true); }}
+                onBlur={() => setTouched(true)}
+                placeholder="e.g. Human Resources"
+                className={nameError ? "border-destructive ring-1 ring-destructive" : ""}
+                autoFocus
+              />
+              {nameError && <p className="text-xs text-destructive mt-0.5">Name is required</p>}
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Arabic Name</Label>
+              <Input
+                value={nameAr}
+                onChange={(e) => setNameAr(e.target.value)}
+                placeholder="الموارد البشرية"
+                dir="rtl"
+              />
+            </div>
+          </div>
+
+          {/* Description */}
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Description</Label>
+            <Textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={2}
+              placeholder="Brief description of this department's role and responsibilities..."
+              className="resize-none"
+            />
+          </div>
+
+          {/* Department Head */}
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
+              <UserCheck size={11} /> Department Head
+            </Label>
+            {employees.length === 0 ? (
+              <div className="flex items-center gap-2 px-3 py-2.5 rounded-lg border bg-muted/30 text-sm text-muted-foreground">
+                <Users size={14} />
+                <span>No employees yet — assign a head after adding employees</span>
+              </div>
+            ) : (
+              <Select value={headId || "none"} onValueChange={setHeadId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select department head..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No Head Assigned</SelectItem>
+                  {employees.map((e) => (
+                    <SelectItem key={e.id} value={e.id.toString()}>
+                      {e.firstName} {e.lastName}
+                      {e.position ? ` · ${e.position}` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
+
+          {/* Colour & Icon pickers */}
+          <div className="grid grid-cols-2 gap-4 pt-1">
+            <div className="space-y-2">
+              <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
+                <Palette size={11} /> Colour
+              </Label>
+              <div className="flex flex-wrap gap-2">
+                {DEPT_COLORS.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    title={opt.value}
+                    onClick={() => setColor(opt.value)}
+                    className={`w-6 h-6 rounded-full border-2 transition-all ${opt.dot} ${
+                      color === opt.value
+                        ? "border-foreground scale-125 shadow-md"
+                        : "border-transparent opacity-50 hover:opacity-90 hover:scale-110"
+                    }`}
+                  />
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Icon</Label>
+              <div className="flex flex-wrap gap-1">
+                {DEPT_ICONS.map(({ value, Icon, label }) => (
+                  <button
+                    key={value}
+                    type="button"
+                    title={label}
+                    onClick={() => setIconVal(value)}
+                    className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all border ${
+                      iconVal === value
+                        ? `${colorClasses} border-current scale-110`
+                        : "border-border text-muted-foreground hover:bg-muted hover:scale-105"
+                    }`}
+                  >
+                    <Icon size={13} />
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="px-6 py-4 border-t bg-muted/20 flex justify-end gap-2">
           <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button onClick={handleSave} disabled={!name.trim() || create.isPending || update.isPending}>
-            {create.isPending || update.isPending ? "Saving..." : initial ? "Save Changes" : "Create Department"}
+          <Button
+            onClick={handleSave}
+            disabled={!name.trim() || create.isPending || update.isPending}
+            className="bg-primary hover:bg-primary/90 text-primary-foreground min-w-[150px]"
+          >
+            {create.isPending || update.isPending
+              ? (initial ? "Saving..." : "Creating...")
+              : initial ? "Save Changes" : "Create Department"}
           </Button>
-        </DialogFooter>
+        </div>
       </DialogContent>
     </Dialog>
   );

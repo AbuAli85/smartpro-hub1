@@ -525,6 +525,7 @@ function UserGroup({
 // ─── Audit Log Panel ──────────────────────────────────────────────────────────
 function AuditLogPanel() {
   const { data, isLoading } = trpc.platformOps.getRoleAuditLogs.useQuery({ limit: 30 });
+  const logs = Array.isArray(data) ? data : [];
   if (isLoading) {
     return (
       <div className="space-y-2">
@@ -532,12 +533,12 @@ function AuditLogPanel() {
       </div>
     );
   }
-  if (!data?.logs?.length) {
+  if (!logs.length) {
     return <p className="text-sm text-muted-foreground text-center py-8">No role change events recorded yet.</p>;
   }
   return (
     <div className="space-y-2">
-      {data.logs.map((log) => {
+      {logs.map((log) => {
         const oldVals = (log.oldValues as Record<string, unknown>) ?? {};
         const newVals = (log.newValues as Record<string, unknown>) ?? {};
         return (
@@ -546,8 +547,8 @@ function AuditLogPanel() {
             <div className="flex-1 min-w-0">
               <p className="text-sm">
                 <span className="font-medium">{ACTION_LABELS[log.action] ?? log.action}</span>
-                {log.targetUserEmail && (
-                  <span className="text-muted-foreground"> for <strong>{log.targetUserEmail}</strong></span>
+                {log.actorEmail && (
+                  <span className="text-muted-foreground"> by <strong>{log.actorEmail}</strong></span>
                 )}
               </p>
               {(Object.keys(oldVals).length > 0 || Object.keys(newVals).length > 0) && (
@@ -590,7 +591,7 @@ export default function UserRolesPage() {
 
   const bulkFix = trpc.platformOps.bulkFixMismatches.useMutation({
     onSuccess: (res) => {
-      toast.success(`Fixed ${res.fixed} mismatch${res.fixed !== 1 ? "es" : ""}.`);
+      toast.success(`Fixed ${res.fixedCount} mismatch${res.fixedCount !== 1 ? "es" : ""}.`);
       utils.platformOps.getRoleAuditReport.invalidate();
       utils.platformOps.getRoleAuditLogs.invalidate();
     },
@@ -602,7 +603,8 @@ export default function UserRolesPage() {
     utils.platformOps.getRoleAuditLogs.invalidate();
   };
 
-  const stats = data?.stats ?? { total: 0, mismatches: 0, admins: 0, suspended: 0, platformStaff: 0, businessUsers: 0, customers: 0 };
+  const rawStats = data?.stats ?? {};
+  const stats = { total: 0, mismatches: 0, admins: 0, suspended: 0, platformStaff: 0, businessUsers: 0, customers: 0, ...rawStats };
   const allUsers = (data?.users ?? []) as AuditUser[];
   const companies = companiesData ?? [];
 

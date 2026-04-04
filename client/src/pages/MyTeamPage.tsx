@@ -892,6 +892,7 @@ export default function MyTeamPage() {
 
   const editMember = members.find((m) => m.id === editId);
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
+  const [clearConfirmText, setClearConfirmText] = useState("");
 
   const clearAllMutation = trpc.team.clearAllEmployees.useMutation({
     onSuccess: (data) => {
@@ -899,6 +900,7 @@ export default function MyTeamPage() {
       utils.team.listMembers.invalidate();
       utils.team.getTeamStats.invalidate();
       setClearConfirmOpen(false);
+      setClearConfirmText("");
     },
     onError: (e) => toast.error(e.message),
   });
@@ -1256,28 +1258,45 @@ export default function MyTeamPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Clear All Employees Confirmation Dialog */}
-      <Dialog open={clearConfirmOpen} onOpenChange={setClearConfirmOpen}>
-        <DialogContent className="max-w-sm">
+      {/* Clear All Employees Confirmation Dialog — hardened with typed confirmation */}
+      <Dialog open={clearConfirmOpen} onOpenChange={(v) => { setClearConfirmOpen(v); if (!v) setClearConfirmText(""); }}>
+        <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-base">
+            <DialogTitle className="flex items-center gap-2 text-base text-red-600">
               <Trash2 size={18} className="text-red-500" />
-              Clear All Employees
+              Permanently Delete All Employees
             </DialogTitle>
           </DialogHeader>
-          <p className="text-sm text-gray-600">
-            This will <strong>permanently delete all employee records</strong> for this company.
-            All attendance, payroll, and leave data linked to these employees will also be removed.
-            This action <strong>cannot be undone</strong>.
-          </p>
-          <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setClearConfirmOpen(false)}>Cancel</Button>
+          <div className="space-y-4">
+            <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800">
+              <p className="font-semibold mb-1">⚠️ This is a destructive, irreversible action</p>
+              <ul className="text-xs space-y-1 list-disc list-inside">
+                <li>All employee records for this company will be <strong>permanently deleted</strong></li>
+                <li>All linked attendance, payroll, leave, and document data will be removed</li>
+                <li>This action <strong>cannot be undone</strong> — there is no recovery</li>
+                <li>Only use this in a test or sandbox environment</li>
+              </ul>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">
+                Type <span className="font-mono font-bold text-red-600">DELETE ALL</span> to confirm
+              </Label>
+              <Input
+                value={clearConfirmText}
+                onChange={(e) => setClearConfirmText(e.target.value)}
+                placeholder="Type DELETE ALL"
+                className="border-red-300 focus-visible:ring-red-400"
+              />
+            </div>
+          </div>
+          <DialogFooter className="gap-2 mt-2">
+            <Button variant="outline" onClick={() => { setClearConfirmOpen(false); setClearConfirmText(""); }}>Cancel</Button>
             <Button
               className="bg-red-600 hover:bg-red-700 text-white"
-              disabled={clearAllMutation.isPending}
+              disabled={clearAllMutation.isPending || clearConfirmText !== "DELETE ALL"}
               onClick={() => clearAllMutation.mutate({ companyId: activeCompanyId ?? undefined })}
             >
-              {clearAllMutation.isPending ? "Clearing…" : "Yes, Clear All"}
+              {clearAllMutation.isPending ? "Deleting…" : "Permanently Delete All"}
             </Button>
           </DialogFooter>
         </DialogContent>

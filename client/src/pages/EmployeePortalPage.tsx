@@ -25,6 +25,7 @@ import {
   FileCheck, FilePlus, ExternalLink, RefreshCw, Star, ArrowLeftRight, Repeat,
 } from "lucide-react";
 import { fmtDateLong, fmtDateTime } from "@/lib/dateUtils";
+import { RequestsCalendar } from "@/components/RequestsCalendar";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 type TaskStatus = "pending" | "in_progress" | "completed" | "cancelled";
@@ -466,6 +467,10 @@ export default function EmployeePortalPage() {
   const [taskFilter, setTaskFilter] = useState<string>("active");
   // Shift request dialog
   const [showShiftRequestDialog, setShowShiftRequestDialog] = useState(false);
+  const [calView, setCalView] = useState<"calendar" | "list">("calendar");
+  const [calMonth, setCalMonth] = useState(() => new Date().getMonth());
+  const [calYear, setCalYear] = useState(() => new Date().getFullYear());
+  const [selectedCalDay, setSelectedCalDay] = useState<string | null>(null);
   const [shiftReqType, setShiftReqType] = useState<string>("time_off");
   const [shiftReqDate, setShiftReqDate] = useState("");
   const [shiftReqEndDate, setShiftReqEndDate] = useState("");
@@ -822,7 +827,7 @@ export default function EmployeePortalPage() {
 
         {/* ── Main Tabs ── */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="w-full grid grid-cols-7 h-auto">
+          <TabsList className="w-full grid grid-cols-8 h-auto">
             {[
               { value: "overview", icon: Home, label: "Overview" },
               { value: "attendance", icon: UserCheck, label: "Attendance" },
@@ -830,6 +835,7 @@ export default function EmployeePortalPage() {
               { value: "payroll", icon: DollarSign, label: "Payslips" },
               { value: "tasks", icon: CheckSquare, label: "Tasks", badge: pendingTasks },
               { value: "documents", icon: FileText, label: "Docs", badge: expiringDocs.length },
+              { value: "requests", icon: ArrowLeftRight, label: "Requests", badge: (myShiftRequests ?? []).filter((r: any) => r.request?.status === "pending").length },
               { value: "profile", icon: User, label: "Profile" },
             ].map(({ value, icon: Icon, label, badge }) => (
               <TabsTrigger key={value} value={value} className="py-2 text-xs flex flex-col gap-0.5 h-auto relative">
@@ -1940,9 +1946,134 @@ export default function EmployeePortalPage() {
               </Card>
             )}
           </TabsContent>
+
+          {/* ══ REQUESTS TAB ══════════════════════════════════════════════════ */}
+          <TabsContent value="requests" className="mt-4 space-y-4">
+            {/* Header */}
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div>
+                <h2 className="text-base font-semibold flex items-center gap-2">
+                  <ArrowLeftRight className="w-4 h-4 text-primary" />
+                  My Shift & Time Off Requests
+                </h2>
+                <p className="text-xs text-muted-foreground mt-0.5">Track all your shift change and time off requests</p>
+              </div>
+              <div className="flex items-center gap-2">
+                {/* View toggle */}
+                <div className="flex rounded-md border overflow-hidden">
+                  <button
+                    onClick={() => setCalView("calendar")}
+                    className={`px-3 py-1.5 text-xs flex items-center gap-1.5 transition-colors ${
+                      calView === "calendar" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted"
+                    }`}
+                  >
+                    <Calendar className="w-3 h-3" /> Calendar
+                  </button>
+                  <button
+                    onClick={() => setCalView("list")}
+                    className={`px-3 py-1.5 text-xs flex items-center gap-1.5 transition-colors ${
+                      calView === "list" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted"
+                    }`}
+                  >
+                    <FileText className="w-3 h-3" /> List
+                  </button>
+                </div>
+                <Button size="sm" className="gap-1.5 h-8 text-xs" onClick={() => setShowShiftRequestDialog(true)}>
+                  <Plus className="w-3.5 h-3.5" /> New Request
+                </Button>
+              </div>
+            </div>
+
+            {/* Legend */}
+            <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
+              <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-green-500 inline-block" /> Approved</span>
+              <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-amber-400 inline-block" /> Pending</span>
+              <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-red-500 inline-block" /> Rejected</span>
+              <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-gray-400 inline-block" /> Cancelled</span>
+            </div>
+
+            {calView === "calendar" ? (
+              <RequestsCalendar
+                requests={(myShiftRequests ?? []) as any[]}
+                month={calMonth}
+                year={calYear}
+                onMonthChange={(m: number, y: number) => { setCalMonth(m); setCalYear(y); }}
+                selectedDay={selectedCalDay}
+                onDaySelect={setSelectedCalDay}
+                onCancel={(id: number) => cancelShiftRequest.mutate({ id })}
+                onNewRequest={() => setShowShiftRequestDialog(true)}
+              />
+            ) : (
+              /* ── List View ── */
+              <div className="space-y-3">
+                {(() => {
+                  const allReqs = (myShiftRequests ?? []) as any[];
+                  if (allReqs.length === 0) return (
+                    <Card className="border-dashed">
+                      <CardContent className="flex flex-col items-center justify-center py-12 gap-3 text-muted-foreground">
+                        <ArrowLeftRight className="w-10 h-10 opacity-20" />
+                        <p className="font-medium">No requests yet</p>
+                        <Button size="sm" variant="outline" onClick={() => setShowShiftRequestDialog(true)} className="gap-1.5">
+                          <Plus className="w-3.5 h-3.5" /> Submit First Request
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  );
+                  const typeLabels: Record<string, string> = {
+                    shift_change: "Shift Change", time_off: "Time Off",
+                    early_leave: "Early Leave", late_arrival: "Late Arrival", day_swap: "Day Swap",
+                  };
+                  const statusConfig: Record<string, { color: string; bg: string; border: string }> = {
+                    pending:   { color: "text-amber-700",  bg: "bg-amber-50 dark:bg-amber-950/20",  border: "border-amber-200 dark:border-amber-800" },
+                    approved:  { color: "text-green-700",  bg: "bg-green-50 dark:bg-green-950/20",  border: "border-green-200 dark:border-green-800" },
+                    rejected:  { color: "text-red-700",    bg: "bg-red-50 dark:bg-red-950/20",      border: "border-red-200 dark:border-red-800" },
+                    cancelled: { color: "text-gray-500",   bg: "bg-gray-50 dark:bg-gray-900/20",    border: "border-gray-200 dark:border-gray-700" },
+                  };
+                  return allReqs.map((item: any) => {
+                    const req = item.request;
+                    const ps = item.preferredShift;
+                    const sc = statusConfig[req.status] ?? statusConfig.cancelled;
+                    return (
+                      <Card key={req.id} className={`border ${sc.border} ${sc.bg}`}>
+                        <CardContent className="p-4">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-semibold text-sm">{typeLabels[req.requestType] ?? req.requestType}</span>
+                                <span className={`text-xs px-2 py-0.5 rounded-full font-medium border ${sc.border} ${sc.color}`}>
+                                  {req.status?.charAt(0).toUpperCase() + req.status?.slice(1)}
+                                </span>
+                              </div>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                {req.requestedDate}{req.requestedEndDate && req.requestedEndDate !== req.requestedDate ? ` → ${req.requestedEndDate}` : ""}
+                                {req.requestedTime ? ` at ${req.requestedTime}` : ""}
+                              </p>
+                              <p className="text-xs mt-1">{req.reason}</p>
+                              {ps && <p className="text-xs text-primary mt-0.5">Preferred: {ps.name} ({ps.startTime}–{ps.endTime})</p>}
+                              {req.adminNotes && (
+                                <p className="text-xs mt-1 italic text-muted-foreground">HR note: {req.adminNotes}</p>
+                              )}
+                              <p className="text-xs text-muted-foreground mt-1">
+                                Submitted {new Date(req.createdAt).toLocaleDateString()}
+                              </p>
+                            </div>
+                            {req.status === "pending" && (
+                              <Button size="sm" variant="ghost" className="h-7 text-xs text-destructive hover:text-destructive shrink-0"
+                                onClick={() => cancelShiftRequest.mutate({ id: req.id })}>
+                                <X className="w-3 h-3 mr-1" /> Cancel
+                              </Button>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  });
+                })()}
+              </div>
+            )}
+          </TabsContent>
         </Tabs>
       </div>
-
       {/* ── Leave Request Dialog ── */}
       <Dialog open={showLeaveDialog} onOpenChange={setShowLeaveDialog}>
         <DialogContent className="sm:max-w-md">

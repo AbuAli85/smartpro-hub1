@@ -1635,3 +1635,17 @@ Every company on SmartPRO Hub gets a complete, unified business operating area â
 - [x] Admin UI: shift requests review panel in HR Scheduling page
 - [x] Admin UI: approve/reject with notes dialog
 - [x] Vitest tests for new procedures (covered by existing 337-test suite)
+
+## Requests Calendar View (Employee Portal)
+- [x] Build RequestsCalendar component: month grid with colour-coded event dots per day
+- [x] Approved requests: green dot/bar on calendar day
+- [x] Pending requests: amber dot/bar on calendar day
+- [x] Rejected requests: red dot/bar on calendar day
+- [x] Day click popover: show all requests for that day with type, status, reason, admin notes
+- [x] Month navigation (prev/next arrows)
+- [x] Legend bar: colour key for Approved/Pending/Rejected/Cancelled
+- [x] Add dedicated "Requests" tab to Employee Portal (8th tab, between Docs and Profile)
+- [x] Requests tab: calendar view (default) + list view toggle
+- [x] List view: all requests listed with status badges, cancel button for pending
+- [x] New request button prominently placed on Requests tab
+- [x] Cancel pending request directly from calendar popover

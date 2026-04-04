@@ -149,6 +149,7 @@ export default function Dashboard() {
   }, [user, navOpts, navPrefsEpoch]);
 
   const { data: expiringDocs } = trpc.pro.expiringDocuments.useQuery({ daysAhead: 30 });
+  const { data: hrStats } = trpc.hr.getDashboardStats.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
   const { data: platformStats } = trpc.analytics.platformStats.useQuery();
   const { data: alertBadge } = trpc.alerts.getAlertBadgeCount.useQuery();
   const { data: aiInsights } = trpc.operations.getAiInsights.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
@@ -363,6 +364,76 @@ export default function Dashboard() {
               </CardContent>
             </Card>
           )}
+        </div>
+      )}
+
+      {/* ── HR Live Stats ── */}
+      {!showPlatformOverview && activeCompanyId && hrStats && (
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
+              <Activity size={13} /> Today's HR Snapshot
+            </h2>
+            <Link href="/hr/today-board">
+              <Button variant="ghost" size="sm" className="text-xs gap-1 h-7">
+                Today's Board <ArrowUpRight size={11} />
+              </Button>
+            </Link>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <Link href="/hr/attendance">
+              <div className="bg-emerald-500 rounded-2xl p-4 text-white shadow-sm hover:opacity-90 transition-opacity cursor-pointer">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-8 h-8 rounded-lg bg-white/15 flex items-center justify-center">
+                    <CheckCircle2 size={16} />
+                  </div>
+                  <span className="text-white/70 text-xs uppercase tracking-wide font-medium">Present Today</span>
+                </div>
+                <p className="text-3xl font-black">{hrStats.todayPresent}</p>
+                <p className="text-white/60 text-[10px] mt-1">of {hrStats.activeEmployees} active</p>
+              </div>
+            </Link>
+            <Link href="/hr/leave">
+              <div className="bg-amber-500 rounded-2xl p-4 text-white shadow-sm hover:opacity-90 transition-opacity cursor-pointer">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-8 h-8 rounded-lg bg-white/15 flex items-center justify-center">
+                    <Calendar size={16} />
+                  </div>
+                  <span className="text-white/70 text-xs uppercase tracking-wide font-medium">Pending Leave</span>
+                </div>
+                <p className="text-3xl font-black">{hrStats.pendingLeave}</p>
+                <p className="text-white/60 text-[10px] mt-1">Awaiting approval</p>
+              </div>
+            </Link>
+            <Link href="/hr/kpi">
+              <div className="bg-blue-500 rounded-2xl p-4 text-white shadow-sm hover:opacity-90 transition-opacity cursor-pointer">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-8 h-8 rounded-lg bg-white/15 flex items-center justify-center">
+                    <TrendingUp size={16} />
+                  </div>
+                  <span className="text-white/70 text-xs uppercase tracking-wide font-medium">KPI Avg</span>
+                </div>
+                <p className="text-3xl font-black">{hrStats.kpiAvgPct > 0 ? `${hrStats.kpiAvgPct}%` : "—"}</p>
+                <p className="text-white/60 text-[10px] mt-1">{hrStats.kpiTargetsCount} targets this month</p>
+              </div>
+            </Link>
+            <Link href="/payroll">
+              <div className={`${
+                hrStats.payrollStatus === "paid" ? "bg-teal-500" :
+                hrStats.payrollStatus === "approved" ? "bg-indigo-500" :
+                hrStats.payrollStatus === "draft" ? "bg-slate-500" : "bg-slate-400"
+              } rounded-2xl p-4 text-white shadow-sm hover:opacity-90 transition-opacity cursor-pointer`}>
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-8 h-8 rounded-lg bg-white/15 flex items-center justify-center">
+                    <Banknote size={16} />
+                  </div>
+                  <span className="text-white/70 text-xs uppercase tracking-wide font-medium">Payroll</span>
+                </div>
+                <p className="text-3xl font-black capitalize">{hrStats.payrollStatus ?? "—"}</p>
+                <p className="text-white/60 text-[10px] mt-1">{hrStats.payrollMonth ?? "No run this month"}</p>
+              </div>
+            </Link>
+          </div>
         </div>
       )}
 

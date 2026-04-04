@@ -8,7 +8,7 @@ import { Separator } from "@/components/ui/separator";
 import {
   AlertTriangle, CheckCircle2, Clock, FileText, Users, TrendingUp,
   Briefcase, Calendar, ChevronRight, Activity, Target, Zap,
-  Shield, BarChart3, Bell, ArrowRight, RefreshCw, Timer
+  Shield, BarChart3, Bell, ArrowRight, RefreshCw, Timer, Banknote, UserCheck
 } from "lucide-react";
 import { Link } from "wouter";
 import { formatDistanceToNow, format } from "date-fns";
@@ -55,6 +55,7 @@ export default function OperationsDashboardPage() {
   );
   const { data: insights } = trpc.operations.getAiInsights.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
   const { data: tasks } = trpc.operations.getTodaysTasks.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
+  const { data: hrStats } = trpc.hr.getDashboardStats.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
 
   const now = new Date();
 
@@ -184,6 +185,128 @@ export default function OperationsDashboardPage() {
                   </Card>
                 ))}
               </div>
+
+              {/* HR Attendance Snapshot */}
+              {hrStats && (
+                <Card className="shadow-sm">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-sm font-bold flex items-center gap-2">
+                        <UserCheck className="w-4 h-4 text-emerald-500" />
+                        Today's Workforce Status
+                      </CardTitle>
+                      <Link href="/hr/attendance">
+                        <Button variant="ghost" size="sm" className="text-xs gap-1 h-6">
+                          View All <ChevronRight className="w-3 h-3" />
+                        </Button>
+                      </Link>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="bg-emerald-50 rounded-xl p-3 text-center">
+                        <p className="text-2xl font-black text-emerald-700">{hrStats.todayPresent}</p>
+                        <p className="text-[10px] text-emerald-600 font-medium uppercase tracking-wide mt-0.5">Present</p>
+                      </div>
+                      <div className="bg-red-50 rounded-xl p-3 text-center">
+                        <p className="text-2xl font-black text-red-700">{hrStats.todayAbsent}</p>
+                        <p className="text-[10px] text-red-600 font-medium uppercase tracking-wide mt-0.5">Absent</p>
+                      </div>
+                      <div className="bg-amber-50 rounded-xl p-3 text-center">
+                        <p className="text-2xl font-black text-amber-700">{hrStats.pendingLeave}</p>
+                        <p className="text-[10px] text-amber-600 font-medium uppercase tracking-wide mt-0.5">On Leave</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-muted-foreground">Attendance Rate</span>
+                      <span className="font-semibold">
+                        {hrStats.activeEmployees > 0 ? Math.round((hrStats.todayPresent / hrStats.activeEmployees) * 100) : 0}%
+                      </span>
+                    </div>
+                    <Progress
+                      value={hrStats.activeEmployees > 0 ? Math.round((hrStats.todayPresent / hrStats.activeEmployees) * 100) : 0}
+                      className="h-2"
+                    />
+                    {hrStats.kpiAvgPct > 0 && (
+                      <div className="flex items-center justify-between text-xs pt-1 border-t border-border">
+                        <span className="text-muted-foreground flex items-center gap-1">
+                          <TrendingUp className="w-3 h-3" /> KPI Average
+                        </span>
+                        <span className="font-semibold text-blue-600">{hrStats.kpiAvgPct}%</span>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Pending Leave Approvals */}
+              {(tasks?.pendingLeaveApprovals?.length ?? 0) > 0 && (
+                <Card className="shadow-sm border-purple-200">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-bold flex items-center gap-2 text-purple-700">
+                      <Calendar className="w-4 h-4" />
+                      Pending Leave Approvals ({tasks?.pendingLeaveApprovals.length})
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    <div className="divide-y">
+                      {tasks?.pendingLeaveApprovals.slice(0, 4).map((req) => (
+                        <div key={req.id} className="flex items-center justify-between px-4 py-2.5 hover:bg-muted/30">
+                          <div>
+                            <p className="text-xs font-medium capitalize">{req.leaveType?.replace(/_/g, " ")} Leave</p>
+                            <p className="text-[10px] text-muted-foreground">
+                              {req.startDate ? format(new Date(req.startDate), "d MMM") : ""}
+                              {req.endDate ? ` – ${format(new Date(req.endDate), "d MMM yyyy")}` : ""}
+                            </p>
+                          </div>
+                          <Link href="/hr/leave">
+                            <Button size="sm" variant="outline" className="text-xs h-6 px-2">Review</Button>
+                          </Link>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="px-4 py-2">
+                      <Link href="/hr/leave">
+                        <Button variant="ghost" size="sm" className="w-full text-xs gap-1 text-purple-700">
+                          Manage All Leave <ChevronRight className="w-3 h-3" />
+                        </Button>
+                      </Link>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Pending Payroll Approvals */}
+              {(tasks?.pendingPayrollApprovals?.length ?? 0) > 0 && (
+                <Card className="shadow-sm border-teal-200">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-bold flex items-center gap-2 text-teal-700">
+                      <Banknote className="w-4 h-4" />
+                      Payroll Awaiting Payment ({tasks?.pendingPayrollApprovals.length})
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    <div className="divide-y">
+                      {tasks?.pendingPayrollApprovals.slice(0, 3).map((run) => (
+                        <div key={run.id} className="flex items-center justify-between px-4 py-2.5 hover:bg-muted/30">
+                          <div>
+                            <p className="text-xs font-medium">Payroll Run #{run.id}</p>
+                            <p className="text-[10px] text-muted-foreground">
+                              {run.month && run.year ? `${["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][(run.month ?? 1) - 1]} ${run.year}` : ""}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-xs font-semibold text-teal-700">OMR {Number(run.totalNet ?? 0).toFixed(3)}</p>
+                            <Link href="/payroll">
+                              <Button size="sm" variant="outline" className="text-xs h-6 px-2 mt-1">Pay Now</Button>
+                            </Link>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
 
               {/* Cases Due Today */}
               {(tasks?.casesDue?.length ?? 0) > 0 && (

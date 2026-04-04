@@ -1,7 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { eq, and, desc } from "drizzle-orm";
-import { workPermits, employees } from "../../drizzle/schema";
+import { eq, and, desc, gte, lte, count, sum } from "drizzle-orm";
+import { workPermits, employees, attendanceRecords, leaveRequests, kpiTargets, kpiAchievements, payrollRuns } from "../../drizzle/schema";
 import { sendEmployeeNotification } from "./employeePortal";
 import { getDb } from "../db";
 import {
@@ -787,6 +787,112 @@ export const hrRouter = router({
           expired: rows.filter((r) => r.status === "expired").length,
           expiringSoon: rows.filter((r) => r.status === "expiring_soon").length,
         },
+      };
+    }),
+
+  // ─── HR Dashboard Stats (for main Dashboard page) ─────────────────────────
+  getDashboardStats: protectedProcedure
+    .input(z.object({ companyId: z.number().optional() }).optional())
+    .query(async ({ input, ctx }) => {
+      const cid = await requireActiveCompanyId(ctx.user.id, input?.companyId).catch(() => null);
+      const emptyResult = {
+        todayPresent: 0, todayAbsent: 0, todayTotal: 0,
+        pendingLeave: 0, kpiTargetsCount: 0, kpiAvgPct: 0,
+        kpiTopPerformer: null as string | null,
+        payrollStatus: null as string | null, payrollMonth: null as string | null,
+        activeEmployees: 0,
+      };
+      if (!cid) return emptyResult;
+      const db = await getDb();
+      if (!db) return emptyResult;
+
+      const now = new Date();
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+      const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+
+      // Today's check-ins from attendance_records
+      const [todayRow] = await db.select({ cnt: count() })
+        .from(attendanceRecords)
+        .where(and(
+          eq(attendanceRecords.companyId, cid),
+          gte(attendanceRecords.checkIn, todayStart),
+          lte(attendanceRecords.checkIn, todayEnd),
+        ));
+      const todayTotal = Number(todayRow?.cnt ?? 0);
+
+      // Pending leave requests
+      const [pendingLeaveRow] = await db.select({ cnt: count() })
+        .from(leaveRequests)
+        .where(and(eq(leaveRequests.companyId, cid), eq(leaveRequests.status, "pending")));
+      const pendingLeave = Number(pendingLeaveRow?.cnt ?? 0);
+
+      // Active employees count
+      const emps = await getEmployees(cid);
+      const activeEmployees = emps.filter((e) => e.status === "active").length;
+
+      // KPI targets this month
+      const year = now.getFullYear();
+      const month = now.getMonth() + 1;
+      const [kpiTargetsRow] = await db.select({ cnt: count() })
+        .from(kpiTargets)
+        .where(and(
+          eq(kpiTargets.companyId, cid),
+          eq(kpiTargets.periodYear, year),
+          eq(kpiTargets.periodMonth, month),
+        ));
+      const kpiTargetsCount = Number(kpiTargetsRow?.cnt ?? 0);
+
+      // KPI average achievement this month
+      const kpiAchRows = await db.select({
+        employeeUserId: kpiAchievements.employeeUserId,
+        totalPct: sum(kpiAchievements.achievementPct),
+      })
+        .from(kpiAchievements)
+        .where(and(
+          eq(kpiAchievements.companyId, cid),
+          eq(kpiAchievements.periodYear, year),
+          eq(kpiAchievements.periodMonth, month),
+        ))
+        .groupBy(kpiAchievements.employeeUserId);
+
+      const kpiAvgPct = kpiAchRows.length > 0
+        ? Math.round(kpiAchRows.reduce((s, r) => s + parseFloat(r.totalPct ?? "0"), 0) / kpiAchRows.length)
+        : 0;
+
+      // Top KPI performer
+      let kpiTopPerformer: string | null = null;
+      if (kpiAchRows.length > 0) {
+        const topRow = [...kpiAchRows].sort((a, b) => parseFloat(b.totalPct ?? "0") - parseFloat(a.totalPct ?? "0"))[0];
+        if (topRow) {
+          const emp = emps.find((e) => e.userId === topRow.employeeUserId);
+          if (emp) kpiTopPerformer = `${emp.firstName} ${emp.lastName}`.trim();
+        }
+      }
+
+      // Payroll status this month
+      const [payrollRow] = await db.select({ status: payrollRuns.status, periodMonth: payrollRuns.periodMonth, periodYear: payrollRuns.periodYear })
+        .from(payrollRuns)
+        .where(and(
+          eq(payrollRuns.companyId, cid),
+          eq(payrollRuns.periodYear, year),
+          eq(payrollRuns.periodMonth, month),
+        ))
+        .orderBy(desc(payrollRuns.createdAt))
+        .limit(1);
+
+      const MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+      return {
+        todayPresent: todayTotal,
+        todayAbsent: Math.max(0, activeEmployees - todayTotal),
+        todayTotal,
+        pendingLeave,
+        kpiTargetsCount,
+        kpiAvgPct,
+        kpiTopPerformer,
+        payrollStatus: payrollRow?.status ?? null,
+        payrollMonth: payrollRow ? `${MONTH_NAMES[(payrollRow.periodMonth ?? 1) - 1]} ${payrollRow.periodYear}` : null,
+        activeEmployees,
       };
     }),
 });

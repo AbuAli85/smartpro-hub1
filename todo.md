@@ -1774,3 +1774,12 @@ Every company on SmartPRO Hub gets a complete, unified business operating area �
 - [x] Fix grantAccess (Team Access page) to auto-update users.platformRole
 - [x] Add mapMemberRoleToPlatformRole helper in shared/rbac.ts
 - [x] Test full flow: invite → accept → login → correct sidebar shown
+
+## Functional Audit Fixes (Apr 4, 2026)
+
+- [x] Dashboard: Added `getDashboardStats` procedure to HR router returning today's attendance count, absent count, pending leave, KPI avg%, payroll status
+- [x] Dashboard: Added "Today's HR Snapshot" section with 4 live stat cards (Present Today, Pending Leave, KPI Avg, Payroll Status)
+- [x] Operations Dashboard: Added HR attendance snapshot card (Present/Absent/On Leave + attendance rate progress bar + KPI avg)
+- [x] Operations Dashboard: Added Pending Leave Approvals card (shows pending leave requests with Review button)
+- [x] Operations Dashboard: Added Payroll Awaiting Payment card (shows approved payroll runs with Pay Now button)
+- [x] All 337 tests passing

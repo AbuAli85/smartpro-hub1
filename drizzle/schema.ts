@@ -2241,6 +2241,7 @@ export const shiftChangeRequests = mysqlTable("shift_change_requests", {
   reason: text("reason").notNull(),
   status: mysqlEnum("request_status", ["pending", "approved", "rejected", "cancelled"]).notNull().default("pending"),
   adminNotes: text("admin_notes"),
+  attachmentUrl: varchar("attachment_url", { length: 1000 }),
   reviewedByUserId: int("reviewed_by_user_id"),
   reviewedAt: timestamp("reviewed_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),

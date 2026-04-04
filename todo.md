@@ -1649,3 +1649,24 @@ Every company on SmartPRO Hub gets a complete, unified business operating area â
 - [x] List view: all requests listed with status badges, cancel button for pending
 - [x] New request button prominently placed on Requests tab
 - [x] Cancel pending request directly from calendar popover
+
+## Three New Employee Portal Features
+
+### 1. Notifications on Approve/Reject
+- [ ] Check if notifyOwner / Resend email helper exists in the project
+- [ ] Add in-app notification to employee when HR approves or rejects their shift request
+- [ ] Add owner/HR notification when employee submits a new shift request
+- [ ] Show notification in employee portal bell icon
+
+### 2. Document Attachment on Request Form
+- [ ] Add attachmentUrl column to shift_change_requests table (migration)
+- [ ] Add file upload input to the shift request dialog (employee portal)
+- [ ] Upload file to S3 via storagePut on submit
+- [ ] Show attachment link/thumbnail on request cards (employee + admin)
+
+### 3. Admin Calendar View (HR Scheduling Page)
+- [ ] Build AdminRequestsCalendar component: month grid showing all employees' requests
+- [ ] Each day cell shows employee initials + status dot
+- [ ] Day click shows all requests for that day with employee name, type, status
+- [ ] Inline approve/reject from the admin calendar day panel
+- [ ] Add calendar tab/section to HR Employee Schedules page

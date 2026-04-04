@@ -32,7 +32,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, CalendarDays, MapPin, Clock, ArrowLeftRight, Check, X, ChevronDown, ChevronUp } from "lucide-react";
+import { Plus, Pencil, Trash2, CalendarDays, MapPin, Clock, ArrowLeftRight, Check, X, ChevronDown, ChevronUp, ChevronLeft, ChevronRight } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -77,6 +77,11 @@ export default function EmployeeSchedulesPage() {
   const [adminNoteId, setAdminNoteId] = useState<number | null>(null);
   const [adminNote, setAdminNote] = useState("");
   const [showRequestsPanel, setShowRequestsPanel] = useState(true);
+  const [adminCalView, setAdminCalView] = useState<"calendar" | "list">("calendar");
+  const [adminCalMonth, setAdminCalMonth] = useState(() => new Date().getMonth());
+  const [adminCalYear, setAdminCalYear] = useState(() => new Date().getFullYear());
+  const [adminCalSelectedDay, setAdminCalSelectedDay] = useState<string | null>(null);
+  const [showCalPanel, setShowCalPanel] = useState(true);
 
   const { data: schedules = [], isLoading } = trpc.scheduling.listEmployeeSchedules.useQuery(
     { companyId: activeCompanyId ?? undefined },
@@ -413,6 +418,185 @@ export default function EmployeeSchedulesPage() {
                       </div>
                     </div>
                   ))}
+                </div>
+              );
+            })()}
+          </CardContent>
+        )}
+      </Card>
+
+      {/* ══ Admin Requests Calendar Overview ══ */}
+      <Card>
+        <CardHeader className="pb-3 cursor-pointer" onClick={() => setShowCalPanel(p => !p)}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <CalendarDays className="w-5 h-5 text-primary" />
+              <CardTitle className="text-base">Requests Calendar Overview</CardTitle>
+              <span className="text-xs text-muted-foreground ml-1">— all employees</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="flex gap-1" onClick={e => e.stopPropagation()}>
+                {(["calendar", "list"] as const).map(v => (
+                  <button key={v} onClick={() => setAdminCalView(v)}
+                    className={`text-xs px-2 py-1 rounded ${adminCalView === v ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>
+                    {v === "calendar" ? "Calendar" : "List"}
+                  </button>
+                ))}
+              </div>
+              {showCalPanel ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+            </div>
+          </div>
+        </CardHeader>
+        {showCalPanel && (
+          <CardContent className="pt-0">
+            {(() => {
+              const allReqs = (shiftRequestsData ?? []) as any[];
+              const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+              const MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+              const daysInMonth = new Date(adminCalYear, adminCalMonth + 1, 0).getDate();
+              const firstDow = new Date(adminCalYear, adminCalMonth, 1).getDay();
+              const pad = (n: number) => String(n).padStart(2, "0");
+              const dotColors: Record<string, string> = {
+                pending: "bg-amber-400",
+                approved: "bg-green-500",
+                rejected: "bg-red-400",
+                cancelled: "bg-gray-300",
+              };
+              const badgeColors: Record<string, string> = {
+                pending: "bg-amber-100 text-amber-700",
+                approved: "bg-green-100 text-green-700",
+                rejected: "bg-red-100 text-red-700",
+                cancelled: "bg-gray-100 text-gray-500",
+              };
+              const typeLabels: Record<string, string> = {
+                shift_change: "Shift Change", time_off: "Time Off",
+                early_leave: "Early Leave", late_arrival: "Late Arrival", day_swap: "Day Swap",
+              };
+              // Build date map: dateStr -> requests[]
+              const dayMap: Record<string, any[]> = {};
+              allReqs.forEach(r => {
+                const start = r.requestedDate;
+                const end = r.requestedEndDate || start;
+                const cur = new Date(start);
+                const endD = new Date(end);
+                while (cur <= endD) {
+                  const key = cur.toISOString().split("T")[0];
+                  if (!dayMap[key]) dayMap[key] = [];
+                  dayMap[key].push(r);
+                  cur.setDate(cur.getDate() + 1);
+                }
+              });
+
+              if (adminCalView === "list") {
+                const sorted = [...allReqs].sort((a, b) => (b.requestedDate ?? "").localeCompare(a.requestedDate ?? ""));
+                return (
+                  <div className="space-y-2">
+                    {sorted.length === 0 ? (
+                      <p className="text-sm text-muted-foreground text-center py-6">No requests yet</p>
+                    ) : sorted.map((r: any) => (
+                      <div key={r.id} className="flex items-center gap-3 p-2 rounded-lg border">
+                        <div className={`w-2 h-2 rounded-full shrink-0 ${dotColors[r.status] ?? "bg-gray-300"}`} />
+                        <div className="flex-1 min-w-0">
+                          <span className="font-medium text-sm">{r.employeeName ?? "Employee"}</span>
+                          <span className="text-xs text-muted-foreground ml-2">{typeLabels[r.requestType] ?? r.requestType}</span>
+                          <span className="text-xs text-muted-foreground ml-2">{r.requestedDate}{r.requestedEndDate && r.requestedEndDate !== r.requestedDate ? ` → ${r.requestedEndDate}` : ""}</span>
+                        </div>
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${badgeColors[r.status] ?? "bg-gray-100 text-gray-500"}`}>
+                          {r.status?.charAt(0).toUpperCase() + r.status?.slice(1)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                );
+              }
+
+              return (
+                <div>
+                  {/* Month nav */}
+                  <div className="flex items-center justify-between mb-4">
+                    <button onClick={() => { if (adminCalMonth === 0) { setAdminCalMonth(11); setAdminCalYear(y => y - 1); } else setAdminCalMonth(m => m - 1); }}
+                      className="p-1 rounded hover:bg-muted">
+                      <ChevronLeft size={16} />
+                    </button>
+                    <span className="font-semibold text-sm">{MONTH_NAMES[adminCalMonth]} {adminCalYear}</span>
+                    <button onClick={() => { if (adminCalMonth === 11) { setAdminCalMonth(0); setAdminCalYear(y => y + 1); } else setAdminCalMonth(m => m + 1); }}
+                      className="p-1 rounded hover:bg-muted">
+                      <ChevronRight size={16} />
+                    </button>
+                  </div>
+                  {/* Legend */}
+                  <div className="flex gap-4 mb-3 flex-wrap">
+                    {(["approved","pending","rejected","cancelled"] as const).map(s => (
+                      <div key={s} className="flex items-center gap-1.5">
+                        <div className={`w-2.5 h-2.5 rounded-full ${dotColors[s]}`} />
+                        <span className="text-xs text-muted-foreground capitalize">{s}</span>
+                      </div>
+                    ))}
+                  </div>
+                  {/* Day headers */}
+                  <div className="grid grid-cols-7 mb-1">
+                    {DAY_NAMES.map(d => (
+                      <div key={d} className="text-center text-xs font-medium text-muted-foreground py-1">{d}</div>
+                    ))}
+                  </div>
+                  {/* Grid */}
+                  <div className="grid grid-cols-7 gap-0.5">
+                    {Array.from({ length: firstDow }).map((_, i) => <div key={`e${i}`} />)}
+                    {Array.from({ length: daysInMonth }).map((_, i) => {
+                      const day = i + 1;
+                      const dateStr = `${adminCalYear}-${pad(adminCalMonth + 1)}-${pad(day)}`;
+                      const reqs = dayMap[dateStr] ?? [];
+                      const isToday = dateStr === new Date().toISOString().split("T")[0];
+                      const isSelected = adminCalSelectedDay === dateStr;
+                      const statusSet = Array.from(new Set<string>(reqs.map((r: any) => r.status as string)));
+                      return (
+                        <div key={day}
+                          onClick={() => setAdminCalSelectedDay(isSelected ? null : dateStr)}
+                          className={`min-h-[52px] p-1 rounded-lg border cursor-pointer transition-colors ${
+                            isSelected ? "border-primary bg-primary/5" :
+                            isToday ? "border-primary/40 bg-primary/5" :
+                            reqs.length > 0 ? "border-border hover:border-primary/30 bg-muted/30" :
+                            "border-transparent hover:bg-muted/20"
+                          }`}>
+                          <div className={`text-xs font-medium mb-1 ${isToday ? "text-primary" : "text-foreground/70"}`}>{day}</div>
+                          <div className="flex flex-wrap gap-0.5">
+                            {statusSet.map(s => (
+                              <div key={s} className={`w-2 h-2 rounded-full ${dotColors[s] ?? "bg-gray-300"}`} title={s} />
+                            ))}
+                          </div>
+                          {reqs.length > 1 && <div className="text-[10px] text-muted-foreground mt-0.5">{reqs.length}</div>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {/* Day detail */}
+                  {adminCalSelectedDay && dayMap[adminCalSelectedDay] && (
+                    <div className="mt-4 p-3 border rounded-lg bg-muted/30">
+                      <p className="text-sm font-semibold mb-2">{adminCalSelectedDay}</p>
+                      <div className="space-y-2">
+                        {dayMap[adminCalSelectedDay].map((r: any) => (
+                          <div key={r.id} className="flex items-start gap-2 p-2 bg-background rounded border">
+                            <div className={`w-2 h-2 rounded-full mt-1 shrink-0 ${dotColors[r.status] ?? "bg-gray-300"}`} />
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-medium text-sm">{r.employeeName ?? "Employee"}</span>
+                                <span className="text-xs text-muted-foreground">{typeLabels[r.requestType] ?? r.requestType}</span>
+                              </div>
+                              <p className="text-xs text-muted-foreground mt-0.5">{r.reason}</p>
+                              {r.adminNotes && <p className="text-xs text-primary mt-0.5 italic">Note: {r.adminNotes}</p>}
+                              {r.attachmentUrl && (
+                                <a href={r.attachmentUrl} target="_blank" rel="noopener noreferrer"
+                                  className="text-xs text-blue-600 underline mt-0.5 block">View attachment</a>
+                              )}
+                            </div>
+                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium shrink-0 ${badgeColors[r.status] ?? "bg-gray-100 text-gray-500"}`}>
+                              {r.status?.charAt(0).toUpperCase() + r.status?.slice(1)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             })()}

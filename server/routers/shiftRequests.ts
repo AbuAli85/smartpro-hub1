@@ -3,8 +3,12 @@ import { and, desc, eq, or } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { protectedProcedure, router } from "../_core/trpc";
 import { getDb, getUserCompany } from "../db";
-import { shiftChangeRequests, employees, shiftTemplates } from "../../drizzle/schema";
+import { shiftChangeRequests, employees, shiftTemplates, notifications } from "../../drizzle/schema";
 import { requireActiveCompanyId } from "../_core/tenant";
+import { notifyOwner } from "../_core/notification";
+import { storagePut } from "../storage";
+
+function randomSuffix() { return Math.random().toString(36).slice(2, 8); }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -30,12 +34,54 @@ async function resolveEmployeeUserId(userId: number, companyId: number): Promise
 
 async function requireAdminOrHR(userId: number) {
   const membership = await getUserCompany(userId);
-    if (!membership) throw new TRPCError({ code: "FORBIDDEN", message: "Not a company member" });
+  if (!membership) throw new TRPCError({ code: "FORBIDDEN", message: "Not a company member" });
   const role = membership.member.role;
   if (!["company_admin", "hr_admin"].includes(role)) {
     throw new TRPCError({ code: "FORBIDDEN", message: "HR or Admin access required" });
   }
   return { company: membership.company, role: membership.member.role };
+}
+
+/** Send an in-app notification to a specific user. Non-critical — never throws. */
+async function sendInAppNotification(params: {
+  toUserId: number;
+  companyId: number;
+  type: string;
+  title: string;
+  message: string;
+  link?: string;
+}) {
+  const db = await getDb();
+  if (!db) return;
+  try {
+    await db.insert(notifications).values({
+      userId: params.toUserId,
+      companyId: params.companyId,
+      type: params.type,
+      title: params.title,
+      message: params.message,
+      link: params.link ?? null,
+      isRead: false,
+    });
+  } catch {
+    // Non-critical — don't fail the main action if notification fails
+  }
+}
+
+/** Resolve the actual login userId from an employeeUserId (which may be employees.id). */
+async function resolveLoginUserId(employeeUserId: number): Promise<number> {
+  const db = await getDb();
+  if (!db) return employeeUserId;
+  // If employeeUserId is a userId directly, return it
+  // Otherwise find the employee row and return their userId
+  const [empRow] = await db.select({ userId: employees.userId })
+    .from(employees)
+    .where(or(
+      eq(employees.userId, employeeUserId),
+      eq(employees.id, employeeUserId)
+    ))
+    .limit(1);
+  return empRow?.userId ?? employeeUserId;
 }
 
 // ─── Router ───────────────────────────────────────────────────────────────────
@@ -52,6 +98,7 @@ export const shiftRequestsRouter = router({
       preferredShiftId: z.number().optional(),
       requestedTime: z.string().optional(), // HH:MM for early_leave / late_arrival
       reason: z.string().min(5).max(1000),
+      attachmentUrl: z.string().url().optional(), // S3 URL for supporting document
     }))
     .mutation(async ({ ctx, input }) => {
       const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId);
@@ -68,8 +115,19 @@ export const shiftRequestsRouter = router({
         preferredShiftId: input.preferredShiftId ?? null,
         requestedTime: input.requestedTime ?? null,
         reason: input.reason,
+        attachmentUrl: input.attachmentUrl ?? null,
         status: "pending",
       });
+      // Notify the platform owner (HR/admin) about the new request
+      const typeLabel = input.requestType.replace(/_/g, " ");
+      try {
+        await notifyOwner({
+          title: `New ${typeLabel} request submitted`,
+          content: `An employee has submitted a ${typeLabel} request for ${input.requestedDate}. Reason: ${input.reason.slice(0, 200)}`,
+        });
+      } catch {
+        // Non-critical
+      }
       return { id: (inserted as any).insertId as number };
     }),
 
@@ -200,6 +258,19 @@ export const shiftRequestsRouter = router({
           reviewedAt: new Date(),
         })
         .where(eq(shiftChangeRequests.id, input.id));
+      // Send in-app notification to the employee
+      const typeLabel = req.requestType.replace(/_/g, " ");
+      const loginUserId = await resolveLoginUserId(req.employeeUserId);
+      await sendInAppNotification({
+        toUserId: loginUserId,
+        companyId,
+        type: "shift_request_approved",
+        title: `Request Approved ✓`,
+        message: `Your ${typeLabel} request for ${req.requestedDate} has been approved.${
+          input.adminNotes ? ` HR note: ${input.adminNotes}` : ""
+        }`,
+        link: "/my-portal?tab=requests",
+      });
       return { success: true };
     }),
 
@@ -227,7 +298,35 @@ export const shiftRequestsRouter = router({
           reviewedAt: new Date(),
         })
         .where(eq(shiftChangeRequests.id, input.id));
+      // Send in-app notification to the employee
+      const typeLabel2 = req.requestType.replace(/_/g, " ");
+      const loginUserId2 = await resolveLoginUserId(req.employeeUserId);
+      await sendInAppNotification({
+        toUserId: loginUserId2,
+        companyId,
+        type: "shift_request_rejected",
+        title: `Request Not Approved`,
+        message: `Your ${typeLabel2} request for ${req.requestedDate} was not approved. Reason: ${input.adminNotes}`,
+        link: "/my-portal?tab=requests",
+      });
       return { success: true };
+    }),
+
+  // ── Employee: Upload attachment for a request ──────────────────────────────
+  uploadAttachment: protectedProcedure
+    .input(z.object({
+      fileBase64: z.string(),
+      fileName: z.string(),
+      mimeType: z.string().optional(),
+      companyId: z.number().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId);
+      const ext = input.fileName.split(".").pop() ?? "pdf";
+      const key = `shift-request-attachments/${companyId}/${ctx.user.id}-${randomSuffix()}.${ext}`;
+      const buffer = Buffer.from(input.fileBase64, "base64");
+      const { url } = await storagePut(key, buffer, input.mimeType ?? "application/octet-stream");
+      return { url };
     }),
 
   // ── Admin: Stats summary ──────────────────────────────────────────────────────

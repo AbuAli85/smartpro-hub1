@@ -477,6 +477,9 @@ export default function EmployeePortalPage() {
   const [shiftReqTime, setShiftReqTime] = useState("");
   const [shiftReqReason, setShiftReqReason] = useState("");
   const [shiftReqFilter, setShiftReqFilter] = useState<string>("all");
+  const [shiftReqAttachmentUrl, setShiftReqAttachmentUrl] = useState<string | null>(null);
+  const [shiftReqAttachmentName, setShiftReqAttachmentName] = useState<string | null>(null);
+  const [uploadingAttachment, setUploadingAttachment] = useState(false);
 
   // Profile edit state
   const [editingContact, setEditingContact] = useState(false);
@@ -579,9 +582,18 @@ export default function EmployeePortalPage() {
       setShiftReqEndDate("");
       setShiftReqTime("");
       setShiftReqReason("");
+      setShiftReqAttachmentUrl(null);
+      setShiftReqAttachmentName(null);
       utils.shiftRequests.listMine.invalidate();
     },
     onError: (err) => toast.error(err.message),
+  });
+  const uploadShiftAttachment = trpc.shiftRequests.uploadAttachment.useMutation({
+    onSuccess: (data) => {
+      setShiftReqAttachmentUrl(data.url);
+      toast.success("Document uploaded successfully");
+    },
+    onError: (err) => toast.error(`Upload failed: ${err.message}`),
   });
   const cancelShiftRequest = trpc.shiftRequests.cancel.useMutation({
     onSuccess: () => {
@@ -2238,17 +2250,55 @@ export default function EmployeePortalPage() {
                 placeholder="Please explain the reason for your request..."
                 value={shiftReqReason} onChange={e => setShiftReqReason(e.target.value)} />
             </div>
+            {/* Supporting Document Upload */}
+            <div>
+              <Label className="text-xs text-muted-foreground uppercase tracking-wide">Supporting Document (optional)</Label>
+              <div className="mt-1">
+                {shiftReqAttachmentUrl ? (
+                  <div className="flex items-center gap-2 p-2 border rounded-lg bg-green-50 dark:bg-green-950/20">
+                    <FileCheck className="w-4 h-4 text-green-600 shrink-0" />
+                    <span className="text-xs text-green-700 dark:text-green-400 truncate flex-1">{shiftReqAttachmentName}</span>
+                    <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={() => { setShiftReqAttachmentUrl(null); setShiftReqAttachmentName(null); }}>Remove</Button>
+                  </div>
+                ) : (
+                  <label className="flex items-center gap-2 p-2 border border-dashed rounded-lg cursor-pointer hover:bg-muted/50 transition-colors">
+                    <FilePlus className="w-4 h-4 text-muted-foreground" />
+                    <span className="text-xs text-muted-foreground">
+                      {uploadingAttachment ? "Uploading..." : "Click to attach a document (PDF, image, max 5MB)"}
+                    </span>
+                    <input type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                      disabled={uploadingAttachment}
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        if (file.size > 5 * 1024 * 1024) { toast.error("File too large — max 5MB"); return; }
+                        setUploadingAttachment(true);
+                        setShiftReqAttachmentName(file.name);
+                        const reader = new FileReader();
+                        reader.onload = (ev) => {
+                          const base64 = (ev.target?.result as string).split(",")[1];
+                          uploadShiftAttachment.mutate({ fileBase64: base64, fileName: file.name, mimeType: file.type });
+                          setUploadingAttachment(false);
+                        };
+                        reader.readAsDataURL(file);
+                      }}
+                    />
+                  </label>
+                )}
+              </div>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowShiftRequestDialog(false)}>Cancel</Button>
             <Button
-              disabled={!shiftReqDate || shiftReqReason.trim().length < 5 || submitShiftRequest.isPending}
+              disabled={!shiftReqDate || shiftReqReason.trim().length < 5 || submitShiftRequest.isPending || uploadingAttachment}
               onClick={() => submitShiftRequest.mutate({
                 requestType: shiftReqType as any,
                 requestedDate: shiftReqDate,
                 requestedEndDate: shiftReqEndDate || undefined,
                 requestedTime: shiftReqTime || undefined,
                 reason: shiftReqReason,
+                attachmentUrl: shiftReqAttachmentUrl || undefined,
               })}
             >
               {submitShiftRequest.isPending ? "Submitting..." : "Submit Request"}

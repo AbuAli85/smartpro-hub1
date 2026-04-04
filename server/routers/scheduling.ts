@@ -376,21 +376,28 @@ export const schedulingRouter = router({
       const holidays = await db.select().from(companyHolidays)
         .where(and(eq(companyHolidays.companyId, companyId), eq(companyHolidays.holidayDate, today)));
       const holiday = holidays[0] ?? null;
-      if (holiday) return { isHoliday: true, holiday, schedule: null, shift: null, site: null };
-
-      const allMySchedules = await db.select().from(employeeSchedules)
-        .where(and(
-          eq(employeeSchedules.companyId, companyId),
-          eq(employeeSchedules.employeeUserId, ctx.user.id),
-          eq(employeeSchedules.isActive, true),
-          lte(employeeSchedules.startDate, today),
-          or(isNull(employeeSchedules.endDate), gte(employeeSchedules.endDate, today))
-        ));
-
+        if (holiday) return { isHoliday: true, holiday, schedule: null, shift: null, site: null };
+      // Dual lookup: try by login user ID first, then by employee row ID
+      const queryTodaySchedules = (empUserId: number) =>
+        db.select().from(employeeSchedules)
+          .where(and(
+            eq(employeeSchedules.companyId, companyId),
+            eq(employeeSchedules.employeeUserId, empUserId),
+            eq(employeeSchedules.isActive, true),
+            lte(employeeSchedules.startDate, today),
+            or(isNull(employeeSchedules.endDate), gte(employeeSchedules.endDate, today))
+          ));
+      let allMySchedules = await queryTodaySchedules(ctx.user.id);
+      if (allMySchedules.length === 0) {
+        const [empRow] = await db.select({ id: employees.id })
+          .from(employees)
+          .where(and(eq(employees.companyId, companyId), eq(employees.userId, ctx.user.id)))
+          .limit(1);
+        if (empRow) allMySchedules = await queryTodaySchedules(empRow.id);
+      }
       const mySchedule = allMySchedules.find(s =>
         s.workingDays.split(",").map(Number).includes(dow)
       ) ?? null;
-
       if (!mySchedule) return { isHoliday: false, holiday: null, schedule: null, shift: null, site: null };
 
       const [shift] = await db.select().from(shiftTemplates).where(eq(shiftTemplates.id, mySchedule.shiftTemplateId)).limit(1);
@@ -401,6 +408,8 @@ export const schedulingRouter = router({
 
   // Returns the employee's active schedule regardless of today's day of week.
   // Shows schedule info even on days off (isWorkingDay = false).
+  // DUAL LOOKUP: tries ctx.user.id first (userId-based), then falls back to employees.id
+  // because some schedules were assigned using the employee row ID instead of the login user ID.
   getMyActiveSchedule: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }))
     .query(async ({ ctx, input }) => {
@@ -412,15 +421,29 @@ export const schedulingRouter = router({
       const holidays = await db.select().from(companyHolidays)
         .where(and(eq(companyHolidays.companyId, companyId), eq(companyHolidays.holidayDate, today)));
       const holiday = holidays[0] ?? null;
-      // Get all active schedules for this user
-      const allMySchedules = await db.select().from(employeeSchedules)
-        .where(and(
-          eq(employeeSchedules.companyId, companyId),
-          eq(employeeSchedules.employeeUserId, ctx.user.id),
-          eq(employeeSchedules.isActive, true),
-          lte(employeeSchedules.startDate, today),
-          or(isNull(employeeSchedules.endDate), gte(employeeSchedules.endDate, today))
-        ));
+      // Helper to query schedules by a given employeeUserId value
+      const querySchedules = (empUserId: number) =>
+        db.select().from(employeeSchedules)
+          .where(and(
+            eq(employeeSchedules.companyId, companyId),
+            eq(employeeSchedules.employeeUserId, empUserId),
+            eq(employeeSchedules.isActive, true),
+            lte(employeeSchedules.startDate, today),
+            or(isNull(employeeSchedules.endDate), gte(employeeSchedules.endDate, today))
+          ));
+      // First try matching by login user ID (ctx.user.id)
+      let allMySchedules = await querySchedules(ctx.user.id);
+      // If nothing found, try matching by the employee row ID (employees.id)
+      // This handles the case where admin assigned the schedule before linking the user account
+      if (allMySchedules.length === 0) {
+        const [empRow] = await db.select({ id: employees.id })
+          .from(employees)
+          .where(and(eq(employees.companyId, companyId), eq(employees.userId, ctx.user.id)))
+          .limit(1);
+        if (empRow) {
+          allMySchedules = await querySchedules(empRow.id);
+        }
+      }
       if (allMySchedules.length === 0) {
         return { hasSchedule: false, isHoliday: !!holiday, holiday: holiday ?? null, isWorkingDay: false, schedule: null, shift: null, site: null, workingDays: [] as number[] };
       }

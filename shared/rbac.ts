@@ -29,6 +29,37 @@ export function isCompanyProvisioningAdmin(user: {
 }
 
 /**
+ * Maps a companyMembers.role to the correct users.platformRole.
+ * Called whenever a user joins a company so their sidebar reflects their job.
+ *
+ * Rules:
+ *  - company_admin  → company_admin  (full dashboard)
+ *  - hr_admin       → company_admin  (needs HR sidebar, platformRole drives it)
+ *  - finance_admin  → company_admin  (needs Finance sidebar)
+ *  - reviewer       → company_member (limited access)
+ *  - company_member → company_member (My Portal only)
+ *  - client         → client         (client portal only)
+ *  - external_auditor → external_auditor (read-only)
+ */
+export function mapMemberRoleToPlatformRole(
+  memberRole: string,
+): "company_admin" | "company_member" | "client" | "external_auditor" {
+  switch (memberRole) {
+    case "company_admin":
+    case "hr_admin":
+    case "finance_admin":
+      return "company_admin";
+    case "reviewer":
+    case "company_member":
+      return "company_member";
+    case "external_auditor":
+      return "external_auditor";
+    default:
+      return "client";
+  }
+}
+
+/**
  * Returns true when the user's company membership role is external_auditor.
  * Call this with the membership row, not the platform-level user object.
  */

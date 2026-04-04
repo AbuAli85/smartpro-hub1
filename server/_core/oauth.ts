@@ -3,6 +3,10 @@ import type { Express, Request, Response } from "express";
 import * as db from "../db";
 import { getSessionCookieOptions } from "./cookies";
 import { sdk } from "./sdk";
+import { mapMemberRoleToPlatformRole } from "@shared/rbac";
+import { getDb } from "../db";
+import { companyMembers, users } from "../../drizzle/schema";
+import { and, eq } from "drizzle-orm";
 
 function getQueryParam(req: Request, key: string): string | undefined {
   const value = req.query[key];
@@ -35,6 +39,37 @@ export function registerOAuthRoutes(app: Express) {
         loginMethod: userInfo.loginMethod ?? userInfo.platform ?? null,
         lastSignedIn: new Date(),
       });
+
+      // Self-healing: if the user has active company memberships but their platformRole
+      // is still the default "client", auto-promote it based on their highest membership role.
+      // This fixes cases where platformRole was never set (e.g., admin added them before this fix).
+      try {
+        const dbConn = await getDb();
+        if (dbConn) {
+          const freshUser = await db.getUserByOpenId(userInfo.openId);
+          if (freshUser && (freshUser.platformRole === "client" || !freshUser.platformRole)) {
+            const memberships = await dbConn
+              .select({ role: companyMembers.role })
+              .from(companyMembers)
+              .where(and(eq(companyMembers.userId, freshUser.id), eq(companyMembers.isActive, true)));
+            if (memberships.length > 0) {
+              // Pick the highest-privilege role
+              const roleOrder = ["company_admin", "hr_admin", "finance_admin", "reviewer", "company_member", "external_auditor"];
+              const best = memberships
+                .map((m) => m.role ?? "company_member")
+                .sort((a, b) => roleOrder.indexOf(a) - roleOrder.indexOf(b))[0];
+              const newPlatformRole = mapMemberRoleToPlatformRole(best);
+              if (newPlatformRole !== freshUser.platformRole) {
+                await dbConn.update(users).set({ platformRole: newPlatformRole }).where(eq(users.id, freshUser.id));
+                console.log(`[OAuth] Auto-promoted ${freshUser.email} platformRole: ${freshUser.platformRole} → ${newPlatformRole}`);
+              }
+            }
+          }
+        }
+      } catch (syncErr) {
+        // Non-fatal: log and continue — user still gets their session
+        console.error("[OAuth] platformRole sync failed (non-fatal):", syncErr);
+      }
 
       const sessionToken = await sdk.createSessionToken(userInfo.openId, {
         name: userInfo.name || "",

@@ -1767,3 +1767,10 @@ Every company on SmartPRO Hub gets a complete, unified business operating area �
 - [x] Fix: Pending invites section should be visible and actionable in TeamAccessPage
 - [ ] Fix: Admin Panel should allow promoting any user to company_admin role for a specific company
 - [x] Enhancement: "Quick Add Admin" flow — add by email, auto-detect if they have account, grant access or send invite
+
+## Critical Bug Fix: Team Member platformRole Auto-Promotion
+- [x] Fix acceptInvite to auto-update users.platformRole when member joins
+- [x] Fix addMemberByEmail to auto-update users.platformRole for existing users
+- [x] Fix grantAccess (Team Access page) to auto-update users.platformRole
+- [x] Add mapMemberRoleToPlatformRole helper in shared/rbac.ts
+- [x] Test full flow: invite → accept → login → correct sidebar shown

@@ -3,7 +3,7 @@ import { and, asc, desc, eq, isNull, or } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { randomBytes } from "crypto";
 import { z } from "zod";
-import { canAccessGlobalAdminProcedures } from "@shared/rbac";
+import { canAccessGlobalAdminProcedures, mapMemberRoleToPlatformRole } from "@shared/rbac";
 import {
   createCompany,
   getCompanies,
@@ -408,7 +408,10 @@ export const companiesRouter = router({
         if (existing) {
           if (existing.isActive) throw new TRPCError({ code: "CONFLICT", message: "This user is already a member." });
           await db.update(companyMembers).set({ isActive: true, role: input.role }).where(eq(companyMembers.id, existing.id));
-          return { success: true, action: "reactivated" as const, message: `${targetUser.name ?? emailNorm} has been re-activated.` };
+          // Auto-promote platformRole on reactivation
+          const reactivatedPlatformRole = mapMemberRoleToPlatformRole(input.role);
+          await db.update(users).set({ platformRole: reactivatedPlatformRole }).where(eq(users.id, targetUser.id));
+          return { success: true, action: 'reactivated' as const, message: `${targetUser.name ?? emailNorm} has been re-activated.` };
         }
         await db.insert(companyMembers).values({
           companyId,
@@ -417,6 +420,9 @@ export const companiesRouter = router({
           isActive: true,
           invitedBy: ctx.user.id,
         });
+        // Auto-promote platformRole so the added member sees the correct sidebar immediately
+        const addedPlatformRole = mapMemberRoleToPlatformRole(input.role);
+        await db.update(users).set({ platformRole: addedPlatformRole }).where(eq(users.id, targetUser.id));
         return { success: true, action: "added" as const, message: `${targetUser.name ?? emailNorm} has been added to the team.` };
       }
       // ── No SmartPRO account yet — create an invite automatically ────────────
@@ -599,6 +605,9 @@ export const companiesRouter = router({
         });
       }
       await db.update(companyInvites).set({ acceptedAt: new Date() }).where(eq(companyInvites.id, invite.id));
+      // Auto-promote platformRole so the new member sees the correct sidebar immediately
+      const newPlatformRole = mapMemberRoleToPlatformRole(memberRole);
+      await db.update(users).set({ platformRole: newPlatformRole }).where(eq(users.id, ctx.user.id));
       // Auto-link: if an employees row with the invited email exists in this company,
       // set its userId so the Employee Portal works immediately without HR needing to "Grant Access"
       try {
@@ -790,14 +799,16 @@ export const companiesRouter = router({
           .from(companyMembers)
           .where(and(eq(companyMembers.userId, emp.userId), eq(companyMembers.companyId, membership.company.id)))
           .limit(1);
-        if (existing) {
+         if (existing) {
           await db.update(companyMembers).set({ isActive: true, role: input.role }).where(eq(companyMembers.id, existing.id));
         } else {
           await db.insert(companyMembers).values({ companyId: membership.company.id, userId: emp.userId, role: input.role, isActive: true, invitedBy: ctx.user.id });
         }
+        // Auto-promote platformRole so the member sees the correct sidebar
+        const grantedPlatformRole1 = mapMemberRoleToPlatformRole(input.role);
+        await db.update(users).set({ platformRole: grantedPlatformRole1 }).where(eq(users.id, emp.userId));
         return { success: true, action: 'linked' as const, message: `Access granted to ${emp.firstName} ${emp.lastName}` };
       }
-
       // Try to find user by email
       if (emp.email) {
         const [targetUser] = await db.select({ id: users.id }).from(users).where(eq(users.email, emp.email.toLowerCase())).limit(1);
@@ -814,6 +825,9 @@ export const companiesRouter = router({
           } else {
             await db.insert(companyMembers).values({ companyId: membership.company.id, userId: targetUser.id, role: input.role, isActive: true, invitedBy: ctx.user.id });
           }
+          // Auto-promote platformRole so the member sees the correct sidebar
+          const grantedPlatformRole2 = mapMemberRoleToPlatformRole(input.role);
+          await db.update(users).set({ platformRole: grantedPlatformRole2 }).where(eq(users.id, targetUser.id));
           return { success: true, action: 'linked' as const, message: `Access granted to ${emp.firstName} ${emp.lastName}` };
         }
 

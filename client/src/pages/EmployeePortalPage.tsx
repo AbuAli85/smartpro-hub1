@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
@@ -23,6 +23,7 @@ import {
   Home, CreditCard, UserCheck, Edit2, Save, Download, QrCode,
   AlertTriangle, Info, Wallet, Timer, BarChart2, CalendarCheck,
   FileCheck, FilePlus, ExternalLink, RefreshCw, Star, ArrowLeftRight, Repeat,
+  Target, Activity, Award, Zap, PieChart, TrendingDown, Flame, Trophy,
 } from "lucide-react";
 import { fmtDateLong, fmtDateTime } from "@/lib/dateUtils";
 import { RequestsCalendar } from "@/components/RequestsCalendar";
@@ -444,6 +445,17 @@ export default function EmployeePortalPage() {
   const { user, isAuthenticated } = useAuth();
   const loginUrl = getLoginUrl();
   const [activeTab, setActiveTab] = useState("overview");
+  // KPI state
+  const [kpiMonth, setKpiMonth] = useState(() => new Date().getMonth() + 1);
+  const [kpiYear, setKpiYear] = useState(() => new Date().getFullYear());
+  const [showLogActivityDialog, setShowLogActivityDialog] = useState(false);
+  const [logTargetId, setLogTargetId] = useState<number | null>(null);
+  const [logTargetName, setLogTargetName] = useState("");
+  const [logMetricType, setLogMetricType] = useState<string>("custom");
+  const [logValue, setLogValue] = useState("");
+  const [logNote, setLogNote] = useState("");
+  const [logClientName, setLogClientName] = useState("");
+  const [logDate, setLogDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [showLeaveDialog, setShowLeaveDialog] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
 
@@ -527,6 +539,26 @@ export default function EmployeePortalPage() {
   const { data: shiftTemplatesList } = trpc.scheduling.listShiftTemplates.useQuery(
     {}, { enabled: isAuthenticated, retry: false }
   );
+  // KPI queries
+  const { data: myKpiProgress, refetch: refetchKpi } = trpc.kpi.getMyProgress.useQuery(
+    { month: kpiMonth, year: kpiYear }, { enabled: isAuthenticated }
+  );
+  const { data: myKpiLogs, refetch: refetchKpiLogs } = trpc.kpi.listMyLogs.useQuery(
+    { month: kpiMonth, year: kpiYear }, { enabled: isAuthenticated }
+  );
+  const { data: kpiLeaderboard } = trpc.kpi.getLeaderboard.useQuery(
+    { month: kpiMonth, year: kpiYear }, { enabled: isAuthenticated }
+  );
+  // KPI mutations
+  const logActivityMut = trpc.kpi.logActivity.useMutation({
+    onSuccess: () => {
+      toast.success("Activity logged successfully!");
+      setShowLogActivityDialog(false);
+      setLogValue(""); setLogNote(""); setLogClientName(""); setLogMetricType("custom");
+      refetchKpi(); refetchKpiLogs();
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
 
   const utils = trpc.useUtils();
 
@@ -839,7 +871,7 @@ export default function EmployeePortalPage() {
 
         {/* ── Main Tabs ── */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="w-full grid grid-cols-8 h-auto">
+          <TabsList className="w-full grid grid-cols-9 h-auto">
             {[
               { value: "overview", icon: Home, label: "Overview" },
               { value: "attendance", icon: UserCheck, label: "Attendance" },
@@ -848,6 +880,7 @@ export default function EmployeePortalPage() {
               { value: "tasks", icon: CheckSquare, label: "Tasks", badge: pendingTasks },
               { value: "documents", icon: FileText, label: "Docs", badge: expiringDocs.length },
               { value: "requests", icon: ArrowLeftRight, label: "Requests", badge: (myShiftRequests ?? []).filter((r: any) => r.request?.status === "pending").length },
+              { value: "kpi", icon: Target, label: "KPI", badge: 0 },
               { value: "profile", icon: User, label: "Profile" },
             ].map(({ value, icon: Icon, label, badge }) => (
               <TabsTrigger key={value} value={value} className="py-2 text-xs flex flex-col gap-0.5 h-auto relative">
@@ -2020,6 +2053,16 @@ export default function EmployeePortalPage() {
               <div className="space-y-3">
                 {(() => {
                   const allReqs = (myShiftRequests ?? []) as any[];
+                  const typeLabels: Record<string, string> = {
+                    shift_change: "Shift Change", time_off: "Time Off",
+                    early_leave: "Early Leave", late_arrival: "Late Arrival", day_swap: "Day Swap",
+                  };
+                  const statusConfig: Record<string, { color: string; bg: string; border: string }> = {
+                    pending:   { color: "text-amber-700",  bg: "bg-amber-50 dark:bg-amber-950/20",  border: "border-amber-200 dark:border-amber-800" },
+                    approved:  { color: "text-green-700",  bg: "bg-green-50 dark:bg-green-950/20",  border: "border-green-200 dark:border-green-800" },
+                    rejected:  { color: "text-red-700",    bg: "bg-red-50 dark:bg-red-950/20",      border: "border-red-200 dark:border-red-800" },
+                    cancelled: { color: "text-gray-500",   bg: "bg-gray-50 dark:bg-gray-900/20",    border: "border-gray-200 dark:border-gray-700" },
+                  };
                   if (allReqs.length === 0) return (
                     <Card className="border-dashed">
                       <CardContent className="flex flex-col items-center justify-center py-12 gap-3 text-muted-foreground">
@@ -2031,16 +2074,6 @@ export default function EmployeePortalPage() {
                       </CardContent>
                     </Card>
                   );
-                  const typeLabels: Record<string, string> = {
-                    shift_change: "Shift Change", time_off: "Time Off",
-                    early_leave: "Early Leave", late_arrival: "Late Arrival", day_swap: "Day Swap",
-                  };
-                  const statusConfig: Record<string, { color: string; bg: string; border: string }> = {
-                    pending:   { color: "text-amber-700",  bg: "bg-amber-50 dark:bg-amber-950/20",  border: "border-amber-200 dark:border-amber-800" },
-                    approved:  { color: "text-green-700",  bg: "bg-green-50 dark:bg-green-950/20",  border: "border-green-200 dark:border-green-800" },
-                    rejected:  { color: "text-red-700",    bg: "bg-red-50 dark:bg-red-950/20",      border: "border-red-200 dark:border-red-800" },
-                    cancelled: { color: "text-gray-500",   bg: "bg-gray-50 dark:bg-gray-900/20",    border: "border-gray-200 dark:border-gray-700" },
-                  };
                   return allReqs.map((item: any) => {
                     const req = item.request;
                     const ps = item.preferredShift;
@@ -2084,6 +2117,207 @@ export default function EmployeePortalPage() {
               </div>
             )}
           </TabsContent>
+
+          {/* ══ KPI TAB ══════════════════════════════════════════════════════ */}
+          <TabsContent value="kpi" className="mt-4 space-y-4">
+            {/* Header */}
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div>
+                <h2 className="text-base font-semibold flex items-center gap-2">
+                  <Target className="w-4 h-4 text-primary" />
+                  KPI & Performance
+                </h2>
+                <p className="text-xs text-muted-foreground">Track your targets, log daily activity, and view your commission</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Select value={String(kpiMonth)} onValueChange={(v) => setKpiMonth(Number(v))}>
+                  <SelectTrigger className="h-8 w-32 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"].map((m, i) => (
+                      <SelectItem key={i+1} value={String(i+1)}>{m}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select value={String(kpiYear)} onValueChange={(v) => setKpiYear(Number(v))}>
+                  <SelectTrigger className="h-8 w-24 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {[2024,2025,2026,2027].map(y => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Commission Summary */}
+            {(() => {
+              const progressArr = Array.isArray(myKpiProgress) ? (myKpiProgress as any[]) : [];
+              if (!progressArr.length) return null;
+              const totalComm = progressArr.reduce((s: number, it: any) => s + Number(it.commissionEarned ?? 0), 0);
+              const avgPct = progressArr.reduce((s: number, it: any) => s + Number(it.pct ?? 0), 0) / progressArr.length;
+              if (totalComm <= 0) return null;
+              return (
+                <Card className="border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-950/20 dark:to-orange-950/20">
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between flex-wrap gap-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-900/40 flex items-center justify-center">
+                          <Trophy className="w-5 h-5 text-amber-600" />
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">Total Commission Earned</p>
+                          <p className="text-2xl font-bold text-amber-700 dark:text-amber-400">
+                            OMR {totalComm.toFixed(3)}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xs text-muted-foreground">Overall Achievement</p>
+                        <p className="text-lg font-semibold">{avgPct.toFixed(1)}%</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })()}
+
+            {/* KPI Targets Progress */}
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Target className="w-4 h-4 text-primary" /> My Targets
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {!myKpiProgress || (myKpiProgress as any[]).length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-8 gap-2 text-muted-foreground">
+                    <Target className="w-10 h-10 opacity-20" />
+                    <p className="text-sm">No KPI targets set for this period</p>
+                    <p className="text-xs">Contact your manager to set your targets</p>
+                  </div>
+                ) : (
+                  (myKpiProgress as any[]).map((item: any) => {
+                    const t = item.target;
+                    const pct = Math.min(Number(item.pct ?? 0), 100);
+                    const isOnTrack = pct >= 80;
+                    const isExceeded = pct >= 100;
+                    return (
+                      <div key={t.id} className="space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 flex-1 min-w-0">
+                            <div className={`w-2 h-2 rounded-full shrink-0 ${
+                              isExceeded ? "bg-green-500" : isOnTrack ? "bg-blue-500" : "bg-amber-500"
+                            }`} />
+                            <span className="font-medium text-sm truncate">{t.metricName}</span>
+                          </div>
+                          <div className="flex items-center gap-3 shrink-0">
+                            <span className="text-xs text-muted-foreground">
+                              {Number(item.achievedValue ?? 0).toLocaleString()} / {Number(item.targetValue ?? 0).toLocaleString()} {t.unit ?? ""}
+                            </span>
+                            <span className={`text-sm font-bold ${
+                              isExceeded ? "text-green-600" : isOnTrack ? "text-blue-600" : "text-amber-600"
+                            }`}>{pct.toFixed(1)}%</span>
+                            <Button size="sm" variant="outline" className="h-7 text-xs gap-1"
+                              onClick={() => {
+                                setLogTargetId(t.id);
+                                setLogTargetName(t.metricName);
+                                setLogDate(new Date().toISOString().split("T")[0]);
+                                setShowLogActivityDialog(true);
+                              }}>
+                              <Plus className="w-3 h-3" /> Log
+                            </Button>
+                          </div>
+                        </div>
+                        <Progress value={pct} className="h-2" />
+                        {Number(t.commissionRate ?? 0) > 0 && (
+                          <p className="text-xs text-muted-foreground">
+                            Commission: {t.commissionType === "percentage"
+                              ? `${t.commissionRate}% of value`
+                              : `${t.currency ?? "OMR"} ${t.commissionRate} per unit`
+                            } · Earned: <span className="font-medium text-amber-600">{t.currency ?? "OMR"} {Number(item.commissionEarned ?? 0).toFixed(3)}</span>
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Leaderboard */}
+            {kpiLeaderboard && (kpiLeaderboard as any[]).length > 0 && (
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <Trophy className="w-4 h-4 text-amber-500" /> Team Leaderboard
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  {(kpiLeaderboard as any[]).slice(0, 5).map((entry: any, idx: number) => (
+                    <div key={entry.employeeUserId} className={`flex items-center gap-3 p-2 rounded-lg ${
+                      idx === 0 ? "bg-amber-50 dark:bg-amber-950/20" :
+                      idx === 1 ? "bg-slate-50 dark:bg-slate-900/20" :
+                      idx === 2 ? "bg-orange-50 dark:bg-orange-950/20" : ""
+                    }`}>
+                      <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                        idx === 0 ? "bg-amber-400 text-white" :
+                        idx === 1 ? "bg-slate-400 text-white" :
+                        idx === 2 ? "bg-orange-400 text-white" : "bg-muted text-muted-foreground"
+                      }`}>{idx + 1}</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{entry.employee ? `${entry.employee.firstName} ${entry.employee.lastName}` : `User #${entry.employeeUserId}`}</p>
+                        <p className="text-xs text-muted-foreground">{entry.employee?.department ?? ""}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-bold">{Number(entry.avgPct ?? 0).toFixed(1)}%</p>
+                        <p className="text-xs text-muted-foreground">OMR {Number(entry.totalCommission ?? 0).toFixed(3)}</p>
+                      </div>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Daily Activity Log */}
+            <Card>
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <Activity className="w-4 h-4 text-primary" /> Daily Activity Log
+                  </CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {!myKpiLogs || (myKpiLogs as any[]).length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-8 gap-2 text-muted-foreground">
+                    <Activity className="w-10 h-10 opacity-20" />
+                    <p className="text-sm">No activity logged for this period</p>
+                    <p className="text-xs">Use the "Log" button next to each target above</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {(myKpiLogs as any[]).map((log: any) => (
+                      <div key={log.id} className="flex items-center gap-3 py-2 border-b last:border-0">
+                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                          <Zap className="w-4 h-4 text-primary" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-medium">{log.metricName}</p>
+                            <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">{log.metricType?.replace(/_/g, " ")}</span>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            {new Date(log.logDate).toLocaleDateString()} · Value: <span className="font-semibold text-primary">{Number(log.valueAchieved ?? 0).toLocaleString()}</span>
+                            {log.clientName ? ` · ${log.clientName}` : ""}
+                          </p>
+                          {log.notes && <p className="text-xs text-muted-foreground italic mt-0.5">{log.notes}</p>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
         </Tabs>
       </div>
       {/* ── Leave Request Dialog ── */}
@@ -2302,6 +2536,92 @@ export default function EmployeePortalPage() {
               })}
             >
               {submitShiftRequest.isPending ? "Submitting..." : "Submit Request"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Log KPI Activity Dialog ── */}
+      <Dialog open={showLogActivityDialog} onOpenChange={(o) => {
+        if (!o) { setShowLogActivityDialog(false); setLogValue(""); setLogNote(""); setLogClientName(""); }
+      }}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Zap className="w-4 h-4 text-primary" /> Log Activity
+            </DialogTitle>
+            {logTargetName && (
+              <DialogDescription className="text-xs">
+                Target: <span className="font-medium text-foreground">{logTargetName}</span>
+              </DialogDescription>
+            )}
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="space-y-1.5">
+              <Label>Date</Label>
+              <input type="date" value={logDate} onChange={e => setLogDate(e.target.value)}
+                className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Activity Type</Label>
+              <Select value={logMetricType} onValueChange={setLogMetricType}>
+                <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="sales_amount">Sales Amount</SelectItem>
+                  <SelectItem value="client_count">Client Count</SelectItem>
+                  <SelectItem value="leads_count">Leads Count</SelectItem>
+                  <SelectItem value="calls_count">Calls Count</SelectItem>
+                  <SelectItem value="meetings_count">Meetings Count</SelectItem>
+                  <SelectItem value="proposals_count">Proposals Count</SelectItem>
+                  <SelectItem value="revenue">Revenue</SelectItem>
+                  <SelectItem value="units_sold">Units Sold</SelectItem>
+                  <SelectItem value="custom">Custom</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Value Achieved</Label>
+              <input type="number" min="0" step="any" value={logValue}
+                onChange={e => setLogValue(e.target.value)}
+                placeholder="e.g. 1500"
+                className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Client / Deal Name (optional)</Label>
+              <input type="text" value={logClientName}
+                onChange={e => setLogClientName(e.target.value)}
+                placeholder="e.g. ABC Company, John Doe"
+                className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Notes (optional)</Label>
+              <textarea value={logNote} onChange={e => setLogNote(e.target.value)}
+                placeholder="Add context, deal details, outcome..."
+                rows={2}
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setShowLogActivityDialog(false);
+              setLogValue(""); setLogNote(""); setLogClientName("");
+            }}>Cancel</Button>
+            <Button
+              disabled={!logDate || !logValue || logActivityMut.isPending}
+              onClick={() => {
+                if (!logDate || !logValue) return;
+                logActivityMut.mutate({
+                  kpiTargetId: logTargetId ?? undefined,
+                  metricName: logTargetName || "Activity",
+                  metricType: logMetricType as any,
+                  logDate,
+                  valueAchieved: Number(logValue),
+                  clientName: logClientName || undefined,
+                  notes: logNote || undefined,
+                });
+              }}
+            >
+              {logActivityMut.isPending ? "Saving..." : "Save Log"}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -2249,3 +2249,149 @@ export const shiftChangeRequests = mysqlTable("shift_change_requests", {
 });
 export type ShiftChangeRequest = typeof shiftChangeRequests.$inferSelect;
 export type InsertShiftChangeRequest = typeof shiftChangeRequests.$inferInsert;
+
+
+// ─── Work Logs / Timesheet ─────────────────────────────────────────────────────
+export const workLogs = mysqlTable("work_logs", {
+  id: int("id").primaryKey().autoincrement(),
+  companyId: int("company_id").notNull(),
+  employeeUserId: int("employee_user_id").notNull(),
+  logDate: date("log_date", { mode: "string" }).notNull(),
+  startTime: varchar("start_time", { length: 5 }),
+  endTime: varchar("end_time", { length: 5 }),
+  hoursWorked: varchar("hours_worked", { length: 10 }),
+  projectName: varchar("project_name", { length: 200 }),
+  taskDescription: text("task_description").notNull(),
+  logCategory: mysqlEnum("log_category", ["development", "meeting", "admin", "support", "training", "other"]).notNull().default("other"),
+  logStatus: mysqlEnum("log_status", ["draft", "submitted", "approved"]).notNull().default("submitted"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+export type WorkLog = typeof workLogs.$inferSelect;
+export type InsertWorkLog = typeof workLogs.$inferInsert;
+
+// ─── Expense Claims ────────────────────────────────────────────────────────────
+export const expenseClaims = mysqlTable("expense_claims", {
+  id: int("id").primaryKey().autoincrement(),
+  companyId: int("company_id").notNull(),
+  employeeUserId: int("employee_user_id").notNull(),
+  claimDate: date("claim_date", { mode: "string" }).notNull(),
+  expenseCategory: mysqlEnum("expense_category", ["travel", "meals", "accommodation", "equipment", "communication", "training", "medical", "other"]).notNull(),
+  amount: varchar("amount", { length: 20 }).notNull(),
+  currency: varchar("currency", { length: 5 }).notNull().default("OMR"),
+  description: text("description").notNull(),
+  receiptUrl: varchar("receipt_url", { length: 1000 }),
+  expenseStatus: mysqlEnum("expense_status", ["pending", "approved", "rejected", "cancelled"]).notNull().default("pending"),
+  adminNotes: text("admin_notes"),
+  reviewedByUserId: int("reviewed_by_user_id"),
+  reviewedAt: timestamp("reviewed_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+export type ExpenseClaim = typeof expenseClaims.$inferSelect;
+export type InsertExpenseClaim = typeof expenseClaims.$inferInsert;
+
+// ─── Training Records ──────────────────────────────────────────────────────────
+export const trainingRecords = mysqlTable("training_records", {
+  id: int("id").primaryKey().autoincrement(),
+  companyId: int("company_id").notNull(),
+  employeeUserId: int("employee_user_id").notNull(),
+  title: varchar("title", { length: 300 }).notNull(),
+  provider: varchar("provider", { length: 200 }),
+  description: text("description"),
+  startDate: date("start_date", { mode: "string" }),
+  endDate: date("end_date", { mode: "string" }),
+  dueDate: date("due_date", { mode: "string" }),
+  durationHours: int("duration_hours"),
+  trainingCategory: mysqlEnum("training_category", ["technical", "compliance", "leadership", "safety", "soft_skills", "other"]).notNull().default("other"),
+  trainingStatus: mysqlEnum("training_status", ["assigned", "in_progress", "completed", "overdue"]).notNull().default("assigned"),
+  score: int("score"),
+  certificateUrl: varchar("certificate_url", { length: 1000 }),
+  assignedByUserId: int("assigned_by_user_id"),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+export type TrainingRecord = typeof trainingRecords.$inferSelect;
+export type InsertTrainingRecord = typeof trainingRecords.$inferInsert;
+
+// ─── Employee Self-Reviews ─────────────────────────────────────────────────────
+export const employeeSelfReviews = mysqlTable("employee_self_reviews", {
+  id: int("id").primaryKey().autoincrement(),
+  companyId: int("company_id").notNull(),
+  employeeUserId: int("employee_user_id").notNull(),
+  reviewPeriod: varchar("review_period", { length: 50 }).notNull(),
+  selfRating: int("self_rating"),
+  managerRating: int("manager_rating"),
+  selfAchievements: text("self_achievements"),
+  selfGoals: text("self_goals"),
+  managerFeedback: text("manager_feedback"),
+  goalsNextPeriod: text("goals_next_period"),
+  reviewStatus: mysqlEnum("review_status", ["draft", "submitted", "reviewed", "acknowledged"]).notNull().default("draft"),
+  submittedAt: timestamp("submitted_at"),
+  reviewedAt: timestamp("reviewed_at"),
+  reviewedByUserId: int("reviewed_by_user_id"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+export type EmployeeSelfReview = typeof employeeSelfReviews.$inferSelect;
+export type InsertEmployeeSelfReview = typeof employeeSelfReviews.$inferInsert;
+
+// ─── KPI Targets ───────────────────────────────────────────────────────────────
+export const kpiTargets = mysqlTable("kpi_targets", {
+  id: int("id").primaryKey().autoincrement(),
+  companyId: int("company_id").notNull(),
+  employeeUserId: int("employee_user_id").notNull(),
+  periodYear: int("period_year").notNull(),
+  periodMonth: int("period_month").notNull(),
+  metricName: varchar("metric_name", { length: 200 }).notNull(),
+  metricType: mysqlEnum("metric_type", ["sales_amount","client_count","leads_count","calls_count","meetings_count","proposals_count","revenue","units_sold","custom"]).notNull().default("custom"),
+  targetValue: decimal("target_value", { precision: 15, scale: 2 }).notNull(),
+  commissionRate: decimal("commission_rate", { precision: 5, scale: 2 }).default("0"),
+  commissionType: mysqlEnum("commission_type", ["percentage","fixed_per_unit","tiered"]).default("percentage"),
+  currency: varchar("currency", { length: 5 }).notNull().default("OMR"),
+  notes: text("notes"),
+  setByUserId: int("set_by_user_id"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+export type KpiTarget = typeof kpiTargets.$inferSelect;
+export type InsertKpiTarget = typeof kpiTargets.$inferInsert;
+
+// ─── KPI Daily Logs ────────────────────────────────────────────────────────────
+export const kpiDailyLogs = mysqlTable("kpi_daily_logs", {
+  id: int("id").primaryKey().autoincrement(),
+  companyId: int("company_id").notNull(),
+  employeeUserId: int("employee_user_id").notNull(),
+  logDate: date("log_date", { mode: "string" }).notNull(),
+  metricName: varchar("metric_name", { length: 200 }).notNull(),
+  metricType: mysqlEnum("metric_type", ["sales_amount","client_count","leads_count","calls_count","meetings_count","proposals_count","revenue","units_sold","custom"]).notNull().default("custom"),
+  valueAchieved: decimal("value_achieved", { precision: 15, scale: 2 }).notNull(),
+  clientName: varchar("client_name", { length: 300 }),
+  notes: text("notes"),
+  attachmentUrl: varchar("attachment_url", { length: 1000 }),
+  kpiTargetId: int("kpi_target_id"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+export type KpiDailyLog = typeof kpiDailyLogs.$inferSelect;
+export type InsertKpiDailyLog = typeof kpiDailyLogs.$inferInsert;
+
+// ─── KPI Achievements (monthly rollup) ────────────────────────────────────────
+export const kpiAchievements = mysqlTable("kpi_achievements", {
+  id: int("id").primaryKey().autoincrement(),
+  companyId: int("company_id").notNull(),
+  employeeUserId: int("employee_user_id").notNull(),
+  periodYear: int("period_year").notNull(),
+  periodMonth: int("period_month").notNull(),
+  metricName: varchar("metric_name", { length: 200 }).notNull(),
+  targetValue: decimal("target_value", { precision: 15, scale: 2 }).notNull(),
+  achievedValue: decimal("achieved_value", { precision: 15, scale: 2 }).notNull().default("0"),
+  achievementPct: decimal("achievement_pct", { precision: 6, scale: 2 }).notNull().default("0"),
+  commissionEarned: decimal("commission_earned", { precision: 15, scale: 2 }).notNull().default("0"),
+  currency: varchar("currency", { length: 5 }).notNull().default("OMR"),
+  kpiTargetId: int("kpi_target_id"),
+  lastUpdatedAt: timestamp("last_updated_at").defaultNow().onUpdateNow().notNull(),
+});
+export type KpiAchievement = typeof kpiAchievements.$inferSelect;
+export type InsertKpiAchievement = typeof kpiAchievements.$inferInsert;

@@ -74,6 +74,7 @@ import EmployeeDocumentsPage from "./pages/EmployeeDocumentsPage";
 import HRDocumentsDashboardPage from "./pages/HRDocumentsDashboardPage";
 import DocumentExpiryDashboard from "./pages/DocumentExpiryDashboard";
 import HRLettersPage from "./pages/HRLettersPage";
+import HRKpiPage from "./pages/HRKpiPage";
 import LeaveBalancePage from "./pages/LeaveBalancePage";
 import EmployeeCompletenessPage from "./pages/EmployeeCompletenessPage";
 import OrgStructurePage from "./pages/OrgStructurePage";
@@ -173,6 +174,7 @@ function AppRoutes() {
         <Route path="/hr/documents-dashboard" component={HRDocumentsDashboardPage} />
         <Route path="/hr/expiry-dashboard" component={DocumentExpiryDashboard} />
         <Route path="/hr/letters" component={HRLettersPage} />
+        <Route path="/hr/kpi" component={HRKpiPage} />
         <Route path="/hr/leave-balance" component={LeaveBalancePage} />
         <Route path="/hr/completeness" component={EmployeeCompletenessPage} />
         <Route path="/hr/org-structure" component={OrgStructurePage} />

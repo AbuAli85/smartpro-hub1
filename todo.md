@@ -1670,3 +1670,91 @@ Every company on SmartPRO Hub gets a complete, unified business operating area â
 - [ ] Day click shows all requests for that day with employee name, type, status
 - [ ] Inline approve/reject from the admin calendar day panel
 - [ ] Add calendar tab/section to HR Employee Schedules page
+
+## Comprehensive Employee Portal Enhancement (Phase N+1)
+
+### DB Schema
+- [ ] work_logs table (employeeId, date, startTime, endTime, description, projectName, hoursWorked, status)
+- [ ] expense_claims table (employeeId, date, category, amount, currency, description, receiptUrl, status, adminNotes)
+- [ ] training_records table (employeeId, title, provider, startDate, endDate, status, certificateUrl, score)
+- [ ] performance_reviews table (employeeId, period, selfRating, managerRating, goals, achievements, status)
+
+### Backend Procedures
+- [ ] workLog: submitLog, listMyLogs, updateLog, deleteLog, getWeeklySummary
+- [ ] expenseClaims: submit, listMine, cancel, adminList, approve, reject, uploadReceipt
+- [ ] training: listMyTraining, markComplete, uploadCertificate
+- [ ] performance: submitSelfReview, listMyReviews, getGoals
+
+### Overview Tab Enhancements
+- [ ] Personal KPI cards: hours logged this week, expenses pending, training due
+- [ ] Today tasks summary with quick complete button
+- [ ] Quick action shortcuts: Log Work, Submit Expense, Request Leave
+
+### Work Log / Timesheet Tab (new)
+- [ ] Daily work log form: date, start/end time, project, description
+- [ ] Weekly hours summary bar chart
+- [ ] Monthly timesheet table view
+- [ ] Export timesheet as PDF report
+
+### Expense Claims Tab (new)
+- [ ] Submit expense form: category, amount, date, description, receipt upload
+- [ ] Expense history list with status badges
+- [ ] Total pending/approved amounts summary
+- [ ] Admin: review, approve/reject with notes
+
+### Tasks Tab Enhancements
+- [ ] Add progress % slider to each task
+- [ ] Add notes/comments field per task
+- [ ] Daily task report: summarize completed tasks for the day
+- [ ] Filter by project/category
+
+### Training & Development Tab (new)
+- [ ] List of assigned training courses with due dates
+- [ ] Mark training as complete + upload certificate
+- [ ] Training progress bar
+- [ ] Completed training history with certificates
+
+### Performance Tab (new)
+- [ ] Self-review form: rating sliders, achievements text, goals for next period
+- [ ] View manager ratings and feedback
+- [ ] Goal tracking with progress indicators
+- [ ] Performance history by review period
+
+## Phase 20: KPI & Performance Management System
+
+### Database Schema
+- [x] kpi_targets table (employeeUserId, year, month, metricName, metricType, targetValue, commissionRate, commissionType, currency, notes)
+- [x] kpi_daily_logs table (employeeUserId, kpiTargetId, metricName, metricType, logDate, valueAchieved, clientName, notes)
+- [x] kpi_achievements table (employeeUserId, kpiTargetId, year, month, achievedValue, commissionEarned)
+
+### Backend tRPC Procedures
+- [x] kpi.setTarget (admin: create/update target with commission config)
+- [x] kpi.deleteTarget (admin: delete target)
+- [x] kpi.logActivity (employee: log daily activity with metric type, value, client name)
+- [x] kpi.getMyProgress (employee: get own targets with achievement % and commission earned)
+- [x] kpi.listMyLogs (employee: list own activity logs)
+- [x] kpi.getLeaderboard (team leaderboard by achievement %)
+- [x] kpi.adminGetTeamProgress (admin: all employees' targets and progress)
+- [x] kpi.adminListEmployeeLogs (admin: view specific employee's logs)
+
+### Employee Portal KPI Tab
+- [x] KPI targets progress cards with achievement % and commission earned
+- [x] Log Activity dialog with metric type selector, value, client name, notes
+- [x] Daily activity log list with metric type badge and client name display
+- [x] Team leaderboard with rank badges and commission display
+- [x] Month/year selector for period navigation
+
+### Admin KPI Management Page (/hr/kpi)
+- [x] Summary cards (total targets, achieved count, avg achievement %, total commission)
+- [x] Team Progress tab: expandable employee cards with all targets, progress bars, edit/delete
+- [x] Leaderboard tab: ranked list with gold/silver/bronze styling
+- [x] Set Target dialog with employee selector, metric type, target value, commission config
+- [x] View Logs dialog: see any employee's activity logs
+- [x] KPI & Performance nav item added to HR section in PlatformLayout
+
+## Phase 20: KPI & Performance Management System
+- [x] kpi_targets, kpi_daily_logs, kpi_achievements DB tables
+- [x] kpi.setTarget, deleteTarget, logActivity, getMyProgress, listMyLogs, getLeaderboard, adminGetTeamProgress, adminListEmployeeLogs procedures
+- [x] Employee Portal KPI tab with progress cards, Log Activity dialog (metric type, value, client name), leaderboard
+- [x] Admin KPI Management page /hr/kpi with team progress, leaderboard, set/edit/delete targets, view logs
+- [x] KPI & Performance nav item added to HR section in PlatformLayout

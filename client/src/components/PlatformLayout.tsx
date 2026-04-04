@@ -167,6 +167,7 @@ const navGroups = [
       { label: "Employee Requests", href: "/hr/employee-requests", icon: <ClipboardList size={18} /> },
       { label: "Task Manager", href: "/hr/tasks", icon: <ListTodo size={18} /> },
       { label: "Announcements", href: "/hr/announcements", icon: <Megaphone size={18} /> },
+      { label: "KPI & Performance", href: "/hr/kpi", icon: <Target size={18} /> },
     ],
   },
   // ── WORKFORCE HUB ─────────────────────────────────────────────────────────

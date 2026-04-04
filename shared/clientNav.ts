@@ -70,6 +70,7 @@ export const COMPANY_LEADERSHIP_HREFS = new Set<string>([
 /** HR-specific pages — company_admin + hr_admin only */
 export const HR_ADMIN_HREFS = new Set<string>([
   "/hr/employees",
+  "/hr/departments",
   "/hr/recruitment",
   "/hr/leave",
   "/hr/attendance",
@@ -126,6 +127,7 @@ export const PORTAL_CLIENT_HREFS = new Set<string>([
   "/hr/letters",
   "/hr/leave-balance",
   "/hr/completeness",
+  "/hr/departments",
   "/hr/org-structure",
   "/hr/tasks",
   "/hr/announcements",

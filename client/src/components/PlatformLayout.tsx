@@ -146,6 +146,7 @@ const navGroups = [
       // People
       { label: "My Team", href: "/my-team", icon: <Users size={18} /> },
       { label: "Recruitment", href: "/hr/recruitment", icon: <BookOpen size={18} /> },
+      { label: "Departments", href: "/hr/departments", icon: <Building2 size={18} /> },
       { label: "Org Structure", href: "/hr/org-structure", icon: <LayoutGrid size={18} /> },
       { label: "Profile Completeness", href: "/hr/completeness", icon: <UserCheck size={18} /> },
       // Pay & Leave

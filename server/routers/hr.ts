@@ -1,7 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { eq, and, desc, gte, lte, count, sum } from "drizzle-orm";
-import { workPermits, employees, attendanceRecords, leaveRequests, kpiTargets, kpiAchievements, payrollRuns } from "../../drizzle/schema";
+import { workPermits, employees, attendanceRecords, leaveRequests, kpiTargets, kpiAchievements, payrollRuns, departments, positions } from "../../drizzle/schema";
 import { sendEmployeeNotification } from "./employeePortal";
 import { getDb } from "../db";
 import {
@@ -894,5 +894,119 @@ export const hrRouter = router({
         payrollMonth: payrollRow ? `${MONTH_NAMES[(payrollRow.periodMonth ?? 1) - 1]} ${payrollRow.periodYear}` : null,
         activeEmployees,
       };
+    }),
+
+  // ── Departments & Positions ────────────────────────────────────────────────
+  listDepartments: protectedProcedure
+    .input(z.object({ companyId: z.number().optional() }).optional())
+    .query(async ({ input, ctx }) => {
+      const cid = await requireActiveCompanyId(ctx.user.id, input?.companyId).catch(() => null);
+      if (!cid) return [];
+      const db = await getDb();
+      if (!db) return [];
+      const depts = await db.select().from(departments).where(and(eq(departments.companyId, cid), eq(departments.isActive, true)));
+      const emps = await getEmployees(cid);
+      return depts.map((d) => ({
+        ...d,
+        employeeCount: emps.filter((e) => e.department === d.name && e.status === "active").length,
+      }));
+    }),
+
+  createDepartment: protectedProcedure
+    .input(z.object({
+      name: z.string().min(1).max(128),
+      description: z.string().optional(),
+      headEmployeeId: z.number().optional(),
+      companyId: z.number().optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId);
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+      const [result] = await db.insert(departments).values({
+        companyId: cid,
+        name: input.name,
+        description: input.description,
+        headEmployeeId: input.headEmployeeId,
+      });
+      return { id: (result as any).insertId };
+    }),
+
+  updateDepartment: protectedProcedure
+    .input(z.object({
+      id: z.number(),
+      name: z.string().min(1).max(128).optional(),
+      description: z.string().optional(),
+      headEmployeeId: z.number().nullable().optional(),
+      companyId: z.number().optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId);
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+      const [existing] = await db.select().from(departments).where(and(eq(departments.id, input.id), eq(departments.companyId, cid)));
+      if (!existing) throw new TRPCError({ code: "NOT_FOUND", message: "Department not found" });
+      const updateData: any = {};
+      if (input.name !== undefined) updateData.name = input.name;
+      if (input.description !== undefined) updateData.description = input.description;
+      if (input.headEmployeeId !== undefined) updateData.headEmployeeId = input.headEmployeeId;
+      await db.update(departments).set(updateData).where(eq(departments.id, input.id));
+      return { success: true };
+    }),
+
+  deleteDepartment: protectedProcedure
+    .input(z.object({ id: z.number(), companyId: z.number().optional() }))
+    .mutation(async ({ input, ctx }) => {
+      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId);
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+      const [existing] = await db.select().from(departments).where(and(eq(departments.id, input.id), eq(departments.companyId, cid)));
+      if (!existing) throw new TRPCError({ code: "NOT_FOUND", message: "Department not found" });
+      await db.update(departments).set({ isActive: false }).where(eq(departments.id, input.id));
+      return { success: true };
+    }),
+
+  listPositions: protectedProcedure
+    .input(z.object({ departmentId: z.number().optional(), companyId: z.number().optional() }).optional())
+    .query(async ({ input, ctx }) => {
+      const cid = await requireActiveCompanyId(ctx.user.id, input?.companyId).catch(() => null);
+      if (!cid) return [];
+      const db = await getDb();
+      if (!db) return [];
+      const conditions: any[] = [eq(positions.companyId, cid), eq(positions.isActive, true)];
+      if (input?.departmentId) conditions.push(eq(positions.departmentId, input.departmentId));
+      return db.select().from(positions).where(and(...conditions));
+    }),
+
+  createPosition: protectedProcedure
+    .input(z.object({
+      title: z.string().min(1).max(128),
+      departmentId: z.number().optional(),
+      description: z.string().optional(),
+      companyId: z.number().optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId);
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+      const [result] = await db.insert(positions).values({
+        companyId: cid,
+        title: input.title,
+        departmentId: input.departmentId,
+        description: input.description,
+      });
+      return { id: (result as any).insertId };
+    }),
+
+  deletePosition: protectedProcedure
+    .input(z.object({ id: z.number(), companyId: z.number().optional() }))
+    .mutation(async ({ input, ctx }) => {
+      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId);
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+      const [existing] = await db.select().from(positions).where(and(eq(positions.id, input.id), eq(positions.companyId, cid)));
+      if (!existing) throw new TRPCError({ code: "NOT_FOUND", message: "Position not found" });
+      await db.update(positions).set({ isActive: false }).where(eq(positions.id, input.id));
+      return { success: true };
     }),
 });

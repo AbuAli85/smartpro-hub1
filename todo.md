@@ -817,50 +817,50 @@ Every company on SmartPRO Hub gets a complete, unified business operating area �
 ## Phase 31: Client UX Enhancement Pass
 
 ### Global / Design System
-- [ ] Fix navy blue usage in OnboardingPage (replace with charcoal/gray)
-- [ ] Add consistent page-level loading skeleton to all data-heavy pages
-- [ ] Add `PageHeader` reusable component with breadcrumb, title, subtitle, and action slot
-- [ ] Improve empty state components — consistent icon + message + CTA pattern
+- [x] Fix navy blue usage in OnboardingPage (replace with charcoal/gray)
+- [x] Add consistent page-level loading skeleton to all data-heavy pages
+- [x] Add `PageHeader` reusable component with breadcrumb, title, subtitle, and action slot
+- [x] Improve empty state components — consistent icon + message + CTA pattern
 - [ ] Fix dark mode on CompanyWorkspacePage KPI tiles (remove hardcoded bg-white)
 
 ### Navigation
-- [ ] Add "My Company" group visibility rule — only show when user has a company workspace
-- [ ] Improve sidebar active-state to highlight parent when on child routes
+- [x] Add "My Company" group visibility rule — only show when user has a company workspace
+- [x] Improve sidebar active-state to highlight parent when on child routes
 
 ### My Team
-- [ ] Simplify Add Staff wizard — reduce to 2 focused steps (Essential Info / Employment Details)
-- [ ] Add avatar colour variety using department-based colour assignment
-- [ ] Add sticky table header in table view
-- [ ] Add "Copy email" quick action in staff card dropdown
+- [x] Simplify Add Staff wizard — reduce to 2 focused steps (Essential Info / Employment Details)
+- [x] Add avatar colour variety using department-based colour assignment
+- [x] Add sticky table header in table view
+- [x] Add "Copy email" quick action in staff card dropdown
 
 ### Company Workspace
-- [ ] Add loading skeleton for KPI tiles while data loads
-- [ ] Add "no company" guard with CTA to create company
-- [ ] Make module cards show live counts (employees, contracts, alerts)
+- [x] Add loading skeleton for KPI tiles while data loads
+- [x] Add "no company" guard with CTA to create company
+- [x] Make module cards show live counts (employees, contracts, alerts)
 
 ### HR Leave & Payroll
-- [ ] Add leave balance summary bar (Annual / Sick / Emergency remaining days)
-- [ ] Add date range validation (end date must be after start date)
-- [ ] Add visual status timeline on leave request cards
+- [x] Add leave balance summary bar (Annual / Sick / Emergency remaining days)
+- [x] Add date range validation (end date must be after start date)
+- [x] Add visual status timeline on leave request cards
 
 ### PRO Services
-- [ ] Add quick-filter chips (All / Pending / In Progress / Completed) above the list
-- [ ] Make workflow progress bar responsive on mobile
+- [x] Add quick-filter chips (All / Pending / In Progress / Completed) above the list
+- [x] Make workflow progress bar responsive on mobile
 
 ### Expiry Alerts
-- [ ] Add "Mark All as Acknowledged" bulk action button
-- [ ] Fix severity badge colours to use brand palette (not blue)
+- [x] Add "Mark All as Acknowledged" bulk action button
+- [x] Fix severity badge colours to use brand palette (not blue)
 
 ### Contracts
-- [ ] Convert create form to 2-step wizard (Basic Info / Terms & Dates)
-- [ ] Add contract type icon in the list view
+- [x] Convert create form to 2-step wizard (Basic Info / Terms & Dates)
+- [x] Add contract type icon in the list view
 
 ### Subscriptions
-- [ ] Make plan comparison cards stack properly on mobile
+- [x] Make plan comparison cards stack properly on mobile
 
 ### Client Portal
-- [ ] Replace hardcoded blue unread badge with brand orange
-- [ ] Add message count badge on the Messages tab trigger
+- [x] Replace hardcoded blue unread badge with brand orange
+- [x] Add message count badge on the Messages tab trigger
 
 ## Phase 32: All-in-One Business OS — Client Command Centre
 
@@ -899,15 +899,15 @@ Every company on SmartPRO Hub gets a complete, unified business operating area �
 - [x] Frontend: Pre-seeded document type list: CR Certificate, OCCI Membership, Municipality Licence, Labour Card, PASI Certificate, Tax Card, Chamber Certificate, Trade Licence, etc.
 - [x] Frontend: Expiry timeline — colour-coded: green (>90 days), amber (30-90 days), red (<30 days / expired)
 - [x] Frontend: Upload dialog — drag-and-drop PDF/image upload with metadata form
-- [ ] Frontend: Document viewer — open PDF in browser preview panel
-- [ ] Route: /company/documents registered in App.tsx
-- [ ] Nav: "Company Documents" added to My Company sidebar group
+- [x] Frontend: Document viewer — open PDF in browser preview panel
+- [x] Route: /company/documents registered in App.tsx
+- [x] Nav: "Company Documents" added to My Company sidebar group
 - [ ] Upload the two provided PDFs (OCCI + CR) to S3 and pre-populate as existing documents for the company
 
 ## Phase 35: Employee Documents Vault
 
-- [ ] DB: employee_documents table — id, employeeId, companyId, docType, title, docNumber, issueDate, expiryDate, issuingAuthority, fileUrl, fileKey, mimeType, fileSize, notes, isDeleted, uploadedBy, createdAt, updatedAt
-- [ ] DB: Apply migration for both company_documents and employee_documents tables
+- [x] DB: employee_documents table — id, employeeId, companyId, docType, title, docNumber, issueDate, expiryDate, issuingAuthority, fileUrl, fileKey, mimeType, fileSize, notes, isDeleted, uploadedBy, createdAt, updatedAt
+- [x] DB: Apply migration for both company_documents and employee_documents tables
 - [x] Backend: documents.listEmployeeDocs — list all documents for an employee
 - [x] Backend: documents.uploadEmployeeDoc — upload file to S3, save metadata for employee
 - [x] Backend: documents.updateEmployeeDoc — update document metadata
@@ -917,44 +917,44 @@ Every company on SmartPRO Hub gets a complete, unified business operating area �
 - [x] Backend: documents.updateCompanyDoc — update company document metadata
 - [x] Backend: documents.deleteCompanyDoc — soft-delete company document
 - [x] Frontend: CompanyDocumentsPage.tsx — company vault with category tabs, expiry badges, upload dialog, PDF viewer
-- [ ] Frontend: EmployeeDocumentsPanel — embedded in employee profile, shows all docs with upload/view/delete
-- [ ] Frontend: Document types for employees: Work Permit, Visa, Passport, ROP Card, ID Card, Labour Card, Medical Certificate, Contract
-- [ ] Frontend: Document types for company: CR Certificate, OCCI Membership, Municipality Licence, Trade Licence, Tax Card, Labour Card, PASI Certificate, Chamber Certificate
-- [ ] Frontend: Expiry status colour coding — green (>90 days), amber (30-90 days), red (<30 days / expired)
+- [x] Frontend: EmployeeDocumentsPanel — embedded in employee profile, shows all docs with upload/view/delete
+- [x] Frontend: Document types for employees: Work Permit, Visa, Passport, ROP Card, ID Card, Labour Card, Medical Certificate, Contract
+- [x] Frontend: Document types for company: CR Certificate, OCCI Membership, Municipality Licence, Trade Licence, Tax Card, Labour Card, PASI Certificate, Chamber Certificate
+- [x] Frontend: Expiry status colour coding — green (>90 days), amber (30-90 days), red (<30 days / expired)
 - [x] Frontend: Upload dialog — drag-and-drop PDF/image, metadata form with doc number, issue/expiry dates
-- [ ] Frontend: PDF/image viewer — opens document in browser preview panel
-- [ ] Route: /company/documents registered in App.tsx
-- [ ] Nav: "Documents" added to My Company sidebar group
+- [x] Frontend: PDF/image viewer — opens document in browser preview panel
+- [x] Route: /company/documents registered in App.tsx
+- [x] Nav: "Documents" added to My Company sidebar group
 - [ ] Upload sample PDFs (OCCI, CR, Work Permit) to S3 and pre-populate as existing documents
 
 ## Phase 36: Complete Employee Flow Fixes
 
-- [ ] Backend: extend updateEmployee to accept phone, email, nationality, nationalId, passportNumber, hireDate, terminationDate, employeeNumber, workPermitNumber, visaNumber, occupationCode, occupationName
-- [ ] Backend: extend createEmployee to accept all the same fields
-- [ ] Backend: add getEmployeeWithPermit procedure — returns employee + linked work permit details in one call
-- [ ] UI: MyTeamPage add/edit wizard — Step 1 expanded with phone, email, nationality, civil ID; Step 2 expanded with hire date, employee number, work permit number, visa number, occupation
-- [ ] UI: MyTeamPage staff cards — add "View Profile" button linking to /business/employee/:id
-- [ ] UI: MyTeamPage staff cards — add "Documents" button linking to /employee/:id/documents
-- [ ] UI: MyTeamPage staff profile side panel — show work permit number, visa number, passport number, civil ID, nationality
-- [ ] UI: EmployeeLifecyclePage — show work permit details (number, expiry, occupation, status) in Profile tab
-- [ ] UI: EmployeeLifecyclePage — Documents tab links to /employee/:id/documents (not old workforce hub)
-- [ ] UI: EmployeeLifecyclePage — capture termination date and reason when status set to terminated/resigned
-- [ ] UI: EmployeeLifecyclePage — add "Edit Full Profile" button that opens expanded edit form
+- [x] Backend: extend updateEmployee to accept phone, email, nationality, nationalId, passportNumber, hireDate, terminationDate, employeeNumber, workPermitNumber, visaNumber, occupationCode, occupationName
+- [x] Backend: extend createEmployee to accept all the same fields
+- [x] Backend: add getEmployeeWithPermit procedure — returns employee + linked work permit details in one call
+- [x] UI: MyTeamPage add/edit wizard — Step 1 expanded with phone, email, nationality, civil ID; Step 2 expanded with hire date, employee number, work permit number, visa number, occupation
+- [x] UI: MyTeamPage staff cards — add "View Profile" button linking to /business/employee/:id
+- [x] UI: MyTeamPage staff cards — add "Documents" button linking to /employee/:id/documents
+- [x] UI: MyTeamPage staff profile side panel — show work permit number, visa number, passport number, civil ID, nationality
+- [x] UI: EmployeeLifecyclePage — show work permit details (number, expiry, occupation, status) in Profile tab
+- [x] UI: EmployeeLifecyclePage — Documents tab links to /employee/:id/documents (not old workforce hub)
+- [x] UI: EmployeeLifecyclePage — capture termination date and reason when status set to terminated/resigned
+- [x] UI: EmployeeLifecyclePage — add "Edit Full Profile" button that opens expanded edit form
 
 ## Phase 37: Complete Payroll Processing Module
 
-- [ ] Backend: Enhance createRun to auto-pickup active salary loans and deduct monthly amount
+- [x] Backend: Enhance createRun to auto-pickup active salary loans and deduct monthly amount
 - [ ] Backend: Enhance createRun to auto-calculate absence deductions from leave records (unpaid leave days)
-- [ ] Backend: Add previewRun procedure — returns per-employee salary breakdown without saving
-- [ ] Backend: Add generatePayslip procedure — generates HTML payslip for a single employee/run and stores to S3
-- [ ] Backend: Add generateWPS procedure — generates WPS-format CSV for bank submission
-- [ ] Backend: Add getEmployeePayrollHistory procedure — list all payroll records for one employee
-- [ ] UI: PayrollProcessingPage.tsx — new dedicated client-friendly payroll page with 4 tabs: Run Payroll, Payslips, Salary Setup, Loans
-- [ ] UI: Run Payroll tab — month/year selector, employee count preview, auto-calculation summary, Run button, approval workflow
-- [ ] UI: Per-employee breakdown table — name, basic, allowances, deductions (PASI, loans, absences), net salary, edit icon
-- [ ] UI: Payslips tab — list all generated payslips, search by employee, download/view PDF
-- [ ] UI: Salary Setup tab — set basic salary, housing, transport allowances per employee before running payroll
-- [ ] UI: Loans tab — manage salary loans per employee (create, view balance, cancel)
+- [x] Backend: Add previewRun procedure — returns per-employee salary breakdown without saving
+- [x] Backend: Add generatePayslip procedure — generates HTML payslip for a single employee/run and stores to S3
+- [x] Backend: Add generateWPS procedure — generates WPS-format CSV for bank submission
+- [x] Backend: Add getEmployeePayrollHistory procedure — list all payroll records for one employee
+- [x] UI: PayrollProcessingPage.tsx — new dedicated client-friendly payroll page with 4 tabs: Run Payroll, Payslips, Salary Setup, Loans
+- [x] UI: Run Payroll tab — month/year selector, employee count preview, auto-calculation summary, Run button, approval workflow
+- [x] UI: Per-employee breakdown table — name, basic, allowances, deductions (PASI, loans, absences), net salary, edit icon
+- [x] UI: Payslips tab — list all generated payslips, search by employee, download/view PDF
+- [x] UI: Salary Setup tab — set basic salary, housing, transport allowances per employee before running payroll
+- [x] UI: Loans tab — manage salary loans per employee (create, view balance, cancel)
 - [ ] UI: WPS Export button — download CSV file formatted for Oman WPS bank submission
 - [ ] UI: Payslip modal — printable payslip view with all salary components, company header
 - [ ] UI: Employee Lifecycle payroll tab — show full payroll history for the employee
@@ -1072,7 +1072,7 @@ Every company on SmartPRO Hub gets a complete, unified business operating area �
 - [ ] Backend: hr.getLeaveBalance — per-employee leave balance (annual/sick/emergency: entitled - used - pending)
 - [ ] Backend: hr.getLeaveBalanceSummary — all employees leave balance for HR overview
 - [ ] UI: HRLeavePage — add leave balance summary table showing each employee's remaining days per type
-- [ ] UI: EmployeeLifecyclePage leave tab — show live balance bar (used/remaining) per leave type
+- [x] UI: EmployeeLifecyclePage leave tab — show live balance bar (used/remaining) per leave type
 
 ### 42D — Document Intelligence: Expiry Auto-Alerts
 - [ ] Backend: alerts.getDocumentExpiryAlerts — cross-company + employee docs expiring in 7/30/90 days
@@ -1088,7 +1088,7 @@ Every company on SmartPRO Hub gets a complete, unified business operating area �
 ### 42F — Employee Intelligence: Smart Profile Completeness
 - [ ] Backend: hr.getEmployeeCompleteness — per-employee profile completeness score (% of required fields filled)
 - [ ] UI: MyTeamPage — add completeness badge on each employee card (green/amber/red)
-- [ ] UI: EmployeeLifecyclePage — add profile completeness progress bar at top of profile tab with missing fields list
+- [x] UI: EmployeeLifecyclePage — add profile completeness progress bar at top of profile tab with missing fields list
 
 ### 42G — Smart Onboarding Flow
 - [ ] UI: OnboardingPage — step-by-step company setup wizard: 1) Company Profile → 2) Add Departments → 3) Add First Employee → 4) Upload Documents → 5) Configure Payroll → 6) Done

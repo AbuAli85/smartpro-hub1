@@ -79,6 +79,7 @@ import FinanceOverviewPage from "./pages/FinanceOverviewPage";
 import LeaveBalancePage from "./pages/LeaveBalancePage";
 import EmployeeCompletenessPage from "./pages/EmployeeCompletenessPage";
 import OrgStructurePage from "./pages/OrgStructurePage";
+import DepartmentsPage from "./pages/DepartmentsPage";
 import TaskManagerPage from "./pages/TaskManagerPage";
 import AnnouncementsPage from "./pages/AnnouncementsPage";
 import EmployeePortalPage from "./pages/EmployeePortalPage";
@@ -180,6 +181,7 @@ function AppRoutes() {
         <Route path="/hr/leave-balance" component={LeaveBalancePage} />
         <Route path="/hr/completeness" component={EmployeeCompletenessPage} />
         <Route path="/hr/org-structure" component={OrgStructurePage} />
+        <Route path="/hr/departments" component={DepartmentsPage} />
         <Route path="/hr/tasks" component={TaskManagerPage} />
         <Route path="/hr/announcements" component={AnnouncementsPage} />
         <Route path="/my-portal" component={EmployeePortalPage} />

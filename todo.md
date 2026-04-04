@@ -1791,3 +1791,57 @@ Every company on SmartPRO Hub gets a complete, unified business operating area �
 - [x] Fix: Operations user (operations@falconeyegroup.net) added to company 30001 with company_member role
 - [x] Verified: "Present Today: 0 of 16 active" is correct — 16 active employees, 0 checked in today (31 total including terminated/resigned)
 - [x] Verified: All 342 tests passing after fixes
+
+## User Roles & Access Management Dashboard (Apr 4, 2026)
+### Backend
+- [ ] tRPC: platformOps.getRoleAuditReport — full user list with platformRole, all company memberships, role mismatch detection flag
+- [ ] tRPC: platformOps.fixRoleMismatch — auto-heal a user's platformRole to match their highest company membership role
+- [ ] tRPC: platformOps.bulkFixMismatches — fix all detected mismatches in one operation
+- [ ] tRPC: platformOps.updateMembershipRole — change a user's role within a specific company
+- [ ] tRPC: platformOps.removeFromCompany — remove a user from a company (deactivate membership)
+- [ ] tRPC: platformOps.addToCompany — add a user to a company with a specified role
+### Frontend
+- [ ] Page: UserRolesPage.tsx — admin-only page at /admin/user-roles
+- [ ] Summary stat cards: total users, mismatches detected, company_admins, suspended accounts
+- [ ] Mismatch alert banner: shows count of users with role inconsistencies + "Fix All" button
+- [ ] User table: search/filter by role/company/status, shows platformRole badge, company membership chips, mismatch warning icon
+- [ ] Row expand: shows all company memberships with role, isActive status, edit/remove per membership
+- [ ] Inline actions: change platformRole, fix mismatch, suspend/activate, add to company, remove from company
+- [ ] Add to Company dialog: select company + role, submit
+- [ ] Audit log panel: last 20 role change events with timestamp, actor, target user, change description
+- [ ] Navigation: "User Roles" link added under Admin section in PlatformLayout
+
+## User Roles & Access Management Dashboard (Apr 4, 2026)
+### Backend
+- [ ] tRPC: platformOps.getRoleAuditReport — full user list with platformRole, all company memberships, role mismatch detection flag
+- [ ] tRPC: platformOps.fixRoleMismatch — auto-heal a user platformRole to match their highest company membership role
+- [ ] tRPC: platformOps.bulkFixMismatches — fix all detected mismatches in one operation
+- [ ] tRPC: platformOps.updateMembershipRole — change a user role within a specific company
+- [ ] tRPC: platformOps.removeFromCompany — remove a user from a company
+- [ ] tRPC: platformOps.addToCompany — add a user to a company with a specified role
+### Frontend
+- [ ] Page: UserRolesPage.tsx — admin-only page at /admin/user-roles
+- [ ] Summary stat cards: total users, mismatches detected, company_admins, suspended accounts
+- [ ] Mismatch alert banner: shows count of users with role inconsistencies + Fix All button
+- [ ] User table: search/filter by role/company/status, shows platformRole badge, company membership chips, mismatch warning icon
+- [ ] Row expand: shows all company memberships with role, isActive status, edit/remove per membership
+- [ ] Inline actions: change platformRole, fix mismatch, suspend/activate, add to company, remove from company
+- [ ] Add to Company dialog: select company + role, submit
+- [ ] Audit log panel: last 20 role change events with timestamp, actor, target user, change description
+- [ ] Navigation: User Roles link added under Admin section in PlatformLayout
+
+## User Roles & Access Management Dashboard — COMPLETED (Apr 4, 2026)
+
+- [x] tRPC: platformOps.getRoleAuditReport — full user list with platformRole, all company memberships, mismatch detection
+- [x] tRPC: platformOps.fixRoleMismatch — fix individual user role mismatch
+- [x] tRPC: platformOps.bulkFixMismatches — fix all detected mismatches in one operation
+- [x] tRPC: platformOps.updateUserRole — manually update a user's platformRole
+- [x] tRPC: platformOps.updateCompanyMemberRole — update a user's role within a specific company
+- [x] tRPC: platformOps.addUserToCompany — add a user to a company with a chosen role
+- [x] tRPC: platformOps.removeUserFromCompany — remove a user from a company
+- [x] tRPC: platformOps.getRoleAuditLogs — paginated audit trail of all role changes
+- [x] tRPC: platformOps.listCompanies — list all companies for the add-to-company dialog
+- [x] Page: UserRolesPage.tsx — admin-only page at /user-roles with full audit, filter, and management UI
+- [x] Navigation: "User Roles & Access" link added under Platform section in PlatformLayout
+- [x] clientNav: /user-roles added to PLATFORM_ONLY_HREFS and AUDITOR_BLOCKED_HREFS
+- [x] Tests: 15 vitest tests for mismatch detection, role mapping, and bulk fix logic (357 total passing)

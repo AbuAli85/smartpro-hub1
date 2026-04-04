@@ -12,6 +12,7 @@ export const PLATFORM_ONLY_HREFS = new Set<string>([
   "/platform-ops",
   "/audit-log",
   "/admin",
+  "/user-roles",
 ]);
 
 /** Owner-style configuration — company_admin only */
@@ -153,6 +154,7 @@ export const AUDITOR_BLOCKED_HREFS = new Set<string>([
   "/sanad/catalogue-admin",
   "/sanad/ratings-moderation",
   "/admin",
+  "/user-roles",
   "/omani-officers",
   "/officer-assignments",
   "/billing",

@@ -3,6 +3,7 @@ import { and, asc, count, desc, eq, gte, like, lte, or, sql, sum } from "drizzle
 import { z } from "zod";
 import { getDb } from "../db";
 import {
+  auditLogs,
   companies,
   companyMembers,
   officerCompanyAssignments,
@@ -14,6 +15,7 @@ import {
   users,
 } from "../../drizzle/schema";
 import { adminProcedure, router } from "../_core/trpc";
+import { mapMemberRoleToPlatformRole } from "../../shared/rbac";
 
 // ─── Platform Operations Router ───────────────────────────────────────────────
 
@@ -65,7 +67,6 @@ export const platformOpsRouter = router({
 
   /**
    * Monthly revenue breakdown for the last 12 months.
-   * Returns array of { year, month, pendingOmr, paidOmr, totalOmr, cycleCount }.
    */
   getMonthlyRevenueTrend: adminProcedure
     .input(z.object({ months: z.number().min(1).max(24).default(12) }))
@@ -99,7 +100,7 @@ export const platformOpsRouter = router({
     }),
 
   /**
-   * Sanad centre payment summary — how much each Sanad centre earns from officer assignments.
+   * Sanad centre payment summary.
    */
   getSanadCentrePayments: adminProcedure.query(async () => {
     const db = await getDb();
@@ -133,7 +134,7 @@ export const platformOpsRouter = router({
   }),
 
   /**
-   * EBITDA approximation: Revenue - Officer Payouts - Estimated Overhead.
+   * EBITDA approximation.
    */
   getEBITDA: adminProcedure
     .input(z.object({ year: z.number().min(2020).max(2100), month: z.number().min(1).max(12) }))
@@ -153,7 +154,6 @@ export const platformOpsRouter = router({
 
       const revenue = parseFloat(revRow.total);
       const payouts = parseFloat(payRow.total);
-      // Estimated overhead: 15% of revenue (platform costs, support, infrastructure)
       const overhead = Math.round(revenue * 0.15 * 1000) / 1000;
       const ebitda = Math.round((revenue - payouts - overhead) * 1000) / 1000;
       const margin = revenue > 0 ? Math.round((ebitda / revenue) * 10000) / 100 : 0;
@@ -181,7 +181,6 @@ export const platformOpsRouter = router({
       .groupBy(sanadOffices.governorate)
       .orderBy(sanadOffices.governorate);
 
-    // Also include officers not linked to any Sanad office
     const [unlinkedRow] = await db
       .select({
         officerCount: count(omaniProOfficers.id),
@@ -275,7 +274,7 @@ export const platformOpsRouter = router({
     }),
 
   /**
-   * Work order volume by Sanad application type (last 6 months).
+   * Work order volume by Sanad application type.
    */
   getWorkOrderVolume: adminProcedure.query(async () => {
     const db = await getDb();
@@ -371,7 +370,7 @@ export const platformOpsRouter = router({
         isActive: z.boolean().optional(),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       const updates: Record<string, unknown> = {};
@@ -380,7 +379,18 @@ export const platformOpsRouter = router({
       if (input.isActive !== undefined) updates.isActive = input.isActive ? 1 : 0;
       if (Object.keys(updates).length === 0)
         throw new TRPCError({ code: "BAD_REQUEST", message: "Nothing to update" });
+      // Fetch old values for audit
+      const [oldUser] = await db.select({ platformRole: users.platformRole, isActive: users.isActive }).from(users).where(eq(users.id, input.userId));
       await db.update(users).set(updates).where(eq(users.id, input.userId));
+      // Audit log
+      await db.insert(auditLogs).values({
+        userId: ctx.user.id,
+        action: "update_platform_role",
+        entityType: "user",
+        entityId: input.userId,
+        oldValues: oldUser ?? {},
+        newValues: updates,
+      });
       return { success: true };
     }),
 
@@ -394,13 +404,349 @@ export const platformOpsRouter = router({
         role: z.enum(["company_admin", "company_member", "finance_admin", "hr_admin", "reviewer", "external_auditor"]),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      await db
-        .update(companyMembers)
-        .set({ role: input.role })
+      const [existing] = await db
+        .select({ role: companyMembers.role, userId: companyMembers.userId, companyId: companyMembers.companyId })
+        .from(companyMembers)
         .where(eq(companyMembers.id, input.memberId));
+      await db.update(companyMembers).set({ role: input.role }).where(eq(companyMembers.id, input.memberId));
+      if (existing) {
+        await db.insert(auditLogs).values({
+          userId: ctx.user.id,
+          companyId: existing.companyId,
+          action: "update_membership_role",
+          entityType: "company_member",
+          entityId: input.memberId,
+          oldValues: { role: existing.role },
+          newValues: { role: input.role },
+        });
+      }
       return { success: true };
     }),
+
+  // ─── Role Audit & Management ────────────────────────────────────────────────
+
+  /**
+   * Full role audit report: every user with platformRole, company memberships,
+   * and a hasMismatch flag when platformRole doesn't match the best membership role.
+   */
+  getRoleAuditReport: adminProcedure
+    .input(z.object({
+      search: z.string().optional(),
+      filterMismatches: z.boolean().optional(),
+      filterPlatformRole: z.string().optional(),
+      filterCompanyId: z.number().optional(),
+    }).optional())
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) return { users: [], stats: { total: 0, mismatches: 0, admins: 0, suspended: 0 } };
+
+      const searchTerm = input?.search?.trim();
+      const allUsers = await db
+        .select({
+          id: users.id,
+          name: users.name,
+          email: users.email,
+          platformRole: users.platformRole,
+          role: users.role,
+          isActive: users.isActive,
+          loginMethod: users.loginMethod,
+          createdAt: users.createdAt,
+          lastSignedIn: users.lastSignedIn,
+        })
+        .from(users)
+        .where(
+          searchTerm
+            ? or(like(users.name, `%${searchTerm}%`), like(users.email, `%${searchTerm}%`))
+            : undefined
+        )
+        .orderBy(asc(users.id));
+
+      const userIds = allUsers.map((u) => u.id);
+      const memberships = userIds.length > 0
+        ? await db
+            .select({
+              userId: companyMembers.userId,
+              memberId: companyMembers.id,
+              role: companyMembers.role,
+              isActive: companyMembers.isActive,
+              companyName: companies.name,
+              companyId: companies.id,
+            })
+            .from(companyMembers)
+            .innerJoin(companies, eq(companies.id, companyMembers.companyId))
+            .where(or(...userIds.map((id) => eq(companyMembers.userId, id))))
+        : [];
+
+      const membershipMap = new Map<number, typeof memberships>();
+      for (const m of memberships) {
+        if (!membershipMap.has(m.userId)) membershipMap.set(m.userId, []);
+        membershipMap.get(m.userId)!.push(m);
+      }
+
+      const ROLE_ORDER = ["company_admin", "hr_admin", "finance_admin", "reviewer", "company_member", "external_auditor", "client"];
+
+      let result = allUsers.map((u) => {
+        const userMemberships = (membershipMap.get(u.id) ?? []).map((m) => ({
+          memberId: m.memberId,
+          companyId: m.companyId,
+          companyName: m.companyName,
+          memberRole: m.role ?? "company_member",
+          isActive: Boolean(m.isActive),
+        }));
+
+        const activeMemberRoles = userMemberships.filter((m) => m.isActive).map((m) => m.memberRole);
+        const bestMemberRole = activeMemberRoles.length > 0
+          ? [...activeMemberRoles].sort((a, b) => ROLE_ORDER.indexOf(a) - ROLE_ORDER.indexOf(b))[0]
+          : null;
+
+        const expectedPlatformRole = bestMemberRole ? mapMemberRoleToPlatformRole(bestMemberRole) : "client";
+        const currentPlatformRole = u.platformRole ?? "client";
+        const hasMismatch = activeMemberRoles.length > 0 && currentPlatformRole !== expectedPlatformRole;
+
+        return {
+          ...u,
+          isActive: Boolean(u.isActive),
+          companies: userMemberships,
+          bestMemberRole,
+          expectedPlatformRole,
+          hasMismatch,
+        };
+      });
+
+      // Apply filters
+      if (input?.filterMismatches) result = result.filter((u) => u.hasMismatch);
+      if (input?.filterPlatformRole) result = result.filter((u) => u.platformRole === input.filterPlatformRole);
+      if (input?.filterCompanyId) result = result.filter((u) => u.companies.some((c) => c.companyId === input.filterCompanyId));
+
+      const stats = {
+        total: allUsers.length,
+        mismatches: allUsers.reduce((acc, u) => {
+          const userMemberships = membershipMap.get(u.id) ?? [];
+          const activeMemberRoles = userMemberships.filter((m) => Boolean(m.isActive)).map((m) => m.role ?? "company_member");
+          if (activeMemberRoles.length === 0) return acc;
+          const bestRole = [...activeMemberRoles].sort((a, b) => ROLE_ORDER.indexOf(a) - ROLE_ORDER.indexOf(b))[0];
+          const expected = mapMemberRoleToPlatformRole(bestRole);
+          return acc + (u.platformRole !== expected ? 1 : 0);
+        }, 0),
+        admins: allUsers.filter((u) => u.platformRole === "company_admin" || u.platformRole === "platform_admin").length,
+        suspended: allUsers.filter((u) => !u.isActive).length,
+      };
+
+      return { users: result, stats };
+    }),
+
+  /**
+   * Fix a single user's platformRole to match their best active membership role.
+   */
+  fixRoleMismatch: adminProcedure
+    .input(z.object({ userId: z.number() }))
+    .mutation(async ({ input, ctx }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      const [user] = await db.select({ id: users.id, platformRole: users.platformRole }).from(users).where(eq(users.id, input.userId));
+      if (!user) throw new TRPCError({ code: "NOT_FOUND", message: "User not found" });
+
+      const ROLE_ORDER = ["company_admin", "hr_admin", "finance_admin", "reviewer", "company_member", "external_auditor", "client"];
+      const activeMemberships = await db
+        .select({ role: companyMembers.role })
+        .from(companyMembers)
+        .where(and(eq(companyMembers.userId, input.userId), eq(companyMembers.isActive, true)));
+
+      const bestRole = activeMemberships.length > 0
+        ? [...activeMemberships.map((m) => m.role ?? "company_member")].sort((a, b) => ROLE_ORDER.indexOf(a) - ROLE_ORDER.indexOf(b))[0]
+        : null;
+
+      const newPlatformRole = bestRole ? mapMemberRoleToPlatformRole(bestRole) : "client";
+      const oldPlatformRole = user.platformRole;
+
+      await db.update(users).set({ platformRole: newPlatformRole }).where(eq(users.id, input.userId));
+
+      await db.insert(auditLogs).values({
+        userId: ctx.user.id,
+        action: "fix_role_mismatch",
+        entityType: "user",
+        entityId: input.userId,
+        oldValues: { platformRole: oldPlatformRole },
+        newValues: { platformRole: newPlatformRole },
+      });
+
+      return { success: true, oldPlatformRole, newPlatformRole };
+    }),
+
+  /**
+   * Fix ALL detected role mismatches in one operation.
+   */
+  bulkFixMismatches: adminProcedure
+    .mutation(async ({ ctx }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      const ROLE_ORDER = ["company_admin", "hr_admin", "finance_admin", "reviewer", "company_member", "external_auditor", "client"];
+
+      const allUsers = await db.select({ id: users.id, platformRole: users.platformRole }).from(users);
+      const allMemberships = await db
+        .select({ userId: companyMembers.userId, role: companyMembers.role })
+        .from(companyMembers)
+        .where(eq(companyMembers.isActive, true));
+
+      const membershipMap = new Map<number, string[]>();
+      for (const m of allMemberships) {
+        if (!membershipMap.has(m.userId)) membershipMap.set(m.userId, []);
+        membershipMap.get(m.userId)!.push(m.role ?? "company_member");
+      }
+
+      let fixedCount = 0;
+      for (const u of allUsers) {
+        const roles = membershipMap.get(u.id) ?? [];
+        if (roles.length === 0) continue;
+        const bestRole = [...roles].sort((a, b) => ROLE_ORDER.indexOf(a) - ROLE_ORDER.indexOf(b))[0];
+        const expectedPlatformRole = mapMemberRoleToPlatformRole(bestRole);
+        if (u.platformRole !== expectedPlatformRole) {
+          await db.update(users).set({ platformRole: expectedPlatformRole }).where(eq(users.id, u.id));
+          await db.insert(auditLogs).values({
+            userId: ctx.user.id,
+            action: "bulk_fix_role_mismatch",
+            entityType: "user",
+            entityId: u.id,
+            oldValues: { platformRole: u.platformRole },
+            newValues: { platformRole: expectedPlatformRole },
+          });
+          fixedCount++;
+        }
+      }
+
+      return { success: true, fixedCount };
+    }),
+
+  /**
+   * Add a user to a company with a specified role.
+   */
+  addUserToCompany: adminProcedure
+    .input(z.object({
+      userId: z.number(),
+      companyId: z.number(),
+      role: z.enum(["company_admin", "company_member", "finance_admin", "hr_admin", "reviewer", "external_auditor"]),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      const [existing] = await db
+        .select({ id: companyMembers.id, isActive: companyMembers.isActive })
+        .from(companyMembers)
+        .where(and(eq(companyMembers.userId, input.userId), eq(companyMembers.companyId, input.companyId)));
+
+      if (existing) {
+        await db.update(companyMembers).set({ isActive: true, role: input.role }).where(eq(companyMembers.id, existing.id));
+      } else {
+        await db.insert(companyMembers).values({
+          userId: input.userId,
+          companyId: input.companyId,
+          role: input.role,
+          isActive: true,
+          invitedBy: ctx.user.id,
+        });
+      }
+
+      // Auto-promote platformRole if currently just a client
+      const newPlatformRole = mapMemberRoleToPlatformRole(input.role);
+      const [currentUser] = await db.select({ platformRole: users.platformRole }).from(users).where(eq(users.id, input.userId));
+      if (currentUser && currentUser.platformRole === "client") {
+        await db.update(users).set({ platformRole: newPlatformRole }).where(eq(users.id, input.userId));
+      }
+
+      await db.insert(auditLogs).values({
+        userId: ctx.user.id,
+        companyId: input.companyId,
+        action: "add_user_to_company",
+        entityType: "company_member",
+        entityId: input.userId,
+        newValues: { role: input.role, companyId: input.companyId },
+      });
+
+      return { success: true };
+    }),
+
+  /**
+   * Remove a user from a company (deactivate membership).
+   */
+  removeUserFromCompany: adminProcedure
+    .input(z.object({ memberId: z.number() }))
+    .mutation(async ({ input, ctx }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      const [existing] = await db
+        .select({ userId: companyMembers.userId, companyId: companyMembers.companyId, role: companyMembers.role })
+        .from(companyMembers)
+        .where(eq(companyMembers.id, input.memberId));
+
+      if (!existing) throw new TRPCError({ code: "NOT_FOUND", message: "Membership not found" });
+
+      await db.update(companyMembers).set({ isActive: false }).where(eq(companyMembers.id, input.memberId));
+
+      await db.insert(auditLogs).values({
+        userId: ctx.user.id,
+        companyId: existing.companyId,
+        action: "remove_user_from_company",
+        entityType: "company_member",
+        entityId: input.memberId,
+        oldValues: { role: existing.role, userId: existing.userId },
+        newValues: { isActive: false },
+      });
+
+      return { success: true };
+    }),
+
+  /**
+   * Get recent role change audit logs.
+   */
+  getRoleAuditLogs: adminProcedure
+    .input(z.object({ limit: z.number().min(1).max(100).default(20), userId: z.number().optional() }).optional())
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) return [];
+
+      const roleActions = ["update_membership_role", "fix_role_mismatch", "bulk_fix_role_mismatch", "add_user_to_company", "remove_user_from_company", "update_platform_role"];
+
+      const rows = await db
+        .select({
+          id: auditLogs.id,
+          actorId: auditLogs.userId,
+          actorName: users.name,
+          actorEmail: users.email,
+          action: auditLogs.action,
+          entityType: auditLogs.entityType,
+          entityId: auditLogs.entityId,
+          oldValues: auditLogs.oldValues,
+          newValues: auditLogs.newValues,
+          createdAt: auditLogs.createdAt,
+          companyId: auditLogs.companyId,
+        })
+        .from(auditLogs)
+        .leftJoin(users, eq(users.id, auditLogs.userId))
+        .where(
+          and(
+            or(...roleActions.map((a) => eq(auditLogs.action, a))),
+            input?.userId ? eq(auditLogs.entityId, input.userId) : undefined
+          )
+        )
+        .orderBy(desc(auditLogs.createdAt))
+        .limit(input?.limit ?? 20);
+
+      return rows;
+    }),
+
+  /**
+   * List all companies (for dropdowns in role management).
+   */
+  listCompanies: adminProcedure.query(async () => {
+    const db = await getDb();
+    if (!db) return [];
+    return db.select({ id: companies.id, name: companies.name }).from(companies).orderBy(asc(companies.name));
+  }),
 });

@@ -209,6 +209,7 @@ const navGroups = [
       { label: "Platform Ops", href: "/platform-ops", icon: <Globe size={18} /> },
       { label: "PDF Reports", href: "/reports", icon: <BarChart2 size={18} /> },
       { label: "Audit Log", href: "/audit-log", icon: <Shield size={18} /> },
+      { label: "User Roles & Access", href: "/user-roles", icon: <ShieldCheck size={18} /> },
       { label: "Admin Panel", href: "/admin", icon: <Settings size={18} /> },
     ],
   },

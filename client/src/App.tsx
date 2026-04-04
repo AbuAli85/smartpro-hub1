@@ -94,6 +94,7 @@ import MonthlyReportPage from "./pages/MonthlyReportPage";
 import TeamAccessPage from "./pages/TeamAccessPage";
 import MultiCompanyRolesPage from "./pages/MultiCompanyRolesPage";
 import EmailPreviewPage from "./pages/EmailPreviewPage";
+import UserRolesPage from "./pages/UserRolesPage";
 function PublicRoutes() {
   return (
     <Switch>
@@ -165,6 +166,7 @@ function AppRoutes() {
         <Route path="/sanad/ratings-moderation" component={SanadRatingsModerationPage} />
         <Route path="/reports" component={ReportsPage} />
         <Route path="/audit-log" component={AuditLogPage} />
+        <Route path="/user-roles" component={UserRolesPage} />
         <Route path="/operations" component={OperationsDashboardPage} />
         <Route path="/quotations" component={QuotationsPage} />
         <Route path="/sla-management" component={SlaManagementPage} />

@@ -1856,3 +1856,14 @@ Every company on SmartPRO Hub gets a complete, unified business operating area â
 - [ ] UI: hide legacy users.role field
 - [ ] UI: show Scope column
 - [ ] UI: summary cards by account type
+
+## User Roles Page â€” Final QA (Phase 1 Sign-off)
+- [ ] Move computeAccountType, computeEffectiveAccess, computeScope, computeEdgeCaseWarning to shared/roleHelpers.ts
+- [ ] Add unknown/null role fallback bucket ("Needs Review") so no user disappears
+- [ ] Rename "Business Users" group to "Company Users"
+- [ ] Fix warning color semantics: orange=recoverable warning, red=error/action-required
+- [ ] Ensure status (Suspended/Active) is visually distinct from access state and mismatch state
+- [ ] Verify expanded row shows all company memberships with role per company, sorted stably
+- [ ] Add primary company indicator in expanded row when user has multiple memberships
+- [ ] Verify group counts match visible row counts
+- [ ] Update vitest tests to use shared roleHelpers.ts

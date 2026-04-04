@@ -1,5 +1,14 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
+import {
+  ACCOUNT_TYPE_UI_CONFIG,
+  WARNING_STYLES,
+  deriveAccountType,
+  deriveEffectiveAccess,
+  deriveScope,
+  deriveEdgeCaseWarning,
+  type AccountType,
+} from "../../../shared/roleHelpers";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -69,28 +78,8 @@ type AuditUser = {
 };
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const ACCOUNT_TYPE_CONFIG: Record<string, { label: string; color: string; description: string }> = {
-  platform_staff: {
-    label: "Platform Staff",
-    color: "border-red-200 bg-red-50",
-    description: "SmartPRO internal team — access to all companies",
-  },
-  business_user: {
-    label: "Business Users",
-    color: "border-gray-200 bg-gray-50",
-    description: "Company owners, managers, and staff",
-  },
-  customer: {
-    label: "Customers",
-    color: "border-slate-200 bg-slate-50",
-    description: "End customers with portal access only",
-  },
-  auditor: {
-    label: "Auditors",
-    color: "border-yellow-200 bg-yellow-50",
-    description: "Read-only external auditors",
-  },
-};
+// ACCOUNT_TYPE_CONFIG is now imported from shared/roleHelpers as ACCOUNT_TYPE_UI_CONFIG
+// This ensures the frontend and backend use the same classification logic.
 
 const EFFECTIVE_ACCESS_COLORS: Record<string, string> = {
   "Super Admin": "bg-red-100 text-red-800 border-red-200",
@@ -105,6 +94,8 @@ const EFFECTIVE_ACCESS_COLORS: Record<string, string> = {
   "External Auditor": "bg-yellow-100 text-yellow-800 border-yellow-200",
   "Customer Portal": "bg-slate-100 text-slate-600 border-slate-200",
   "No Assigned Access": "bg-red-50 text-red-500 border-red-200",
+  // Needs Review — shown in the fallback group for unknown/null roles
+  "Unknown Role": "bg-red-100 text-red-700 border-red-300",
 };
 
 const ACTION_LABELS: Record<string, string> = {
@@ -127,13 +118,14 @@ function EffectiveAccessBadge({ label }: { label: string }) {
 }
 
 function AccountTypePill({ accountType }: { accountType: string }) {
-  const cfg = ACCOUNT_TYPE_CONFIG[accountType];
+  const cfg = ACCOUNT_TYPE_UI_CONFIG[accountType as AccountType];
   if (!cfg) return null;
   const iconMap: Record<string, React.ReactNode> = {
     platform_staff: <Shield size={12} className="text-red-600" />,
     business_user: <Briefcase size={12} className="text-gray-600" />,
     customer: <UserCircle2 size={12} className="text-slate-500" />,
     auditor: <Lock size={12} className="text-yellow-600" />,
+    needs_review: <AlertTriangle size={12} className="text-red-600" />,
   };
   return (
     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-muted text-muted-foreground border border-border">
@@ -405,7 +397,7 @@ function UserRow({
                     <SelectItem value="platform_admin">Platform Admin (Platform Staff)</SelectItem>
                     <SelectItem value="regional_manager">Regional Manager (Platform Staff)</SelectItem>
                     <SelectItem value="client_services">Client Services (Platform Staff)</SelectItem>
-                    <SelectItem value="company_admin">Company Owner (Business User)</SelectItem>
+                    <SelectItem value="company_admin">Company Admin (Business User)</SelectItem>
                     <SelectItem value="hr_admin">HR Manager (Business User)</SelectItem>
                     <SelectItem value="finance_admin">Finance Manager (Business User)</SelectItem>
                     <SelectItem value="company_member">Company Member (Business User)</SelectItem>
@@ -417,6 +409,20 @@ function UserRow({
                 <p className="text-xs text-muted-foreground">Use "Fix Mismatch" for auto-correction.</p>
               </div>
             </div>
+
+            {/* Edge case: unknown/null role */}
+            {user.edgeCaseWarning === null && !user.hasMismatch && user.accountType === "needs_review" && (
+              <div className="flex items-start gap-3 p-3 rounded-lg border border-red-300 bg-red-50">
+                <AlertTriangle size={16} className="text-red-600 mt-0.5 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-red-900">Unknown or Invalid Role</p>
+                  <p className="text-xs text-red-700 mt-0.5">
+                    This user's platformRole (<strong>{user.platformRole ?? "null"}</strong>) is not a recognized value.
+                    Assign a valid role using the selector below to restore access.
+                  </p>
+                </div>
+              </div>
+            )}
 
             {/* Company memberships */}
             <div>
@@ -430,14 +436,25 @@ function UserRow({
                 <p className="text-xs text-muted-foreground italic">No company memberships — Customer Portal access only.</p>
               ) : (
                 <div className="space-y-2">
-                  {user.companies.map((m) => (
+                  {[...user.companies]
+                    .sort((a, b) => {
+                      // Active first, then by company name (stable sort)
+                      if (a.isActive !== b.isActive) return a.isActive ? -1 : 1;
+                      return a.companyName.localeCompare(b.companyName);
+                    })
+                    .map((m, idx) => (
                     <div
                       key={m.memberId}
                       className={`flex items-center gap-3 p-2.5 rounded-lg border ${m.isActive ? "border-border bg-background" : "border-dashed border-muted-foreground/30 bg-muted/20 opacity-60"}`}
                     >
                       <Building2 size={14} className="text-muted-foreground shrink-0" />
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{m.companyName}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-medium truncate">{m.companyName}</p>
+                          {idx === 0 && user.companies.filter((c) => c.isActive).length > 0 && m.isActive && (
+                            <span className="text-xs bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded border border-emerald-200">Primary</span>
+                          )}
+                        </div>
                         {!m.isActive && <p className="text-xs text-muted-foreground">Inactive membership</p>}
                       </div>
                       <Select
@@ -521,17 +538,19 @@ function UserGroup({
   onRefresh: () => void;
 }) {
   const [collapsed, setCollapsed] = useState(false);
-  const cfg = ACCOUNT_TYPE_CONFIG[accountType] ?? { label: accountType, color: "border-gray-200 bg-gray-50", description: "" };
+  const cfg = ACCOUNT_TYPE_UI_CONFIG[accountType as AccountType] ?? { label: accountType, color: "border-gray-200 bg-gray-50", description: "", borderColor: "border-l-gray-400" };
   const mismatches = users.filter((u) => u.hasMismatch).length;
+  const edgeCases = users.filter((u) => u.edgeCaseWarning).length;
   const iconMap: Record<string, React.ReactNode> = {
     platform_staff: <Shield size={16} className="text-red-600" />,
     business_user: <Briefcase size={16} className="text-gray-600" />,
     customer: <UserCircle2 size={16} className="text-slate-500" />,
     auditor: <Lock size={16} className="text-yellow-600" />,
+    needs_review: <AlertTriangle size={16} className="text-red-600" />,
   };
 
   return (
-    <div className={`rounded-xl border-2 ${cfg.color} mb-4 overflow-hidden`}>
+    <div className={`rounded-xl border-2 ${cfg.color} mb-4 overflow-hidden border-l-4 ${cfg.borderColor}`}>
       <button
         className="w-full flex items-center gap-3 px-5 py-3.5 text-left hover:bg-black/5 transition-colors"
         onClick={() => setCollapsed((c) => !c)}
@@ -546,6 +565,11 @@ function UserGroup({
             {mismatches > 0 && (
               <span className="text-xs bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full border border-amber-300 flex items-center gap-1">
                 <AlertTriangle size={10} /> {mismatches} mismatch{mismatches !== 1 ? "es" : ""}
+              </span>
+            )}
+            {edgeCases > 0 && (
+              <span className="text-xs bg-orange-100 text-orange-800 px-2 py-0.5 rounded-full border border-orange-300 flex items-center gap-1">
+                <AlertTriangle size={10} /> {edgeCases} data issue{edgeCases !== 1 ? "s" : ""}
               </span>
             )}
           </div>
@@ -658,8 +682,8 @@ export default function UserRolesPage() {
     ? allUsers
     : allUsers.filter((u) => u.accountType === filterAccountType);
 
-  // Group by accountType in defined order
-  const GROUP_ORDER = ["platform_staff", "business_user", "customer", "auditor"];
+  // Group by accountType in defined order — needs_review is the fallback bucket
+  const GROUP_ORDER = ["platform_staff", "business_user", "customer", "auditor", "needs_review"];
   const grouped = GROUP_ORDER.reduce<Record<string, AuditUser[]>>((acc, key) => {
     const group = filteredUsers.filter((u) => u.accountType === key);
     if (group.length > 0) acc[key] = group;
@@ -720,7 +744,7 @@ export default function UserRolesPage() {
               </div>
               <div>
                 <p className="text-2xl font-bold">{stats.businessUsers}</p>
-                <p className="text-xs text-muted-foreground">Business Users</p>
+                <p className="text-xs text-muted-foreground">Company Users</p>
               </div>
             </div>
           </CardContent>
@@ -803,7 +827,7 @@ export default function UserRolesPage() {
               <SelectContent>
                 <SelectItem value="all">All Account Types</SelectItem>
                 <SelectItem value="platform_staff">Platform Staff</SelectItem>
-                <SelectItem value="business_user">Business Users</SelectItem>
+                <SelectItem value="business_user">Company Users</SelectItem>
                 <SelectItem value="customer">Customers</SelectItem>
                 <SelectItem value="auditor">Auditors</SelectItem>
               </SelectContent>

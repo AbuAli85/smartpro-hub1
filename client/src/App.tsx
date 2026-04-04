@@ -75,6 +75,7 @@ import HRDocumentsDashboardPage from "./pages/HRDocumentsDashboardPage";
 import DocumentExpiryDashboard from "./pages/DocumentExpiryDashboard";
 import HRLettersPage from "./pages/HRLettersPage";
 import HRKpiPage from "./pages/HRKpiPage";
+import FinanceOverviewPage from "./pages/FinanceOverviewPage";
 import LeaveBalancePage from "./pages/LeaveBalancePage";
 import EmployeeCompletenessPage from "./pages/EmployeeCompletenessPage";
 import OrgStructurePage from "./pages/OrgStructurePage";
@@ -157,6 +158,7 @@ function AppRoutes() {
           <Route path="/renewal-workflows/:id" component={WorkflowDetailPage} />
         <Route path="/renewal-workflows" component={RenewalWorkflowsPage} />
         <Route path="/platform-ops" component={PlatformOpsPage} />
+        <Route path="/finance/overview" component={FinanceOverviewPage} />
         <Route path="/payroll" component={PayrollEnginePage} />
         <Route path="/payroll/process" component={PayrollProcessingPage} />
         <Route path="/sanad/ratings-moderation" component={SanadRatingsModerationPage} />

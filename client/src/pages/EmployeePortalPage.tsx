@@ -456,6 +456,19 @@ export default function EmployeePortalPage() {
   const [logNote, setLogNote] = useState("");
   const [logClientName, setLogClientName] = useState("");
   const [logDate, setLogDate] = useState(() => new Date().toISOString().split("T")[0]);
+  // Expense claims state
+  const [showExpenseDialog, setShowExpenseDialog] = useState(false);
+  const [expenseDate, setExpenseDate] = useState(() => new Date().toISOString().split("T")[0]);
+  const [expenseCategory, setExpenseCategory] = useState<string>("travel");
+  const [expenseAmount, setExpenseAmount] = useState("");
+  const [expenseCurrency, setExpenseCurrency] = useState("OMR");
+  const [expenseDesc, setExpenseDesc] = useState("");
+  // Work log state
+  const [showWorkLogDialog, setShowWorkLogDialog] = useState(false);
+  const [workLogDate, setWorkLogDate] = useState(() => new Date().toISOString().split("T")[0]);
+  const [workLogHours, setWorkLogHours] = useState("");
+  const [workLogDesc, setWorkLogDesc] = useState("");
+  const [workLogProject, setWorkLogProject] = useState("");
   const [showLeaveDialog, setShowLeaveDialog] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
 
@@ -556,6 +569,37 @@ export default function EmployeePortalPage() {
       setShowLogActivityDialog(false);
       setLogValue(""); setLogNote(""); setLogClientName(""); setLogMetricType("custom");
       refetchKpi(); refetchKpiLogs();
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  // Expense claims queries & mutations
+  const { data: myExpenses, refetch: refetchExpenses } = trpc.financeHR.myExpenses.useQuery(
+    undefined, { enabled: isAuthenticated }
+  );
+  const submitExpenseMut = trpc.financeHR.submitExpense.useMutation({
+    onSuccess: () => {
+      toast.success("Expense claim submitted — awaiting approval");
+      setShowExpenseDialog(false);
+      setExpenseAmount(""); setExpenseDesc(""); setExpenseCategory("travel");
+      refetchExpenses();
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+  const cancelExpenseMut = trpc.financeHR.cancelExpense.useMutation({
+    onSuccess: () => { toast.success("Expense claim cancelled"); refetchExpenses(); },
+    onError: (e: any) => toast.error(e.message),
+  });
+  // Work log queries & mutations
+  const { data: myWorkLogs, refetch: refetchWorkLogs } = trpc.workLogs.listMine.useQuery(
+    undefined, { enabled: isAuthenticated }
+  );
+  const addWorkLogMut = trpc.workLogs.submit.useMutation({
+    onSuccess: () => {
+      toast.success("Work log saved");
+      setShowWorkLogDialog(false);
+      setWorkLogHours(""); setWorkLogDesc(""); setWorkLogProject("");
+      refetchWorkLogs();
     },
     onError: (e: any) => toast.error(e.message),
   });
@@ -871,7 +915,7 @@ export default function EmployeePortalPage() {
 
         {/* ── Main Tabs ── */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="w-full grid grid-cols-9 h-auto">
+          <TabsList className="w-full grid grid-cols-11 h-auto">
             {[
               { value: "overview", icon: Home, label: "Overview" },
               { value: "attendance", icon: UserCheck, label: "Attendance" },
@@ -881,6 +925,8 @@ export default function EmployeePortalPage() {
               { value: "documents", icon: FileText, label: "Docs", badge: expiringDocs.length },
               { value: "requests", icon: ArrowLeftRight, label: "Requests", badge: (myShiftRequests ?? []).filter((r: any) => r.request?.status === "pending").length },
               { value: "kpi", icon: Target, label: "KPI", badge: 0 },
+              { value: "expenses", icon: Wallet, label: "Expenses", badge: (myExpenses ?? []).filter((e: any) => e.expenseStatus === "pending").length },
+              { value: "worklog", icon: Timer, label: "Work Log", badge: 0 },
               { value: "profile", icon: User, label: "Profile" },
             ].map(({ value, icon: Icon, label, badge }) => (
               <TabsTrigger key={value} value={value} className="py-2 text-xs flex flex-col gap-0.5 h-auto relative">
@@ -2316,6 +2362,164 @@ export default function EmployeePortalPage() {
                 )}
               </CardContent>
             </Card>
+           </TabsContent>
+
+          {/* ══ EXPENSE CLAIMS TAB ═══════════════════════════════════════════════════ */}
+          <TabsContent value="expenses" className="mt-4 space-y-4">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div>
+                <h2 className="text-base font-semibold flex items-center gap-2">
+                  <Wallet className="w-4 h-4 text-primary" />
+                  Expense Claims
+                </h2>
+                <p className="text-xs text-muted-foreground">Submit and track your business expense reimbursements</p>
+              </div>
+              <Button size="sm" onClick={() => setShowExpenseDialog(true)}>
+                <Plus className="w-3.5 h-3.5 mr-1" /> Submit Claim
+              </Button>
+            </div>
+            {/* Summary row */}
+            <div className="grid grid-cols-3 gap-3">
+              {[
+                { label: "Pending", count: (myExpenses ?? []).filter((e: any) => e.expenseStatus === "pending").length, color: "text-amber-600", bg: "bg-amber-50 dark:bg-amber-950/20" },
+                { label: "Approved", count: (myExpenses ?? []).filter((e: any) => e.expenseStatus === "approved").length, color: "text-green-600", bg: "bg-green-50 dark:bg-green-950/20" },
+                { label: "Rejected", count: (myExpenses ?? []).filter((e: any) => e.expenseStatus === "rejected").length, color: "text-red-600", bg: "bg-red-50 dark:bg-red-950/20" },
+              ].map(({ label, count, color, bg }) => (
+                <Card key={label} className={`${bg} border-0`}>
+                  <CardContent className="p-3 text-center">
+                    <p className={`text-xl font-bold ${color}`}>{count}</p>
+                    <p className="text-xs text-muted-foreground">{label}</p>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+            {/* Claims list */}
+            <Card>
+              <CardContent className="p-0">
+                {(myExpenses ?? []).length === 0 ? (
+                  <div className="p-8 text-center text-muted-foreground">
+                    <Wallet className="w-8 h-8 mx-auto mb-2 opacity-40" />
+                    <p className="text-sm">No expense claims yet</p>
+                    <p className="text-xs mt-1">Submit a claim for travel, meals, equipment, or other business expenses</p>
+                  </div>
+                ) : (
+                  <div className="divide-y">
+                    {(myExpenses as any[]).map((exp: any) => (
+                      <div key={exp.id} className="p-4 flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-medium text-sm capitalize">{exp.expenseCategory?.replace(/_/g, " ")}</span>
+                            <Badge variant="outline" className={`text-xs ${
+                              exp.expenseStatus === "approved" ? "border-green-500 text-green-600" :
+                              exp.expenseStatus === "rejected" ? "border-red-500 text-red-600" :
+                              exp.expenseStatus === "paid" ? "border-blue-500 text-blue-600" :
+                              "border-amber-500 text-amber-600"
+                            }`}>{exp.expenseStatus}</Badge>
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-0.5">{exp.description}</p>
+                          <p className="text-xs text-muted-foreground">{formatDate(exp.claimDate)}</p>
+                          {exp.reviewNote && <p className="text-xs text-red-500 mt-1">Note: {exp.reviewNote}</p>}
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className="font-semibold text-sm">{exp.currency} {Number(exp.amount).toFixed(3)}</p>
+                          {exp.expenseStatus === "pending" && (
+                            <Button size="sm" variant="ghost" className="h-6 text-xs text-red-500 mt-1"
+                              onClick={() => cancelExpenseMut.mutate({ id: exp.id })}>
+                              Cancel
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* ══ WORK LOG TAB ════════════════════════════════════════════════════════════════ */}
+          <TabsContent value="worklog" className="mt-4 space-y-4">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div>
+                <h2 className="text-base font-semibold flex items-center gap-2">
+                  <Timer className="w-4 h-4 text-primary" />
+                  Work Log
+                </h2>
+                <p className="text-xs text-muted-foreground">Record your daily work hours and activities</p>
+              </div>
+              <Button size="sm" onClick={() => setShowWorkLogDialog(true)}>
+                <Plus className="w-3.5 h-3.5 mr-1" /> Log Today
+              </Button>
+            </div>
+            {/* Weekly summary */}
+            {(() => {
+              const logs = (myWorkLogs as any[]) ?? [];
+              const totalHours = logs.reduce((sum: number, l: any) => sum + (parseFloat(l.hoursWorked ?? "0") || 0), 0);
+              const thisWeek = logs.filter((l: any) => {
+                const d = new Date(l.logDate);
+                const now = new Date();
+                const weekStart = new Date(now); weekStart.setDate(now.getDate() - now.getDay());
+                return d >= weekStart;
+              });
+              const weekHours = thisWeek.reduce((sum: number, l: any) => sum + (parseFloat(l.hoursWorked ?? "0") || 0), 0);
+              return (
+                <div className="grid grid-cols-3 gap-3">
+                  <Card className="bg-blue-50 dark:bg-blue-950/20 border-0">
+                    <CardContent className="p-3 text-center">
+                      <p className="text-xl font-bold text-blue-600">{weekHours.toFixed(1)}h</p>
+                      <p className="text-xs text-muted-foreground">This Week</p>
+                    </CardContent>
+                  </Card>
+                  <Card className="bg-green-50 dark:bg-green-950/20 border-0">
+                    <CardContent className="p-3 text-center">
+                      <p className="text-xl font-bold text-green-600">{totalHours.toFixed(1)}h</p>
+                      <p className="text-xs text-muted-foreground">Total Logged</p>
+                    </CardContent>
+                  </Card>
+                  <Card className="bg-purple-50 dark:bg-purple-950/20 border-0">
+                    <CardContent className="p-3 text-center">
+                      <p className="text-xl font-bold text-purple-600">{logs.length}</p>
+                      <p className="text-xs text-muted-foreground">Entries</p>
+                    </CardContent>
+                  </Card>
+                </div>
+              );
+            })()}
+            {/* Log list */}
+            <Card>
+              <CardContent className="p-0">
+                {(myWorkLogs ?? []).length === 0 ? (
+                  <div className="p-8 text-center text-muted-foreground">
+                    <Timer className="w-8 h-8 mx-auto mb-2 opacity-40" />
+                    <p className="text-sm">No work logs yet</p>
+                    <p className="text-xs mt-1">Log your daily tasks, hours, and projects here</p>
+                  </div>
+                ) : (
+                  <div className="divide-y">
+                    {(myWorkLogs as any[]).map((log: any) => (
+                      <div key={log.id} className="p-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-medium text-sm">{formatDate(log.logDate)}</span>
+                              {log.projectName && <Badge variant="outline" className="text-xs">{log.projectName}</Badge>}
+                              <Badge variant="outline" className="text-xs capitalize">{log.logCategory}</Badge>
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-0.5">{log.taskDescription}</p>
+                            {log.startTime && log.endTime && (
+                              <p className="text-xs text-muted-foreground">{log.startTime} – {log.endTime}</p>
+                            )}
+                          </div>
+                          <div className="text-right shrink-0">
+                            <p className="font-semibold text-sm text-primary">{log.hoursWorked ? `${log.hoursWorked}h` : "—"}</p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </TabsContent>
 
         </Tabs>
@@ -2622,6 +2826,122 @@ export default function EmployeePortalPage() {
               }}
             >
               {logActivityMut.isPending ? "Saving..." : "Save Log"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Expense Claim Dialog ── */}
+      <Dialog open={showExpenseDialog} onOpenChange={setShowExpenseDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Submit Expense Claim</DialogTitle>
+            <DialogDescription>Submit a business expense for reimbursement. Finance will review and approve.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Date</Label>
+                <Input type="date" value={expenseDate} onChange={(e) => setExpenseDate(e.target.value)} max={new Date().toISOString().split("T")[0]} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Category</Label>
+                <Select value={expenseCategory} onValueChange={setExpenseCategory}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {["travel","meals","accommodation","equipment","communication","training","medical","other"].map(c => (
+                      <SelectItem key={c} value={c} className="capitalize">{c}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Amount</Label>
+                <Input type="number" step="0.001" min="0" placeholder="0.000" value={expenseAmount} onChange={(e) => setExpenseAmount(e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Currency</Label>
+                <Select value={expenseCurrency} onValueChange={setExpenseCurrency}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {["OMR","USD","EUR","GBP","AED","SAR"].map(c => (
+                      <SelectItem key={c} value={c}>{c}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Description</Label>
+              <Textarea placeholder="Describe the expense (e.g. Client dinner at XYZ restaurant)" value={expenseDesc} onChange={(e) => setExpenseDesc(e.target.value)} rows={3} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowExpenseDialog(false)}>Cancel</Button>
+            <Button
+              disabled={!expenseAmount || !expenseDesc || submitExpenseMut.isPending}
+              onClick={() => {
+                if (!expenseAmount || !expenseDesc) return;
+                submitExpenseMut.mutate({
+                  expenseDate,
+                  category: expenseCategory as any,
+                  amount: expenseAmount,
+                  currency: expenseCurrency,
+                  description: expenseDesc,
+                });
+              }}
+            >
+              {submitExpenseMut.isPending ? "Submitting..." : "Submit Claim"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Work Log Dialog ── */}
+      <Dialog open={showWorkLogDialog} onOpenChange={setShowWorkLogDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Log Work Activity</DialogTitle>
+            <DialogDescription>Record what you worked on today.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Date</Label>
+                <Input type="date" value={workLogDate} onChange={(e) => setWorkLogDate(e.target.value)} max={new Date().toISOString().split("T")[0]} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Hours Worked</Label>
+                <Input type="number" step="0.5" min="0.5" max="24" placeholder="8" value={workLogHours} onChange={(e) => setWorkLogHours(e.target.value)} />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Project / Task Name</Label>
+              <Input placeholder="e.g. Client proposal, Marketing campaign" value={workLogProject} onChange={(e) => setWorkLogProject(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Description</Label>
+              <Textarea placeholder="What did you work on? Be specific." value={workLogDesc} onChange={(e) => setWorkLogDesc(e.target.value)} rows={3} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowWorkLogDialog(false)}>Cancel</Button>
+            <Button
+              disabled={!workLogDesc || addWorkLogMut.isPending}
+              onClick={() => {
+                if (!workLogDesc) return;
+                addWorkLogMut.mutate({
+                  logDate: workLogDate,
+                  hoursWorked: workLogHours || undefined,
+                  projectName: workLogProject || undefined,
+                  taskDescription: workLogDesc,
+                  category: "other",
+                });
+              }}
+            >
+              {addWorkLogMut.isPending ? "Saving..." : "Save Log"}
             </Button>
           </DialogFooter>
         </DialogContent>

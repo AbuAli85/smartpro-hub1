@@ -64,6 +64,7 @@ export const COMPANY_LEADERSHIP_HREFS = new Set<string>([
   "/payroll",
   "/payroll/process",
   "/reports",
+  "/finance/overview",
 ]);
 
 /** HR-specific pages — company_admin + hr_admin only */
@@ -93,6 +94,7 @@ export const FINANCE_ADMIN_HREFS = new Set<string>([
   "/payroll/process",
   "/reports",
   "/billing",
+  "/finance/overview",
 ]);
 
 /** Field employee / basic staff — only My Portal + their own data */

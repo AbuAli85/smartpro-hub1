@@ -38,6 +38,8 @@ import { employeeRequestsRouter } from "./routers/employeeRequests";
 import { schedulingRouter } from "./routers/scheduling";
 import { shiftRequestsRouter } from "./routers/shiftRequests";
 import { kpiRouter } from "./routers/kpi";
+import { workLogsRouter } from "./routers/workLogs";
+import { financeHRRouter } from "./routers/financeHR";
 
 export const appRouter = router({
   system: systemRouter,
@@ -87,6 +89,8 @@ export const appRouter = router({
   scheduling: schedulingRouter,
   shiftRequests: shiftRequestsRouter,
   kpi: kpiRouter,
+  workLogs: workLogsRouter,
+  financeHR: financeHRRouter,
 });
 
 export type AppRouter = typeof appRouter;

@@ -50,6 +50,7 @@ import {
   CalendarRange,
   SunMedium,
   ClipboardCheck,
+  TrendingDown,
 } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
 import { Link, useLocation } from "wouter";
@@ -150,6 +151,7 @@ const navGroups = [
       // Pay & Leave
       { label: "Leave & Requests", href: "/hr/leave", icon: <Calendar size={18} /> },
       { label: "Leave Balances", href: "/hr/leave-balance", icon: <CalendarCheck size={18} /> },
+      { label: "Finance Overview", href: "/finance/overview", icon: <TrendingDown size={18} /> },
       { label: "Payroll Engine", href: "/payroll", icon: <Banknote size={18} /> },
       // Attendance & Scheduling
       { label: "Attendance", href: "/hr/attendance", icon: <Clock size={18} /> },

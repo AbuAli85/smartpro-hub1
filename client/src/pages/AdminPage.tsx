@@ -1,7 +1,7 @@
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useState, useEffect } from "react";
-import { Settings, Users, Building2, Shield, FileText, Plus, Search, Globe, Bell, Key, Sliders, CheckCircle2, XCircle, RefreshCw } from "lucide-react";
+import { Settings, Users, Building2, Shield, FileText, Plus, Search, Globe, Bell, Key, Sliders, CheckCircle2, XCircle, RefreshCw, UserCog } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -116,7 +116,21 @@ export default function AdminPage() {
   const [featureToggles, setFeatureToggles] = useState<Record<string, boolean>>({});
   const [notifSettings, setNotifSettings] = useState<Record<string, boolean>>({});
 
+  const [userSearch, setUserSearch] = useState("");
+  const [editingUser, setEditingUser] = useState<number | null>(null);
   const { data: companies, refetch: refetchCompanies } = trpc.companies.list.useQuery();
+  const { data: platformUsers, refetch: refetchUsers } = trpc.platformOps.listUsers.useQuery(
+    { search: userSearch || undefined },
+    { enabled: user?.role === "admin" }
+  );
+  const updateUserRoleMutation = trpc.platformOps.updateUserRole.useMutation({
+    onSuccess: () => { toast.success("User updated"); refetchUsers(); setEditingUser(null); },
+    onError: (e) => toast.error(e.message),
+  });
+  const updateMemberRoleMutation = trpc.platformOps.updateCompanyMemberRole.useMutation({
+    onSuccess: () => { toast.success("Member role updated"); refetchUsers(); },
+    onError: (e) => toast.error(e.message),
+  });
   const { data: auditLogs } = trpc.analytics.auditLogs.useQuery({ limit: 50 });
   const { data: platformStats } = trpc.analytics.platformStats.useQuery();
   const { data: allSettings } = trpc.analytics.getSettings.useQuery({ category: undefined }, { enabled: user?.role === "admin" });
@@ -202,13 +216,155 @@ export default function AdminPage() {
         ))}
       </div>
 
-      <Tabs defaultValue="companies">
+      <Tabs defaultValue="users">
         <TabsList>
+          <TabsTrigger value="users" className="gap-1"><UserCog size={13} />Users ({platformUsers?.length ?? 0})</TabsTrigger>
           <TabsTrigger value="companies">Companies ({companies?.length ?? 0})</TabsTrigger>
           <TabsTrigger value="audit">Audit Logs</TabsTrigger>
           <TabsTrigger value="config">System Config</TabsTrigger>
         </TabsList>
 
+        {/* ── Users Tab ── */}
+        <TabsContent value="users" className="space-y-4">
+          <div className="flex gap-3 items-center">
+            <div className="relative flex-1">
+              <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Search by name or email…"
+                value={userSearch}
+                onChange={(e) => setUserSearch(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+            <Button variant="outline" size="sm" onClick={() => refetchUsers()}>
+              <RefreshCw size={14} className="mr-1" /> Refresh
+            </Button>
+          </div>
+          <div className="space-y-3">
+            {!platformUsers || platformUsers.length === 0 ? (
+              <Card><CardContent className="p-8 text-center text-muted-foreground">No users found</CardContent></Card>
+            ) : (
+              platformUsers.map((u) => (
+                <Card key={u.id} className="overflow-hidden">
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                          <span className="text-sm font-bold text-primary">{(u.name || u.email || "?")[0].toUpperCase()}</span>
+                        </div>
+                        <div className="min-w-0">
+                          <div className="font-semibold truncate">{u.name || "—"}</div>
+                          <div className="text-xs text-muted-foreground truncate">{u.email}</div>
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            <Badge variant={u.role === "admin" ? "default" : "secondary"} className="text-xs">
+                              {u.role === "admin" ? "Admin" : "User"}
+                            </Badge>
+                            <Badge variant="outline" className="text-xs">
+                              {u.platformRole === "company_admin" ? "Company Admin" : u.platformRole === "platform_admin" ? "Platform Admin" : "Client"}
+                            </Badge>
+                            {!u.isActive && <Badge variant="destructive" className="text-xs">Suspended</Badge>}
+                            <Badge variant="outline" className="text-xs text-muted-foreground">{u.loginMethod}</Badge>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="shrink-0">
+                        {editingUser === u.id ? (
+                          <div className="flex flex-col gap-2 min-w-[200px]">
+                            <div className="flex gap-2">
+                              <Select
+                                defaultValue={u.platformRole ?? "client"}
+                                onValueChange={(v) =>
+                                  updateUserRoleMutation.mutate({ userId: u.id, platformRole: v as "client" | "company_admin" | "platform_admin" })
+                                }
+                              >
+                                <SelectTrigger className="h-8 text-xs flex-1">
+                                  <SelectValue placeholder="Platform Role" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="client">Client</SelectItem>
+                                  <SelectItem value="company_admin">Company Admin</SelectItem>
+                                  <SelectItem value="platform_admin">Platform Admin</SelectItem>
+                                </SelectContent>
+                              </Select>
+                              <Select
+                                defaultValue={u.role ?? "user"}
+                                onValueChange={(v) =>
+                                  updateUserRoleMutation.mutate({ userId: u.id, role: v as "admin" | "user" })
+                                }
+                              >
+                                <SelectTrigger className="h-8 text-xs flex-1">
+                                  <SelectValue placeholder="System Role" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="admin">Admin</SelectItem>
+                                  <SelectItem value="user">User</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div className="flex gap-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 text-xs flex-1"
+                                onClick={() => updateUserRoleMutation.mutate({ userId: u.id, isActive: !u.isActive })}
+                              >
+                                {u.isActive ? "Suspend" : "Activate"}
+                              </Button>
+                              <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setEditingUser(null)}>Done</Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setEditingUser(u.id)}>
+                            <UserCog size={13} className="mr-1" /> Edit
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                    {u.companies.length > 0 && (
+                      <div className="mt-3 border-t pt-3">
+                        <div className="text-xs font-medium text-muted-foreground mb-2">Company Memberships</div>
+                        <div className="space-y-1.5">
+                          {u.companies.map((c) => (
+                            <div key={c.memberId} className="flex items-center justify-between gap-2">
+                              <span className="text-xs truncate text-foreground">{c.companyName}</span>
+                              <Select
+                                defaultValue={c.memberRole ?? "company_member"}
+                                onValueChange={(v) =>
+                                  updateMemberRoleMutation.mutate({
+                                    memberId: c.memberId,
+                                    role: v as "company_admin" | "company_member" | "finance_admin" | "hr_admin" | "reviewer" | "external_auditor",
+                                  })
+                                }
+                              >
+                                <SelectTrigger className="h-6 text-xs w-36">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="company_admin">Company Admin</SelectItem>
+                                  <SelectItem value="company_member">Member</SelectItem>
+                                  <SelectItem value="hr_admin">HR Admin</SelectItem>
+                                  <SelectItem value="finance_admin">Finance Admin</SelectItem>
+                                  <SelectItem value="reviewer">Reviewer</SelectItem>
+                                  <SelectItem value="external_auditor">External Auditor</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    <div className="mt-2 text-xs text-muted-foreground">
+                      Last login: {u.lastSignedIn ? fmtDateTime(new Date(u.lastSignedIn).getTime()) : "Never"}
+                      {" · "}ID: {u.id}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))
+            )}
+          </div>
+        </TabsContent>
+
+        {/* ── Companies Tab ── */}
         <TabsContent value="companies" className="space-y-4">
           <div className="flex flex-wrap gap-3">
             <div className="relative flex-1">

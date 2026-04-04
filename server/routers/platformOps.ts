@@ -1,9 +1,10 @@
 import { TRPCError } from "@trpc/server";
-import { and, count, desc, eq, gte, lte, sql, sum } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, like, lte, or, sql, sum } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "../db";
 import {
   companies,
+  companyMembers,
   officerCompanyAssignments,
   officerPayouts,
   omaniProOfficers,
@@ -291,4 +292,115 @@ export const platformOpsRouter = router({
 
     return rows.map((r) => ({ serviceType: r.serviceType, count: Number(r.cnt) }));
   }),
+
+  /**
+   * List all platform users with their company memberships.
+   */
+  listUsers: adminProcedure
+    .input(z.object({ search: z.string().optional() }).optional())
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) return [];
+      const searchTerm = input?.search?.trim();
+      const allUsers = await db
+        .select({
+          id: users.id,
+          name: users.name,
+          email: users.email,
+          role: users.role,
+          platformRole: users.platformRole,
+          isActive: users.isActive,
+          loginMethod: users.loginMethod,
+          createdAt: users.createdAt,
+          lastSignedIn: users.lastSignedIn,
+          phone: users.phone,
+        })
+        .from(users)
+        .where(
+          searchTerm
+            ? or(like(users.name, `%${searchTerm}%`), like(users.email, `%${searchTerm}%`))
+            : undefined
+        )
+        .orderBy(asc(users.id));
+
+      const userIds = allUsers.map((u) => u.id);
+      const memberships =
+        userIds.length > 0
+          ? await db
+              .select({
+                userId: companyMembers.userId,
+                memberId: companyMembers.id,
+                role: companyMembers.role,
+                isActive: companyMembers.isActive,
+                companyName: companies.name,
+                companyId: companies.id,
+              })
+              .from(companyMembers)
+              .innerJoin(companies, eq(companies.id, companyMembers.companyId))
+              .where(or(...userIds.map((id) => eq(companyMembers.userId, id))))
+          : [];
+
+      const membershipMap = new Map<number, typeof memberships>();
+      for (const m of memberships) {
+        if (!membershipMap.has(m.userId)) membershipMap.set(m.userId, []);
+        membershipMap.get(m.userId)!.push(m);
+      }
+
+      return allUsers.map((u) => ({
+        ...u,
+        isActive: Boolean(u.isActive),
+        companies: (membershipMap.get(u.id) ?? []).map((m) => ({
+          memberId: m.memberId,
+          companyId: m.companyId,
+          companyName: m.companyName,
+          memberRole: m.role,
+          isActive: Boolean(m.isActive),
+        })),
+      }));
+    }),
+
+  /**
+   * Update a user's platformRole, system role, or active status.
+   */
+  updateUserRole: adminProcedure
+    .input(
+      z.object({
+        userId: z.number(),
+        platformRole: z.enum(["client", "company_admin", "platform_admin"]).optional(),
+        role: z.enum(["admin", "user"]).optional(),
+        isActive: z.boolean().optional(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const updates: Record<string, unknown> = {};
+      if (input.platformRole !== undefined) updates.platformRole = input.platformRole;
+      if (input.role !== undefined) updates.role = input.role;
+      if (input.isActive !== undefined) updates.isActive = input.isActive ? 1 : 0;
+      if (Object.keys(updates).length === 0)
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Nothing to update" });
+      await db.update(users).set(updates).where(eq(users.id, input.userId));
+      return { success: true };
+    }),
+
+  /**
+   * Update a user's company membership role.
+   */
+  updateCompanyMemberRole: adminProcedure
+    .input(
+      z.object({
+        memberId: z.number(),
+        role: z.enum(["company_admin", "company_member", "finance_admin", "hr_admin", "reviewer", "external_auditor"]),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      await db
+        .update(companyMembers)
+        .set({ role: input.role })
+        .where(eq(companyMembers.id, input.memberId));
+      return { success: true };
+    }),
 });

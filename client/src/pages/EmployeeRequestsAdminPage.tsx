@@ -63,7 +63,7 @@ function emptyRequestsSubtitle(
   const typeLabel = typeFilter !== "all" ? (TYPE_LABELS[typeFilter] ?? typeFilter) : null;
   if (statusFilter === "all") {
     if (!typeLabel) {
-      return "There are no employee requests yet. They will appear here when employees submit them.";
+      return "No leave or other employee requests match your filters yet. Portal leave requests and generic requests both show here.";
     }
     return `No ${typeLabel.toLowerCase()} requests match your filters.`;
   }
@@ -75,6 +75,7 @@ function emptyRequestsSubtitle(
 
 export default function EmployeeRequestsAdminPage() {
   const { activeCompany } = useActiveCompany();
+  const utils = trpc.useUtils();
 
   const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "approved" | "rejected" | "cancelled">("pending");
   const [typeFilter, setTypeFilter] = useState<string>("all");
@@ -83,7 +84,7 @@ export default function EmployeeRequestsAdminPage() {
   const [actionStatus, setActionStatus] = useState<"approved" | "rejected" | null>(null);
 
   const { data: requests = [], refetch, isLoading } = trpc.employeeRequests.adminList.useQuery(
-    { status: statusFilter, type: typeFilter as any },
+    { companyId: activeCompany?.id, status: statusFilter, type: typeFilter as any },
     { enabled: !!activeCompany }
   );
 
@@ -98,6 +99,18 @@ export default function EmployeeRequestsAdminPage() {
     onError: (e) => toast.error(e.message),
   });
 
+  const updateLeaveMutation = trpc.hr.updateLeave.useMutation({
+    onSuccess: () => {
+      toast.success(`Leave request ${actionStatus === "approved" ? "approved" : "rejected"}`);
+      setReviewRequest(null);
+      setAdminNote("");
+      setActionStatus(null);
+      refetch();
+      utils.hr.listLeave.invalidate();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
   function openReview(req: any, status: "approved" | "rejected") {
     setReviewRequest(req);
     setActionStatus(status);
@@ -106,6 +119,14 @@ export default function EmployeeRequestsAdminPage() {
 
   function handleAction() {
     if (!reviewRequest || !actionStatus) return;
+    if (reviewRequest.source === "leave_request") {
+      updateLeaveMutation.mutate({
+        id: reviewRequest.leaveId,
+        status: actionStatus,
+        notes: adminNote || undefined,
+      });
+      return;
+    }
     updateMutation.mutate({
       requestId: reviewRequest.request.id,
       status: actionStatus,
@@ -200,8 +221,10 @@ export default function EmployeeRequestsAdminPage() {
           {requests.map((item: any) => {
             const req = item.request;
             const emp = item.employee;
+            const rowKey =
+              item.source === "leave_request" ? `leave-${item.leaveId}` : `er-${req.id}`;
             return (
-              <Card key={req.id} className="hover:shadow-sm transition-shadow">
+              <Card key={rowKey} className="hover:shadow-sm transition-shadow">
                 <CardContent className="py-4 px-4">
                   <div className="flex items-start gap-3">
                     <div className="w-9 h-9 rounded-full bg-muted flex items-center justify-center shrink-0 text-sm font-semibold">
@@ -272,6 +295,16 @@ export default function EmployeeRequestsAdminPage() {
                 <p><span className="text-muted-foreground">Employee:</span> <span className="font-medium">{reviewRequest.employee.firstName} {reviewRequest.employee.lastName}</span></p>
                 <p><span className="text-muted-foreground">Request:</span> <span className="font-medium">{reviewRequest.request.subject}</span></p>
                 <p><span className="text-muted-foreground">Type:</span> {TYPE_LABELS[reviewRequest.request.type]}</p>
+                {reviewRequest.source === "leave_request" &&
+                  typeof reviewRequest.request.details === "object" &&
+                  reviewRequest.request.details != null &&
+                  "reason" in reviewRequest.request.details &&
+                  String((reviewRequest.request.details as { reason?: string }).reason || "").trim() && (
+                    <p>
+                      <span className="text-muted-foreground">Employee reason:</span>{" "}
+                      {String((reviewRequest.request.details as { reason: string }).reason)}
+                    </p>
+                  )}
               </div>
               <div className="space-y-1">
                 <Label>Note to Employee (optional)</Label>
@@ -290,7 +323,7 @@ export default function EmployeeRequestsAdminPage() {
             </Button>
             <Button
               onClick={handleAction}
-              disabled={updateMutation.isPending}
+              disabled={updateMutation.isPending || updateLeaveMutation.isPending}
               className={actionStatus === "approved" ? "bg-green-600 hover:bg-green-700" : "bg-red-600 hover:bg-red-700"}
             >
               {actionStatus === "approved" ? "Confirm Approval" : "Confirm Rejection"}

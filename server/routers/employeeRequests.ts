@@ -6,9 +6,11 @@ import {
   employees,
   companyMembers,
   users,
+  leaveRequests,
 } from "../../drizzle/schema";
 import { getDb, getUserCompany } from "../db";
 import { protectedProcedure, router } from "../_core/trpc";
+import { requireActiveCompanyId } from "../_core/tenant";
 import { Resend } from "resend";
 import { ENV } from "../_core/env";
 
@@ -27,6 +29,11 @@ async function requireDb() {
   const db = await getDb();
   if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
   return db;
+}
+
+function fmtLeaveRange(start: Date, end: Date): string {
+  const opts: Intl.DateTimeFormatOptions = { month: "short", day: "numeric", year: "numeric" };
+  return `${start.toLocaleDateString(undefined, opts)} – ${end.toLocaleDateString(undefined, opts)}`;
 }
 
 async function resolveMyEmployee(userId: number, userEmail: string, companyId: number) {
@@ -149,14 +156,16 @@ export const employeeRequestsRouter = router({
       if (role !== "company_admin" && role !== "hr_admin") {
         throw new TRPCError({ code: "FORBIDDEN", message: "HR Admin or Company Admin required" });
       }
-      const companyId = input.companyId ?? membership.company.id;
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId);
       const db = await requireDb();
+      const lim = input.limit;
+      const fetchCap = Math.min(200, lim * 3);
 
       const conditions = [eq(employeeRequests.companyId, companyId)];
       if (input.status !== "all") conditions.push(eq(employeeRequests.status, input.status));
       if (input.type !== "all") conditions.push(eq(employeeRequests.type, input.type as any));
 
-      const requests = await db
+      const erRows = await db
         .select({
           request: employeeRequests,
           employee: {
@@ -171,9 +180,84 @@ export const employeeRequestsRouter = router({
         .innerJoin(employees, eq(employeeRequests.employeeId, employees.id))
         .where(and(...conditions))
         .orderBy(desc(employeeRequests.createdAt))
-        .limit(input.limit);
+        .limit(fetchCap);
 
-      return requests;
+      type EmpMini = {
+        id: number;
+        firstName: string | null;
+        lastName: string | null;
+        position: string | null;
+        department: string | null;
+      };
+
+      let lrMerged: Array<{
+        source: "leave_request";
+        leaveId: number;
+        request: typeof employeeRequests.$inferSelect;
+        employee: EmpMini;
+      }> = [];
+
+      if (input.type === "all" || input.type === "leave") {
+        const lrConds = [eq(leaveRequests.companyId, companyId)];
+        if (input.status !== "all") lrConds.push(eq(leaveRequests.status, input.status));
+        const lrRows = await db
+          .select({
+            leave: leaveRequests,
+            employee: {
+              id: employees.id,
+              firstName: employees.firstName,
+              lastName: employees.lastName,
+              position: employees.position,
+              department: employees.department,
+            },
+          })
+          .from(leaveRequests)
+          .innerJoin(employees, eq(leaveRequests.employeeId, employees.id))
+          .where(and(...lrConds))
+          .orderBy(desc(leaveRequests.createdAt))
+          .limit(fetchCap);
+
+        lrMerged = lrRows.map((row) => {
+          const start = new Date(row.leave.startDate);
+          const end = new Date(row.leave.endDate);
+          const typeLabel = String(row.leave.leaveType ?? "other").replace(/_/g, " ");
+          const daysPart = row.leave.days != null ? ` · ${row.leave.days} day(s)` : "";
+          const synthetic: typeof employeeRequests.$inferSelect = {
+            id: row.leave.id,
+            companyId: row.leave.companyId,
+            employeeId: row.leave.employeeId,
+            type: "leave",
+            status: row.leave.status,
+            subject: `${typeLabel} leave${daysPart} · ${fmtLeaveRange(start, end)}`,
+            details: row.leave.reason
+              ? ({ reason: row.leave.reason } as Record<string, unknown>)
+              : null,
+            adminNote: row.leave.notes ?? null,
+            reviewedByUserId: row.leave.approvedBy ?? null,
+            reviewedAt: null,
+            createdAt: row.leave.createdAt,
+            updatedAt: row.leave.updatedAt,
+          };
+          return {
+            source: "leave_request" as const,
+            leaveId: row.leave.id,
+            request: synthetic,
+            employee: row.employee,
+          };
+        });
+      }
+
+      const erMerged = erRows.map((row) => ({
+        source: "employee_request" as const,
+        request: row.request,
+        employee: row.employee,
+      }));
+
+      const combined = [...erMerged, ...lrMerged].sort(
+        (a, b) =>
+          new Date(b.request.createdAt).getTime() - new Date(a.request.createdAt).getTime()
+      );
+      return combined.slice(0, lim);
     }),
 
   // ─── Admin/HR: Update request status (approve/reject) ────────────────────

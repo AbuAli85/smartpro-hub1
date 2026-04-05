@@ -381,9 +381,17 @@ function NotificationBell() {
     (contracts ?? []).slice(0, 3).forEach((c) => {
       items.push({ id: `contract-${c.id}`, title: "Signature Required", desc: `${c.title} awaiting signature`, type: "action" });
     });
-    (leaveRequests ?? []).slice(0, 3).forEach((l) => {
-      items.push({ id: `leave-${l.id}`, title: "Leave Request", desc: `Leave request pending approval`, type: "info" });
-    });
+    (leaveRequests ?? [])
+      .filter((l) => l.status === "pending")
+      .slice(0, 3)
+      .forEach((l) => {
+        items.push({
+          id: `leave-${l.id}`,
+          title: "Leave Request",
+          desc: "Leave request pending approval",
+          type: "info",
+        });
+      });
     const criticalCount = alertBadge?.critical ?? 0;
     const totalExpiring = alertBadge?.count ?? 0;
     if (criticalCount > 0) {

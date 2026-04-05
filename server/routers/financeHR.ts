@@ -5,9 +5,63 @@ import { protectedProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
 import {
   expenseClaims, trainingRecords, employeeSelfReviews,
-  employees, payrollRuns, payrollLineItems, users
+  employees, payrollRuns, payrollLineItems, companyMembers,
 } from "../../drizzle/schema";
+import type { User } from "../../drizzle/schema";
 import { requireActiveCompanyId } from "../_core/tenant";
+import { canAccessGlobalAdminProcedures } from "@shared/rbac";
+import {
+  assertSelfReviewManagerUpdateAllowed,
+  assertTrainingStatusTransition,
+  type TrainingStatus,
+} from "../hrPerformanceGuards";
+
+/**
+ * Granular HR performance permissions (company_members.permissions JSON).
+ * company_admin bypasses via hasCompanyPermission.
+ */
+async function hasCompanyPermission(
+  user: Pick<User, "id" | "role" | "platformRole">,
+  companyId: number,
+  permission: string
+): Promise<boolean> {
+  if (canAccessGlobalAdminProcedures(user)) return true;
+  const db = await getDb();
+  if (!db) return false;
+  const [member] = await db
+    .select({ role: companyMembers.role, permissions: companyMembers.permissions })
+    .from(companyMembers)
+    .where(
+      and(
+        eq(companyMembers.userId, user.id),
+        eq(companyMembers.companyId, companyId),
+        eq(companyMembers.isActive, true)
+      )
+    )
+    .limit(1);
+  if (!member) return false;
+  if (member.role === "company_admin") return true;
+  const perms: string[] = Array.isArray(member.permissions) ? member.permissions : [];
+  return perms.includes(permission) || perms.includes("*");
+}
+
+async function assertCanReadSelfReviews(user: User, companyId: number): Promise<void> {
+  if (await hasCompanyPermission(user, companyId, "hr.performance.read")) return;
+  if (await hasCompanyPermission(user, companyId, "hr.self_reviews.read")) return;
+  throw new TRPCError({ code: "FORBIDDEN", message: "You do not have permission to view self-reviews." });
+}
+
+async function assertCanReviewSelfReviews(user: User, companyId: number): Promise<void> {
+  if (await hasCompanyPermission(user, companyId, "hr.performance.manage")) return;
+  if (await hasCompanyPermission(user, companyId, "hr.self_reviews.review")) return;
+  throw new TRPCError({ code: "FORBIDDEN", message: "You do not have permission to update self-reviews." });
+}
+
+async function assertCanManageTraining(user: User, companyId: number): Promise<void> {
+  if (await hasCompanyPermission(user, companyId, "hr.performance.manage")) return;
+  if (await hasCompanyPermission(user, companyId, "hr.training.manage")) return;
+  throw new TRPCError({ code: "FORBIDDEN", message: "You do not have permission to manage training records." });
+}
 
 async function resolveEmployee(userId: number, companyId: number) {
   const db = await getDb();
@@ -360,18 +414,40 @@ export const financeHRRouter = router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       const companyId = await requireActiveCompanyId(ctx.user.id);
-      const [row] = await db.select().from(trainingRecords)
-        .where(and(eq(trainingRecords.id, input.id), eq(trainingRecords.companyId, companyId)))
+      await assertCanManageTraining(ctx.user, companyId);
+
+      const [row] = await db.select().from(trainingRecords).where(eq(trainingRecords.id, input.id)).limit(1);
+      if (!row) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Training record not found" });
+      }
+      if (row.companyId !== companyId) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Access denied" });
+      }
+
+      const [emp] = await db
+        .select()
+        .from(employees)
+        .where(and(eq(employees.id, row.employeeUserId), eq(employees.companyId, companyId)))
         .limit(1);
-      if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Training record not found" });
-      await db.update(trainingRecords).set({
-        ...(input.trainingStatus !== undefined && {
-          trainingStatus: input.trainingStatus,
-          completedAt: input.trainingStatus === "completed" ? new Date() : null,
-        }),
-        ...(input.score !== undefined && { score: input.score }),
-        ...(input.certificateUrl !== undefined && { certificateUrl: input.certificateUrl ?? null }),
-      }).where(eq(trainingRecords.id, input.id));
+      if (!emp) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Access denied" });
+      }
+
+      if (input.trainingStatus !== undefined && input.trainingStatus !== row.trainingStatus) {
+        assertTrainingStatusTransition(row.trainingStatus as TrainingStatus, input.trainingStatus);
+      }
+
+      await db
+        .update(trainingRecords)
+        .set({
+          ...(input.trainingStatus !== undefined && {
+            trainingStatus: input.trainingStatus,
+            completedAt: input.trainingStatus === "completed" ? new Date() : null,
+          }),
+          ...(input.score !== undefined && { score: input.score }),
+          ...(input.certificateUrl !== undefined && { certificateUrl: input.certificateUrl ?? null }),
+        })
+        .where(eq(trainingRecords.id, input.id));
       return { success: true };
     }),
 
@@ -381,13 +457,17 @@ export const financeHRRouter = router({
       const db = await getDb();
       if (!db) return [];
       const companyId = input?.companyId ?? await requireActiveCompanyId(ctx.user.id);
-      const rows = await db.select({
-        review: employeeSelfReviews,
-        empFirst: employees.firstName,
-        empLast: employees.lastName,
-        empDept: employees.department,
-        empPosition: employees.position,
-      }).from(employeeSelfReviews)
+      await assertCanReadSelfReviews(ctx.user, companyId);
+
+      const rows = await db
+        .select({
+          review: employeeSelfReviews,
+          empFirst: employees.firstName,
+          empLast: employees.lastName,
+          empDept: employees.department,
+          empPosition: employees.position,
+        })
+        .from(employeeSelfReviews)
         .leftJoin(employees, eq(employees.id, employeeSelfReviews.employeeUserId))
         .where(eq(employeeSelfReviews.companyId, companyId))
         .orderBy(desc(employeeSelfReviews.createdAt));
@@ -411,18 +491,37 @@ export const financeHRRouter = router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       const companyId = await requireActiveCompanyId(ctx.user.id);
-      const [row] = await db.select().from(employeeSelfReviews)
-        .where(and(eq(employeeSelfReviews.id, input.id), eq(employeeSelfReviews.companyId, companyId)))
+      await assertCanReviewSelfReviews(ctx.user, companyId);
+
+      const [row] = await db.select().from(employeeSelfReviews).where(eq(employeeSelfReviews.id, input.id)).limit(1);
+      if (!row) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Self-review not found" });
+      }
+      if (row.companyId !== companyId) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Access denied" });
+      }
+
+      const [emp] = await db
+        .select()
+        .from(employees)
+        .where(and(eq(employees.id, row.employeeUserId), eq(employees.companyId, companyId)))
         .limit(1);
-      if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Self-review not found" });
-      const nextStatus = input.reviewStatus;
-      await db.update(employeeSelfReviews).set({
-        ...(input.managerRating !== undefined && { managerRating: input.managerRating }),
-        ...(input.managerFeedback !== undefined && { managerFeedback: input.managerFeedback }),
-        ...(input.goalsNextPeriod !== undefined && { goalsNextPeriod: input.goalsNextPeriod }),
-        ...(nextStatus !== undefined && { reviewStatus: nextStatus }),
-        ...(nextStatus === "reviewed" ? { reviewedAt: new Date(), reviewedByUserId: ctx.user.id } : {}),
-      }).where(eq(employeeSelfReviews.id, input.id));
+      if (!emp) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Access denied" });
+      }
+
+      const { transitioningToReviewed } = assertSelfReviewManagerUpdateAllowed(row, input);
+
+      await db
+        .update(employeeSelfReviews)
+        .set({
+          ...(input.managerRating !== undefined && { managerRating: input.managerRating }),
+          ...(input.managerFeedback !== undefined && { managerFeedback: input.managerFeedback }),
+          ...(input.goalsNextPeriod !== undefined && { goalsNextPeriod: input.goalsNextPeriod }),
+          ...(input.reviewStatus !== undefined && { reviewStatus: input.reviewStatus }),
+          ...(transitioningToReviewed ? { reviewedAt: new Date(), reviewedByUserId: ctx.user.id } : {}),
+        })
+        .where(eq(employeeSelfReviews.id, input.id));
       return { success: true };
     }),
 });

@@ -74,6 +74,8 @@ async function getMemberCompanyId(user: Pick<User, "id" | "name" | "email" | "ro
  *   government_cases.read, government_cases.submit, government_cases.manage
  *   documents.read, documents.upload
  *   sync.trigger
+ *   hr.performance.read, hr.performance.manage
+ *   hr.training.manage, hr.self_reviews.read, hr.self_reviews.review
  */
 async function hasPermission(
   user: Pick<User, "id" | "role" | "platformRole">,

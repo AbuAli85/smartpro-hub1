@@ -631,11 +631,12 @@ export default function EmployeePortalPage() {
     undefined, { enabled: isAuthenticated }
   );
   const { data: docs, isLoading: docsLoading } = trpc.employeePortal.getMyDocuments.useQuery(
-    undefined, { enabled: isAuthenticated }
+    undefined,
+    { enabled: isAuthenticated, refetchOnWindowFocus: true }
   );
   const { data: tasks, isLoading: tasksLoading } = trpc.employeePortal.getMyTasks.useQuery(
     { companyId: activeCompanyId ?? undefined },
-    { enabled: isAuthenticated && activeCompanyId != null }
+    { enabled: isAuthenticated && activeCompanyId != null, refetchOnWindowFocus: true }
   );
   const { data: announcements } = trpc.employeePortal.getMyAnnouncements.useQuery(
     undefined, { enabled: isAuthenticated }
@@ -659,7 +660,10 @@ export default function EmployeePortalPage() {
   const { data: workStatusSummary, isLoading: workStatusLoading } =
     trpc.employeePortal.getMyWorkStatusSummary.useQuery(
       { companyId: activeCompanyId ?? undefined },
-      { enabled: isAuthenticated && activeCompanyId != null }
+      {
+        enabled: isAuthenticated && activeCompanyId != null,
+        refetchOnWindowFocus: true,
+      }
     );
   const { data: overviewCorrectionList } = trpc.attendance.myCorrections.useQuery(
     {},

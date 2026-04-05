@@ -42,6 +42,7 @@ import { workLogsRouter } from "./routers/workLogs";
 import { financeHRRouter } from "./routers/financeHR";
 import { automationRouter } from "./routers/automation";
 import { automationSlaRouter } from "./routers/automationSla";
+import { documentGenerationRouter } from "./routers/documentGeneration";
 
 export const appRouter = router({
   system: systemRouter,
@@ -95,6 +96,7 @@ export const appRouter = router({
   financeHR: financeHRRouter,
   automation: automationRouter,
   automationSla: automationSlaRouter,
+  documentGeneration: documentGenerationRouter,
 });
 
 export type AppRouter = typeof appRouter;

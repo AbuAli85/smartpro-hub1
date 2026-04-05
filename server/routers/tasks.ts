@@ -2,18 +2,14 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { eq, and, desc } from "drizzle-orm";
 import { employeeTasks, employees } from "../../drizzle/schema";
-import { getDb, getUserCompany, getUserCompanyById } from "../db";
+import { getDb } from "../db";
 import { protectedProcedure, router } from "../_core/trpc";
+import { requireActiveCompanyId } from "../_core/tenant";
 
 async function requireDb() {
   const db = await getDb();
   if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
   return db;
-}
-
-async function getMembership(userId: number, companyId?: number | null) {
-  if (companyId) return getUserCompanyById(userId, companyId);
-  return getUserCompany(userId);
 }
 
 const taskStatusEnum = z.enum(["pending", "in_progress", "completed", "cancelled"]);
@@ -29,8 +25,7 @@ export const tasksRouter = router({
       companyId: z.number().optional(),
     }))
     .query(async ({ input, ctx }) => {
-      const membership = await getMembership(ctx.user.id, input.companyId);
-      if (!membership) return [];
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId);
       const db = await requireDb();
 
       const rows = await db
@@ -42,7 +37,7 @@ export const tasksRouter = router({
         })
         .from(employeeTasks)
         .leftJoin(employees, eq(employeeTasks.assignedToEmployeeId, employees.id))
-        .where(eq(employeeTasks.companyId, membership.company.id))
+        .where(eq(employeeTasks.companyId, companyId))
         .orderBy(desc(employeeTasks.createdAt));
 
       let results = rows.map((r) => ({
@@ -61,11 +56,10 @@ export const tasksRouter = router({
   getTask: protectedProcedure
     .input(z.object({ id: z.number(), companyId: z.number().optional() }))
     .query(async ({ input, ctx }) => {
-      const membership = await getMembership(ctx.user.id, input.companyId);
-      if (!membership) throw new TRPCError({ code: "FORBIDDEN" });
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId);
       const db = await requireDb();
       const [row] = await db.select().from(employeeTasks).where(eq(employeeTasks.id, input.id));
-      if (!row || row.companyId !== membership.company.id)
+      if (!row || row.companyId !== companyId)
         throw new TRPCError({ code: "NOT_FOUND", message: "Task not found" });
       return row;
     }),
@@ -81,12 +75,11 @@ export const tasksRouter = router({
       companyId: z.number().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const membership = await getMembership(ctx.user.id, input.companyId);
-      if (!membership) throw new TRPCError({ code: "FORBIDDEN" });
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId);
       const db = await requireDb();
       const { companyId: _cid, ...rest } = input;
       const [result] = await db.insert(employeeTasks).values({
-        companyId: membership.company.id,
+        companyId,
         assignedToEmployeeId: rest.assignedToEmployeeId,
         assignedByUserId: ctx.user.id,
         title: rest.title,
@@ -111,11 +104,10 @@ export const tasksRouter = router({
       companyId: z.number().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const membership = await getMembership(ctx.user.id, input.companyId);
-      if (!membership) throw new TRPCError({ code: "FORBIDDEN" });
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId);
       const db = await requireDb();
       const [existing] = await db.select().from(employeeTasks).where(eq(employeeTasks.id, input.id));
-      if (!existing || existing.companyId !== membership.company.id)
+      if (!existing || existing.companyId !== companyId)
         throw new TRPCError({ code: "NOT_FOUND", message: "Task not found" });
       const { id, dueDate, companyId: _cid, ...rest } = input;
       const updateData: any = { ...rest };
@@ -128,11 +120,10 @@ export const tasksRouter = router({
   deleteTask: protectedProcedure
     .input(z.object({ id: z.number(), companyId: z.number().optional() }))
     .mutation(async ({ input, ctx }) => {
-      const membership = await getMembership(ctx.user.id, input.companyId);
-      if (!membership) throw new TRPCError({ code: "FORBIDDEN" });
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId);
       const db = await requireDb();
       const [existing] = await db.select().from(employeeTasks).where(eq(employeeTasks.id, input.id));
-      if (!existing || existing.companyId !== membership.company.id)
+      if (!existing || existing.companyId !== companyId)
         throw new TRPCError({ code: "NOT_FOUND", message: "Task not found" });
       await db.delete(employeeTasks).where(eq(employeeTasks.id, input.id));
       return { success: true };
@@ -141,13 +132,12 @@ export const tasksRouter = router({
   getTaskStats: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }).optional())
     .query(async ({ ctx, input }) => {
-      const membership = await getMembership(ctx.user.id, input?.companyId);
-      if (!membership) return { total: 0, pending: 0, inProgress: 0, completed: 0, overdue: 0 };
+      const companyId = await requireActiveCompanyId(ctx.user.id, input?.companyId);
       const db = await requireDb();
       const tasks = await db
         .select({ status: employeeTasks.status, dueDate: employeeTasks.dueDate })
         .from(employeeTasks)
-        .where(eq(employeeTasks.companyId, membership.company.id));
+        .where(eq(employeeTasks.companyId, companyId));
       const now = new Date();
       return {
         total: tasks.length,

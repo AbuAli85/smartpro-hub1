@@ -24,7 +24,7 @@ import {
   AlertTriangle, Info, Wallet, Timer, BarChart2, CalendarCheck,
   FileCheck, FilePlus, ExternalLink, RefreshCw, Star, ArrowLeftRight, Repeat,
   Target, Activity, Award, Zap, PieChart, TrendingDown, Flame, Trophy,
-  Sparkles, Landmark,
+  Sparkles, Landmark, Play,
 } from "lucide-react";
 import { fmtDateLong, fmtDateTime } from "@/lib/dateUtils";
 import { RequestsCalendar } from "@/components/RequestsCalendar";
@@ -616,7 +616,8 @@ export default function EmployeePortalPage() {
     undefined, { enabled: isAuthenticated }
   );
   const { data: tasks, isLoading: tasksLoading } = trpc.employeePortal.getMyTasks.useQuery(
-    undefined, { enabled: isAuthenticated }
+    { companyId: activeCompanyId ?? undefined },
+    { enabled: isAuthenticated && activeCompanyId != null }
   );
   const { data: announcements } = trpc.employeePortal.getMyAnnouncements.useQuery(
     undefined, { enabled: isAuthenticated }
@@ -798,6 +799,14 @@ export default function EmployeePortalPage() {
       toast.success("Task marked as complete");
       utils.employeePortal.getMyTasks.invalidate();
     },
+    onError: (err) => toast.error(err.message),
+  });
+  const startTask = trpc.employeePortal.startTask.useMutation({
+    onSuccess: () => {
+      toast.success("Task in progress");
+      utils.employeePortal.getMyTasks.invalidate();
+    },
+    onError: (err) => toast.error(err.message),
   });
   const submitShiftRequest = trpc.shiftRequests.submit.useMutation({
     onSuccess: () => {
@@ -2182,22 +2191,20 @@ export default function EmployeePortalPage() {
           {/* ══ TASKS TAB ════════════════════════════════════════════════════ */}
           <TabsContent value="tasks" className="mt-4 space-y-4">
             {/* Task stats */}
-            {(tasks as any[]).length > 0 && (
-              <div className="grid grid-cols-3 gap-3">
-                {[
-                  { label: "Pending", count: (tasks as any[]).filter((t: any) => t.status === "pending").length, color: "text-amber-600", bg: "bg-amber-50 dark:bg-amber-950/20" },
-                  { label: "In Progress", count: (tasks as any[]).filter((t: any) => t.status === "in_progress").length, color: "text-blue-600", bg: "bg-blue-50 dark:bg-blue-950/20" },
-                  { label: "Completed", count: (tasks as any[]).filter((t: any) => t.status === "completed").length, color: "text-green-600", bg: "bg-green-50 dark:bg-green-950/20" },
-                ].map(({ label, count, color, bg }) => (
-                  <Card key={label} className={`${bg} border-0`}>
-                    <CardContent className="p-3 text-center">
-                      <p className={`text-2xl font-bold ${color}`}>{count}</p>
-                      <p className="text-xs text-muted-foreground">{label}</p>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )}
+            <div className="grid grid-cols-3 gap-3">
+              {[
+                { label: "Pending", count: (tasks as any[] ?? []).filter((t: any) => t.status === "pending").length, color: "text-amber-600", bg: "bg-amber-50 dark:bg-amber-950/20" },
+                { label: "In Progress", count: (tasks as any[] ?? []).filter((t: any) => t.status === "in_progress").length, color: "text-blue-600", bg: "bg-blue-50 dark:bg-blue-950/20" },
+                { label: "Completed", count: (tasks as any[] ?? []).filter((t: any) => t.status === "completed").length, color: "text-green-600", bg: "bg-green-50 dark:bg-green-950/20" },
+              ].map(({ label, count, color, bg }) => (
+                <Card key={label} className={`${bg} border-0`}>
+                  <CardContent className="p-3 text-center">
+                    <p className={`text-2xl font-bold ${color}`}>{count}</p>
+                    <p className="text-xs text-muted-foreground">{label}</p>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
 
             {/* Filter */}
             <div className="flex items-center gap-2">
@@ -2214,7 +2221,20 @@ export default function EmployeePortalPage() {
             ) : filteredTasks.length === 0 ? (
               <div className="text-center py-16 text-muted-foreground">
                 <CheckSquare className="w-10 h-10 mx-auto mb-2 opacity-30" />
-                <p>No {taskFilter === "active" ? "active" : taskFilter === "completed" ? "completed" : ""} tasks</p>
+                <p className="font-medium">
+                  {taskFilter === "active"
+                    ? "No active tasks"
+                    : taskFilter === "completed"
+                      ? "No completed tasks yet"
+                      : "No tasks assigned to you yet"}
+                </p>
+                <p className="text-sm mt-1 max-w-sm mx-auto">
+                  {taskFilter === "active"
+                    ? "When HR assigns work, it appears here. Switch to All or Completed to see other items."
+                    : taskFilter === "completed"
+                      ? "Completed tasks will show here once you mark them done."
+                      : "Your manager assigns tasks from HR → Task Manager."}
+                </p>
               </div>
             ) : (
               <div className="space-y-3">
@@ -2248,11 +2268,38 @@ export default function EmployeePortalPage() {
                             </div>
                           </div>
                           {task.status !== "completed" && task.status !== "cancelled" && (
-                            <Button size="sm" variant="outline" className="h-7 text-xs shrink-0"
-                              disabled={completeTask.isPending}
-                              onClick={() => completeTask.mutate({ taskId: task.id })}>
-                              <Check className="w-3 h-3 mr-1" /> Done
-                            </Button>
+                            <div className="flex flex-col items-end gap-1 shrink-0">
+                              {task.status === "pending" && (
+                                <Button
+                                  size="sm"
+                                  variant="secondary"
+                                  className="h-7 text-xs"
+                                  disabled={startTask.isPending || completeTask.isPending}
+                                  onClick={() =>
+                                    startTask.mutate({
+                                      taskId: task.id,
+                                      companyId: activeCompanyId ?? undefined,
+                                    })
+                                  }
+                                >
+                                  <Play className="w-3 h-3 mr-1" /> Start
+                                </Button>
+                              )}
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 text-xs"
+                                disabled={completeTask.isPending || startTask.isPending}
+                                onClick={() =>
+                                  completeTask.mutate({
+                                    taskId: task.id,
+                                    companyId: activeCompanyId ?? undefined,
+                                  })
+                                }
+                              >
+                                <Check className="w-3 h-3 mr-1" /> Done
+                              </Button>
+                            </div>
                           )}
                         </div>
                       </CardContent>

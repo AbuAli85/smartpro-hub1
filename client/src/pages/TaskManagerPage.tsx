@@ -22,7 +22,7 @@ import {
   CheckSquare, Plus, Pencil, Trash2, Clock, AlertCircle,
   CheckCircle2, Circle, Filter, User,
 } from "lucide-react";
-import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
+import { fmtDateLong } from "@/lib/dateUtils";
 import { DateInput } from "@/components/ui/date-input";
 
 type Priority = "low" | "medium" | "high" | "urgent";
@@ -61,11 +61,23 @@ function TaskDialog({
   const [notes, setNotes] = useState(initial?.notes ?? "");
 
   const create = trpc.tasks.createTask.useMutation({
-    onSuccess: () => { utils.tasks.listTasks.invalidate(); utils.tasks.getTaskStats.invalidate(); toast.success("Task created"); onClose(); },
+    onSuccess: () => {
+      utils.tasks.listTasks.invalidate();
+      utils.tasks.getTaskStats.invalidate();
+      utils.employeePortal.getMyTasks.invalidate();
+      toast.success("Task created");
+      onClose();
+    },
     onError: (e) => toast.error(e.message),
   });
   const update = trpc.tasks.updateTask.useMutation({
-    onSuccess: () => { utils.tasks.listTasks.invalidate(); utils.tasks.getTaskStats.invalidate(); toast.success("Task updated"); onClose(); },
+    onSuccess: () => {
+      utils.tasks.listTasks.invalidate();
+      utils.tasks.getTaskStats.invalidate();
+      utils.employeePortal.getMyTasks.invalidate();
+      toast.success("Task updated");
+      onClose();
+    },
     onError: (e) => toast.error(e.message),
   });
 
@@ -164,7 +176,13 @@ export default function TaskManagerPage() {
   const { data: employees = [] } = trpc.hr.listEmployees.useQuery({ status: "active", companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
 
   const deleteTask = trpc.tasks.deleteTask.useMutation({
-    onSuccess: () => { utils.tasks.listTasks.invalidate(); utils.tasks.getTaskStats.invalidate(); toast.success("Task deleted"); setDeleteConfirm(null); },
+    onSuccess: () => {
+      utils.tasks.listTasks.invalidate();
+      utils.tasks.getTaskStats.invalidate();
+      utils.employeePortal.getMyTasks.invalidate();
+      toast.success("Task deleted");
+      setDeleteConfirm(null);
+    },
   });
 
   const empList = (employees as any)?.employees ?? employees ?? [];
@@ -246,8 +264,12 @@ export default function TaskManagerPage() {
       ) : filtered.length === 0 ? (
         <div className="text-center py-16 text-muted-foreground">
           <CheckSquare className="w-12 h-12 mx-auto mb-3 opacity-30" />
-          <p className="font-medium">No tasks found</p>
-          <p className="text-sm">Assign a task to get started.</p>
+          <p className="font-medium">No tasks match your filters</p>
+          <p className="text-sm max-w-md mx-auto mt-1">
+            {search || filterStatus !== "all" || filterPriority !== "all"
+              ? "Try clearing search or setting status and priority to “All”."
+              : "Assign a task from the button above. Employees see tasks in My Portal → Tasks."}
+          </p>
         </div>
       ) : (
         <div className="space-y-2">
@@ -266,16 +288,17 @@ export default function TaskManagerPage() {
                     {overdue && <Badge variant="destructive" className="text-xs">Overdue</Badge>}
                   </div>
                   <div className="flex items-center gap-3 mt-1 flex-wrap">
-                    <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                      <User className="w-3 h-3" />{task.employeeName || "—"}
+                    <span className="flex items-center gap-1 text-xs text-muted-foreground min-w-0 max-w-[min(100%,14rem)]">
+                      <User className="w-3 h-3 shrink-0" />
+                      <span className="truncate" title={task.employeeName || undefined}>{task.employeeName || "—"}</span>
                     </span>
                     {task.dueDate && (
-                      <span className={`flex items-center gap-1 text-xs ${overdue ? "text-red-600" : "text-muted-foreground"}`}>
-                        <Clock className="w-3 h-3" />Due {fmtDate(task.dueDate)}
+                      <span className={`flex items-center gap-1 text-xs shrink-0 ${overdue ? "text-red-600" : "text-muted-foreground"}`}>
+                        <Clock className="w-3 h-3" />Due {fmtDateLong(task.dueDate)}
                       </span>
                     )}
                     {task.employeeDepartment && (
-                      <span className="text-xs text-muted-foreground">{task.employeeDepartment}</span>
+                      <span className="text-xs text-muted-foreground shrink-0">{task.employeeDepartment}</span>
                     )}
                   </div>
                 </div>

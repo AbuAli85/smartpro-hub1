@@ -216,34 +216,63 @@ export const employeePortalRouter = router({
     }),
 
   // ─── Get my tasks ─────────────────────────────────────────────────────────
-  getMyTasks: protectedProcedure.query(async ({ ctx }) => {
-    const membership = await getUserCompany(ctx.user.id);
-    if (!membership) return [];
-    const myEmp = await resolveMyEmployee(ctx.user.id, ctx.user.email ?? "", membership.company.id);
-    if (!myEmp) return [];
-    const db = await requireDb();
-    return db
-      .select()
-      .from(employeeTasks)
-      .where(and(
-        eq(employeeTasks.companyId, membership.company.id),
-        eq(employeeTasks.assignedToEmployeeId, myEmp.id),
-      ))
-      .orderBy(desc(employeeTasks.createdAt));
-  }),
+  getMyTasks: protectedProcedure
+    .input(z.object({ companyId: z.number().optional() }).default({}))
+    .query(async ({ ctx, input }) => {
+      let companyId: number;
+      try {
+        companyId = await requireActiveCompanyId(ctx.user.id, input.companyId);
+      } catch {
+        return [];
+      }
+      const myEmp = await resolveMyEmployee(ctx.user.id, ctx.user.email ?? "", companyId);
+      if (!myEmp) return [];
+      const db = await requireDb();
+      return db
+        .select()
+        .from(employeeTasks)
+        .where(and(
+          eq(employeeTasks.companyId, companyId),
+          eq(employeeTasks.assignedToEmployeeId, myEmp.id),
+        ))
+        .orderBy(desc(employeeTasks.createdAt));
+    }),
+
+  // ─── Mark task in progress (assignee only) ────────────────────────────────
+  startTask: protectedProcedure
+    .input(z.object({ taskId: z.number(), companyId: z.number().optional() }))
+    .mutation(async ({ input, ctx }) => {
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId);
+      const myEmp = await resolveMyEmployee(ctx.user.id, ctx.user.email ?? "", companyId);
+      if (!myEmp) throw new TRPCError({ code: "NOT_FOUND", message: "Employee record not found" });
+      const db = await requireDb();
+      const [task] = await db.select().from(employeeTasks).where(eq(employeeTasks.id, input.taskId));
+      if (!task || task.companyId !== companyId || task.assignedToEmployeeId !== myEmp.id) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Task not found" });
+      }
+      if (task.status !== "pending") {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Only pending tasks can be started" });
+      }
+      await db.update(employeeTasks).set({ status: "in_progress" }).where(eq(employeeTasks.id, input.taskId));
+      return { success: true };
+    }),
 
   // ─── Mark my task as complete ─────────────────────────────────────────────
   completeTask: protectedProcedure
-    .input(z.object({ taskId: z.number() }))
+    .input(z.object({ taskId: z.number(), companyId: z.number().optional() }))
     .mutation(async ({ input, ctx }) => {
-      const membership = await getUserCompany(ctx.user.id);
-      if (!membership) throw new TRPCError({ code: "FORBIDDEN" });
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId);
+      const myEmp = await resolveMyEmployee(ctx.user.id, ctx.user.email ?? "", companyId);
+      if (!myEmp) throw new TRPCError({ code: "NOT_FOUND", message: "Employee record not found" });
       const db = await requireDb();
       const [task] = await db.select().from(employeeTasks).where(eq(employeeTasks.id, input.taskId));
-      if (!task || task.companyId !== membership.company.id)
-        throw new TRPCError({ code: "NOT_FOUND" });
-      await db.update(employeeTasks).set({ status: "completed", completedAt: new Date() })
-        .where(eq(employeeTasks.id, input.taskId));
+      if (!task || task.companyId !== companyId || task.assignedToEmployeeId !== myEmp.id) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Task not found" });
+      }
+      if (task.status === "completed" || task.status === "cancelled") {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Task is already closed" });
+      }
+      await db.update(employeeTasks).set({ status: "completed", completedAt: new Date() }).where(eq(employeeTasks.id, input.taskId));
       return { success: true };
     }),
 

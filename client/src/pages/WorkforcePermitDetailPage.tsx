@@ -18,6 +18,7 @@ import {
   RefreshCw, XCircle, AlertTriangle, CheckCircle2, Clock, Loader2, FileText
 } from "lucide-react";
 import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
+import { DateInput } from "@/components/ui/date-input";
 
 function statusColor(status: string) {
   const s = status?.toLowerCase();
@@ -335,9 +336,9 @@ export default function WorkforcePermitDetailPage() {
           <div className="space-y-4 py-2">
             <div className="space-y-2">
               <Label htmlFor="newExpiry">New Expiry Date</Label>
-              <Input
+              <DateInput
                 id="newExpiry"
-                type="date"
+                
                 value={newExpiry}
                 onChange={(e) => setNewExpiry(e.target.value)}
                 min={new Date().toISOString().split("T")[0]}

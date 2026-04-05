@@ -15,6 +15,7 @@ import {
   Upload, RefreshCw, Eye, Calendar, Building2, User
 } from "lucide-react";
 import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
+import { DateInput } from "@/components/ui/date-input";
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; icon: typeof CheckCircle2 }> = {
   active: { label: "Active", color: "text-emerald-700", bg: "bg-emerald-100", icon: CheckCircle2 },
@@ -316,8 +317,8 @@ export default function WorkforcePermitsPage() {
               </div>
               <div>
                 <Label className="text-xs">Issue Date *</Label>
-                <Input
-                  type="date"
+                <DateInput
+                  
                   value={uploadForm.issueDate}
                   onChange={(e) => setUploadForm(f => ({ ...f, issueDate: e.target.value }))}
                   className="mt-1"
@@ -325,8 +326,8 @@ export default function WorkforcePermitsPage() {
               </div>
               <div>
                 <Label className="text-xs">Expiry Date *</Label>
-                <Input
-                  type="date"
+                <DateInput
+                  
                   value={uploadForm.expiryDate}
                   onChange={(e) => setUploadForm(f => ({ ...f, expiryDate: e.target.value }))}
                   className="mt-1"

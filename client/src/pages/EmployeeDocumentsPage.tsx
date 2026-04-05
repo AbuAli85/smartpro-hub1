@@ -53,6 +53,7 @@ import {
   Camera,
 } from "lucide-react";
 import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
+import { DateInput } from "@/components/ui/date-input";
 
 // ─── Document type config ─────────────────────────────────────────────────────
 
@@ -376,18 +377,14 @@ export default function EmployeeDocumentsPage() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>Issue Date</Label>
-                <Input
-                  type="date"
-                  className="mt-1"
+                <DateInput className="mt-1"
                   value={form.issuedAt}
                   onChange={(e) => setForm((f) => ({ ...f, issuedAt: e.target.value }))}
                 />
               </div>
               <div>
                 <Label>Expiry Date</Label>
-                <Input
-                  type="date"
-                  className="mt-1"
+                <DateInput className="mt-1"
                   value={form.expiresAt}
                   onChange={(e) => setForm((f) => ({ ...f, expiresAt: e.target.value }))}
                 />

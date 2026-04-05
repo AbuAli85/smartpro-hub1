@@ -33,6 +33,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { Plus, Trash2, CalendarDays, Globe, Building2, Star, Sparkles } from "lucide-react";
+import { DateInput } from "@/components/ui/date-input";
 
 const HOLIDAY_TYPE_CONFIG = {
   public: { label: "Public Holiday", icon: Globe, color: "bg-red-100 text-red-700 border-red-200" },
@@ -301,8 +302,8 @@ export default function HolidayCalendarPage() {
             </div>
             <div className="space-y-1.5">
               <Label>Date *</Label>
-              <Input
-                type="date"
+              <DateInput
+                
                 value={form.holidayDate}
                 onChange={(e) => setForm({ ...form, holidayDate: e.target.value })}
               />

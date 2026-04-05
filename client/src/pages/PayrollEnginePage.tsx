@@ -19,6 +19,7 @@ import {
   TrendingUp, Calculator, CreditCard, Settings, XCircle
 } from "lucide-react";
 import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
+import { DateInput } from "@/components/ui/date-input";
 
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 const fmt = (n: number | string | null | undefined) => `OMR ${Number(n ?? 0).toFixed(3)}`;
@@ -774,11 +775,11 @@ export default function PayrollEnginePage() {
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label className="text-xs">Effective From</Label>
-                <Input type="date" value={salaryConfigForm.effectiveFrom} onChange={e => setSalaryConfigForm(f => ({ ...f, effectiveFrom: e.target.value }))} />
+                <DateInput value={salaryConfigForm.effectiveFrom} onChange={e => setSalaryConfigForm(f => ({ ...f, effectiveFrom: e.target.value }))} />
               </div>
               <div className="space-y-1">
                 <Label className="text-xs">Effective To (optional)</Label>
-                <Input type="date" value={salaryConfigForm.effectiveTo} onChange={e => setSalaryConfigForm(f => ({ ...f, effectiveTo: e.target.value }))} />
+                <DateInput value={salaryConfigForm.effectiveTo} onChange={e => setSalaryConfigForm(f => ({ ...f, effectiveTo: e.target.value }))} />
               </div>
             </div>
             <div className="space-y-1">

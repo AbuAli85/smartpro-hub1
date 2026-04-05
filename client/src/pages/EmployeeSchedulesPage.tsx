@@ -35,6 +35,7 @@ import { toast } from "sonner";
 import { Plus, Pencil, Trash2, CalendarDays, MapPin, Clock, ArrowLeftRight, Check, X, ChevronDown, ChevronUp, ChevronLeft, ChevronRight } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { CardHeader, CardTitle } from "@/components/ui/card";
+import { DateInput } from "@/components/ui/date-input";
 
 const DAYS = [
   { value: 0, label: "Sun" },
@@ -682,16 +683,16 @@ export default function EmployeeSchedulesPage() {
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>Start Date *</Label>
-                <Input
-                  type="date"
+                <DateInput
+                  
                   value={form.startDate}
                   onChange={(e) => setForm({ ...form, startDate: e.target.value })}
                 />
               </div>
               <div className="space-y-1.5">
                 <Label>End Date (optional)</Label>
-                <Input
-                  type="date"
+                <DateInput
+                  
                   value={form.endDate}
                   onChange={(e) => setForm({ ...form, endDate: e.target.value })}
                 />

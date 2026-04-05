@@ -19,6 +19,7 @@ import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
+import { DateInput } from "@/components/ui/date-input";
 
 const statusColors: Record<string, string> = {
   present: "bg-green-100 text-green-700",
@@ -67,7 +68,7 @@ function ClockInDialog({ employees, onSuccess, companyId }: { employees: { id: n
           </div>
           <div className="space-y-1.5">
             <Label>Date *</Label>
-            <Input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} className="text-sm" />
+            <DateInput value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} className="text-sm" />
           </div>
           <div className="space-y-1.5">
             <Label>Status *</Label>

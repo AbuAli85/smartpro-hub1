@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { fmtDate, fmtDateTime, expiryStatus, expiryLabel, EXPIRY_BADGE } from "@/lib/dateUtils";
+import { DateInput } from "@/components/ui/date-input";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const STATUS_META: Record<string, { label: string; color: string }> = {
@@ -202,7 +203,7 @@ function AddEmployeeWizard({ onSuccess, companyId }: { onSuccess: () => void; co
                 <div className="space-y-1.5"><Label>Phone</Label><Input value={form.phone} onChange={(e) => f("phone", e.target.value)} placeholder="+968 9xxx xxxx" /></div>
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5"><Label>Date of Birth</Label><Input type="date" value={form.dateOfBirth} onChange={(e) => f("dateOfBirth", e.target.value)} /></div>
+                <div className="space-y-1.5"><Label>Date of Birth</Label><DateInput value={form.dateOfBirth} onChange={(e) => f("dateOfBirth", e.target.value)} /></div>
                 <div className="space-y-1.5">
                   <Label>Gender</Label>
                   <Select value={form.gender || "__none__"} onValueChange={(v) => f("gender", v === "__none__" ? "" : v)}>
@@ -287,7 +288,7 @@ function AddEmployeeWizard({ onSuccess, companyId }: { onSuccess: () => void; co
                 </div>
                 <div className="space-y-1.5"><Label>Employee Number</Label><Input value={form.employeeNumber} onChange={(e) => f("employeeNumber", e.target.value)} placeholder="EMP-001" /></div>
               </div>
-              <div className="space-y-1.5"><Label>Hire Date</Label><Input type="date" value={form.hireDate} onChange={(e) => f("hireDate", e.target.value)} /></div>
+              <div className="space-y-1.5"><Label>Hire Date</Label><DateInput value={form.hireDate} onChange={(e) => f("hireDate", e.target.value)} /></div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5"><Label>Emergency Contact Name</Label><Input value={form.emergencyContactName} onChange={(e) => f("emergencyContactName", e.target.value)} /></div>
                 <div className="space-y-1.5"><Label>Emergency Contact Phone</Label><Input value={form.emergencyContactPhone} onChange={(e) => f("emergencyContactPhone", e.target.value)} /></div>
@@ -312,11 +313,11 @@ function AddEmployeeWizard({ onSuccess, companyId }: { onSuccess: () => void; co
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Visa & Work Permit</p>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5"><Label>Visa Number</Label><Input value={form.visaNumber} onChange={(e) => f("visaNumber", e.target.value)} /></div>
-                <div className="space-y-1.5"><Label>Visa Expiry Date</Label><Input type="date" value={form.visaExpiryDate} onChange={(e) => f("visaExpiryDate", e.target.value)} /></div>
+                <div className="space-y-1.5"><Label>Visa Expiry Date</Label><DateInput value={form.visaExpiryDate} onChange={(e) => f("visaExpiryDate", e.target.value)} /></div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5"><Label>Work Permit Number</Label><Input value={form.workPermitNumber} onChange={(e) => f("workPermitNumber", e.target.value)} /></div>
-                <div className="space-y-1.5"><Label>Work Permit Expiry</Label><Input type="date" value={form.workPermitExpiryDate} onChange={(e) => f("workPermitExpiryDate", e.target.value)} /></div>
+                <div className="space-y-1.5"><Label>Work Permit Expiry</Label><DateInput value={form.workPermitExpiryDate} onChange={(e) => f("workPermitExpiryDate", e.target.value)} /></div>
               </div>
               <div className="flex gap-2">
                 <Button variant="outline" className="flex-1" onClick={() => setStep(2)}>← Back</Button>

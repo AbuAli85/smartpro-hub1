@@ -51,6 +51,7 @@ import {
   Navigation, Crosshair, CheckCircle2, XCircle, Calendar,
   FileText, AlertTriangle, ThumbsUp, ThumbsDown,
 } from "lucide-react";
+import { DateInput } from "@/components/ui/date-input";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 type SiteType = "mall" | "brand_store" | "office" | "warehouse" | "client_site" | "showroom" | "factory" | "other";
@@ -705,8 +706,8 @@ export default function AttendanceSitesPage() {
         <TabsContent value="history" className="pt-4 space-y-4">
           <div className="flex items-center gap-3">
             <Label>Date</Label>
-            <Input
-              type="date"
+            <DateInput
+              
               value={historyDate}
               onChange={(e) => setHistoryDate(e.target.value)}
               className="w-44"

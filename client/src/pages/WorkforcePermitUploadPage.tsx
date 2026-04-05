@@ -13,6 +13,7 @@ import {
   ArrowLeft, Upload, FileText, User, Calendar, Building2,
   CheckCircle2, AlertCircle, Loader2, Info
 } from "lucide-react";
+import { DateInput } from "@/components/ui/date-input";
 
 const PERMIT_TYPES = [
   { value: "new_work_permit", label: "New Work Permit" },
@@ -307,9 +308,9 @@ export default function WorkforcePermitUploadPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="issueDate">Issue Date</Label>
-                  <Input
+                  <DateInput
                     id="issueDate"
-                    type="date"
+                    
                     value={form.issueDate}
                     onChange={(e) => update("issueDate", e.target.value)}
                   />
@@ -318,9 +319,9 @@ export default function WorkforcePermitUploadPage() {
                   <Label htmlFor="expiryDate">
                     Expiry Date <span className="text-destructive">*</span>
                   </Label>
-                  <Input
+                  <DateInput
                     id="expiryDate"
-                    type="date"
+                    
                     value={form.expiryDate}
                     onChange={(e) => update("expiryDate", e.target.value)}
                   />

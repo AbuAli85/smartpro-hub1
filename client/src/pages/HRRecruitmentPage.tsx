@@ -16,6 +16,7 @@ import {
   Plus, Eye, Clock, Video, MapPin, FileText, RefreshCw, Trash2, Sparkles
 } from "lucide-react";
 import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
+import { DateInput } from "@/components/ui/date-input";
 
 const STAGES = ["applied","screening","interview","assessment","offer","hired","rejected"] as const;
 type Stage = typeof STAGES[number];
@@ -447,7 +448,7 @@ export default function HRRecruitmentPage() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-1"><Label>Application Deadline</Label><Input type="date" value={jobForm.applicationDeadline} onChange={e => setJobForm(f => ({ ...f, applicationDeadline: e.target.value }))} /></div>
+              <div className="space-y-1"><Label>Application Deadline</Label><DateInput value={jobForm.applicationDeadline} onChange={e => setJobForm(f => ({ ...f, applicationDeadline: e.target.value }))} /></div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1"><Label>Min Salary (OMR)</Label><Input type="number" value={jobForm.salaryMin} onChange={e => setJobForm(f => ({ ...f, salaryMin: e.target.value }))} placeholder="500" /></div>
@@ -510,7 +511,7 @@ export default function HRRecruitmentPage() {
               <div className="space-y-1"><Label>Housing Allowance</Label><Input type="number" step="0.001" value={offerForm.housingAllowance} onChange={e => setOfferForm(f => ({ ...f, housingAllowance: e.target.value }))} /></div>
               <div className="space-y-1"><Label>Transport Allowance</Label><Input type="number" step="0.001" value={offerForm.transportAllowance} onChange={e => setOfferForm(f => ({ ...f, transportAllowance: e.target.value }))} /></div>
               <div className="space-y-1"><Label>Other Allowances</Label><Input type="number" step="0.001" value={offerForm.otherAllowances} onChange={e => setOfferForm(f => ({ ...f, otherAllowances: e.target.value }))} /></div>
-              <div className="space-y-1"><Label>Start Date</Label><Input type="date" value={offerForm.startDate} onChange={e => setOfferForm(f => ({ ...f, startDate: e.target.value }))} /></div>
+              <div className="space-y-1"><Label>Start Date</Label><DateInput value={offerForm.startDate} onChange={e => setOfferForm(f => ({ ...f, startDate: e.target.value }))} /></div>
               <div className="space-y-1"><Label>Probation (months)</Label><Input type="number" value={offerForm.probationMonths} onChange={e => setOfferForm(f => ({ ...f, probationMonths: Number(e.target.value) }))} /></div>
               <div className="space-y-1"><Label>Annual Leave (days)</Label><Input type="number" value={offerForm.annualLeave} onChange={e => setOfferForm(f => ({ ...f, annualLeave: Number(e.target.value) }))} /></div>
             </div>

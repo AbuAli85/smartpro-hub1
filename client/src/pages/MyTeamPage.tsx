@@ -28,6 +28,7 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime, expiryStatus, expiryLabel, EXPIRY_BADGE, EXPIRY_BORDER, daysUntilExpiry } from "@/lib/dateUtils";
+import { DateInput } from "@/components/ui/date-input";
 
 // ─── constants ────────────────────────────────────────────────────────────────
 
@@ -261,7 +262,7 @@ function StaffFormDialog({
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <Label className="text-xs font-medium">Date of Birth</Label>
-                  <Input type="date" value={form.dateOfBirth} onChange={f("dateOfBirth")} />
+                  <DateInput value={form.dateOfBirth} onChange={f("dateOfBirth")} />
                 </div>
                 <div className="space-y-1">
                   <Label className="text-xs font-medium">Marital Status</Label>
@@ -334,7 +335,7 @@ function StaffFormDialog({
                 </div>
                 <div className="space-y-1">
                   <Label className="text-xs font-medium">Hire Date</Label>
-                  <Input type="date" value={form.hireDate} onChange={f("hireDate")} />
+                  <DateInput value={form.hireDate} onChange={f("hireDate")} />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -380,8 +381,8 @@ function StaffFormDialog({
                 <div className="grid grid-cols-2 gap-3 mt-3">
                   <div className="space-y-1">
                     <Label className="text-xs font-medium">Work Permit Expiry</Label>
-                    <Input
-                      type="date"
+                    <DateInput
+                      
                       value={form.workPermitExpiry}
                       onChange={f("workPermitExpiry")}
                       className={form.workPermitExpiry ? EXPIRY_BORDER[expiryStatus(form.workPermitExpiry)] : ""}
@@ -394,8 +395,8 @@ function StaffFormDialog({
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs font-medium">Visa Expiry Date</Label>
-                    <Input
-                      type="date"
+                    <DateInput
+                      
                       value={form.visaExpiryDate}
                       onChange={f("visaExpiryDate")}
                       className={form.visaExpiryDate ? EXPIRY_BORDER[expiryStatus(form.visaExpiryDate)] : ""}

@@ -21,6 +21,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
+import { DateInput } from "@/components/ui/date-input";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -176,7 +177,7 @@ function NewWorkOrderDialog({ providers, onSuccess }: { providers: any[]; onSucc
             </div>
             <div className="space-y-1">
               <Label>Due Date</Label>
-              <Input type="date" value={form.dueDate} onChange={(e) => setForm({ ...form, dueDate: e.target.value })} />
+              <DateInput value={form.dueDate} onChange={(e) => setForm({ ...form, dueDate: e.target.value })} />
             </div>
           </div>
           <div className="space-y-1">

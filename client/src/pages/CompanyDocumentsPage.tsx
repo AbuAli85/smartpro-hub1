@@ -55,6 +55,7 @@ import {
   ArrowLeft,
 } from "lucide-react";
 import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
+import { DateInput } from "@/components/ui/date-input";
 
 // ─── Document type config ─────────────────────────────────────────────────────
 
@@ -409,18 +410,14 @@ export default function CompanyDocumentsPage() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>Issue Date</Label>
-                <Input
-                  type="date"
-                  className="mt-1"
+                <DateInput className="mt-1"
                   value={form.issueDate}
                   onChange={(e) => setForm((f) => ({ ...f, issueDate: e.target.value }))}
                 />
               </div>
               <div>
                 <Label>Expiry Date</Label>
-                <Input
-                  type="date"
-                  className="mt-1"
+                <DateInput className="mt-1"
                   value={form.expiryDate}
                   onChange={(e) => setForm((f) => ({ ...f, expiryDate: e.target.value }))}
                 />
@@ -512,18 +509,14 @@ export default function CompanyDocumentsPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <Label>Issue Date</Label>
-                  <Input
-                    type="date"
-                    className="mt-1"
+                  <DateInput className="mt-1"
                     value={editDoc.issueDate ? new Date(editDoc.issueDate).toISOString().split("T")[0] : ""}
                     onChange={(e) => setEditDoc((d: any) => ({ ...d, issueDate: e.target.value }))}
                   />
                 </div>
                 <div>
                   <Label>Expiry Date</Label>
-                  <Input
-                    type="date"
-                    className="mt-1"
+                  <DateInput className="mt-1"
                     value={editDoc.expiryDate ? new Date(editDoc.expiryDate).toISOString().split("T")[0] : ""}
                     onChange={(e) => setEditDoc((d: any) => ({ ...d, expiryDate: e.target.value }))}
                   />

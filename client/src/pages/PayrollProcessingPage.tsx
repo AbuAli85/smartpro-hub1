@@ -637,7 +637,7 @@ function SalarySetupTab() {
             </div>
             <div>
               <Label className="text-xs">Effective From</Label>
-              <Input type="date" className="mt-1" value={form.effectiveFrom}
+              <DateInput className="mt-1" value={form.effectiveFrom}
                 onChange={(e) => setForm(f => ({ ...f, effectiveFrom: e.target.value }))} />
             </div>
             <div>
@@ -877,3 +877,4 @@ export default function PayrollProcessingPage() {
 
 // Need Calendar import
 import { Calendar } from "lucide-react";
+import { DateInput } from "@/components/ui/date-input";

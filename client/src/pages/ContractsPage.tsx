@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
+import { DateInput } from "@/components/ui/date-input";
 
 const statusColors: Record<string, string> = {
   draft: "bg-gray-100 text-gray-700",
@@ -74,8 +75,8 @@ function NewContractDialog({ onSuccess }: { onSuccess: () => void }) {
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
             <div className="space-y-1.5"><Label>Contract Value</Label><Input type="number" placeholder="0.00" value={form.value} onChange={(e) => setForm({ ...form, value: e.target.value })} /></div>
-            <div className="space-y-1.5"><Label>Start Date</Label><Input type="date" value={form.startDate} onChange={(e) => setForm({ ...form, startDate: e.target.value })} /></div>
-            <div className="space-y-1.5"><Label>End Date</Label><Input type="date" value={form.endDate} onChange={(e) => setForm({ ...form, endDate: e.target.value })} /></div>
+            <div className="space-y-1.5"><Label>Start Date</Label><DateInput value={form.startDate} onChange={(e) => setForm({ ...form, startDate: e.target.value })} /></div>
+            <div className="space-y-1.5"><Label>End Date</Label><DateInput value={form.endDate} onChange={(e) => setForm({ ...form, endDate: e.target.value })} /></div>
           </div>
           <div className="space-y-1.5"><Label>Contract Content</Label><Textarea placeholder="Enter contract terms..." value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} rows={5} /></div>
           <div className="space-y-1.5"><Label>Notes</Label><Textarea placeholder="Internal notes..." value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={2} /></div>
@@ -150,8 +151,8 @@ function AIGenerateContractDialog({ onSuccess }: { onSuccess: () => void }) {
                   <SelectContent>{["OMR","AED","USD","SAR"].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
-              <div className="space-y-1.5"><Label className="text-sm">Start Date</Label><Input type="date" value={form.startDate} onChange={(e) => setForm({ ...form, startDate: e.target.value })} className="text-sm" /></div>
-              <div className="space-y-1.5"><Label className="text-sm">End Date</Label><Input type="date" value={form.endDate} onChange={(e) => setForm({ ...form, endDate: e.target.value })} className="text-sm" /></div>
+              <div className="space-y-1.5"><Label className="text-sm">Start Date</Label><DateInput value={form.startDate} onChange={(e) => setForm({ ...form, startDate: e.target.value })} className="text-sm" /></div>
+              <div className="space-y-1.5"><Label className="text-sm">End Date</Label><DateInput value={form.endDate} onChange={(e) => setForm({ ...form, endDate: e.target.value })} className="text-sm" /></div>
             </div>
             <div className="space-y-1.5"><Label className="text-sm">Additional Requirements</Label><Textarea placeholder="Any specific clauses, terms, or requirements..." value={form.additionalClauses} onChange={(e) => setForm({ ...form, additionalClauses: e.target.value })} rows={3} className="text-sm" /></div>
             <Button className="w-full gap-2" disabled={!form.partyAName || !form.partyBName || generateMutation.isPending} onClick={() => { if (!form.partyAName || !form.partyBName) { toast.error("Both party names are required"); return; } generateMutation.mutate({ ...form, value: form.value ? Number(form.value) : undefined }); }}>

@@ -17,6 +17,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { toast } from "sonner";
 import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
+import { DateInput } from "@/components/ui/date-input";
 
 const DEAL_STAGE_META: Record<string, { label: string; color: string; icon: any }> = {
   lead:        { label: "Lead",         color: "bg-gray-100 text-gray-700 border-gray-200",       icon: Target },
@@ -130,7 +131,7 @@ function NewDealDialog({ onSuccess }: { onSuccess: () => void }) {
             </div>
             <div className="space-y-1.5"><Label>Win Probability (%)</Label><Input type="number" min="0" max="100" value={form.probability} onChange={(e) => setForm({ ...form, probability: e.target.value })} /></div>
           </div>
-          <div className="space-y-1.5"><Label>Expected Close Date</Label><Input type="date" value={form.expectedCloseDate} onChange={(e) => setForm({ ...form, expectedCloseDate: e.target.value })} /></div>
+          <div className="space-y-1.5"><Label>Expected Close Date</Label><DateInput value={form.expectedCloseDate} onChange={(e) => setForm({ ...form, expectedCloseDate: e.target.value })} /></div>
           <div className="space-y-1.5"><Label>Notes</Label><Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={2} /></div>
           <Button className="w-full" disabled={!form.title || createMutation.isPending}
             onClick={() => createMutation.mutate({ ...form, value: form.value ? Number(form.value) : undefined, probability: form.probability ? Number(form.probability) : undefined })}>

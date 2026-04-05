@@ -12,6 +12,7 @@ import {
   AlertTriangle, Clock, Eye, ShieldCheck, Calendar, Filter
 } from "lucide-react";
 import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
+import { DateInput } from "@/components/ui/date-input";
 
 const DOC_TYPE_LABELS: Record<string, string> = {
   mol_work_permit_certificate: "MOL Work Permit Certificate",
@@ -317,12 +318,12 @@ export default function WorkforceDocumentsPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>Issue Date</Label>
-                <Input type="date" value={uploadForm.issuedAt}
+                <DateInput value={uploadForm.issuedAt}
                   onChange={e => setUploadForm(f => ({ ...f, issuedAt: e.target.value }))} />
               </div>
               <div className="space-y-1.5">
                 <Label>Expiry Date</Label>
-                <Input type="date" value={uploadForm.expiresAt}
+                <DateInput value={uploadForm.expiresAt}
                   onChange={e => setUploadForm(f => ({ ...f, expiresAt: e.target.value }))} />
               </div>
             </div>

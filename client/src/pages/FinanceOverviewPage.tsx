@@ -19,6 +19,7 @@ import {
   DollarSign, TrendingUp, TrendingDown, AlertCircle, CheckCircle2,
   Clock, XCircle, Plus, RefreshCw, Wallet, Users, FileText, ChevronRight
 } from "lucide-react";
+import { DateInput } from "@/components/ui/date-input";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const CAT_COLORS: Record<string, string> = {
@@ -253,7 +254,7 @@ export default function FinanceOverviewPage() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>Date</Label>
-                <Input type="date" value={form.expenseDate} onChange={e => setForm(f => ({ ...f, expenseDate: e.target.value }))} />
+                <DateInput value={form.expenseDate} onChange={e => setForm(f => ({ ...f, expenseDate: e.target.value }))} />
               </div>
               <div>
                 <Label>Category</Label>

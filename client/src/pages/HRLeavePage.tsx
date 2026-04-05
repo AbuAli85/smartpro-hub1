@@ -23,6 +23,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
+import { DateInput } from "@/components/ui/date-input";
 
 // ─── Leave type config ────────────────────────────────────────────────────────
 
@@ -333,12 +334,12 @@ export default function HRLeavePage() {
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
                     <Label>Start Date *</Label>
-                    <Input type="date" value={leaveForm.startDate} onChange={(e) => setLeaveForm({ ...leaveForm, startDate: e.target.value })} />
+                    <DateInput value={leaveForm.startDate} onChange={(e) => setLeaveForm({ ...leaveForm, startDate: e.target.value })} />
                   </div>
                   <div className="space-y-1.5">
                     <Label>End Date *</Label>
-                    <Input
-                      type="date"
+                    <DateInput
+                      
                       value={leaveForm.endDate}
                       min={leaveForm.startDate || undefined}
                       onChange={(e) => setLeaveForm({ ...leaveForm, endDate: e.target.value })}

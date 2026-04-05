@@ -14,6 +14,7 @@ import {
   Briefcase, Plus, Search, CheckCircle2, Clock, AlertTriangle,
   FileText, User, ChevronRight, RefreshCw, ListChecks, Calendar
 } from "lucide-react";
+import { DateInput } from "@/components/ui/date-input";
 
 const CASE_TYPE_LABELS: Record<string, string> = {
   renewal: "Permit Renewal",
@@ -378,8 +379,8 @@ export default function WorkforceCasesPage() {
             </div>
             <div className="space-y-1.5">
               <Label>Due Date</Label>
-              <Input
-                type="date"
+              <DateInput
+                
                 value={createForm.dueDate}
                 onChange={e => setCreateForm(f => ({ ...f, dueDate: e.target.value }))}
               />

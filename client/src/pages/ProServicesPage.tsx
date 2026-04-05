@@ -17,6 +17,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
+import { DateInput } from "@/components/ui/date-input";
 
 const STATUS_META: Record<string, { label: string; color: string; step: number }> = {
   pending:                { label: "Pending",           color: "bg-amber-100 text-amber-700 border-amber-200",      step: 1 },
@@ -135,7 +136,7 @@ function IntakeWizard({ onSuccess }: { onSuccess: () => void }) {
             </div>
             <div className="space-y-1.5">
               <Label>Passport Expiry Date</Label>
-              <Input type="date" value={form.passportExpiry} onChange={(e) => setForm({ ...form, passportExpiry: e.target.value })} />
+              <DateInput value={form.passportExpiry} onChange={(e) => setForm({ ...form, passportExpiry: e.target.value })} />
             </div>
             <Button className="w-full" disabled={!form.employeeName} onClick={() => setStep(2)}>
               Next: Service Details <ArrowRight size={14} className="ml-1" />
@@ -175,7 +176,7 @@ function IntakeWizard({ onSuccess }: { onSuccess: () => void }) {
               </div>
               <div className="space-y-1.5">
                 <Label>Document Expiry</Label>
-                <Input type="date" value={form.expiryDate} onChange={(e) => setForm({ ...form, expiryDate: e.target.value })} />
+                <DateInput value={form.expiryDate} onChange={(e) => setForm({ ...form, expiryDate: e.target.value })} />
               </div>
             </div>
             <div className="space-y-1.5">
@@ -198,7 +199,7 @@ function IntakeWizard({ onSuccess }: { onSuccess: () => void }) {
               </div>
               <div className="space-y-1.5">
                 <Label>Target Completion Date</Label>
-                <Input type="date" value={form.dueDate} onChange={(e) => setForm({ ...form, dueDate: e.target.value })} />
+                <DateInput value={form.dueDate} onChange={(e) => setForm({ ...form, dueDate: e.target.value })} />
               </div>
             </div>
             <div className="p-3 bg-orange-50 border border-orange-200 rounded-xl text-sm">

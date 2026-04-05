@@ -43,6 +43,7 @@ import {
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
+import { DateInput } from "@/components/ui/date-input";
 
 function FinancialIntelligencePanel() {
   const agedQuery = trpc.billing.getAgedReceivables.useQuery();
@@ -897,7 +898,7 @@ export default function BillingEnginePage() {
             </div>
             <div>
               <Label className="text-xs">Payment Date</Label>
-              <Input className="mt-1" type="date" value={paymentForm.date} onChange={(e) => setPaymentForm(f => ({ ...f, date: e.target.value }))} />
+              <DateInput className="mt-1" value={paymentForm.date} onChange={(e) => setPaymentForm(f => ({ ...f, date: e.target.value }))} />
             </div>
             <div>
               <Label className="text-xs">Payment Method</Label>

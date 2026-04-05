@@ -23,6 +23,7 @@ import {
   CheckCircle2, Circle, Filter, User,
 } from "lucide-react";
 import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
+import { DateInput } from "@/components/ui/date-input";
 
 type Priority = "low" | "medium" | "high" | "urgent";
 type Status = "pending" | "in_progress" | "completed" | "cancelled";
@@ -113,7 +114,7 @@ function TaskDialog({
             </div>
             <div className="space-y-1">
               <Label>Due Date</Label>
-              <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+              <DateInput value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
             </div>
           </div>
           {initial && (

@@ -13,6 +13,7 @@ import { Separator } from "@/components/ui/separator";
 import {
   ArrowLeft, FileText, User, AlertTriangle, Clock, CheckCircle2, Loader2, Info
 } from "lucide-react";
+import { DateInput } from "@/components/ui/date-input";
 
 const CASE_TYPES = [
   { value: "renewal", label: "Work Permit Renewal", description: "Renew an expiring or expired work permit" },
@@ -197,9 +198,9 @@ export default function WorkforceCaseNewPage() {
                 <Clock className="w-3.5 h-3.5 inline mr-1" />
                 Due Date (optional)
               </Label>
-              <Input
+              <DateInput
                 id="dueDate"
-                type="date"
+                
                 value={form.dueDate}
                 onChange={(e) => update("dueDate", e.target.value)}
                 min={new Date().toISOString().split("T")[0]}

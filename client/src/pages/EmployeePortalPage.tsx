@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { fmtDateLong, fmtDateTime } from "@/lib/dateUtils";
 import { RequestsCalendar } from "@/components/RequestsCalendar";
+import { DateInput } from "@/components/ui/date-input";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 type TaskStatus = "pending" | "in_progress" | "completed" | "cancelled";
@@ -404,7 +405,7 @@ function AttendanceTodayCard({ employeeId, todaySchedule }: { employeeId: number
             </p>
             <div className="space-y-1.5">
               <Label htmlFor="corrDate">Date</Label>
-              <Input id="corrDate" type="date" value={corrDate} onChange={(e) => setCorrDate(e.target.value)} max={todayStr} />
+              <DateInput id="corrDate" value={corrDate} onChange={(e) => setCorrDate(e.target.value)} max={todayStr} />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
@@ -2781,12 +2782,12 @@ export default function EmployeePortalPage() {
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>Start Date</Label>
-                <Input type="date" value={leaveStart} onChange={(e) => setLeaveStart(e.target.value)}
+                <DateInput value={leaveStart} onChange={(e) => setLeaveStart(e.target.value)}
                   min={today.toISOString().split("T")[0]} />
               </div>
               <div className="space-y-1.5">
                 <Label>End Date</Label>
-                <Input type="date" value={leaveEnd} onChange={(e) => setLeaveEnd(e.target.value)}
+                <DateInput value={leaveEnd} onChange={(e) => setLeaveEnd(e.target.value)}
                   min={leaveStart || today.toISOString().split("T")[0]} />
               </div>
             </div>
@@ -2885,12 +2886,12 @@ export default function EmployeePortalPage() {
                 <Label className="text-xs text-muted-foreground uppercase tracking-wide">
                   {shiftReqType === "time_off" ? "Start Date" : "Date"}
                 </Label>
-                <Input type="date" className="mt-1" value={shiftReqDate} onChange={e => setShiftReqDate(e.target.value)} />
+                <DateInput className="mt-1" value={shiftReqDate} onChange={e => setShiftReqDate(e.target.value)} />
               </div>
               {shiftReqType === "time_off" && (
                 <div>
                   <Label className="text-xs text-muted-foreground uppercase tracking-wide">End Date</Label>
-                  <Input type="date" className="mt-1" value={shiftReqEndDate} onChange={e => setShiftReqEndDate(e.target.value)} />
+                  <DateInput className="mt-1" value={shiftReqEndDate} onChange={e => setShiftReqEndDate(e.target.value)} />
                 </div>
               )}
               {(shiftReqType === "early_leave" || shiftReqType === "late_arrival") && (
@@ -2996,7 +2997,7 @@ export default function EmployeePortalPage() {
           <div className="space-y-3 py-2">
             <div className="space-y-1.5">
               <Label>Date</Label>
-              <input type="date" value={logDate} onChange={e => setLogDate(e.target.value)}
+              <DateInput value={logDate} onChange={e => setLogDate(e.target.value)}
                 className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm" />
             </div>
             <div className="space-y-1.5">
@@ -3075,7 +3076,7 @@ export default function EmployeePortalPage() {
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>Date</Label>
-                <Input type="date" value={expenseDate} onChange={(e) => setExpenseDate(e.target.value)} max={new Date().toISOString().split("T")[0]} />
+                <DateInput value={expenseDate} onChange={(e) => setExpenseDate(e.target.value)} max={new Date().toISOString().split("T")[0]} />
               </div>
               <div className="space-y-1.5">
                 <Label>Category</Label>
@@ -3143,7 +3144,7 @@ export default function EmployeePortalPage() {
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>Date</Label>
-                <Input type="date" value={workLogDate} onChange={(e) => setWorkLogDate(e.target.value)} max={new Date().toISOString().split("T")[0]} />
+                <DateInput value={workLogDate} onChange={(e) => setWorkLogDate(e.target.value)} max={new Date().toISOString().split("T")[0]} />
               </div>
               <div className="space-y-1.5">
                 <Label>Hours Worked</Label>

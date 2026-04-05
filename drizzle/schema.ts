@@ -955,6 +955,7 @@ export const attendanceAudit = mysqlTable(
       "hr_attendance_delete",
       "correction_approve",
       "correction_reject",
+      "correction_submitted",
       "manual_checkin_approve",
       "manual_checkin_reject",
       "self_checkin_allowed",

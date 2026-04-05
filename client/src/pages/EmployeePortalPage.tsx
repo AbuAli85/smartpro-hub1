@@ -217,6 +217,7 @@ function AttendanceTodayCard({
       setCorrCheckIn(""); setCorrCheckOut(""); setCorrReason("");
       refetchCorr();
       utils.employeePortal.getMyOperationalHints.invalidate();
+      void utils.attendance.listAttendanceAudit.invalidate();
     },
     onError: (e) => toast.error(e.message),
   });

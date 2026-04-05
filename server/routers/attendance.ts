@@ -1051,29 +1051,59 @@ export const attendanceRouter = router({
       if (!membership) throw new TRPCError({ code: "FORBIDDEN", message: "No company membership" });
       const emp = await resolveMyEmployee(ctx.user.id, ctx.user.email ?? "", membership.company.id);
       if (!emp) throw new TRPCError({ code: "FORBIDDEN", message: "No employee record found" });
-      // Prevent duplicate pending requests for the same date
-      const [existing] = await db
-        .select()
-        .from(attendanceCorrections)
-        .where(and(
-          eq(attendanceCorrections.employeeId, emp.id),
-          eq(attendanceCorrections.requestedDate, input.requestedDate),
-          eq(attendanceCorrections.status, "pending"),
-        ))
-        .limit(1);
-      if (existing) throw new TRPCError({ code: "CONFLICT", message: "You already have a pending correction request for this date" });
-      const [row] = await db.insert(attendanceCorrections).values({
-        companyId: membership.company.id,
-        employeeId: emp.id,
-        employeeUserId: ctx.user.id,
-        attendanceRecordId: input.attendanceRecordId ?? null,
-        requestedDate: input.requestedDate,
-        requestedCheckIn: input.requestedCheckIn ? input.requestedCheckIn + ":00" : null,
-        requestedCheckOut: input.requestedCheckOut ? input.requestedCheckOut + ":00" : null,
-        reason: input.reason,
-        status: "pending",
-      }).$returningId();
-      return { id: row.id, status: "pending" as const };
+
+      let newId = 0;
+      await db.transaction(async (tx) => {
+        const [dup] = await tx
+          .select({ id: attendanceCorrections.id })
+          .from(attendanceCorrections)
+          .where(and(
+            eq(attendanceCorrections.employeeId, emp.id),
+            eq(attendanceCorrections.requestedDate, input.requestedDate),
+            eq(attendanceCorrections.status, "pending"),
+          ))
+          .limit(1);
+        if (dup) {
+          throw new TRPCError({ code: "CONFLICT", message: "You already have a pending correction request for this date" });
+        }
+        const [row] = await tx
+          .insert(attendanceCorrections)
+          .values({
+            companyId: membership.company.id,
+            employeeId: emp.id,
+            employeeUserId: ctx.user.id,
+            attendanceRecordId: input.attendanceRecordId ?? null,
+            requestedDate: input.requestedDate,
+            requestedCheckIn: input.requestedCheckIn ? input.requestedCheckIn + ":00" : null,
+            requestedCheckOut: input.requestedCheckOut ? input.requestedCheckOut + ":00" : null,
+            reason: input.reason,
+            status: "pending",
+          })
+          .$returningId();
+        newId = row.id;
+        await insertAttendanceAuditRow(tx, {
+          companyId: membership.company.id,
+          employeeId: emp.id,
+          correctionId: row.id,
+          attendanceRecordId: input.attendanceRecordId ?? undefined,
+          actorUserId: ctx.user.id,
+          actorRole: membership.member.role,
+          actionType: ATTENDANCE_AUDIT_ACTION.CORRECTION_SUBMITTED,
+          entityType: ATTENDANCE_AUDIT_ENTITY.ATTENDANCE_CORRECTION,
+          entityId: row.id,
+          afterPayload:
+            attendancePayloadJson({
+              status: "pending",
+              requestedDate: input.requestedDate,
+              requestedCheckIn: input.requestedCheckIn ?? null,
+              requestedCheckOut: input.requestedCheckOut ?? null,
+              attendanceRecordId: input.attendanceRecordId ?? null,
+            }) ?? undefined,
+          reason: input.reason,
+          source: ATTENDANCE_AUDIT_SOURCE.EMPLOYEE_PORTAL,
+        });
+      });
+      return { id: newId, status: "pending" as const };
     }),
 
   // ─── Employee: List own correction requests ────────────────────────────────────────

@@ -32,6 +32,7 @@ const AUDIT_ACTION_LABELS: Record<string, string> = {
   [ATTENDANCE_AUDIT_ACTION.HR_ATTENDANCE_DELETE]: "HR attendance · deleted",
   [ATTENDANCE_AUDIT_ACTION.CORRECTION_APPROVE]: "Correction · approved",
   [ATTENDANCE_AUDIT_ACTION.CORRECTION_REJECT]: "Correction · rejected",
+  [ATTENDANCE_AUDIT_ACTION.CORRECTION_SUBMITTED]: "Correction · submitted",
   [ATTENDANCE_AUDIT_ACTION.MANUAL_CHECKIN_APPROVE]: "Manual check-in · approved",
   [ATTENDANCE_AUDIT_ACTION.MANUAL_CHECKIN_REJECT]: "Manual check-in · rejected",
   [ATTENDANCE_AUDIT_ACTION.SELF_CHECKIN_ALLOWED]: "Self check-in · allowed",

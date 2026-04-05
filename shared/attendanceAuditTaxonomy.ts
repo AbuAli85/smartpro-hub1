@@ -8,6 +8,8 @@ export const ATTENDANCE_AUDIT_ACTION = {
   HR_ATTENDANCE_DELETE: "hr_attendance_delete",
   CORRECTION_APPROVE: "correction_approve",
   CORRECTION_REJECT: "correction_reject",
+  /** Employee submitted a time correction request (pending HR review). */
+  CORRECTION_SUBMITTED: "correction_submitted",
   MANUAL_CHECKIN_APPROVE: "manual_checkin_approve",
   MANUAL_CHECKIN_REJECT: "manual_checkin_reject",
   SELF_CHECKIN_ALLOWED: "self_checkin_allowed",

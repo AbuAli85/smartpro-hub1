@@ -53,6 +53,26 @@ function fmtDate(d: Date | string | null | undefined): string {
   return new Date(d).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" });
 }
 
+function emptyRequestsSubtitle(
+  statusFilter: "all" | "pending" | "approved" | "rejected" | "cancelled",
+  typeFilter: string
+): string {
+  if (statusFilter === "pending") {
+    return "All caught up! No pending requests.";
+  }
+  const typeLabel = typeFilter !== "all" ? (TYPE_LABELS[typeFilter] ?? typeFilter) : null;
+  if (statusFilter === "all") {
+    if (!typeLabel) {
+      return "There are no employee requests yet. They will appear here when employees submit them.";
+    }
+    return `No ${typeLabel.toLowerCase()} requests match your filters.`;
+  }
+  if (typeLabel) {
+    return `No ${statusFilter} ${typeLabel.toLowerCase()} requests.`;
+  }
+  return `No ${statusFilter} requests.`;
+}
+
 export default function EmployeeRequestsAdminPage() {
   const { activeCompany } = useActiveCompany();
 
@@ -172,9 +192,7 @@ export default function EmployeeRequestsAdminPage() {
           <CardContent className="py-16 text-center">
             <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
             <p className="font-medium">No requests found</p>
-            <p className="text-sm text-muted-foreground">
-              {statusFilter === "pending" ? "All caught up! No pending requests." : `No ${statusFilter} requests.`}
-            </p>
+            <p className="text-sm text-muted-foreground">{emptyRequestsSubtitle(statusFilter, typeFilter)}</p>
           </CardContent>
         </Card>
       ) : (

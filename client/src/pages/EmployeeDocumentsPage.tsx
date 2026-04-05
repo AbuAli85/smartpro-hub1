@@ -54,6 +54,7 @@ import {
 } from "lucide-react";
 import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
 import { DateInput } from "@/components/ui/date-input";
+import { invalidatePortalWorkStatusAndDocuments } from "@/lib/invalidatePortalWorkStatus";
 
 // ─── Document type config ─────────────────────────────────────────────────────
 
@@ -142,6 +143,7 @@ export default function EmployeeDocumentsPage() {
     onSuccess: () => {
       toast.success("Document uploaded successfully");
       utils.documents.listEmployeeDocs.invalidate({ employeeId });
+      invalidatePortalWorkStatusAndDocuments(utils);
       setUploadOpen(false);
       resetForm();
     },
@@ -152,6 +154,7 @@ export default function EmployeeDocumentsPage() {
     onSuccess: () => {
       toast.success("Document removed");
       utils.documents.listEmployeeDocs.invalidate({ employeeId });
+      invalidatePortalWorkStatusAndDocuments(utils);
       setDeleteDocId(null);
     },
     onError: (err) => toast.error("Delete failed: " + err.message),

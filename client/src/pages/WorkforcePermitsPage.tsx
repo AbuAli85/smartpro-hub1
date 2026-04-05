@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
 import { DateInput } from "@/components/ui/date-input";
+import { invalidatePortalWorkStatusAndDocuments } from "@/lib/invalidatePortalWorkStatus";
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; icon: typeof CheckCircle2 }> = {
   active: { label: "Active", color: "text-emerald-700", bg: "bg-emerald-100", icon: CheckCircle2 },
@@ -49,6 +50,7 @@ function daysLabel(days: number | null) {
 }
 
 export default function WorkforcePermitsPage() {
+  const utils = trpc.useUtils();
   const [, navigate] = useLocation();
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -84,6 +86,7 @@ export default function WorkforcePermitsPage() {
       setShowUploadDialog(false);
       setUploadForm({ employeeId: "", permitNumber: "", occupationCode: "", occupationTitle: "", issueDate: "", expiryDate: "", permitType: "new_permit", sponsorName: "", workplaceLocation: "" });
       refetch();
+      invalidatePortalWorkStatusAndDocuments(utils);
     },
     onError: (err: { message: string }) => toast.error(err.message),
   });

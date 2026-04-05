@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
 import { DateInput } from "@/components/ui/date-input";
+import { invalidatePortalWorkStatusAndDocuments } from "@/lib/invalidatePortalWorkStatus";
 
 const DOC_TYPE_LABELS: Record<string, string> = {
   mol_work_permit_certificate: "MOL Work Permit Certificate",
@@ -48,6 +49,7 @@ export default function WorkforceDocumentsPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  const utils = trpc.useUtils();
   const { data: docsRaw, isLoading, refetch } = trpc.workforce.documents.list.useQuery({
     documentType: docTypeFilter !== "all" ? docTypeFilter : undefined,
     expiringWithinDays: verifyFilter === "expiring" ? 90 : undefined,
@@ -60,12 +62,17 @@ export default function WorkforceDocumentsPage() {
       setUploadForm({ employeeId: "", documentType: "passport", expiresAt: "", issuedAt: "" });
       setSelectedFile(null);
       refetch();
+      invalidatePortalWorkStatusAndDocuments(utils);
     },
     onError: (err: { message: string }) => toast.error(err.message),
   });
 
   const verifyMutation = trpc.workforce.documents.verify.useMutation({
-    onSuccess: () => { toast.success("Document verified"); refetch(); },
+    onSuccess: () => {
+      toast.success("Document verified");
+      refetch();
+      invalidatePortalWorkStatusAndDocuments(utils);
+    },
     onError: (err: { message: string }) => toast.error(err.message),
   });
 

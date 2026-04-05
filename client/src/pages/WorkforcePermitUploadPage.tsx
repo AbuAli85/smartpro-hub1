@@ -14,6 +14,7 @@ import {
   CheckCircle2, AlertCircle, Loader2, Info
 } from "lucide-react";
 import { DateInput } from "@/components/ui/date-input";
+import { invalidatePortalWorkStatusAndDocuments } from "@/lib/invalidatePortalWorkStatus";
 
 const PERMIT_TYPES = [
   { value: "new_work_permit", label: "New Work Permit" },
@@ -66,6 +67,7 @@ export default function WorkforcePermitUploadPage() {
       toast.success("Work permit uploaded and saved successfully");
       utils.workforce.workPermits.list.invalidate();
       utils.workforce.employees.list.invalidate();
+      invalidatePortalWorkStatusAndDocuments(utils);
       setStep("success");
     },
     onError: (err) => {

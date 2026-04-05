@@ -1907,3 +1907,4 @@ Every company on SmartPRO Hub gets a complete, unified business operating area â
 - [x] Event-driven triggers: employee-updated, doc-added, new-hire events fire rule evaluation
 - [x] Audit-grade exports: CSV/PDF for automation logs, compliance reports, rule history
 - [x] Platform-wide automation engine: extend triggers/actions to bookings, payments, contracts, client inactivity
+- [x] Auto-link employee record to user account on sign-in when email matches

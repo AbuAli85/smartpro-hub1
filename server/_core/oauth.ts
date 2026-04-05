@@ -5,8 +5,8 @@ import { getSessionCookieOptions } from "./cookies";
 import { sdk } from "./sdk";
 import { mapMemberRoleToPlatformRole } from "@shared/rbac";
 import { getDb } from "../db";
-import { companyMembers, users } from "../../drizzle/schema";
-import { and, eq } from "drizzle-orm";
+import { companyMembers, employees, users } from "../../drizzle/schema";
+import { and, eq, isNull } from "drizzle-orm";
 
 function getQueryParam(req: Request, key: string): string | undefined {
   const value = req.query[key];
@@ -128,6 +128,42 @@ export function registerOAuthRoutes(app: Express) {
       } catch (syncErr) {
         // Non-fatal: log and continue — user still gets their session
         console.error("[OAuth] platformRole sync failed (non-fatal):", syncErr);
+      }
+
+      // Auto-link: when a user signs in, automatically link any unlinked employee records
+      // in their active company memberships whose email matches the sign-in email.
+      // This removes the need for manual "Link Account" in the common case.
+      try {
+        const autoLinkDb = await getDb();
+        if (autoLinkDb && userInfo.email) {
+          const freshUserForLink = await db.getUserByOpenId(userInfo.openId);
+          if (freshUserForLink) {
+            // Get all active company memberships for this user
+            const activeMemberships = await autoLinkDb
+              .select({ companyId: companyMembers.companyId })
+              .from(companyMembers)
+              .where(and(eq(companyMembers.userId, freshUserForLink.id), eq(companyMembers.isActive, true)));
+            if (activeMemberships.length > 0) {
+              const memberCompanyIds = activeMemberships.map((m) => m.companyId);
+              // Find unlinked employee rows with a matching email
+              const unlinkedEmployees = await autoLinkDb
+                .select({ id: employees.id, companyId: employees.companyId, firstName: employees.firstName, lastName: employees.lastName })
+                .from(employees)
+                .where(and(eq(employees.email, userInfo.email.toLowerCase()), isNull(employees.userId)));
+              const toAutoLink = unlinkedEmployees.filter((e) => memberCompanyIds.includes(e.companyId));
+              for (const emp of toAutoLink) {
+                await autoLinkDb
+                  .update(employees)
+                  .set({ userId: freshUserForLink.id })
+                  .where(eq(employees.id, emp.id));
+                console.log(`[OAuth] Auto-linked employee #${emp.id} (${emp.firstName} ${emp.lastName}) → user #${freshUserForLink.id} (${userInfo.email})`);
+              }
+            }
+          }
+        }
+      } catch (autoLinkErr) {
+        // Non-fatal: log and continue — user still gets their session
+        console.error("[OAuth] Auto-link employee failed (non-fatal):", autoLinkErr);
       }
 
       const sessionToken = await sdk.createSessionToken(userInfo.openId, {

@@ -2295,6 +2295,7 @@ export type InsertExpenseClaim = typeof expenseClaims.$inferInsert;
 export const trainingRecords = mysqlTable("training_records", {
   id: int("id").primaryKey().autoincrement(),
   companyId: int("company_id").notNull(),
+  /** FK-style reference to `employees.id` (legacy column name `employee_user_id`). Admin assign uses employee id; employee self-serve may fall back to `users.id` when no employee row exists. */
   employeeUserId: int("employee_user_id").notNull(),
   title: varchar("title", { length: 300 }).notNull(),
   provider: varchar("provider", { length: 200 }),
@@ -2319,6 +2320,7 @@ export type InsertTrainingRecord = typeof trainingRecords.$inferInsert;
 export const employeeSelfReviews = mysqlTable("employee_self_reviews", {
   id: int("id").primaryKey().autoincrement(),
   companyId: int("company_id").notNull(),
+  /** Same semantics as training_records.employee_user_id: `employees.id` (legacy name). */
   employeeUserId: int("employee_user_id").notNull(),
   reviewPeriod: varchar("review_period", { length: 50 }).notNull(),
   selfRating: int("self_rating"),

@@ -47,10 +47,13 @@ function createTableAwareDb(queue: { table: object; rows: unknown[] }[]) {
         where: vi.fn(() => Promise.resolve()),
       })),
     })),
+    insert: vi.fn(() => ({
+      values: vi.fn(() => Promise.resolve([{ insertId: 1 }])),
+    })),
   };
 }
 
-describe("financeHR performance admin procedures (PR-1)", () => {
+describe("financeHR performance admin procedures (PR-1 / PR-2)", () => {
   beforeEach(() => {
     vi.spyOn(db, "getUserCompany").mockResolvedValue({
       company: { id: 1, name: "Co", slug: "co", country: "OM", status: "active" } as never,
@@ -236,6 +239,9 @@ describe("financeHR performance admin procedures (PR-1)", () => {
         }),
       })),
       update: vi.fn(() => ({ set: setSpy })),
+      insert: vi.fn(() => ({
+        values: vi.fn(() => Promise.resolve([{ insertId: 1 }])),
+      })),
     };
     vi.spyOn(db, "getDb").mockResolvedValue(mockDb as never);
 
@@ -246,5 +252,38 @@ describe("financeHR performance admin procedures (PR-1)", () => {
     const payload = setSpy.mock.calls[0]?.[0] as Record<string, unknown>;
     expect(payload.reviewedAt).toBeInstanceOf(Date);
     expect(payload.reviewedByUserId).toBe(1);
+    expect(mockDb.insert).toHaveBeenCalled();
+  });
+
+  it("PR-2 adminUpdateTraining emits audit with training.updated action", async () => {
+    const auditValuesSpy = vi.fn(() => Promise.resolve([{ insertId: 1 }]));
+    const insertSpy = vi.fn(() => ({ values: auditValuesSpy }));
+    const mockDb = {
+      ...createTableAwareDb([
+        { table: companyMembers, rows: [{ role: "company_admin", permissions: [] }] },
+        {
+          table: trainingRecords,
+          rows: [{ id: 1, companyId: 1, employeeUserId: 10, trainingStatus: "assigned" }],
+        },
+        { table: employees, rows: [{ id: 10, companyId: 1 }] },
+      ]),
+      insert: insertSpy,
+    };
+    vi.spyOn(db, "getDb").mockResolvedValue(mockDb as never);
+
+    const caller = financeHRRouter.createCaller(makeCtx());
+    await caller.adminUpdateTraining({ id: 1, trainingStatus: "in_progress" });
+
+    expect(auditValuesSpy).toHaveBeenCalled();
+    const auditRow = auditValuesSpy.mock.calls[0]?.[0] as {
+      action?: string;
+      entityType?: string;
+      beforeState?: unknown;
+      afterState?: unknown;
+    };
+    expect(auditRow?.action).toBe("training.updated");
+    expect(auditRow?.entityType).toBe("training_record");
+    expect(auditRow?.beforeState).toBeDefined();
+    expect(auditRow?.afterState).toBeDefined();
   });
 });

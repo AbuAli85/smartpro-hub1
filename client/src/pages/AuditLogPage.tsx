@@ -20,6 +20,7 @@ const ENTITY_COLORS: Record<string, string> = {
   payroll: "bg-teal-100 text-teal-700",
   officer: "bg-red-100 text-red-700",
   sanad: "bg-indigo-100 text-indigo-700",
+  contract_signature: "bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-200",
 };
 
 const ACTION_COLORS: Record<string, string> = {
@@ -31,6 +32,8 @@ const ACTION_COLORS: Record<string, string> = {
   export: "bg-yellow-100 text-yellow-700",
   approve: "bg-teal-100 text-teal-700",
   reject: "bg-orange-100 text-orange-700",
+  signature: "bg-emerald-100 text-emerald-800",
+  declined: "bg-red-100 text-red-700",
 };
 
 function getActionColor(action: string) {
@@ -43,9 +46,12 @@ function getEntityColor(entity: string) {
   return key ? ENTITY_COLORS[key] : "bg-gray-100 text-gray-700";
 }
 
+type AuditSource = "audit_event" | "audit_log" | "contract_signature_audit";
+type AuditSensitivity = "normal" | "hr_sensitive" | "legal_sensitive";
+
 interface AuditEntry {
   _key?: string;
-  source?: "audit_event" | "audit_log";
+  source?: AuditSource;
   id: number;
   userId: number | null;
   companyId: number | null;
@@ -57,6 +63,10 @@ interface AuditEntry {
   ipAddress: string | null;
   userAgent: string | null;
   createdAt: Date;
+  sensitivity?: AuditSensitivity;
+  summary?: string;
+  routeHint?: string | null;
+  actorLabel?: string | null;
 }
 
 export default function AuditLogPage() {
@@ -73,12 +83,19 @@ export default function AuditLogPage() {
 
   const filtered = useMemo(() => {
     return (logs as AuditEntry[]).filter((log) => {
-      const matchSearch =
-        !search ||
-        log.action.toLowerCase().includes(search.toLowerCase()) ||
-        log.entityType.toLowerCase().includes(search.toLowerCase()) ||
-        String(log.entityId ?? "").includes(search) ||
-        String(log.userId ?? "").includes(search);
+      const hay = [
+        log.action,
+        log.entityType,
+        log.summary,
+        log.actorLabel,
+        log.routeHint,
+        String(log.entityId ?? ""),
+        String(log.userId ?? ""),
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      const matchSearch = !search || hay.includes(search.toLowerCase());
       const matchEntity = entityFilter === "all" || log.entityType === entityFilter;
       const matchAction =
         actionFilter === "all" || log.action.toLowerCase().includes(actionFilter.toLowerCase());
@@ -99,29 +116,42 @@ export default function AuditLogPage() {
   function exportCSV() {
     const header = [
       "Source",
+      "Sensitivity",
+      "Summary",
       "Row key",
       "ID",
       "Timestamp",
       "User ID",
+      "Actor label",
       "Company ID",
       "Action",
       "Entity Type",
       "Entity ID",
+      "Route hint",
       "IP Address",
     ];
     const rows = filtered.map((l) => [
       l.source ?? "",
+      l.sensitivity ?? "",
+      l.summary ?? "",
       l._key ?? "",
       l.id,
       new Date(l.createdAt).toISOString(),
       l.userId ?? "",
+      l.actorLabel ?? "",
       l.companyId ?? "",
       l.action,
       l.entityType,
       l.entityId ?? "",
+      l.routeHint ?? "",
       l.ipAddress ?? "",
     ]);
-    const csv = [header, ...rows].map((r) => r.join(",")).join("\n");
+    const esc = (cell: string | number) => {
+      const s = String(cell);
+      if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+      return s;
+    };
+    const csv = [header, ...rows.map((r) => r.map(esc))].map((r) => r.join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -152,9 +182,10 @@ export default function AuditLogPage() {
             Audit Log Viewer
           </h1>
           <p className="text-muted-foreground text-sm mt-1">
-            Merged timeline: operational <span className="font-medium text-foreground/80">audit_events</span> (workforce,
-            HR performance, etc.) plus <span className="font-medium text-foreground/80">audit_logs</span> for platform
-            access/role changes. HR-sensitive event types respect your permissions.
+            Merged timeline: <span className="font-medium text-foreground/80">audit_events</span> (workforce, HR
+            performance), <span className="font-medium text-foreground/80">audit_logs</span> (platform access / membership),
+            and <span className="font-medium text-foreground/80">contract_signature_audit</span> (e-sign events) joined to
+            contracts. HR- and contract-feed visibility follow role policies.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -284,10 +315,16 @@ export default function AuditLogPage() {
                           className={`text-[10px] font-normal ${
                             log.source === "audit_log"
                               ? "border-violet-300 text-violet-800 bg-violet-50 dark:bg-violet-950/30"
-                              : "border-sky-300 text-sky-800 bg-sky-50 dark:bg-sky-950/30"
+                              : log.source === "contract_signature_audit"
+                                ? "border-rose-300 text-rose-900 bg-rose-50 dark:bg-rose-950/30"
+                                : "border-sky-300 text-sky-800 bg-sky-50 dark:bg-sky-950/30"
                           }`}
                         >
-                          {log.source === "audit_log" ? "Access / role" : "Activity"}
+                          {log.source === "audit_log"
+                            ? "Access / role"
+                            : log.source === "contract_signature_audit"
+                              ? "Contract / legal"
+                              : "Activity"}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground font-mono">{log.id}</TableCell>
@@ -297,10 +334,15 @@ export default function AuditLogPage() {
                           {fmtDateTime(log.createdAt)}
                         </div>
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="max-w-[200px]">
                         <Badge className={`text-xs font-normal ${getActionColor(log.action)}`}>
                           {log.action}
                         </Badge>
+                        {log.summary ? (
+                          <p className="text-[10px] text-muted-foreground mt-1 line-clamp-2" title={log.summary}>
+                            {log.summary}
+                          </p>
+                        ) : null}
                       </TableCell>
                       <TableCell>
                         <Badge className={`text-xs font-normal ${getEntityColor(log.entityType)}`}>
@@ -354,7 +396,13 @@ export default function AuditLogPage() {
           <DialogHeader>
             <DialogTitle className="flex flex-wrap items-center gap-2">
               <Shield size={18} className="text-orange-500" />
-              Audit {selectedEntry?.source === "audit_log" ? "access" : "activity"} #{selectedEntry?.id}
+              Audit{" "}
+              {selectedEntry?.source === "audit_log"
+                ? "access"
+                : selectedEntry?.source === "contract_signature_audit"
+                  ? "contract signature"
+                  : "activity"}{" "}
+              #{selectedEntry?.id}
             </DialogTitle>
           </DialogHeader>
           {selectedEntry && (
@@ -366,9 +414,21 @@ export default function AuditLogPage() {
                     value:
                       selectedEntry.source === "audit_log"
                         ? "audit_logs (platform access / membership)"
-                        : "audit_events (operational)",
+                        : selectedEntry.source === "contract_signature_audit"
+                          ? "contract_signature_audit (e-sign trail)"
+                          : "audit_events (operational)",
+                  },
+                  {
+                    label: "Sensitivity",
+                    value: selectedEntry.sensitivity ?? "normal",
+                  },
+                  {
+                    label: "Summary",
+                    value: selectedEntry.summary ?? "—",
                   },
                   { label: "Row key", value: selectedEntry._key ?? "—" },
+                  { label: "Actor (name/email)", value: selectedEntry.actorLabel ?? "—" },
+                  { label: "Route hint", value: selectedEntry.routeHint ?? "—" },
                   { label: "Timestamp", value: fmtDateTime(selectedEntry.createdAt) },
                   { label: "Action", value: selectedEntry.action },
                   { label: "Entity Type", value: selectedEntry.entityType },

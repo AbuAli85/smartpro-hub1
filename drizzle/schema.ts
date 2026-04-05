@@ -1,5 +1,6 @@
 import {
   boolean,
+  char,
   date,
   decimal,
   index,
@@ -9,6 +10,7 @@ import {
   mysqlTable,
   text,
   timestamp,
+  unique,
   varchar,
 } from "drizzle-orm/mysql-core";
 
@@ -2513,3 +2515,131 @@ export const workforceHealthSnapshots = mysqlTable("workforce_health_snapshots",
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 export type WorkforceHealthSnapshot = typeof workforceHealthSnapshots.$inferSelect;
+
+// ─── PROMOTER ASSIGNMENTS (HR / contracts — Google Doc generation source) ─────
+export const promoterAssignments = mysqlTable(
+  "promoter_assignments",
+  {
+    id: char("id", { length: 36 }).primaryKey(),
+    companyId: int("company_id").notNull(),
+    firstPartyCompanyId: int("first_party_company_id").notNull(),
+    secondPartyCompanyId: int("second_party_company_id").notNull(),
+    promoterEmployeeId: int("promoter_employee_id").notNull(),
+    locationAr: varchar("location_ar", { length: 500 }),
+    locationEn: varchar("location_en", { length: 500 }),
+    startDate: date("start_date").notNull(),
+    endDate: date("end_date").notNull(),
+    status: varchar("status", { length: 50 }).notNull().default("active"),
+    contractReferenceNumber: varchar("contract_reference_number", { length: 100 }),
+    issueDate: date("issue_date"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  },
+  (t) => [
+    index("idx_pa_company").on(t.companyId),
+    index("idx_pa_first_party").on(t.firstPartyCompanyId),
+    index("idx_pa_second_party").on(t.secondPartyCompanyId),
+    index("idx_pa_employee").on(t.promoterEmployeeId),
+  ]
+);
+export type PromoterAssignment = typeof promoterAssignments.$inferSelect;
+export type InsertPromoterAssignment = typeof promoterAssignments.$inferInsert;
+
+// ─── DOCUMENT GENERATION (Google Docs templates & outputs) ────────────────────
+export const documentTemplates = mysqlTable(
+  "document_templates",
+  {
+    id: char("id", { length: 36 }).primaryKey(),
+    /** 0 = platform-wide template; otherwise owning company id */
+    companyId: int("company_id").notNull().default(0),
+    key: varchar("key", { length: 191 }).notNull(),
+    name: varchar("name", { length: 255 }).notNull(),
+    category: varchar("category", { length: 100 }).notNull(),
+    entityType: varchar("entity_type", { length: 100 }).notNull(),
+    documentSource: varchar("document_source", { length: 50 }).notNull().default("google_docs"),
+    googleDocId: varchar("google_doc_id", { length: 255 }),
+    language: varchar("language", { length: 32 }).notNull(),
+    version: int("version").notNull().default(1),
+    status: varchar("status", { length: 32 }).notNull().default("draft"),
+    outputFormats: json("output_formats").$type<string[]>().notNull().default(["pdf"]),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  },
+  (t) => [
+    index("idx_dt_company").on(t.companyId),
+    index("idx_dt_entity").on(t.entityType),
+    unique("uq_document_templates_key_company").on(t.key, t.companyId),
+  ]
+);
+export type DocumentTemplate = typeof documentTemplates.$inferSelect;
+export type InsertDocumentTemplate = typeof documentTemplates.$inferInsert;
+
+export const documentTemplatePlaceholders = mysqlTable(
+  "document_template_placeholders",
+  {
+    id: char("id", { length: 36 }).primaryKey(),
+    templateId: char("template_id", { length: 36 })
+      .notNull()
+      .references(() => documentTemplates.id, { onDelete: "cascade" }),
+    placeholder: varchar("placeholder", { length: 191 }).notNull(),
+    label: varchar("label", { length: 255 }).notNull(),
+    sourcePath: varchar("source_path", { length: 255 }).notNull(),
+    dataType: varchar("data_type", { length: 32 }).notNull().default("string"),
+    required: boolean("required").notNull().default(true),
+    defaultValue: text("default_value"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("idx_dtp_template").on(t.templateId),
+    unique("uq_dtp_template_placeholder").on(t.templateId, t.placeholder),
+  ]
+);
+export type DocumentTemplatePlaceholder = typeof documentTemplatePlaceholders.$inferSelect;
+export type InsertDocumentTemplatePlaceholder = typeof documentTemplatePlaceholders.$inferInsert;
+
+export const generatedDocuments = mysqlTable(
+  "generated_documents",
+  {
+    id: char("id", { length: 36 }).primaryKey(),
+    templateId: char("template_id", { length: 36 })
+      .notNull()
+      .references(() => documentTemplates.id),
+    entityType: varchar("entity_type", { length: 100 }).notNull(),
+    entityId: char("entity_id", { length: 36 }).notNull(),
+    outputFormat: varchar("output_format", { length: 32 }).notNull(),
+    sourceGoogleDocId: varchar("source_google_doc_id", { length: 255 }),
+    generatedGoogleDocId: varchar("generated_google_doc_id", { length: 255 }),
+    fileUrl: text("file_url"),
+    /** Storage key from Forge upload */
+    filePath: varchar("file_path", { length: 1024 }),
+    status: varchar("status", { length: 50 }).notNull().default("pending"),
+    generatedBy: int("generated_by"),
+    companyId: int("company_id").notNull(),
+    metadata: json("metadata").$type<Record<string, unknown>>().notNull().default({}),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("idx_gd_company").on(t.companyId),
+    index("idx_gd_template").on(t.templateId),
+    index("idx_gd_entity").on(t.entityType, t.entityId),
+  ]
+);
+export type GeneratedDocument = typeof generatedDocuments.$inferSelect;
+export type InsertGeneratedDocument = typeof generatedDocuments.$inferInsert;
+
+export const documentGenerationAuditLogs = mysqlTable(
+  "document_generation_audit_logs",
+  {
+    id: char("id", { length: 36 }).primaryKey(),
+    generatedDocumentId: char("generated_document_id", { length: 36 })
+      .notNull()
+      .references(() => generatedDocuments.id, { onDelete: "cascade" }),
+    action: varchar("action", { length: 100 }).notNull(),
+    actorId: int("actor_id"),
+    details: json("details").$type<Record<string, unknown>>().notNull().default({}),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [index("idx_dgal_doc").on(t.generatedDocumentId)]
+);
+export type DocumentGenerationAuditLog = typeof documentGenerationAuditLogs.$inferSelect;
+export type InsertDocumentGenerationAuditLog = typeof documentGenerationAuditLogs.$inferInsert;

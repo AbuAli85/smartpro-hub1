@@ -22,6 +22,13 @@
       "when": 1775164100006,
       "tag": "0002_smiling_meteorite",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1775000000000,
+      "tag": "0016_document_generation",
+      "breakpoints": true
     }
   ]
 }

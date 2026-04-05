@@ -250,10 +250,14 @@ export const employeePortalRouter = router({
       if (!task || task.companyId !== companyId || task.assignedToEmployeeId !== myEmp.id) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Task not found" });
       }
-      if (task.status !== "pending") {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "Only pending tasks can be started" });
+      if (task.status !== "pending" && task.status !== "blocked") {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Only pending or blocked tasks can be started" });
       }
-      await db.update(employeeTasks).set({ status: "in_progress" }).where(eq(employeeTasks.id, input.taskId));
+      const patch: { status: "in_progress"; startedAt?: Date } = { status: "in_progress" };
+      if (!task.startedAt) {
+        patch.startedAt = new Date();
+      }
+      await db.update(employeeTasks).set(patch).where(eq(employeeTasks.id, input.taskId));
       return { success: true };
     }),
 

@@ -24,9 +24,21 @@ import {
   AlertTriangle, Info, Wallet, Timer, BarChart2, CalendarCheck,
   FileCheck, FilePlus, ExternalLink, RefreshCw, Star, ArrowLeftRight, Repeat,
   Target, Activity, Award, Zap, PieChart, TrendingDown, Flame, Trophy,
-  Sparkles, Landmark, Play,
+  Sparkles, Landmark, Play, Ban,
 } from "lucide-react";
 import { fmtDateLong, fmtDateTime } from "@/lib/dateUtils";
+import { getDueUrgency, slaLabel } from "@/lib/taskSla";
+import { TaskDetailSheet } from "@/components/tasks/TaskDetailSheet";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { RequestsCalendar } from "@/components/RequestsCalendar";
 import { DateInput } from "@/components/ui/date-input";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
@@ -64,12 +76,13 @@ const EMPLOYEE_PORTAL_QUICK_ACTION_UI: Record<
 };
 
 // ── Types ──────────────────────────────────────────────────────────────────
-type TaskStatus = "pending" | "in_progress" | "completed" | "cancelled";
+type TaskStatus = "pending" | "in_progress" | "completed" | "cancelled" | "blocked";
 type Priority = "low" | "medium" | "high" | "urgent";
 
 const TASK_STATUS_ICON: Record<TaskStatus, React.ReactElement> = {
   pending: <Clock className="w-4 h-4 text-amber-500" />,
   in_progress: <TrendingUp className="w-4 h-4 text-blue-500" />,
+  blocked: <Ban className="w-4 h-4 text-orange-600" />,
   completed: <Check className="w-4 h-4 text-green-500" />,
   cancelled: <X className="w-4 h-4 text-muted-foreground" />,
 };
@@ -77,6 +90,7 @@ const TASK_STATUS_ICON: Record<TaskStatus, React.ReactElement> = {
 const TASK_STATUS_LABEL: Record<TaskStatus, string> = {
   pending: "Pending",
   in_progress: "In Progress",
+  blocked: "Blocked",
   completed: "Completed",
   cancelled: "Cancelled",
 };
@@ -568,6 +582,8 @@ export default function EmployeePortalPage() {
 
   // Task filter
   const [taskFilter, setTaskFilter] = useState<string>("active");
+  const [empTaskDetail, setEmpTaskDetail] = useState<any | null>(null);
+  const [completeTaskId, setCompleteTaskId] = useState<number | null>(null);
   // Shift request dialog
   const [showShiftRequestDialog, setShowShiftRequestDialog] = useState(false);
   const [calView, setCalView] = useState<"calendar" | "list">("calendar");
@@ -796,7 +812,9 @@ export default function EmployeePortalPage() {
   });
   const completeTask = trpc.employeePortal.completeTask.useMutation({
     onSuccess: () => {
-      toast.success("Task marked as complete");
+      toast.success("Task completed", { description: "Your manager can see this in Task Manager." });
+      setCompleteTaskId(null);
+      setEmpTaskDetail(null);
       utils.employeePortal.getMyTasks.invalidate();
     },
     onError: (err) => toast.error(err.message),
@@ -2191,10 +2209,11 @@ export default function EmployeePortalPage() {
           {/* ══ TASKS TAB ════════════════════════════════════════════════════ */}
           <TabsContent value="tasks" className="mt-4 space-y-4">
             {/* Task stats */}
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {[
                 { label: "Pending", count: (tasks as any[] ?? []).filter((t: any) => t.status === "pending").length, color: "text-amber-600", bg: "bg-amber-50 dark:bg-amber-950/20" },
-                { label: "In Progress", count: (tasks as any[] ?? []).filter((t: any) => t.status === "in_progress").length, color: "text-blue-600", bg: "bg-blue-50 dark:bg-blue-950/20" },
+                { label: "In progress", count: (tasks as any[] ?? []).filter((t: any) => t.status === "in_progress").length, color: "text-blue-600", bg: "bg-blue-50 dark:bg-blue-950/20" },
+                { label: "Blocked", count: (tasks as any[] ?? []).filter((t: any) => t.status === "blocked").length, color: "text-orange-600", bg: "bg-orange-50 dark:bg-orange-950/20" },
                 { label: "Completed", count: (tasks as any[] ?? []).filter((t: any) => t.status === "completed").length, color: "text-green-600", bg: "bg-green-50 dark:bg-green-950/20" },
               ].map(({ label, count, color, bg }) => (
                 <Card key={label} className={`${bg} border-0`}>
@@ -2239,41 +2258,77 @@ export default function EmployeePortalPage() {
             ) : (
               <div className="space-y-3">
                 {filteredTasks.map((task: any) => {
-                  const overdue = task.status !== "completed" && task.status !== "cancelled" && task.dueDate && new Date(task.dueDate) < today;
+                  const urgency = getDueUrgency(task.dueDate, task.status);
+                  const sla = slaLabel(task.dueDate, task.status);
+                  const st = task.status as TaskStatus;
+                  const statusIcon = TASK_STATUS_ICON[st] ?? TASK_STATUS_ICON.pending;
+                  const cardTone =
+                    urgency === "overdue"
+                      ? "border-red-400 bg-red-50/90 dark:bg-red-950/35 ring-2 ring-red-200 dark:ring-red-900/60 shadow-sm"
+                      : urgency === "due_today"
+                        ? "border-amber-400 bg-amber-50/70 dark:bg-amber-950/25 ring-1 ring-amber-200"
+                        : "";
                   return (
-                    <Card key={task.id} className={overdue ? "border-red-200 bg-red-50/30 dark:bg-red-950/10" : ""}>
-                      <CardContent className="p-4">
-                        <div className="flex items-start gap-3">
-                          <div className="mt-0.5 shrink-0">{TASK_STATUS_ICON[task.status as TaskStatus]}</div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-start justify-between gap-2">
-                              <p className={`font-medium text-sm ${task.status === "completed" ? "line-through text-muted-foreground" : ""}`}>
-                                {task.title}
-                              </p>
-                              <span className={`text-xs px-2 py-0.5 rounded-full font-medium shrink-0 ${PRIORITY_COLOR[task.priority as Priority]}`}>
-                                {task.priority}
-                              </span>
-                            </div>
-                            {task.description && (
-                              <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{task.description}</p>
-                            )}
-                            <div className="flex items-center gap-3 mt-1.5 text-xs text-muted-foreground">
-                              <span className="capitalize">{TASK_STATUS_LABEL[task.status as TaskStatus]}</span>
-                              {task.dueDate && (
-                                <span className={`flex items-center gap-1 ${overdue ? "text-red-600 font-medium" : ""}`}>
-                                  <Clock className="w-3 h-3" />
-                                  {overdue ? "Overdue: " : "Due: "}{formatDate(task.dueDate)}
+                    <Card key={task.id} className={`overflow-hidden transition-shadow ${cardTone}`}>
+                      <CardContent className="p-0">
+                        <div className="flex items-stretch">
+                          <button
+                            type="button"
+                            className="flex flex-1 min-w-0 text-left gap-3 p-4 hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-l-xl"
+                            onClick={() => setEmpTaskDetail(task)}
+                          >
+                            <div className="mt-0.5 shrink-0">{statusIcon}</div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-start justify-between gap-2">
+                                <p className={`font-semibold text-sm leading-snug ${task.status === "completed" ? "line-through text-muted-foreground" : ""}`}>
+                                  {task.title}
+                                </p>
+                                <span className={`text-[10px] uppercase font-bold tracking-wide px-2 py-0.5 rounded-full shrink-0 ${PRIORITY_COLOR[task.priority as Priority]}`}>
+                                  {task.priority}
                                 </span>
+                              </div>
+                              {task.description?.trim() && (
+                                <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{task.description}</p>
                               )}
+                              <div className="flex flex-wrap items-center gap-2 mt-2 text-xs">
+                                <span className="inline-flex items-center rounded-full border bg-background/80 px-2 py-0.5 capitalize text-muted-foreground">
+                                  {TASK_STATUS_LABEL[st] ?? task.status}
+                                </span>
+                                {task.dueDate && (
+                                  <span
+                                    className={
+                                      urgency === "overdue"
+                                        ? "inline-flex items-center gap-1 font-bold text-red-700 dark:text-red-400"
+                                        : urgency === "due_today"
+                                          ? "inline-flex items-center gap-1 font-semibold text-amber-800 dark:text-amber-400"
+                                          : "inline-flex items-center gap-1 text-muted-foreground"
+                                    }
+                                  >
+                                    <Clock className="w-3 h-3 shrink-0" />
+                                    {formatDate(task.dueDate)}
+                                    {sla && <span className="ml-1 opacity-90">· {sla}</span>}
+                                  </span>
+                                )}
+                                {urgency === "overdue" && (
+                                  <Badge variant="destructive" className="text-[10px] h-5 px-1.5 py-0">
+                                    Action required
+                                  </Badge>
+                                )}
+                              </div>
+                              <p className="text-[11px] text-muted-foreground mt-2">Tap for details & timeline</p>
                             </div>
-                          </div>
+                          </button>
                           {task.status !== "completed" && task.status !== "cancelled" && (
-                            <div className="flex flex-col items-end gap-1 shrink-0">
-                              {task.status === "pending" && (
+                            <div
+                              className="flex flex-col items-stretch justify-center gap-1 p-3 border-l bg-muted/20 shrink-0"
+                              onClick={(e) => e.stopPropagation()}
+                              onKeyDown={(e) => e.stopPropagation()}
+                            >
+                              {(task.status === "pending" || task.status === "blocked") && (
                                 <Button
                                   size="sm"
                                   variant="secondary"
-                                  className="h-7 text-xs"
+                                  className="h-8 text-xs whitespace-nowrap"
                                   disabled={startTask.isPending || completeTask.isPending}
                                   onClick={() =>
                                     startTask.mutate({
@@ -2287,15 +2342,10 @@ export default function EmployeePortalPage() {
                               )}
                               <Button
                                 size="sm"
-                                variant="outline"
-                                className="h-7 text-xs"
+                                variant={urgency === "overdue" ? "default" : "outline"}
+                                className="h-8 text-xs whitespace-nowrap"
                                 disabled={completeTask.isPending || startTask.isPending}
-                                onClick={() =>
-                                  completeTask.mutate({
-                                    taskId: task.id,
-                                    companyId: activeCompanyId ?? undefined,
-                                  })
-                                }
+                                onClick={() => setCompleteTaskId(task.id)}
                               >
                                 <Check className="w-3 h-3 mr-1" /> Done
                               </Button>
@@ -2307,6 +2357,42 @@ export default function EmployeePortalPage() {
                   );
                 })}
               </div>
+            )}
+
+            <AlertDialog open={completeTaskId !== null} onOpenChange={(o) => !o && setCompleteTaskId(null)}>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Mark this task complete?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Confirm you have finished the work. HR will see it as completed in Task Manager.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={() => {
+                      if (completeTaskId == null) return;
+                      completeTask.mutate({
+                        taskId: completeTaskId,
+                        companyId: activeCompanyId ?? undefined,
+                      });
+                    }}
+                  >
+                    {completeTask.isPending ? "Saving…" : "Yes, mark complete"}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+
+            {empTaskDetail != null && (
+              <TaskDetailSheet
+                task={empTaskDetail}
+                open
+                onOpenChange={(v) => {
+                  if (!v) setEmpTaskDetail(null);
+                }}
+                showInternalNotes={false}
+              />
             )}
           </TabsContent>
 

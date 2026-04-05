@@ -5,6 +5,8 @@ import { employeeTasks, employees } from "../../drizzle/schema";
 import { getDb } from "../db";
 import { protectedProcedure, router } from "../_core/trpc";
 import { requireActiveCompanyId } from "../_core/tenant";
+import { sendEmployeeNotification } from "./employeePortal";
+import { assertAdminStatusTransition, statusUpdateSideEffects, type TaskStatus } from "../taskLifecycle";
 
 async function requireDb() {
   const db = await getDb();
@@ -12,7 +14,7 @@ async function requireDb() {
   return db;
 }
 
-const taskStatusEnum = z.enum(["pending", "in_progress", "completed", "cancelled"]);
+const taskStatusEnum = z.enum(["pending", "in_progress", "completed", "cancelled", "blocked"]);
 const taskPriorityEnum = z.enum(["low", "medium", "high", "urgent"]);
 
 export const tasksRouter = router({
@@ -89,7 +91,22 @@ export const tasksRouter = router({
         notes: rest.notes,
         status: "pending",
       });
-      return { id: (result as any).insertId };
+      const insertId = (result as any).insertId as number;
+      const [assignee] = await db
+        .select({ userId: employees.userId })
+        .from(employees)
+        .where(eq(employees.id, rest.assignedToEmployeeId));
+      if (assignee?.userId) {
+        await sendEmployeeNotification({
+          toUserId: assignee.userId,
+          companyId,
+          type: "task_assigned",
+          title: "New task assigned",
+          message: `You have been assigned: ${rest.title.trim()}`,
+          link: "/my-portal",
+        });
+      }
+      return { id: insertId };
     }),
 
   updateTask: protectedProcedure
@@ -101,6 +118,7 @@ export const tasksRouter = router({
       status: taskStatusEnum.optional(),
       dueDate: z.string().nullable().optional(),
       notes: z.string().optional(),
+      assignedToEmployeeId: z.number().optional(),
       companyId: z.number().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
@@ -109,10 +127,41 @@ export const tasksRouter = router({
       const [existing] = await db.select().from(employeeTasks).where(eq(employeeTasks.id, input.id));
       if (!existing || existing.companyId !== companyId)
         throw new TRPCError({ code: "NOT_FOUND", message: "Task not found" });
-      const { id, dueDate, companyId: _cid, ...rest } = input;
+      const { id, dueDate, companyId: _cid, assignedToEmployeeId, ...rest } = input;
       const updateData: any = { ...rest };
       if (dueDate !== undefined) updateData.dueDate = dueDate ? new Date(dueDate) : null;
-      if (input.status === "completed") updateData.completedAt = new Date();
+
+      if (assignedToEmployeeId !== undefined && assignedToEmployeeId !== existing.assignedToEmployeeId) {
+        const [emp] = await db
+          .select({ id: employees.id, userId: employees.userId })
+          .from(employees)
+          .where(and(eq(employees.id, assignedToEmployeeId), eq(employees.companyId, companyId)));
+        if (!emp)
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Employee not found in this company" });
+        updateData.assignedToEmployeeId = assignedToEmployeeId;
+        if (emp.userId) {
+          await sendEmployeeNotification({
+            toUserId: emp.userId,
+            companyId,
+            type: "task_assigned",
+            title: "Task reassigned to you",
+            message: `You have been assigned: ${existing.title}`,
+            link: "/my-portal",
+          });
+        }
+      }
+
+      if (input.status !== undefined && input.status !== existing.status) {
+        assertAdminStatusTransition(existing.status as TaskStatus, input.status as TaskStatus);
+        Object.assign(
+          updateData,
+          statusUpdateSideEffects(
+            { status: existing.status, startedAt: existing.startedAt },
+            input.status as TaskStatus,
+          ),
+        );
+      }
+
       await db.update(employeeTasks).set(updateData).where(eq(employeeTasks.id, id));
       return { success: true };
     }),
@@ -143,6 +192,7 @@ export const tasksRouter = router({
         total: tasks.length,
         pending: tasks.filter((t) => t.status === "pending").length,
         inProgress: tasks.filter((t) => t.status === "in_progress").length,
+        blocked: tasks.filter((t) => t.status === "blocked").length,
         completed: tasks.filter((t) => t.status === "completed").length,
         overdue: tasks.filter((t) =>
           t.status !== "completed" && t.status !== "cancelled" &&

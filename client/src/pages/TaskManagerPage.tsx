@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { Button } from "@/components/ui/button";
@@ -20,24 +20,27 @@ import {
 import { toast } from "sonner";
 import {
   CheckSquare, Plus, Pencil, Trash2, Clock, AlertCircle,
-  CheckCircle2, Circle, Filter, User,
+  CheckCircle2, Circle, User, Ban, Check,
 } from "lucide-react";
 import { fmtDateLong } from "@/lib/dateUtils";
 import { DateInput } from "@/components/ui/date-input";
+import { getDueUrgency, slaLabel } from "@/lib/taskSla";
+import { TaskDetailSheet } from "@/components/tasks/TaskDetailSheet";
 
 type Priority = "low" | "medium" | "high" | "urgent";
-type Status = "pending" | "in_progress" | "completed" | "cancelled";
+type Status = "pending" | "in_progress" | "completed" | "cancelled" | "blocked";
 
-const PRIORITY_CONFIG: Record<Priority, { label: string; color: string }> = {
-  low: { label: "Low", color: "bg-slate-100 text-slate-700" },
-  medium: { label: "Medium", color: "bg-blue-100 text-blue-700" },
-  high: { label: "High", color: "bg-orange-100 text-orange-700" },
-  urgent: { label: "Urgent", color: "bg-red-100 text-red-700" },
+const PRIORITY_CONFIG: Record<Priority, { label: string; color: string; hint: string }> = {
+  low: { label: "Low", color: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200", hint: "Routine / when convenient" },
+  medium: { label: "Medium", color: "bg-blue-100 text-blue-800 dark:bg-blue-950/40 dark:text-blue-300", hint: "Expected this cycle" },
+  high: { label: "High", color: "bg-orange-100 text-orange-800 dark:bg-orange-950/40 dark:text-orange-300", hint: "Important — prioritize" },
+  urgent: { label: "Urgent", color: "bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300", hint: "Same-day or business-critical" },
 };
 
 const STATUS_CONFIG: Record<Status, { label: string; icon: React.ReactNode }> = {
   pending: { label: "Pending", icon: <Circle className="w-3.5 h-3.5" /> },
   in_progress: { label: "In Progress", icon: <Clock className="w-3.5 h-3.5 text-blue-500" /> },
+  blocked: { label: "Blocked", icon: <Ban className="w-3.5 h-3.5 text-orange-600" /> },
   completed: { label: "Completed", icon: <CheckCircle2 className="w-3.5 h-3.5 text-green-500" /> },
   cancelled: { label: "Cancelled", icon: <AlertCircle className="w-3.5 h-3.5 text-muted-foreground" /> },
 };
@@ -55,10 +58,21 @@ function TaskDialog({
   const [title, setTitle] = useState(initial?.title ?? "");
   const [description, setDescription] = useState(initial?.description ?? "");
   const [priority, setPriority] = useState<Priority>(initial?.priority ?? "medium");
-  const [status, setStatus] = useState<Status>(initial?.status ?? "pending");
+  const [status, setStatus] = useState<Status>((initial?.status as Status) ?? "pending");
   const [dueDate, setDueDate] = useState(initial?.dueDate ? new Date(initial.dueDate).toISOString().split("T")[0] : "");
   const [assignedTo, setAssignedTo] = useState<string>(initial?.assignedToEmployeeId?.toString() ?? "");
   const [notes, setNotes] = useState(initial?.notes ?? "");
+
+  useEffect(() => {
+    if (!open) return;
+    setTitle(initial?.title ?? "");
+    setDescription(initial?.description ?? "");
+    setPriority((initial?.priority as Priority) ?? "medium");
+    setStatus((initial?.status as Status) ?? "pending");
+    setDueDate(initial?.dueDate ? new Date(initial.dueDate).toISOString().split("T")[0] : "");
+    setAssignedTo(initial?.assignedToEmployeeId?.toString() ?? "");
+    setNotes(initial?.notes ?? "");
+  }, [open, initial]);
 
   const create = trpc.tasks.createTask.useMutation({
     onSuccess: () => {
@@ -84,14 +98,35 @@ function TaskDialog({
   const handleSave = () => {
     if (!title.trim() || !assignedTo) return;
     if (initial) {
-      update.mutate({ id: initial.id, title, description: description || undefined, priority, status, dueDate: dueDate || undefined, notes: notes || undefined, companyId: companyId ?? undefined });
+      const payload: Parameters<typeof update.mutate>[0] = {
+        id: initial.id,
+        title,
+        description: description || undefined,
+        priority,
+        status,
+        dueDate: dueDate || undefined,
+        notes: notes || undefined,
+        companyId: companyId ?? undefined,
+      };
+      if (Number(assignedTo) !== initial.assignedToEmployeeId) {
+        payload.assignedToEmployeeId = Number(assignedTo);
+      }
+      update.mutate(payload);
     } else {
-      create.mutate({ assignedToEmployeeId: Number(assignedTo), title, description: description || undefined, priority, dueDate: dueDate || undefined, notes: notes || undefined, companyId: companyId ?? undefined });
+      create.mutate({
+        assignedToEmployeeId: Number(assignedTo),
+        title,
+        description: description || undefined,
+        priority,
+        dueDate: dueDate || undefined,
+        notes: notes || undefined,
+        companyId: companyId ?? undefined,
+      });
     }
   };
 
   return (
-    <Dialog open={open} onOpenChange={onClose}>
+    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
       <DialogContent className="max-w-lg">
         <DialogHeader><DialogTitle>{initial ? "Edit Task" : "Assign New Task"}</DialogTitle></DialogHeader>
         <div className="space-y-4 py-2">
@@ -101,7 +136,7 @@ function TaskDialog({
           </div>
           <div className="space-y-1">
             <Label>Assign To *</Label>
-            <Select value={assignedTo} onValueChange={setAssignedTo} disabled={!!initial}>
+            <Select value={assignedTo} onValueChange={setAssignedTo}>
               <SelectTrigger><SelectValue placeholder="Select employee..." /></SelectTrigger>
               <SelectContent>
                 {employees.map((e) => (
@@ -111,6 +146,9 @@ function TaskDialog({
                 ))}
               </SelectContent>
             </Select>
+            {initial && (
+              <p className="text-xs text-muted-foreground">Change assignee to reassign. The employee is notified.</p>
+            )}
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
@@ -123,6 +161,9 @@ function TaskDialog({
                   ))}
                 </SelectContent>
               </Select>
+              <p className="text-[11px] text-muted-foreground leading-snug mt-1">
+                {PRIORITY_CONFIG[priority].hint}
+              </p>
             </div>
             <div className="space-y-1">
               <Label>Due Date</Label>
@@ -148,7 +189,7 @@ function TaskDialog({
           </div>
           <div className="space-y-1">
             <Label>Notes</Label>
-            <Input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Internal notes..." />
+            <Input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Internal notes (not shown to employee)…" />
           </div>
         </div>
         <DialogFooter>
@@ -162,6 +203,17 @@ function TaskDialog({
   );
 }
 
+function rowUrgencyClass(task: any): string {
+  const u = getDueUrgency(task.dueDate, task.status);
+  if (u === "overdue") {
+    return "border-red-400 bg-red-50/90 dark:bg-red-950/30 ring-2 ring-red-200/80 dark:ring-red-900/50 shadow-sm";
+  }
+  if (u === "due_today") {
+    return "border-amber-400 bg-amber-50/70 dark:bg-amber-950/25 ring-1 ring-amber-200/80";
+  }
+  return "border-border bg-card hover:bg-muted/30";
+}
+
 export default function TaskManagerPage() {
   const utils = trpc.useUtils();
   const { activeCompanyId } = useActiveCompany();
@@ -170,6 +222,7 @@ export default function TaskManagerPage() {
   const [search, setSearch] = useState("");
   const [taskDialog, setTaskDialog] = useState<{ open: boolean; item?: any }>({ open: false });
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
+  const [detailTask, setDetailTask] = useState<any | null>(null);
 
   const { data: tasks = [], isLoading } = trpc.tasks.listTasks.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
   const { data: stats } = trpc.tasks.getTaskStats.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
@@ -185,6 +238,17 @@ export default function TaskManagerPage() {
     },
   });
 
+  const quickComplete = trpc.tasks.updateTask.useMutation({
+    onSuccess: () => {
+      utils.tasks.listTasks.invalidate();
+      utils.tasks.getTaskStats.invalidate();
+      utils.employeePortal.getMyTasks.invalidate();
+      toast.success("Task marked complete");
+      setDetailTask(null);
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
   const empList = (employees as any)?.employees ?? employees ?? [];
 
   const filtered = (tasks as any[]).filter((t) => {
@@ -194,13 +258,11 @@ export default function TaskManagerPage() {
     return true;
   });
 
-  const isOverdue = (t: any) => t.status !== "completed" && t.status !== "cancelled" && t.dueDate && new Date(t.dueDate) < new Date();
-
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold">Task Manager</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Task Manager</h1>
           <p className="text-muted-foreground text-sm mt-1">Assign and track tasks for your team.</p>
         </div>
         <Button onClick={() => setTaskDialog({ open: true })}>
@@ -208,27 +270,46 @@ export default function TaskManagerPage() {
         </Button>
       </div>
 
-      {/* Stats */}
       {stats && (
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
           {[
-            { label: "Total", value: stats.total, color: "text-foreground" },
-            { label: "Pending", value: stats.pending, color: "text-muted-foreground" },
-            { label: "In Progress", value: stats.inProgress, color: "text-blue-600" },
-            { label: "Completed", value: stats.completed, color: "text-green-600" },
-            { label: "Overdue", value: stats.overdue, color: "text-red-600" },
+            { label: "Total", value: stats.total, emphasize: false },
+            { label: "Pending", value: stats.pending, emphasize: false },
+            { label: "In progress", value: stats.inProgress, emphasize: false },
+            { label: "Blocked", value: stats.blocked ?? 0, emphasize: (stats.blocked ?? 0) > 0 },
+            { label: "Completed", value: stats.completed, emphasize: false },
+            {
+              label: "Overdue",
+              value: stats.overdue,
+              emphasize: stats.overdue > 0,
+              danger: stats.overdue > 0,
+            },
           ].map((s) => (
-            <Card key={s.label}>
+            <Card
+              key={s.label}
+              className={
+                s.danger
+                  ? "border-red-300 dark:border-red-900 shadow-[0_0_0_1px_rgba(220,38,38,0.25)]"
+                : s.emphasize
+                  ? "border-amber-200 dark:border-amber-900"
+                  : undefined
+              }
+            >
               <CardContent className="pt-4 pb-3 text-center">
-                <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
-                <p className="text-xs text-muted-foreground">{s.label}</p>
+                <p
+                  className={`text-2xl font-bold tabular-nums ${
+                    s.danger ? "text-red-600" : s.label === "Completed" ? "text-green-600" : s.label === "In progress" ? "text-blue-600" : ""
+                  }`}
+                >
+                  {s.value}
+                </p>
+                <p className="text-xs text-muted-foreground font-medium">{s.label}</p>
               </CardContent>
             </Card>
           ))}
         </div>
       )}
 
-      {/* Filters */}
       <div className="flex flex-wrap gap-3">
         <Input
           placeholder="Search tasks or employees..."
@@ -237,7 +318,7 @@ export default function TaskManagerPage() {
           className="max-w-xs"
         />
         <Select value={filterStatus} onValueChange={setFilterStatus}>
-          <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Status</SelectItem>
             {Object.entries(STATUS_CONFIG).map(([k, v]) => (
@@ -246,7 +327,7 @@ export default function TaskManagerPage() {
           </SelectContent>
         </Select>
         <Select value={filterPriority} onValueChange={setFilterPriority}>
-          <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Priority</SelectItem>
             {Object.entries(PRIORITY_CONFIG).map(([k, v]) => (
@@ -256,10 +337,9 @@ export default function TaskManagerPage() {
         </Select>
       </div>
 
-      {/* Task List */}
       {isLoading ? (
         <div className="space-y-2">
-          {[1,2,3,4,5].map((i) => <div key={i} className="h-16 bg-muted animate-pulse rounded-lg" />)}
+          {[1, 2, 3, 4, 5].map((i) => <div key={i} className="h-24 bg-muted animate-pulse rounded-lg" />)}
         </div>
       ) : filtered.length === 0 ? (
         <div className="text-center py-16 text-muted-foreground">
@@ -272,49 +352,111 @@ export default function TaskManagerPage() {
           </p>
         </div>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-3">
           {filtered.map((task: any) => {
-            const overdue = isOverdue(task);
-            const pc = PRIORITY_CONFIG[task.priority as Priority];
-            const sc = STATUS_CONFIG[task.status as Status];
+            const pc = PRIORITY_CONFIG[task.priority as Priority] ?? PRIORITY_CONFIG.medium;
+            const sc = STATUS_CONFIG[task.status as Status] ?? STATUS_CONFIG.pending;
+            const sla = slaLabel(task.dueDate, task.status);
+            const urgency = getDueUrgency(task.dueDate, task.status);
             return (
               <div
                 key={task.id}
-                className={`flex items-center gap-4 p-4 rounded-lg border bg-card group ${overdue ? "border-red-200 bg-red-50/50 dark:bg-red-950/10" : ""}`}
+                role="button"
+                tabIndex={0}
+                onClick={() => setDetailTask(task)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    setDetailTask(task);
+                  }
+                }}
+                className={`rounded-xl border p-4 transition-shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer ${rowUrgencyClass(task)}`}
               >
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-medium text-sm">{task.title}</span>
-                    {overdue && <Badge variant="destructive" className="text-xs">Overdue</Badge>}
-                  </div>
-                  <div className="flex items-center gap-3 mt-1 flex-wrap">
-                    <span className="flex items-center gap-1 text-xs text-muted-foreground min-w-0 max-w-[min(100%,14rem)]">
-                      <User className="w-3 h-3 shrink-0" />
-                      <span className="truncate" title={task.employeeName || undefined}>{task.employeeName || "—"}</span>
-                    </span>
-                    {task.dueDate && (
-                      <span className={`flex items-center gap-1 text-xs shrink-0 ${overdue ? "text-red-600" : "text-muted-foreground"}`}>
-                        <Clock className="w-3 h-3" />Due {fmtDateLong(task.dueDate)}
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0 flex-1 space-y-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className={`shrink-0 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${pc.color}`}>
+                        {pc.label}
                       </span>
-                    )}
-                    {task.employeeDepartment && (
-                      <span className="text-xs text-muted-foreground shrink-0">{task.employeeDepartment}</span>
-                    )}
+                      <h3 className="font-semibold text-sm leading-snug">{task.title}</h3>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      <User className="w-3 h-3 inline-block mr-1 align-middle shrink-0" />
+                      <span className="font-medium text-foreground/90">{task.employeeName || "—"}</span>
+                      {task.employeeDepartment && (
+                        <>
+                          <span className="mx-1.5 text-muted-foreground/60">·</span>
+                          <span>{task.employeeDepartment}</span>
+                        </>
+                      )}
+                    </p>
+                    <div className="flex flex-wrap items-center gap-2 text-xs">
+                      {task.dueDate && (
+                        <span
+                          className={
+                            urgency === "overdue"
+                              ? "text-red-700 dark:text-red-400 font-semibold"
+                              : urgency === "due_today"
+                                ? "text-amber-700 dark:text-amber-400 font-medium"
+                                : "text-muted-foreground"
+                          }
+                        >
+                          <Clock className="w-3 h-3 inline mr-1 align-middle" />
+                          Due {fmtDateLong(task.dueDate)}
+                          {sla && (
+                            <span className="ml-1.5">· {sla}</span>
+                          )}
+                        </span>
+                      )}
+                      <span className="inline-flex items-center gap-1 rounded-full border bg-background/80 px-2 py-0.5 text-muted-foreground">
+                        {sc.icon}
+                        {sc.label}
+                      </span>
+                    </div>
                   </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${pc.color}`}>{pc.label}</span>
-                  <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                    {sc.icon}{sc.label}
-                  </span>
-                </div>
-                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setTaskDialog({ open: true, item: task })}>
-                    <Pencil className="w-3.5 h-3.5" />
-                  </Button>
-                  <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => setDeleteConfirm(task.id)}>
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </Button>
+                  <div
+                    className="flex flex-wrap items-center justify-end gap-1 sm:flex-col sm:items-end"
+                    onClick={(e) => e.stopPropagation()}
+                    onKeyDown={(e) => e.stopPropagation()}
+                  >
+                    {task.status !== "completed" && task.status !== "cancelled" && (
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        className="h-8 text-xs"
+                        disabled={quickComplete.isPending}
+                        onClick={() =>
+                          quickComplete.mutate({
+                            id: task.id,
+                            status: "completed",
+                            companyId: activeCompanyId ?? undefined,
+                          })
+                        }
+                      >
+                        <Check className="w-3.5 h-3.5 mr-1" />
+                        Complete
+                      </Button>
+                    )}
+                    <div className="flex gap-1">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 text-xs"
+                        onClick={() => setTaskDialog({ open: true, item: task })}
+                      >
+                        <Pencil className="w-3.5 h-3.5 mr-1" />
+                        Edit
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-8 text-xs text-destructive hover:text-destructive"
+                        onClick={() => setDeleteConfirm(task.id)}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+                  </div>
                 </div>
               </div>
             );
@@ -330,6 +472,49 @@ export default function TaskManagerPage() {
         companyId={activeCompanyId}
       />
 
+      {detailTask != null && (
+        <TaskDetailSheet
+          task={detailTask}
+          open
+          onOpenChange={(v) => {
+            if (!v) setDetailTask(null);
+          }}
+          showInternalNotes
+          footer={
+            <div className="flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  const t = detailTask;
+                  setDetailTask(null);
+                  setTaskDialog({ open: true, item: t });
+                }}
+              >
+                <Pencil className="w-3.5 h-3.5 mr-1" />
+                Edit / Reassign
+              </Button>
+              {detailTask.status !== "completed" && detailTask.status !== "cancelled" && (
+                <Button
+                  size="sm"
+                  disabled={quickComplete.isPending}
+                  onClick={() =>
+                    quickComplete.mutate({
+                      id: detailTask.id,
+                      status: "completed",
+                      companyId: activeCompanyId ?? undefined,
+                    })
+                  }
+                >
+                  <Check className="w-3.5 h-3.5 mr-1" />
+                  Mark complete
+                </Button>
+              )}
+            </div>
+          }
+        />
+      )}
+
       <AlertDialog open={deleteConfirm !== null} onOpenChange={() => setDeleteConfirm(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -340,8 +525,13 @@ export default function TaskManagerPage() {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={() => deleteConfirm !== null && deleteTask.mutate({ id: deleteConfirm })}
-            >Delete</AlertDialogAction>
+              onClick={() =>
+                deleteConfirm !== null &&
+                deleteTask.mutate({ id: deleteConfirm, companyId: activeCompanyId ?? undefined })
+              }
+            >
+              Delete
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

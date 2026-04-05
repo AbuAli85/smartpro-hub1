@@ -7,7 +7,7 @@ export type KpiTargetStatus = "draft" | "active" | "completed" | "archived" | "c
  * - draft: publish to active, or cancel
  * - active: complete, archive, or cancel
  * - completed: may be archived for housekeeping
- * - archived: may be reactivated to active
+ * - archived → active: reversible administrative hide (not a retired terminal state)
  * - cancelled: terminal (no transitions)
  */
 export function assertKpiTargetStatusTransition(from: KpiTargetStatus, to: KpiTargetStatus): void {

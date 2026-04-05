@@ -12,9 +12,26 @@ import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import {
-  Target, Trophy, Activity, TrendingUp, Plus, Trash2, Edit2,
-  Users, BarChart2, Award, Zap, ChevronDown, ChevronUp, Eye,
-  DollarSign, Percent, User, RefreshCw,
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { invalidateAfterKpiLifecycleMutation, invalidateAfterKpiTargetMutation } from "@/lib/hrPerformanceInvalidation";
+import {
+  Target, Trophy, Activity, TrendingUp, Plus, Edit2,
+  Users, Award, Zap, ChevronDown, ChevronUp, Eye,
+  DollarSign, MoreHorizontal,
 } from "lucide-react";
 
 const METRIC_TYPES = [
@@ -30,6 +47,58 @@ const METRIC_TYPES = [
 ] as const;
 
 const MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+type KpiLifecycleStatus = "draft" | "active" | "completed" | "archived" | "cancelled";
+
+function targetStatusLabel(s: string): string {
+  const map: Record<string, string> = {
+    draft: "Draft",
+    active: "Active",
+    completed: "Completed",
+    archived: "Archived",
+    cancelled: "Cancelled",
+  };
+  return map[s] ?? s;
+}
+
+function TargetStatusBadge({ status }: { status?: string | null }) {
+  const s = (status ?? "active") as KpiLifecycleStatus;
+  const cls =
+    s === "active"
+      ? "bg-emerald-100 text-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-300"
+      : s === "draft"
+        ? "bg-slate-100 text-slate-800 dark:bg-slate-800"
+        : s === "completed"
+          ? "bg-blue-100 text-blue-800 dark:bg-blue-950/30"
+          : s === "archived"
+            ? "bg-muted text-muted-foreground"
+            : "bg-red-100 text-red-900 dark:bg-red-950/40";
+  return (
+    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0 ${cls}`}>
+      {targetStatusLabel(s)}
+    </span>
+  );
+}
+
+function lifecycleActionsFor(status: string): { to: KpiLifecycleStatus; label: string }[] {
+  switch (status) {
+    case "draft":
+      return [
+        { to: "active", label: "Activate" },
+        { to: "cancelled", label: "Cancel target" },
+      ];
+    case "active":
+      return [
+        { to: "completed", label: "Mark complete" },
+        { to: "archived", label: "Archive" },
+        { to: "cancelled", label: "Cancel target" },
+      ];
+    case "archived":
+      return [{ to: "active", label: "Reactivate" }];
+    default:
+      return [];
+  }
+}
 
 function getInitials(firstName: string, lastName: string) {
   return `${firstName?.[0] ?? ""}${lastName?.[0] ?? ""}`.toUpperCase();
@@ -65,6 +134,10 @@ export default function HRKpiPage() {
   const [showLogs, setShowLogs] = useState(false);
   const [logsEmpUserId, setLogsEmpUserId] = useState<number | null>(null);
   const [logsEmpName, setLogsEmpName] = useState("");
+  const [pendingLifecycleConfirm, setPendingLifecycleConfirm] = useState<{
+    id: number;
+    to: "completed" | "cancelled";
+  } | null>(null);
 
   // ── Data ───────────────────────────────────────────────────────────────────
   const { data: employees, isLoading: empsLoading } = trpc.hr.listEmployees.useQuery({ status: "active" });
@@ -82,24 +155,35 @@ export default function HRKpiPage() {
   const utils = trpc.useUtils();
 
   const setTargetMut = trpc.kpi.setTarget.useMutation({
-    onSuccess: () => {
+    onSuccess: async () => {
       toast.success(editTargetId ? "Target updated!" : "Target set — employee notified.");
       setShowSetTarget(false);
       resetTargetForm();
+      await invalidateAfterKpiTargetMutation(utils);
       refetchProgress();
       refetchLb();
     },
-    onError: (e: any) => toast.error(e.message),
+    onError: (e: { message: string }) => toast.error(e.message),
   });
 
-  const deleteTargetMut = trpc.kpi.deleteTarget.useMutation({
-    onSuccess: () => {
-      toast.success("Target deleted.");
+  const transitionMut = trpc.kpi.transitionKpiTarget.useMutation({
+    onSuccess: async () => {
+      toast.success("Target status updated.");
+      setPendingLifecycleConfirm(null);
+      await invalidateAfterKpiLifecycleMutation(utils);
       refetchProgress();
       refetchLb();
     },
-    onError: (e: any) => toast.error(e.message),
+    onError: (e: { message: string }) => toast.error(e.message),
   });
+
+  function requestTargetTransition(id: number, to: KpiLifecycleStatus) {
+    if (to === "completed" || to === "cancelled") {
+      setPendingLifecycleConfirm({ id, to });
+      return;
+    }
+    transitionMut.mutate({ id, to });
+  }
 
   function resetTargetForm() {
     setEditTargetId(null);
@@ -121,6 +205,11 @@ export default function HRKpiPage() {
 
   function openEditTarget(item: any) {
     const t = item.target;
+    const st = (t.targetStatus ?? "active") as string;
+    if (st !== "draft" && st !== "active") {
+      toast.error("Only draft or active targets can be edited.");
+      return;
+    }
     setEditTargetId(t.id);
     setTEmpUserId(t.employeeUserId);
     setTMetricName(t.metricName);
@@ -311,9 +400,8 @@ export default function HRKpiPage() {
                     totalComm={empTotalComm}
                     onAddTarget={() => openNewTarget(uid)}
                     onEditTarget={openEditTarget}
-                    onDeleteTarget={(id) => {
-                      if (confirm("Delete this target?")) deleteTargetMut.mutate({ id });
-                    }}
+                    onRequestTransition={requestTargetTransition}
+                    transitionPending={transitionMut.isPending}
                     onViewLogs={() => {
                       setLogsEmpUserId(uid);
                       setLogsEmpName(`${emp.firstName} ${emp.lastName}`);
@@ -565,6 +653,42 @@ export default function HRKpiPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog
+        open={!!pendingLifecycleConfirm}
+        onOpenChange={(o) => {
+          if (!o) setPendingLifecycleConfirm(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {pendingLifecycleConfirm?.to === "completed"
+                ? "Mark target complete?"
+                : "Cancel this target?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingLifecycleConfirm?.to === "completed"
+                ? "The target moves to completed. Metric values stay fixed; you can archive later if needed."
+                : "The target will be set to cancelled (soft). Historical records remain for audit."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Back</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (!pendingLifecycleConfirm) return;
+                transitionMut.mutate({
+                  id: pendingLifecycleConfirm.id,
+                  to: pendingLifecycleConfirm.to,
+                });
+              }}
+            >
+              Confirm
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
@@ -572,12 +696,14 @@ export default function HRKpiPage() {
 // ── Employee KPI Card ──────────────────────────────────────────────────────
 function EmployeeKpiCard({
   emp, uid, items, hasTargets, avgPct, totalComm,
-  onAddTarget, onEditTarget, onDeleteTarget, onViewLogs,
+  onAddTarget, onEditTarget, onRequestTransition, transitionPending, onViewLogs,
 }: {
   emp: any; uid: number; items: any[]; hasTargets: boolean;
   avgPct: number; totalComm: number;
   onAddTarget: () => void; onEditTarget: (item: any) => void;
-  onDeleteTarget: (id: number) => void; onViewLogs: () => void;
+  onRequestTransition: (id: number, to: KpiLifecycleStatus) => void;
+  transitionPending: boolean;
+  onViewLogs: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const initials = getInitials(emp.firstName, emp.lastName);
@@ -618,7 +744,12 @@ function EmployeeKpiCard({
       </div>
 
       {expanded && (
-        <div className="border-t px-4 pb-4 pt-3 space-y-3">
+        <div
+          className="border-t px-4 pb-4 pt-3 space-y-3"
+          onClick={(e) => e.stopPropagation()}
+          onKeyDown={(e) => e.stopPropagation()}
+          role="presentation"
+        >
           {/* Actions row */}
           <div className="flex items-center gap-2 flex-wrap">
             <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={onAddTarget}>
@@ -642,6 +773,9 @@ function EmployeeKpiCard({
                 const pct = Math.min(Number(item.pct ?? 0), 100);
                 const isExceeded = pct >= 100;
                 const isOnTrack = pct >= 80;
+                const st = (t.targetStatus ?? "active") as string;
+                const canEdit = st === "draft" || st === "active";
+                const actions = lifecycleActionsFor(st);
 
                 return (
                   <div key={t.id} className="space-y-1.5 p-3 rounded-lg bg-muted/30 border">
@@ -652,23 +786,45 @@ function EmployeeKpiCard({
                         }`} />
                         <span className="font-medium text-sm truncate">{t.metricName}</span>
                         <span className="text-xs text-muted-foreground hidden sm:inline">({t.metricType})</span>
+                        <TargetStatusBadge status={t.targetStatus} />
                       </div>
-                      <div className="flex items-center gap-2 shrink-0">
+                      <div className="flex items-center gap-1 shrink-0">
                         <PctBadge pct={pct} />
-                        <Button
-                          size="sm" variant="ghost"
-                          className="h-6 w-6 p-0 text-muted-foreground hover:text-primary"
-                          onClick={() => onEditTarget(item)}
-                        >
-                          <Edit2 className="w-3 h-3" />
-                        </Button>
-                        <Button
-                          size="sm" variant="ghost"
-                          className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
-                          onClick={() => onDeleteTarget(t.id)}
-                        >
-                          <Trash2 className="w-3 h-3" />
-                        </Button>
+                        {canEdit && (
+                          <Button
+                            size="sm" variant="ghost"
+                            className="h-6 w-6 p-0 text-muted-foreground hover:text-primary"
+                            onClick={() => onEditTarget(item)}
+                            title="Edit target"
+                          >
+                            <Edit2 className="w-3 h-3" />
+                          </Button>
+                        )}
+                        {actions.length > 0 && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 px-2 text-xs gap-1"
+                                disabled={transitionPending}
+                              >
+                                <MoreHorizontal className="w-3 h-3" />
+                                <span className="hidden sm:inline">Lifecycle</span>
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-48">
+                              {actions.map((a) => (
+                                <DropdownMenuItem
+                                  key={a.to}
+                                  onClick={() => onRequestTransition(t.id, a.to)}
+                                >
+                                  {a.label}
+                                </DropdownMenuItem>
+                              ))}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
                       </div>
                     </div>
                     <Progress value={pct} className="h-1.5" />

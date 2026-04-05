@@ -15,6 +15,8 @@ function makeUtils() {
     kpi: {
       adminGetTeamProgress: { invalidate: vi.fn().mockResolvedValue(undefined) },
       getLeaderboard: { invalidate: vi.fn().mockResolvedValue(undefined) },
+      listMyTargets: { invalidate: vi.fn().mockResolvedValue(undefined) },
+      getMyProgress: { invalidate: vi.fn().mockResolvedValue(undefined) },
     },
   };
 }
@@ -42,5 +44,7 @@ describe("hrPerformanceInvalidation", () => {
     expect(utils.financeHR.getHrPerformanceDashboard.invalidate).toHaveBeenCalledTimes(1);
     expect(utils.kpi.adminGetTeamProgress.invalidate).toHaveBeenCalledTimes(1);
     expect(utils.kpi.getLeaderboard.invalidate).toHaveBeenCalledTimes(1);
+    expect(utils.kpi.listMyTargets.invalidate).toHaveBeenCalledTimes(1);
+    expect(utils.kpi.getMyProgress.invalidate).toHaveBeenCalledTimes(1);
   });
 });

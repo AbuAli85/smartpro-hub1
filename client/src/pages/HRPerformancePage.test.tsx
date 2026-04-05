@@ -39,6 +39,8 @@ vi.mock("@/lib/trpc", () => ({
     kpi: {
       adminGetTeamProgress: { useQuery: () => ({ data: [] }) },
       getLeaderboard: { useQuery: () => ({ data: [] }) },
+      listMyTargets: { useQuery: () => ({ data: [] }) },
+      getMyProgress: { useQuery: () => ({ data: [] }) },
       setTarget: { useMutation: () => ({ mutate: vi.fn(), isPending: false }) },
     },
   },

@@ -13,6 +13,8 @@ export type HrPerformanceTrpcUtils = {
   kpi: {
     adminGetTeamProgress: { invalidate: () => Promise<void> | void };
     getLeaderboard: { invalidate: () => Promise<void> | void };
+    listMyTargets: { invalidate: () => Promise<void> | void };
+    getMyProgress: { invalidate: () => Promise<void> | void };
   };
 };
 
@@ -36,5 +38,12 @@ export async function invalidateAfterKpiTargetMutation(utils: HrPerformanceTrpcU
     utils.financeHR.getHrPerformanceDashboard.invalidate(),
     utils.kpi.adminGetTeamProgress.invalidate(),
     utils.kpi.getLeaderboard.invalidate(),
+    utils.kpi.listMyTargets.invalidate(),
+    utils.kpi.getMyProgress.invalidate(),
   ]);
+}
+
+/** After lifecycle transitions (`transitionKpiTarget`, soft cancel via `deleteTarget`). Same breadth as set-target. */
+export async function invalidateAfterKpiLifecycleMutation(utils: HrPerformanceTrpcUtils) {
+  await invalidateAfterKpiTargetMutation(utils);
 }

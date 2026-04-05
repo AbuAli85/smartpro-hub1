@@ -21,6 +21,8 @@ export const employeePortalConfig = {
     neutralAttendanceFallback: 62,
     /** Neutral substitute when employee has no tasks yet */
     neutralTaskFallback: 72,
+    /** Card title — avoid “performance rating” framing */
+    uiCardTitle: "Work activity snapshot",
   },
   compliance: {
     /** Placeholder roadmap — no backend yet */

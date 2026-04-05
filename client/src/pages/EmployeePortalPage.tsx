@@ -706,10 +706,16 @@ export default function EmployeePortalPage() {
   });
 
   const markNotifRead = trpc.employeePortal.markNotificationRead.useMutation({
-    onSuccess: () => refetchNotifs(),
+    onSuccess: () => {
+      void refetchNotifs();
+      void utils.employeePortal.getMyNotifications.invalidate();
+    },
   });
   const markAllRead = trpc.employeePortal.markAllNotificationsRead.useMutation({
-    onSuccess: () => refetchNotifs(),
+    onSuccess: () => {
+      void refetchNotifs();
+      void utils.employeePortal.getMyNotifications.invalidate();
+    },
   });
   const completeTask = trpc.employeePortal.completeTask.useMutation({
     onSuccess: () => {
@@ -802,7 +808,10 @@ export default function EmployeePortalPage() {
     if (shiftIntel.phase === "upcoming") ctaLabel = "Prepare";
     if (shiftIntel.phase === "active" && !checkIn) ctaLabel = "Check in now";
     if (shiftIntel.phase === "active" && checkIn && !checkOut) ctaLabel = "Check out";
-    if (shiftIntel.phase === "ended") ctaLabel = checkIn ? "Shift summary" : "Request correction";
+    if (shiftIntel.phase === "ended") {
+      if (checkIn && !checkOut) ctaLabel = "Check out";
+      else ctaLabel = checkIn ? "Open attendance" : "Request correction";
+    }
     return { missedActive, missedEnded, ctaLabel, checkIn, checkOut };
   }, [shiftIntel, todayAttendanceRecord]);
 
@@ -1258,24 +1267,82 @@ export default function EmployeePortalPage() {
             )}
 
             <Card className="border-emerald-200/70 bg-emerald-50/45 dark:bg-emerald-950/20 ring-1 ring-emerald-500/20">
-              <CardContent className="p-4 flex flex-wrap items-center justify-between gap-4">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-11 h-11 rounded-xl bg-emerald-500/15 flex items-center justify-center shrink-0">
-                    <Sparkles className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+              <CardContent className="p-4 space-y-3">
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div className="flex min-w-0 items-start gap-3">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-500/15">
+                      <Sparkles className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                    </div>
+                    <div className="min-w-0 space-y-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                          {employeePortalConfig.productivity.uiCardTitle}
+                        </p>
+                        <Badge
+                          variant="outline"
+                          className={
+                            productivity.dataConfidence === "low"
+                              ? "border-amber-500/50 text-amber-900 dark:text-amber-100"
+                              : productivity.dataConfidence === "medium"
+                                ? "border-blue-500/45 text-blue-900 dark:text-blue-100"
+                                : "border-emerald-500/45 text-emerald-900 dark:text-emerald-100"
+                          }
+                        >
+                          Data: {productivity.dataConfidence === "low" ? "Low" : productivity.dataConfidence === "medium" ? "Medium" : "High"}
+                        </Badge>
+                      </div>
+                      <p className="text-2xl font-bold tabular-nums text-emerald-800 dark:text-emerald-300">{productivity.score}%</p>
+                      <p className="max-w-xl text-[10px] leading-snug text-muted-foreground">{productivity.disclaimer}</p>
+                      <p className="max-w-xl text-xs leading-snug text-muted-foreground">{productivity.hint}</p>
+                      <div className="mt-1 space-y-1.5 rounded-md border border-border/60 bg-card/60 px-3 py-2 text-xs">
+                        <p className="font-medium text-foreground">How this number is built</p>
+                        <ul className="space-y-1 text-muted-foreground">
+                          <li>
+                            <span className="text-foreground">
+                              Attendance ({Math.round(employeePortalConfig.productivity.attendanceWeight * 100)}% weight):
+                            </span>{" "}
+                            {productivity.usedAttendanceFallback ? (
+                              <>
+                                neutral fill-in (~{employeePortalConfig.productivity.neutralAttendanceFallback}%) → ~
+                                {productivity.attendancePointsDisplay} pts
+                              </>
+                            ) : (
+                              <>
+                                {productivity.attendanceRateActual}% this month → ~{productivity.attendancePointsDisplay} pts
+                              </>
+                            )}
+                          </li>
+                          <li>
+                            <span className="text-foreground">
+                              Tasks ({Math.round(employeePortalConfig.productivity.taskWeight * 100)}% weight):
+                            </span>{" "}
+                            {productivity.usedTaskFallback ? (
+                              <>
+                                neutral fill-in (~{employeePortalConfig.productivity.neutralTaskFallback}%) → ~
+                                {productivity.taskPointsDisplay} pts
+                              </>
+                            ) : (
+                              <>
+                                {productivity.completedTaskCount}/{productivity.assignedTaskCount} completed (
+                                {productivity.taskCompletionPercentActual}%) → ~{productivity.taskPointsDisplay} pts
+                              </>
+                            )}
+                          </li>
+                        </ul>
+                        <p className="border-t border-border/50 pt-1 font-mono text-[10px] text-muted-foreground">
+                          {productivity.formulaSummary}
+                        </p>
+                      </div>
+                    </div>
                   </div>
-                  <div className="min-w-0">
-                    <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Performance snapshot</p>
-                    <p className="text-2xl font-bold text-emerald-800 dark:text-emerald-300 tabular-nums">{productivity.score}%</p>
-                    <p className="text-xs text-muted-foreground max-w-md leading-snug">{productivity.hint}</p>
+                  <div className="flex shrink-0 flex-wrap gap-2">
+                    <Button size="sm" variant="outline" onClick={() => setActiveTab("attendance")}>
+                      Attendance
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => setActiveTab("tasks")}>
+                      Tasks
+                    </Button>
                   </div>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <Button size="sm" variant="outline" onClick={() => setActiveTab("attendance")}>
-                    Attendance
-                  </Button>
-                  <Button size="sm" variant="outline" onClick={() => setActiveTab("tasks")}>
-                    Tasks
-                  </Button>
                 </div>
               </CardContent>
             </Card>

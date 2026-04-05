@@ -1,0 +1,238 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { auditEvents, documentGenerationAuditLogs, generatedDocuments } from "../../../drizzle/schema";
+import type { User } from "../../../drizzle/schema";
+import * as repo from "./documentGeneration.repository";
+import * as contextMod from "./promoterAssignmentContext";
+import { DocumentGenerationError } from "./documentGeneration.types";
+import { generateDocument, type GenerateDocumentDeps } from "./documentGeneration.service";
+
+vi.mock("../../db", () => ({
+  getDb: vi.fn(),
+}));
+
+vi.mock("../../storage", () => ({
+  storagePut: vi.fn(),
+}));
+
+import { getDb } from "../../db";
+import { storagePut } from "../../storage";
+
+const user = {
+  id: 1,
+  openId: "o1",
+  email: "a@b.c",
+  name: "U",
+  loginMethod: "manus",
+  role: "user" as const,
+  platformRole: "company_admin" as const,
+  isActive: true,
+  createdAt: new Date(),
+  updatedAt: new Date(),
+  lastSignedIn: new Date(),
+} satisfies User;
+
+const assignmentId = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb";
+
+const templateRow = {
+  id: "tpl-uuid",
+  companyId: 0,
+  key: "promoter_assignment_contract_bilingual",
+  name: "T",
+  category: "contract",
+  entityType: "promoter_assignment",
+  documentSource: "google_docs",
+  googleDocId: "source-doc",
+  language: "ar-en",
+  version: 1,
+  status: "active",
+  outputFormats: ["pdf"] as string[],
+  createdAt: new Date(),
+  updatedAt: new Date(),
+};
+
+const placeholderRowsFull = [
+  { placeholder: "location_en", sourcePath: "assignment.location_en", dataType: "string", required: true, defaultValue: null },
+];
+
+const contextRoot = {
+  first_party: { company_name_ar: "أ", company_name_en: "A", cr_number: "1" },
+  second_party: { company_name_ar: "ب", company_name_en: "B", cr_number: "2" },
+  promoter: { full_name_ar: "ج", full_name_en: "J D", id_card_number: "99" },
+  assignment: { location_ar: "L1", location_en: "L2", start_date: "2026-01-01", end_date: "2026-06-30" },
+};
+
+describe("generateDocument", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(storagePut).mockResolvedValue({ key: "k", url: "https://u" });
+    vi.spyOn(repo, "seedDocumentGenerationBootstrap").mockResolvedValue();
+    vi.spyOn(repo, "findTemplateByKeyForCompany").mockResolvedValue(templateRow as never);
+    vi.spyOn(repo, "listPlaceholdersForTemplate").mockResolvedValue(placeholderRowsFull as never);
+    vi.spyOn(contextMod, "buildPromoterAssignmentDocumentContext").mockResolvedValue(
+      contextRoot as never
+    );
+  });
+
+  it("happy path with mocked Google and storage", async () => {
+    const insertRecords: { table: unknown; values: Record<string, unknown> }[] = [];
+    const db = {
+      insert: vi.fn((table: object) => ({
+        values: vi.fn((values: Record<string, unknown>) => {
+          insertRecords.push({ table, values });
+          return Promise.resolve();
+        }),
+      })),
+      update: vi.fn(() => ({
+        set: vi.fn(() => ({
+          where: vi.fn(() => Promise.resolve()),
+        })),
+      })),
+    };
+    vi.mocked(getDb).mockResolvedValue(db as never);
+
+    const google: GenerateDocumentDeps["google"] = {
+      copyTemplate: vi.fn().mockResolvedValue("new-doc-id"),
+      replacePlaceholders: vi.fn().mockResolvedValue(),
+      exportAsPdf: vi.fn().mockResolvedValue(Buffer.from("%PDF")),
+    };
+
+    const res = await generateDocument(
+      {
+        templateKey: "promoter_assignment_contract_bilingual",
+        entityId: assignmentId,
+        outputFormat: "pdf",
+        actorUserId: 1,
+        user,
+        activeCompanyId: 1,
+        membershipRole: "hr_admin",
+      },
+      { google }
+    );
+
+    expect(res.fileUrl).toBe("https://u");
+    expect(res.generatedGoogleDocId).toBe("new-doc-id");
+    expect(google.copyTemplate).toHaveBeenCalled();
+    expect(storagePut).toHaveBeenCalled();
+    expect(db.insert).toHaveBeenCalledWith(auditEvents);
+    expect(insertRecords.some((r) => r.table === auditEvents)).toBe(true);
+  });
+
+  it("fails when placeholder data missing", async () => {
+    vi.spyOn(repo, "listPlaceholdersForTemplate").mockResolvedValue([
+      {
+        placeholder: "x",
+        sourcePath: "nope.missing",
+        dataType: "string",
+        required: true,
+        defaultValue: null,
+      },
+    ] as never);
+
+    const db = {
+      insert: vi.fn(() => ({ values: vi.fn(() => Promise.resolve()) })),
+      update: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn(() => Promise.resolve()) })) })),
+    };
+    vi.mocked(getDb).mockResolvedValue(db as never);
+
+    const google: GenerateDocumentDeps["google"] = {
+      copyTemplate: vi.fn(),
+      replacePlaceholders: vi.fn(),
+      exportAsPdf: vi.fn(),
+    };
+
+    await expect(
+      generateDocument(
+        {
+          templateKey: "promoter_assignment_contract_bilingual",
+          entityId: assignmentId,
+          outputFormat: "pdf",
+          actorUserId: 1,
+          user,
+          activeCompanyId: 1,
+          membershipRole: "company_admin",
+        },
+        { google }
+      )
+    ).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+
+    expect(google.copyTemplate).not.toHaveBeenCalled();
+  });
+
+  it("fails when entity not in tenant scope", async () => {
+    vi.spyOn(contextMod, "buildPromoterAssignmentDocumentContext").mockRejectedValue(
+      new DocumentGenerationError("NOT_FOUND", "Promoter assignment not found")
+    );
+
+    const db = {
+      insert: vi.fn(() => ({ values: vi.fn(() => Promise.resolve()) })),
+      update: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn(() => Promise.resolve()) })) })),
+    };
+    vi.mocked(getDb).mockResolvedValue(db as never);
+
+    const google: GenerateDocumentDeps["google"] = {
+      copyTemplate: vi.fn(),
+      replacePlaceholders: vi.fn(),
+      exportAsPdf: vi.fn(),
+    };
+
+    await expect(
+      generateDocument(
+        {
+          templateKey: "promoter_assignment_contract_bilingual",
+          entityId: "cccccccc-cccc-cccc-cccc-cccccccccccc",
+          outputFormat: "pdf",
+          actorUserId: 1,
+          user,
+          activeCompanyId: 1,
+          membershipRole: "company_admin",
+        },
+        { google }
+      )
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+
+  it("records generation_failed when Google throws", async () => {
+    const insertRecords: { table: unknown; values: Record<string, unknown> }[] = [];
+    const db = {
+      insert: vi.fn((table: object) => ({
+        values: vi.fn((values: Record<string, unknown>) => {
+          insertRecords.push({ table, values });
+          return Promise.resolve();
+        }),
+      })),
+      update: vi.fn(() => ({
+        set: vi.fn(() => ({
+          where: vi.fn(() => Promise.resolve()),
+        })),
+      })),
+    };
+    vi.mocked(getDb).mockResolvedValue(db as never);
+
+    const google: GenerateDocumentDeps["google"] = {
+      copyTemplate: vi.fn().mockRejectedValue(new Error("API down")),
+      replacePlaceholders: vi.fn(),
+      exportAsPdf: vi.fn(),
+    };
+
+    await expect(
+      generateDocument(
+        {
+          templateKey: "promoter_assignment_contract_bilingual",
+          entityId: assignmentId,
+          outputFormat: "pdf",
+          actorUserId: 1,
+          user,
+          activeCompanyId: 1,
+          membershipRole: "hr_admin",
+        },
+        { google }
+      )
+    ).rejects.toThrow();
+
+    const failed = insertRecords.find(
+      (r) => r.table === documentGenerationAuditLogs && r.values.action === "generation_failed"
+    );
+    expect(failed).toBeDefined();
+    expect(db.update).toHaveBeenCalledWith(generatedDocuments);
+  });
+});

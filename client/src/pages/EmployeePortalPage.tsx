@@ -663,6 +663,9 @@ export default function EmployeePortalPage() {
       {
         enabled: isAuthenticated && activeCompanyId != null,
         refetchOnWindowFocus: true,
+        // Long-open tab: refresh strip without polling documents/tasks lists
+        refetchInterval: 90_000,
+        refetchIntervalInBackground: false,
       }
     );
   const { data: overviewCorrectionList } = trpc.attendance.myCorrections.useQuery(

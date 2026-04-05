@@ -7,7 +7,9 @@
  * - work permit rows the portal summary reads (e.g. certificate ingest that creates/updates permit + doc)
  *
  * Not covered here: cross-device freshness. Same browser: My Portal uses `refetchOnWindowFocus`
- * on work-status, documents, and tasks queries so returning to the tab picks up changes made elsewhere.
+ * on work-status, documents, and tasks when the user returns to the tab; `getMyWorkStatusSummary` also
+ * polls every 90s while the tab is foreground (`refetchIntervalInBackground: false`). Documents/tasks
+ * lists are not polled — open those tabs or refocus to refresh them.
  *
  * Checklist when adding flows: if it changes what the employee would see for permits or vault docs,
  * wire `invalidatePortalWorkStatusAndDocuments(utils)` on success.

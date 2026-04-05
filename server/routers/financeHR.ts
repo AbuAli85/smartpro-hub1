@@ -348,4 +348,81 @@ export const financeHRRouter = router({
       });
       return { success: true };
     }),
+
+  adminUpdateTraining: protectedProcedure
+    .input(z.object({
+      id: z.number(),
+      trainingStatus: z.enum(["assigned", "in_progress", "completed", "overdue"]).optional(),
+      score: z.number().min(0).max(100).optional(),
+      certificateUrl: z.string().max(1000).optional().nullable(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const companyId = await requireActiveCompanyId(ctx.user.id);
+      const [row] = await db.select().from(trainingRecords)
+        .where(and(eq(trainingRecords.id, input.id), eq(trainingRecords.companyId, companyId)))
+        .limit(1);
+      if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Training record not found" });
+      await db.update(trainingRecords).set({
+        ...(input.trainingStatus !== undefined && {
+          trainingStatus: input.trainingStatus,
+          completedAt: input.trainingStatus === "completed" ? new Date() : null,
+        }),
+        ...(input.score !== undefined && { score: input.score }),
+        ...(input.certificateUrl !== undefined && { certificateUrl: input.certificateUrl ?? null }),
+      }).where(eq(trainingRecords.id, input.id));
+      return { success: true };
+    }),
+
+  adminListSelfReviews: protectedProcedure
+    .input(z.object({ companyId: z.number().optional() }).optional())
+    .query(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) return [];
+      const companyId = input?.companyId ?? await requireActiveCompanyId(ctx.user.id);
+      const rows = await db.select({
+        review: employeeSelfReviews,
+        empFirst: employees.firstName,
+        empLast: employees.lastName,
+        empDept: employees.department,
+        empPosition: employees.position,
+      }).from(employeeSelfReviews)
+        .leftJoin(employees, eq(employees.id, employeeSelfReviews.employeeUserId))
+        .where(eq(employeeSelfReviews.companyId, companyId))
+        .orderBy(desc(employeeSelfReviews.createdAt));
+      return rows.map((r) => ({
+        ...r.review,
+        employeeName: r.empFirst && r.empLast ? `${r.empFirst} ${r.empLast}` : (r.empFirst ?? "Unknown"),
+        department: r.empDept ?? "",
+        position: r.empPosition ?? "",
+      }));
+    }),
+
+  adminUpdateSelfReview: protectedProcedure
+    .input(z.object({
+      id: z.number(),
+      managerRating: z.number().min(1).max(5).optional(),
+      managerFeedback: z.string().optional(),
+      goalsNextPeriod: z.string().optional(),
+      reviewStatus: z.enum(["draft", "submitted", "reviewed", "acknowledged"]).optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const companyId = await requireActiveCompanyId(ctx.user.id);
+      const [row] = await db.select().from(employeeSelfReviews)
+        .where(and(eq(employeeSelfReviews.id, input.id), eq(employeeSelfReviews.companyId, companyId)))
+        .limit(1);
+      if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Self-review not found" });
+      const nextStatus = input.reviewStatus;
+      await db.update(employeeSelfReviews).set({
+        ...(input.managerRating !== undefined && { managerRating: input.managerRating }),
+        ...(input.managerFeedback !== undefined && { managerFeedback: input.managerFeedback }),
+        ...(input.goalsNextPeriod !== undefined && { goalsNextPeriod: input.goalsNextPeriod }),
+        ...(nextStatus !== undefined && { reviewStatus: nextStatus }),
+        ...(nextStatus === "reviewed" ? { reviewedAt: new Date(), reviewedByUserId: ctx.user.id } : {}),
+      }).where(eq(employeeSelfReviews.id, input.id));
+      return { success: true };
+    }),
 });

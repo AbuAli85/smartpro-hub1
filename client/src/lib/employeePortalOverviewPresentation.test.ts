@@ -3,9 +3,23 @@ import {
   getAttendanceTodayStripPresentation,
   getOverviewShiftCardPresentation,
   getQuickActionsPresentation,
+  type ServerEligibilityHints,
 } from "./employeePortalOverviewPresentation";
 
 const fixed = (y: number, m: number, d: number, h: number, min = 0) => new Date(y, m - 1, d, h, min, 0, 0);
+
+function elHints(
+  x: Pick<ServerEligibilityHints, "canCheckIn" | "canCheckOut" | "canRequestCorrection"> &
+    Partial<Omit<ServerEligibilityHints, "canCheckIn" | "canCheckOut" | "canRequestCorrection">>
+): ServerEligibilityHints {
+  return {
+    eligibilityHeadline: "Eligible to check in",
+    eligibilityDetail: "Within the check-in window.",
+    shiftStatusLabel: "Active now",
+    shiftDetailLine: null,
+    ...x,
+  };
+}
 
 describe("getOverviewShiftCardPresentation", () => {
   it("1. No shift times → no operational phase, safe CTA", () => {
@@ -161,7 +175,7 @@ describe("getOverviewShiftCardPresentation", () => {
       now: fixed(2026, 4, 5, 12),
       attendanceLoading: false,
       serverHintsReady: true,
-      serverHints: { canCheckIn: false, canCheckOut: false, canRequestCorrection: true },
+      serverHints: elHints({ canCheckIn: false, canCheckOut: false, canRequestCorrection: true }),
     });
     expect(r.primaryCtaLabel).toBe("Open attendance");
   });
@@ -176,7 +190,7 @@ describe("getOverviewShiftCardPresentation", () => {
       checkOut: null,
       pendingCorrectionCount: 0,
       serverHintsReady: true,
-      serverHints: { canCheckIn: false, canCheckOut: false, canRequestCorrection: false },
+      serverHints: elHints({ canCheckIn: false, canCheckOut: false, canRequestCorrection: false }),
     });
     expect(r.primaryCtaLabel).toBe("Open attendance");
   });
@@ -191,7 +205,7 @@ describe("getOverviewShiftCardPresentation", () => {
       checkIn: fixed(2026, 4, 5, 9),
       checkOut: null,
       serverHintsReady: true,
-      serverHints: { canCheckIn: false, canCheckOut: true, canRequestCorrection: true },
+      serverHints: elHints({ canCheckIn: false, canCheckOut: true, canRequestCorrection: true }),
     });
     expect(r.primaryCtaLabel).toBe("Check out");
   });
@@ -203,7 +217,7 @@ describe("getOverviewShiftCardPresentation", () => {
       now: fixed(2026, 4, 5, 12),
       attendanceLoading: false,
       serverHintsReady: false,
-      serverHints: { canCheckIn: false, canCheckOut: false, canRequestCorrection: false },
+      serverHints: elHints({ canCheckIn: false, canCheckOut: false, canRequestCorrection: false }),
     });
     expect(r.primaryCtaLabel).toBe("Check in now");
   });
@@ -215,7 +229,7 @@ describe("getOverviewShiftCardPresentation", () => {
       now: fixed(2026, 4, 5, 12),
       attendanceLoading: true,
       serverHintsReady: true,
-      serverHints: { canCheckIn: true, canCheckOut: false, canRequestCorrection: true },
+      serverHints: elHints({ canCheckIn: true, canCheckOut: false, canRequestCorrection: true }),
     });
     expect(r.primaryCtaLabel).toBe("Open attendance");
   });
@@ -276,9 +290,16 @@ describe("getAttendanceTodayStripPresentation", () => {
       checkOut: null,
       shiftStartTime: "09:00",
       serverHintsReady: true,
-      serverHints: { canCheckIn: false, canCheckOut: false, canRequestCorrection: true },
+      serverHints: elHints({
+        canCheckIn: false,
+        canCheckOut: false,
+        canRequestCorrection: true,
+        eligibilityHeadline: "Not eligible yet",
+        eligibilityDetail: "Check-in opens at 08:45 (15 min before your 09:00 start).",
+      }),
     });
     expect(r.showCheckIn).toBe(false);
+    expect(r.notCheckedInHeadline).toBe("Not eligible yet");
   });
 
   it("client path: attendanceLoading hides check-in", () => {
@@ -303,7 +324,7 @@ describe("getAttendanceTodayStripPresentation", () => {
       checkIn: null,
       checkOut: null,
       serverHintsReady: true,
-      serverHints: { canCheckIn: true, canCheckOut: false, canRequestCorrection: false },
+      serverHints: elHints({ canCheckIn: true, canCheckOut: false, canRequestCorrection: false }),
     });
     expect(r.showCorrectionButton).toBe(false);
   });

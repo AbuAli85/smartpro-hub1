@@ -339,12 +339,24 @@ function AttendanceTodayCard({
                   )}
                 </div>
               </div>
-              <Badge
-                variant="outline"
-                className={`text-xs ${isWorkingDay ? "border-green-300 text-green-700 bg-green-50" : "border-gray-300 text-gray-600 bg-gray-50"}`}
-              >
-                {isWorkingDay ? "Working Day" : "Day Off"}
-              </Badge>
+              <div className="flex flex-col items-end gap-1.5 text-right shrink-0 max-w-[160px]">
+                {operationalHintsReady && operationalHints?.shiftStatusLabel && (
+                  <>
+                    <Badge variant="secondary" className="text-[10px] px-2 py-0 font-medium">
+                      {operationalHints.shiftStatusLabel}
+                    </Badge>
+                    {operationalHints.shiftDetailLine ? (
+                      <span className="text-[10px] text-muted-foreground leading-tight">{operationalHints.shiftDetailLine}</span>
+                    ) : null}
+                  </>
+                )}
+                <Badge
+                  variant="outline"
+                  className={`text-xs ${isWorkingDay ? "border-green-300 text-green-700 bg-green-50" : "border-gray-300 text-gray-600 bg-gray-50"}`}
+                >
+                  {isWorkingDay ? "Working Day" : "Day Off"}
+                </Badge>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -400,23 +412,23 @@ function AttendanceTodayCard({
                     )}
                   </div>
                 ) : (
-                  <div>
-                    {attStrip.attendanceInconsistent ? (
-                      <>
-                        <p className="font-medium text-red-700 dark:text-red-400">{attStrip.inconsistentHeadline}</p>
-                        <p className="text-xs text-muted-foreground mt-0.5">{attStrip.inconsistentSubline}</p>
-                      </>
-                    ) : !isWorkingDay && hasSchedule ? (
-                      <>
-                        <p className="font-medium text-gray-600 dark:text-gray-400">{attStrip.notCheckedInHeadline}</p>
-                        <p className="text-xs text-muted-foreground mt-0.5">{attStrip.notCheckedInSubline}</p>
-                      </>
-                    ) : (
-                      <>
-                        <p className="font-medium text-amber-700 dark:text-amber-400">{attStrip.notCheckedInHeadline}</p>
-                        <p className="text-xs text-muted-foreground mt-0.5">{attStrip.notCheckedInSubline}</p>
-                      </>
-                    )}
+                  <div className="space-y-1">
+                    <p
+                      className={`font-medium ${
+                        attStrip.attendanceInconsistent
+                          ? "text-red-700 dark:text-red-400"
+                          : !isWorkingDay && hasSchedule
+                            ? "text-gray-600 dark:text-gray-400"
+                            : "text-amber-700 dark:text-amber-400"
+                      }`}
+                    >
+                      Status:{" "}
+                      {attStrip.attendanceInconsistent ? attStrip.inconsistentHeadline : attStrip.notCheckedInHeadline}
+                    </p>
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      Reason:{" "}
+                      {attStrip.attendanceInconsistent ? attStrip.inconsistentSubline : attStrip.notCheckedInSubline}
+                    </p>
                   </div>
                 )}
               </div>
@@ -456,6 +468,11 @@ function AttendanceTodayCard({
               )}
             </div>
           </div>
+          {operationalHintsReady && (
+            <p className="text-[10px] text-muted-foreground border-t border-border/60 pt-2 mt-3 leading-snug">
+              Eligibility is evaluated on the server from your schedule and the current time.
+            </p>
+          )}
         </CardContent>
       </Card>
 
@@ -495,6 +512,8 @@ function AttendanceTodayCard({
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
               If your check-in or check-out time is wrong or missing, submit a correction request. HR will review and approve it.
+              {" "}
+              Turnaround time depends on your company; you can track status in the list below after you submit.
             </p>
             <div className="space-y-1.5">
               <Label htmlFor="corrDate">Date</Label>
@@ -572,6 +591,7 @@ export default function EmployeePortalPage() {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
   });
+  const [attSelectedDay, setAttSelectedDay] = useState<string | null>(null);
 
   // Leave form
   const [leaveType, setLeaveType] = useState<string>("annual");
@@ -992,6 +1012,10 @@ export default function EmployeePortalPage() {
     setAttMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
   }
   const isCurrentMonth = attMonth === `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
+
+  useEffect(() => {
+    setAttSelectedDay(null);
+  }, [attMonth]);
 
   // Filtered leave
   const filteredLeave = useMemo(() => {
@@ -1872,8 +1896,8 @@ export default function EmployeePortalPage() {
               operationalHintsReady={operationalHintsSuccess}
             />
 
-            {/* Real-time attendance stats */}
-            {realAttSummary.total > 0 && (
+            {/* Real-time attendance stats (always visible; avoids “false empty” when month is new) */}
+            <div className="space-y-2">
               <div className="grid grid-cols-3 gap-3">
                 <Card className="bg-green-50 dark:bg-green-950/20 border-0">
                   <CardContent className="p-3 text-center">
@@ -1883,20 +1907,29 @@ export default function EmployeePortalPage() {
                 </Card>
                 <Card className="bg-blue-50 dark:bg-blue-950/20 border-0">
                   <CardContent className="p-3 text-center">
-                    <p className="text-2xl font-bold text-blue-700">{realAttSummary.hoursWorked}h</p>
-                    <p className="text-xs text-muted-foreground">Hours Worked</p>
+                    <p className="text-2xl font-bold text-blue-700">
+                      {realAttSummary.total > 0 ? `${realAttSummary.hoursWorked}h` : "—"}
+                    </p>
+                    <p className="text-xs text-muted-foreground">Hours worked</p>
                   </CardContent>
                 </Card>
                 <Card className="bg-purple-50 dark:bg-purple-950/20 border-0">
                   <CardContent className="p-3 text-center">
                     <p className="text-2xl font-bold text-purple-700">
-                      {realAttSummary.total > 0 ? Math.round(realAttSummary.hoursWorked / realAttSummary.total * 10) / 10 : 0}h
+                      {realAttSummary.total > 0
+                        ? `${Math.round((realAttSummary.hoursWorked / realAttSummary.total) * 10) / 10}h`
+                        : "—"}
                     </p>
-                    <p className="text-xs text-muted-foreground">Avg/Day</p>
+                    <p className="text-xs text-muted-foreground">Avg / day</p>
                   </CardContent>
                 </Card>
               </div>
-            )}
+              {realAttSummary.total === 0 && isCurrentMonth && (
+                <p className="text-[11px] text-muted-foreground text-center leading-relaxed px-1">
+                  Early in the month or not checked in yet — zeros here are normal until you record time.
+                </p>
+              )}
+            </div>
 
             {/* Month nav + calendar */}
             <Card>
@@ -1914,7 +1947,12 @@ export default function EmployeePortalPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                {/* Summary pills */}
+                {/* Summary pills (HR-marked attendance table — separate from self check-ins) */}
+                {attSummary.total === 0 && !attLoading && (
+                  <p className="text-[11px] text-muted-foreground mb-2 leading-relaxed">
+                    These counts are from HR-marked attendance. They can stay at 0 while your own check-ins still show in the daily list below.
+                  </p>
+                )}
                 <div className="flex flex-wrap gap-2 mb-4">
                   {[
                     { label: "Present", count: attSummary.present, color: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" },
@@ -1952,18 +1990,79 @@ export default function EmployeePortalPage() {
                         absent: "bg-red-500",
                       };
                       return (
-                        <div
+                        <button
+                          type="button"
                           key={day}
-                          className={`relative rounded-lg p-1.5 text-xs ${isToday ? "ring-2 ring-primary" : ""}`}
-                          title={rec ? `${rec.status} — In: ${formatTime(rec.checkIn)} Out: ${formatTime(rec.checkOut)}` : ""}
+                          onClick={() => setAttSelectedDay(day)}
+                          className={`relative rounded-lg p-1.5 text-xs text-center transition-colors hover:bg-muted/80 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+                            isToday ? "ring-2 ring-primary" : ""
+                          } ${attSelectedDay === day ? "bg-primary/10 ring-1 ring-primary/50" : ""}`}
+                          title={rec ? `${rec.status} — In: ${formatTime(rec.checkIn)} Out: ${formatTime(rec.checkOut)}` : "View day details"}
                         >
                           <span className={`block text-xs font-medium mb-0.5 ${isToday ? "text-primary" : ""}`}>{dayNum}</span>
                           {rec && <div className={`w-2 h-2 rounded-full mx-auto ${statusColors[rec.status] ?? "bg-gray-400"}`} />}
-                        </div>
+                        </button>
                       );
                     })}
                   </div>
                 )}
+
+                {attSelectedDay && !attLoading && (() => {
+                  const hrRec = attMap[attSelectedDay];
+                  const scanRecs = realAttRecords.filter(
+                    (r: any) => new Date(r.checkIn).toISOString().split("T")[0] === attSelectedDay
+                  );
+                  const label = new Date(`${attSelectedDay}T12:00:00`).toLocaleDateString("en-GB", {
+                    weekday: "long",
+                    day: "numeric",
+                    month: "long",
+                    year: "numeric",
+                  });
+                  return (
+                    <div className="rounded-lg border bg-muted/20 p-3 mt-3 text-left space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="text-sm font-semibold">{label}</p>
+                        <Button type="button" variant="ghost" size="sm" className="h-7 text-xs shrink-0" onClick={() => setAttSelectedDay(null)}>
+                          Close
+                        </Button>
+                      </div>
+                      {scanRecs.length === 0 && !hrRec ? (
+                        <p className="text-xs text-muted-foreground leading-relaxed">
+                          No attendance logged for this date. Check-ins and HR marks will appear here when recorded.
+                        </p>
+                      ) : (
+                        <div className="space-y-2 text-xs">
+                          {scanRecs.map((r: any) => {
+                            const cin = new Date(r.checkIn);
+                            const cout = r.checkOut ? new Date(r.checkOut) : null;
+                            const hours = cout ? ((cout.getTime() - cin.getTime()) / 3600000).toFixed(1) : null;
+                            return (
+                              <div key={`sel-${r.id}`} className="border-b border-border/60 pb-2 last:border-0 last:pb-0">
+                                <p className="font-medium text-foreground">Your check-in record</p>
+                                <p className="text-muted-foreground mt-0.5">
+                                  In: {formatTime(r.checkIn)}
+                                  {cout ? ` · Out: ${formatTime(r.checkOut)}` : " · Still active"}
+                                  {hours ? ` · ${hours}h` : ""}
+                                  {r.siteName ? ` · ${r.siteName}` : ""}
+                                </p>
+                              </div>
+                            );
+                          })}
+                          {hrRec ? (
+                            <div className="border-t border-border/60 pt-2">
+                              <p className="font-medium text-foreground">HR-marked status</p>
+                              <p className="text-muted-foreground mt-0.5 capitalize">
+                                {(hrRec.status as string)?.replace("_", " ") ?? hrRec.status}
+                                {hrRec.checkIn ? ` · In: ${formatTime(hrRec.checkIn)}` : ""}
+                                {hrRec.checkOut ? ` · Out: ${formatTime(hrRec.checkOut)}` : ""}
+                              </p>
+                            </div>
+                          ) : null}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
 
                 {/* Legend */}
                 <div className="flex flex-wrap gap-3 mt-3 pt-3 border-t">
@@ -1998,8 +2097,11 @@ export default function EmployeePortalPage() {
                 ) : realAttRecords.length === 0 && attRecords.length === 0 ? (
                   <div className="text-center py-10 text-muted-foreground">
                     <UserCheck className="w-10 h-10 mx-auto mb-2 opacity-30" />
-                    <p className="text-sm">No attendance records for this month</p>
-                    <p className="text-xs mt-1">Use the Check In button above when you arrive at work</p>
+                    <p className="text-sm font-medium text-foreground">No records yet</p>
+                    <p className="text-xs mt-2 max-w-sm mx-auto leading-relaxed">
+                      Your first attendance will appear after you check in, or when HR posts a mark for this month.
+                    </p>
+                    <p className="text-xs mt-2">Use Check In above when you arrive at work.</p>
                   </div>
                 ) : (
                   <div className="space-y-1">

@@ -763,6 +763,7 @@ export const employeePortalRouter = router({
       let isWorkingDay = false;
       let shiftStart: string | null = null;
       let shiftEnd: string | null = null;
+      let gracePeriodMinutes = 15;
 
       if (allMySchedules.length > 0) {
         hasSchedule = true;
@@ -779,6 +780,7 @@ export const employeePortalRouter = router({
         if (st) {
           shiftStart = st.startTime;
           shiftEnd = st.endTime;
+          gracePeriodMinutes = st.gracePeriodMinutes ?? 15;
         }
       }
 
@@ -812,6 +814,7 @@ export const employeePortalRouter = router({
         checkIn,
         checkOut,
         pendingCorrectionCount,
+        gracePeriodMinutes,
       });
     }),
 });

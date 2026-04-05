@@ -11,7 +11,13 @@ import {
 
 export type ServerEligibilityHints = Pick<
   PortalOperationalHints,
-  "canCheckIn" | "canCheckOut" | "canRequestCorrection"
+  | "canCheckIn"
+  | "canCheckOut"
+  | "canRequestCorrection"
+  | "eligibilityHeadline"
+  | "eligibilityDetail"
+  | "shiftStatusLabel"
+  | "shiftDetailLine"
 >;
 
 export type WarningTone = "none" | "amber" | "red";
@@ -207,6 +213,11 @@ export function getAttendanceTodayStripPresentation(input: {
     notCheckedInSubline = input.hasShift
       ? `Your shift (${input.shiftStartTime ?? "—"}–${input.shiftEndTime ?? "—"}) runs on ${input.workingDayNames || "scheduled days"}`
       : "No shift today";
+  }
+
+  if (hints && !hasIn) {
+    notCheckedInHeadline = hints.eligibilityHeadline;
+    notCheckedInSubline = hints.eligibilityDetail;
   }
 
   return {

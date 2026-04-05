@@ -72,3 +72,28 @@ export function getShiftOperationalState(
     detailLine: null,
   };
 }
+
+/**
+ * Wall-clock shift start/end as Date objects anchored to `now`'s calendar day,
+ * with overnight shifts extending `shiftEnd` into the next day (same rules as {@link getShiftOperationalState}).
+ */
+export function getShiftInstantBounds(
+  startTime: string,
+  endTime: string,
+  now: Date = new Date()
+): { shiftStart: Date; shiftEnd: Date } {
+  const parse = (t: string) => {
+    const [h, m] = t.split(":").map((x) => parseInt(x, 10));
+    return { h: h || 0, m: Number.isFinite(m) ? m : 0 };
+  };
+  const a = parse(startTime);
+  const b = parse(endTime);
+  const shiftStart = new Date(now);
+  shiftStart.setHours(a.h, a.m, 0, 0);
+  let shiftEnd = new Date(now);
+  shiftEnd.setHours(b.h, b.m, 0, 0);
+  if (shiftEnd.getTime() <= shiftStart.getTime()) {
+    shiftEnd = new Date(shiftEnd.getTime() + 86400000);
+  }
+  return { shiftStart, shiftEnd };
+}

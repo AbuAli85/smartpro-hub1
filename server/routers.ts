@@ -40,6 +40,7 @@ import { shiftRequestsRouter } from "./routers/shiftRequests";
 import { kpiRouter } from "./routers/kpi";
 import { workLogsRouter } from "./routers/workLogs";
 import { financeHRRouter } from "./routers/financeHR";
+import { automationRouter } from "./routers/automation";
 
 export const appRouter = router({
   system: systemRouter,
@@ -91,6 +92,7 @@ export const appRouter = router({
   kpi: kpiRouter,
   workLogs: workLogsRouter,
   financeHR: financeHRRouter,
+  automation: automationRouter,
 });
 
 export type AppRouter = typeof appRouter;

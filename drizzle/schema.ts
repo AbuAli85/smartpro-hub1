@@ -2395,3 +2395,56 @@ export const kpiAchievements = mysqlTable("kpi_achievements", {
 });
 export type KpiAchievement = typeof kpiAchievements.$inferSelect;
 export type InsertKpiAchievement = typeof kpiAchievements.$inferInsert;
+
+// ─── AUTOMATION RULES ─────────────────────────────────────────────────────────
+export const automationRules = mysqlTable("automation_rules", {
+  id: int("id").autoincrement().primaryKey(),
+  companyId: int("company_id").notNull(),
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  triggerType: varchar("trigger_type", { length: 100 }).notNull(),
+  conditionValue: varchar("condition_value", { length: 255 }),
+  actionType: varchar("action_type", { length: 100 }).notNull(),
+  actionPayload: text("action_payload"),
+  isActive: boolean("is_active").notNull().default(true),
+  lastRunAt: timestamp("last_run_at"),
+  runCount: int("run_count").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+export type AutomationRule = typeof automationRules.$inferSelect;
+export type InsertAutomationRule = typeof automationRules.$inferInsert;
+
+// ─── AUTOMATION LOGS ──────────────────────────────────────────────────────────
+export const automationLogs = mysqlTable("automation_logs", {
+  id: int("id").autoincrement().primaryKey(),
+  ruleId: int("rule_id").notNull(),
+  companyId: int("company_id").notNull(),
+  employeeId: int("employee_id"),
+  triggerType: varchar("trigger_type", { length: 100 }).notNull(),
+  actionType: varchar("action_type", { length: 100 }).notNull(),
+  status: varchar("status", { length: 50 }).notNull().default("success"),
+  message: text("message"),
+  metadata: text("metadata"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export type AutomationLog = typeof automationLogs.$inferSelect;
+
+// ─── WORKFORCE HEALTH SNAPSHOTS ───────────────────────────────────────────────
+export const workforceHealthSnapshots = mysqlTable("workforce_health_snapshots", {
+  id: int("id").autoincrement().primaryKey(),
+  companyId: int("company_id").notNull(),
+  snapshotDate: varchar("snapshot_date", { length: 10 }).notNull(),
+  totalEmployees: int("total_employees").notNull().default(0),
+  avgCompletenessScore: varchar("avg_completeness_score", { length: 10 }).notNull().default("0"),
+  criticalCount: int("critical_count").notNull().default(0),
+  warningCount: int("warning_count").notNull().default(0),
+  incompleteCount: int("incomplete_count").notNull().default(0),
+  healthyCount: int("healthy_count").notNull().default(0),
+  expiringDocsCount: int("expiring_docs_count").notNull().default(0),
+  expiredDocsCount: int("expired_docs_count").notNull().default(0),
+  unassignedCount: int("unassigned_count").notNull().default(0),
+  omanisationRate: varchar("omanisation_rate", { length: 10 }).notNull().default("0"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export type WorkforceHealthSnapshot = typeof workforceHealthSnapshots.$inferSelect;

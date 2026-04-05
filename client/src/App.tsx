@@ -97,6 +97,7 @@ import TeamAccessPage from "./pages/TeamAccessPage";
 import MultiCompanyRolesPage from "./pages/MultiCompanyRolesPage";
 import EmailPreviewPage from "./pages/EmailPreviewPage";
 import UserRolesPage from "./pages/UserRolesPage";
+import ExecutiveDashboardPage from "./pages/ExecutiveDashboardPage";
 function PublicRoutes() {
   return (
     <Switch>
@@ -188,6 +189,7 @@ function AppRoutes() {
         <Route path="/hr/departments" component={DepartmentsPage} />
         <Route path="/hr/org-chart" component={OrgChartPage} />
         <Route path="/hr/workforce-intelligence" component={WorkforceIntelligencePage} />
+        <Route path="/hr/executive-dashboard" component={ExecutiveDashboardPage} />
         <Route path="/hr/tasks" component={TaskManagerPage} />
         <Route path="/hr/announcements" component={AnnouncementsPage} />
         <Route path="/my-portal" component={EmployeePortalPage} />

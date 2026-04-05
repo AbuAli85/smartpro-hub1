@@ -41,6 +41,7 @@ import { kpiRouter } from "./routers/kpi";
 import { workLogsRouter } from "./routers/workLogs";
 import { financeHRRouter } from "./routers/financeHR";
 import { automationRouter } from "./routers/automation";
+import { automationSlaRouter } from "./routers/automationSla";
 
 export const appRouter = router({
   system: systemRouter,
@@ -93,6 +94,7 @@ export const appRouter = router({
   workLogs: workLogsRouter,
   financeHR: financeHRRouter,
   automation: automationRouter,
+  automationSla: automationSlaRouter,
 });
 
 export type AppRouter = typeof appRouter;

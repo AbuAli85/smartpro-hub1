@@ -29,6 +29,11 @@ import {
 import { toast } from "sonner";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
+  invalidateAfterKpiTargetMutation,
+  invalidateAfterSelfReviewMutation,
+  invalidateAfterTrainingMutation,
+} from "@/lib/hrPerformanceInvalidation";
+import {
   Target,
   Trophy,
   GraduationCap,
@@ -138,6 +143,7 @@ export default function HRPerformancePage() {
     return selfReviews.filter((r) => (r.department ?? "") === deptFilter);
   }, [selfReviews, deptFilter]);
 
+  /** When `hrDashboard` is missing (error / no access), values derive from list queries — transitional fallback only. */
   const overviewStats = useMemo(() => {
     const progress = (teamProgress as any[]) ?? [];
     const totalTargets = progress.length;
@@ -187,14 +193,13 @@ export default function HRPerformancePage() {
   const [trainDue, setTrainDue] = useState("");
 
   const assignTrainingMut = trpc.financeHR.adminAssignTraining.useMutation({
-    onSuccess: () => {
+    onSuccess: async () => {
       toast.success("Training assigned");
       setAssignOpen(false);
       setTrainTitle("");
       setTrainProvider("");
       setTrainDue("");
-      utils.financeHR.adminListTraining.invalidate();
-      utils.financeHR.getHrPerformanceDashboard.invalidate();
+      await invalidateAfterTrainingMutation(utils);
     },
     onError: (e) => toast.error(e.message),
   });
@@ -205,11 +210,10 @@ export default function HRPerformancePage() {
   const [editScore, setEditScore] = useState("");
 
   const updateTrainingMut = trpc.financeHR.adminUpdateTraining.useMutation({
-    onSuccess: () => {
+    onSuccess: async () => {
       toast.success("Training updated");
       setEditTrain(null);
-      utils.financeHR.adminListTraining.invalidate();
-      utils.financeHR.getHrPerformanceDashboard.invalidate();
+      await invalidateAfterTrainingMutation(utils);
     },
     onError: (e) => toast.error(e.message),
   });
@@ -228,11 +232,10 @@ export default function HRPerformancePage() {
   const [goalsNext, setGoalsNext] = useState("");
 
   const updateSelfMut = trpc.financeHR.adminUpdateSelfReview.useMutation({
-    onSuccess: () => {
+    onSuccess: async () => {
       toast.success("Review updated");
       setEditSelf(null);
-      utils.financeHR.adminListSelfReviews.invalidate();
-      utils.financeHR.getHrPerformanceDashboard.invalidate();
+      await invalidateAfterSelfReviewMutation(utils);
     },
     onError: (e) => toast.error(e.message),
   });
@@ -273,11 +276,10 @@ export default function HRPerformancePage() {
   const [tCommRate, setTCommRate] = useState("0");
 
   const setTargetMut = trpc.kpi.setTarget.useMutation({
-    onSuccess: () => {
+    onSuccess: async () => {
       toast.success("Target set — employee notified.");
       setTargetOpen(false);
-      utils.kpi.adminGetTeamProgress.invalidate();
-      utils.kpi.getLeaderboard.invalidate();
+      await invalidateAfterKpiTargetMutation(utils);
     },
     onError: (e: { message: string }) => toast.error(e.message),
   });
@@ -333,7 +335,7 @@ export default function HRPerformancePage() {
 
         <TabsContent value="overview" className="mt-4 space-y-4">
           {hrDashboardError && (
-            <Alert variant="destructive">
+            <Alert variant="destructive" data-testid="hr-dashboard-error">
               <AlertTitle>Could not load HR performance dashboard</AlertTitle>
               <AlertDescription>
                 {hrDashboardErr?.message ?? "You may not have permission, or the server could not load data."}
@@ -366,11 +368,18 @@ export default function HRPerformancePage() {
                 ))}
               </SelectContent>
             </Select>
-            <span className="text-xs text-muted-foreground">KPI snapshot period (server aggregates)</span>
+            <span className="text-xs text-muted-foreground">Period for KPI snapshot and KPI leaderboard</span>
           </div>
 
+          <p className="text-xs text-muted-foreground max-w-3xl leading-relaxed" data-testid="hr-dashboard-period-help">
+            <span className="font-medium text-foreground">Period ({month}/{year}):</span> average KPI achievement (server) and the KPI
+            leaderboard below use this month.{" "}
+            <span className="font-medium text-foreground">All-time (company):</span> training counts, self-review backlog and response
+            rate, training spotlight, and department health — not filtered by the month control.
+          </p>
+
           {hrDashboardLoading ? (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3" data-testid="hr-dashboard-loading">
               {[1, 2, 3, 4].map((i) => (
                 <Card key={i}>
                   <CardContent className="p-4 space-y-2">
@@ -381,13 +390,15 @@ export default function HRPerformancePage() {
               ))}
             </div>
           ) : hrDashboard === null && !hrDashboardError ? (
-            <p className="text-sm text-muted-foreground">Overview data is unavailable.</p>
+            <p className="text-sm text-muted-foreground" data-testid="hr-dashboard-unavailable">
+              Overview data is unavailable.
+            </p>
           ) : (
             <>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3" data-testid="hr-dashboard-metrics">
                 <Card>
                   <CardContent className="p-4">
-                    <p className="text-xs text-muted-foreground">Avg KPI achievement</p>
+                    <p className="text-xs text-muted-foreground">Avg KPI achievement (this period)</p>
                     <p className="text-2xl font-bold">{overviewStats.avgPct.toFixed(1)}%</p>
                     <p className="text-xs text-muted-foreground mt-1">
                       {month}/{year}
@@ -401,7 +412,7 @@ export default function HRPerformancePage() {
                 </Card>
                 <Card>
                   <CardContent className="p-4">
-                    <p className="text-xs text-muted-foreground">Training completed</p>
+                    <p className="text-xs text-muted-foreground">Training completed (all-time)</p>
                     <p className="text-2xl font-bold">{overviewStats.completedTrain}</p>
                     {overviewStats.trainingCompletionRate != null && (
                       <p className="text-xs text-muted-foreground mt-1">
@@ -412,7 +423,7 @@ export default function HRPerformancePage() {
                 </Card>
                 <Card>
                   <CardContent className="p-4">
-                    <p className="text-xs text-muted-foreground">Self-reviews awaiting HR</p>
+                    <p className="text-xs text-muted-foreground">Self-reviews awaiting HR (all-time)</p>
                     <p className="text-2xl font-bold text-amber-600">{overviewStats.pendingSelf}</p>
                     {overviewStats.managerResponseRate != null && (
                       <p className="text-xs text-muted-foreground mt-1">
@@ -423,7 +434,7 @@ export default function HRPerformancePage() {
                 </Card>
                 <Card>
                   <CardContent className="p-4">
-                    <p className="text-xs text-muted-foreground">Formal reviews on file</p>
+                    <p className="text-xs text-muted-foreground">Formal reviews on file (all-time)</p>
                     <p className="text-2xl font-bold">{overviewStats.formalCount}</p>
                   </CardContent>
                 </Card>

@@ -228,6 +228,7 @@ function AttendanceTodayCard({
       utils.employeePortal.getMyAttendanceRecords.invalidate();
       utils.employeePortal.getMyAttendanceSummary.invalidate();
       utils.employeePortal.getMyOperationalHints.invalidate();
+      void utils.attendance.listAttendanceAudit.invalidate();
     },
     onError: (e) => toast.error(humanCheckInErrorMessage(e.message)),
   });
@@ -238,6 +239,7 @@ function AttendanceTodayCard({
       utils.employeePortal.getMyAttendanceRecords.invalidate();
       utils.employeePortal.getMyAttendanceSummary.invalidate();
       utils.employeePortal.getMyOperationalHints.invalidate();
+      void utils.attendance.listAttendanceAudit.invalidate();
     },
     onError: (e) => toast.error(e.message),
   });

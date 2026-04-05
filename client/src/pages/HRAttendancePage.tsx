@@ -350,6 +350,7 @@ function ClockInDialog({ employees, onSuccess, companyId }: { employees: { id: n
       setOpen(false);
       utils.hr.listAttendance.invalidate();
       utils.hr.attendanceStats.invalidate();
+      void utils.attendance.listAttendanceAudit.invalidate();
       onSuccess();
     },
     onError: (e) => toast.error(e.message),
@@ -423,6 +424,7 @@ function EditAttendanceDialog({ record, onSuccess }: { record: { id: number; sta
       setOpen(false);
       utils.hr.listAttendance.invalidate();
       utils.hr.attendanceStats.invalidate();
+      void utils.attendance.listAttendanceAudit.invalidate();
       onSuccess();
     },
     onError: (e) => toast.error(e.message),
@@ -570,13 +572,24 @@ function CorrectionRequests() {
   const [statusFilter, setStatusFilter] = useState<"pending" | "approved" | "rejected" | "all">("pending");
   const [reviewTarget, setReviewTarget] = useState<{ id: number; action: "approve" | "reject" } | null>(null);
   const [adminNote, setAdminNote] = useState("");
+  const utils = trpc.useUtils();
   const { data, isLoading, refetch } = trpc.attendance.listCorrections.useQuery({ status: statusFilter });
   const approveMut = trpc.attendance.approveCorrection.useMutation({
-    onSuccess: () => { toast.success("Correction approved"); setReviewTarget(null); refetch(); },
+    onSuccess: () => {
+      toast.success("Correction approved");
+      setReviewTarget(null);
+      refetch();
+      void utils.attendance.listAttendanceAudit.invalidate();
+    },
     onError: (e) => toast.error(e.message),
   });
   const rejectMut = trpc.attendance.rejectCorrection.useMutation({
-    onSuccess: () => { toast.success("Correction rejected"); setReviewTarget(null); refetch(); },
+    onSuccess: () => {
+      toast.success("Correction rejected");
+      setReviewTarget(null);
+      refetch();
+      void utils.attendance.listAttendanceAudit.invalidate();
+    },
     onError: (e) => toast.error(e.message),
   });
   const handleSubmit = () => {
@@ -654,13 +667,24 @@ function ManualCheckInRequests() {
   const [statusFilter, setStatusFilter] = useState<"pending" | "approved" | "rejected" | "all">("pending");
   const [reviewTarget, setReviewTarget] = useState<{ id: number; action: "approve" | "reject" } | null>(null);
   const [adminNote, setAdminNote] = useState("");
+  const utils = trpc.useUtils();
   const { data, isLoading, refetch } = trpc.attendance.listManualCheckIns.useQuery({ status: statusFilter });
   const approveMut = trpc.attendance.approveManualCheckIn.useMutation({
-    onSuccess: () => { toast.success("Check-in approved"); setReviewTarget(null); refetch(); },
+    onSuccess: () => {
+      toast.success("Check-in approved");
+      setReviewTarget(null);
+      refetch();
+      void utils.attendance.listAttendanceAudit.invalidate();
+    },
     onError: (e) => toast.error(e.message),
   });
   const rejectMut = trpc.attendance.rejectManualCheckIn.useMutation({
-    onSuccess: () => { toast.success("Check-in rejected"); setReviewTarget(null); refetch(); },
+    onSuccess: () => {
+      toast.success("Check-in rejected");
+      setReviewTarget(null);
+      refetch();
+      void utils.attendance.listAttendanceAudit.invalidate();
+    },
     onError: (e) => toast.error(e.message),
   });
   const handleSubmit = () => {
@@ -752,6 +776,7 @@ export default function HRAttendancePage() {
       toast.success("Record deleted");
       utils.hr.listAttendance.invalidate();
       utils.hr.attendanceStats.invalidate();
+      void utils.attendance.listAttendanceAudit.invalidate();
     },
     onError: (e) => toast.error(e.message),
   });

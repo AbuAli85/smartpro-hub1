@@ -482,11 +482,23 @@ export default function AttendanceSitesPage() {
   );
 
   const approveMutation = trpc.attendance.approveManualCheckIn.useMutation({
-    onSuccess: () => { toast.success("Request approved — attendance recorded"); refetchManual(); setReviewingRequest(null); setReviewNote(""); },
+    onSuccess: () => {
+      toast.success("Request approved — attendance recorded");
+      refetchManual();
+      setReviewingRequest(null);
+      setReviewNote("");
+      void utils.attendance.listAttendanceAudit.invalidate();
+    },
     onError: (e) => toast.error(e.message),
   });
   const rejectMutation = trpc.attendance.rejectManualCheckIn.useMutation({
-    onSuccess: () => { toast.success("Request rejected"); refetchManual(); setReviewingRequest(null); setReviewNote(""); },
+    onSuccess: () => {
+      toast.success("Request rejected");
+      refetchManual();
+      setReviewingRequest(null);
+      setReviewNote("");
+      void utils.attendance.listAttendanceAudit.invalidate();
+    },
     onError: (e) => toast.error(e.message),
   });
 

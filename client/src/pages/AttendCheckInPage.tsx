@@ -92,6 +92,7 @@ export default function AttendCheckInPage() {
   const params = useParams<{ token: string }>();
   const token = params.token ?? "";
   const { user, loading: authLoading } = useAuth();
+  const utils = trpc.useUtils();
 
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [geoError, setGeoError] = useState(false);
@@ -126,6 +127,7 @@ export default function AttendCheckInPage() {
       setDone("checked_in");
       setDoneTime(new Date(record.checkIn));
       refetchToday();
+      void utils.attendance.listAttendanceAudit.invalidate();
     },
     onError: (err) => toast.error(humanCheckInErrorMessage(err.message || "Check-in failed")),
   });
@@ -135,6 +137,7 @@ export default function AttendCheckInPage() {
       setDone("checked_out");
       setDoneTime(new Date());
       refetchToday();
+      void utils.attendance.listAttendanceAudit.invalidate();
     },
     onError: (err) => toast.error(err.message || "Check-out failed"),
   });
@@ -143,6 +146,7 @@ export default function AttendCheckInPage() {
     onSuccess: () => {
       setDone("manual_submitted");
       setDoneTime(new Date());
+      void utils.attendance.listAttendanceAudit.invalidate();
     },
     onError: (err) => toast.error(err.message || "Request submission failed"),
   });

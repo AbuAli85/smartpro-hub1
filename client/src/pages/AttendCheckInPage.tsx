@@ -19,6 +19,7 @@ import { getLoginUrl } from "@/const";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import { humanCheckInErrorMessage } from "@/lib/checkInErrorMessage";
 import { Textarea } from "@/components/ui/textarea";
 import {
   MapPin, Clock, CheckCircle2, LogIn, LogOut,
@@ -126,7 +127,7 @@ export default function AttendCheckInPage() {
       setDoneTime(new Date(record.checkIn));
       refetchToday();
     },
-    onError: (err) => toast.error(err.message || "Check-in failed"),
+    onError: (err) => toast.error(humanCheckInErrorMessage(err.message || "Check-in failed")),
   });
 
   const checkOutMutation = trpc.attendance.checkOut.useMutation({

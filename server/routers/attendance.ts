@@ -11,6 +11,12 @@ import {
 } from "../../drizzle/schema";
 import { getDb, getUserCompany } from "../db";
 import { protectedProcedure, publicProcedure, router } from "../_core/trpc";
+import {
+  CheckInEligibilityReasonCode,
+  evaluateSelfServiceCheckInEligibility,
+  formatCheckInRejection,
+} from "@shared/attendanceCheckInEligibility";
+import { resolveEmployeeAttendanceDayContext } from "../resolveEmployeeAttendanceDayContext";
 
 async function requireDb() {
   const db = await getDb();
@@ -259,7 +265,10 @@ export const attendanceRouter = router({
         if (input.lat == null || input.lng == null) {
           throw new TRPCError({
             code: "BAD_REQUEST",
-            message: "Location access is required to check in at this site. Please allow location access in your browser.",
+            message: formatCheckInRejection(
+              CheckInEligibilityReasonCode.LOCATION_REQUIRED_FOR_SITE,
+              "Location access is required to check in at this site. Please allow location access in your browser."
+            ),
           });
         }
         const distance = haversineMetres(
@@ -271,7 +280,10 @@ export const attendanceRouter = router({
         if (distance > site.radiusMeters) {
           throw new TRPCError({
             code: "FORBIDDEN",
-            message: `You are ${Math.round(distance)}m away from ${site.name}. You must be within ${site.radiusMeters}m to check in.`,
+            message: formatCheckInRejection(
+              CheckInEligibilityReasonCode.SITE_GEOFENCE_VIOLATION,
+              `You are ${Math.round(distance)}m away from ${site.name}. You must be within ${site.radiusMeters}m to check in.`
+            ),
           });
         }
       }
@@ -286,7 +298,10 @@ export const attendanceRouter = router({
         if (!withinHours) {
           throw new TRPCError({
             code: "FORBIDDEN",
-            message: `Check-in is only allowed between ${site.operatingHoursStart} and ${site.operatingHoursEnd} (${site.timezone}).`,
+            message: formatCheckInRejection(
+              CheckInEligibilityReasonCode.SITE_OPERATING_HOURS_CLOSED,
+              `Check-in is only allowed between ${site.operatingHoursStart} and ${site.operatingHoursEnd} (${site.timezone}).`
+            ),
           });
         }
       }
@@ -299,21 +314,56 @@ export const attendanceRouter = router({
       const emp = await resolveMyEmployee(ctx.user.id, ctx.user.email ?? "", site.companyId);
       if (!emp) throw new TRPCError({ code: "NOT_FOUND", message: "Employee record not found. Please contact HR." });
 
-      // Check if already checked in today (no checkout)
-      const todayStart = new Date();
-      todayStart.setHours(0, 0, 0, 0);
-      const [existing] = await db
+      const businessDate = new Date().toISOString().slice(0, 10);
+      const dayCtx = await resolveEmployeeAttendanceDayContext(db, {
+        companyId: site.companyId,
+        userId: ctx.user.id,
+        employeeId: emp.id,
+        businessDate,
+      });
+
+      const gate = evaluateSelfServiceCheckInEligibility({
+        now: new Date(),
+        businessDate: dayCtx.businessDate,
+        startTime: dayCtx.shiftStart,
+        endTime: dayCtx.shiftEnd,
+        gracePeriodMinutes: dayCtx.gracePeriodMinutes,
+        isHoliday: !!dayCtx.holiday,
+        isWorkingDay: dayCtx.isWorkingDay,
+        hasSchedule: dayCtx.hasSchedule,
+        hasShift: !!(dayCtx.shiftStart && dayCtx.shiftEnd),
+        checkIn: dayCtx.checkIn,
+        checkOut: dayCtx.checkOut,
+        assignedSiteId: dayCtx.assignedSiteId,
+        scannedSiteId: site.id,
+      });
+
+      if (!gate.canCheckIn) {
+        const code = gate.reasonCode;
+        throw new TRPCError({
+          code: code === CheckInEligibilityReasonCode.ALREADY_CHECKED_IN ? "CONFLICT" : "FORBIDDEN",
+          message: formatCheckInRejection(code, gate.message),
+        });
+      }
+
+      const [openSession] = await db
         .select()
         .from(attendanceRecords)
         .where(and(
           eq(attendanceRecords.employeeId, emp.id),
           eq(attendanceRecords.companyId, site.companyId),
-          gte(attendanceRecords.checkIn, todayStart),
           isNull(attendanceRecords.checkOut),
         ))
+        .orderBy(desc(attendanceRecords.checkIn))
         .limit(1);
-      if (existing) {
-        throw new TRPCError({ code: "CONFLICT", message: "Already checked in. Please check out first." });
+      if (openSession) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: formatCheckInRejection(
+            CheckInEligibilityReasonCode.ALREADY_CHECKED_IN,
+            "You already have an active check-in. Check out before starting a new session."
+          ),
+        });
       }
 
       const [result] = await db.insert(attendanceRecords).values({
@@ -345,17 +395,15 @@ export const attendanceRouter = router({
       const emp = await resolveMyEmployee(ctx.user.id, ctx.user.email ?? "", membership.company.id);
       if (!emp) throw new TRPCError({ code: "NOT_FOUND", message: "Employee record not found" });
 
-      const todayStart = new Date();
-      todayStart.setHours(0, 0, 0, 0);
       const [existing] = await db
         .select()
         .from(attendanceRecords)
         .where(and(
           eq(attendanceRecords.employeeId, emp.id),
           eq(attendanceRecords.companyId, membership.company.id),
-          gte(attendanceRecords.checkIn, todayStart),
           isNull(attendanceRecords.checkOut),
         ))
+        .orderBy(desc(attendanceRecords.checkIn))
         .limit(1);
       if (!existing) {
         throw new TRPCError({ code: "NOT_FOUND", message: "No active check-in found for today" });
@@ -379,14 +427,24 @@ export const attendanceRouter = router({
     const emp = await resolveMyEmployee(ctx.user.id, ctx.user.email ?? "", membership.company.id);
     if (!emp) return null;
 
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
+    const [open] = await db
+      .select()
+      .from(attendanceRecords)
+      .where(and(eq(attendanceRecords.employeeId, emp.id), isNull(attendanceRecords.checkOut)))
+      .orderBy(desc(attendanceRecords.checkIn))
+      .limit(1);
+    if (open) return open;
+
+    const businessDate = new Date().toISOString().slice(0, 10);
+    const dayStart = new Date(businessDate + "T00:00:00.000Z");
+    const dayEnd = new Date(businessDate + "T23:59:59.999Z");
     const [record] = await db
       .select()
       .from(attendanceRecords)
       .where(and(
         eq(attendanceRecords.employeeId, emp.id),
-        gte(attendanceRecords.checkIn, todayStart),
+        gte(attendanceRecords.checkIn, dayStart),
+        lte(attendanceRecords.checkIn, dayEnd),
       ))
       .orderBy(desc(attendanceRecords.checkIn))
       .limit(1);

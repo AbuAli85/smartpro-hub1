@@ -1,5 +1,10 @@
 import type { ShiftPhase } from "./employeePortalShift";
-import { getShiftInstantBounds, getShiftOperationalState } from "./employeePortalShift";
+import { getShiftOperationalState } from "./employeePortalShift";
+import {
+  evaluateSelfServiceCheckInEligibility,
+  CheckInEligibilityReasonCode,
+  type SelfServiceCheckInEvaluationResult,
+} from "./attendanceCheckInEligibility";
 
 /**
  * Thin operational hints for employee portal presentation — not HR policy.
@@ -33,10 +38,40 @@ export interface PortalOperationalHints {
   eligibilityDetail: string;
   /** Earliest wall time check-in is allowed (HH:MM, 24h), if shift-bound; null otherwise. */
   checkInOpensAt: string | null;
+  /** When check-in is denied by policy, matches attendance.checkIn enforcement. */
+  checkInDenialCode: string | null;
 }
 
-function formatHm(d: Date): string {
-  return d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false });
+function portalEligibilityFromEvaluation(
+  r: SelfServiceCheckInEvaluationResult
+): { headline: string; detail: string; checkInOpensAt: string | null } {
+  if (r.canCheckIn) {
+    return { headline: "Eligible to check in", detail: r.message, checkInOpensAt: r.checkInOpensAt };
+  }
+  switch (r.reasonCode) {
+    case CheckInEligibilityReasonCode.CHECK_IN_TOO_EARLY:
+      return { headline: "Not eligible yet", detail: r.message, checkInOpensAt: r.checkInOpensAt };
+    case CheckInEligibilityReasonCode.CHECK_IN_WINDOW_CLOSED:
+      return { headline: "Check-in closed", detail: r.message, checkInOpensAt: r.checkInOpensAt };
+    case CheckInEligibilityReasonCode.HOLIDAY_NO_ATTENDANCE:
+      return { headline: "Holiday", detail: r.message, checkInOpensAt: null };
+    case CheckInEligibilityReasonCode.NO_SHIFT_ASSIGNED:
+      return { headline: "No schedule assigned", detail: r.message, checkInOpensAt: null };
+    case CheckInEligibilityReasonCode.SHIFT_TIMES_MISSING:
+      return { headline: "Shift not configured", detail: r.message, checkInOpensAt: null };
+    case CheckInEligibilityReasonCode.NOT_WORKING_DAY:
+      return { headline: "Day off", detail: r.message, checkInOpensAt: null };
+    case CheckInEligibilityReasonCode.ATTENDANCE_DATA_INCONSISTENT:
+      return { headline: "Attendance needs review", detail: r.message, checkInOpensAt: null };
+    case CheckInEligibilityReasonCode.ALREADY_CHECKED_IN:
+      return { headline: "Checked in", detail: r.message, checkInOpensAt: null };
+    case CheckInEligibilityReasonCode.DAY_ALREADY_RECORDED:
+      return { headline: "Attendance complete", detail: r.message, checkInOpensAt: null };
+    case CheckInEligibilityReasonCode.WRONG_CHECK_IN_SITE:
+      return { headline: "Wrong site", detail: r.message, checkInOpensAt: null };
+    default:
+      return { headline: "Cannot check in", detail: r.message, checkInOpensAt: r.checkInOpensAt };
+  }
 }
 
 export function computePortalOperationalHints(params: {
@@ -51,8 +86,10 @@ export function computePortalOperationalHints(params: {
   checkIn: Date | null;
   checkOut: Date | null;
   pendingCorrectionCount: number;
-  /** Minutes before shift start that check-in opens; same field as shift template default (often used as early window). */
+  /** Minutes before shift start that check-in opens (temporary: same DB field as late grace target). */
   gracePeriodMinutes?: number;
+  /** Today’s scheduled site id when known; portal omits scanned site so WRONG_SITE is not evaluated. */
+  assignedSiteId?: number | null;
 }): PortalOperationalHints {
   const serverNowIso = params.now.toISOString();
   const grace = params.gracePeriodMinutes ?? 15;
@@ -69,70 +106,46 @@ export function computePortalOperationalHints(params: {
   const hasOut = !!params.checkOut;
   const inconsistent = !hasIn && hasOut;
 
-  let eligibilityHeadline = "Attendance";
-  let eligibilityDetail = "Your attendance status will appear here.";
-  let checkInOpensAt: string | null = null;
+  const gate = evaluateSelfServiceCheckInEligibility({
+    now: params.now,
+    businessDate: params.businessDate,
+    startTime: params.startTime,
+    endTime: params.endTime,
+    gracePeriodMinutes: grace,
+    isHoliday: params.isHoliday,
+    isWorkingDay: params.isWorkingDay,
+    hasSchedule: params.hasSchedule,
+    hasShift: params.hasShift,
+    checkIn: params.checkIn,
+    checkOut: params.checkOut,
+    assignedSiteId: params.assignedSiteId ?? null,
+  });
+
+  let eligibilityHeadline: string;
+  let eligibilityDetail: string;
+  let checkInOpensAt: string | null;
 
   if (inconsistent) {
     eligibilityHeadline = "Attendance needs review";
     eligibilityDetail =
       "A check-out exists without a check-in. Open Correction so HR can fix the record.";
-  } else if (hasIn && hasOut) {
-    eligibilityHeadline = "Attendance complete";
-    eligibilityDetail = "Check-in and check-out are recorded for today.";
+    checkInOpensAt = gate.checkInOpensAt;
   } else if (hasIn && !hasOut) {
     eligibilityHeadline = "Checked in";
     eligibilityDetail = "You can check out when you finish your shift.";
-  } else if (params.isHoliday && params.hasSchedule) {
-    eligibilityHeadline = "Holiday";
-    eligibilityDetail = "No attendance is required today.";
-  } else if (!params.hasSchedule) {
-    eligibilityHeadline = "No schedule assigned";
-    eligibilityDetail = "Contact HR if you expected a shift today.";
-  } else if (!params.hasShift) {
-    eligibilityHeadline = "Shift not configured";
-    eligibilityDetail = "Your schedule exists but shift times are missing. Contact HR.";
-  } else if (!params.isWorkingDay) {
-    eligibilityHeadline = "Day off";
-    eligibilityDetail = "You are not scheduled to work today.";
-  } else if (params.startTime && params.endTime) {
-    const { shiftStart, shiftEnd } = getShiftInstantBounds(params.startTime, params.endTime, params.now);
-    const openMs = shiftStart.getTime() - grace * 60_000;
-    const t = params.now.getTime();
-    const openDate = new Date(openMs);
-    checkInOpensAt = formatHm(openDate);
-
-    if (t < openMs) {
-      eligibilityHeadline = "Not eligible yet";
-      eligibilityDetail = `Check-in opens at ${checkInOpensAt} (${grace} min before your ${params.startTime} start).`;
-    } else if (t > shiftEnd.getTime()) {
-      eligibilityHeadline = "Check-in closed";
-      eligibilityDetail =
-        "Your shift window has ended. If you worked, submit a correction request for HR to review.";
-    } else {
-      eligibilityHeadline = "Eligible to check in";
-      eligibilityDetail = `Within the check-in window (from ${checkInOpensAt} until shift ends at ${params.endTime}).`;
-    }
+    checkInOpensAt = gate.checkInOpensAt;
+  } else if (hasIn && hasOut) {
+    eligibilityHeadline = "Attendance complete";
+    eligibilityDetail = "Check-in and check-out are recorded for today.";
+    checkInOpensAt = gate.checkInOpensAt;
+  } else {
+    const pe = portalEligibilityFromEvaluation(gate);
+    eligibilityHeadline = pe.headline;
+    eligibilityDetail = pe.detail;
+    checkInOpensAt = pe.checkInOpensAt;
   }
 
-  const baseCanCheckIn =
-    params.hasSchedule &&
-    params.hasShift &&
-    params.isWorkingDay &&
-    !params.isHoliday &&
-    !hasIn &&
-    !inconsistent;
-
-  let withinCheckInWindow = true;
-  if (baseCanCheckIn && params.startTime && params.endTime) {
-    const { shiftStart, shiftEnd } = getShiftInstantBounds(params.startTime, params.endTime, params.now);
-    const openMs = shiftStart.getTime() - grace * 60_000;
-    const t = params.now.getTime();
-    withinCheckInWindow = t >= openMs && t <= shiftEnd.getTime();
-  }
-
-  const canCheckIn = baseCanCheckIn && withinCheckInWindow;
-
+  const canCheckIn = gate.canCheckIn;
   const canCheckOut = hasIn && !hasOut && !inconsistent;
 
   return {
@@ -149,5 +162,6 @@ export function computePortalOperationalHints(params: {
     eligibilityHeadline,
     eligibilityDetail,
     checkInOpensAt,
+    checkInDenialCode: !gate.canCheckIn ? gate.reasonCode : null,
   };
 }

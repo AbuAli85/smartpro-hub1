@@ -45,6 +45,7 @@ import { RequestsCalendar } from "@/components/RequestsCalendar";
 import { DateInput } from "@/components/ui/date-input";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { employeePortalConfig } from "@/config/employeePortalConfig";
+import { humanCheckInErrorMessage } from "@/lib/checkInErrorMessage";
 import {
   computeProductivityScore,
   titleCaseFirstName,
@@ -228,7 +229,7 @@ function AttendanceTodayCard({
       utils.employeePortal.getMyAttendanceSummary.invalidate();
       utils.employeePortal.getMyOperationalHints.invalidate();
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => toast.error(humanCheckInErrorMessage(e.message)),
   });
   const doCheckOut = trpc.attendance.checkOut.useMutation({
     onSuccess: () => {

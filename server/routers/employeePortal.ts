@@ -6,13 +6,14 @@ import {
   employees, attendance, leaveRequests, payrollRecords,
   employeeDocuments, employeeTasks, announcements, announcementReads,
   notifications, companyMembers, users, attendanceRecords,
-  employeeSchedules, companyHolidays, shiftTemplates, attendanceCorrections,
+  attendanceCorrections,
   workPermits,
 } from "../../drizzle/schema";
 import { getDb, getUserCompany } from "../db";
 import { protectedProcedure, router } from "../_core/trpc";
 import { requireActiveCompanyId } from "../_core/tenant";
 import { computePortalOperationalHints } from "@shared/employeePortalOperationalHints";
+import { resolveEmployeeAttendanceDayContext } from "../resolveEmployeeAttendanceDayContext";
 import { buildEmployeeWorkStatusSummary } from "@shared/employeePortalWorkStatusSummary";
 
 /** Default annual entitlements (calendar year) — keep in sync with portal UI until per-company policies exist */
@@ -725,76 +726,13 @@ export const employeePortalRouter = router({
 
       const now = new Date();
       const businessDate = now.toISOString().slice(0, 10);
-      const dow = now.getDay();
 
-      const holidays = await db
-        .select()
-        .from(companyHolidays)
-        .where(and(eq(companyHolidays.companyId, companyId), eq(companyHolidays.holidayDate, businessDate)));
-      const holiday = holidays[0] ?? null;
-
-      const querySchedules = (empUserId: number) =>
-        db
-          .select()
-          .from(employeeSchedules)
-          .where(
-            and(
-              eq(employeeSchedules.companyId, companyId),
-              eq(employeeSchedules.employeeUserId, empUserId),
-              eq(employeeSchedules.isActive, true),
-              lte(employeeSchedules.startDate, businessDate),
-              or(isNull(employeeSchedules.endDate), gte(employeeSchedules.endDate, businessDate))
-            )
-          );
-
-      let allMySchedules = await querySchedules(ctx.user.id);
-      if (allMySchedules.length === 0) {
-        const [empRow] = await db
-          .select({ id: employees.id })
-          .from(employees)
-          .where(and(eq(employees.companyId, companyId), eq(employees.userId, ctx.user.id)))
-          .limit(1);
-        if (empRow) {
-          allMySchedules = await querySchedules(empRow.id);
-        }
-      }
-
-      let hasSchedule = false;
-      let isWorkingDay = false;
-      let shiftStart: string | null = null;
-      let shiftEnd: string | null = null;
-      let gracePeriodMinutes = 15;
-
-      if (allMySchedules.length > 0) {
-        hasSchedule = true;
-        const todayScheduleRow = allMySchedules.find((s) =>
-          s.workingDays.split(",").map(Number).includes(dow)
-        );
-        const mySchedule = todayScheduleRow ?? allMySchedules[0];
-        isWorkingDay = !!todayScheduleRow && !holiday;
-        const [st] = await db
-          .select()
-          .from(shiftTemplates)
-          .where(eq(shiftTemplates.id, mySchedule.shiftTemplateId))
-          .limit(1);
-        if (st) {
-          shiftStart = st.startTime;
-          shiftEnd = st.endTime;
-          gracePeriodMinutes = st.gracePeriodMinutes ?? 15;
-        }
-      }
-
-      const todayStart = new Date();
-      todayStart.setHours(0, 0, 0, 0);
-      const [record] = await db
-        .select()
-        .from(attendanceRecords)
-        .where(and(eq(attendanceRecords.employeeId, myEmp.id), gte(attendanceRecords.checkIn, todayStart)))
-        .orderBy(desc(attendanceRecords.checkIn))
-        .limit(1);
-
-      const checkIn = record?.checkIn ? new Date(record.checkIn) : null;
-      const checkOut = record?.checkOut ? new Date(record.checkOut) : null;
+      const dayCtx = await resolveEmployeeAttendanceDayContext(db, {
+        companyId,
+        userId: ctx.user.id,
+        employeeId: myEmp.id,
+        businessDate,
+      });
 
       const pendingRows = await db
         .select({ id: attendanceCorrections.id })
@@ -805,16 +743,17 @@ export const employeePortalRouter = router({
       return computePortalOperationalHints({
         now,
         businessDate,
-        startTime: shiftStart,
-        endTime: shiftEnd,
-        isHoliday: !!holiday,
-        isWorkingDay,
-        hasSchedule,
-        hasShift: !!(shiftStart && shiftEnd),
-        checkIn,
-        checkOut,
+        startTime: dayCtx.shiftStart,
+        endTime: dayCtx.shiftEnd,
+        isHoliday: !!dayCtx.holiday,
+        isWorkingDay: dayCtx.isWorkingDay,
+        hasSchedule: dayCtx.hasSchedule,
+        hasShift: !!(dayCtx.shiftStart && dayCtx.shiftEnd),
+        checkIn: dayCtx.checkIn,
+        checkOut: dayCtx.checkOut,
         pendingCorrectionCount,
-        gracePeriodMinutes,
+        gracePeriodMinutes: dayCtx.gracePeriodMinutes,
+        assignedSiteId: dayCtx.assignedSiteId,
       });
     }),
 });

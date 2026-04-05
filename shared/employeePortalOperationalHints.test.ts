@@ -28,6 +28,7 @@ describe("computePortalOperationalHints", () => {
     expect(new Date(h.serverNowIso).getTime()).toBe(now.getTime());
     expect(h.eligibilityHeadline).toBe("Eligible to check in");
     expect(h.shiftStatusLabel).toBe("Active now");
+    expect(h.checkInDenialCode).toBeNull();
   });
 
   it("blocks check-in before early-open window (grace before start)", () => {
@@ -51,6 +52,7 @@ describe("computePortalOperationalHints", () => {
     expect(h.eligibilityHeadline).toBe("Not eligible yet");
     expect(h.checkInOpensAt).toBe("14:45");
     expect(h.eligibilityDetail).toContain("14:45");
+    expect(h.checkInDenialCode).toBe("CHECK_IN_TOO_EARLY");
   });
 
   it("allows check-in inside early-open window before nominal start", () => {

@@ -203,9 +203,9 @@ describe("getAttendanceTodayStripPresentation", () => {
 });
 
 describe("getQuickActionsPresentation", () => {
-  it("returns three visible actions", () => {
+  it("returns three visible semantic actions in stable order", () => {
     const a = getQuickActionsPresentation();
-    expect(a).toHaveLength(3);
+    expect(a.map((x) => x.id)).toEqual(["request_leave", "log_work", "open_documents"]);
     expect(a.every((x) => x.visible)).toBe(true);
   });
 });

@@ -38,6 +38,8 @@ import {
 import {
   getAttendanceTodayStripPresentation,
   getOverviewShiftCardPresentation,
+  getQuickActionsPresentation,
+  type QuickActionId,
 } from "@/lib/employeePortalOverviewPresentation";
 import {
   DropdownMenu,
@@ -48,6 +50,17 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+
+type QuickActionIcon = React.ComponentType<{ className?: string }>;
+
+const EMPLOYEE_PORTAL_QUICK_ACTION_UI: Record<
+  QuickActionId,
+  { label: string; Icon: QuickActionIcon }
+> = {
+  request_leave: { label: "Request leave", Icon: Calendar },
+  log_work: { label: "Log work", Icon: Timer },
+  open_documents: { label: "Upload document", Icon: FilePlus },
+};
 
 // ── Types ──────────────────────────────────────────────────────────────────
 type TaskStatus = "pending" | "in_progress" | "completed" | "cancelled";
@@ -694,6 +707,24 @@ export default function EmployeePortalPage() {
     const id = window.setInterval(() => setPortalClock((c) => c + 1), 30000);
     return () => clearInterval(id);
   }, []);
+
+  function handleEmployeeQuickAction(id: QuickActionId) {
+    switch (id) {
+      case "request_leave":
+        setShowLeaveDialog(true);
+        break;
+      case "log_work":
+        setShowWorkLogDialog(true);
+        break;
+      case "open_documents":
+        setActiveTab("documents");
+        break;
+      default: {
+        const _exhaustive: never = id;
+        void _exhaustive;
+      }
+    }
+  }
 
   // ── Mutations ─────────────────────────────────────────────────────────────
   const submitLeave = trpc.employeePortal.submitLeaveRequest.useMutation({
@@ -3162,15 +3193,21 @@ export default function EmployeePortalPage() {
           </PopoverTrigger>
           <PopoverContent className="w-56 p-2" align="end" side="top">
             <p className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">Quick actions</p>
-            <Button variant="ghost" className="w-full justify-start h-9 text-sm" onClick={() => setShowLeaveDialog(true)}>
-              <Calendar className="w-4 h-4 mr-2 shrink-0" /> Request leave
-            </Button>
-            <Button variant="ghost" className="w-full justify-start h-9 text-sm" onClick={() => setShowWorkLogDialog(true)}>
-              <Timer className="w-4 h-4 mr-2 shrink-0" /> Log work
-            </Button>
-            <Button variant="ghost" className="w-full justify-start h-9 text-sm" onClick={() => setActiveTab("documents")}>
-              <FilePlus className="w-4 h-4 mr-2 shrink-0" /> Upload document
-            </Button>
+            {getQuickActionsPresentation()
+              .filter((a) => a.visible)
+              .map(({ id }) => {
+                const { label, Icon } = EMPLOYEE_PORTAL_QUICK_ACTION_UI[id];
+                return (
+                  <Button
+                    key={id}
+                    variant="ghost"
+                    className="w-full justify-start h-9 text-sm"
+                    onClick={() => handleEmployeeQuickAction(id)}
+                  >
+                    <Icon className="w-4 h-4 mr-2 shrink-0" /> {label}
+                  </Button>
+                );
+              })}
           </PopoverContent>
         </Popover>
       </div>

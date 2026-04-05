@@ -163,13 +163,23 @@ export function getAttendanceTodayStripPresentation(input: {
   };
 }
 
-export type QuickActionId = "leave" | "worklog" | "uploadDoc";
+/** Semantic IDs only — labels, icons, and handlers are mapped on the page. */
+export type QuickActionId = "request_leave" | "log_work" | "open_documents";
 
-/** Placeholder for future feature flags; today all quick actions are always offered. */
-export function getQuickActionsPresentation(): Array<{ id: QuickActionId; visible: boolean }> {
+export interface QuickActionPresentationItem {
+  id: QuickActionId;
+  /** When false, the FAB omits this row (feature flags / entitlements later). */
+  visible: boolean;
+}
+
+/**
+ * Single choke point for which quick actions exist and whether they show.
+ * Does not perform navigation or mutations.
+ */
+export function getQuickActionsPresentation(): QuickActionPresentationItem[] {
   return [
-    { id: "leave", visible: true },
-    { id: "worklog", visible: true },
-    { id: "uploadDoc", visible: true },
+    { id: "request_leave", visible: true },
+    { id: "log_work", visible: true },
+    { id: "open_documents", visible: true },
   ];
 }

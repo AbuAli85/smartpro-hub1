@@ -2173,7 +2173,7 @@ export default function EmployeePortalPage() {
                                 <p className="text-xs mt-1 italic text-muted-foreground">HR note: {req.adminNotes}</p>
                               )}
                               <p className="text-xs text-muted-foreground mt-1">
-                                Submitted {new Date(req.createdAt).toLocaleDateString()}
+                                Submitted {new Date(req.createdAt).toLocaleDateString("en-GB")}
                               </p>
                             </div>
                             {req.status === "pending" && (
@@ -2379,7 +2379,7 @@ export default function EmployeePortalPage() {
                             <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">{log.metricType?.replace(/_/g, " ")}</span>
                           </div>
                           <p className="text-xs text-muted-foreground">
-                            {new Date(log.logDate).toLocaleDateString()} · Value: <span className="font-semibold text-primary">{Number(log.valueAchieved ?? 0).toLocaleString()}</span>
+                            {new Date(log.logDate).toLocaleDateString("en-GB")} · Value: <span className="font-semibold text-primary">{Number(log.valueAchieved ?? 0).toLocaleString()}</span>
                             {log.clientName ? ` · ${log.clientName}` : ""}
                           </p>
                           {log.notes && <p className="text-xs text-muted-foreground italic mt-0.5">{log.notes}</p>}

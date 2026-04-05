@@ -204,7 +204,7 @@ export default function BusinessDashboardPage() {
               <span className="text-muted-foreground/40">·</span>
               <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
                 <Calendar size={14} />
-                {now.toLocaleDateString("en-OM", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+                {now.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
               </span>
               {totalActions > 0 && (
                 <>

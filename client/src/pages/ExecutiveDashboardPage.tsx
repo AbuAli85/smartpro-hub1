@@ -539,7 +539,7 @@ export default function ExecutiveDashboardPage() {
                         </div>
                         <p className="text-xs text-slate-400">{alert.message}</p>
                         <p className="text-xs text-slate-500 mt-1">
-                          {new Date(alert.created_at).toLocaleString()}
+                          {new Date(alert.created_at).toLocaleString("en-GB")}
                         </p>
                       </div>
                       <Button

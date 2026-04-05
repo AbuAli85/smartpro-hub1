@@ -782,7 +782,7 @@ export default function AttendanceSitesPage() {
                       <p className="font-semibold">{req.employeeName ?? `Employee #${req.employeeUserId}`}</p>
                       <p className="text-xs text-muted-foreground">{req.siteName ?? "Unknown site"}</p>
                       <p className="text-xs text-muted-foreground mt-0.5">
-                        {new Date(req.requestedAt).toLocaleString()}
+                        {new Date(req.requestedAt).toLocaleString("en-GB")}
                       </p>
                     </div>
                     <div className="flex gap-2 shrink-0">
@@ -822,7 +822,7 @@ export default function AttendanceSitesPage() {
               <div className="rounded-lg bg-muted/50 p-3 space-y-1 text-sm">
                 <p><span className="text-muted-foreground">Employee:</span> {reviewingRequest.employeeName ?? `#${reviewingRequest.employeeUserId}`}</p>
                 <p><span className="text-muted-foreground">Site:</span> {reviewingRequest.siteName ?? "—"}</p>
-                <p><span className="text-muted-foreground">Requested at:</span> {new Date(reviewingRequest.requestedAt).toLocaleString()}</p>
+                <p><span className="text-muted-foreground">Requested at:</span> {new Date(reviewingRequest.requestedAt).toLocaleString("en-GB")}</p>
                 {reviewingRequest.distanceMeters != null && (
                   <p><span className="text-muted-foreground">Distance from site:</span> <span className="text-amber-600 font-medium">{reviewingRequest.distanceMeters}m</span></p>
                 )}

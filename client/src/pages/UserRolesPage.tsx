@@ -506,8 +506,8 @@ function UserRow({
                 }
               </Button>
               <p className="text-xs text-muted-foreground">
-                Joined {new Date(user.createdAt).toLocaleDateString()}
-                {user.lastSignedIn ? ` · Last seen ${new Date(user.lastSignedIn).toLocaleDateString()}` : ""}
+                Joined {new Date(user.createdAt).toLocaleDateString("en-GB")}
+                {user.lastSignedIn ? ` · Last seen ${new Date(user.lastSignedIn).toLocaleDateString("en-GB")}` : ""}
               </p>
             </div>
           </div>
@@ -629,7 +629,7 @@ function AuditLogPanel() {
               )}
             </div>
             <p className="text-xs text-muted-foreground shrink-0">
-              {new Date(log.createdAt).toLocaleString()}
+              {new Date(log.createdAt).toLocaleString("en-GB")}
             </p>
           </div>
         );

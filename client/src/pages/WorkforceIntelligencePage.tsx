@@ -581,7 +581,7 @@ export default function WorkforceIntelligencePage() {
                           </Badge>
                           {rule.runCount > 0 && (
                             <span className="text-xs text-muted-foreground">
-                              Run {rule.runCount}× {rule.lastRunAt ? `· Last: ${new Date(rule.lastRunAt).toLocaleDateString()}` : ""}
+                              Run {rule.runCount}× {rule.lastRunAt ? `· Last: ${new Date(rule.lastRunAt).toLocaleDateString("en-GB")}` : ""}
                             </span>
                           )}
                         </div>
@@ -752,7 +752,7 @@ export default function WorkforceIntelligencePage() {
                         <div className="flex-1 min-w-0">
                           <div className="font-medium text-sm">{rule?.name ?? `Rule #${stat.ruleId}`}</div>
                           <div className="text-xs text-muted-foreground mt-0.5">
-                            {stat.totalRuns} runs · Last: {stat.lastRunAt ? new Date(stat.lastRunAt).toLocaleDateString() : "Never"}
+                            {stat.totalRuns} runs · Last: {stat.lastRunAt ? new Date(stat.lastRunAt).toLocaleDateString("en-GB") : "Never"}
                             {stat.avgDurationMs && ` · Avg ${stat.avgDurationMs}ms`}
                           </div>
                         </div>
@@ -928,7 +928,7 @@ export default function WorkforceIntelligencePage() {
                           <div key={r.ruleId} className="flex items-center justify-between p-3 rounded-lg border border-orange-200 dark:border-orange-800 bg-orange-50 dark:bg-orange-950">
                             <div>
                               <div className="font-medium text-sm">{r.ruleName}</div>
-                              <div className="text-xs text-muted-foreground">Last failed: {r.lastFailure ? new Date(r.lastFailure).toLocaleString() : "Unknown"}</div>
+                              <div className="text-xs text-muted-foreground">Last failed: {r.lastFailure ? new Date(r.lastFailure).toLocaleString("en-GB") : "Unknown"}</div>
                             </div>
                             <Badge variant="destructive">{r.failureCount} failures</Badge>
                           </div>
@@ -1068,7 +1068,7 @@ export default function WorkforceIntelligencePage() {
                         </div>
                       </div>
                       <div className="text-xs text-muted-foreground shrink-0">
-                        {new Date(log.createdAt).toLocaleString()}
+                        {new Date(log.createdAt).toLocaleString("en-GB")}
                       </div>
                     </div>
                   ))}

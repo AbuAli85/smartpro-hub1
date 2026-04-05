@@ -651,7 +651,7 @@ function EmployeeTimeline({ employeeId }: { employeeId: number }) {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-start justify-between gap-2">
                           <p className="text-xs font-semibold leading-tight">{ev.title}</p>
-                          <p className="text-[10px] text-muted-foreground shrink-0">{new Date(ev.date).toLocaleDateString()}</p>
+                          <p className="text-[10px] text-muted-foreground shrink-0">{new Date(ev.date).toLocaleDateString("en-GB")}</p>
                         </div>
                         <p className="text-[11px] text-muted-foreground mt-0.5 leading-snug">{ev.description}</p>
                       </div>

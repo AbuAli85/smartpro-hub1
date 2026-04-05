@@ -491,7 +491,7 @@ export default function RenewalWorkflowsPage() {
                                 {ENTITY_TYPES.find(e => e.value === run.entityType)?.label ?? run.entityType}
                               </Badge>
                             </TableCell>
-                            <TableCell className="text-sm">{expiryDate?.toLocaleDateString() ?? "—"}</TableCell>
+                            <TableCell className="text-sm">{expiryDate?.toLocaleDateString("en-GB") ?? "—"}</TableCell>
                             <TableCell>
                               {daysLeft !== null ? (
                                 <span className={`text-sm font-medium ${daysLeft <= 7 ? "text-red-600" : daysLeft <= 30 ? "text-orange-500" : "text-muted-foreground"}`}>
@@ -503,7 +503,7 @@ export default function RenewalWorkflowsPage() {
                               <Badge className={`text-xs ${statusCfg.color}`}>{statusCfg.label}</Badge>
                             </TableCell>
                             <TableCell className="text-sm">{run.caseId ? `#${run.caseId}` : "—"}</TableCell>
-                            <TableCell className="text-xs text-muted-foreground">{triggeredAt?.toLocaleString() ?? "—"}</TableCell>
+                            <TableCell className="text-xs text-muted-foreground">{triggeredAt?.toLocaleString("en-GB") ?? "—"}</TableCell>
                             <TableCell>
                               <Button variant="ghost" size="sm" className="h-7 px-2"
                                 onClick={() => navigate(`/renewal-workflows/${run.id}`)}>
@@ -544,7 +544,7 @@ export default function RenewalWorkflowsPage() {
                             <div>
                               <p className="text-sm font-medium">{run.entityLabel ?? `${run.entityType} #${run.entityId}`}</p>
                               <p className="text-xs text-muted-foreground">
-                                Expires {expiryDate?.toLocaleDateString() ?? "—"} · {run.daysBeforeExpiry}d threshold
+                                Expires {expiryDate?.toLocaleDateString("en-GB") ?? "—"} · {run.daysBeforeExpiry}d threshold
                               </p>
                             </div>
                           </div>

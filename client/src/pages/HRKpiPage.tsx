@@ -551,7 +551,7 @@ export default function HRKpiPage() {
                       </span>
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      {new Date(log.logDate).toLocaleDateString()}
+                      {new Date(log.logDate).toLocaleDateString("en-GB")}
                       {log.clientName ? ` · ${log.clientName}` : ""}
                     </p>
                     {log.notes && <p className="text-xs text-muted-foreground italic mt-0.5">{log.notes}</p>}

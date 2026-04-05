@@ -139,6 +139,24 @@ export function expiryLabel(
   return `Valid (${days}d left)`;
 }
 
+/**
+ * Convert a stored date value to the HTML date-input value format (YYYY-MM-DD).
+ * This is required because <input type="date"> always needs YYYY-MM-DD internally,
+ * but the *placeholder* shown to the user will be controlled by the browser locale.
+ * We set the browser locale to en-GB via the `lang` attribute on <html> so the
+ * browser renders the placeholder as DD/MM/YYYY automatically.
+ */
+export function toDateInputValue(d: Date | string | number | null | undefined): string {
+  if (!d) return "";
+  const date = new Date(d as any);
+  if (isNaN(date.getTime())) return "";
+  // Return YYYY-MM-DD in local time (not UTC) so the displayed date matches
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 /** Format a date as "DD MMM YYYY, HH:mm" for display in tables/cards */
 export function fmtDateTimeShort(d: Date | string | number | null | undefined): string {
   if (!d) return "—";

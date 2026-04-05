@@ -28,7 +28,7 @@ const CAT_COLORS: Record<string, string> = {
 };
 const STATUS_COLORS = { pending: "bg-yellow-100 text-yellow-800", approved: "bg-green-100 text-green-800", rejected: "bg-red-100 text-red-800", cancelled: "bg-gray-100 text-gray-700" };
 
-function fmt(n: number) { return n.toLocaleString("en-US", { minimumFractionDigits: 3, maximumFractionDigits: 3 }); }
+function fmt(n: number) { return n.toLocaleString("en-GB", { minimumFractionDigits: 3, maximumFractionDigits: 3 }); }
 
 export default function FinanceOverviewPage() {
   const { activeCompanyId } = useActiveCompany();

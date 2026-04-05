@@ -256,7 +256,7 @@ export default function Dashboard() {
   const showPlatformOverview = seesPlatformOperatorNav(user);
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
-  const dateStr = new Date().toLocaleDateString("en-OM", {
+  const dateStr = new Date().toLocaleDateString("en-GB", {
     weekday: "long", year: "numeric", month: "long", day: "numeric",
   });
 

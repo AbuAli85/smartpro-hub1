@@ -176,7 +176,7 @@ export default function CompanyWorkspacePage() {
   const company = myCompany?.company;
   const now = new Date();
   const greeting = now.getHours() < 12 ? "Good morning" : now.getHours() < 17 ? "Good afternoon" : "Good evening";
-  const dayName = now.toLocaleDateString("en-OM", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+  const dayName = now.toLocaleDateString("en-GB", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
 
   const kpiLoading = teamLoading || statsLoading;
 

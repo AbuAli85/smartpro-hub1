@@ -323,7 +323,7 @@ export default function ExpiryAlertsPage() {
                     )}
                     <span className="flex flex-wrap items-center gap-1">
                       <Clock size={11} />
-                      Expires {expDate.toLocaleDateString("en-OM", { day: "numeric", month: "short", year: "numeric" })}
+                      Expires {expDate.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
                     </span>
                   </div>
                 </div>

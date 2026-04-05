@@ -298,7 +298,7 @@ export function RequestsCalendar({
                           {/* Submitted date */}
                           <p className="text-xs text-muted-foreground mt-1.5 flex items-center gap-1">
                             <FileText className="w-3 h-3" />
-                            Submitted {new Date(req.createdAt).toLocaleDateString()}
+                            Submitted {new Date(req.createdAt).toLocaleDateString("en-GB")}
                           </p>
                         </div>
 

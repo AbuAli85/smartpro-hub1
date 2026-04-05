@@ -10,6 +10,10 @@
  *
  * Checklist when adding flows: if it changes what the employee would see for permits or vault docs,
  * wire `invalidatePortalWorkStatusAndDocuments(utils)` on success.
+ *
+ * Do not:
+ * - Invalidate only one of the two queries (strip and Docs tab must stay aligned).
+ * - Treat this as a generic portal invalidation hook — keep it scoped to work-status + documents only.
  */
 export function invalidatePortalWorkStatusAndDocuments(utils: {
   employeePortal: {

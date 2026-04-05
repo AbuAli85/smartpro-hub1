@@ -937,14 +937,26 @@ export const companiesRouter = router({
         .from(users)
         .where(eq(users.email, input.memberEmail.toLowerCase()))
         .limit(1);
-      if (!targetUser) throw new TRPCError({ code: "NOT_FOUND", message: "No SmartPRO account found with that email. The user must sign in at least once before linking." });
+      if (!targetUser) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message:
+            "No SmartPRO account exists for that email yet. Ask them to sign in once (same email), then try linking again.",
+        });
+      }
       // Check they are a member of this company
       const [member] = await db
         .select({ id: companyMembers.id, isActive: companyMembers.isActive })
         .from(companyMembers)
         .where(and(eq(companyMembers.userId, targetUser.id), eq(companyMembers.companyId, membership.company.id)))
         .limit(1);
-      if (!member) throw new TRPCError({ code: "BAD_REQUEST", message: "This user is not a member of your company. Send them an invite first." });
+      if (!member) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message:
+            "That user has signed in to SmartPRO but is not in this company workspace yet. Use Grant Access or send a company invite and wait until they accept, then link again.",
+        });
+      }
       // Link the employee record to this user
       await db.update(employees).set({ userId: targetUser.id }).where(eq(employees.id, emp.id));
       return { success: true, message: `${emp.firstName} ${emp.lastName} is now linked to ${targetUser.email}` };

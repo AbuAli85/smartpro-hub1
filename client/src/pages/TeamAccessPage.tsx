@@ -1119,22 +1119,33 @@ export default function TeamAccessPage() {
               Link Account — {linkTarget?.name}
             </DialogTitle>
             <DialogDescription>
-              Enter the SmartPRO login email of the user you want to link to this employee record.
-              Use this when a user accepted an invite but their portal shows "Account Not Linked".
+              Connects this HR employee row to the user account that signs in with the email below. Use when someone is
+              already a company member but the portal still shows &quot;Account Not Linked&quot;.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-2">
             <div>
-              <label className="text-sm font-medium text-gray-700 block mb-1.5">User's Login Email</label>
+              <label className="text-sm font-medium text-gray-700 block mb-1.5">User&apos;s login email</label>
               <Input
                 type="email"
                 placeholder="user@company.com"
                 value={linkEmail}
-                onChange={(e) => setLinkEmail(e.target.value)}
+                onChange={(e) => {
+                  setLinkEmail(e.target.value);
+                  linkMemberToEmployee.reset();
+                }}
+                className={linkMemberToEmployee.isError ? "border-destructive focus-visible:ring-destructive" : ""}
               />
-              <p className="text-xs text-gray-500 mt-1.5">
-                The user must have logged in to SmartPRO at least once before they can be linked.
+              <p className="text-xs text-muted-foreground mt-1.5 leading-relaxed">
+                Requirements: (1) they have signed in to SmartPRO at least once with this email, and (2) they are already a
+                member of this company (invite accepted or Grant Access). Link Account only attaches their login to this
+                employee record—it does not add them to the company.
               </p>
+              {linkMemberToEmployee.isError && (
+                <p className="text-sm text-destructive font-medium mt-2" role="alert">
+                  {linkMemberToEmployee.error.message}
+                </p>
+              )}
             </div>
           </div>
           <DialogFooter>

@@ -29,6 +29,8 @@ import {
 import { fmtDateLong, fmtDateTime } from "@/lib/dateUtils";
 import { getDueUrgency, slaLabel, actionRequiredOverdueLabel, dueTimingPhrase } from "@/lib/taskSla";
 import { TaskDetailSheet } from "@/components/tasks/TaskDetailSheet";
+import { SignInCallbackErrorBanner } from "@/components/SignInCallbackErrorBanner";
+import { SignInTroubleshootingNote } from "@/components/SignInTroubleshootingNote";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -1002,20 +1004,24 @@ export default function EmployeePortalPage() {
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
-        <Card className="max-w-sm w-full">
-          <CardContent className="pt-10 pb-10 text-center space-y-5">
-            <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
-              <LogIn className="w-8 h-8 text-primary" />
-            </div>
-            <div>
-              <h2 className="text-xl font-bold">Employee Portal</h2>
-              <p className="text-sm text-muted-foreground mt-1">Sign in to access your personal workspace</p>
-            </div>
-            <Button asChild className="w-full">
-              <a href={loginUrl}>Sign In</a>
-            </Button>
-          </CardContent>
-        </Card>
+        <div className="w-full max-w-sm space-y-4">
+          <SignInCallbackErrorBanner />
+          <Card className="w-full">
+            <CardContent className="pt-10 pb-10 text-center space-y-5">
+              <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
+                <LogIn className="w-8 h-8 text-primary" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold">Employee Portal</h2>
+                <p className="text-sm text-muted-foreground mt-1">Sign in to access your personal workspace</p>
+              </div>
+              <Button asChild className="w-full">
+                <a href={loginUrl}>Sign In</a>
+              </Button>
+              <SignInTroubleshootingNote />
+            </CardContent>
+          </Card>
+        </div>
       </div>
     );
   }

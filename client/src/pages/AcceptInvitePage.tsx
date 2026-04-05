@@ -3,6 +3,7 @@ import { useParams, useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { getLoginUrl } from "@/const";
+import { SignInTroubleshootingNote } from "@/components/SignInTroubleshootingNote";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -229,6 +230,7 @@ export default function AcceptInvitePage() {
             <Button asChild className="w-full bg-red-600 hover:bg-red-700 text-white">
               <a href={loginUrl}>Sign in to Accept Invitation</a>
             </Button>
+            <SignInTroubleshootingNote />
           </CardContent>
         </Card>
       </div>

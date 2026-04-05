@@ -13,13 +13,67 @@ function getQueryParam(req: Request, key: string): string | undefined {
   return typeof value === "string" ? value : undefined;
 }
 
+/**
+ * Recover app origin from OAuth state (base64 of "origin" or "origin|returnPath").
+ * Must match the Host of this callback request to avoid open redirects.
+ */
+function appBaseUrlFromState(state: string | undefined, req: Request): string | null {
+  if (!state) return null;
+  try {
+    const decoded = Buffer.from(state, "base64").toString("utf8");
+    const pipeIdx = decoded.indexOf("|");
+    const originPart = pipeIdx !== -1 ? decoded.slice(0, pipeIdx) : decoded;
+    const u = new URL(originPart);
+    if (u.protocol !== "http:" && u.protocol !== "https:") return null;
+    const hostHeader = (req.get("x-forwarded-host") ?? req.get("host") ?? "")
+      .split(",")[0]
+      .trim()
+      .toLowerCase();
+    if (!hostHeader || u.host.toLowerCase() !== hostHeader) return null;
+    return `${u.protocol}//${u.host}`;
+  } catch {
+    return null;
+  }
+}
+
+function redirectPathFromState(state: string): string {
+  try {
+    const decoded = Buffer.from(state, "base64").toString("utf8");
+    const pipeIdx = decoded.indexOf("|");
+    if (pipeIdx !== -1) {
+      const returnPath = decoded.slice(pipeIdx + 1);
+      if (returnPath.startsWith("/")) return returnPath;
+    }
+  } catch {
+    /* fall through */
+  }
+  return "/";
+}
+
+function redirectWithSignInError(res: Response, baseUrl: string, path: string, errorCode: string) {
+  const url = new URL(path, baseUrl);
+  url.searchParams.set("signin_error", errorCode);
+  res.redirect(302, url.pathname + url.search + url.hash);
+}
+
 export function registerOAuthRoutes(app: Express) {
   app.get("/api/oauth/callback", async (req: Request, res: Response) => {
     const code = getQueryParam(req, "code");
     const state = getQueryParam(req, "state");
 
     if (!code || !state) {
-      res.status(400).json({ error: "code and state are required" });
+      const base = appBaseUrlFromState(state, req);
+      if (base) {
+        const path = state ? redirectPathFromState(state) : "/";
+        redirectWithSignInError(res, base, path, "oauth_incomplete");
+        return;
+      }
+      res
+        .status(400)
+        .type("html")
+        .send(
+          "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>Sign-in</title></head><body style=\"font-family:system-ui,sans-serif;max-width:32rem;margin:2rem auto;padding:0 1rem;\"><p>Sign-in link was incomplete. Close this tab and start again from the SmartPRO app.</p></body></html>",
+        );
       return;
     }
 
@@ -28,6 +82,11 @@ export function registerOAuthRoutes(app: Express) {
       const userInfo = await sdk.getUserInfo(tokenResponse.accessToken);
 
       if (!userInfo.openId) {
+        const baseNoOid = appBaseUrlFromState(state, req);
+        if (baseNoOid) {
+          redirectWithSignInError(res, baseNoOid, redirectPathFromState(state), "oauth_callback");
+          return;
+        }
         res.status(400).json({ error: "openId missing from user info" });
         return;
       }
@@ -98,7 +157,17 @@ export function registerOAuthRoutes(app: Express) {
       res.redirect(302, redirectTo);
     } catch (error) {
       console.error("[OAuth] Callback failed", error);
-      res.status(500).json({ error: "OAuth callback failed" });
+      const base = appBaseUrlFromState(state, req);
+      if (base) {
+        redirectWithSignInError(res, base, redirectPathFromState(state), "oauth_callback");
+        return;
+      }
+      res
+        .status(500)
+        .type("html")
+        .send(
+          "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>Sign-in failed</title></head><body style=\"font-family:system-ui,sans-serif;max-width:32rem;margin:2rem auto;padding:0 1rem;\"><p>We could not finish sign-in. Go back to the SmartPRO app and try again. If it keeps failing, use the same sign-in method (Microsoft, Google, etc.) you used when you first registered.</p></body></html>",
+        );
     }
   });
 }

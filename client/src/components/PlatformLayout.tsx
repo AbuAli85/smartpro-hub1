@@ -68,6 +68,8 @@ import {
   getMemberRoleColor,
 } from "@shared/clientNav";
 import { ClientAccessGate } from "@/components/ClientAccessGate";
+import { SignInCallbackErrorBanner } from "@/components/SignInCallbackErrorBanner";
+import { SignInTroubleshootingNote } from "@/components/SignInTroubleshootingNote";
 import { AuditModeBanner } from "@/components/AuditModeBanner";
 import { getHiddenNavHrefs } from "@/lib/navVisibility";
 import { Button } from "@/components/ui/button";
@@ -502,30 +504,34 @@ export default function PlatformLayout({ children }: { children: React.ReactNode
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="text-center space-y-6 max-w-sm px-4">
-          <div className="flex justify-center">
-            <div className="w-16 h-16 rounded-2xl bg-[var(--smartpro-orange)] flex items-center justify-center shadow-lg">
-              <span className="text-white font-bold text-2xl">SP</span>
-            </div>
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">SmartPRO Hub</h1>
-            <p className="text-muted-foreground mt-2 text-sm">
-              End-to-end business services platform for GCC enterprises
-            </p>
-          </div>
-          <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
-            {["Sanad Offices", "PRO Services", "Contracts", "HR & CRM"].map((f) => (
-              <div key={f} className="flex items-center gap-1.5 bg-muted rounded-md px-3 py-2">
-                <div className="w-1.5 h-1.5 rounded-full bg-[var(--smartpro-orange)]" />
-                {f}
+      <div className="min-h-screen flex items-center justify-center bg-background px-4 py-8">
+        <div className="w-full max-w-sm space-y-4">
+          <SignInCallbackErrorBanner />
+          <div className="text-center space-y-6">
+            <div className="flex justify-center">
+              <div className="w-16 h-16 rounded-2xl bg-[var(--smartpro-orange)] flex items-center justify-center shadow-lg">
+                <span className="text-white font-bold text-2xl">SP</span>
               </div>
-            ))}
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-foreground">SmartPRO Hub</h1>
+              <p className="text-muted-foreground mt-2 text-sm">
+                End-to-end business services platform for GCC enterprises
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
+              {["Sanad Offices", "PRO Services", "Contracts", "HR & CRM"].map((f) => (
+                <div key={f} className="flex items-center gap-1.5 bg-muted rounded-md px-3 py-2">
+                  <div className="w-1.5 h-1.5 rounded-full bg-[var(--smartpro-orange)]" />
+                  {f}
+                </div>
+              ))}
+            </div>
+            <Button asChild className="w-full" size="lg">
+              <a href={getLoginUrl()}>Sign in to SmartPRO</a>
+            </Button>
+            <SignInTroubleshootingNote className="text-left" />
           </div>
-          <Button asChild className="w-full" size="lg">
-            <a href={getLoginUrl()}>Sign in to SmartPRO</a>
-          </Button>
         </div>
       </div>
     );

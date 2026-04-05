@@ -13,6 +13,12 @@ export const HR_PERF = {
   SELF_REVIEW: "hr.self_reviews.review",
 } as const;
 
+/** KPI targets (lifecycle, admin CRUD) — see server/kpiTargetGuards.ts */
+export const HR_TARGETS = {
+  READ: "hr.targets.read",
+  MANAGE: "hr.targets.manage",
+} as const;
+
 /** Default HR-performance keys by company_members.role (merged with JSON permissions). */
 export const HR_PERFORMANCE_ROLE_DEFAULTS: Record<
   string,
@@ -25,11 +31,13 @@ export const HR_PERFORMANCE_ROLE_DEFAULTS: Record<
     HR_PERF.TRAINING_MANAGE,
     HR_PERF.SELF_READ,
     HR_PERF.SELF_REVIEW,
+    HR_TARGETS.READ,
+    HR_TARGETS.MANAGE,
   ],
   /** Read-focused executive / finance leadership (conservative: no self-review content by default). */
-  finance_admin: [HR_PERF.READ],
+  finance_admin: [HR_PERF.READ, HR_TARGETS.READ],
   /** Line-manager style: read + review self-reviews for direct reports (policy in procedures). */
-  reviewer: [HR_PERF.READ, HR_PERF.SELF_READ, HR_PERF.SELF_REVIEW],
+  reviewer: [HR_PERF.READ, HR_PERF.SELF_READ, HR_PERF.SELF_REVIEW, HR_TARGETS.READ],
   company_member: [],
   client: [],
   external_auditor: [],

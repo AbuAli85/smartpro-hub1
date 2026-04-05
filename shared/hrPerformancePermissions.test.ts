@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   HR_PERF,
+  HR_TARGETS,
   effectiveHrPerformancePermissions,
   memberHasHrPerformancePermission,
 } from "./hrPerformancePermissions";
@@ -14,6 +15,12 @@ describe("memberHasHrPerformancePermission", () => {
 
   it("grants hr_admin training.manage via role defaults", () => {
     expect(memberHasHrPerformancePermission({ role: "hr_admin", permissions: [] }, HR_PERF.TRAINING_MANAGE)).toBe(true);
+  });
+
+  it("grants hr_admin hr.targets.manage and finance_admin hr.targets.read only", () => {
+    expect(memberHasHrPerformancePermission({ role: "hr_admin", permissions: [] }, HR_TARGETS.MANAGE)).toBe(true);
+    expect(memberHasHrPerformancePermission({ role: "finance_admin", permissions: [] }, HR_TARGETS.READ)).toBe(true);
+    expect(memberHasHrPerformancePermission({ role: "finance_admin", permissions: [] }, HR_TARGETS.MANAGE)).toBe(false);
   });
 
   it("grants reviewer self_review.review via role defaults", () => {

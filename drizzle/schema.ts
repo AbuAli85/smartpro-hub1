@@ -2354,6 +2354,7 @@ export const kpiTargets = mysqlTable("kpi_targets", {
   currency: varchar("currency", { length: 5 }).notNull().default("OMR"),
   notes: text("notes"),
   setByUserId: int("set_by_user_id"),
+  targetStatus: mysqlEnum("target_status", ["draft", "active", "completed", "archived", "cancelled"]).notNull().default("active"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
 });

@@ -18,6 +18,35 @@ export function trainingRecordAuditSnapshot(r: {
 }
 
 /** JSON-safe fields for self-review audit (before/after). */
+/** JSON-safe KPI target row for audit (before/after). */
+export function kpiTargetAuditSnapshot(r: {
+  targetStatus: string;
+  employeeUserId: number;
+  periodYear: number;
+  periodMonth: number;
+  metricName: string;
+  metricType: string;
+  targetValue: string;
+  commissionRate?: string | null;
+  commissionType?: string | null;
+  currency: string;
+  notes?: string | null;
+}): Record<string, unknown> {
+  return {
+    targetStatus: r.targetStatus,
+    employeeUserId: r.employeeUserId,
+    periodYear: r.periodYear,
+    periodMonth: r.periodMonth,
+    metricName: r.metricName,
+    metricType: r.metricType,
+    targetValue: r.targetValue,
+    commissionRate: r.commissionRate ?? null,
+    commissionType: r.commissionType ?? null,
+    currency: r.currency,
+    notes: r.notes ?? null,
+  };
+}
+
 export function selfReviewAuditSnapshot(r: {
   reviewStatus: string;
   managerRating?: number | null;

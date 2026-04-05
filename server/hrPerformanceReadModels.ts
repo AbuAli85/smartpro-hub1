@@ -127,7 +127,8 @@ export async function fetchPerformanceOverview(
       and(
         eq(kpiTargets.companyId, companyId),
         eq(kpiTargets.periodYear, period.year),
-        eq(kpiTargets.periodMonth, period.month)
+        eq(kpiTargets.periodMonth, period.month),
+        inArray(kpiTargets.targetStatus, ["draft", "active", "completed"])
       )
     );
 

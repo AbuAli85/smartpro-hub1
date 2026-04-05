@@ -2,9 +2,20 @@ import { z } from "zod";
 import { router, protectedProcedure } from "../_core/trpc";
 import { getDb } from "../db";
 import { kpiTargets, kpiDailyLogs, kpiAchievements, employees, notifications } from "../../drizzle/schema";
-import { eq, and, desc, sql, gte, lte } from "drizzle-orm";
+import { eq, and, desc, sql, gte, lte, inArray } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { requireActiveCompanyId } from "../_core/tenant";
+import {
+  assertCanManageKpiTargets,
+  assertCanReadKpiTargets,
+  assertEmployeeScopedForKpiTarget,
+} from "../kpiTargetAccess";
+import {
+  assertKpiTargetRowEditableForMetrics,
+  assertKpiTargetStatusTransition,
+  type KpiTargetStatus,
+} from "../kpiTargetGuards";
+import { insertHrPerformanceAuditEvent, kpiTargetAuditSnapshot } from "../hrPerformanceAudit";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -13,6 +24,9 @@ async function requireDb() {
   if (!rawDb) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
   return rawDb;
 }
+
+const EMPLOYEE_TARGET_STATUSES = ["active", "completed"] as const;
+const ADMIN_TEAM_TARGET_STATUSES = ["draft", "active", "completed"] as const;
 
 async function sendNotification(userId: number, companyId: number, title: string, message: string, link?: string) {
   try {
@@ -111,7 +125,8 @@ export const kpiRouter = router({
           eq(kpiTargets.companyId, companyId),
           eq(kpiTargets.employeeUserId, ctx.user.id),
           eq(kpiTargets.periodYear, year),
-          eq(kpiTargets.periodMonth, month)
+          eq(kpiTargets.periodMonth, month),
+          inArray(kpiTargets.targetStatus, [...EMPLOYEE_TARGET_STATUSES])
         )
       ).orderBy(kpiTargets.metricName);
     }),
@@ -130,7 +145,8 @@ export const kpiRouter = router({
           eq(kpiTargets.companyId, companyId),
           eq(kpiTargets.employeeUserId, ctx.user.id),
           eq(kpiTargets.periodYear, year),
-          eq(kpiTargets.periodMonth, month)
+          eq(kpiTargets.periodMonth, month),
+          inArray(kpiTargets.targetStatus, [...EMPLOYEE_TARGET_STATUSES])
         )
       );
 
@@ -187,9 +203,17 @@ export const kpiRouter = router({
       });
 
       if (input.kpiTargetId) {
-        const target = await db.select().from(kpiTargets).where(eq(kpiTargets.id, input.kpiTargetId)).limit(1);
+        const target = await db.select().from(kpiTargets).where(
+          and(eq(kpiTargets.id, input.kpiTargetId), eq(kpiTargets.companyId, companyId))
+        ).limit(1);
         if (target.length > 0) {
           const t = target[0];
+          if (t.targetStatus !== "active") {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message: "Activity can only be logged against an active KPI target",
+            });
+          }
           const d = new Date(input.logDate);
           await recalcAchievement(
             companyId, ctx.user.id,
@@ -264,7 +288,7 @@ export const kpiRouter = router({
       ).groupBy(kpiAchievements.currency);
     }),
 
-  // ── Admin: set / update a KPI target ───────────────────────────────────────
+  // ── Admin: set / update a KPI target (PR-5: permissions, duplicate guard, transactional audit) ──
   setTarget: protectedProcedure
     .input(z.object({
       id: z.number().optional(),
@@ -278,12 +302,83 @@ export const kpiRouter = router({
       commissionType: z.enum(["percentage","fixed_per_unit","tiered"]).optional(),
       currency: z.string().optional(),
       notes: z.string().optional(),
+      /** New rows only; default `active` preserves legacy behaviour. */
+      initialStatus: z.enum(["draft", "active"]).optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const db = await requireDb();
       const companyId = await requireActiveCompanyId(ctx.user.id);
+      await assertCanManageKpiTargets(ctx.user, companyId);
+
       if (input.id) {
-        await db.update(kpiTargets).set({
+        const [row] = await db.select().from(kpiTargets).where(
+          and(eq(kpiTargets.id, input.id), eq(kpiTargets.companyId, companyId))
+        ).limit(1);
+        if (!row) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "KPI target not found" });
+        }
+        assertKpiTargetRowEditableForMetrics(row.targetStatus as KpiTargetStatus);
+
+        const beforeSnap = kpiTargetAuditSnapshot(row);
+        await db.transaction(async (tx) => {
+          await tx
+            .update(kpiTargets)
+            .set({
+              metricName: input.metricName,
+              metricType: input.metricType,
+              targetValue: String(input.targetValue),
+              commissionRate: String(input.commissionRate ?? 0),
+              commissionType: input.commissionType ?? "percentage",
+              currency: input.currency ?? "OMR",
+              notes: input.notes,
+            })
+            .where(and(eq(kpiTargets.id, input.id), eq(kpiTargets.companyId, companyId)));
+          const [afterRow] = await tx.select().from(kpiTargets).where(eq(kpiTargets.id, input.id)).limit(1);
+          if (!afterRow) return;
+          await insertHrPerformanceAuditEvent(tx, {
+            companyId,
+            actorUserId: ctx.user.id,
+            entityType: "kpi_target",
+            entityId: input.id,
+            action: "kpi_target.updated",
+            beforeState: beforeSnap,
+            afterState: kpiTargetAuditSnapshot(afterRow),
+          });
+        });
+        return { success: true };
+      }
+
+      await assertEmployeeScopedForKpiTarget(db, companyId, input.employeeUserId);
+
+      const [dup] = await db
+        .select({ id: kpiTargets.id })
+        .from(kpiTargets)
+        .where(
+          and(
+            eq(kpiTargets.companyId, companyId),
+            eq(kpiTargets.employeeUserId, input.employeeUserId),
+            eq(kpiTargets.periodYear, input.year),
+            eq(kpiTargets.periodMonth, input.month),
+            eq(kpiTargets.metricName, input.metricName),
+            inArray(kpiTargets.targetStatus, ["draft", "active"])
+          )
+        )
+        .limit(1);
+      if (dup) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "An active or draft target already exists for this employee, period, and metric.",
+        });
+      }
+
+      const initialStatus = input.initialStatus ?? "active";
+
+      await db.transaction(async (tx) => {
+        const insertResult = await tx.insert(kpiTargets).values({
+          companyId,
+          employeeUserId: input.employeeUserId,
+          periodYear: input.year,
+          periodMonth: input.month,
           metricName: input.metricName,
           metricType: input.metricType,
           targetValue: String(input.targetValue),
@@ -291,39 +386,115 @@ export const kpiRouter = router({
           commissionType: input.commissionType ?? "percentage",
           currency: input.currency ?? "OMR",
           notes: input.notes,
-        }).where(and(eq(kpiTargets.id, input.id), eq(kpiTargets.companyId, companyId)));
-        return { success: true };
-      }
-      await db.insert(kpiTargets).values({
-        companyId,
-        employeeUserId: input.employeeUserId,
-        periodYear: input.year,
-        periodMonth: input.month,
-        metricName: input.metricName,
-        metricType: input.metricType,
-        targetValue: String(input.targetValue),
-        commissionRate: String(input.commissionRate ?? 0),
-        commissionType: input.commissionType ?? "percentage",
-        currency: input.currency ?? "OMR",
-        notes: input.notes,
-        setByUserId: ctx.user.id,
+          setByUserId: ctx.user.id,
+          targetStatus: initialStatus,
+        });
+        const newId = Number(insertResult[0].insertId);
+        const [afterRow] = await tx.select().from(kpiTargets).where(eq(kpiTargets.id, newId)).limit(1);
+        if (!afterRow) return;
+        await insertHrPerformanceAuditEvent(tx, {
+          companyId,
+          actorUserId: ctx.user.id,
+          entityType: "kpi_target",
+          entityId: newId,
+          action: "kpi_target.created",
+          beforeState: null,
+          afterState: kpiTargetAuditSnapshot(afterRow),
+        });
       });
-      await sendNotification(
-        input.employeeUserId, companyId,
-        "New KPI Target Set",
-        `A new target has been set for you: ${input.metricName} — ${input.targetValue} ${input.currency ?? "OMR"} for ${input.month}/${input.year}`,
-        "/my-portal"
-      );
+
+      if (initialStatus === "active") {
+        await sendNotification(
+          input.employeeUserId,
+          companyId,
+          "New KPI Target Set",
+          `A new target has been set for you: ${input.metricName} — ${input.targetValue} ${input.currency ?? "OMR"} for ${input.month}/${input.year}`,
+          "/my-portal"
+        );
+      }
       return { success: true };
     }),
 
-  // ── Admin: delete a target ──────────────────────────────────────────────────
+  /** PR-5: lifecycle transition (replaces hard delete). */
+  transitionKpiTarget: protectedProcedure
+    .input(
+      z.object({
+        id: z.number(),
+        to: z.enum(["draft", "active", "completed", "archived", "cancelled"]),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const db = await requireDb();
+      const companyId = await requireActiveCompanyId(ctx.user.id);
+      await assertCanManageKpiTargets(ctx.user, companyId);
+
+      const [row] = await db
+        .select()
+        .from(kpiTargets)
+        .where(and(eq(kpiTargets.id, input.id), eq(kpiTargets.companyId, companyId)))
+        .limit(1);
+      if (!row) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "KPI target not found" });
+      }
+      assertKpiTargetStatusTransition(row.targetStatus as KpiTargetStatus, input.to);
+      const beforeSnap = kpiTargetAuditSnapshot(row);
+
+      await db.transaction(async (tx) => {
+        await tx
+          .update(kpiTargets)
+          .set({ targetStatus: input.to })
+          .where(and(eq(kpiTargets.id, input.id), eq(kpiTargets.companyId, companyId)));
+        const [afterRow] = await tx.select().from(kpiTargets).where(eq(kpiTargets.id, input.id)).limit(1);
+        if (!afterRow) return;
+        await insertHrPerformanceAuditEvent(tx, {
+          companyId,
+          actorUserId: ctx.user.id,
+          entityType: "kpi_target",
+          entityId: input.id,
+          action: "kpi_target.status_changed",
+          beforeState: beforeSnap,
+          afterState: kpiTargetAuditSnapshot(afterRow),
+        });
+      });
+      return { success: true };
+    }),
+
+  /** @deprecated Prefer `transitionKpiTarget` with `to: "cancelled"`. Cancels in-place with audit. */
   deleteTarget: protectedProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ ctx, input }) => {
       const db = await requireDb();
       const companyId = await requireActiveCompanyId(ctx.user.id);
-      await db.delete(kpiTargets).where(and(eq(kpiTargets.id, input.id), eq(kpiTargets.companyId, companyId)));
+      await assertCanManageKpiTargets(ctx.user, companyId);
+
+      const [row] = await db
+        .select()
+        .from(kpiTargets)
+        .where(and(eq(kpiTargets.id, input.id), eq(kpiTargets.companyId, companyId)))
+        .limit(1);
+      if (!row) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "KPI target not found" });
+      }
+      assertKpiTargetStatusTransition(row.targetStatus as KpiTargetStatus, "cancelled");
+      const beforeSnap = kpiTargetAuditSnapshot(row);
+
+      await db.transaction(async (tx) => {
+        await tx
+          .update(kpiTargets)
+          .set({ targetStatus: "cancelled" })
+          .where(and(eq(kpiTargets.id, input.id), eq(kpiTargets.companyId, companyId)));
+        const [afterRow] = await tx.select().from(kpiTargets).where(eq(kpiTargets.id, input.id)).limit(1);
+        if (!afterRow) return;
+        await insertHrPerformanceAuditEvent(tx, {
+          companyId,
+          actorUserId: ctx.user.id,
+          entityType: "kpi_target",
+          entityId: input.id,
+          action: "kpi_target.cancelled",
+          beforeState: beforeSnap,
+          afterState: kpiTargetAuditSnapshot(afterRow),
+        });
+      });
       return { success: true };
     }),
 
@@ -333,11 +504,17 @@ export const kpiRouter = router({
     .query(async ({ ctx, input }) => {
       const db = await requireDb();
       const companyId = await requireActiveCompanyId(ctx.user.id);
+      await assertCanReadKpiTargets(ctx.user, companyId);
       const year = input.year ?? new Date().getFullYear();
       const month = input.month ?? new Date().getMonth() + 1;
 
       const targets = await db.select().from(kpiTargets).where(
-        and(eq(kpiTargets.companyId, companyId), eq(kpiTargets.periodYear, year), eq(kpiTargets.periodMonth, month))
+        and(
+          eq(kpiTargets.companyId, companyId),
+          eq(kpiTargets.periodYear, year),
+          eq(kpiTargets.periodMonth, month),
+          inArray(kpiTargets.targetStatus, [...ADMIN_TEAM_TARGET_STATUSES])
+        )
       );
       const achievements = await db.select().from(kpiAchievements).where(
         and(eq(kpiAchievements.companyId, companyId), eq(kpiAchievements.periodYear, year), eq(kpiAchievements.periodMonth, month))
@@ -371,6 +548,7 @@ export const kpiRouter = router({
     .query(async ({ ctx, input }) => {
       const db = await requireDb();
       const companyId = await requireActiveCompanyId(ctx.user.id);
+      await assertCanReadKpiTargets(ctx.user, companyId);
       const year = input.year ?? new Date().getFullYear();
       const month = input.month ?? new Date().getMonth() + 1;
 
@@ -413,6 +591,7 @@ export const kpiRouter = router({
     .query(async ({ ctx, input }) => {
       const db = await requireDb();
       const companyId = await requireActiveCompanyId(ctx.user.id);
+      await assertCanReadKpiTargets(ctx.user, companyId);
       const year = input.year ?? new Date().getFullYear();
       const month = input.month ?? new Date().getMonth() + 1;
       const startDate = `${year}-${String(month).padStart(2, "0")}-01`;

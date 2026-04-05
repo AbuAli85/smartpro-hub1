@@ -1813,21 +1813,21 @@ Every company on SmartPRO Hub gets a complete, unified business operating area �
 
 ## User Roles & Access Management Dashboard (Apr 4, 2026)
 ### Backend
-- [ ] tRPC: platformOps.getRoleAuditReport — full user list with platformRole, all company memberships, role mismatch detection flag
-- [ ] tRPC: platformOps.fixRoleMismatch — auto-heal a user platformRole to match their highest company membership role
-- [ ] tRPC: platformOps.bulkFixMismatches — fix all detected mismatches in one operation
-- [ ] tRPC: platformOps.updateMembershipRole — change a user role within a specific company
-- [ ] tRPC: platformOps.removeFromCompany — remove a user from a company
-- [ ] tRPC: platformOps.addToCompany — add a user to a company with a specified role
+- [x] tRPC: platformOps.getRoleAuditReport — full user list with platformRole, all company memberships, role mismatch detection flag
+- [x] tRPC: platformOps.fixRoleMismatch — auto-heal a user platformRole to match their highest company membership role
+- [x] tRPC: platformOps.bulkFixMismatches — fix all detected mismatches in one operation
+- [x] tRPC: platformOps.updateMembershipRole — change a user role within a specific company
+- [x] tRPC: platformOps.removeFromCompany — remove a user from a company
+- [x] tRPC: platformOps.addToCompany — add a user to a company with a specified role
 ### Frontend
-- [ ] Page: UserRolesPage.tsx — admin-only page at /admin/user-roles
-- [ ] Summary stat cards: total users, mismatches detected, company_admins, suspended accounts
-- [ ] Mismatch alert banner: shows count of users with role inconsistencies + Fix All button
-- [ ] User table: search/filter by role/company/status, shows platformRole badge, company membership chips, mismatch warning icon
-- [ ] Row expand: shows all company memberships with role, isActive status, edit/remove per membership
-- [ ] Inline actions: change platformRole, fix mismatch, suspend/activate, add to company, remove from company
-- [ ] Add to Company dialog: select company + role, submit
-- [ ] Audit log panel: last 20 role change events with timestamp, actor, target user, change description
+- [x] Page: UserRolesPage.tsx — admin-only page at /admin/user-roles
+- [x] Summary stat cards: total users, mismatches detected, company_admins, suspended accounts
+- [x] Mismatch alert banner: shows count of users with role inconsistencies + Fix All button
+- [x] User table: search/filter by role/company/status, shows platformRole badge, company membership chips, mismatch warning icon
+- [x] Row expand: shows all company memberships with role, isActive status, edit/remove per membership
+- [x] Inline actions: change platformRole, fix mismatch, suspend/activate, add to company, remove from company
+- [x] Add to Company dialog: select company + role, submit
+- [x] Audit log panel: last 20 role change events with timestamp, actor, target user, change description
 - [x] Navigation: User Roles link added under Admin section in PlatformLayout
 
 ## User Roles & Access Management Dashboard — COMPLETED (Apr 4, 2026)
@@ -1860,29 +1860,29 @@ Every company on SmartPRO Hub gets a complete, unified business operating area �
 ## User Roles Page — Final QA (Phase 1 Sign-off)
 - [x] Move computeAccountType, computeEffectiveAccess, computeScope, computeEdgeCaseWarning to shared/roleHelpers.ts
 - [x] Add unknown/null role fallback bucket ("Needs Review") so no user disappears
-- [ ] Rename "Business Users" group to "Company Users"
-- [ ] Fix warning color semantics: orange=recoverable warning, red=error/action-required
-- [ ] Ensure status (Suspended/Active) is visually distinct from access state and mismatch state
-- [ ] Verify expanded row shows all company memberships with role per company, sorted stably
-- [ ] Add primary company indicator in expanded row when user has multiple memberships
-- [ ] Verify group counts match visible row counts
-- [ ] Update vitest tests to use shared roleHelpers.ts
+- [x] Rename "Business Users" group to "Company Users"
+- [x] Fix warning color semantics: orange=recoverable warning, red=error/action-required
+- [x] Ensure status (Suspended/Active) is visually distinct from access state and mismatch state
+- [x] Verify expanded row shows all company memberships with role per company, sorted stably
+- [x] Add primary company indicator in expanded row when user has multiple memberships
+- [x] Verify group counts match visible row counts
+- [x] Update vitest tests to use shared roleHelpers.ts
 
 ## Departments & Org Structure Fix (Apr 4, 2026)
-- [ ] Rebuild /hr/departments: full management page — dept list with inline edit, positions panel per dept, stats cards, dept head assignment, employee count per dept
-- [ ] Rebuild /hr/org-structure: visual org chart — tree diagram showing dept → positions → employees, expand/collapse nodes, reporting lines, dept head badges
-- [ ] Add getOrgChartData procedure to orgStructure router (returns departments with their positions and employees)
-- [ ] Remove duplication: OrgStructurePage no longer does list management, DepartmentsPage no longer shows chart
+- [x] Rebuild /hr/departments: full management page — dept list with inline edit, positions panel per dept, stats cards, dept head assignment, employee count per dept
+- [x] Rebuild /hr/org-structure: visual org chart — tree diagram showing dept → positions → employees, expand/collapse nodes, reporting lines, dept head badges
+- [x] Add getOrgChartData procedure to orgStructure router (returns departments with their positions and employees)
+- [x] Remove duplication: OrgStructurePage no longer does list management, DepartmentsPage no longer shows chart
 
 ## Phase 19: Workforce Layer Upgrades (Executive Assessment)
 
-- [ ] Weighted completeness scoring model: Identity 30%, Employment 20%, Compliance 30%, Financial 20%
-- [ ] Workforce Health Dashboard widget with Critical/Warning/Incomplete severity levels
-- [ ] Bulk actions: bulk assign department to selected employees
-- [ ] Bulk actions: bulk update position for selected employees
-- [ ] Bulk actions: bulk send reminder notification to selected employees
-- [ ] Employee lifecycle timeline: joined, docs added, visa issued, permit renewed, salary updated
-- [ ] Sortable columns in HR table: completeness%, expiry date
-- [ ] Icon-based indicators (not just color) for accessibility
-- [ ] Enriched tooltips: show missing fields + urgency (e.g. "Visa expires in 12 days")
-- [ ] Save-as-draft in Add Employee wizard
+- [x] Weighted completeness scoring model: Identity 30%, Employment 20%, Compliance 30%, Financial 20%
+- [x] Workforce Health Dashboard widget with Critical/Warning/Incomplete severity levels
+- [x] Bulk actions: bulk assign department to selected employees
+- [x] Bulk actions: bulk update position for selected employees
+- [x] Bulk actions: bulk send reminder notification to selected employees
+- [x] Employee lifecycle timeline: joined, docs added, visa issued, permit renewed, salary updated
+- [x] Sortable columns in HR table: completeness%, expiry date
+- [x] Icon-based indicators (not just color) for accessibility
+- [x] Enriched tooltips: show missing fields + urgency (e.g. "Visa expires in 12 days")
+- [x] Save-as-draft in Add Employee wizard

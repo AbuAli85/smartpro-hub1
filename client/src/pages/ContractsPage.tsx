@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
 import { DateInput } from "@/components/ui/date-input";
+import { isContractHiddenByFilters, parseContractIdFromSearch } from "@/lib/contractsDeepLink";
 
 const statusColors: Record<string, string> = {
   draft: "bg-gray-100 text-gray-700",
@@ -378,14 +379,6 @@ function SaveToStorageButton({ contractId }: { contractId: number }) {
   );
 }
 
-function parseContractIdFromSearch(search: string): number | null {
-  const q = search.startsWith("?") ? search.slice(1) : search;
-  const raw = new URLSearchParams(q).get("id");
-  if (!raw) return null;
-  const n = parseInt(raw, 10);
-  return Number.isFinite(n) && n > 0 ? n : null;
-}
-
 export default function ContractsPage() {
   const urlSearch = useSearch();
   const highlightContractId = useMemo(() => parseContractIdFromSearch(urlSearch), [urlSearch]);
@@ -436,7 +429,7 @@ export default function ContractsPage() {
 
     if (
       !deepLinkTriedReset.current &&
-      (statusFilter !== "all" || typeFilter !== "all" || search !== "")
+      isContractHiddenByFilters(highlightContractId, contracts, filtered)
     ) {
       deepLinkTriedReset.current = true;
       setStatusFilter("all");

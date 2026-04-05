@@ -15,7 +15,8 @@ export function assertTrainingStatusTransition(from: TrainingStatus, to: Trainin
     });
   }
   const allowed: Record<TrainingStatus, TrainingStatus[]> = {
-    assigned: ["in_progress", "completed", "overdue"],
+    /** Must reach `in_progress` (or `overdue` first) before `completed` — no assigned→completed shortcut. */
+    assigned: ["in_progress", "overdue"],
     in_progress: ["completed", "overdue"],
     overdue: ["in_progress", "completed"],
     completed: [],

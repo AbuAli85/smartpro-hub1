@@ -49,9 +49,10 @@ async function hasCompanyPermission(
   return memberHasHrPerformancePermission(member, permission);
 }
 
+/** List/detail self-review content — stricter than overview: requires `hr.self_reviews.read` and/or HR manage, not generic `hr.performance.read` alone (e.g. finance_admin). */
 async function assertCanReadSelfReviews(user: User, companyId: number): Promise<void> {
-  if (await hasCompanyPermission(user, companyId, "hr.performance.read")) return;
-  if (await hasCompanyPermission(user, companyId, "hr.self_reviews.read")) return;
+  if (await hasCompanyPermission(user, companyId, HR_PERF.SELF_READ)) return;
+  if (await hasCompanyPermission(user, companyId, HR_PERF.MANAGE)) return;
   throw new TRPCError({ code: "FORBIDDEN", message: "You do not have permission to view self-reviews." });
 }
 
@@ -312,15 +313,34 @@ export const financeHRRouter = router({
       const companyId = await requireActiveCompanyId(ctx.user.id);
       const emp = await resolveEmployee(ctx.user.id, companyId);
       const empUserId = emp?.id ?? ctx.user.id;
-      await db.update(trainingRecords)
+      const [row] = await db
+        .select()
+        .from(trainingRecords)
+        .where(
+          and(
+            eq(trainingRecords.id, input.id),
+            eq(trainingRecords.companyId, companyId),
+            eq(trainingRecords.employeeUserId, empUserId)
+          )
+        )
+        .limit(1);
+      if (!row) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Training record not found" });
+      }
+      assertTrainingStatusTransition(row.trainingStatus as TrainingStatus, input.status);
+      await db
+        .update(trainingRecords)
         .set({
           trainingStatus: input.status,
           completedAt: input.status === "completed" ? new Date() : undefined,
         })
-        .where(and(
-          eq(trainingRecords.id, input.id),
-          eq(trainingRecords.employeeUserId, empUserId),
-        ));
+        .where(
+          and(
+            eq(trainingRecords.id, input.id),
+            eq(trainingRecords.companyId, companyId),
+            eq(trainingRecords.employeeUserId, empUserId)
+          )
+        );
       return { success: true };
     }),
 
@@ -390,6 +410,7 @@ export const financeHRRouter = router({
       const db = await getDb();
       if (!db) return [];
       const companyId = input?.companyId ?? await requireActiveCompanyId(ctx.user.id);
+      await assertCanReadHrPerformanceOverview(ctx.user, companyId);
       const rows = await db.select({
         training: trainingRecords,
         empName: employees.firstName,

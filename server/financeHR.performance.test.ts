@@ -74,6 +74,70 @@ describe("financeHR performance admin procedures (PR-1 / PR-2)", () => {
     vi.restoreAllMocks();
   });
 
+  it("adminListTraining FORBIDDEN without HR performance overview permission", async () => {
+    const mockDb = createTableAwareDb([
+      { table: companyMembers, rows: [{ role: "company_member", permissions: [] }] },
+    ]);
+    vi.spyOn(db, "getDb").mockResolvedValue(mockDb as never);
+
+    const caller = financeHRRouter.createCaller(makeCtx());
+    await expect(caller.adminListTraining()).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("adminListSelfReviews FORBIDDEN for finance_admin (generic hr.performance.read is not enough)", async () => {
+    const mockDb = createTableAwareDb([
+      { table: companyMembers, rows: [{ role: "finance_admin", permissions: [] }] },
+    ]);
+    vi.spyOn(db, "getDb").mockResolvedValue(mockDb as never);
+
+    const caller = financeHRRouter.createCaller(makeCtx());
+    await expect(caller.adminListSelfReviews()).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("updateTrainingStatus BAD_REQUEST when skipping in_progress (assigned → completed)", async () => {
+    const mockDb = {
+      select: vi.fn(() => ({
+        from: vi.fn((table: object) => {
+          if (table === employees) {
+            return {
+              where: vi.fn(() => ({
+                limit: vi.fn(() => Promise.resolve([])),
+              })),
+            };
+          }
+          if (table === trainingRecords) {
+            return {
+              where: vi.fn(() => ({
+                limit: vi.fn(() =>
+                  Promise.resolve([
+                    {
+                      id: 1,
+                      companyId: 1,
+                      employeeUserId: 1,
+                      trainingStatus: "assigned",
+                    },
+                  ])
+                ),
+              })),
+            };
+          }
+          return { where: vi.fn(() => ({ limit: vi.fn(() => Promise.resolve([])) })) };
+        }),
+      })),
+      update: vi.fn(() => ({
+        set: vi.fn(() => ({
+          where: vi.fn(() => Promise.resolve()),
+        })),
+      })),
+    };
+    vi.spyOn(db, "getDb").mockResolvedValue(mockDb as never);
+
+    const caller = financeHRRouter.createCaller(makeCtx());
+    await expect(caller.updateTrainingStatus({ id: 1, status: "completed" })).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+    });
+  });
+
   it("P1 adminUpdateTraining FORBIDDEN without permission", async () => {
     const mockDb = createTableAwareDb([
       { table: companyMembers, rows: [{ role: "company_member", permissions: [] }] },

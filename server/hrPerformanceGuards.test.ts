@@ -9,8 +9,8 @@ describe("assertTrainingStatusTransition", () => {
   it("allows assigned → in_progress", () => {
     expect(() => assertTrainingStatusTransition("assigned", "in_progress")).not.toThrow();
   });
-  it("allows assigned → completed", () => {
-    expect(() => assertTrainingStatusTransition("assigned", "completed")).not.toThrow();
+  it("blocks assigned → completed (must go through in_progress or overdue)", () => {
+    expect(() => assertTrainingStatusTransition("assigned", "completed")).toThrow(TRPCError);
   });
   it("allows overdue → in_progress", () => {
     expect(() => assertTrainingStatusTransition("overdue", "in_progress")).not.toThrow();

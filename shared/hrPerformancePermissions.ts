@@ -34,7 +34,7 @@ export const HR_PERFORMANCE_ROLE_DEFAULTS: Record<
     HR_TARGETS.READ,
     HR_TARGETS.MANAGE,
   ],
-  /** Read-focused executive / finance leadership (conservative: no self-review content by default). */
+  /** Read-focused executive / finance leadership. Self-review *list* content requires `hr.self_reviews.read` (add via JSON if executives should see it). */
   finance_admin: [HR_PERF.READ, HR_TARGETS.READ],
   /** Line-manager style: read + review self-reviews for direct reports (policy in procedures). */
   reviewer: [HR_PERF.READ, HR_PERF.SELF_READ, HR_PERF.SELF_REVIEW, HR_TARGETS.READ],

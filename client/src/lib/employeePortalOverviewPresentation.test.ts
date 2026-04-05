@@ -153,6 +153,72 @@ describe("getOverviewShiftCardPresentation", () => {
     expect(r.primaryCtaLabel).toBe("Open attendance");
     expect(r.showMissedEndedWarning).toBe(false);
   });
+
+  it("server hints: canCheckIn false overrides heuristic Check in now", () => {
+    const r = getOverviewShiftCardPresentation({
+      startTime: "09:00",
+      endTime: "17:00",
+      now: fixed(2026, 4, 5, 12),
+      attendanceLoading: false,
+      serverHintsReady: true,
+      serverHints: { canCheckIn: false, canCheckOut: false, canRequestCorrection: true },
+    });
+    expect(r.primaryCtaLabel).toBe("Open attendance");
+  });
+
+  it("server hints: canRequestCorrection false overrides Request correction", () => {
+    const r = getOverviewShiftCardPresentation({
+      startTime: "09:00",
+      endTime: "17:00",
+      now: fixed(2026, 4, 5, 18),
+      attendanceLoading: false,
+      checkIn: null,
+      checkOut: null,
+      pendingCorrectionCount: 0,
+      serverHintsReady: true,
+      serverHints: { canCheckIn: false, canCheckOut: false, canRequestCorrection: false },
+    });
+    expect(r.primaryCtaLabel).toBe("Open attendance");
+  });
+
+  it("server hints: canCheckOut true forces Check out when checked in", () => {
+    const t = fixed(2026, 4, 5, 12);
+    const r = getOverviewShiftCardPresentation({
+      startTime: "09:00",
+      endTime: "17:00",
+      now: t,
+      attendanceLoading: false,
+      checkIn: fixed(2026, 4, 5, 9),
+      checkOut: null,
+      serverHintsReady: true,
+      serverHints: { canCheckIn: false, canCheckOut: true, canRequestCorrection: true },
+    });
+    expect(r.primaryCtaLabel).toBe("Check out");
+  });
+
+  it("server hints ignored when not ready (client heuristic only)", () => {
+    const r = getOverviewShiftCardPresentation({
+      startTime: "09:00",
+      endTime: "17:00",
+      now: fixed(2026, 4, 5, 12),
+      attendanceLoading: false,
+      serverHintsReady: false,
+      serverHints: { canCheckIn: false, canCheckOut: false, canRequestCorrection: false },
+    });
+    expect(r.primaryCtaLabel).toBe("Check in now");
+  });
+
+  it("attendance loading keeps Open attendance even if server would allow check-in", () => {
+    const r = getOverviewShiftCardPresentation({
+      startTime: "09:00",
+      endTime: "17:00",
+      now: fixed(2026, 4, 5, 12),
+      attendanceLoading: true,
+      serverHintsReady: true,
+      serverHints: { canCheckIn: true, canCheckOut: false, canRequestCorrection: true },
+    });
+    expect(r.primaryCtaLabel).toBe("Open attendance");
+  });
 });
 
 describe("getAttendanceTodayStripPresentation", () => {
@@ -199,6 +265,47 @@ describe("getAttendanceTodayStripPresentation", () => {
     expect(r.showCheckIn).toBe(false);
     expect(r.notCheckedInHeadline).toBe("Day Off");
     expect(r.notCheckedInSubline).toContain("Mon, Tue");
+  });
+
+  it("server hints: canCheckIn false hides check-in even on working day", () => {
+    const r = getAttendanceTodayStripPresentation({
+      hasSchedule: true,
+      isWorkingDay: true,
+      hasShift: true,
+      checkIn: null,
+      checkOut: null,
+      shiftStartTime: "09:00",
+      serverHintsReady: true,
+      serverHints: { canCheckIn: false, canCheckOut: false, canRequestCorrection: true },
+    });
+    expect(r.showCheckIn).toBe(false);
+  });
+
+  it("client path: attendanceLoading hides check-in", () => {
+    const r = getAttendanceTodayStripPresentation({
+      hasSchedule: true,
+      isWorkingDay: true,
+      hasShift: true,
+      checkIn: null,
+      checkOut: null,
+      shiftStartTime: "09:00",
+      attendanceLoading: true,
+      serverHintsReady: false,
+    });
+    expect(r.showCheckIn).toBe(false);
+  });
+
+  it("server hints: canRequestCorrection false hides correction button", () => {
+    const r = getAttendanceTodayStripPresentation({
+      hasSchedule: true,
+      isWorkingDay: true,
+      hasShift: true,
+      checkIn: null,
+      checkOut: null,
+      serverHintsReady: true,
+      serverHints: { canCheckIn: true, canCheckOut: false, canRequestCorrection: false },
+    });
+    expect(r.showCorrectionButton).toBe(false);
   });
 });
 

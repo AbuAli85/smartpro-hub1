@@ -40,6 +40,7 @@ import {
   getOverviewShiftCardPresentation,
   getQuickActionsPresentation,
   type QuickActionId,
+  type ServerEligibilityHints,
 } from "@/lib/employeePortalOverviewPresentation";
 import {
   DropdownMenu,
@@ -168,14 +169,24 @@ function Skeleton({ className = "" }: { className?: string }) {
 }
 
 // ── Attendance Today Card ──────────────────────────────────────────────────
-function AttendanceTodayCard({ employeeId, todaySchedule }: { employeeId: number | null; todaySchedule?: any }) {
+function AttendanceTodayCard({
+  employeeId,
+  todaySchedule,
+  operationalHints,
+  operationalHintsReady,
+}: {
+  employeeId: number | null;
+  todaySchedule?: any;
+  operationalHints: ServerEligibilityHints | null | undefined;
+  operationalHintsReady: boolean;
+}) {
   const utils = trpc.useUtils();
   const [showCorrForm, setShowCorrForm] = useState(false);
   const [corrDate, setCorrDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [corrCheckIn, setCorrCheckIn] = useState("");
   const [corrCheckOut, setCorrCheckOut] = useState("");
   const [corrReason, setCorrReason] = useState("");
-  const { data: todayRec, refetch: refetchToday } = trpc.attendance.myToday.useQuery(
+  const { data: todayRec, isLoading: todayRecLoading, refetch: refetchToday } = trpc.attendance.myToday.useQuery(
     undefined, { enabled: !!employeeId }
   );
   const { data: myCorrList, refetch: refetchCorr } = trpc.attendance.myCorrections.useQuery(
@@ -243,6 +254,9 @@ function AttendanceTodayCard({ employeeId, todaySchedule }: { employeeId: number
     shiftStartTime: shift?.startTime,
     shiftEndTime: shift?.endTime,
     workingDayNames,
+    attendanceLoading: todayRecLoading,
+    serverHintsReady: operationalHintsReady,
+    serverHints: operationalHintsReady ? operationalHints ?? null : undefined,
   });
 
   function handleCheckIn() {
@@ -877,6 +891,8 @@ export default function EmployeePortalPage() {
       checkIn: todayAttendanceRecord?.checkIn,
       checkOut: todayAttendanceRecord?.checkOut,
       pendingCorrectionCount: pendingOverviewCorrections,
+      serverHintsReady: operationalHintsSuccess,
+      serverHints: operationalHintsSuccess ? operationalHints ?? null : undefined,
     });
   }, [
     myActiveSchedule?.shift,
@@ -886,6 +902,8 @@ export default function EmployeePortalPage() {
     todayAttendanceRecord?.checkIn,
     todayAttendanceRecord?.checkOut,
     pendingOverviewCorrections,
+    operationalHintsSuccess,
+    operationalHints,
   ]);
 
   // Build attendance map for calendar
@@ -1676,7 +1694,12 @@ export default function EmployeePortalPage() {
           {/* ══ ATTENDANCE TAB ════════════════════════════════════════════════ */}
           <TabsContent value="attendance" className="mt-4 space-y-4">
             {/* Today's Status + Correction Request */}
-            <AttendanceTodayCard employeeId={emp.id} todaySchedule={myActiveSchedule} />
+            <AttendanceTodayCard
+              employeeId={emp.id}
+              todaySchedule={myActiveSchedule}
+              operationalHints={operationalHintsSuccess ? operationalHints ?? null : undefined}
+              operationalHintsReady={operationalHintsSuccess}
+            />
 
             {/* Real-time attendance stats */}
             {realAttSummary.total > 0 && (

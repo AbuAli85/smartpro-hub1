@@ -2,11 +2,17 @@
  * Pure presentation decisions for the employee portal overview / attendance strip.
  * Defaults and labels only — HR policy, entitlements, and business date stay server-owned.
  */
+import type { PortalOperationalHints } from "@shared/employeePortalOperationalHints";
 import {
   getShiftOperationalState,
   type ShiftOperationalState,
   type ShiftPhase,
 } from "./employeePortalUtils";
+
+export type ServerEligibilityHints = Pick<
+  PortalOperationalHints,
+  "canCheckIn" | "canCheckOut" | "canRequestCorrection"
+>;
 
 export type WarningTone = "none" | "amber" | "red";
 
@@ -28,6 +34,31 @@ export interface OverviewShiftCardPresentation {
   warningTone: WarningTone;
 }
 
+function applyServerEligibilityToOverviewCta(params: {
+  heuristicLabel: string;
+  phase: ShiftPhase | null;
+  hasIn: boolean;
+  hasOut: boolean;
+  attendancePending: boolean;
+  serverHintsReady: boolean;
+  serverHints: ServerEligibilityHints | null | undefined;
+}): string {
+  const sh = params.serverHintsReady && params.serverHints != null ? params.serverHints : null;
+  let label = params.heuristicLabel;
+  if (sh) {
+    if (sh.canCheckOut && params.hasIn && !params.hasOut && !params.attendancePending) {
+      label = "Check out";
+    }
+    if (sh.canCheckIn && params.phase === "active" && !params.hasIn && !params.attendancePending) {
+      label = "Check in now";
+    }
+    if (!sh.canCheckIn && label === "Check in now") label = "Open attendance";
+    if (!sh.canCheckOut && label === "Check out") label = "Open attendance";
+    if (!sh.canRequestCorrection && label === "Request correction") label = "Open attendance";
+  }
+  return label;
+}
+
 export function getOverviewShiftCardPresentation(input: {
   startTime?: string | null;
   endTime?: string | null;
@@ -36,6 +67,12 @@ export function getOverviewShiftCardPresentation(input: {
   checkIn?: Date | string | null;
   checkOut?: Date | string | null;
   pendingCorrectionCount?: number;
+  /**
+   * When `serverHintsReady` is true and `serverHints` is non-null, `canCheckIn` / `canCheckOut` /
+   * `canRequestCorrection` override CTA labels vs heuristics alone.
+   */
+  serverHintsReady?: boolean;
+  serverHints?: ServerEligibilityHints | null;
 }): OverviewShiftCardPresentation {
   const pendingCorrectionCount = input.pendingCorrectionCount ?? 0;
   const operational =
@@ -72,6 +109,16 @@ export function getOverviewShiftCardPresentation(input: {
   }
 
   if (attendanceInconsistent) primaryCtaLabel = "Open attendance";
+
+  primaryCtaLabel = applyServerEligibilityToOverviewCta({
+    heuristicLabel: primaryCtaLabel,
+    phase,
+    hasIn,
+    hasOut,
+    attendancePending,
+    serverHintsReady: input.serverHintsReady ?? false,
+    serverHints: input.serverHints,
+  });
 
   const correctionPendingNote =
     !attendancePending && phase === "ended" && !hasIn && pendingCorrectionCount > 0
@@ -120,20 +167,33 @@ export function getAttendanceTodayStripPresentation(input: {
   shiftStartTime?: string | null;
   shiftEndTime?: string | null;
   workingDayNames?: string;
+  /** While `myToday` is loading and server hints are not authoritative yet, suppress check-in (client path). */
+  attendanceLoading?: boolean;
+  serverHintsReady?: boolean;
+  serverHints?: ServerEligibilityHints | null;
 }): AttendanceTodayStripPresentation {
   const hasIn = !!input.checkIn;
   const hasOut = !!input.checkOut;
   const attendanceInconsistent = !hasIn && hasOut;
 
-  /** Correction entry stays available even on holidays (wrong-day / data fixes). */
-  const showCorrectionButton = true;
+  const serverActive = input.serverHintsReady === true && input.serverHints != null;
+  const hints = serverActive ? input.serverHints : null;
 
-  let showCheckIn =
-    !hasIn && input.hasSchedule && input.isWorkingDay && !attendanceInconsistent;
-  const showCheckOut = hasIn && !hasOut && !attendanceInconsistent;
+  let showCheckIn: boolean;
+  let showCheckOut: boolean;
+  let showCorrectionButton: boolean;
 
-  if (attendanceInconsistent) {
-    showCheckIn = false;
+  if (hints) {
+    showCheckIn = hints.canCheckIn && !attendanceInconsistent;
+    showCheckOut = hints.canCheckOut && !attendanceInconsistent;
+    showCorrectionButton = hints.canRequestCorrection;
+  } else {
+    showCheckIn =
+      !hasIn && input.hasSchedule && input.isWorkingDay && !attendanceInconsistent;
+    showCheckOut = hasIn && !hasOut && !attendanceInconsistent;
+    showCorrectionButton = true;
+    if (attendanceInconsistent) showCheckIn = false;
+    if (input.attendanceLoading) showCheckIn = false;
   }
 
   let notCheckedInHeadline = "Not checked in yet";

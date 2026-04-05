@@ -344,12 +344,30 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
 
 function NotificationBell() {
   const [open, setOpen] = useState(false);
+  const [, navigate] = useLocation();
+  const { isAuthenticated } = useAuth();
   const { activeCompanyId } = useActiveCompany();
+  const utils = trpc.useUtils();
   const { data: proServices } = trpc.pro.list.useQuery({ status: "expiring_soon" });
   const { data: contracts } = trpc.contracts.list.useQuery({ status: "pending_signature" });
   const { data: leaveRequests } = trpc.hr.listLeave.useQuery({ companyId: activeCompanyId ?? undefined });
   const { data: alertBadge } = trpc.alerts.getAlertBadgeCount.useQuery({ companyId: activeCompanyId ?? undefined });
-  const notifications = useMemo(() => {
+  // Automation notifications
+  const { data: automationUnread } = trpc.automation.getUnreadCount.useQuery(undefined, {
+    enabled: isAuthenticated,
+    refetchInterval: 30_000,
+  });
+  const { data: automationNotifs = [] } = trpc.automation.listNotifications.useQuery(
+    { limit: 5, unreadOnly: true },
+    { enabled: open && isAuthenticated }
+  );
+  const markRead = trpc.automation.markNotificationsRead.useMutation({
+    onSuccess: () => {
+      utils.automation.getUnreadCount.invalidate();
+      utils.automation.listNotifications.invalidate();
+    },
+  });
+  const businessNotifications = useMemo(() => {
     const items: { id: string; title: string; desc: string; type: "warning" | "info" | "action" }[] = [];
     (proServices ?? []).slice(0, 3).forEach((s) => {
       if (s.expiryDate) {
@@ -363,7 +381,6 @@ function NotificationBell() {
     (leaveRequests ?? []).slice(0, 3).forEach((l) => {
       items.push({ id: `leave-${l.id}`, title: "Leave Request", desc: `Leave request pending approval`, type: "info" });
     });
-    // Expiry alerts from the alerts engine
     const criticalCount = alertBadge?.critical ?? 0;
     const totalExpiring = alertBadge?.count ?? 0;
     if (criticalCount > 0) {
@@ -373,15 +390,16 @@ function NotificationBell() {
     }
     return items;
   }, [proServices, contracts, leaveRequests, alertBadge]);
-  const unread = notifications.length;
+  const automationUnreadCount = automationUnread?.count ?? 0;
+  const totalUnread = businessNotifications.length + automationUnreadCount;
 
   return (
     <div className="relative">
       <Button variant="ghost" size="icon" className="relative" onClick={() => setOpen(!open)}>
         <Bell size={18} />
-        {unread > 0 && (
+        {totalUnread > 0 && (
           <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
-            {unread > 9 ? "9+" : unread}
+            {totalUnread > 9 ? "9+" : totalUnread}
           </span>
         )}
       </Button>
@@ -391,30 +409,57 @@ function NotificationBell() {
           <div className="absolute right-0 top-10 z-50 w-80 bg-card border border-border rounded-xl shadow-xl overflow-hidden">
             <div className="px-4 py-3 border-b flex items-center justify-between">
               <span className="font-semibold text-sm">Notifications</span>
-              {unread > 0 && <span className="text-xs text-muted-foreground">{unread} unread</span>}
+              {totalUnread > 0 && (
+                <button className="text-xs text-primary hover:underline" onClick={() => markRead.mutate({ all: true })}>
+                  Mark all read
+                </button>
+              )}
             </div>
-            <div className="max-h-80 overflow-y-auto">
-              {notifications.length === 0 ? (
+            <div className="max-h-80 overflow-y-auto divide-y">
+              {automationNotifs.length > 0 && (
+                <>
+                  <div className="px-4 py-1.5 bg-amber-50">
+                    <span className="text-[10px] font-semibold text-amber-700 uppercase tracking-wide">Automation Alerts</span>
+                  </div>
+                  {automationNotifs.map((n) => (
+                    <button
+                      key={`auto-${n.id}`}
+                      className="w-full text-left px-4 py-3 hover:bg-muted/30 transition-colors"
+                      onClick={() => { markRead.mutate({ ids: [n.id] }); if (n.link) { navigate(n.link); setOpen(false); } }}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="w-2 h-2 rounded-full mt-1.5 shrink-0 bg-amber-500" />
+                        <div><p className="text-xs font-medium">{n.title}</p><p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{n.message}</p></div>
+                      </div>
+                    </button>
+                  ))}
+                </>
+              )}
+              {businessNotifications.length === 0 && automationNotifs.length === 0 ? (
                 <div className="py-8 text-center text-muted-foreground">
                   <Bell size={24} className="mx-auto mb-2 opacity-30" />
                   <p className="text-sm">All caught up!</p>
                 </div>
               ) : (
-                notifications.map((n) => (
-                  <div key={n.id} className="px-4 py-3 border-b last:border-0 hover:bg-muted/30 transition-colors">
+                businessNotifications.map((n) => (
+                  <div key={n.id} className="px-4 py-3 hover:bg-muted/30 transition-colors">
                     <div className="flex items-start gap-3">
                       <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${
                         n.type === "warning" ? "bg-amber-500" : n.type === "action" ? "bg-blue-500" : "bg-green-500"
                       }`} />
-                      <div>
-                        <p className="text-xs font-medium">{n.title}</p>
-                        <p className="text-xs text-muted-foreground mt-0.5">{n.desc}</p>
-                      </div>
+                      <div><p className="text-xs font-medium">{n.title}</p><p className="text-xs text-muted-foreground mt-0.5">{n.desc}</p></div>
                     </div>
                   </div>
                 ))
               )}
             </div>
+            {automationUnreadCount > 0 && (
+              <div className="px-4 py-2 border-t">
+                <button className="text-xs text-primary hover:underline w-full text-center" onClick={() => { navigate("/hr/workforce-intelligence"); setOpen(false); }}>
+                  View all automation alerts →
+                </button>
+              </div>
+            )}
           </div>
         </>
       )}

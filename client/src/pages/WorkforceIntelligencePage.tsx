@@ -150,6 +150,15 @@ export default function WorkforceIntelligencePage() {
   const { data: rules, isLoading: rulesLoading } = trpc.automation.listRules.useQuery();
   const { data: logs } = trpc.automation.getLogs.useQuery({ limit: 30 });
   const { data: trend } = trpc.automation.getHealthTrend.useQuery();
+  const { data: templates = [], isLoading: templatesLoading } = trpc.automation.getTemplates.useQuery();
+  const installTemplate = trpc.automation.installTemplate.useMutation({
+    onSuccess: () => {
+      utils.automation.getTemplates.invalidate();
+      utils.automation.listRules.invalidate();
+      toast.success("Template installed as a new automation rule");
+    },
+    onError: (e) => toast.error(e.message),
+  });
 
   // Mutations
   const createRule = trpc.automation.createRule.useMutation({
@@ -217,7 +226,7 @@ export default function WorkforceIntelligencePage() {
             <RefreshCw className={`h-4 w-4 mr-1 ${kpiLoading ? "animate-spin" : ""}`} />
             Refresh
           </Button>
-          <Button size="sm" onClick={() => runRules.mutate()} disabled={runRules.isPending}>
+          <Button size="sm" onClick={() => runRules.mutate({ dryRun: false })} disabled={runRules.isPending}>
             <Play className="h-4 w-4 mr-1" />
             {runRules.isPending ? "Running..." : "Run All Rules"}
           </Button>
@@ -227,8 +236,10 @@ export default function WorkforceIntelligencePage() {
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="trend">Health Trend</TabsTrigger>
           <TabsTrigger value="expiry">Expiry Timeline</TabsTrigger>
           <TabsTrigger value="automation">Automation Rules</TabsTrigger>
+          <TabsTrigger value="templates">Rule Templates</TabsTrigger>
           <TabsTrigger value="logs">Activity Logs</TabsTrigger>
         </TabsList>
 
@@ -406,6 +417,77 @@ export default function WorkforceIntelligencePage() {
           </Card>
         </TabsContent>
 
+        {/* ── HEALTH TREND TAB ── */}
+        <TabsContent value="trend" className="mt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <TrendingUp className="h-4 w-4 text-primary" />
+                Workforce Health Score — 30-Day Trend
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {trend && trend.length > 0 ? (
+                <div className="space-y-6">
+                  {/* SVG Sparkline */}
+                  <div className="relative">
+                    <div className="flex items-end gap-0.5 h-32">
+                      {trend.map((pt, i) => {
+                        const h = Math.max(4, (pt.health_score / 100) * 128);
+                        const color = pt.health_score >= 80 ? "#22c55e" : pt.health_score >= 60 ? "#f59e0b" : pt.health_score >= 40 ? "#f97316" : "#ef4444";
+                        return (
+                          <div key={i} className="flex-1 flex flex-col items-center gap-1 group relative">
+                            <div className="w-full rounded-t" style={{ height: h, backgroundColor: color, minWidth: 4 }} />
+                            <div className="absolute bottom-full mb-1 hidden group-hover:block bg-card border rounded px-2 py-1 text-xs whitespace-nowrap shadow z-10">
+                              <div className="font-semibold">{pt.health_score} pts</div>
+                              <div className="text-muted-foreground">{pt.snapshot_date}</div>
+                              <div>{pt.total_employees} employees</div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div className="flex justify-between text-xs text-muted-foreground mt-2">
+                      <span>{trend[0]?.snapshot_date}</span>
+                      <span>{trend[trend.length - 1]?.snapshot_date}</span>
+                    </div>
+                  </div>
+                  {/* Stats row */}
+                  <div className="grid grid-cols-3 gap-4">
+                    {["health_score", "avg_completeness", "critical_count"].map((field) => {
+                      const latest = trend[trend.length - 1];
+                      const prev = trend[trend.length - 2];
+                      const val = latest?.[field as keyof typeof latest] ?? 0;
+                      const prevVal = prev?.[field as keyof typeof prev] ?? 0;
+                      const diff = Number(val) - Number(prevVal);
+                      const label = field === "health_score" ? "Latest Score" : field === "avg_completeness" ? "Avg Completeness" : "Critical Alerts";
+                      const suffix = field === "critical_count" ? "" : "%";
+                      return (
+                        <div key={field} className="text-center p-3 rounded-lg border">
+                          <div className="text-2xl font-bold">{val}{suffix}</div>
+                          <div className="text-xs text-muted-foreground">{label}</div>
+                          {prev && (
+                            <div className={`text-xs mt-1 font-medium ${diff > 0 ? (field === "critical_count" ? "text-red-500" : "text-green-500") : diff < 0 ? (field === "critical_count" ? "text-green-500" : "text-red-500") : "text-muted-foreground"}`}>
+                              {diff > 0 ? "↑" : diff < 0 ? "↓" : "→"} {Math.abs(diff)}{suffix} vs prev
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-16 text-muted-foreground">
+                  <BarChart3 className="h-12 w-12 mx-auto mb-3 opacity-30" />
+                  <p className="font-medium">No trend data yet</p>
+                  <p className="text-sm mt-1">Health snapshots are recorded daily. Check back tomorrow for trend data.</p>
+                  <p className="text-xs mt-2 text-muted-foreground">Tip: Run automation rules to generate the first snapshot.</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         {/* ── AUTOMATION RULES TAB ── */}
         <TabsContent value="automation" className="mt-4 space-y-4">
           <div className="flex items-center justify-between">
@@ -478,6 +560,55 @@ export default function WorkforceIntelligencePage() {
               <Button className="mt-4" onClick={openCreateDialog}>
                 <Plus className="h-4 w-4 mr-1" /> Create First Rule
               </Button>
+            </div>
+          )}
+        </TabsContent>
+
+        {/* ── RULE TEMPLATES TAB ── */}
+        <TabsContent value="templates" className="mt-4">
+          <div className="mb-4">
+            <h2 className="font-semibold">Pre-built Rule Templates</h2>
+            <p className="text-sm text-muted-foreground">One-click install for the most common workforce automation scenarios</p>
+          </div>
+          {templatesLoading ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {[...Array(5)].map((_, i) => <div key={i} className="h-32 bg-muted animate-pulse rounded-lg" />)}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {templates.map((tpl) => {
+                const severityColor = tpl.severity === "critical" ? "text-red-600 bg-red-50 border-red-200" : tpl.severity === "high" ? "text-orange-600 bg-orange-50 border-orange-200" : "text-amber-600 bg-amber-50 border-amber-200";
+                return (
+                  <Card key={tpl.key} className={`transition-all ${tpl.installed ? "opacity-70" : "hover:shadow-md"}`}>
+                    <CardContent className="pt-4 pb-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap mb-1">
+                            <span className="font-semibold text-sm">{tpl.name}</span>
+                            <Badge variant="outline" className={`text-xs ${severityColor}`}>{tpl.severity}</Badge>
+                            {tpl.installed && <Badge variant="secondary" className="text-xs text-green-700 bg-green-50">Installed</Badge>}
+                          </div>
+                          <p className="text-xs text-muted-foreground">{tpl.description}</p>
+                          <div className="flex gap-3 mt-2 text-xs text-muted-foreground">
+                            <span>Trigger: {TRIGGER_LABELS[tpl.triggerType as TriggerType] ?? tpl.triggerType}</span>
+                            {tpl.conditionValue !== "0" && <span>≤ {tpl.conditionValue}{tpl.triggerType === "completeness_below" ? "%" : "d"}</span>}
+                          </div>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant={tpl.installed ? "outline" : "default"}
+                          disabled={tpl.installed || installTemplate.isPending}
+                          onClick={() => installTemplate.mutate({ templateKey: tpl.key })}
+                          className="shrink-0"
+                        >
+                          {tpl.installed ? <CheckCircle2 className="h-4 w-4" /> : <Plus className="h-4 w-4 mr-1" />}
+                          {tpl.installed ? "Installed" : "Install"}
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
           )}
         </TabsContent>

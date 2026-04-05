@@ -464,3 +464,36 @@ export async function fetchPerformanceLeaderboardSummary(
     topDepartmentsByTrainingHealth,
   };
 }
+
+/**
+ * Single snapshot for `/hr/performance` (one round-trip, consistent timing).
+ *
+ * Semantics (stable contract):
+ * - **Active employee**: `employees.status === "active"` for the company.
+ * - **KPI period** (`targetRowsThisPeriod`, `averageAchievementPctThisPeriod`): `kpi_targets` / `kpi_achievements`
+ *   for the requested `year`/`month` (defaults: current calendar month when omitted on the procedure).
+ * - **Training avg score**: mean of `training_records.score` where status is `completed` and score is not null.
+ * - **Department health**: `completed / total` training rows for that department (join on `employees.id`).
+ * - **Manager response rate** (self-review): `(reviewed + acknowledged) / (submitted + reviewed + acknowledged)`;
+ *   acknowledged counts as responded.
+ */
+export type HrPerformanceDashboardPayload = {
+  overview: PerformanceOverviewPayload;
+  training: TrainingOverviewPayload;
+  selfReviews: SelfReviewOverviewPayload;
+  leaderboard: PerformanceLeaderboardSummaryPayload;
+};
+
+export async function fetchHrPerformanceDashboard(
+  db: HrPerformanceDb,
+  companyId: number,
+  period: { year: number; month: number }
+): Promise<HrPerformanceDashboardPayload> {
+  const [overview, training, selfReviews, leaderboard] = await Promise.all([
+    fetchPerformanceOverview(db, companyId, period),
+    fetchTrainingOverview(db, companyId),
+    fetchSelfReviewOverview(db, companyId),
+    fetchPerformanceLeaderboardSummary(db, companyId),
+  ]);
+  return { overview, training, selfReviews, leaderboard };
+}

@@ -27,6 +27,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   Target,
   Trophy,
@@ -99,6 +100,15 @@ export default function HRPerformancePage() {
 
   const utils = trpc.useUtils();
   const { data: employees } = trpc.hr.listEmployees.useQuery({ status: "active" });
+  const {
+    data: hrDashboard,
+    isLoading: hrDashboardLoading,
+    isError: hrDashboardError,
+    error: hrDashboardErr,
+  } = trpc.financeHR.getHrPerformanceDashboard.useQuery(
+    { year, month },
+    { retry: false }
+  );
   const { data: teamProgress, isLoading: progressLoading } = trpc.kpi.adminGetTeamProgress.useQuery({
     year,
     month,
@@ -131,14 +141,34 @@ export default function HRPerformancePage() {
   const overviewStats = useMemo(() => {
     const progress = (teamProgress as any[]) ?? [];
     const totalTargets = progress.length;
-    const avgPct = totalTargets
+    const avgPctFromTeam = totalTargets
       ? progress.reduce((s, i) => s + Number(i.pct ?? 0), 0) / totalTargets
       : 0;
+    if (hrDashboard) {
+      const o = hrDashboard.overview;
+      return {
+        avgPct: o.targets.averageAchievementPctThisPeriod ?? avgPctFromTeam,
+        completedTrain: o.training.completed,
+        pendingSelf: o.selfReviews.pendingManagerReview,
+        formalCount: (formalReviews ?? []).length,
+        employeesActive: o.employees.active,
+        employeesTotal: o.employees.total,
+        trainingCompletionRate: hrDashboard.training.completionRate,
+        managerResponseRate: hrDashboard.selfReviews.managerResponseRate,
+      };
+    }
     const tr = trainingRows ?? [];
-    const completedTrain = tr.filter((t) => t.trainingStatus === "completed").length;
-    const pendingSelf = (selfReviews ?? []).filter((r) => r.reviewStatus === "submitted").length;
-    return { totalTargets, avgPct, completedTrain, pendingSelf, formalCount: (formalReviews ?? []).length };
-  }, [teamProgress, trainingRows, selfReviews, formalReviews]);
+    return {
+      avgPct: avgPctFromTeam,
+      completedTrain: tr.filter((t) => t.trainingStatus === "completed").length,
+      pendingSelf: (selfReviews ?? []).filter((r) => r.reviewStatus === "submitted").length,
+      formalCount: (formalReviews ?? []).length,
+      employeesActive: undefined as number | undefined,
+      employeesTotal: undefined as number | undefined,
+      trainingCompletionRate: undefined as number | undefined,
+      managerResponseRate: undefined as number | undefined,
+    };
+  }, [hrDashboard, teamProgress, trainingRows, selfReviews, formalReviews]);
 
   const empNameById = useMemo(() => {
     const m = new Map<number, string>();
@@ -164,6 +194,7 @@ export default function HRPerformancePage() {
       setTrainProvider("");
       setTrainDue("");
       utils.financeHR.adminListTraining.invalidate();
+      utils.financeHR.getHrPerformanceDashboard.invalidate();
     },
     onError: (e) => toast.error(e.message),
   });
@@ -178,6 +209,7 @@ export default function HRPerformancePage() {
       toast.success("Training updated");
       setEditTrain(null);
       utils.financeHR.adminListTraining.invalidate();
+      utils.financeHR.getHrPerformanceDashboard.invalidate();
     },
     onError: (e) => toast.error(e.message),
   });
@@ -200,6 +232,7 @@ export default function HRPerformancePage() {
       toast.success("Review updated");
       setEditSelf(null);
       utils.financeHR.adminListSelfReviews.invalidate();
+      utils.financeHR.getHrPerformanceDashboard.invalidate();
     },
     onError: (e) => toast.error(e.message),
   });
@@ -299,64 +332,208 @@ export default function HRPerformancePage() {
         </TabsList>
 
         <TabsContent value="overview" className="mt-4 space-y-4">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <Card>
-              <CardContent className="p-4">
-                <p className="text-xs text-muted-foreground">Avg KPI achievement</p>
-                <p className="text-2xl font-bold">{overviewStats.avgPct.toFixed(1)}%</p>
-                <p className="text-xs text-muted-foreground mt-1">{month}/{year}</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4">
-                <p className="text-xs text-muted-foreground">Training completed</p>
-                <p className="text-2xl font-bold">{overviewStats.completedTrain}</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4">
-                <p className="text-xs text-muted-foreground">Self-reviews awaiting HR</p>
-                <p className="text-2xl font-bold text-amber-600">{overviewStats.pendingSelf}</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4">
-                <p className="text-xs text-muted-foreground">Formal reviews on file</p>
-                <p className="text-2xl font-bold">{overviewStats.formalCount}</p>
-              </CardContent>
-            </Card>
+          {hrDashboardError && (
+            <Alert variant="destructive">
+              <AlertTitle>Could not load HR performance dashboard</AlertTitle>
+              <AlertDescription>
+                {hrDashboardErr?.message ?? "You may not have permission, or the server could not load data."}
+              </AlertDescription>
+            </Alert>
+          )}
+
+          <div className="flex flex-wrap items-center gap-2">
+            <Select value={String(month)} onValueChange={(v) => setMonth(Number(v))}>
+              <SelectTrigger className="h-9 w-32 text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {MONTH_NAMES.map((m, i) => (
+                  <SelectItem key={i + 1} value={String(i + 1)}>
+                    {m}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={String(year)} onValueChange={(v) => setYear(Number(v))}>
+              <SelectTrigger className="h-9 w-24 text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {[2024, 2025, 2026, 2027].map((y) => (
+                  <SelectItem key={y} value={String(y)}>
+                    {y}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <span className="text-xs text-muted-foreground">KPI snapshot period (server aggregates)</span>
           </div>
 
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base">Top performers (KPI)</CardTitle>
-              <CardDescription>From monthly leaderboard — commission-weighted activity.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {!leaderboard?.length ? (
-                <p className="text-sm text-muted-foreground">No achievement data for this period.</p>
-              ) : (
-                <ul className="space-y-2">
-                  {leaderboard.slice(0, 5).map((row: { rank: number; employee: { firstName?: string; lastName?: string } | null; avgPct: number }) => (
-                    <li key={row.rank} className="flex justify-between text-sm border-b border-border/60 pb-2 last:border-0">
-                      <span className="flex items-center gap-2">
-                        <Trophy className="w-4 h-4 text-amber-500" />#{row.rank}{" "}
-                        {row.employee
-                          ? `${row.employee.firstName ?? ""} ${row.employee.lastName ?? ""}`.trim()
-                          : "Employee"}
-                      </span>
-                      <span className="font-medium">{row.avgPct.toFixed(1)}%</span>
-                    </li>
-                  ))}
-                </ul>
+          {hrDashboardLoading ? (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {[1, 2, 3, 4].map((i) => (
+                <Card key={i}>
+                  <CardContent className="p-4 space-y-2">
+                    <div className="h-3 w-24 bg-muted animate-pulse rounded" />
+                    <div className="h-8 w-20 bg-muted animate-pulse rounded" />
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : hrDashboard === null && !hrDashboardError ? (
+            <p className="text-sm text-muted-foreground">Overview data is unavailable.</p>
+          ) : (
+            <>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <Card>
+                  <CardContent className="p-4">
+                    <p className="text-xs text-muted-foreground">Avg KPI achievement</p>
+                    <p className="text-2xl font-bold">{overviewStats.avgPct.toFixed(1)}%</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {month}/{year}
+                      {overviewStats.employeesActive != null && overviewStats.employeesTotal != null && (
+                        <span className="block mt-0.5">
+                          {overviewStats.employeesActive} active / {overviewStats.employeesTotal} employees
+                        </span>
+                      )}
+                    </p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="p-4">
+                    <p className="text-xs text-muted-foreground">Training completed</p>
+                    <p className="text-2xl font-bold">{overviewStats.completedTrain}</p>
+                    {overviewStats.trainingCompletionRate != null && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {overviewStats.trainingCompletionRate}% completion rate
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="p-4">
+                    <p className="text-xs text-muted-foreground">Self-reviews awaiting HR</p>
+                    <p className="text-2xl font-bold text-amber-600">{overviewStats.pendingSelf}</p>
+                    {overviewStats.managerResponseRate != null && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {overviewStats.managerResponseRate}% manager response
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="p-4">
+                    <p className="text-xs text-muted-foreground">Formal reviews on file</p>
+                    <p className="text-2xl font-bold">{overviewStats.formalCount}</p>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {hrDashboard && (
+                <div className="grid md:grid-cols-2 gap-3">
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-base">Training spotlight</CardTitle>
+                      <CardDescription>Completed trainings and recent completions (server summary).</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      {hrDashboard.leaderboard.topPerformers.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">No completed training records yet.</p>
+                      ) : (
+                        <ul className="space-y-2">
+                          {hrDashboard.leaderboard.topPerformers.map((row) => (
+                            <li
+                              key={row.employeeId}
+                              className="flex justify-between text-sm border-b border-border/60 pb-2 last:border-0"
+                            >
+                              <span className="flex items-center gap-2">
+                                <GraduationCap className="w-4 h-4 text-primary" />
+                                {row.employeeName}
+                                {row.department ? (
+                                  <span className="text-muted-foreground text-xs">({row.department})</span>
+                                ) : null}
+                              </span>
+                              <span className="font-medium">
+                                {row.completedTrainings} done
+                                {row.averageTrainingScore != null ? ` · avg ${row.averageTrainingScore}` : ""}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                      {hrDashboard.leaderboard.recentTrainingCompletions.length > 0 && (
+                        <div className="text-xs text-muted-foreground space-y-1 pt-1 border-t border-border/60">
+                          <p className="font-medium text-foreground text-sm">Recent completions</p>
+                          {hrDashboard.leaderboard.recentTrainingCompletions.map((r) => (
+                            <div key={r.trainingId} className="flex justify-between gap-2">
+                              <span className="truncate">{r.title}</span>
+                              <span className="shrink-0">{r.employeeName}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-base">Department training health</CardTitle>
+                      <CardDescription>Share of completed assignments by department.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      {hrDashboard.leaderboard.topDepartmentsByTrainingHealth.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">No department data yet.</p>
+                      ) : (
+                        <ul className="space-y-2">
+                          {hrDashboard.leaderboard.topDepartmentsByTrainingHealth.map((d) => (
+                            <li
+                              key={d.department}
+                              className="flex justify-between text-sm border-b border-border/60 pb-2 last:border-0"
+                            >
+                              <span>{d.department}</span>
+                              <span className="font-medium">
+                                {d.healthScore}% ({d.completed}/{d.totalAssignments})
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </CardContent>
+                  </Card>
+                </div>
               )}
-              <Button variant="outline" size="sm" className="mt-4 gap-1" asChild>
-                <Link href="/hr/kpi">
-                  Open full KPI console <ExternalLink className="w-3.5 h-3.5" />
-                </Link>
-              </Button>
-            </CardContent>
-          </Card>
+
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base">Top performers (KPI)</CardTitle>
+                  <CardDescription>From monthly leaderboard — commission-weighted activity.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {!leaderboard?.length ? (
+                    <p className="text-sm text-muted-foreground">No achievement data for this period.</p>
+                  ) : (
+                    <ul className="space-y-2">
+                      {leaderboard.slice(0, 5).map((row: { rank: number; employee: { firstName?: string; lastName?: string } | null; avgPct: number }) => (
+                        <li key={row.rank} className="flex justify-between text-sm border-b border-border/60 pb-2 last:border-0">
+                          <span className="flex items-center gap-2">
+                            <Trophy className="w-4 h-4 text-amber-500" />#{row.rank}{" "}
+                            {row.employee
+                              ? `${row.employee.firstName ?? ""} ${row.employee.lastName ?? ""}`.trim()
+                              : "Employee"}
+                          </span>
+                          <span className="font-medium">{row.avgPct.toFixed(1)}%</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  <Button variant="outline" size="sm" className="mt-4 gap-1" asChild>
+                    <Link href="/hr/kpi">
+                      Open full KPI console <ExternalLink className="w-3.5 h-3.5" />
+                    </Link>
+                  </Button>
+                </CardContent>
+              </Card>
+            </>
+          )}
         </TabsContent>
 
         <TabsContent value="training" className="mt-4 space-y-4">

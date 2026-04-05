@@ -21,12 +21,7 @@ import {
   selfReviewAuditSnapshot,
   trainingRecordAuditSnapshot,
 } from "../hrPerformanceAudit";
-import {
-  fetchPerformanceOverview,
-  fetchTrainingOverview,
-  fetchSelfReviewOverview,
-  fetchPerformanceLeaderboardSummary,
-} from "../hrPerformanceReadModels";
+import { fetchHrPerformanceDashboard } from "../hrPerformanceReadModels";
 
 /**
  * HR performance keys: role defaults ∪ company_members.permissions (see shared/hrPerformancePermissions.ts).
@@ -618,8 +613,8 @@ export const financeHRRouter = router({
       return { success: true };
     }),
 
-  // ─── HR performance overview (server-authoritative read models, PR-4) ───
-  getPerformanceOverview: protectedProcedure
+  // ─── HR performance dashboard (composed read models, PR-4) ───────────────
+  getHrPerformanceDashboard: protectedProcedure
     .input(
       z
         .object({
@@ -636,36 +631,6 @@ export const financeHRRouter = router({
       await assertCanReadHrPerformanceOverview(ctx.user, companyId);
       const year = input?.year ?? new Date().getFullYear();
       const month = input?.month ?? new Date().getMonth() + 1;
-      return fetchPerformanceOverview(db, companyId, { year, month });
-    }),
-
-  getTrainingOverview: protectedProcedure
-    .input(z.object({ companyId: z.number().optional() }).optional())
-    .query(async ({ ctx, input }) => {
-      const db = await getDb();
-      if (!db) return null;
-      const companyId = input?.companyId ?? (await requireActiveCompanyId(ctx.user.id));
-      await assertCanReadHrPerformanceOverview(ctx.user, companyId);
-      return fetchTrainingOverview(db, companyId);
-    }),
-
-  getSelfReviewOverview: protectedProcedure
-    .input(z.object({ companyId: z.number().optional() }).optional())
-    .query(async ({ ctx, input }) => {
-      const db = await getDb();
-      if (!db) return null;
-      const companyId = input?.companyId ?? (await requireActiveCompanyId(ctx.user.id));
-      await assertCanReadHrPerformanceOverview(ctx.user, companyId);
-      return fetchSelfReviewOverview(db, companyId);
-    }),
-
-  getPerformanceLeaderboardSummary: protectedProcedure
-    .input(z.object({ companyId: z.number().optional() }).optional())
-    .query(async ({ ctx, input }) => {
-      const db = await getDb();
-      if (!db) return null;
-      const companyId = input?.companyId ?? (await requireActiveCompanyId(ctx.user.id));
-      await assertCanReadHrPerformanceOverview(ctx.user, companyId);
-      return fetchPerformanceLeaderboardSummary(db, companyId);
+      return fetchHrPerformanceDashboard(db, companyId, { year, month });
     }),
 });

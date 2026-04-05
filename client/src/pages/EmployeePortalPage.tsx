@@ -2297,6 +2297,27 @@ export default function EmployeePortalPage() {
                                   Blocked: {task.blockedReason}
                                 </p>
                               )}
+                              {(() => {
+                                const cl = Array.isArray(task.checklist) ? task.checklist.length : 0;
+                                const est = task.estimatedDurationMinutes as number | undefined;
+                                const al = Array.isArray(task.attachmentLinks) ? task.attachmentLinks.length : 0;
+                                if (!cl && !est && !al) return null;
+                                return (
+                                  <p className="text-[11px] text-muted-foreground mt-1 flex flex-wrap gap-x-2 gap-y-0.5">
+                                    {est ? <span>~{est} min estimated</span> : null}
+                                    {cl > 0 ? (
+                                      <span>
+                                        {cl} checklist step{cl !== 1 ? "s" : ""}
+                                      </span>
+                                    ) : null}
+                                    {al > 0 ? (
+                                      <span>
+                                        {al} reference link{al !== 1 ? "s" : ""}
+                                      </span>
+                                    ) : null}
+                                  </p>
+                                );
+                              })()}
                               <div className="flex flex-wrap items-center gap-2 mt-2 text-xs">
                                 <span className="inline-flex items-center rounded-full border bg-background/80 px-2 py-0.5 capitalize text-muted-foreground">
                                   {TASK_STATUS_LABEL[st] ?? task.status}

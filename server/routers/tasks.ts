@@ -20,6 +20,33 @@ async function requireDb() {
 const taskStatusEnum = z.enum(["pending", "in_progress", "completed", "cancelled", "blocked"]);
 const taskPriorityEnum = z.enum(["low", "medium", "high", "urgent"]);
 
+const taskChecklistSchema = z
+  .array(
+    z.object({
+      title: z.string().min(1).max(400),
+      completed: z.boolean().optional(),
+    }),
+  )
+  .max(25)
+  .optional();
+
+const taskAttachmentLinksSchema = z
+  .array(
+    z.object({
+      name: z.string().min(1).max(160),
+      url: z.string().min(1).max(2000),
+    }),
+  )
+  .max(12)
+  .optional();
+
+function normalizeChecklist(
+  items: { title: string; completed?: boolean }[] | undefined | null,
+): { title: string; completed: boolean }[] | null {
+  if (!items?.length) return null;
+  return items.map((i) => ({ title: i.title.trim(), completed: i.completed ?? false }));
+}
+
 export const tasksRouter = router({
   // List tasks — admin sees all, employee sees their own
   listTasks: protectedProcedure
@@ -80,6 +107,9 @@ export const tasksRouter = router({
       priority: taskPriorityEnum.default("medium"),
       dueDate: z.string().optional(), // ISO date string YYYY-MM-DD
       notes: z.string().optional(),
+      estimatedDurationMinutes: z.number().int().min(5).max(43200).optional(),
+      checklist: taskChecklistSchema,
+      attachmentLinks: taskAttachmentLinksSchema,
       companyId: z.number().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
@@ -96,7 +126,10 @@ export const tasksRouter = router({
         description: rest.description,
         priority: rest.priority,
         dueDate: rest.dueDate ? new Date(rest.dueDate) : undefined,
+        estimatedDurationMinutes: rest.estimatedDurationMinutes ?? undefined,
         notes: rest.notes,
+        checklist: normalizeChecklist(rest.checklist ?? null),
+        attachmentLinks: rest.attachmentLinks?.length ? rest.attachmentLinks : undefined,
         status: "pending",
         notifiedOverdue: false,
       });
@@ -128,6 +161,9 @@ export const tasksRouter = router({
       dueDate: z.string().nullable().optional(),
       notes: z.string().optional(),
       blockedReason: z.string().nullable().optional(),
+      estimatedDurationMinutes: z.number().int().min(5).max(43200).nullable().optional(),
+      checklist: taskChecklistSchema.nullable().optional(),
+      attachmentLinks: taskAttachmentLinksSchema.nullable().optional(),
       assignedToEmployeeId: z.number().optional(),
       companyId: z.number().optional(),
     }))
@@ -137,8 +173,27 @@ export const tasksRouter = router({
       const [existing] = await db.select().from(employeeTasks).where(eq(employeeTasks.id, input.id));
       if (!existing || existing.companyId !== companyId)
         throw new TRPCError({ code: "NOT_FOUND", message: "Task not found" });
-      const { id, dueDate, companyId: _cid, assignedToEmployeeId, blockedReason, ...rest } = input;
+      const {
+        id,
+        dueDate,
+        companyId: _cid,
+        assignedToEmployeeId,
+        blockedReason,
+        checklist,
+        attachmentLinks,
+        estimatedDurationMinutes,
+        ...rest
+      } = input;
       const updateData: any = { ...rest };
+      if (estimatedDurationMinutes !== undefined) {
+        updateData.estimatedDurationMinutes = estimatedDurationMinutes;
+      }
+      if (checklist !== undefined) {
+        updateData.checklist = normalizeChecklist(checklist);
+      }
+      if (attachmentLinks !== undefined) {
+        updateData.attachmentLinks = attachmentLinks?.length ? attachmentLinks : null;
+      }
       if (dueDate !== undefined) {
         updateData.dueDate = dueDate ? new Date(dueDate) : null;
         updateData.notifiedOverdue = false;

@@ -10,7 +10,8 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { fmtDateLong, fmtDateTime } from "@/lib/dateUtils";
 import { slaLabel, getDueUrgency, actionRequiredOverdueLabel } from "@/lib/taskSla";
-import { Clock, CheckCircle2, Circle, PlayCircle, Ban, XCircle } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { Clock, CheckCircle2, Circle, PlayCircle, Ban, XCircle, ListChecks, ExternalLink } from "lucide-react";
 
 type TaskLike = {
   id?: number;
@@ -26,6 +27,9 @@ type TaskLike = {
   completedAt?: Date | string | null;
   blockedReason?: string | null;
   completedByName?: string | null;
+  estimatedDurationMinutes?: number | null;
+  checklist?: { title: string; completed: boolean }[] | null;
+  attachmentLinks?: { name: string; url: string }[] | null;
   employeeName?: string;
   employeeDepartment?: string | null;
 };
@@ -143,10 +147,64 @@ export function TaskDetailSheet({
             </div>
           )}
 
+          {task.estimatedDurationMinutes != null && task.estimatedDurationMinutes > 0 && (
+            <div className="text-sm">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Estimated effort</p>
+              <p className="font-medium mt-1">{task.estimatedDurationMinutes} minutes</p>
+            </div>
+          )}
+
           {task.description?.trim() && (
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Description</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Task details</p>
               <p className="text-sm whitespace-pre-wrap leading-relaxed">{task.description}</p>
+            </div>
+          )}
+
+          {Array.isArray(task.checklist) && task.checklist.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2 flex items-center gap-1.5">
+                <ListChecks className="w-3.5 h-3.5" />
+                Checklist
+              </p>
+              <ul className="space-y-1.5 text-sm">
+                {task.checklist.map((item, i) => (
+                  <li key={i} className="flex gap-2 items-start">
+                    <span
+                      className={cn(
+                        "mt-0.5 h-4 w-4 rounded border shrink-0 flex items-center justify-center text-[10px]",
+                        item.completed
+                          ? "border-green-600 bg-green-600 text-white"
+                          : "border-muted-foreground/40",
+                      )}
+                    >
+                      {item.completed ? <CheckCircle2 className="w-3 h-3" /> : null}
+                    </span>
+                    <span className={item.completed ? "line-through text-muted-foreground" : ""}>{item.title}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {Array.isArray(task.attachmentLinks) && task.attachmentLinks.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">References</p>
+              <ul className="space-y-1.5 text-sm">
+                {task.attachmentLinks.map((link, i) => (
+                  <li key={i}>
+                    <a
+                      href={link.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary inline-flex items-center gap-1 hover:underline"
+                    >
+                      {link.name || link.url}
+                      <ExternalLink className="w-3 h-3 shrink-0 opacity-70" />
+                    </a>
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
 

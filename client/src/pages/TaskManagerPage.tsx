@@ -1,15 +1,10 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
-} from "@/components/ui/dialog";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -23,9 +18,9 @@ import {
   CheckCircle2, Circle, User, Ban, Check,
 } from "lucide-react";
 import { fmtDateLong } from "@/lib/dateUtils";
-import { DateInput } from "@/components/ui/date-input";
 import { getDueUrgency, slaLabel, actionRequiredOverdueLabel } from "@/lib/taskSla";
 import { TaskDetailSheet } from "@/components/tasks/TaskDetailSheet";
+import { TaskAssignDialog } from "@/components/tasks/TaskAssignDialog";
 
 type Priority = "low" | "medium" | "high" | "urgent";
 type Status = "pending" | "in_progress" | "completed" | "cancelled" | "blocked";
@@ -44,180 +39,6 @@ const STATUS_CONFIG: Record<Status, { label: string; icon: React.ReactNode }> = 
   completed: { label: "Completed", icon: <CheckCircle2 className="w-3.5 h-3.5 text-green-500" /> },
   cancelled: { label: "Cancelled", icon: <AlertCircle className="w-3.5 h-3.5 text-muted-foreground" /> },
 };
-
-function TaskDialog({
-  open, onClose, initial, employees, companyId,
-}: {
-  open: boolean;
-  onClose: () => void;
-  initial?: any;
-  employees: { id: number; firstName: string; lastName: string; department?: string | null }[];
-  companyId?: number | null;
-}) {
-  const utils = trpc.useUtils();
-  const [title, setTitle] = useState(initial?.title ?? "");
-  const [description, setDescription] = useState(initial?.description ?? "");
-  const [priority, setPriority] = useState<Priority>(initial?.priority ?? "medium");
-  const [status, setStatus] = useState<Status>((initial?.status as Status) ?? "pending");
-  const [dueDate, setDueDate] = useState(initial?.dueDate ? new Date(initial.dueDate).toISOString().split("T")[0] : "");
-  const [assignedTo, setAssignedTo] = useState<string>(initial?.assignedToEmployeeId?.toString() ?? "");
-  const [notes, setNotes] = useState(initial?.notes ?? "");
-  const [blockedReason, setBlockedReason] = useState(initial?.blockedReason ?? "");
-
-  useEffect(() => {
-    if (!open) return;
-    setTitle(initial?.title ?? "");
-    setDescription(initial?.description ?? "");
-    setPriority((initial?.priority as Priority) ?? "medium");
-    setStatus((initial?.status as Status) ?? "pending");
-    setDueDate(initial?.dueDate ? new Date(initial.dueDate).toISOString().split("T")[0] : "");
-    setAssignedTo(initial?.assignedToEmployeeId?.toString() ?? "");
-    setNotes(initial?.notes ?? "");
-    setBlockedReason(initial?.blockedReason ?? "");
-  }, [open, initial]);
-
-  const create = trpc.tasks.createTask.useMutation({
-    onSuccess: () => {
-      utils.tasks.listTasks.invalidate();
-      utils.tasks.getTaskStats.invalidate();
-      utils.employeePortal.getMyTasks.invalidate();
-      toast.success("Task created");
-      onClose();
-    },
-    onError: (e) => toast.error(e.message),
-  });
-  const update = trpc.tasks.updateTask.useMutation({
-    onSuccess: () => {
-      utils.tasks.listTasks.invalidate();
-      utils.tasks.getTaskStats.invalidate();
-      utils.employeePortal.getMyTasks.invalidate();
-      toast.success("Task updated");
-      onClose();
-    },
-    onError: (e) => toast.error(e.message),
-  });
-
-  const handleSave = () => {
-    if (!title.trim() || !assignedTo) return;
-    if (initial) {
-      const payload: Parameters<typeof update.mutate>[0] = {
-        id: initial.id,
-        title,
-        description: description || undefined,
-        priority,
-        status,
-        dueDate: dueDate || undefined,
-        notes: notes || undefined,
-        companyId: companyId ?? undefined,
-      };
-      if (Number(assignedTo) !== initial.assignedToEmployeeId) {
-        payload.assignedToEmployeeId = Number(assignedTo);
-      }
-      if (status === "blocked") {
-        payload.blockedReason = blockedReason.trim() || null;
-      }
-      update.mutate(payload);
-    } else {
-      create.mutate({
-        assignedToEmployeeId: Number(assignedTo),
-        title,
-        description: description || undefined,
-        priority,
-        dueDate: dueDate || undefined,
-        notes: notes || undefined,
-        companyId: companyId ?? undefined,
-      });
-    }
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader><DialogTitle>{initial ? "Edit Task" : "Assign New Task"}</DialogTitle></DialogHeader>
-        <div className="space-y-4 py-2">
-          <div className="space-y-1">
-            <Label>Task Title *</Label>
-            <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Submit monthly report" />
-          </div>
-          <div className="space-y-1">
-            <Label>Assign To *</Label>
-            <Select value={assignedTo} onValueChange={setAssignedTo}>
-              <SelectTrigger><SelectValue placeholder="Select employee..." /></SelectTrigger>
-              <SelectContent>
-                {employees.map((e) => (
-                  <SelectItem key={e.id} value={e.id.toString()}>
-                    {e.firstName} {e.lastName}{e.department ? ` — ${e.department}` : ""}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {initial && (
-              <p className="text-xs text-muted-foreground">Change assignee to reassign. The employee is notified.</p>
-            )}
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <Label>Priority</Label>
-              <Select value={priority} onValueChange={(v) => setPriority(v as Priority)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {Object.entries(PRIORITY_CONFIG).map(([k, v]) => (
-                    <SelectItem key={k} value={k}>{v.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-[11px] text-muted-foreground leading-snug mt-1">
-                {PRIORITY_CONFIG[priority].hint}
-              </p>
-            </div>
-            <div className="space-y-1">
-              <Label>Due Date</Label>
-              <DateInput value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
-            </div>
-          </div>
-          {initial && (
-            <div className="space-y-1">
-              <Label>Status</Label>
-              <Select value={status} onValueChange={(v) => setStatus(v as Status)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {Object.entries(STATUS_CONFIG).map(([k, v]) => (
-                    <SelectItem key={k} value={k}>{v.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-          {initial && status === "blocked" && (
-            <div className="space-y-1">
-              <Label>Blocked reason</Label>
-              <Textarea
-                value={blockedReason}
-                onChange={(e) => setBlockedReason(e.target.value)}
-                rows={2}
-                placeholder="Why is this task blocked? (Shown to the assignee in their task details.)"
-              />
-            </div>
-          )}
-          <div className="space-y-1">
-            <Label>Description</Label>
-            <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} placeholder="Task details..." />
-          </div>
-          <div className="space-y-1">
-            <Label>Notes</Label>
-            <Input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Internal notes (not shown to employee)…" />
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button onClick={handleSave} disabled={!title.trim() || !assignedTo || create.isPending || update.isPending}>
-            {initial ? "Save Changes" : "Assign Task"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
 
 function rowUrgencyClass(task: any): string {
   const u = getDueUrgency(task.dueDate, task.status);
@@ -483,7 +304,7 @@ export default function TaskManagerPage() {
         </div>
       )}
 
-      <TaskDialog
+      <TaskAssignDialog
         open={taskDialog.open}
         onClose={() => setTaskDialog({ open: false })}
         initial={taskDialog.item}

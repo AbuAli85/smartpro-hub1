@@ -1,6 +1,6 @@
 import { TRPCError } from "@trpc/server";
 import { ENV } from "../_core/env";
-import { and, asc, desc, eq, gte, ilike, isNotNull, lt, lte, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, ilike, isNotNull, lt, lte, notInArray, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { getDb, getUserCompany } from "../db";
 import {
@@ -19,6 +19,11 @@ import {
 } from "../../drizzle/schema";
 import type { User } from "../../drizzle/schema";
 import { isCompanyProvisioningAdmin, canAccessGlobalAdminProcedures } from "@shared/rbac";
+import {
+  canReadHrPerformanceAuditSensitiveRows,
+  HR_AUDIT_SENSITIVE_ENTITY_TYPES,
+  isHrPerformanceSensitiveEntityType,
+} from "../hrPerformanceAuditReadPolicy";
 import { protectedProcedure, router } from "../_core/trpc";
 import { invokeLLM } from "../_core/llm";
 import { fileUrlMatchesConfiguredStorage, storagePut } from "../storage";
@@ -1292,10 +1297,21 @@ Return ONLY valid JSON matching the schema, no extra text.`,
       const db = await getDb();
       if (!db) return { items: [], total: 0 };
 
+      const canReadHrAudit = await canReadHrPerformanceAuditSensitiveRows(ctx.user, companyId);
+      if (input.entityType && isHrPerformanceSensitiveEntityType(input.entityType) && !canReadHrAudit) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "You do not have permission to view HR performance audit records for this entity type.",
+        });
+      }
+
       const conditions = [eq(auditEvents.companyId, companyId)];
       if (input.entityType) conditions.push(eq(auditEvents.entityType, input.entityType));
       if (input.entityId) conditions.push(eq(auditEvents.entityId, input.entityId));
       if (input.action) conditions.push(eq(auditEvents.action, input.action));
+      if (!canReadHrAudit) {
+        conditions.push(notInArray(auditEvents.entityType, [...HR_AUDIT_SENSITIVE_ENTITY_TYPES]));
+      }
 
       const rows = await db.select().from(auditEvents)
         .where(and(...conditions))

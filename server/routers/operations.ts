@@ -19,8 +19,12 @@ import {
   employeeDocuments,
   companyDocuments,
 } from "../../drizzle/schema";
-import { and, eq, gte, lte, lt, count, sum, desc, isNull, ne } from "drizzle-orm";
+import { and, eq, gte, lte, lt, count, sum, desc, isNull, ne, notInArray } from "drizzle-orm";
 import { resolvePlatformOrCompanyScope } from "../_core/tenant";
+import {
+  canReadHrPerformanceAuditSensitiveRows,
+  HR_AUDIT_SENSITIVE_ENTITY_TYPES,
+} from "../hrPerformanceAuditReadPolicy";
 import type { User } from "../../drizzle/schema";
 
 export const operationsRouter = router({
@@ -31,6 +35,12 @@ export const operationsRouter = router({
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
     const companyId = await resolvePlatformOrCompanyScope(ctx.user as User, input?.companyId);
+    const canReadHrAudit =
+      companyId === null ? true : await canReadHrPerformanceAuditSensitiveRows(ctx.user as User, companyId);
+    const hrAuditExcludeSensitive =
+      companyId !== null && !canReadHrAudit
+        ? notInArray(auditEvents.entityType, [...HR_AUDIT_SENSITIVE_ENTITY_TYPES])
+        : null;
     const now = new Date();
     const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const in7Days = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
@@ -210,7 +220,11 @@ export const operationsRouter = router({
       .from(auditEvents);
     const recentActivity = companyId
       ? await recentActivityBase
-          .where(eq(auditEvents.companyId, companyId))
+          .where(
+            hrAuditExcludeSensitive
+              ? and(eq(auditEvents.companyId, companyId), hrAuditExcludeSensitive)
+              : eq(auditEvents.companyId, companyId)
+          )
           .orderBy(desc(auditEvents.createdAt))
           .limit(10)
       : await recentActivityBase.orderBy(desc(auditEvents.createdAt)).limit(10);

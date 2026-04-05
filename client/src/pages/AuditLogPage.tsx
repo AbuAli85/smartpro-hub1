@@ -44,6 +44,8 @@ function getEntityColor(entity: string) {
 }
 
 interface AuditEntry {
+  _key?: string;
+  source?: "audit_event" | "audit_log";
   id: number;
   userId: number | null;
   companyId: number | null;
@@ -95,8 +97,21 @@ export default function AuditLogPage() {
   }, [logs]);
 
   function exportCSV() {
-    const header = ["ID", "Timestamp", "User ID", "Company ID", "Action", "Entity Type", "Entity ID", "IP Address"];
+    const header = [
+      "Source",
+      "Row key",
+      "ID",
+      "Timestamp",
+      "User ID",
+      "Company ID",
+      "Action",
+      "Entity Type",
+      "Entity ID",
+      "IP Address",
+    ];
     const rows = filtered.map((l) => [
+      l.source ?? "",
+      l._key ?? "",
       l.id,
       new Date(l.createdAt).toISOString(),
       l.userId ?? "",
@@ -137,7 +152,9 @@ export default function AuditLogPage() {
             Audit Log Viewer
           </h1>
           <p className="text-muted-foreground text-sm mt-1">
-            Complete trail of all platform actions — who did what and when.
+            Merged timeline: operational <span className="font-medium text-foreground/80">audit_events</span> (workforce,
+            HR performance, etc.) plus <span className="font-medium text-foreground/80">audit_logs</span> for platform
+            access/role changes. HR-sensitive event types respect your permissions.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -242,6 +259,7 @@ export default function AuditLogPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-24">Source</TableHead>
                     <TableHead className="w-12">#</TableHead>
                     <TableHead>Timestamp</TableHead>
                     <TableHead>Action</TableHead>
@@ -255,7 +273,23 @@ export default function AuditLogPage() {
                 </TableHeader>
                 <TableBody>
                   {filtered.map((log) => (
-                    <TableRow key={log.id} className="hover:bg-muted/30 cursor-pointer" onClick={() => setSelectedEntry(log)}>
+                    <TableRow
+                      key={log._key ?? `row-${log.source ?? "x"}-${log.id}`}
+                      className="hover:bg-muted/30 cursor-pointer"
+                      onClick={() => setSelectedEntry(log)}
+                    >
+                      <TableCell>
+                        <Badge
+                          variant="outline"
+                          className={`text-[10px] font-normal ${
+                            log.source === "audit_log"
+                              ? "border-violet-300 text-violet-800 bg-violet-50 dark:bg-violet-950/30"
+                              : "border-sky-300 text-sky-800 bg-sky-50 dark:bg-sky-950/30"
+                          }`}
+                        >
+                          {log.source === "audit_log" ? "Access / role" : "Activity"}
+                        </Badge>
+                      </TableCell>
                       <TableCell className="text-xs text-muted-foreground font-mono">{log.id}</TableCell>
                       <TableCell className="text-xs whitespace-nowrap">
                         <div className="flex items-center gap-1.5">
@@ -320,13 +354,21 @@ export default function AuditLogPage() {
           <DialogHeader>
             <DialogTitle className="flex flex-wrap items-center gap-2">
               <Shield size={18} className="text-orange-500" />
-              Audit Event #{selectedEntry?.id}
+              Audit {selectedEntry?.source === "audit_log" ? "access" : "activity"} #{selectedEntry?.id}
             </DialogTitle>
           </DialogHeader>
           {selectedEntry && (
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-3 text-sm">
                 {[
+                  {
+                    label: "Source",
+                    value:
+                      selectedEntry.source === "audit_log"
+                        ? "audit_logs (platform access / membership)"
+                        : "audit_events (operational)",
+                  },
+                  { label: "Row key", value: selectedEntry._key ?? "—" },
                   { label: "Timestamp", value: fmtDateTime(selectedEntry.createdAt) },
                   { label: "Action", value: selectedEntry.action },
                   { label: "Entity Type", value: selectedEntry.entityType },

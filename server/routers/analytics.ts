@@ -1,7 +1,6 @@
 import { z } from "zod";
 import { canAccessGlobalAdminProcedures } from "@shared/rbac";
 import {
-  getAuditLogs,
   getCompanyStats,
   getCrmDeals,
   getEmployees,
@@ -21,6 +20,7 @@ import {
 } from "../db";
 import { protectedProcedure, router } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
+import { loadUnifiedAuditTimeline } from "../unifiedAuditTimeline";
 
 async function assertScheduledReportInCompany(reportId: number, companyId: number): Promise<void> {
   const reports = await getAnalyticsReports(companyId);
@@ -113,14 +113,14 @@ export const analyticsRouter = router({
     };
   }),
 
+  /**
+   * Unified activity timeline: `audit_events` (operational) + `audit_logs` (platform membership / role changes).
+   * Replaces the legacy-only `getAuditLogs` read path so the UI reflects real system activity.
+   */
   auditLogs: protectedProcedure
-    .input(z.object({ limit: z.number().default(50) }))
+    .input(z.object({ limit: z.number().min(1).max(500).default(50) }))
     .query(async ({ input, ctx }) => {
-      if (!canAccessGlobalAdminProcedures(ctx.user)) {
-        const membership = await getUserCompany(ctx.user.id);
-        return getAuditLogs(membership?.company.id, input.limit);
-      }
-      return getAuditLogs(undefined, input.limit);
+      return loadUnifiedAuditTimeline(ctx, input.limit);
     }),
 
   // ── Scheduled Reports ──────────────────────────────────────────────────────

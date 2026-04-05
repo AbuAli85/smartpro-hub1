@@ -6,7 +6,7 @@ import { getDb } from "./db";
 
 /**
  * Read policy for HR Performance rows in `audit_events` (written via `insertHrPerformanceAuditEvent`).
- * Legacy `audit_logs` / `analytics.auditLogs` is a separate surface — align sensitivity policy there when revisiting.
+ * `analytics.auditLogs` merges `audit_events` with legacy `audit_logs` (platformOps role writes); HR sensitivity applies to event rows only.
  */
 
 /** Rows written by `insertHrPerformanceAuditEvent` for HR Performance entities. */

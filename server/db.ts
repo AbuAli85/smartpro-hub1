@@ -714,12 +714,14 @@ export async function markNotificationsRead(userId: number) {
 
 // ─── AUDIT LOGS ───────────────────────────────────────────────────────────────
 
+/** Inserts legacy `audit_logs` rows. PlatformOps uses this for role/membership; new operational audit should use `audit_events` where possible. */
 export async function createAuditLog(data: typeof auditLogs.$inferInsert) {
   const db = await getDb();
   if (!db) return;
   await db.insert(auditLogs).values(data);
 }
 
+/** Raw legacy table read — prefer `loadUnifiedAuditTimeline` / `analytics.auditLogs` for UI. */
 export async function getAuditLogs(companyId?: number, limit = 100) {
   const db = await getDb();
   if (!db) return [];

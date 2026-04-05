@@ -1,6 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { eq, and, desc, or, isNull, inArray, gte, lte } from "drizzle-orm";
+import { alias } from "drizzle-orm/mysql-core";
 import {
   employees, attendance, leaveRequests, payrollRecords,
   employeeDocuments, employeeTasks, announcements, announcementReads,
@@ -14,6 +15,8 @@ import { computePortalOperationalHints } from "@shared/employeePortalOperational
 
 /** Default annual entitlements (calendar year) — keep in sync with portal UI until per-company policies exist */
 export const DEFAULT_LEAVE_ENTITLEMENTS = { annual: 30, sick: 15, emergency: 5 } as const;
+
+const taskCompleterEmp = alias(users, "taskCompleterEmp");
 
 async function requireDb() {
   const db = await getDb();
@@ -93,6 +96,24 @@ async function sendEmployeeNotification(params: {
 }
 
 export { sendEmployeeNotification };
+
+/** Notify the user who assigned the task (typically HR) when someone else marks it complete. */
+export async function notifyAssignerTaskCompleted(params: {
+  assignedByUserId: number;
+  completedByUserId: number;
+  companyId: number;
+  title: string;
+}) {
+  if (params.assignedByUserId === params.completedByUserId) return;
+  await sendEmployeeNotification({
+    toUserId: params.assignedByUserId,
+    companyId: params.companyId,
+    type: "task_completed",
+    title: "Task completed",
+    message: `"${params.title}" was marked complete.`,
+    link: "/hr/tasks",
+  });
+}
 
 export const employeePortalRouter = router({
   // ─── Get my employee profile ──────────────────────────────────────────────
@@ -228,14 +249,19 @@ export const employeePortalRouter = router({
       const myEmp = await resolveMyEmployee(ctx.user.id, ctx.user.email ?? "", companyId);
       if (!myEmp) return [];
       const db = await requireDb();
-      return db
-        .select()
+      const rows = await db
+        .select({
+          task: employeeTasks,
+          completedByName: taskCompleterEmp.name,
+        })
         .from(employeeTasks)
+        .leftJoin(taskCompleterEmp, eq(employeeTasks.completedByUserId, taskCompleterEmp.id))
         .where(and(
           eq(employeeTasks.companyId, companyId),
           eq(employeeTasks.assignedToEmployeeId, myEmp.id),
         ))
         .orderBy(desc(employeeTasks.createdAt));
+      return rows.map((r) => ({ ...r.task, completedByName: r.completedByName ?? null }));
     }),
 
   // ─── Mark task in progress (assignee only) ────────────────────────────────
@@ -247,8 +273,11 @@ export const employeePortalRouter = router({
       if (!myEmp) throw new TRPCError({ code: "NOT_FOUND", message: "Employee record not found" });
       const db = await requireDb();
       const [task] = await db.select().from(employeeTasks).where(eq(employeeTasks.id, input.taskId));
-      if (!task || task.companyId !== companyId || task.assignedToEmployeeId !== myEmp.id) {
+      if (!task || task.companyId !== companyId) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Task not found" });
+      }
+      if (task.assignedToEmployeeId !== myEmp.id) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "You are not assigned to this task" });
       }
       if (task.status !== "pending" && task.status !== "blocked") {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Only pending or blocked tasks can be started" });
@@ -270,13 +299,29 @@ export const employeePortalRouter = router({
       if (!myEmp) throw new TRPCError({ code: "NOT_FOUND", message: "Employee record not found" });
       const db = await requireDb();
       const [task] = await db.select().from(employeeTasks).where(eq(employeeTasks.id, input.taskId));
-      if (!task || task.companyId !== companyId || task.assignedToEmployeeId !== myEmp.id) {
+      if (!task || task.companyId !== companyId) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Task not found" });
+      }
+      if (task.assignedToEmployeeId !== myEmp.id) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "You are not assigned to this task" });
       }
       if (task.status === "completed" || task.status === "cancelled") {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Task is already closed" });
       }
-      await db.update(employeeTasks).set({ status: "completed", completedAt: new Date() }).where(eq(employeeTasks.id, input.taskId));
+      await db
+        .update(employeeTasks)
+        .set({
+          status: "completed",
+          completedAt: new Date(),
+          completedByUserId: ctx.user.id,
+        })
+        .where(eq(employeeTasks.id, input.taskId));
+      await notifyAssignerTaskCompleted({
+        assignedByUserId: task.assignedByUserId,
+        completedByUserId: ctx.user.id,
+        companyId,
+        title: task.title,
+      });
       return { success: true };
     }),
 

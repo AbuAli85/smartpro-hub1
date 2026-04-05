@@ -2009,6 +2009,7 @@ export const employeeTasks = mysqlTable("employee_tasks", {
   companyId: int("company_id").notNull(),
   assignedToEmployeeId: int("assigned_to_employee_id").notNull(),
   assignedByUserId: int("assigned_by_user_id").notNull(),
+  assignedAt: timestamp("assigned_at").defaultNow().notNull(),
   title: varchar("title", { length: 255 }).notNull(),
   description: text("description"),
   priority: mysqlEnum("priority", ["low", "medium", "high", "urgent"]).notNull().default("medium"),
@@ -2016,7 +2017,10 @@ export const employeeTasks = mysqlTable("employee_tasks", {
   dueDate: date("due_date"),
   startedAt: timestamp("started_at"),
   completedAt: timestamp("completed_at"),
+  completedByUserId: int("completed_by_user_id"),
   notes: text("notes"),
+  blockedReason: text("blocked_reason"),
+  notifiedOverdue: boolean("notified_overdue").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
 });

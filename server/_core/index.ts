@@ -9,6 +9,7 @@ import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { applySecurityMiddleware } from "./security";
 import { validateProductionEnvironment } from "./env";
+import { runEmployeeTaskOverdueNotifications } from "../jobs/employeeTaskOverdue";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -66,6 +67,18 @@ async function startServer() {
   server.listen(port, () => {
     console.log(`Server running on http://localhost:${port}/`);
   });
+
+  const HOUR_MS = 60 * 60 * 1000;
+  if (process.env.DISABLE_TASK_OVERDUE_CRON !== "1") {
+    void runEmployeeTaskOverdueNotifications()
+      .then((r) => {
+        if (r.notified > 0) console.log(`[tasks] overdue assigner notifications sent: ${r.notified}`);
+      })
+      .catch((e) => console.error("[tasks] overdue cron (initial)", e));
+    setInterval(() => {
+      void runEmployeeTaskOverdueNotifications().catch((e) => console.error("[tasks] overdue cron", e));
+    }, HOUR_MS);
+  }
 }
 
 startServer().catch(console.error);

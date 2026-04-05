@@ -24,7 +24,7 @@ import {
 } from "lucide-react";
 import { fmtDateLong } from "@/lib/dateUtils";
 import { DateInput } from "@/components/ui/date-input";
-import { getDueUrgency, slaLabel } from "@/lib/taskSla";
+import { getDueUrgency, slaLabel, actionRequiredOverdueLabel } from "@/lib/taskSla";
 import { TaskDetailSheet } from "@/components/tasks/TaskDetailSheet";
 
 type Priority = "low" | "medium" | "high" | "urgent";
@@ -62,6 +62,7 @@ function TaskDialog({
   const [dueDate, setDueDate] = useState(initial?.dueDate ? new Date(initial.dueDate).toISOString().split("T")[0] : "");
   const [assignedTo, setAssignedTo] = useState<string>(initial?.assignedToEmployeeId?.toString() ?? "");
   const [notes, setNotes] = useState(initial?.notes ?? "");
+  const [blockedReason, setBlockedReason] = useState(initial?.blockedReason ?? "");
 
   useEffect(() => {
     if (!open) return;
@@ -72,6 +73,7 @@ function TaskDialog({
     setDueDate(initial?.dueDate ? new Date(initial.dueDate).toISOString().split("T")[0] : "");
     setAssignedTo(initial?.assignedToEmployeeId?.toString() ?? "");
     setNotes(initial?.notes ?? "");
+    setBlockedReason(initial?.blockedReason ?? "");
   }, [open, initial]);
 
   const create = trpc.tasks.createTask.useMutation({
@@ -110,6 +112,9 @@ function TaskDialog({
       };
       if (Number(assignedTo) !== initial.assignedToEmployeeId) {
         payload.assignedToEmployeeId = Number(assignedTo);
+      }
+      if (status === "blocked") {
+        payload.blockedReason = blockedReason.trim() || null;
       }
       update.mutate(payload);
     } else {
@@ -181,6 +186,17 @@ function TaskDialog({
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+          )}
+          {initial && status === "blocked" && (
+            <div className="space-y-1">
+              <Label>Blocked reason</Label>
+              <Textarea
+                value={blockedReason}
+                onChange={(e) => setBlockedReason(e.target.value)}
+                rows={2}
+                placeholder="Why is this task blocked? (Shown to the assignee in their task details.)"
+              />
             </div>
           )}
           <div className="space-y-1">
@@ -289,7 +305,7 @@ export default function TaskManagerPage() {
               key={s.label}
               className={
                 s.danger
-                  ? "border-red-300 dark:border-red-900 shadow-[0_0_0_1px_rgba(220,38,38,0.25)]"
+                  ? "border-red-300 dark:border-red-900 shadow-[0_0_0_1px_rgba(220,38,38,0.25)] animate-pulse"
                 : s.emphasize
                   ? "border-amber-200 dark:border-amber-900"
                   : undefined
@@ -358,6 +374,7 @@ export default function TaskManagerPage() {
             const sc = STATUS_CONFIG[task.status as Status] ?? STATUS_CONFIG.pending;
             const sla = slaLabel(task.dueDate, task.status);
             const urgency = getDueUrgency(task.dueDate, task.status);
+            const actionOverdue = actionRequiredOverdueLabel(task.dueDate, task.status);
             return (
               <div
                 key={task.id}
@@ -370,7 +387,7 @@ export default function TaskManagerPage() {
                     setDetailTask(task);
                   }
                 }}
-                className={`rounded-xl border p-4 transition-shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer ${rowUrgencyClass(task)}`}
+                className={`rounded-xl border p-4 transition-all duration-150 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer ${rowUrgencyClass(task)}`}
               >
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div className="min-w-0 flex-1 space-y-2">
@@ -403,9 +420,11 @@ export default function TaskManagerPage() {
                         >
                           <Clock className="w-3 h-3 inline mr-1 align-middle" />
                           Due {fmtDateLong(task.dueDate)}
-                          {sla && (
+                          {urgency === "overdue" && actionOverdue ? (
+                            <span className="ml-1.5">· {actionOverdue}</span>
+                          ) : sla ? (
                             <span className="ml-1.5">· {sla}</span>
-                          )}
+                          ) : null}
                         </span>
                       )}
                       <span className="inline-flex items-center gap-1 rounded-full border bg-background/80 px-2 py-0.5 text-muted-foreground">

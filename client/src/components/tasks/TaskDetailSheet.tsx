@@ -9,7 +9,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { fmtDateLong, fmtDateTime } from "@/lib/dateUtils";
-import { slaLabel, getDueUrgency } from "@/lib/taskSla";
+import { slaLabel, getDueUrgency, actionRequiredOverdueLabel } from "@/lib/taskSla";
 import { Clock, CheckCircle2, Circle, PlayCircle, Ban, XCircle } from "lucide-react";
 
 type TaskLike = {
@@ -21,8 +21,11 @@ type TaskLike = {
   status?: string;
   dueDate?: Date | string | null;
   createdAt?: Date | string | null;
+  assignedAt?: Date | string | null;
   startedAt?: Date | string | null;
   completedAt?: Date | string | null;
+  blockedReason?: string | null;
+  completedByName?: string | null;
   employeeName?: string;
   employeeDepartment?: string | null;
 };
@@ -86,6 +89,7 @@ export function TaskDetailSheet({
   const meta = STATUS_META[st] ?? STATUS_META.pending;
   const urgency = getDueUrgency(task.dueDate ?? null, st);
   const sla = slaLabel(task.dueDate ?? null, st);
+  const actionOverdue = actionRequiredOverdueLabel(task.dueDate ?? null, st);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -95,9 +99,9 @@ export function TaskDetailSheet({
             <Badge variant="secondary" className="capitalize">
               {task.priority ?? "medium"}
             </Badge>
-            {sla && urgency === "overdue" && (
-              <Badge variant="destructive" className="text-xs">
-                {sla}
+            {actionOverdue && (
+              <Badge variant="destructive" className="text-xs font-medium">
+                {actionOverdue}
               </Badge>
             )}
             {sla && urgency === "due_today" && (
@@ -153,10 +157,24 @@ export function TaskDetailSheet({
             </div>
           )}
 
+          {st === "blocked" && task.blockedReason?.trim() && (
+            <div className="rounded-lg border border-orange-200 bg-orange-50/80 dark:bg-orange-950/25 p-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-orange-800 dark:text-orange-300 mb-2">Blocked reason</p>
+              <p className="text-sm whitespace-pre-wrap leading-relaxed text-orange-950 dark:text-orange-50">{task.blockedReason}</p>
+            </div>
+          )}
+
+          {st === "completed" && task.completedByName?.trim() && (
+            <div className="text-sm">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Completed by</p>
+              <p className="font-medium mt-1">{task.completedByName}</p>
+            </div>
+          )}
+
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3">Timeline</p>
             <div className="space-y-4">
-              <TimelineRow label="Assigned" at={task.createdAt} />
+              <TimelineRow label="Assigned" at={task.assignedAt ?? task.createdAt} />
               <TimelineRow label="Started" at={task.startedAt} done={!!task.startedAt} />
               <TimelineRow label="Completed" at={task.completedAt} done={st === "completed"} />
             </div>

@@ -27,7 +27,7 @@ import {
   Sparkles, Landmark, Play, Ban,
 } from "lucide-react";
 import { fmtDateLong, fmtDateTime } from "@/lib/dateUtils";
-import { getDueUrgency, slaLabel } from "@/lib/taskSla";
+import { getDueUrgency, slaLabel, actionRequiredOverdueLabel, dueTimingPhrase } from "@/lib/taskSla";
 import { TaskDetailSheet } from "@/components/tasks/TaskDetailSheet";
 import {
   AlertDialog,
@@ -2260,6 +2260,8 @@ export default function EmployeePortalPage() {
                 {filteredTasks.map((task: any) => {
                   const urgency = getDueUrgency(task.dueDate, task.status);
                   const sla = slaLabel(task.dueDate, task.status);
+                  const actionOverdue = actionRequiredOverdueLabel(task.dueDate, task.status);
+                  const duePhrase = dueTimingPhrase(task.dueDate, task.status);
                   const st = task.status as TaskStatus;
                   const statusIcon = TASK_STATUS_ICON[st] ?? TASK_STATUS_ICON.pending;
                   const cardTone =
@@ -2290,6 +2292,11 @@ export default function EmployeePortalPage() {
                               {task.description?.trim() && (
                                 <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{task.description}</p>
                               )}
+                              {task.status === "blocked" && task.blockedReason?.trim() && (
+                                <p className="text-xs text-orange-800 dark:text-orange-300 mt-1 line-clamp-2 font-medium">
+                                  Blocked: {task.blockedReason}
+                                </p>
+                              )}
                               <div className="flex flex-wrap items-center gap-2 mt-2 text-xs">
                                 <span className="inline-flex items-center rounded-full border bg-background/80 px-2 py-0.5 capitalize text-muted-foreground">
                                   {TASK_STATUS_LABEL[st] ?? task.status}
@@ -2305,13 +2312,18 @@ export default function EmployeePortalPage() {
                                     }
                                   >
                                     <Clock className="w-3 h-3 shrink-0" />
-                                    {formatDate(task.dueDate)}
-                                    {sla && <span className="ml-1 opacity-90">· {sla}</span>}
+                                    <span>{formatDate(task.dueDate)}</span>
+                                    {duePhrase && (
+                                      <span className="ml-1 opacity-90 font-medium">· {duePhrase}</span>
+                                    )}
+                                    {!duePhrase && sla && (
+                                      <span className="ml-1 opacity-90">· {sla}</span>
+                                    )}
                                   </span>
                                 )}
-                                {urgency === "overdue" && (
-                                  <Badge variant="destructive" className="text-[10px] h-5 px-1.5 py-0">
-                                    Action required
+                                {urgency === "overdue" && actionOverdue && (
+                                  <Badge variant="destructive" className="text-[10px] h-auto min-h-5 px-1.5 py-0.5 leading-tight max-w-[14rem] whitespace-normal text-left">
+                                    {actionOverdue}
                                   </Badge>
                                 )}
                               </div>

@@ -64,3 +64,35 @@ export function slaLabel(
   if (left === 1) return "Due tomorrow";
   return `Due in ${left} days`;
 }
+
+/** Strong copy for overdue open tasks (badges, headers). */
+export function actionRequiredOverdueLabel(
+  dueDate: Date | string | null | undefined,
+  status: string,
+): string | null {
+  if (getDueUrgency(dueDate, status) !== "overdue") return null;
+  const d = overdueCalendarDays(dueDate);
+  if (d === 1) return "⚠ Action required — overdue by 1 day";
+  if (d != null) return `⚠ Action required — overdue by ${d} days`;
+  return "⚠ Action required — overdue";
+}
+
+/** Short due timing line for employee cards: Today / Tomorrow / in N days / overdue context. */
+export function dueTimingPhrase(
+  dueDate: Date | string | null | undefined,
+  status: string,
+): string | null {
+  if (!dueDate || status === "completed" || status === "cancelled") return null;
+  const u = getDueUrgency(dueDate, status);
+  if (u === "overdue") {
+    const d = overdueCalendarDays(dueDate);
+    if (d === 1) return "Due: 1 day ago (overdue)";
+    if (d != null) return `Due: ${d} days ago (overdue)`;
+    return "Due: overdue";
+  }
+  if (u === "due_today") return "Due: Today";
+  const left = daysUntilDueCalendar(dueDate);
+  if (left === 1) return "Due: Tomorrow";
+  if (left != null && left > 1) return `Due: in ${left} days`;
+  return null;
+}

@@ -26,12 +26,17 @@ export function assertAdminStatusTransition(from: TaskStatus, to: TaskStatus): v
 export function statusUpdateSideEffects(
   existing: { status: string; startedAt: Date | null | undefined },
   nextStatus: TaskStatus,
-): { completedAt?: Date | null; startedAt?: Date | null } {
-  const out: { completedAt?: Date | null; startedAt?: Date | null } = {};
+  opts?: { completedByUserId?: number },
+): { completedAt?: Date | null; startedAt?: Date | null; completedByUserId?: number | null } {
+  const out: { completedAt?: Date | null; startedAt?: Date | null; completedByUserId?: number | null } = {};
   if (nextStatus === "completed") {
     out.completedAt = new Date();
+    if (opts?.completedByUserId != null) {
+      out.completedByUserId = opts.completedByUserId;
+    }
   } else if (existing.status === "completed") {
     out.completedAt = null;
+    out.completedByUserId = null;
   }
   if (nextStatus === "in_progress" && existing.status !== "in_progress") {
     if (!existing.startedAt) {

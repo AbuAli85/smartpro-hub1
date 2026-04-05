@@ -1,12 +1,15 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { eq, and, desc } from "drizzle-orm";
-import { employeeTasks, employees } from "../../drizzle/schema";
+import { alias } from "drizzle-orm/mysql-core";
+import { employeeTasks, employees, users } from "../../drizzle/schema";
 import { getDb } from "../db";
 import { protectedProcedure, router } from "../_core/trpc";
 import { requireActiveCompanyId } from "../_core/tenant";
-import { sendEmployeeNotification } from "./employeePortal";
+import { sendEmployeeNotification, notifyAssignerTaskCompleted } from "./employeePortal";
 import { assertAdminStatusTransition, statusUpdateSideEffects, type TaskStatus } from "../taskLifecycle";
+
+const taskCompleter = alias(users, "taskCompleter");
 
 async function requireDb() {
   const db = await getDb();
@@ -36,9 +39,11 @@ export const tasksRouter = router({
           employeeFirstName: employees.firstName,
           employeeLastName: employees.lastName,
           employeeDepartment: employees.department,
+          completedByName: taskCompleter.name,
         })
         .from(employeeTasks)
         .leftJoin(employees, eq(employeeTasks.assignedToEmployeeId, employees.id))
+        .leftJoin(taskCompleter, eq(employeeTasks.completedByUserId, taskCompleter.id))
         .where(eq(employeeTasks.companyId, companyId))
         .orderBy(desc(employeeTasks.createdAt));
 
@@ -46,6 +51,7 @@ export const tasksRouter = router({
         ...r.task,
         employeeName: `${r.employeeFirstName ?? ""} ${r.employeeLastName ?? ""}`.trim(),
         employeeDepartment: r.employeeDepartment,
+        completedByName: r.completedByName ?? null,
       }));
 
       if (input.employeeId) results = results.filter((t) => t.assignedToEmployeeId === input.employeeId);
@@ -80,16 +86,19 @@ export const tasksRouter = router({
       const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId);
       const db = await requireDb();
       const { companyId: _cid, ...rest } = input;
+      const now = new Date();
       const [result] = await db.insert(employeeTasks).values({
         companyId,
         assignedToEmployeeId: rest.assignedToEmployeeId,
         assignedByUserId: ctx.user.id,
+        assignedAt: now,
         title: rest.title,
         description: rest.description,
         priority: rest.priority,
         dueDate: rest.dueDate ? new Date(rest.dueDate) : undefined,
         notes: rest.notes,
         status: "pending",
+        notifiedOverdue: false,
       });
       const insertId = (result as any).insertId as number;
       const [assignee] = await db
@@ -118,6 +127,7 @@ export const tasksRouter = router({
       status: taskStatusEnum.optional(),
       dueDate: z.string().nullable().optional(),
       notes: z.string().optional(),
+      blockedReason: z.string().nullable().optional(),
       assignedToEmployeeId: z.number().optional(),
       companyId: z.number().optional(),
     }))
@@ -127,9 +137,12 @@ export const tasksRouter = router({
       const [existing] = await db.select().from(employeeTasks).where(eq(employeeTasks.id, input.id));
       if (!existing || existing.companyId !== companyId)
         throw new TRPCError({ code: "NOT_FOUND", message: "Task not found" });
-      const { id, dueDate, companyId: _cid, assignedToEmployeeId, ...rest } = input;
+      const { id, dueDate, companyId: _cid, assignedToEmployeeId, blockedReason, ...rest } = input;
       const updateData: any = { ...rest };
-      if (dueDate !== undefined) updateData.dueDate = dueDate ? new Date(dueDate) : null;
+      if (dueDate !== undefined) {
+        updateData.dueDate = dueDate ? new Date(dueDate) : null;
+        updateData.notifiedOverdue = false;
+      }
 
       if (assignedToEmployeeId !== undefined && assignedToEmployeeId !== existing.assignedToEmployeeId) {
         const [emp] = await db
@@ -139,6 +152,9 @@ export const tasksRouter = router({
         if (!emp)
           throw new TRPCError({ code: "BAD_REQUEST", message: "Employee not found in this company" });
         updateData.assignedToEmployeeId = assignedToEmployeeId;
+        updateData.assignedAt = new Date();
+        updateData.assignedByUserId = ctx.user.id;
+        updateData.notifiedOverdue = false;
         if (emp.userId) {
           await sendEmployeeNotification({
             toUserId: emp.userId,
@@ -151,6 +167,15 @@ export const tasksRouter = router({
         }
       }
 
+      if (input.status !== undefined && input.status !== "blocked") {
+        updateData.blockedReason = null;
+      }
+      if (blockedReason !== undefined) {
+        updateData.blockedReason = blockedReason;
+      }
+
+      const becameCompleted = input.status === "completed" && existing.status !== "completed";
+
       if (input.status !== undefined && input.status !== existing.status) {
         assertAdminStatusTransition(existing.status as TaskStatus, input.status as TaskStatus);
         Object.assign(
@@ -158,11 +183,22 @@ export const tasksRouter = router({
           statusUpdateSideEffects(
             { status: existing.status, startedAt: existing.startedAt },
             input.status as TaskStatus,
+            input.status === "completed" ? { completedByUserId: ctx.user.id } : undefined,
           ),
         );
       }
 
       await db.update(employeeTasks).set(updateData).where(eq(employeeTasks.id, id));
+
+      if (becameCompleted) {
+        await notifyAssignerTaskCompleted({
+          assignedByUserId: existing.assignedByUserId,
+          completedByUserId: ctx.user.id,
+          companyId,
+          title: existing.title,
+        });
+      }
+
       return { success: true };
     }),
 

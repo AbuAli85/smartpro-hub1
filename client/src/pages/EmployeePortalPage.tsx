@@ -33,9 +33,12 @@ import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { employeePortalConfig } from "@/config/employeePortalConfig";
 import {
   computeProductivityScore,
-  getShiftOperationalState,
   titleCaseFirstName,
 } from "@/lib/employeePortalUtils";
+import {
+  getAttendanceTodayStripPresentation,
+  getOverviewShiftCardPresentation,
+} from "@/lib/employeePortalOverviewPresentation";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -215,6 +218,17 @@ function AttendanceTodayCard({ employeeId, todaySchedule }: { employeeId: number
   const workingDayNames = workingDays.map((d: number) => DAY_NAMES[d]).join(", ");
   const siteToken: string | null = site?.qrToken ?? null;
 
+  const attStrip = getAttendanceTodayStripPresentation({
+    hasSchedule,
+    isWorkingDay,
+    hasShift: !!shift,
+    checkIn,
+    checkOut,
+    shiftStartTime: shift?.startTime,
+    shiftEndTime: shift?.endTime,
+    workingDayNames,
+  });
+
   function handleCheckIn() {
     if (!siteToken) {
       toast.error("No attendance site assigned to your schedule. Please contact HR.");
@@ -298,12 +312,12 @@ function AttendanceTodayCard({ employeeId, todaySchedule }: { employeeId: number
       ) : null}
 
       {/* Today's check-in/out status card */}
-      <Card className={checkIn ? "border-green-200 bg-green-50/50 dark:bg-green-950/10" : "border-amber-200 bg-amber-50/50 dark:bg-amber-950/10"}>
+      <Card className={attStrip.usePositiveCardStyle ? "border-green-200 bg-green-50/50 dark:bg-green-950/10" : "border-amber-200 bg-amber-50/50 dark:bg-amber-950/10"}>
         <CardContent className="p-4">
           <div className="flex items-start justify-between gap-3 flex-wrap">
             <div className="flex items-start gap-3">
-              <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${checkIn ? "bg-green-100 dark:bg-green-900/30" : "bg-amber-100 dark:bg-amber-900/30"}`}>
-                <UserCheck className={`w-5 h-5 ${checkIn ? "text-green-600" : "text-amber-600"}`} />
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${attStrip.usePositiveCardStyle ? "bg-green-100 dark:bg-green-900/30" : "bg-amber-100 dark:bg-amber-900/30"}`}>
+                <UserCheck className={`w-5 h-5 ${attStrip.usePositiveCardStyle ? "text-green-600" : "text-amber-600"}`} />
               </div>
               <div>
                 <p className="text-xs text-muted-foreground mb-1">
@@ -341,19 +355,20 @@ function AttendanceTodayCard({ employeeId, todaySchedule }: { employeeId: number
                   </div>
                 ) : (
                   <div>
-                    {!isWorkingDay && hasSchedule ? (
+                    {attStrip.attendanceInconsistent ? (
                       <>
-                        <p className="font-medium text-gray-600 dark:text-gray-400">Day Off</p>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          {shift ? `Your shift (${shift.startTime}–${shift.endTime}) runs on ${workingDayNames}` : "No shift today"}
-                        </p>
+                        <p className="font-medium text-red-700 dark:text-red-400">{attStrip.inconsistentHeadline}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">{attStrip.inconsistentSubline}</p>
+                      </>
+                    ) : !isWorkingDay && hasSchedule ? (
+                      <>
+                        <p className="font-medium text-gray-600 dark:text-gray-400">{attStrip.notCheckedInHeadline}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">{attStrip.notCheckedInSubline}</p>
                       </>
                     ) : (
                       <>
-                        <p className="font-medium text-amber-700 dark:text-amber-400">Not checked in yet</p>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          {hasSchedule && shift ? `Shift starts at ${shift.startTime}` : "No shift scheduled"}
-                        </p>
+                        <p className="font-medium text-amber-700 dark:text-amber-400">{attStrip.notCheckedInHeadline}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">{attStrip.notCheckedInSubline}</p>
                       </>
                     )}
                   </div>
@@ -362,7 +377,7 @@ function AttendanceTodayCard({ employeeId, todaySchedule }: { employeeId: number
             </div>
             {/* Action buttons */}
             <div className="flex flex-col gap-2 shrink-0">
-              {!checkIn && hasSchedule && isWorkingDay && (
+              {attStrip.showCheckIn && (
                 <Button
                   size="sm"
                   className="gap-1.5 bg-green-600 hover:bg-green-700 text-white"
@@ -373,7 +388,7 @@ function AttendanceTodayCard({ employeeId, todaySchedule }: { employeeId: number
                   {doCheckIn.isPending ? "Checking in…" : "Check In"}
                 </Button>
               )}
-              {checkIn && !checkOut && (
+              {attStrip.showCheckOut && (
                 <Button
                   size="sm"
                   variant="outline"
@@ -385,12 +400,14 @@ function AttendanceTodayCard({ employeeId, todaySchedule }: { employeeId: number
                   {doCheckOut.isPending ? "Checking out…" : "Check Out"}
                 </Button>
               )}
-              <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setShowCorrForm(true)}>
-                <AlertCircle className="h-3.5 w-3.5" /> Correction
-                {pendingCorr > 0 && (
-                  <span className="ml-1 h-4 w-4 rounded-full bg-amber-500 text-white text-[10px] flex items-center justify-center">{pendingCorr}</span>
-                )}
-              </Button>
+              {attStrip.showCorrectionButton && (
+                <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setShowCorrForm(true)}>
+                  <AlertCircle className="h-3.5 w-3.5" /> Correction
+                  {pendingCorr > 0 && (
+                    <span className="ml-1 h-4 w-4 rounded-full bg-amber-500 text-white text-[10px] flex items-center justify-center">{pendingCorr}</span>
+                  )}
+                </Button>
+              )}
             </div>
           </div>
         </CardContent>
@@ -578,8 +595,12 @@ export default function EmployeePortalPage() {
   const { data: myActiveSchedule } = trpc.scheduling.getMyActiveSchedule.useQuery(
     {}, { enabled: isAuthenticated }
   );
-  const { data: todayAttendanceRecord } = trpc.attendance.myToday.useQuery(
+  const { data: todayAttendanceRecord, isLoading: todayAttendanceLoading } = trpc.attendance.myToday.useQuery(
     undefined,
+    { enabled: isAuthenticated }
+  );
+  const { data: overviewCorrectionList } = trpc.attendance.myCorrections.useQuery(
+    {},
     { enabled: isAuthenticated }
   );
   const { companies: myCompanies, activeCompany: activeCompanyCtx } = useActiveCompany();
@@ -792,28 +813,30 @@ export default function EmployeePortalPage() {
     [attendanceRate, tasks]
   );
 
-  const shiftIntel = useMemo(() => {
-    const sh = myActiveSchedule?.shift as { startTime?: string; endTime?: string } | undefined;
-    if (!sh?.startTime || !sh?.endTime) return null;
-    return getShiftOperationalState(sh.startTime, sh.endTime, new Date());
-  }, [myActiveSchedule?.shift, portalClock]);
+  const pendingOverviewCorrections = useMemo(
+    () => (overviewCorrectionList ?? []).filter((c: { status?: string }) => c.status === "pending").length,
+    [overviewCorrectionList]
+  );
 
-  const shiftAttendanceHints = useMemo(() => {
-    const checkIn = todayAttendanceRecord?.checkIn;
-    const checkOut = todayAttendanceRecord?.checkOut;
-    if (!shiftIntel) return null;
-    const missedActive = shiftIntel.phase === "active" && !checkIn;
-    const missedEnded = shiftIntel.phase === "ended" && !checkIn;
-    let ctaLabel = "Open attendance";
-    if (shiftIntel.phase === "upcoming") ctaLabel = "Prepare";
-    if (shiftIntel.phase === "active" && !checkIn) ctaLabel = "Check in now";
-    if (shiftIntel.phase === "active" && checkIn && !checkOut) ctaLabel = "Check out";
-    if (shiftIntel.phase === "ended") {
-      if (checkIn && !checkOut) ctaLabel = "Check out";
-      else ctaLabel = checkIn ? "Open attendance" : "Request correction";
-    }
-    return { missedActive, missedEnded, ctaLabel, checkIn, checkOut };
-  }, [shiftIntel, todayAttendanceRecord]);
+  const shiftOverview = useMemo(() => {
+    const sh = myActiveSchedule?.shift as { startTime?: string; endTime?: string } | undefined;
+    return getOverviewShiftCardPresentation({
+      startTime: sh?.startTime,
+      endTime: sh?.endTime,
+      now: new Date(),
+      attendanceLoading: todayAttendanceLoading,
+      checkIn: todayAttendanceRecord?.checkIn,
+      checkOut: todayAttendanceRecord?.checkOut,
+      pendingCorrectionCount: pendingOverviewCorrections,
+    });
+  }, [
+    myActiveSchedule?.shift,
+    portalClock,
+    todayAttendanceLoading,
+    todayAttendanceRecord?.checkIn,
+    todayAttendanceRecord?.checkOut,
+    pendingOverviewCorrections,
+  ]);
 
   // Build attendance map for calendar
   const attMap = useMemo(() => {
@@ -1217,10 +1240,10 @@ export default function EmployeePortalPage() {
                       </div>
                       <div className="flex-1 min-w-0 space-y-1">
                         <div className="flex flex-wrap items-center gap-2">
-                          {shiftIntel && (
+                          {shiftOverview.operational && (
                             <span className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-card/80 px-2 py-0.5 text-[11px] font-medium">
-                              <span className={`h-2 w-2 rounded-full ${shiftIntel.statusDotClass}`} />
-                              {shiftIntel.statusLabel}
+                              <span className={`h-2 w-2 rounded-full ${shiftOverview.operational.statusDotClass}`} />
+                              {shiftOverview.operational.statusLabel}
                             </span>
                           )}
                           <p className="font-semibold text-sm">
@@ -1231,18 +1254,26 @@ export default function EmployeePortalPage() {
                           {myActiveSchedule.shift.startTime} – {myActiveSchedule.shift.endTime}
                           {myActiveSchedule.site ? ` · ${myActiveSchedule.site.name}` : ""}
                         </p>
-                        {shiftIntel?.detailLine && (
-                          <p className="text-xs font-medium text-blue-700 dark:text-blue-300">{shiftIntel.detailLine}</p>
+                        {shiftOverview.operational?.detailLine && (
+                          <p className="text-xs font-medium text-blue-700 dark:text-blue-300">{shiftOverview.operational.detailLine}</p>
                         )}
-                        {shiftAttendanceHints?.missedActive && (
+                        {shiftOverview.attendanceInconsistent && (
+                          <p className="text-xs font-medium text-red-700 dark:text-red-300">
+                            Attendance data looks inconsistent (check-out without check-in). Use Correction on the Attendance tab.
+                          </p>
+                        )}
+                        {shiftOverview.showMissedActiveWarning && (
                           <p className="text-xs font-medium text-amber-700 dark:text-amber-300">
                             No check-in recorded yet for this shift.
                           </p>
                         )}
-                        {shiftAttendanceHints?.missedEnded && (
+                        {shiftOverview.showMissedEndedWarning && (
                           <p className="text-xs font-medium text-red-700 dark:text-red-300">
                             No attendance recorded for this shift — request a correction if this was a mistake.
                           </p>
+                        )}
+                        {shiftOverview.correctionPendingNote && (
+                          <p className="text-xs font-medium text-muted-foreground">{shiftOverview.correctionPendingNote}</p>
                         )}
                       </div>
                       <div
@@ -1253,9 +1284,9 @@ export default function EmployeePortalPage() {
                     <div className="flex flex-wrap gap-2">
                       <Button size="sm" className="gap-1.5" onClick={() => setActiveTab("attendance")}>
                         <UserCheck className="w-3.5 h-3.5" />
-                        {shiftAttendanceHints?.ctaLabel ?? "Open attendance"}
+                        {shiftOverview.primaryCtaLabel}
                       </Button>
-                      {shiftIntel?.phase === "ended" && (
+                      {shiftOverview.showSecondaryLogWork && (
                         <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setActiveTab("worklog")}>
                           <Timer className="w-3.5 h-3.5" /> Log work
                         </Button>

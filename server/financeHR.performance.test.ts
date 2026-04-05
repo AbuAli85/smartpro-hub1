@@ -313,3 +313,48 @@ describe("financeHR performance admin procedures (PR-1 / PR-2)", () => {
     expect(auditRow?.afterState).toBeDefined();
   });
 });
+
+describe("financeHR performance overview read models (PR-4)", () => {
+  beforeEach(() => {
+    vi.spyOn(db, "getUserCompany").mockResolvedValue({
+      company: { id: 1, name: "Co", slug: "co", country: "OM", status: "active" } as never,
+      member: { role: "company_member", permissions: [] } as never,
+    });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("getPerformanceOverview returns null when database is unavailable", async () => {
+    vi.spyOn(db, "getDb").mockResolvedValue(null as never);
+
+    const caller = financeHRRouter.createCaller(makeCtx());
+    const result = await caller.getPerformanceOverview();
+    expect(result).toBeNull();
+  });
+
+  it("getPerformanceOverview FORBIDDEN without HR overview permission", async () => {
+    const mockDb = createTableAwareDb([
+      { table: companyMembers, rows: [{ role: "company_member", permissions: [] }] },
+    ]);
+    vi.spyOn(db, "getDb").mockResolvedValue(mockDb as never);
+
+    const caller = financeHRRouter.createCaller(makeCtx());
+    await expect(caller.getPerformanceOverview()).rejects.toMatchObject({
+      code: "FORBIDDEN",
+    });
+  });
+
+  it("getTrainingOverview FORBIDDEN without HR overview permission", async () => {
+    const mockDb = createTableAwareDb([
+      { table: companyMembers, rows: [{ role: "company_member", permissions: [] }] },
+    ]);
+    vi.spyOn(db, "getDb").mockResolvedValue(mockDb as never);
+
+    const caller = financeHRRouter.createCaller(makeCtx());
+    await expect(caller.getTrainingOverview()).rejects.toMatchObject({
+      code: "FORBIDDEN",
+    });
+  });
+});

@@ -10,7 +10,7 @@ import {
 import type { User } from "../../drizzle/schema";
 import { requireActiveCompanyId } from "../_core/tenant";
 import { canAccessGlobalAdminProcedures } from "@shared/rbac";
-import { memberHasHrPerformancePermission } from "@shared/hrPerformancePermissions";
+import { HR_PERF, memberHasHrPerformancePermission } from "@shared/hrPerformancePermissions";
 import {
   assertSelfReviewManagerUpdateAllowed,
   assertTrainingStatusTransition,
@@ -21,6 +21,12 @@ import {
   selfReviewAuditSnapshot,
   trainingRecordAuditSnapshot,
 } from "../hrPerformanceAudit";
+import {
+  fetchPerformanceOverview,
+  fetchTrainingOverview,
+  fetchSelfReviewOverview,
+  fetchPerformanceLeaderboardSummary,
+} from "../hrPerformanceReadModels";
 
 /**
  * HR performance keys: role defaults ∪ company_members.permissions (see shared/hrPerformancePermissions.ts).
@@ -64,6 +70,18 @@ async function assertCanManageTraining(user: User, companyId: number): Promise<v
   if (await hasCompanyPermission(user, companyId, "hr.performance.manage")) return;
   if (await hasCompanyPermission(user, companyId, "hr.training.manage")) return;
   throw new TRPCError({ code: "FORBIDDEN", message: "You do not have permission to manage training records." });
+}
+
+/** Read models for HR performance dashboards (aggregates; not raw entity lists). */
+async function assertCanReadHrPerformanceOverview(user: User, companyId: number): Promise<void> {
+  if (await hasCompanyPermission(user, companyId, HR_PERF.READ)) return;
+  if (await hasCompanyPermission(user, companyId, HR_PERF.SELF_READ)) return;
+  if (await hasCompanyPermission(user, companyId, HR_PERF.TRAINING_MANAGE)) return;
+  if (await hasCompanyPermission(user, companyId, HR_PERF.MANAGE)) return;
+  throw new TRPCError({
+    code: "FORBIDDEN",
+    message: "You do not have permission to view HR performance overview.",
+  });
 }
 
 async function resolveEmployee(userId: number, companyId: number) {
@@ -598,5 +616,56 @@ export const financeHRRouter = router({
         });
       });
       return { success: true };
+    }),
+
+  // ─── HR performance overview (server-authoritative read models, PR-4) ───
+  getPerformanceOverview: protectedProcedure
+    .input(
+      z
+        .object({
+          companyId: z.number().optional(),
+          year: z.number().optional(),
+          month: z.number().optional(),
+        })
+        .optional()
+    )
+    .query(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) return null;
+      const companyId = input?.companyId ?? (await requireActiveCompanyId(ctx.user.id));
+      await assertCanReadHrPerformanceOverview(ctx.user, companyId);
+      const year = input?.year ?? new Date().getFullYear();
+      const month = input?.month ?? new Date().getMonth() + 1;
+      return fetchPerformanceOverview(db, companyId, { year, month });
+    }),
+
+  getTrainingOverview: protectedProcedure
+    .input(z.object({ companyId: z.number().optional() }).optional())
+    .query(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) return null;
+      const companyId = input?.companyId ?? (await requireActiveCompanyId(ctx.user.id));
+      await assertCanReadHrPerformanceOverview(ctx.user, companyId);
+      return fetchTrainingOverview(db, companyId);
+    }),
+
+  getSelfReviewOverview: protectedProcedure
+    .input(z.object({ companyId: z.number().optional() }).optional())
+    .query(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) return null;
+      const companyId = input?.companyId ?? (await requireActiveCompanyId(ctx.user.id));
+      await assertCanReadHrPerformanceOverview(ctx.user, companyId);
+      return fetchSelfReviewOverview(db, companyId);
+    }),
+
+  getPerformanceLeaderboardSummary: protectedProcedure
+    .input(z.object({ companyId: z.number().optional() }).optional())
+    .query(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) return null;
+      const companyId = input?.companyId ?? (await requireActiveCompanyId(ctx.user.id));
+      await assertCanReadHrPerformanceOverview(ctx.user, companyId);
+      return fetchPerformanceLeaderboardSummary(db, companyId);
     }),
 });

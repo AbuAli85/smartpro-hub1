@@ -188,6 +188,7 @@ function AttendanceTodayCard({ employeeId, todaySchedule }: { employeeId: number
       setCorrDate(new Date().toISOString().split("T")[0]);
       setCorrCheckIn(""); setCorrCheckOut(""); setCorrReason("");
       refetchCorr();
+      utils.employeePortal.getMyOperationalHints.invalidate();
     },
     onError: (e) => toast.error(e.message),
   });
@@ -198,6 +199,7 @@ function AttendanceTodayCard({ employeeId, todaySchedule }: { employeeId: number
       refetchToday();
       utils.employeePortal.getMyAttendanceRecords.invalidate();
       utils.employeePortal.getMyAttendanceSummary.invalidate();
+      utils.employeePortal.getMyOperationalHints.invalidate();
     },
     onError: (e) => toast.error(e.message),
   });
@@ -207,6 +209,7 @@ function AttendanceTodayCard({ employeeId, todaySchedule }: { employeeId: number
       refetchToday();
       utils.employeePortal.getMyAttendanceRecords.invalidate();
       utils.employeePortal.getMyAttendanceSummary.invalidate();
+      utils.employeePortal.getMyOperationalHints.invalidate();
     },
     onError: (e) => toast.error(e.message),
   });
@@ -575,6 +578,8 @@ export default function EmployeePortalPage() {
   const [portalClock, setPortalClock] = useState(0);
 
   // ── Queries ──────────────────────────────────────────────────────────────
+  const { companies: myCompanies, activeCompany: activeCompanyCtx, activeCompanyId } = useActiveCompany();
+
   const { data: profile, isLoading: profileLoading, refetch: refetchProfile } = trpc.employeePortal.getMyProfile.useQuery(
     undefined, { enabled: isAuthenticated }
   );
@@ -606,17 +611,22 @@ export default function EmployeePortalPage() {
     { limit: 30 }, { enabled: isAuthenticated, refetchInterval: 30000 }
   );
   const { data: myActiveSchedule } = trpc.scheduling.getMyActiveSchedule.useQuery(
-    {}, { enabled: isAuthenticated }
+    { companyId: activeCompanyId ?? undefined },
+    { enabled: isAuthenticated }
   );
   const { data: todayAttendanceRecord, isLoading: todayAttendanceLoading } = trpc.attendance.myToday.useQuery(
     undefined,
     { enabled: isAuthenticated }
   );
+  const { data: operationalHints, isSuccess: operationalHintsSuccess } =
+    trpc.employeePortal.getMyOperationalHints.useQuery(
+      { companyId: activeCompanyId ?? undefined },
+      { enabled: isAuthenticated }
+    );
   const { data: overviewCorrectionList } = trpc.attendance.myCorrections.useQuery(
     {},
-    { enabled: isAuthenticated }
+    { enabled: isAuthenticated && !operationalHintsSuccess }
   );
-  const { companies: myCompanies, activeCompany: activeCompanyCtx } = useActiveCompany();
   const { data: myShiftRequests } = trpc.shiftRequests.listMine.useQuery(
     {}, { enabled: isAuthenticated }
   );
@@ -844,17 +854,25 @@ export default function EmployeePortalPage() {
     [attendanceRate, tasks]
   );
 
-  const pendingOverviewCorrections = useMemo(
-    () => (overviewCorrectionList ?? []).filter((c: { status?: string }) => c.status === "pending").length,
-    [overviewCorrectionList]
-  );
+  /** Align client “now” with server instant from operational hints (countdown / phase). */
+  const serverClockSkewMs = useMemo(() => {
+    if (!operationalHints?.serverNowIso) return 0;
+    return new Date(operationalHints.serverNowIso).getTime() - Date.now();
+  }, [operationalHints?.serverNowIso]);
+
+  const pendingOverviewCorrections = useMemo(() => {
+    if (operationalHints) return operationalHints.pendingCorrectionCount;
+    if (operationalHintsSuccess) return 0;
+    return (overviewCorrectionList ?? []).filter((c: { status?: string }) => c.status === "pending").length;
+  }, [operationalHints, operationalHintsSuccess, overviewCorrectionList]);
 
   const shiftOverview = useMemo(() => {
     const sh = myActiveSchedule?.shift as { startTime?: string; endTime?: string } | undefined;
+    const now = new Date(Date.now() + serverClockSkewMs);
     return getOverviewShiftCardPresentation({
       startTime: sh?.startTime,
       endTime: sh?.endTime,
-      now: new Date(),
+      now,
       attendanceLoading: todayAttendanceLoading,
       checkIn: todayAttendanceRecord?.checkIn,
       checkOut: todayAttendanceRecord?.checkOut,
@@ -863,6 +881,7 @@ export default function EmployeePortalPage() {
   }, [
     myActiveSchedule?.shift,
     portalClock,
+    serverClockSkewMs,
     todayAttendanceLoading,
     todayAttendanceRecord?.checkIn,
     todayAttendanceRecord?.checkOut,

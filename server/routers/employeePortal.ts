@@ -5,9 +5,12 @@ import {
   employees, attendance, leaveRequests, payrollRecords,
   employeeDocuments, employeeTasks, announcements, announcementReads,
   notifications, companyMembers, users, attendanceRecords,
+  employeeSchedules, companyHolidays, shiftTemplates, attendanceCorrections,
 } from "../../drizzle/schema";
 import { getDb, getUserCompany } from "../db";
 import { protectedProcedure, router } from "../_core/trpc";
+import { requireActiveCompanyId } from "../_core/tenant";
+import { computePortalOperationalHints } from "@shared/employeePortalOperationalHints";
 
 /** Default annual entitlements (calendar year) — keep in sync with portal UI until per-company policies exist */
 export const DEFAULT_LEAVE_ENTITLEMENTS = { annual: 30, sick: 15, emergency: 5 } as const;
@@ -530,5 +533,109 @@ export const employeePortalRouter = router({
           hoursWorked: Math.round(totalHours * 10) / 10,
         },
       };
+    }),
+
+  /**
+   * Server-owned operational hints for portal shift/attendance presentation (not HR policy).
+   * Aligns with scheduling.getMyActiveSchedule date rules + attendance.myToday record.
+   */
+  getMyOperationalHints: protectedProcedure
+    .input(z.object({ companyId: z.number().optional() }).optional())
+    .query(async ({ ctx, input }) => {
+      const companyId = await requireActiveCompanyId(ctx.user.id, input?.companyId);
+      const db = await requireDb();
+      const myEmp = await resolveMyEmployee(ctx.user.id, ctx.user.email ?? "", companyId);
+      if (!myEmp) return null;
+
+      const now = new Date();
+      const businessDate = now.toISOString().slice(0, 10);
+      const dow = now.getDay();
+
+      const holidays = await db
+        .select()
+        .from(companyHolidays)
+        .where(and(eq(companyHolidays.companyId, companyId), eq(companyHolidays.holidayDate, businessDate)));
+      const holiday = holidays[0] ?? null;
+
+      const querySchedules = (empUserId: number) =>
+        db
+          .select()
+          .from(employeeSchedules)
+          .where(
+            and(
+              eq(employeeSchedules.companyId, companyId),
+              eq(employeeSchedules.employeeUserId, empUserId),
+              eq(employeeSchedules.isActive, true),
+              lte(employeeSchedules.startDate, businessDate),
+              or(isNull(employeeSchedules.endDate), gte(employeeSchedules.endDate, businessDate))
+            )
+          );
+
+      let allMySchedules = await querySchedules(ctx.user.id);
+      if (allMySchedules.length === 0) {
+        const [empRow] = await db
+          .select({ id: employees.id })
+          .from(employees)
+          .where(and(eq(employees.companyId, companyId), eq(employees.userId, ctx.user.id)))
+          .limit(1);
+        if (empRow) {
+          allMySchedules = await querySchedules(empRow.id);
+        }
+      }
+
+      let hasSchedule = false;
+      let isWorkingDay = false;
+      let shiftStart: string | null = null;
+      let shiftEnd: string | null = null;
+
+      if (allMySchedules.length > 0) {
+        hasSchedule = true;
+        const todayScheduleRow = allMySchedules.find((s) =>
+          s.workingDays.split(",").map(Number).includes(dow)
+        );
+        const mySchedule = todayScheduleRow ?? allMySchedules[0];
+        isWorkingDay = !!todayScheduleRow && !holiday;
+        const [st] = await db
+          .select()
+          .from(shiftTemplates)
+          .where(eq(shiftTemplates.id, mySchedule.shiftTemplateId))
+          .limit(1);
+        if (st) {
+          shiftStart = st.startTime;
+          shiftEnd = st.endTime;
+        }
+      }
+
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+      const [record] = await db
+        .select()
+        .from(attendanceRecords)
+        .where(and(eq(attendanceRecords.employeeId, myEmp.id), gte(attendanceRecords.checkIn, todayStart)))
+        .orderBy(desc(attendanceRecords.checkIn))
+        .limit(1);
+
+      const checkIn = record?.checkIn ? new Date(record.checkIn) : null;
+      const checkOut = record?.checkOut ? new Date(record.checkOut) : null;
+
+      const pendingRows = await db
+        .select({ id: attendanceCorrections.id })
+        .from(attendanceCorrections)
+        .where(and(eq(attendanceCorrections.employeeUserId, ctx.user.id), eq(attendanceCorrections.status, "pending")));
+      const pendingCorrectionCount = pendingRows.length;
+
+      return computePortalOperationalHints({
+        now,
+        businessDate,
+        startTime: shiftStart,
+        endTime: shiftEnd,
+        isHoliday: !!holiday,
+        isWorkingDay,
+        hasSchedule,
+        hasShift: !!(shiftStart && shiftEnd),
+        checkIn,
+        checkOut,
+        pendingCorrectionCount,
+      });
     }),
 });

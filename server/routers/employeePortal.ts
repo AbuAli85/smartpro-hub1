@@ -9,6 +9,9 @@ import {
 import { getDb, getUserCompany } from "../db";
 import { protectedProcedure, router } from "../_core/trpc";
 
+/** Default annual entitlements (calendar year) — keep in sync with portal UI until per-company policies exist */
+export const DEFAULT_LEAVE_ENTITLEMENTS = { annual: 30, sick: 15, emergency: 5 } as const;
+
 async function requireDb() {
   const db = await getDb();
   if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
@@ -125,10 +128,15 @@ export const employeePortalRouter = router({
 
   // ─── Get my leave requests and balance ────────────────────────────────────
   getMyLeave: protectedProcedure.query(async ({ ctx }) => {
+    const empty = {
+      requests: [] as (typeof leaveRequests.$inferSelect)[],
+      balance: { annual: 0, sick: 0, emergency: 0 },
+      entitlements: { ...DEFAULT_LEAVE_ENTITLEMENTS },
+    };
     const membership = await getUserCompany(ctx.user.id);
-    if (!membership) return { requests: [], balance: { annual: 0, sick: 0, emergency: 0 } };
+    if (!membership) return empty;
     const myEmp = await resolveMyEmployee(ctx.user.id, ctx.user.email ?? "", membership.company.id);
-    if (!myEmp) return { requests: [], balance: { annual: 0, sick: 0, emergency: 0 } };
+    if (!myEmp) return empty;
     const db = await requireDb();
     const requests = await db
       .select()
@@ -147,12 +155,14 @@ export const employeePortalRouter = router({
     const calcDays = (list: typeof approved) =>
       list.reduce((s, r) => s + Math.ceil((new Date(r.endDate).getTime() - new Date(r.startDate).getTime()) / 86400000) + 1, 0);
 
+    const { annual: maxA, sick: maxS, emergency: maxE } = DEFAULT_LEAVE_ENTITLEMENTS;
     return {
       requests,
+      entitlements: { ...DEFAULT_LEAVE_ENTITLEMENTS },
       balance: {
-        annual: Math.max(0, 30 - calcDays(approved.filter((r) => r.leaveType === "annual"))),
-        sick: Math.max(0, 15 - calcDays(approved.filter((r) => r.leaveType === "sick"))),
-        emergency: Math.max(0, 5 - calcDays(approved.filter((r) => r.leaveType === "emergency"))),
+        annual: Math.max(0, maxA - calcDays(approved.filter((r) => r.leaveType === "annual"))),
+        sick: Math.max(0, maxS - calcDays(approved.filter((r) => r.leaveType === "sick"))),
+        emergency: Math.max(0, maxE - calcDays(approved.filter((r) => r.leaveType === "emergency"))),
       },
     };
   }),

@@ -104,6 +104,20 @@ function formatDate(ts: Date | string | null | undefined): string {
   return fmtDateLong(ts);
 }
 
+/** Normalize common typos in shift names from admin-entered data */
+function formatShiftDisplayName(name: string | null | undefined): string {
+  if (!name?.trim()) return "Shift";
+  return name.replace(/\bshfit\b/gi, "shift").trim();
+}
+
+/** Text color for "days left" — full bucket should not look like a warning */
+function leaveRemainingTone(remaining: number, total: number): string {
+  if (total <= 0) return "text-foreground";
+  if (remaining <= 2) return "text-red-600";
+  if (remaining / total <= 0.2) return "text-amber-600";
+  return "text-foreground";
+}
+
 function calcDays(start: string | Date, end: string | Date): number {
   const s = new Date(start);
   const e = new Date(end);
@@ -120,7 +134,6 @@ function Skeleton({ className = "" }: { className?: string }) {
   return <div className={`bg-muted animate-pulse rounded-lg ${className}`} />;
 }
 
-// ── Attendance Today Card ──────────────────────────────────────────────────
 // ── Attendance Today Card ──────────────────────────────────────────────────
 function AttendanceTodayCard({ employeeId, todaySchedule }: { employeeId: number | null; todaySchedule?: any }) {
   const utils = trpc.useUtils();
@@ -238,7 +251,7 @@ function AttendanceTodayCard({ employeeId, todaySchedule }: { employeeId: number
                   <Clock className="w-5 h-5" style={{ color: shift?.color ?? "#6366f1" }} />
                 </div>
                 <div>
-                  <p className="font-semibold text-sm">{shift.name}</p>
+                  <p className="font-semibold text-sm">{formatShiftDisplayName(shift.name)}</p>
                   <p className="text-xs text-muted-foreground">
                     {shift.startTime} – {shift.endTime}
                     {site ? ` · ${site.name}` : ""}
@@ -708,7 +721,9 @@ export default function EmployeePortalPage() {
 
   // ── Derived data ──────────────────────────────────────────────────────────
   const leave = leaveData?.requests ?? [];
+  const entitlements = leaveData?.entitlements ?? { annual: 30, sick: 15, emergency: 5 };
   const balance = leaveData?.balance ?? { annual: 30, sick: 15, emergency: 5 };
+  const leaveYear = new Date().getFullYear();
   const attRecords = attData?.records ?? [];
   const attSummary = attData?.summary ?? { present: 0, absent: 0, late: 0, halfDay: 0, remote: 0, total: 0 };
   const realAttRecords = realAttData?.records ?? [];
@@ -940,33 +955,41 @@ export default function EmployeePortalPage() {
           ))}
         </div>
 
-        {/* ── Main Tabs ── */}
+        {/* ── Main Tabs (scroll on small screens — avoids invalid grid-cols-13 / crushed labels) ── */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="w-full grid grid-cols-13 h-auto">
-            {[
-              { value: "overview", icon: Home, label: "Overview" },
-              { value: "attendance", icon: UserCheck, label: "Attendance" },
-              { value: "leave", icon: Calendar, label: "Leave", badge: pendingLeave },
-              { value: "payroll", icon: DollarSign, label: "Payslips" },
-              { value: "tasks", icon: CheckSquare, label: "Tasks", badge: pendingTasks },
-              { value: "documents", icon: FileText, label: "Docs", badge: expiringDocs.length },
-              { value: "requests", icon: ArrowLeftRight, label: "Requests", badge: (myShiftRequests ?? []).filter((r: any) => r.request?.status === "pending").length },
-              { value: "kpi", icon: Target, label: "KPI", badge: 0 },
-              { value: "expenses", icon: Wallet, label: "Expenses", badge: (myExpenses ?? []).filter((e: any) => e.expenseStatus === "pending").length },
-              { value: "worklog", icon: Timer, label: "Work Log", badge: 0 },
-              { value: "training", icon: Award, label: "Training", badge: ((myTraining as any[]) ?? []).filter((t: any) => t.trainingStatus === "assigned" || t.trainingStatus === "overdue").length },
-              { value: "reviews", icon: Star, label: "Reviews", badge: 0 },
-              { value: "profile", icon: User, label: "Profile" },
-            ].map(({ value, icon: Icon, label, badge }) => (
-              <TabsTrigger key={value} value={value} className="py-2 text-xs flex flex-col gap-0.5 h-auto relative">
-                <Icon className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">{label}</span>
-                {badge && badge > 0 && (
-                  <span className="absolute top-1 right-1 w-3 h-3 bg-primary rounded-full text-[8px] text-white flex items-center justify-center">{badge}</span>
-                )}
-              </TabsTrigger>
-            ))}
-          </TabsList>
+          <div className="rounded-xl border border-border/60 bg-muted/50 p-1 shadow-sm">
+            <TabsList className="flex h-auto w-full flex-nowrap items-stretch justify-start gap-0.5 overflow-x-auto overflow-y-hidden bg-transparent p-0 [scrollbar-width:thin]">
+              {[
+                { value: "overview", icon: Home, label: "Overview" },
+                { value: "attendance", icon: UserCheck, label: "Attendance" },
+                { value: "leave", icon: Calendar, label: "Leave", badge: pendingLeave },
+                { value: "payroll", icon: DollarSign, label: "Payslips" },
+                { value: "tasks", icon: CheckSquare, label: "Tasks", badge: pendingTasks },
+                { value: "documents", icon: FileText, label: "Docs", badge: expiringDocs.length },
+                { value: "requests", icon: ArrowLeftRight, label: "Requests", badge: (myShiftRequests ?? []).filter((r: any) => r.request?.status === "pending").length },
+                { value: "kpi", icon: Target, label: "KPI", badge: 0 },
+                { value: "expenses", icon: Wallet, label: "Expenses", badge: (myExpenses ?? []).filter((e: any) => e.expenseStatus === "pending").length },
+                { value: "worklog", icon: Timer, label: "Work Log", badge: 0 },
+                { value: "training", icon: Award, label: "Training", badge: ((myTraining as any[]) ?? []).filter((t: any) => t.trainingStatus === "assigned" || t.trainingStatus === "overdue").length },
+                { value: "reviews", icon: Star, label: "Reviews", badge: 0 },
+                { value: "profile", icon: User, label: "Profile" },
+              ].map(({ value, icon: Icon, label, badge }) => (
+                <TabsTrigger
+                  key={value}
+                  value={value}
+                  className="relative flex h-auto min-w-[4.25rem] shrink-0 flex-col gap-0.5 rounded-md border-0 px-2 py-2 text-xs shadow-none ring-0 transition-colors focus-visible:ring-2 focus-visible:ring-primary/30 data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-sm data-[state=active]:ring-1 data-[state=active]:ring-primary/20 dark:data-[state=active]:ring-primary/35"
+                >
+                  <Icon className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">{label}</span>
+                  {badge != null && badge > 0 && (
+                    <span className="absolute right-0.5 top-0.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-primary px-0.5 text-[8px] font-bold text-primary-foreground">
+                      {badge > 9 ? "9+" : badge}
+                    </span>
+                  )}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </div>
 
           {/* ══ OVERVIEW TAB ══════════════════════════════════════════════════ */}
           <TabsContent value="overview" className="mt-4 space-y-4">
@@ -991,7 +1014,7 @@ export default function EmployeePortalPage() {
                       <Clock className="w-5 h-5 text-primary" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-sm">Today's Shift: {myActiveSchedule.shift.name}</p>
+                      <p className="font-semibold text-sm">Today&apos;s shift: {formatShiftDisplayName(myActiveSchedule.shift.name)}</p>
                       <p className="text-xs text-muted-foreground">
                         {myActiveSchedule.shift.startTime} – {myActiveSchedule.shift.endTime}
                         {myActiveSchedule.site ? ` · ${myActiveSchedule.site.name}` : ""}
@@ -1050,7 +1073,7 @@ export default function EmployeePortalPage() {
               <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm flex items-center justify-between">
-                    <span className="flex items-center gap-2"><Calendar className="w-4 h-4 text-blue-500" /> Leave Balance {new Date().getFullYear()}</span>
+                    <span className="flex items-center gap-2"><Calendar className="w-4 h-4 text-blue-500" /> Leave balance ({leaveYear})</span>
                     <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setShowLeaveDialog(true)}>
                       <Plus className="w-3 h-3 mr-1" /> Request
                     </Button>
@@ -1058,22 +1081,25 @@ export default function EmployeePortalPage() {
                 </CardHeader>
                 <CardContent className="space-y-3">
                   {[
-                    { label: "Annual Leave", used: 30 - balance.annual, total: 30, color: "bg-blue-500", remaining: balance.annual },
-                    { label: "Sick Leave", used: 15 - balance.sick, total: 15, color: "bg-amber-500", remaining: balance.sick },
-                    { label: "Emergency Leave", used: 5 - balance.emergency, total: 5, color: "bg-red-500", remaining: balance.emergency },
-                  ].map(({ label, used, total, color, remaining }) => (
-                    <div key={label}>
-                      <div className="flex justify-between text-xs mb-1">
-                        <span className="text-muted-foreground">{label}</span>
-                        <span className={`font-semibold ${remaining <= 2 ? "text-red-600" : remaining <= 5 ? "text-amber-600" : "text-foreground"}`}>
-                          {remaining} / {total} days left
-                        </span>
+                    { label: "Annual Leave", total: entitlements.annual, color: "bg-blue-500", remaining: balance.annual },
+                    { label: "Sick Leave", total: entitlements.sick, color: "bg-amber-500", remaining: balance.sick },
+                    { label: "Emergency Leave", total: entitlements.emergency, color: "bg-red-500", remaining: balance.emergency },
+                  ].map(({ label, total, color, remaining }) => {
+                    const used = Math.min(total, Math.max(0, total - remaining));
+                    return (
+                      <div key={label}>
+                        <div className="flex justify-between text-xs mb-1">
+                          <span className="text-muted-foreground">{label}</span>
+                          <span className={`font-semibold ${leaveRemainingTone(remaining, total)}`}>
+                            {remaining} / {total} days left
+                          </span>
+                        </div>
+                        <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                          <div className={`h-full ${color} rounded-full transition-all`} style={{ width: `${total > 0 ? Math.min(100, (used / total) * 100) : 0}%` }} />
+                        </div>
                       </div>
-                      <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-                        <div className={`h-full ${color} rounded-full transition-all`} style={{ width: `${Math.min(100, (used / total) * 100)}%` }} />
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </CardContent>
               </Card>
             </div>
@@ -1154,7 +1180,12 @@ export default function EmployeePortalPage() {
                 </CardHeader>
                 <CardContent>
                   {tasksLoading ? <Skeleton className="h-12" /> : (tasks as any[]).filter((t: any) => t.status !== "completed").length === 0 ? (
-                    <p className="text-sm text-muted-foreground text-center py-5">No pending tasks</p>
+                    <div className="text-center py-5 text-muted-foreground text-sm">
+                      <p>No pending tasks</p>
+                      <Button size="sm" variant="outline" className="mt-2" onClick={() => setActiveTab("tasks")}>
+                        View tasks
+                      </Button>
+                    </div>
                   ) : (
                     <div className="space-y-2">
                       {(tasks as any[]).filter((t: any) => t.status !== "completed").slice(0, 4).map((t: any) => {
@@ -1490,21 +1521,27 @@ export default function EmployeePortalPage() {
             {/* Leave Balance Summary */}
             <div className="grid grid-cols-3 gap-3">
               {[
-                { label: "Annual", remaining: balance.annual, total: 30, color: "text-blue-600", bg: "bg-blue-50 dark:bg-blue-950/20" },
-                { label: "Sick", remaining: balance.sick, total: 15, color: "text-amber-600", bg: "bg-amber-50 dark:bg-amber-950/20" },
-                { label: "Emergency", remaining: balance.emergency, total: 5, color: "text-red-600", bg: "bg-red-50 dark:bg-red-950/20" },
-              ].map(({ label, remaining, total, color, bg }) => (
-                <Card key={label} className={`${bg} border-0`}>
-                  <CardContent className="p-3 text-center">
-                    <p className={`text-2xl font-bold ${color}`}>{remaining}</p>
-                    <p className="text-xs text-muted-foreground">{label} days left</p>
-                    <div className="h-1 bg-white/50 rounded-full mt-1.5 overflow-hidden">
-                      <div className={`h-full rounded-full ${color.replace("text-", "bg-")}`}
-                        style={{ width: `${(remaining / total) * 100}%` }} />
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+                { label: "Annual", key: "annual" as const, color: "text-blue-600", bg: "bg-blue-50 dark:bg-blue-950/20" },
+                { label: "Sick", key: "sick" as const, color: "text-amber-600", bg: "bg-amber-50 dark:bg-amber-950/20" },
+                { label: "Emergency", key: "emergency" as const, color: "text-red-600", bg: "bg-red-50 dark:bg-red-950/20" },
+              ].map(({ label, key, color, bg }) => {
+                const total = entitlements[key];
+                const remaining = balance[key];
+                return (
+                  <Card key={label} className={`${bg} border-0`}>
+                    <CardContent className="p-3 text-center">
+                      <p className={`text-2xl font-bold ${color}`}>{remaining}</p>
+                      <p className="text-xs text-muted-foreground">{label} days left</p>
+                      <div className="h-1 bg-white/50 dark:bg-black/10 rounded-full mt-1.5 overflow-hidden dark:bg-white/10">
+                        <div
+                          className={`h-full rounded-full ${color.replace("text-", "bg-")}`}
+                          style={{ width: `${total > 0 ? (remaining / total) * 100 : 0}%` }}
+                        />
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
 
             {/* Filter + New Request */}

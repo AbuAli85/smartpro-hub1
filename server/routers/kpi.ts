@@ -310,9 +310,10 @@ export const kpiRouter = router({
       const companyId = await requireActiveCompanyId(ctx.user.id);
       await assertCanManageKpiTargets(ctx.user, companyId);
 
-      if (input.id) {
+      if (input.id !== undefined) {
+        const targetId = input.id;
         const [row] = await db.select().from(kpiTargets).where(
-          and(eq(kpiTargets.id, input.id), eq(kpiTargets.companyId, companyId))
+          and(eq(kpiTargets.id, targetId), eq(kpiTargets.companyId, companyId))
         ).limit(1);
         if (!row) {
           throw new TRPCError({ code: "NOT_FOUND", message: "KPI target not found" });
@@ -332,14 +333,14 @@ export const kpiRouter = router({
               currency: input.currency ?? "OMR",
               notes: input.notes,
             })
-            .where(and(eq(kpiTargets.id, input.id), eq(kpiTargets.companyId, companyId)));
-          const [afterRow] = await tx.select().from(kpiTargets).where(eq(kpiTargets.id, input.id)).limit(1);
+            .where(and(eq(kpiTargets.id, targetId), eq(kpiTargets.companyId, companyId)));
+          const [afterRow] = await tx.select().from(kpiTargets).where(eq(kpiTargets.id, targetId)).limit(1);
           if (!afterRow) return;
           await insertHrPerformanceAuditEvent(tx, {
             companyId,
             actorUserId: ctx.user.id,
             entityType: "kpi_target",
-            entityId: input.id,
+            entityId: targetId,
             action: "kpi_target.updated",
             beforeState: beforeSnap,
             afterState: kpiTargetAuditSnapshot(afterRow),

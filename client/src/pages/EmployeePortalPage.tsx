@@ -663,7 +663,8 @@ export default function EmployeePortalPage() {
       {
         enabled: isAuthenticated && activeCompanyId != null,
         refetchOnWindowFocus: true,
-        // Long-open tab: refresh strip without polling documents/tasks lists
+        // Poll only this compact summary — not getMyDocuments / getMyTasks — unless a concrete
+        // UX issue requires list polling; those lists still refresh on window focus.
         refetchInterval: 90_000,
         refetchIntervalInBackground: false,
       }

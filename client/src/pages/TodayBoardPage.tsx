@@ -1,51 +1,95 @@
 import { trpc } from "@/lib/trpc";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { CalendarDays, RefreshCw, Clock, CheckCircle2, AlertCircle, XCircle, PartyPopper, MapPin } from "lucide-react";
+import {
+  CalendarDays,
+  RefreshCw,
+  Clock,
+  CheckCircle2,
+  AlertCircle,
+  PartyPopper,
+  MapPin,
+  Timer,
+  LogOut,
+  UserX,
+  Sunrise,
+} from "lucide-react";
 
-const STATUS_CONFIG = {
-  on_time: {
-    label: "On Time",
-    icon: CheckCircle2,
-    color: "text-green-600",
-    bg: "bg-green-50 border-green-200",
-    badge: "bg-green-100 text-green-700",
-  },
-  late: {
-    label: "Late",
+const STATUS_ORDER = [
+  "late_no_checkin",
+  "not_checked_in",
+  "upcoming",
+  "checked_in_late",
+  "checked_in_on_time",
+  "checked_out",
+  "absent",
+  "holiday",
+] as const;
+
+const STATUS_CONFIG: Record<
+  (typeof STATUS_ORDER)[number],
+  { label: string; icon: typeof CheckCircle2; color: string; bg: string }
+> = {
+  late_no_checkin: {
+    label: "Late · no check-in",
     icon: AlertCircle,
-    color: "text-yellow-600",
-    bg: "bg-yellow-50 border-yellow-200",
-    badge: "bg-yellow-100 text-yellow-700",
+    color: "text-orange-700",
+    bg: "bg-orange-50 border-orange-200",
   },
-  absent: {
-    label: "Absent",
-    icon: XCircle,
-    color: "text-red-600",
-    bg: "bg-red-50 border-red-200",
-    badge: "bg-red-100 text-red-700",
+  not_checked_in: {
+    label: "Awaiting check-in",
+    icon: Timer,
+    color: "text-amber-800",
+    bg: "bg-amber-50 border-amber-200",
+  },
+  upcoming: {
+    label: "Upcoming",
+    icon: Sunrise,
+    color: "text-slate-700",
+    bg: "bg-slate-50 border-slate-200",
+  },
+  checked_in_late: {
+    label: "Checked in · late",
+    icon: AlertCircle,
+    color: "text-yellow-800",
+    bg: "bg-yellow-50 border-yellow-200",
+  },
+  checked_in_on_time: {
+    label: "Checked in",
+    icon: CheckCircle2,
+    color: "text-emerald-700",
+    bg: "bg-emerald-50 border-emerald-200",
   },
   checked_out: {
-    label: "Checked Out",
-    icon: CheckCircle2,
-    color: "text-blue-600",
+    label: "Completed",
+    icon: LogOut,
+    color: "text-blue-700",
     bg: "bg-blue-50 border-blue-200",
-    badge: "bg-blue-100 text-blue-700",
+  },
+  absent: {
+    label: "Absent (shift ended)",
+    icon: UserX,
+    color: "text-red-700",
+    bg: "bg-red-50 border-red-200",
   },
   holiday: {
     label: "Holiday",
     icon: PartyPopper,
-    color: "text-purple-600",
+    color: "text-purple-700",
     bg: "bg-purple-50 border-purple-200",
-    badge: "bg-purple-100 text-purple-700",
   },
 };
 
 function getInitials(name: string) {
-  return (name ?? "?").split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
+  return (name ?? "?")
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
 }
 
 function formatTime(d: Date | string | null) {
@@ -68,8 +112,22 @@ export default function TodayBoardPage() {
   }
 
   const today = new Date().toLocaleDateString("en", {
-    weekday: "long", year: "numeric", month: "long", day: "numeric",
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
   });
+
+  const summaryCards = data?.summary
+    ? [
+        { key: "total" as const, label: "Scheduled", color: "text-foreground", bg: "bg-card" },
+        { key: "checkedInActive" as const, label: "Checked in (active)", color: "text-emerald-700", bg: "bg-emerald-50" },
+        { key: "notCheckedIn" as const, label: "Awaiting check-in", color: "text-amber-800", bg: "bg-amber-50" },
+        { key: "lateNoCheckin" as const, label: "Late / no arrival", color: "text-orange-700", bg: "bg-orange-50" },
+        { key: "absent" as const, label: "Absent (confirmed)", color: "text-red-700", bg: "bg-red-50" },
+        { key: "checkedOut" as const, label: "Completed", color: "text-blue-700", bg: "bg-blue-50" },
+      ]
+    : [];
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
@@ -77,9 +135,12 @@ export default function TodayBoardPage() {
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <CalendarDays className="text-primary" size={24} />
-            Today's Attendance Board
+            Today&apos;s Attendance Board
           </h1>
           <p className="text-muted-foreground text-sm mt-1">{today}</p>
+          <p className="text-[11px] text-muted-foreground mt-1 max-w-lg">
+            Absent is shown only after the scheduled shift ends with no check-in. Earlier in the day you&apos;ll see upcoming or awaiting check-in instead.
+          </p>
         </div>
         <Button variant="outline" size="sm" className="gap-2" onClick={handleRefresh}>
           <RefreshCw size={14} /> Refresh
@@ -87,8 +148,8 @@ export default function TodayBoardPage() {
       </div>
 
       {isLoading ? (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          {[1, 2, 3, 4].map((i) => (
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+          {[1, 2, 3, 4, 5, 6].map((i) => (
             <Card key={i} className="animate-pulse">
               <CardContent className="h-20" />
             </Card>
@@ -97,7 +158,7 @@ export default function TodayBoardPage() {
       ) : error ? (
         <Card className="border-destructive/50">
           <CardContent className="py-8 text-center text-destructive">
-            Failed to load today's board. Please try again.
+            Failed to load today&apos;s board. Please try again.
           </CardContent>
         </Card>
       ) : data?.isHoliday ? (
@@ -110,29 +171,19 @@ export default function TodayBoardPage() {
         </Card>
       ) : (
         <>
-          {/* Summary Cards */}
           {data?.summary && (
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-              {[
-                { key: "total", label: "Scheduled", color: "text-foreground", bg: "bg-card" },
-                { key: "onTime", label: "On Time", color: "text-green-700", bg: "bg-green-50" },
-                { key: "late", label: "Late", color: "text-yellow-700", bg: "bg-yellow-50" },
-                { key: "absent", label: "Absent", color: "text-red-700", bg: "bg-red-50" },
-                { key: "checkedOut", label: "Checked Out", color: "text-blue-700", bg: "bg-blue-50" },
-              ].map(({ key, label, color, bg }) => (
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              {summaryCards.map(({ key, label, color, bg }) => (
                 <Card key={key} className={`${bg} border`}>
                   <CardContent className="p-4 text-center">
-                    <div className={`text-3xl font-bold ${color}`}>
-                      {data.summary[key as keyof typeof data.summary]}
-                    </div>
-                    <div className="text-xs text-muted-foreground mt-1">{label}</div>
+                    <div className={`text-2xl font-bold ${color}`}>{data.summary[key]}</div>
+                    <div className="text-xs text-muted-foreground mt-1 leading-tight">{label}</div>
                   </CardContent>
                 </Card>
               ))}
             </div>
           )}
 
-          {/* Board */}
           {!data?.board?.length ? (
             <Card className="border-dashed">
               <CardContent className="flex flex-col items-center justify-center py-16 gap-3 text-muted-foreground">
@@ -143,31 +194,34 @@ export default function TodayBoardPage() {
             </Card>
           ) : (
             <div className="space-y-2">
-              {["on_time", "late", "absent", "checked_out"].map((statusKey) => {
+              {STATUS_ORDER.map((statusKey) => {
                 const group = data.board.filter((b) => b.status === statusKey);
                 if (!group.length) return null;
-                const cfg = STATUS_CONFIG[statusKey as keyof typeof STATUS_CONFIG];
+                const cfg = STATUS_CONFIG[statusKey];
+                const Icon = cfg.icon;
                 return (
                   <div key={statusKey}>
                     <div className={`flex items-center gap-2 px-3 py-1.5 rounded-t-lg border-b ${cfg.bg} border`}>
-                      <cfg.icon size={14} className={cfg.color} />
+                      <Icon size={14} className={cfg.color} />
                       <span className={`text-sm font-semibold ${cfg.color}`}>
                         {cfg.label} ({group.length})
                       </span>
                     </div>
                     <div className="space-y-1 mb-4">
-                      {group.map((b) => (
+                      {group.map((b: any) => (
                         <Card key={b.scheduleId} className={`border ${cfg.bg} rounded-t-none`}>
                           <CardContent className="p-3">
                             <div className="flex items-center gap-3">
                               <Avatar className="h-9 w-9">
                                 <AvatarFallback className="text-xs font-semibold">
-                                  {getInitials(b.employee?.name ?? "?")}
+                                  {getInitials(b.employeeDisplayName ?? b.employee?.name ?? "?")}
                                 </AvatarFallback>
                               </Avatar>
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2 flex-wrap">
-                                  <span className="font-medium text-sm">{b.employee?.name ?? "Unknown"}</span>
+                                  <span className="font-medium text-sm">
+                                    {b.employeeDisplayName ?? b.employee?.name ?? "Unknown"}
+                                  </span>
                                   {b.shift && (
                                     <Badge
                                       style={{ backgroundColor: b.shift.color ?? "#6366f1", color: "white" }}
@@ -190,15 +244,20 @@ export default function TodayBoardPage() {
                                   )}
                                 </div>
                               </div>
-                              <div className="text-right text-xs">
+                              <div className="text-right text-xs space-y-0.5">
+                                {b.delayMinutes != null && b.delayMinutes > 0 && (
+                                  <div className="text-orange-700 font-medium">+{b.delayMinutes}m</div>
+                                )}
                                 {b.checkInAt && (
                                   <div className="text-muted-foreground">
-                                    In: <span className="font-medium text-foreground">{formatTime(b.checkInAt)}</span>
+                                    In:{" "}
+                                    <span className="font-medium text-foreground">{formatTime(b.checkInAt)}</span>
                                   </div>
                                 )}
                                 {b.checkOutAt && (
                                   <div className="text-muted-foreground">
-                                    Out: <span className="font-medium text-foreground">{formatTime(b.checkOutAt)}</span>
+                                    Out:{" "}
+                                    <span className="font-medium text-foreground">{formatTime(b.checkOutAt)}</span>
                                   </div>
                                 )}
                               </div>

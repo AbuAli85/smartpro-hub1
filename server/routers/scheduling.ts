@@ -17,6 +17,12 @@ import {
 } from "../../drizzle/schema";
 import { protectedProcedure, router } from "../_core/trpc";
 import { requireActiveCompanyId } from "../_core/tenant";
+import {
+  computeAdminBoardRowStatus,
+  arrivalDelayMinutesAfterGrace,
+  minutesPastExpectedCheckIn,
+} from "@shared/attendanceBoardStatus";
+import { getShiftInstantBounds } from "@shared/employeePortalShift";
 
 async function requireDb() {
   const db = await getDb();
@@ -278,12 +284,18 @@ export const schedulingRouter = router({
     }),
 
   getTodayBoard: protectedProcedure
-    .input(z.object({ companyId: z.number().optional() }))
+    .input(z.object({
+      companyId: z.number().optional(),
+      /** Optional calendar date (YYYY-MM-DD); defaults to server “today” */
+      date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    }))
     .query(async ({ ctx, input }) => {
       const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId);
       const db = await requireDb();
-      const today = todayStr();
-      const dow = todayDow();
+      const today = input.date ?? todayStr();
+      const dow = input.date
+        ? new Date(input.date + "T12:00:00").getDay()
+        : todayDow();
 
       const holidays = await db.select().from(companyHolidays)
         .where(and(eq(companyHolidays.companyId, companyId), eq(companyHolidays.holidayDate, today)));
@@ -313,6 +325,10 @@ export const schedulingRouter = router({
       const empRows = await db.select().from(employees).where(eq(employees.companyId, companyId));
       const empByUserId = new Map(empRows.map(e => [e.userId, e]));
 
+      const now = new Date();
+      const [yy, mm, dd] = today.split("-").map((x) => parseInt(x, 10));
+      const dayAnchor = new Date(yy, mm - 1, dd, 12, 0, 0, 0);
+
       const board = await Promise.all(todaySchedules.map(async (s) => {
         const [shift] = await db.select().from(shiftTemplates).where(eq(shiftTemplates.id, s.shiftTemplateId)).limit(1);
         const [site] = await db.select().from(attendanceSites).where(eq(attendanceSites.id, s.siteId)).limit(1);
@@ -320,25 +336,62 @@ export const schedulingRouter = router({
           .from(users).where(eq(users.id, s.employeeUserId)).limit(1);
 
         const empRow = empByUserId.get(s.employeeUserId);
+        /** Prefer any same-day record for this employee (avoids false “absent” when siteId differs). */
         const record = empRow
-          ? allRecords.find(r => r.employeeId === empRow.id && r.siteId === s.siteId)
+          ? allRecords
+            .filter((r) => r.employeeId === empRow.id)
+            .sort((a, b) => b.checkIn.getTime() - a.checkIn.getTime())[0]
           : undefined;
 
-        let status: "on_time" | "late" | "absent" | "holiday" | "checked_out" = "absent";
-        if (holiday) {
-          status = "holiday";
-        } else if (record) {
-          const checkInMins = record.checkIn.getHours() * 60 + record.checkIn.getMinutes();
-          const shiftStartMins = timeToMinutes(shift?.startTime ?? "08:00");
-          const grace = shift?.gracePeriodMinutes ?? 15;
-          if (record.checkOut) status = "checked_out";
-          else if (checkInMins <= shiftStartMins + grace) status = "on_time";
-          else status = "late";
+        const startT = shift?.startTime ?? "09:00";
+        const endT = shift?.endTime ?? "17:00";
+        const grace = shift?.gracePeriodMinutes ?? 15;
+
+        const status = computeAdminBoardRowStatus({
+          now,
+          businessDate: today,
+          holiday: !!holiday,
+          shiftStartTime: startT,
+          shiftEndTime: endT,
+          gracePeriodMinutes: grace,
+          record: record
+            ? { checkIn: record.checkIn, checkOut: record.checkOut ?? null }
+            : null,
+        });
+
+        const { shiftStart } = getShiftInstantBounds(startT, endT, dayAnchor);
+
+        let delayMinutes: number | null = null;
+        if (status === "checked_in_late" && record) {
+          delayMinutes = arrivalDelayMinutesAfterGrace(record.checkIn, shiftStart, grace);
+        } else if (status === "late_no_checkin") {
+          delayMinutes = minutesPastExpectedCheckIn(now, shiftStart, grace);
         }
+
+        let durationMinutes: number | null = null;
+        if (record) {
+          const endMs = record.checkOut ? record.checkOut.getTime() : now.getTime();
+          durationMinutes = Math.max(0, Math.round((endMs - record.checkIn.getTime()) / 60000));
+        }
+
+        const employeeDisplayName =
+          emp?.name?.trim() ||
+          (empRow ? `${empRow.firstName} ${empRow.lastName}`.trim() : "") ||
+          `Employee #${s.employeeUserId}`;
+
+        const methodLabel =
+          record?.method === "manual"
+            ? "Manual request"
+            : record?.method === "admin"
+              ? "Admin"
+              : record
+                ? "QR / app"
+                : null;
 
         return {
           scheduleId: s.id,
           employee: emp ?? null,
+          employeeDisplayName,
           site: site ?? null,
           shift: shift ?? null,
           status,
@@ -346,22 +399,40 @@ export const schedulingRouter = router({
           checkOutAt: record?.checkOut ?? null,
           attendanceRecordId: record?.id ?? null,
           holiday,
+          expectedStart: startT,
+          expectedEnd: endT,
+          delayMinutes,
+          durationMinutes,
+          methodLabel,
+          siteName: record?.siteName ?? site?.name ?? null,
         };
       }));
+
+      const summary = {
+        total: board.length,
+        holiday: board.filter((b) => b.status === "holiday").length,
+        upcoming: board.filter((b) => b.status === "upcoming").length,
+        notCheckedIn: board.filter((b) => b.status === "not_checked_in").length,
+        lateNoCheckin: board.filter((b) => b.status === "late_no_checkin").length,
+        absent: board.filter((b) => b.status === "absent").length,
+        checkedInOnTime: board.filter((b) => b.status === "checked_in_on_time").length,
+        checkedInLate: board.filter((b) => b.status === "checked_in_late").length,
+        checkedOut: board.filter((b) => b.status === "checked_out").length,
+        /** Employees currently checked in (not checked out) */
+        checkedInActive: board.filter((b) =>
+          b.status === "checked_in_on_time" || b.status === "checked_in_late"
+        ).length,
+        /** Legacy-style rollups for charts/widgets */
+        onTime: board.filter((b) => b.status === "checked_in_on_time" || b.status === "checked_out").length,
+        late: board.filter((b) => b.status === "checked_in_late" || b.status === "late_no_checkin").length,
+      };
 
       return {
         date: today,
         isHoliday: !!holiday,
         holidayName: holiday?.name ?? null,
         board,
-        summary: {
-          total: board.length,
-          onTime: board.filter(b => b.status === "on_time").length,
-          checkedOut: board.filter(b => b.status === "checked_out").length,
-          late: board.filter(b => b.status === "late").length,
-          absent: board.filter(b => b.status === "absent").length,
-          holiday: board.filter(b => b.status === "holiday").length,
-        },
+        summary,
       };
     }),
 

@@ -34,6 +34,7 @@ type AttendanceStatus = "present" | "absent" | "late" | "half_day" | "remote";
 function ClockInDialog({ employees, onSuccess, companyId }: { employees: { id: number; firstName: string; lastName: string; department: string | null }[]; onSuccess: () => void; companyId?: number | null }) {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ employeeId: "", status: "present" as AttendanceStatus, notes: "", date: new Date().toISOString().split("T")[0] });
+  const reasonOk = form.notes.trim().length >= 10;
 
   const utils = trpc.useUtils();
   const createMutation = trpc.hr.createAttendance.useMutation({
@@ -84,11 +85,17 @@ function ClockInDialog({ employees, onSuccess, companyId }: { employees: { id: n
             </Select>
           </div>
           <div className="space-y-1.5">
-            <Label>Notes</Label>
-            <Input placeholder="Optional notes..." value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} className="text-sm" />
+            <Label>Reason / audit note *</Label>
+            <Textarea
+              placeholder="Required for compliance — who asked for this entry, why, or evidence (min. 10 characters)…"
+              value={form.notes}
+              onChange={(e) => setForm({ ...form, notes: e.target.value })}
+              className="text-sm min-h-[88px]"
+            />
+            <p className="text-[11px] text-muted-foreground">Stored on the record for audit. Use clear, factual wording.</p>
           </div>
-          <Button className="w-full" disabled={!form.employeeId || createMutation.isPending}
-            onClick={() => createMutation.mutate({ employeeId: Number(form.employeeId), status: form.status, notes: form.notes || undefined, date: form.date, companyId: companyId ?? undefined })}>
+          <Button className="w-full" disabled={!form.employeeId || !reasonOk || createMutation.isPending}
+            onClick={() => createMutation.mutate({ employeeId: Number(form.employeeId), status: form.status, notes: form.notes.trim(), date: form.date, companyId: companyId ?? undefined })}>
             {createMutation.isPending ? "Recording..." : "Record Attendance"}
           </Button>
         </div>
@@ -149,67 +156,101 @@ function EditAttendanceDialog({ record, onSuccess }: { record: { id: number; sta
   );
 }
 
+function boardStatusBadge(status: string) {
+  const map: Record<string, { label: string; className: string }> = {
+    holiday: { label: "Holiday", className: "border-blue-300 text-blue-700 bg-blue-50" },
+    upcoming: { label: "Upcoming", className: "border-slate-300 text-slate-700 bg-slate-50" },
+    not_checked_in: { label: "Not checked in", className: "border-amber-300 text-amber-800 bg-amber-50" },
+    late_no_checkin: { label: "Late · no arrival", className: "border-orange-300 text-orange-800 bg-orange-50" },
+    absent: { label: "Absent", className: "border-red-300 text-red-700 bg-red-50" },
+    checked_in_on_time: { label: "Checked in", className: "border-emerald-300 text-emerald-800 bg-emerald-50" },
+    checked_in_late: { label: "Checked in · late", className: "border-yellow-300 text-yellow-800 bg-yellow-50" },
+    checked_out: { label: "Completed", className: "border-gray-300 text-gray-700 bg-gray-50" },
+  };
+  const m = map[status] ?? { label: status, className: "text-muted-foreground" };
+  return <Badge variant="outline" className={m.className}>{m.label}</Badge>;
+}
+
 // ─── Today's Live Board ──────────────────────────────────────────────────────
 function TodayBoard() {
   const { data, isLoading, refetch } = trpc.scheduling.getTodayBoard.useQuery({});
   if (isLoading) return <div className="py-12 text-center text-muted-foreground">Loading today's board…</div>;
   if (!data) return <div className="py-12 text-center text-muted-foreground">No data available</div>;
+  const s = data.summary;
   const stats = [
-    { label: "On Time", count: data.summary.onTime, color: "text-green-600", bg: "bg-green-50" },
-    { label: "Late", count: data.summary.late, color: "text-yellow-600", bg: "bg-yellow-50" },
-    { label: "Absent", count: data.summary.absent, color: "text-red-600", bg: "bg-red-50" },
-    { label: "Holiday", count: data.summary.holiday, color: "text-blue-600", bg: "bg-blue-50" },
+    { label: "Scheduled", count: s.total, color: "text-slate-700", bg: "bg-slate-50" },
+    { label: "Upcoming", count: s.upcoming, color: "text-slate-600", bg: "bg-slate-50/80" },
+    { label: "Awaiting check-in", count: s.notCheckedIn, color: "text-amber-700", bg: "bg-amber-50" },
+    { label: "Checked in (active)", count: s.checkedInActive, color: "text-emerald-700", bg: "bg-emerald-50" },
+    { label: "Late / no arrival", count: s.lateNoCheckin, color: "text-orange-700", bg: "bg-orange-50" },
+    { label: "Completed", count: s.checkedOut, color: "text-gray-700", bg: "bg-gray-50" },
+    { label: "Absent (confirmed)", count: s.absent, color: "text-red-600", bg: "bg-red-50" },
+    { label: "Holiday", count: s.holiday, color: "text-blue-600", bg: "bg-blue-50" },
   ];
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">{new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</p>
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div>
+          <p className="text-sm text-muted-foreground">
+            {new Date(data.date + "T12:00:00").toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+          </p>
+          <p className="text-[11px] text-muted-foreground mt-0.5 max-w-xl">
+            Absent applies only after the shift ends with no check-in. Before that, you’ll see upcoming, awaiting check-in, or late / no arrival.
+          </p>
+        </div>
         <Button variant="outline" size="sm" onClick={() => refetch()}><RefreshCw className="h-3.5 w-3.5 mr-1.5" /> Refresh</Button>
       </div>
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {stats.map((s) => (
-          <div key={s.label} className={`rounded-lg p-4 ${s.bg}`}>
-            <div className={`text-2xl font-bold ${s.color}`}>{s.count}</div>
-            <div className="text-xs text-muted-foreground mt-0.5">{s.label}</div>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        {stats.map((st) => (
+          <div key={st.label} className={`rounded-lg p-3 ${st.bg}`}>
+            <div className={`text-xl font-bold ${st.color}`}>{st.count}</div>
+            <div className="text-[11px] text-muted-foreground mt-0.5 leading-tight">{st.label}</div>
           </div>
         ))}
       </div>
-      <div className="rounded-lg border overflow-hidden">
-        <table className="w-full text-sm">
+      <div className="rounded-lg border overflow-x-auto">
+        <table className="w-full text-sm min-w-[860px]">
           <thead className="bg-muted/50">
             <tr>
-              <th className="text-left px-4 py-2.5 font-medium">Employee</th>
-              <th className="text-left px-4 py-2.5 font-medium">Shift</th>
-              <th className="text-left px-4 py-2.5 font-medium">Check In</th>
-              <th className="text-left px-4 py-2.5 font-medium">Check Out</th>
-              <th className="text-left px-4 py-2.5 font-medium">Status</th>
+              <th className="text-left px-3 py-2.5 font-medium">Employee</th>
+              <th className="text-left px-3 py-2.5 font-medium">Site</th>
+              <th className="text-left px-3 py-2.5 font-medium">Shift</th>
+              <th className="text-left px-3 py-2.5 font-medium">Check in</th>
+              <th className="text-left px-3 py-2.5 font-medium">Check out</th>
+              <th className="text-left px-3 py-2.5 font-medium">Delay</th>
+              <th className="text-left px-3 py-2.5 font-medium">Duration</th>
+              <th className="text-left px-3 py-2.5 font-medium">Source</th>
+              <th className="text-left px-3 py-2.5 font-medium">Status</th>
             </tr>
           </thead>
           <tbody>
-            {data.board.map((row) => (
+            {data.board.map((row: any) => (
               <tr key={row.scheduleId} className="border-t hover:bg-muted/30">
-                <td className="px-4 py-2.5">
-                  <div className="font-medium">{row.employee ? `${(row.employee as { name?: string | null }).name ?? `Emp #${row.scheduleId}`}` : `Emp #${row.scheduleId}`}</div>
+                <td className="px-3 py-2.5">
+                  <div className="font-medium">{row.employeeDisplayName ?? row.employee?.name ?? `Schedule #${row.scheduleId}`}</div>
                 </td>
-                <td className="px-4 py-2.5 text-muted-foreground text-xs">
+                <td className="px-3 py-2.5 text-xs text-muted-foreground max-w-[140px] truncate" title={row.siteName ?? ""}>
+                  {row.siteName ?? "—"}
+                </td>
+                <td className="px-3 py-2.5 text-muted-foreground text-xs">
                   {row.shift ? (row.shift as { name?: string | null }).name ?? "—" : "—"}
-                  {row.shift && (row.shift as { startTime?: string | null }).startTime && (row.shift as { endTime?: string | null }).endTime
-                    ? <div>{(row.shift as { startTime: string }).startTime}–{(row.shift as { endTime: string }).endTime}</div>
-                    : null}
+                  {row.expectedStart && row.expectedEnd ? (
+                    <div className="text-[11px]">{row.expectedStart}–{row.expectedEnd}</div>
+                  ) : null}
                 </td>
-                <td className="px-4 py-2.5">{row.checkInAt ? new Date(row.checkInAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : "—"}</td>
-                <td className="px-4 py-2.5">{row.checkOutAt ? new Date(row.checkOutAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : "—"}</td>
-                <td className="px-4 py-2.5">
-                  {row.status === "holiday" ? <Badge variant="outline" className="border-blue-300 text-blue-700 bg-blue-50">Holiday</Badge>
-                    : row.status === "on_time" ? <Badge variant="outline" className="border-green-300 text-green-700 bg-green-50">On Time</Badge>
-                    : row.status === "late" ? <Badge variant="outline" className="border-yellow-300 text-yellow-700 bg-yellow-50">Late</Badge>
-                    : row.status === "absent" ? <Badge variant="outline" className="border-red-300 text-red-700 bg-red-50">Absent</Badge>
-                    : row.status === "checked_out" ? <Badge variant="outline" className="border-gray-300 text-gray-700 bg-gray-50">Checked Out</Badge>
-                    : <Badge variant="outline" className="text-muted-foreground">Not Scheduled</Badge>}
+                <td className="px-3 py-2.5 whitespace-nowrap">{row.checkInAt ? new Date(row.checkInAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : "—"}</td>
+                <td className="px-3 py-2.5 whitespace-nowrap">{row.checkOutAt ? new Date(row.checkOutAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : "—"}</td>
+                <td className="px-3 py-2.5 text-xs whitespace-nowrap">
+                  {row.delayMinutes != null && row.delayMinutes > 0 ? `${row.delayMinutes}m` : "—"}
                 </td>
+                <td className="px-3 py-2.5 text-xs whitespace-nowrap">
+                  {row.durationMinutes != null && row.checkInAt ? `${row.durationMinutes}m` : "—"}
+                </td>
+                <td className="px-3 py-2.5 text-xs text-muted-foreground">{row.methodLabel ?? "—"}</td>
+                <td className="px-3 py-2.5">{boardStatusBadge(row.status)}</td>
               </tr>
             ))}
-            {data.board.length === 0 && <tr><td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">No employees scheduled today</td></tr>}
+            {data.board.length === 0 && <tr><td colSpan={9} className="px-4 py-8 text-center text-muted-foreground">No employees scheduled today</td></tr>}
           </tbody>
         </table>
       </div>

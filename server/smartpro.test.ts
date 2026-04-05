@@ -501,7 +501,12 @@ describe("hr.attendance", () => {
   it("createAttendance requires authentication", async () => {
     const caller = appRouter.createCaller(makePublicCtx());
     await expect(
-      caller.hr.createAttendance({ employeeId: 1, date: "2026-03-01", status: "present" })
+      caller.hr.createAttendance({
+        employeeId: 1,
+        date: "2026-03-01",
+        status: "present",
+        notes: "Audit reason text required for manual HR entry (min 10 chars).",
+      })
     ).rejects.toThrow();
   });
 
@@ -513,7 +518,12 @@ describe("hr.attendance", () => {
     } as any);
     (getEmployeeById as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ id: 1, companyId: 1 } as any);
     const caller = appRouter.createCaller(makeCtx({ role: "user", platformRole: "company_admin" }));
-    const result = await caller.hr.createAttendance({ employeeId: 1, date: "2026-03-01", status: "present" });
+    const result = await caller.hr.createAttendance({
+      employeeId: 1,
+      date: "2026-03-01",
+      status: "present",
+      notes: "Manager confirmed present after site visit — audit trail entry.",
+    });
     expect(result).toHaveProperty("success", true);
   });
 });

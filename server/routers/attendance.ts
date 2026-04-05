@@ -424,7 +424,7 @@ export const attendanceRouter = router({
       const dayEnd = new Date(targetDate);
       dayEnd.setHours(23, 59, 59, 999);
 
-      const records = await db
+      const rows = await db
         .select({
           record: attendanceRecords,
           employee: {
@@ -445,7 +445,25 @@ export const attendanceRouter = router({
         ))
         .orderBy(desc(attendanceRecords.checkIn));
 
-      return records;
+      const nowMs = Date.now();
+      return rows.map(({ record, employee }) => {
+        const cin = new Date(record.checkIn).getTime();
+        const cout = record.checkOut ? new Date(record.checkOut).getTime() : null;
+        const endMs = cout ?? nowMs;
+        const durationMinutes = Math.max(0, Math.round((endMs - cin) / 60000));
+        const methodLabel =
+          record.method === "manual" ? "Manual request" : record.method === "admin" ? "Admin" : "QR / app";
+        const hasCheckInGeo = !!(record.checkInLat && record.checkInLng);
+        const hasCheckOutGeo = !!(record.checkOutLat && record.checkOutLng);
+        return {
+          record,
+          employee,
+          durationMinutes,
+          methodLabel,
+          hasCheckInGeo,
+          hasCheckOutGeo,
+        };
+      });
     }),
 
   // ─── Admin: Get attendance history for a specific employee ────────────────
@@ -584,12 +602,24 @@ export const attendanceRouter = router({
         .limit(1);
       if (!req) throw new TRPCError({ code: "NOT_FOUND", message: "Request not found or already reviewed" });
 
+      const [empRow] = await db
+        .select({ id: employees.id })
+        .from(employees)
+        .where(and(eq(employees.companyId, membership.company.id), eq(employees.userId, req.employeeUserId)))
+        .limit(1);
+      if (!empRow) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "No employee row linked to this user — cannot create attendance record",
+        });
+      }
+
       // Create attendance record
       const [record] = await db
         .insert(attendanceRecords)
         .values({
           companyId: membership.company.id,
-          employeeId: req.employeeUserId,
+          employeeId: empRow.id,
           siteId: req.siteId,
           checkIn: req.requestedAt,
           checkInLat: req.lat ?? undefined,

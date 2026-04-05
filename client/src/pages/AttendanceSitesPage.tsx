@@ -657,36 +657,54 @@ export default function AttendanceSitesPage() {
         {/* ── Live Board Tab ── */}
         <TabsContent value="live" className="pt-4">
           {board.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground border border-dashed rounded-xl">
-              <Users className="h-8 w-8 mx-auto mb-2 opacity-30" />
-              No attendance records for today yet.
+            <div className="text-center py-12 text-muted-foreground border border-dashed rounded-xl space-y-2">
+              <Users className="h-8 w-8 mx-auto opacity-30" />
+              <p>No check-in records for this date yet.</p>
+              <p className="text-xs max-w-md mx-auto">
+                This list shows raw clock events. For scheduled employees and phase-based status (upcoming, absent only after shift end), use HR → Attendance → Today&apos;s Board.
+              </p>
             </div>
           ) : (
-            <div className="rounded-xl border overflow-hidden">
-              <table className="w-full text-sm">
+            <div className="rounded-xl border overflow-x-auto">
+              <table className="w-full text-sm min-w-[720px]">
                 <thead className="bg-muted/50">
                   <tr>
                     <th className="text-left px-4 py-3 font-medium">Employee</th>
                     <th className="text-left px-4 py-3 font-medium">Site</th>
-                    <th className="text-left px-4 py-3 font-medium">Check In</th>
-                    <th className="text-left px-4 py-3 font-medium">Check Out</th>
+                    <th className="text-left px-4 py-3 font-medium">Check in</th>
+                    <th className="text-left px-4 py-3 font-medium">Check out</th>
+                    <th className="text-left px-4 py-3 font-medium">Duration</th>
+                    <th className="text-left px-4 py-3 font-medium">Source</th>
+                    <th className="text-left px-4 py-3 font-medium">Geo</th>
                     <th className="text-left px-4 py-3 font-medium">Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
-                  {board.map((row) => (
+                  {board.map((row: any) => (
                     <tr key={row.record.id} className="hover:bg-muted/30">
                       <td className="px-4 py-3">
                         <p className="font-medium">{row.employee.firstName} {row.employee.lastName}</p>
                         <p className="text-xs text-muted-foreground">{row.employee.position ?? row.employee.department}</p>
                       </td>
                       <td className="px-4 py-3 text-muted-foreground">{row.record.siteName ?? "—"}</td>
-                      <td className="px-4 py-3">{new Date(row.record.checkIn).toLocaleTimeString()}</td>
-                      <td className="px-4 py-3">{row.record.checkOut ? new Date(row.record.checkOut).toLocaleTimeString() : "—"}</td>
+                      <td className="px-4 py-3 whitespace-nowrap">{new Date(row.record.checkIn).toLocaleTimeString()}</td>
+                      <td className="px-4 py-3 whitespace-nowrap">{row.record.checkOut ? new Date(row.record.checkOut).toLocaleTimeString() : "—"}</td>
+                      <td className="px-4 py-3 text-xs whitespace-nowrap">{row.durationMinutes != null ? `${row.durationMinutes}m` : "—"}</td>
+                      <td className="px-4 py-3 text-xs text-muted-foreground">{row.methodLabel ?? "—"}</td>
+                      <td className="px-4 py-3 text-xs">
+                        {row.hasCheckInGeo ? (
+                          <span className="text-emerald-600">In ✓</span>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                        {row.record.checkOut && (
+                          <span className="text-muted-foreground ml-1">{row.hasCheckOutGeo ? "· Out ✓" : ""}</span>
+                        )}
+                      </td>
                       <td className="px-4 py-3">
                         {row.record.checkOut ? (
                           <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                            <XCircle className="h-3.5 w-3.5" /> Checked Out
+                            <XCircle className="h-3.5 w-3.5" /> Checked out
                           </span>
                         ) : (
                           <span className="flex items-center gap-1 text-xs text-green-600 font-medium">

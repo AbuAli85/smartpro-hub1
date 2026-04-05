@@ -536,7 +536,8 @@ export const hrRouter = router({
       checkIn: z.string().optional(),
       checkOut: z.string().optional(),
       status: z.enum(["present", "absent", "late", "half_day", "remote"]),
-      notes: z.string().optional(),
+      /** Required audit trail for manual HR entries */
+      notes: z.string().min(10, "Enter a reason for this entry (min 10 characters) for the audit log"),
       companyId: z.number().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
@@ -544,6 +545,7 @@ export const hrRouter = router({
       const emp = await getEmployeeById(input.employeeId);
       if (!emp) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
       if (emp.companyId !== companyId) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
+      const auditPrefix = `[HR audit userId=${ctx.user.id} at ${new Date().toISOString()}] `;
       await createAttendanceRecord({
         companyId,
         employeeId: input.employeeId,
@@ -551,7 +553,7 @@ export const hrRouter = router({
         checkIn: input.checkIn ? new Date(input.checkIn) : undefined,
         checkOut: input.checkOut ? new Date(input.checkOut) : undefined,
         status: input.status,
-        notes: input.notes,
+        notes: auditPrefix + input.notes.trim(),
       });
       return { success: true };
     }),

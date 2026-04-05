@@ -1,9 +1,11 @@
 import { and, desc, eq, notInArray } from "drizzle-orm";
+import { alias } from "drizzle-orm/mysql-core";
 import {
   auditEvents,
   auditLogs,
   contractSignatureAudit,
   contracts,
+  users,
   type User,
 } from "../drizzle/schema";
 import { getDb, getUserCompany } from "./db";
@@ -88,6 +90,7 @@ export async function loadUnifiedAuditTimeline(
     if (companyId != null) {
       csaConds.push(eq(contracts.companyId, companyId));
     }
+    const auditActorUser = alias(users, "contract_sig_audit_actor");
     const contractJoinRows = await db
       .select({
         id: contractSignatureAudit.id,
@@ -96,6 +99,8 @@ export async function loadUnifiedAuditTimeline(
         event: contractSignatureAudit.event,
         actorName: contractSignatureAudit.actorName,
         actorEmail: contractSignatureAudit.actorEmail,
+        actorUserId: contractSignatureAudit.actorUserId,
+        actorType: contractSignatureAudit.actorType,
         ipAddress: contractSignatureAudit.ipAddress,
         userAgent: contractSignatureAudit.userAgent,
         notes: contractSignatureAudit.notes,
@@ -103,9 +108,11 @@ export async function loadUnifiedAuditTimeline(
         joinCompanyId: contracts.companyId,
         contractTitle: contracts.title,
         contractNumber: contracts.contractNumber,
+        resolvedActorDisplayName: auditActorUser.name,
       })
       .from(contractSignatureAudit)
       .innerJoin(contracts, eq(contracts.id, contractSignatureAudit.contractId))
+      .leftJoin(auditActorUser, eq(auditActorUser.id, contractSignatureAudit.actorUserId))
       .where(csaConds.length ? and(...csaConds) : undefined)
       .orderBy(desc(contractSignatureAudit.createdAt))
       .limit(overfetch);
@@ -119,6 +126,8 @@ export async function loadUnifiedAuditTimeline(
           event: r.event,
           actorName: r.actorName,
           actorEmail: r.actorEmail,
+          actorUserId: r.actorUserId,
+          actorType: r.actorType,
           ipAddress: r.ipAddress,
           userAgent: r.userAgent,
           notes: r.notes,
@@ -129,6 +138,7 @@ export async function loadUnifiedAuditTimeline(
           contractTitle: r.contractTitle ?? "",
           contractNumber: r.contractNumber ?? "",
         },
+        { resolvedActorDisplayName: r.resolvedActorDisplayName },
       ),
     );
   }

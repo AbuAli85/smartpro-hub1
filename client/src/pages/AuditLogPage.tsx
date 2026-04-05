@@ -67,6 +67,8 @@ interface AuditEntry {
   summary?: string;
   routeHint?: string | null;
   actorLabel?: string | null;
+  actorUserId?: number | null;
+  actorType?: "user" | "external" | "system" | null;
 }
 
 export default function AuditLogPage() {
@@ -91,6 +93,8 @@ export default function AuditLogPage() {
         log.routeHint,
         String(log.entityId ?? ""),
         String(log.userId ?? ""),
+        String(log.actorUserId ?? ""),
+        log.actorType ?? "",
       ]
         .filter(Boolean)
         .join(" ")
@@ -122,6 +126,8 @@ export default function AuditLogPage() {
       "ID",
       "Timestamp",
       "User ID",
+      "Actor user ID",
+      "Actor type",
       "Actor label",
       "Company ID",
       "Action",
@@ -138,6 +144,8 @@ export default function AuditLogPage() {
       l.id,
       new Date(l.createdAt).toISOString(),
       l.userId ?? "",
+      l.actorUserId ?? "",
+      l.actorType ?? "",
       l.actorLabel ?? "",
       l.companyId ?? "",
       l.action,
@@ -434,6 +442,14 @@ export default function AuditLogPage() {
                   { label: "Entity Type", value: selectedEntry.entityType },
                   { label: "Entity ID", value: selectedEntry.entityId ?? "—" },
                   { label: "User ID", value: selectedEntry.userId ?? "—" },
+                  {
+                    label: "Actor user ID (e-sign)",
+                    value: selectedEntry.actorUserId != null ? selectedEntry.actorUserId : "—",
+                  },
+                  {
+                    label: "Actor type (e-sign)",
+                    value: selectedEntry.actorType ?? "—",
+                  },
                   { label: "Company ID", value: selectedEntry.companyId ?? "—" },
                   { label: "IP Address", value: selectedEntry.ipAddress ?? "—" },
                   { label: "User Agent", value: selectedEntry.userAgent ? selectedEntry.userAgent.slice(0, 60) + "..." : "—" },

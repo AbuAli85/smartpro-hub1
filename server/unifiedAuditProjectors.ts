@@ -3,6 +3,8 @@ import { isHrPerformanceSensitiveEntityType } from "./hrPerformanceAuditReadPoli
 
 export type AuditSensitivity = "normal" | "hr_sensitive" | "legal_sensitive";
 
+export type ContractSignatureActorType = "user" | "external" | "system";
+
 /** Normalized row for `analytics.auditLogs` and the Audit Log UI. */
 export type UnifiedAuditTimelineRow = {
   _key: string;
@@ -21,8 +23,25 @@ export type UnifiedAuditTimelineRow = {
   sensitivity: AuditSensitivity;
   summary: string;
   routeHint: string | null;
+  /** UI-safe display; never require identity completeness for rendering. */
   actorLabel: string | null;
+  /** E-sign audit: platform user when `actorType === "user"`. */
+  actorUserId?: number | null;
+  actorType?: ContractSignatureActorType | null;
 };
+
+/** Prefer resolved platform user name when `actor_user_id` is set; else stored name/email; system fallback. */
+export function buildContractAuditActorLabel(
+  row: Pick<ContractSignatureAudit, "actorType" | "actorName" | "actorEmail">,
+  resolvedUserName: string | null | undefined,
+): string | null {
+  if (row.actorType === "system") {
+    return row.actorName?.trim() || "System";
+  }
+  const fromUser = resolvedUserName?.trim();
+  if (fromUser) return fromUser;
+  return row.actorName?.trim() || row.actorEmail?.trim() || null;
+}
 
 type AuditLogRow = {
   id: number;
@@ -96,14 +115,19 @@ export function projectAuditLogToUnified(row: AuditLogRow): UnifiedAuditTimeline
 export function projectContractSignatureAuditToUnified(
   row: ContractSignatureAudit,
   ctx: { companyId: number; contractTitle: string; contractNumber: string },
+  opts?: { resolvedActorDisplayName?: string | null },
 ): UnifiedAuditTimelineRow {
   const title = ctx.contractTitle?.trim() || "Contract";
   const num = ctx.contractNumber?.trim() || `#${row.contractId}`;
+  const actorType = row.actorType ?? "external";
+  const actorUserId = row.actorUserId ?? null;
+  const userId = actorType === "user" && actorUserId != null ? actorUserId : null;
+  const actorLabel = buildContractAuditActorLabel(row, opts?.resolvedActorDisplayName ?? null);
   return {
     _key: `csa:${row.id}`,
     source: "contract_signature_audit",
     id: row.id,
-    userId: null,
+    userId,
     companyId: ctx.companyId,
     action: `signature_${row.event}`,
     entityType: "contract_signature",
@@ -115,6 +139,8 @@ export function projectContractSignatureAuditToUnified(
       notes: row.notes,
       actorName: row.actorName,
       actorEmail: row.actorEmail,
+      actorUserId,
+      actorType,
       contractNumber: ctx.contractNumber,
       contractTitle: ctx.contractTitle,
     },
@@ -124,6 +150,8 @@ export function projectContractSignatureAuditToUnified(
     sensitivity: "legal_sensitive",
     summary: `Contract "${title}" (${num}) — ${row.event.replace(/_/g, " ")}`,
     routeHint: "/contracts",
-    actorLabel: row.actorName?.trim() || row.actorEmail?.trim() || null,
+    actorLabel,
+    actorUserId,
+    actorType,
   };
 }

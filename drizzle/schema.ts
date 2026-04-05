@@ -1761,6 +1761,10 @@ export const contractSignatureAudit = mysqlTable("contract_signature_audit", {
   ]).notNull(),
   actorName: varchar("actor_name", { length: 255 }),
   actorEmail: varchar("actor_email", { length: 320 }),
+  actorUserId: int("actor_user_id"),
+  actorType: mysqlEnum("actor_type", ["user", "external", "system"])
+    .default("external")
+    .notNull(),
   ipAddress: varchar("ip_address", { length: 64 }),
   userAgent: varchar("user_agent", { length: 512 }),
   notes: text("notes"),

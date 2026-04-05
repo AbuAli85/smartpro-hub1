@@ -227,6 +227,8 @@ Generate a complete, professional contract document with all standard clauses fo
         event: "requested",
         actorName: ctx.user.name,
         actorEmail: ctx.user.email ?? undefined,
+        actorUserId: ctx.user.id,
+        actorType: "user",
         notes: `Signature requested from ${input.signerName} <${input.signerEmail}>`,
       });
       await updateContract(input.contractId, { status: "pending_signature" });
@@ -293,6 +295,8 @@ Generate a complete, professional contract document with all standard clauses fo
         event: "signed",
         actorName: signer.signerName,
         actorEmail: signer.signerEmail,
+        actorUserId: ctx.user.id,
+        actorType: "user",
         ipAddress: input.ipAddress,
         notes: `Signed by ${signer.signerName}`,
       });
@@ -305,6 +309,7 @@ Generate a complete, professional contract document with all standard clauses fo
         await db.insert(contractSignatureAudit).values({
           contractId: signer.contractId,
           event: "completed",
+          actorType: "system",
           notes: "All parties have signed. Contract is fully executed.",
         });
       }
@@ -328,6 +333,8 @@ Generate a complete, professional contract document with all standard clauses fo
         event: "declined",
         actorName: signer.signerName,
         actorEmail: signer.signerEmail,
+        actorUserId: ctx.user.id,
+        actorType: "user",
         notes: input.reason ?? "Declined without reason",
       });
       return { ok: true };

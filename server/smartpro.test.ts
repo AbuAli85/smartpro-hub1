@@ -95,6 +95,7 @@ vi.mock("./db", () => ({
   // Attendance
   getAttendance: vi.fn().mockResolvedValue([]),
   createAttendanceRecord: vi.fn().mockResolvedValue(1),
+  createAttendanceRecordTx: vi.fn().mockResolvedValue(42),
   updateAttendanceRecord: vi.fn().mockResolvedValue({}),
   deleteAttendanceRecord: vi.fn().mockResolvedValue({}),
   getAttendanceStats: vi.fn().mockResolvedValue({ present: 5, absent: 1, late: 2, half_day: 0, remote: 3, byDay: [] }),
@@ -512,7 +513,16 @@ describe("hr.attendance", () => {
   });
 
   it("createAttendance succeeds when membership and employee match company", async () => {
-    const { getUserCompany, getUserCompanyById, getEmployeeById } = await import("./db");
+    const { getUserCompany, getUserCompanyById, getEmployeeById, getDb } = await import("./db");
+    const valuesFn = vi.fn().mockResolvedValue([{ insertId: 42 }]);
+    const mockTx = {
+      insert: vi.fn(() => ({ values: valuesFn })),
+    };
+    (getDb as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      transaction: async (fn: (tx: typeof mockTx) => Promise<void>) => {
+        await fn(mockTx);
+      },
+    } as any);
     (getUserCompany as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
       company: { id: 1 },
       member: { role: "company_admin" },

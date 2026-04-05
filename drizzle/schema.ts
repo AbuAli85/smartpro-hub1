@@ -936,7 +936,7 @@ export const attendance = mysqlTable("attendance", {
 export type Attendance = typeof attendance.$inferSelect;
 export type InsertAttendance = typeof attendance.$inferInsert;
 
-/** First-class audit trail for HR attendance, corrections, and manual check-in decisions. */
+/** First-class audit trail: HR attendance, corrections, manual check-in workflow, and self-service check-in/out. */
 export const attendanceAudit = mysqlTable(
   "attendance_audit",
   {
@@ -957,6 +957,10 @@ export const attendanceAudit = mysqlTable(
       "correction_reject",
       "manual_checkin_approve",
       "manual_checkin_reject",
+      "self_checkin_allowed",
+      "self_checkin_denied",
+      "self_checkout",
+      "manual_checkin_submit",
     ]).notNull(),
     entityType: varchar("entity_type", { length: 64 }).notNull(),
     entityId: int("entity_id"),

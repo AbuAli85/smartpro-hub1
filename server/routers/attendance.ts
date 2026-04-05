@@ -8,6 +8,7 @@ import {
   attendanceCorrections,
   employees,
   manualCheckinRequests,
+  attendanceAudit,
 } from "../../drizzle/schema";
 import { getDb, getUserCompany } from "../db";
 import { protectedProcedure, publicProcedure, router } from "../_core/trpc";
@@ -16,8 +17,14 @@ import {
   evaluateSelfServiceCheckInEligibility,
   formatCheckInRejection,
 } from "@shared/attendanceCheckInEligibility";
+import {
+  ATTENDANCE_AUDIT_ACTION,
+  ATTENDANCE_AUDIT_ENTITY,
+  ATTENDANCE_AUDIT_SOURCE,
+  type AttendanceAuditActionType,
+} from "@shared/attendanceAuditTaxonomy";
 import { resolveEmployeeAttendanceDayContext } from "../resolveEmployeeAttendanceDayContext";
-import { attendancePayloadJson, logAttendanceAudit } from "../attendanceAudit";
+import { attendancePayloadJson, insertAttendanceAuditRow, logAttendanceAuditSafe } from "../attendanceAudit";
 
 async function requireDb() {
   const db = await getDb();
@@ -264,12 +271,30 @@ export const attendanceRouter = router({
       // ── Geo-fence enforcement ──────────────────────────────────────────────
       if (site.enforceGeofence && site.lat && site.lng) {
         if (input.lat == null || input.lng == null) {
+          const wire = formatCheckInRejection(
+            CheckInEligibilityReasonCode.LOCATION_REQUIRED_FOR_SITE,
+            "Location access is required to check in at this site. Please allow location access in your browser.",
+          );
+          await logAttendanceAuditSafe({
+            companyId: site.companyId,
+            actorUserId: ctx.user.id,
+            actionType: ATTENDANCE_AUDIT_ACTION.SELF_CHECKIN_DENIED,
+            entityType: ATTENDANCE_AUDIT_ENTITY.SELF_CHECKIN_ATTEMPT,
+            entityId: site.id,
+            afterPayload:
+              attendancePayloadJson({
+                outcome: "denied",
+                reasonCode: CheckInEligibilityReasonCode.LOCATION_REQUIRED_FOR_SITE,
+                wireMessage: wire,
+                policyPath: "site_geofence",
+                siteId: site.id,
+              }) ?? undefined,
+            reason: wire,
+            source: ATTENDANCE_AUDIT_SOURCE.EMPLOYEE_PORTAL,
+          });
           throw new TRPCError({
             code: "BAD_REQUEST",
-            message: formatCheckInRejection(
-              CheckInEligibilityReasonCode.LOCATION_REQUIRED_FOR_SITE,
-              "Location access is required to check in at this site. Please allow location access in your browser."
-            ),
+            message: wire,
           });
         }
         const distance = haversineMetres(
@@ -279,12 +304,34 @@ export const attendanceRouter = router({
           input.lng
         );
         if (distance > site.radiusMeters) {
+          const wire = formatCheckInRejection(
+            CheckInEligibilityReasonCode.SITE_GEOFENCE_VIOLATION,
+            `You are ${Math.round(distance)}m away from ${site.name}. You must be within ${site.radiusMeters}m to check in.`,
+          );
+          await logAttendanceAuditSafe({
+            companyId: site.companyId,
+            actorUserId: ctx.user.id,
+            actionType: ATTENDANCE_AUDIT_ACTION.SELF_CHECKIN_DENIED,
+            entityType: ATTENDANCE_AUDIT_ENTITY.SELF_CHECKIN_ATTEMPT,
+            entityId: site.id,
+            afterPayload:
+              attendancePayloadJson({
+                outcome: "denied",
+                reasonCode: CheckInEligibilityReasonCode.SITE_GEOFENCE_VIOLATION,
+                wireMessage: wire,
+                policyPath: "site_geofence",
+                siteId: site.id,
+                distanceMeters: Math.round(distance),
+                radiusMeters: site.radiusMeters,
+                lat: input.lat,
+                lng: input.lng,
+              }) ?? undefined,
+            reason: wire,
+            source: ATTENDANCE_AUDIT_SOURCE.EMPLOYEE_PORTAL,
+          });
           throw new TRPCError({
             code: "FORBIDDEN",
-            message: formatCheckInRejection(
-              CheckInEligibilityReasonCode.SITE_GEOFENCE_VIOLATION,
-              `You are ${Math.round(distance)}m away from ${site.name}. You must be within ${site.radiusMeters}m to check in.`
-            ),
+            message: wire,
           });
         }
       }
@@ -297,12 +344,33 @@ export const attendanceRouter = router({
           site.timezone
         );
         if (!withinHours) {
+          const wire = formatCheckInRejection(
+            CheckInEligibilityReasonCode.SITE_OPERATING_HOURS_CLOSED,
+            `Check-in is only allowed between ${site.operatingHoursStart} and ${site.operatingHoursEnd} (${site.timezone}).`,
+          );
+          await logAttendanceAuditSafe({
+            companyId: site.companyId,
+            actorUserId: ctx.user.id,
+            actionType: ATTENDANCE_AUDIT_ACTION.SELF_CHECKIN_DENIED,
+            entityType: ATTENDANCE_AUDIT_ENTITY.SELF_CHECKIN_ATTEMPT,
+            entityId: site.id,
+            afterPayload:
+              attendancePayloadJson({
+                outcome: "denied",
+                reasonCode: CheckInEligibilityReasonCode.SITE_OPERATING_HOURS_CLOSED,
+                wireMessage: wire,
+                policyPath: "site_operating_hours",
+                siteId: site.id,
+                operatingHoursStart: site.operatingHoursStart,
+                operatingHoursEnd: site.operatingHoursEnd,
+                timezone: site.timezone,
+              }) ?? undefined,
+            reason: wire,
+            source: ATTENDANCE_AUDIT_SOURCE.EMPLOYEE_PORTAL,
+          });
           throw new TRPCError({
             code: "FORBIDDEN",
-            message: formatCheckInRejection(
-              CheckInEligibilityReasonCode.SITE_OPERATING_HOURS_CLOSED,
-              `Check-in is only allowed between ${site.operatingHoursStart} and ${site.operatingHoursEnd} (${site.timezone}).`
-            ),
+            message: wire,
           });
         }
       }
@@ -310,10 +378,46 @@ export const attendanceRouter = router({
       // Resolve employee
       const membership = await getUserCompany(ctx.user.id);
       if (!membership || membership.company.id !== site.companyId) {
+        await logAttendanceAuditSafe({
+          companyId: site.companyId,
+          actorUserId: ctx.user.id,
+          actionType: ATTENDANCE_AUDIT_ACTION.SELF_CHECKIN_DENIED,
+          entityType: ATTENDANCE_AUDIT_ENTITY.SELF_CHECKIN_ATTEMPT,
+          entityId: site.id,
+          afterPayload:
+            attendancePayloadJson({
+              outcome: "denied",
+              reasonCode: "NOT_COMPANY_MEMBER",
+              policyPath: "membership",
+              siteId: site.id,
+            }) ?? undefined,
+          reason: "You are not a member of this company",
+          source: ATTENDANCE_AUDIT_SOURCE.EMPLOYEE_PORTAL,
+        });
         throw new TRPCError({ code: "FORBIDDEN", message: "You are not a member of this company" });
       }
+      const memberRole = membership.member.role;
       const emp = await resolveMyEmployee(ctx.user.id, ctx.user.email ?? "", site.companyId);
-      if (!emp) throw new TRPCError({ code: "NOT_FOUND", message: "Employee record not found. Please contact HR." });
+      if (!emp) {
+        await logAttendanceAuditSafe({
+          companyId: site.companyId,
+          actorUserId: ctx.user.id,
+          actorRole: memberRole,
+          actionType: ATTENDANCE_AUDIT_ACTION.SELF_CHECKIN_DENIED,
+          entityType: ATTENDANCE_AUDIT_ENTITY.SELF_CHECKIN_ATTEMPT,
+          entityId: site.id,
+          afterPayload:
+            attendancePayloadJson({
+              outcome: "denied",
+              reasonCode: "NO_EMPLOYEE_RECORD",
+              policyPath: "employee_resolution",
+              siteId: site.id,
+            }) ?? undefined,
+          reason: "Employee record not found. Please contact HR.",
+          source: ATTENDANCE_AUDIT_SOURCE.EMPLOYEE_PORTAL,
+        });
+        throw new TRPCError({ code: "NOT_FOUND", message: "Employee record not found. Please contact HR." });
+      }
 
       const businessDate = new Date().toISOString().slice(0, 10);
       const dayCtx = await resolveEmployeeAttendanceDayContext(db, {
@@ -341,9 +445,33 @@ export const attendanceRouter = router({
 
       if (!gate.canCheckIn) {
         const code = gate.reasonCode;
+        const wire = formatCheckInRejection(code, gate.message);
+        await logAttendanceAuditSafe({
+          companyId: site.companyId,
+          employeeId: emp.id,
+          actorUserId: ctx.user.id,
+          actorRole: memberRole,
+          actionType: ATTENDANCE_AUDIT_ACTION.SELF_CHECKIN_DENIED,
+          entityType: ATTENDANCE_AUDIT_ENTITY.SELF_CHECKIN_ATTEMPT,
+          entityId: site.id,
+          afterPayload:
+            attendancePayloadJson({
+              outcome: "denied",
+              reasonCode: code,
+              wireMessage: wire,
+              policyPath: "eligibility_gate",
+              siteId: site.id,
+              businessDate: dayCtx.businessDate,
+              assignedSiteId: dayCtx.assignedSiteId,
+              scannedSiteId: site.id,
+              checkInOpensAt: gate.checkInOpensAt,
+            }) ?? undefined,
+          reason: wire,
+          source: ATTENDANCE_AUDIT_SOURCE.EMPLOYEE_PORTAL,
+        });
         throw new TRPCError({
           code: code === CheckInEligibilityReasonCode.ALREADY_CHECKED_IN ? "CONFLICT" : "FORBIDDEN",
-          message: formatCheckInRejection(code, gate.message),
+          message: wire,
         });
       }
 
@@ -358,28 +486,76 @@ export const attendanceRouter = router({
         .orderBy(desc(attendanceRecords.checkIn))
         .limit(1);
       if (openSession) {
+        const wire = formatCheckInRejection(
+          CheckInEligibilityReasonCode.ALREADY_CHECKED_IN,
+          "You already have an active check-in. Check out before starting a new session.",
+        );
+        await logAttendanceAuditSafe({
+          companyId: site.companyId,
+          employeeId: emp.id,
+          actorUserId: ctx.user.id,
+          actorRole: memberRole,
+          actionType: ATTENDANCE_AUDIT_ACTION.SELF_CHECKIN_DENIED,
+          entityType: ATTENDANCE_AUDIT_ENTITY.SELF_CHECKIN_ATTEMPT,
+          entityId: site.id,
+          afterPayload:
+            attendancePayloadJson({
+              outcome: "denied",
+              reasonCode: CheckInEligibilityReasonCode.ALREADY_CHECKED_IN,
+              wireMessage: wire,
+              policyPath: "open_session_enforcement",
+              siteId: site.id,
+              openAttendanceRecordId: openSession.id,
+            }) ?? undefined,
+          reason: wire,
+          source: ATTENDANCE_AUDIT_SOURCE.EMPLOYEE_PORTAL,
+        });
         throw new TRPCError({
           code: "CONFLICT",
-          message: formatCheckInRejection(
-            CheckInEligibilityReasonCode.ALREADY_CHECKED_IN,
-            "You already have an active check-in. Check out before starting a new session."
-          ),
+          message: wire,
         });
       }
 
-      const [result] = await db.insert(attendanceRecords).values({
-        companyId: site.companyId,
-        employeeId: emp.id,
-        siteId: site.id,
-        siteName: site.name,
-        checkIn: new Date(),
-        checkInLat: input.lat ? String(input.lat) : null,
-        checkInLng: input.lng ? String(input.lng) : null,
-        method: "qr_scan",
+      let record: (typeof attendanceRecords.$inferSelect) | undefined;
+      await db.transaction(async (tx) => {
+        const [result] = await tx.insert(attendanceRecords).values({
+          companyId: site.companyId,
+          employeeId: emp.id,
+          siteId: site.id,
+          siteName: site.name,
+          checkIn: new Date(),
+          checkInLat: input.lat ? String(input.lat) : null,
+          checkInLng: input.lng ? String(input.lng) : null,
+          method: "qr_scan",
+        });
+        const recordId = (result as { insertId?: number }).insertId;
+        if (!recordId) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Check-in insert failed" });
+        const [r] = await tx.select().from(attendanceRecords).where(eq(attendanceRecords.id, recordId)).limit(1);
+        record = r;
+        await insertAttendanceAuditRow(tx, {
+          companyId: site.companyId,
+          employeeId: emp.id,
+          attendanceRecordId: recordId,
+          actorUserId: ctx.user.id,
+          actorRole: memberRole,
+          actionType: ATTENDANCE_AUDIT_ACTION.SELF_CHECKIN_ALLOWED,
+          entityType: ATTENDANCE_AUDIT_ENTITY.ATTENDANCE_RECORD,
+          entityId: recordId,
+          afterPayload:
+            attendancePayloadJson({
+              outcome: "allowed",
+              siteId: site.id,
+              siteName: site.name,
+              method: "qr_scan",
+              checkInLat: input.lat ?? null,
+              checkInLng: input.lng ?? null,
+              businessDate: dayCtx.businessDate,
+              assignedSiteId: dayCtx.assignedSiteId,
+            }) ?? undefined,
+          source: ATTENDANCE_AUDIT_SOURCE.EMPLOYEE_PORTAL,
+        });
       });
-      const recordId = (result as any).insertId;
-      const [record] = await db.select().from(attendanceRecords).where(eq(attendanceRecords.id, recordId)).limit(1);
-      return record;
+      return record!;
     }),
 
   // ─── Employee: Check out ──────────────────────────────────────────────────
@@ -410,14 +586,41 @@ export const attendanceRouter = router({
         throw new TRPCError({ code: "NOT_FOUND", message: "No active check-in found for today" });
       }
 
-      await db.update(attendanceRecords).set({
-        checkOut: new Date(),
-        checkOutLat: input.lat ? String(input.lat) : null,
-        checkOutLng: input.lng ? String(input.lng) : null,
-      }).where(eq(attendanceRecords.id, existing.id));
-
-      const [updated] = await db.select().from(attendanceRecords).where(eq(attendanceRecords.id, existing.id)).limit(1);
-      return updated;
+      let updated: (typeof attendanceRecords.$inferSelect) | undefined;
+      await db.transaction(async (tx) => {
+        await tx
+          .update(attendanceRecords)
+          .set({
+            checkOut: new Date(),
+            checkOutLat: input.lat ? String(input.lat) : null,
+            checkOutLng: input.lng ? String(input.lng) : null,
+          })
+          .where(eq(attendanceRecords.id, existing.id));
+        const [u] = await tx.select().from(attendanceRecords).where(eq(attendanceRecords.id, existing.id)).limit(1);
+        updated = u;
+        await insertAttendanceAuditRow(tx, {
+          companyId: membership.company.id,
+          employeeId: emp.id,
+          attendanceRecordId: existing.id,
+          actorUserId: ctx.user.id,
+          actorRole: membership.member.role,
+          actionType: ATTENDANCE_AUDIT_ACTION.SELF_CHECKOUT,
+          entityType: ATTENDANCE_AUDIT_ENTITY.ATTENDANCE_RECORD,
+          entityId: existing.id,
+          beforePayload: attendancePayloadJson(existing) ?? undefined,
+          afterPayload:
+            attendancePayloadJson({
+              record: u,
+              clientMeta: {
+                checkOutLat: input.lat ?? null,
+                checkOutLng: input.lng ?? null,
+                siteTokenPresent: input.siteToken != null,
+              },
+            }) ?? undefined,
+          source: ATTENDANCE_AUDIT_SOURCE.EMPLOYEE_PORTAL,
+        });
+      });
+      return updated!;
     }),
 
   // ─── Employee: Get today's attendance record ──────────────────────────────
@@ -589,21 +792,47 @@ export const attendanceRouter = router({
         .limit(1);
       if (existing) throw new TRPCError({ code: "CONFLICT", message: "You already have a pending manual check-in request for today" });
 
-      const [req] = await db
-        .insert(manualCheckinRequests)
-        .values({
+      const emp = await resolveMyEmployee(ctx.user.id, ctx.user.email ?? "", membership.company.id);
+      let newReqId = 0;
+      await db.transaction(async (tx) => {
+        const [req] = await tx
+          .insert(manualCheckinRequests)
+          .values({
+            companyId: membership.company.id,
+            employeeUserId: ctx.user.id,
+            siteId: site.id,
+            justification: input.justification,
+            lat: input.lat != null ? String(input.lat) : undefined,
+            lng: input.lng != null ? String(input.lng) : undefined,
+            distanceMeters: input.distanceMeters,
+            status: "pending",
+          })
+          .$returningId();
+        newReqId = req.id;
+        await insertAttendanceAuditRow(tx, {
           companyId: membership.company.id,
-          employeeUserId: ctx.user.id,
-          siteId: site.id,
-          justification: input.justification,
-          lat: input.lat != null ? String(input.lat) : undefined,
-          lng: input.lng != null ? String(input.lng) : undefined,
-          distanceMeters: input.distanceMeters,
-          status: "pending",
-        })
-        .$returningId();
+          employeeId: emp?.id,
+          manualCheckinRequestId: req.id,
+          actorUserId: ctx.user.id,
+          actorRole: membership.member.role,
+          actionType: ATTENDANCE_AUDIT_ACTION.MANUAL_CHECKIN_SUBMIT,
+          entityType: ATTENDANCE_AUDIT_ENTITY.MANUAL_CHECKIN_REQUEST,
+          entityId: req.id,
+          afterPayload:
+            attendancePayloadJson({
+              siteId: site.id,
+              siteName: site.name,
+              status: "pending",
+              lat: input.lat ?? null,
+              lng: input.lng ?? null,
+              distanceMeters: input.distanceMeters ?? null,
+            }) ?? undefined,
+          reason: input.justification,
+          source: ATTENDANCE_AUDIT_SOURCE.EMPLOYEE_PORTAL,
+        });
+      });
 
-      return { id: req.id, status: "pending" as const };
+      return { id: newReqId, status: "pending" as const };
     }),
 
   /**
@@ -673,56 +902,56 @@ export const attendanceRouter = router({
         });
       }
 
-      // Create attendance record
-      const [record] = await db
-        .insert(attendanceRecords)
-        .values({
+      let recordIdOut = 0;
+      await db.transaction(async (tx) => {
+        const [record] = await tx
+          .insert(attendanceRecords)
+          .values({
+            companyId: membership.company.id,
+            employeeId: empRow.id,
+            siteId: req.siteId,
+            checkIn: req.requestedAt,
+            checkInLat: req.lat ?? undefined,
+            checkInLng: req.lng ?? undefined,
+            method: "manual" as const,
+            notes: `Manual check-in approved. Justification: ${req.justification}`,
+          })
+          .$returningId();
+        recordIdOut = record.id;
+        await tx
+          .update(manualCheckinRequests)
+          .set({
+            status: "approved",
+            reviewedByUserId: ctx.user.id,
+            reviewedAt: new Date(),
+            adminNote: input.adminNote ?? null,
+            attendanceRecordId: record.id,
+          })
+          .where(eq(manualCheckinRequests.id, input.requestId));
+        await insertAttendanceAuditRow(tx, {
           companyId: membership.company.id,
           employeeId: empRow.id,
-          siteId: req.siteId,
-          checkIn: req.requestedAt,
-          checkInLat: req.lat ?? undefined,
-          checkInLng: req.lng ?? undefined,
-          method: "manual" as const,
-          notes: `Manual check-in approved. Justification: ${req.justification}`,
-        })
-        .$returningId();
-
-      // Update request status
-      await db
-        .update(manualCheckinRequests)
-        .set({
-          status: "approved",
-          reviewedByUserId: ctx.user.id,
-          reviewedAt: new Date(),
-          adminNote: input.adminNote ?? null,
           attendanceRecordId: record.id,
-        })
-        .where(eq(manualCheckinRequests.id, input.requestId));
-
-      await logAttendanceAudit({
-        companyId: membership.company.id,
-        employeeId: empRow.id,
-        attendanceRecordId: record.id,
-        manualCheckinRequestId: input.requestId,
-        actorUserId: ctx.user.id,
-        actorRole: membership.member.role,
-        actionType: "manual_checkin_approve",
-        entityType: "manual_checkin_request",
-        entityId: input.requestId,
-        beforePayload: attendancePayloadJson(req) ?? undefined,
-        afterPayload:
-          attendancePayloadJson({
-            status: "approved",
-            attendanceRecordId: record.id,
-            adminNote: input.adminNote ?? null,
-            reviewedByUserId: ctx.user.id,
-          }) ?? undefined,
-        reason: input.adminNote?.trim() || req.justification,
-        source: "admin_panel",
+          manualCheckinRequestId: input.requestId,
+          actorUserId: ctx.user.id,
+          actorRole: membership.member.role,
+          actionType: ATTENDANCE_AUDIT_ACTION.MANUAL_CHECKIN_APPROVE,
+          entityType: ATTENDANCE_AUDIT_ENTITY.MANUAL_CHECKIN_REQUEST,
+          entityId: input.requestId,
+          beforePayload: attendancePayloadJson(req) ?? undefined,
+          afterPayload:
+            attendancePayloadJson({
+              status: "approved",
+              attendanceRecordId: record.id,
+              adminNote: input.adminNote ?? null,
+              reviewedByUserId: ctx.user.id,
+            }) ?? undefined,
+          reason: input.adminNote?.trim() || req.justification,
+          source: ATTENDANCE_AUDIT_SOURCE.ADMIN_PANEL,
+        });
       });
 
-      return { success: true, attendanceRecordId: record.id };
+      return { success: true, attendanceRecordId: recordIdOut };
     }),
 
   /**
@@ -748,40 +977,41 @@ export const attendanceRouter = router({
         .limit(1);
       if (!req) throw new TRPCError({ code: "NOT_FOUND", message: "Request not found or already reviewed" });
 
-      await db
-        .update(manualCheckinRequests)
-        .set({
-          status: "rejected",
-          reviewedByUserId: ctx.user.id,
-          reviewedAt: new Date(),
-          adminNote: input.adminNote,
-        })
-        .where(eq(manualCheckinRequests.id, input.requestId));
-
       const [empRow] = await db
         .select({ id: employees.id })
         .from(employees)
         .where(and(eq(employees.companyId, membership.company.id), eq(employees.userId, req.employeeUserId)))
         .limit(1);
 
-      await logAttendanceAudit({
-        companyId: membership.company.id,
-        employeeId: empRow?.id,
-        manualCheckinRequestId: input.requestId,
-        actorUserId: ctx.user.id,
-        actorRole: membership.member.role,
-        actionType: "manual_checkin_reject",
-        entityType: "manual_checkin_request",
-        entityId: input.requestId,
-        beforePayload: attendancePayloadJson(req) ?? undefined,
-        afterPayload:
-          attendancePayloadJson({
+      await db.transaction(async (tx) => {
+        await tx
+          .update(manualCheckinRequests)
+          .set({
             status: "rejected",
-            adminNote: input.adminNote,
             reviewedByUserId: ctx.user.id,
-          }) ?? undefined,
-        reason: input.adminNote,
-        source: "admin_panel",
+            reviewedAt: new Date(),
+            adminNote: input.adminNote,
+          })
+          .where(eq(manualCheckinRequests.id, input.requestId));
+        await insertAttendanceAuditRow(tx, {
+          companyId: membership.company.id,
+          employeeId: empRow?.id,
+          manualCheckinRequestId: input.requestId,
+          actorUserId: ctx.user.id,
+          actorRole: membership.member.role,
+          actionType: ATTENDANCE_AUDIT_ACTION.MANUAL_CHECKIN_REJECT,
+          entityType: ATTENDANCE_AUDIT_ENTITY.MANUAL_CHECKIN_REQUEST,
+          entityId: input.requestId,
+          beforePayload: attendancePayloadJson(req) ?? undefined,
+          afterPayload:
+            attendancePayloadJson({
+              status: "rejected",
+              adminNote: input.adminNote,
+              reviewedByUserId: ctx.user.id,
+            }) ?? undefined,
+          reason: input.adminNote,
+          source: ATTENDANCE_AUDIT_SOURCE.ADMIN_PANEL,
+        });
       });
 
       return { success: true };
@@ -924,88 +1154,91 @@ export const attendanceRouter = router({
         attendanceRecord: beforeArRow,
       });
 
-      let attendanceRecordIdForAudit: number | undefined = req.attendanceRecordId ?? undefined;
+      await db.transaction(async (tx) => {
+        let attendanceRecordIdForAudit: number | undefined = req.attendanceRecordId ?? undefined;
 
-      // If there is an existing attendance record, update its times
-      if (req.attendanceRecordId && (req.requestedCheckIn || req.requestedCheckOut)) {
-        const updates: Record<string, Date | null> = {};
-        if (req.requestedCheckIn) {
+        if (req.attendanceRecordId && (req.requestedCheckIn || req.requestedCheckOut)) {
+          const updates: Record<string, Date | null> = {};
+          if (req.requestedCheckIn) {
+            const [h, m] = req.requestedCheckIn.split(":").map(Number);
+            const dt = new Date(req.requestedDate + "T00:00:00");
+            dt.setHours(h, m, 0, 0);
+            updates.checkIn = dt;
+          }
+          if (req.requestedCheckOut) {
+            const [h, m] = req.requestedCheckOut.split(":").map(Number);
+            const dt = new Date(req.requestedDate + "T00:00:00");
+            dt.setHours(h, m, 0, 0);
+            updates.checkOut = dt;
+          }
+          await tx.update(attendanceRecords).set(updates).where(eq(attendanceRecords.id, req.attendanceRecordId));
+        } else if (!req.attendanceRecordId && req.requestedCheckIn) {
           const [h, m] = req.requestedCheckIn.split(":").map(Number);
-          const dt = new Date(req.requestedDate + "T00:00:00");
-          dt.setHours(h, m, 0, 0);
-          updates.checkIn = dt;
+          const checkInDt = new Date(req.requestedDate + "T00:00:00");
+          checkInDt.setHours(h, m, 0, 0);
+          let checkOutDt: Date | undefined;
+          if (req.requestedCheckOut) {
+            const [ho, mo] = req.requestedCheckOut.split(":").map(Number);
+            checkOutDt = new Date(req.requestedDate + "T00:00:00");
+            checkOutDt.setHours(ho, mo, 0, 0);
+          }
+          const [ins] = await tx
+            .insert(attendanceRecords)
+            .values({
+              companyId: membership.company.id,
+              employeeId: req.employeeId,
+              checkIn: checkInDt,
+              checkOut: checkOutDt,
+              method: "manual" as const,
+              notes: `Correction approved: ${req.reason}`,
+            })
+            .$returningId();
+          attendanceRecordIdForAudit = ins.id;
         }
-        if (req.requestedCheckOut) {
-          const [h, m] = req.requestedCheckOut.split(":").map(Number);
-          const dt = new Date(req.requestedDate + "T00:00:00");
-          dt.setHours(h, m, 0, 0);
-          updates.checkOut = dt;
-        }
-        await db.update(attendanceRecords).set(updates).where(eq(attendanceRecords.id, req.attendanceRecordId));
-      } else if (!req.attendanceRecordId && req.requestedCheckIn) {
-        // Create a new attendance record
-        const [h, m] = req.requestedCheckIn.split(":").map(Number);
-        const checkInDt = new Date(req.requestedDate + "T00:00:00");
-        checkInDt.setHours(h, m, 0, 0);
-        let checkOutDt: Date | undefined;
-        if (req.requestedCheckOut) {
-          const [ho, mo] = req.requestedCheckOut.split(":").map(Number);
-          checkOutDt = new Date(req.requestedDate + "T00:00:00");
-          checkOutDt.setHours(ho, mo, 0, 0);
-        }
-        const [ins] = await db
-          .insert(attendanceRecords)
-          .values({
-            companyId: membership.company.id,
-            employeeId: req.employeeId,
-            checkIn: checkInDt,
-            checkOut: checkOutDt,
-            method: "manual" as const,
-            notes: `Correction approved: ${req.reason}`,
+        await tx
+          .update(attendanceCorrections)
+          .set({
+            status: "approved",
+            reviewedByUserId: ctx.user.id,
+            reviewedAt: new Date(),
+            adminNote: input.adminNote ?? null,
           })
-          .$returningId();
-        attendanceRecordIdForAudit = ins.id;
-      }
-      await db.update(attendanceCorrections).set({
-        status: "approved",
-        reviewedByUserId: ctx.user.id,
-        reviewedAt: new Date(),
-        adminNote: input.adminNote ?? null,
-      }).where(eq(attendanceCorrections.id, input.correctionId));
+          .where(eq(attendanceCorrections.id, input.correctionId));
 
-      let afterArRow: (typeof attendanceRecords.$inferSelect) | null = null;
-      if (attendanceRecordIdForAudit != null) {
-        const [ar2] = await db
+        let afterArRow: (typeof attendanceRecords.$inferSelect) | null = null;
+        if (attendanceRecordIdForAudit != null) {
+          const [ar2] = await tx
+            .select()
+            .from(attendanceRecords)
+            .where(eq(attendanceRecords.id, attendanceRecordIdForAudit))
+            .limit(1);
+          afterArRow = ar2 ?? null;
+        }
+        const [corAfter] = await tx
           .select()
-          .from(attendanceRecords)
-          .where(eq(attendanceRecords.id, attendanceRecordIdForAudit))
+          .from(attendanceCorrections)
+          .where(eq(attendanceCorrections.id, input.correctionId))
           .limit(1);
-        afterArRow = ar2 ?? null;
-      }
-      const [corAfter] = await db
-        .select()
-        .from(attendanceCorrections)
-        .where(eq(attendanceCorrections.id, input.correctionId))
-        .limit(1);
 
-      await logAttendanceAudit({
-        companyId: membership.company.id,
-        employeeId: req.employeeId,
-        attendanceRecordId: attendanceRecordIdForAudit,
-        correctionId: input.correctionId,
-        actorUserId: ctx.user.id,
-        actorRole: membership.member.role,
-        actionType: "correction_approve",
-        entityType: "attendance_correction",
-        entityId: input.correctionId,
-        beforePayload: beforeCorrectionPayload ?? undefined,
-        afterPayload:
-          attendancePayloadJson({
-            correction: corAfter,
-            attendanceRecord: afterArRow,
-          }) ?? undefined,
-        reason: input.adminNote?.trim() || req.reason,
-        source: "admin_panel",
+        await insertAttendanceAuditRow(tx, {
+          companyId: membership.company.id,
+          employeeId: req.employeeId,
+          attendanceRecordId: attendanceRecordIdForAudit,
+          correctionId: input.correctionId,
+          actorUserId: ctx.user.id,
+          actorRole: membership.member.role,
+          actionType: ATTENDANCE_AUDIT_ACTION.CORRECTION_APPROVE,
+          entityType: ATTENDANCE_AUDIT_ENTITY.ATTENDANCE_CORRECTION,
+          entityId: input.correctionId,
+          beforePayload: beforeCorrectionPayload ?? undefined,
+          afterPayload:
+            attendancePayloadJson({
+              correction: corAfter,
+              attendanceRecord: afterArRow,
+            }) ?? undefined,
+          reason: input.adminNote?.trim() || req.reason,
+          source: ATTENDANCE_AUDIT_SOURCE.ADMIN_PANEL,
+        });
       });
 
       return { success: true };
@@ -1031,32 +1264,75 @@ export const attendanceRouter = router({
         .limit(1);
       if (!req) throw new TRPCError({ code: "NOT_FOUND", message: "Request not found or already reviewed" });
       const beforePayload = attendancePayloadJson(req);
-      await db.update(attendanceCorrections).set({
-        status: "rejected",
-        reviewedByUserId: ctx.user.id,
-        reviewedAt: new Date(),
-        adminNote: input.adminNote,
-      }).where(eq(attendanceCorrections.id, input.correctionId));
-      const [corAfter] = await db
-        .select()
-        .from(attendanceCorrections)
-        .where(eq(attendanceCorrections.id, input.correctionId))
-        .limit(1);
-      await logAttendanceAudit({
-        companyId: membership.company.id,
-        employeeId: req.employeeId,
-        correctionId: input.correctionId,
-        actorUserId: ctx.user.id,
-        actorRole: membership.member.role,
-        actionType: "correction_reject",
-        entityType: "attendance_correction",
-        entityId: input.correctionId,
-        beforePayload: beforePayload ?? undefined,
-        afterPayload: attendancePayloadJson(corAfter) ?? undefined,
-        reason: input.adminNote,
-        source: "admin_panel",
+      await db.transaction(async (tx) => {
+        await tx
+          .update(attendanceCorrections)
+          .set({
+            status: "rejected",
+            reviewedByUserId: ctx.user.id,
+            reviewedAt: new Date(),
+            adminNote: input.adminNote,
+          })
+          .where(eq(attendanceCorrections.id, input.correctionId));
+        const [corAfter] = await tx
+          .select()
+          .from(attendanceCorrections)
+          .where(eq(attendanceCorrections.id, input.correctionId))
+          .limit(1);
+        await insertAttendanceAuditRow(tx, {
+          companyId: membership.company.id,
+          employeeId: req.employeeId,
+          correctionId: input.correctionId,
+          actorUserId: ctx.user.id,
+          actorRole: membership.member.role,
+          actionType: ATTENDANCE_AUDIT_ACTION.CORRECTION_REJECT,
+          entityType: ATTENDANCE_AUDIT_ENTITY.ATTENDANCE_CORRECTION,
+          entityId: input.correctionId,
+          beforePayload: beforePayload ?? undefined,
+          afterPayload: attendancePayloadJson(corAfter) ?? undefined,
+          reason: input.adminNote,
+          source: ATTENDANCE_AUDIT_SOURCE.ADMIN_PANEL,
+        });
       });
       return { success: true };
+    }),
+
+  /**
+   * Admin / HR: structural attendance audit trail for the company (investigations, compliance).
+   * Prefer `actionType` values from `@shared/attendanceAuditTaxonomy` `ATTENDANCE_AUDIT_ACTION`.
+   */
+  listAttendanceAudit: protectedProcedure
+    .input(
+      z.object({
+        employeeId: z.number().optional(),
+        actionType: z.string().optional(),
+        createdOnOrAfter: z.string().optional(),
+        createdOnOrBefore: z.string().optional(),
+        limit: z.number().min(1).max(200).default(100),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      const membership = await requireAdminOrHR(ctx.user.id);
+      const db = await requireDb();
+      const conditions = [eq(attendanceAudit.companyId, membership.company.id)];
+      if (input.employeeId != null) {
+        conditions.push(eq(attendanceAudit.employeeId, input.employeeId));
+      }
+      if (input.actionType) {
+        conditions.push(eq(attendanceAudit.actionType, input.actionType as AttendanceAuditActionType));
+      }
+      if (input.createdOnOrAfter) {
+        conditions.push(gte(attendanceAudit.createdAt, new Date(input.createdOnOrAfter + "T00:00:00.000Z")));
+      }
+      if (input.createdOnOrBefore) {
+        conditions.push(lte(attendanceAudit.createdAt, new Date(input.createdOnOrBefore + "T23:59:59.999Z")));
+      }
+      return db
+        .select()
+        .from(attendanceAudit)
+        .where(and(...conditions))
+        .orderBy(desc(attendanceAudit.createdAt))
+        .limit(input.limit);
     }),
 
   // ─── Utility: List available site types ─────────────────────────────────────────

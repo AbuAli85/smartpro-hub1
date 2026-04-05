@@ -1,15 +1,25 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { eq, and, desc, gte, lte, count, sum } from "drizzle-orm";
-import { workPermits, employees, attendanceRecords, leaveRequests, kpiTargets, kpiAchievements, payrollRuns, departments, positions, payrollRecords, performanceReviews } from "../../drizzle/schema";
-import { sendEmployeeNotification } from "./employeePortal";
-import { getDb } from "../db";
 import {
-  createAttendanceRecord,
-  deleteAttendanceRecord,
+  workPermits,
+  employees,
+  attendanceRecords,
+  attendance,
+  leaveRequests,
+  kpiTargets,
+  kpiAchievements,
+  payrollRuns,
+  departments,
+  positions,
+  payrollRecords,
+  performanceReviews,
+} from "../../drizzle/schema";
+import { sendEmployeeNotification } from "./employeePortal";
+import {
+  createAttendanceRecordTx,
   getAttendanceRecordById,
   getAttendanceStats,
-  updateAttendanceRecord,
   createEmployee,
   createJobApplication,
   createJobPosting,
@@ -17,6 +27,7 @@ import {
   createPayrollRecord,
   createPerformanceReview,
   getAttendance,
+  getDb,
   getEmployeeById,
   getEmployees,
   getJobApplicationById,
@@ -38,7 +49,12 @@ import {
 import { assertRowBelongsToActiveCompany, requireActiveCompanyId } from "../_core/tenant";
 import { getActiveCompanyMembership, requireNotAuditor } from "../_core/membership";
 import { protectedProcedure, router } from "../_core/trpc";
-import { attendancePayloadJson, logAttendanceAudit } from "../attendanceAudit";
+import {
+  ATTENDANCE_AUDIT_ACTION,
+  ATTENDANCE_AUDIT_ENTITY,
+  ATTENDANCE_AUDIT_SOURCE,
+} from "@shared/attendanceAuditTaxonomy";
+import { attendancePayloadJson, insertAttendanceAuditRow } from "../attendanceAudit";
 
 export const hrRouter = router({
   // Employees
@@ -551,37 +567,41 @@ export const hrRouter = router({
       if (emp.companyId !== companyId) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
       const auditPrefix = `[HR audit userId=${ctx.user.id} at ${new Date().toISOString()}] `;
       const fullNotes = auditPrefix + input.notes.trim();
-      const hrId = await createAttendanceRecord({
-        companyId,
-        employeeId: input.employeeId,
-        date: new Date(input.date),
-        checkIn: input.checkIn ? new Date(input.checkIn) : undefined,
-        checkOut: input.checkOut ? new Date(input.checkOut) : undefined,
-        status: input.status,
-        notes: fullNotes,
-      });
-      await logAttendanceAudit({
-        companyId,
-        employeeId: input.employeeId,
-        hrAttendanceId: hrId,
-        actorUserId: ctx.user.id,
-        actorRole: membership.role,
-        actionType: "hr_attendance_create",
-        entityType: "hr_attendance",
-        entityId: hrId,
-        afterPayload:
-          attendancePayloadJson({
-            id: hrId,
-            companyId,
-            employeeId: input.employeeId,
-            date: input.date,
-            checkIn: input.checkIn ?? null,
-            checkOut: input.checkOut ?? null,
-            status: input.status,
-            notes: fullNotes,
-          }) ?? undefined,
-        reason: input.notes.trim(),
-        source: "hr_panel",
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      await db.transaction(async (tx) => {
+        const hrId = await createAttendanceRecordTx(tx, {
+          companyId,
+          employeeId: input.employeeId,
+          date: new Date(input.date),
+          checkIn: input.checkIn ? new Date(input.checkIn) : undefined,
+          checkOut: input.checkOut ? new Date(input.checkOut) : undefined,
+          status: input.status,
+          notes: fullNotes,
+        });
+        await insertAttendanceAuditRow(tx, {
+          companyId,
+          employeeId: input.employeeId,
+          hrAttendanceId: hrId,
+          actorUserId: ctx.user.id,
+          actorRole: membership.role,
+          actionType: ATTENDANCE_AUDIT_ACTION.HR_ATTENDANCE_CREATE,
+          entityType: ATTENDANCE_AUDIT_ENTITY.HR_ATTENDANCE,
+          entityId: hrId,
+          afterPayload:
+            attendancePayloadJson({
+              id: hrId,
+              companyId,
+              employeeId: input.employeeId,
+              date: input.date,
+              checkIn: input.checkIn ?? null,
+              checkOut: input.checkOut ?? null,
+              status: input.status,
+              notes: fullNotes,
+            }) ?? undefined,
+          reason: input.notes.trim(),
+          source: ATTENDANCE_AUDIT_SOURCE.HR_PANEL,
+        });
       });
       return { success: true };
     }),
@@ -603,25 +623,32 @@ export const hrRouter = router({
       if (!membership) throw new TRPCError({ code: "FORBIDDEN", message: "No company membership" });
       requireNotAuditor(membership.role);
       const beforePayload = attendancePayloadJson(row);
-      await updateAttendanceRecord(id, {
-        ...rest,
-        checkIn: checkIn ? new Date(checkIn) : undefined,
-        checkOut: checkOut ? new Date(checkOut) : undefined,
-      });
-      const afterRow = await getAttendanceRecordById(id);
-      await logAttendanceAudit({
-        companyId: row.companyId,
-        employeeId: row.employeeId,
-        hrAttendanceId: id,
-        actorUserId: ctx.user.id,
-        actorRole: membership.role,
-        actionType: "hr_attendance_update",
-        entityType: "hr_attendance",
-        entityId: id,
-        beforePayload: beforePayload ?? undefined,
-        afterPayload: attendancePayloadJson(afterRow) ?? undefined,
-        reason: input.notes?.trim(),
-        source: "hr_panel",
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      await db.transaction(async (tx) => {
+        await tx
+          .update(attendance)
+          .set({
+            ...rest,
+            checkIn: checkIn ? new Date(checkIn) : undefined,
+            checkOut: checkOut ? new Date(checkOut) : undefined,
+          })
+          .where(eq(attendance.id, id));
+        const [afterRow] = await tx.select().from(attendance).where(eq(attendance.id, id)).limit(1);
+        await insertAttendanceAuditRow(tx, {
+          companyId: row.companyId,
+          employeeId: row.employeeId,
+          hrAttendanceId: id,
+          actorUserId: ctx.user.id,
+          actorRole: membership.role,
+          actionType: ATTENDANCE_AUDIT_ACTION.HR_ATTENDANCE_UPDATE,
+          entityType: ATTENDANCE_AUDIT_ENTITY.HR_ATTENDANCE,
+          entityId: id,
+          beforePayload: beforePayload ?? undefined,
+          afterPayload: attendancePayloadJson(afterRow) ?? undefined,
+          reason: input.notes?.trim(),
+          source: ATTENDANCE_AUDIT_SOURCE.HR_PANEL,
+        });
       });
       return { success: true };
     }),
@@ -636,18 +663,22 @@ export const hrRouter = router({
       if (!membership) throw new TRPCError({ code: "FORBIDDEN", message: "No company membership" });
       requireNotAuditor(membership.role);
       const beforePayload = attendancePayloadJson(row);
-      await deleteAttendanceRecord(input.id);
-      await logAttendanceAudit({
-        companyId: row.companyId,
-        employeeId: row.employeeId,
-        hrAttendanceId: input.id,
-        actorUserId: ctx.user.id,
-        actorRole: membership.role,
-        actionType: "hr_attendance_delete",
-        entityType: "hr_attendance",
-        entityId: input.id,
-        beforePayload: beforePayload ?? undefined,
-        source: "hr_panel",
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      await db.transaction(async (tx) => {
+        await tx.delete(attendance).where(eq(attendance.id, input.id));
+        await insertAttendanceAuditRow(tx, {
+          companyId: row.companyId,
+          employeeId: row.employeeId,
+          hrAttendanceId: input.id,
+          actorUserId: ctx.user.id,
+          actorRole: membership.role,
+          actionType: ATTENDANCE_AUDIT_ACTION.HR_ATTENDANCE_DELETE,
+          entityType: ATTENDANCE_AUDIT_ENTITY.HR_ATTENDANCE,
+          entityId: input.id,
+          beforePayload: beforePayload ?? undefined,
+          source: ATTENDANCE_AUDIT_SOURCE.HR_PANEL,
+        });
       });
       return { success: true };
     }),

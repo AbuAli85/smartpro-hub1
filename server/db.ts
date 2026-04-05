@@ -884,7 +884,7 @@ export async function getAttendance(companyId: number, month?: string) {
   });
 }
 
-export async function createAttendanceRecord(data: {
+export type AttendanceLegacyInsert = {
   companyId: number;
   employeeId: number;
   date: Date;
@@ -892,13 +892,29 @@ export async function createAttendanceRecord(data: {
   checkOut?: Date;
   status: "present" | "absent" | "late" | "half_day" | "remote";
   notes?: string;
-}): Promise<number> {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
-  const [result] = (await db.insert(attendance).values(data)) as unknown as [{ insertId?: number }];
+};
+
+type AttendanceTableInsertClient = {
+  insert: (t: typeof attendance) => {
+    values: (v: typeof attendance.$inferInsert) => Promise<unknown>;
+  };
+};
+
+/** Use inside `db.transaction` so HR attendance + audit commit atomically. */
+export async function createAttendanceRecordTx(
+  tx: AttendanceTableInsertClient,
+  data: AttendanceLegacyInsert,
+): Promise<number> {
+  const [result] = (await tx.insert(attendance).values(data)) as unknown as [{ insertId?: number }];
   const insertId = Number(result?.insertId ?? 0);
   if (!insertId) throw new Error("Failed to resolve attendance insert id");
   return insertId;
+}
+
+export async function createAttendanceRecord(data: AttendanceLegacyInsert): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return createAttendanceRecordTx(db, data);
 }
 
 export async function getAttendanceStats(companyId: number, month?: string) {

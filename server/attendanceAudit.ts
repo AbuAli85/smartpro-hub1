@@ -15,11 +15,44 @@ export function attendancePayloadJson(value: unknown): Record<string, unknown> |
   }
 }
 
+type AuditInsertClient = {
+  insert: (t: typeof attendanceAudit) => {
+    values: (v: InsertAttendanceAudit) => Promise<unknown>;
+  };
+};
+
 /**
- * Writes a structural attendance audit row. No-ops when DB is unavailable (e.g. some unit tests).
+ * Inserts one row using the given DB or transaction client.
+ * In production, a missing client throws (audit must not silently vanish when the app claims to be live).
+ */
+export async function insertAttendanceAuditRow(
+  client: AuditInsertClient | null | undefined,
+  row: InsertAttendanceAudit,
+): Promise<void> {
+  if (!client) {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error("Attendance audit: database client unavailable");
+    }
+    return;
+  }
+  await client.insert(attendanceAudit).values(row);
+}
+
+/**
+ * Structural attendance audit using the pooled connection (non-transactional).
  */
 export async function logAttendanceAudit(row: InsertAttendanceAudit): Promise<void> {
-  const db = await getDb();
-  if (!db) return;
-  await db.insert(attendanceAudit).values(row);
+  await insertAttendanceAuditRow(await getDb(), row);
+}
+
+/**
+ * Best-effort audit for **deny / supplemental** paths where the primary outcome is still a normal TRPC error.
+ * Insert failures are logged only; they never replace policy errors.
+ */
+export async function logAttendanceAuditSafe(row: InsertAttendanceAudit): Promise<void> {
+  try {
+    await logAttendanceAudit(row);
+  } catch (err) {
+    console.error("[attendanceAudit] logAttendanceAuditSafe failed (best-effort)", err);
+  }
 }

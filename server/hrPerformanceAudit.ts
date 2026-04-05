@@ -1,5 +1,4 @@
 import { auditEvents } from "../drizzle/schema";
-import { getDb } from "./db";
 
 /** JSON-safe fields for training audit (before/after). */
 export function trainingRecordAuditSnapshot(r: {
@@ -37,13 +36,19 @@ export function selfReviewAuditSnapshot(r: {
   };
 }
 
-type DbInstance = NonNullable<Awaited<ReturnType<typeof getDb>>>;
+/** DB or transaction client with Drizzle `.insert`. */
+type DbInsertClient = {
+  insert: (t: typeof auditEvents) => {
+    values: (v: typeof auditEvents.$inferInsert) => Promise<unknown>;
+  };
+};
 
 /**
  * Writes one audit_events row. Call only after a successful mutation.
+ * Use the same client as the surrounding transaction so audit failure rolls back the mutation.
  */
 export async function insertHrPerformanceAuditEvent(
-  db: DbInstance,
+  db: DbInsertClient,
   params: {
     companyId: number;
     actorUserId: number;

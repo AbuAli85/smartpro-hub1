@@ -10,6 +10,7 @@ import {
 import type { User } from "../../drizzle/schema";
 import { requireActiveCompanyId } from "../_core/tenant";
 import { canAccessGlobalAdminProcedures } from "@shared/rbac";
+import { memberHasHrPerformancePermission } from "@shared/hrPerformancePermissions";
 import {
   assertSelfReviewManagerUpdateAllowed,
   assertTrainingStatusTransition,
@@ -22,8 +23,7 @@ import {
 } from "../hrPerformanceAudit";
 
 /**
- * Granular HR performance permissions (company_members.permissions JSON).
- * company_admin bypasses via hasCompanyPermission.
+ * HR performance keys: role defaults ∪ company_members.permissions (see shared/hrPerformancePermissions.ts).
  */
 async function hasCompanyPermission(
   user: Pick<User, "id" | "role" | "platformRole">,
@@ -45,9 +45,7 @@ async function hasCompanyPermission(
     )
     .limit(1);
   if (!member) return false;
-  if (member.role === "company_admin") return true;
-  const perms: string[] = Array.isArray(member.permissions) ? member.permissions : [];
-  return perms.includes(permission) || perms.includes("*");
+  return memberHasHrPerformancePermission(member, permission);
 }
 
 async function assertCanReadSelfReviews(user: User, companyId: number): Promise<void> {
@@ -333,40 +331,42 @@ export const financeHRRouter = router({
       const companyId = input.companyId ?? await requireActiveCompanyId(ctx.user.id);
       await assertCanManageTraining(ctx.user, companyId);
 
-      const insertResult = await db.insert(trainingRecords).values({
-        companyId,
-        employeeUserId: input.employeeId,
-        title: input.title,
-        provider: input.provider,
-        description: input.description,
-        startDate: input.startDate,
-        endDate: input.endDate,
-        dueDate: input.dueDate,
-        durationHours: input.durationHours,
-        trainingCategory: input.category,
-        trainingStatus: "assigned",
-        assignedByUserId: ctx.user.id,
-      });
-      const newId = Number(insertResult[0].insertId);
-      await insertHrPerformanceAuditEvent(db, {
-        companyId,
-        actorUserId: ctx.user.id,
-        entityType: "training_record",
-        entityId: newId,
-        action: "training.assigned",
-        beforeState: null,
-        afterState: {
-          ...trainingRecordAuditSnapshot({
-            trainingStatus: "assigned",
-            score: null,
-            certificateUrl: null,
-            completedAt: null,
-            employeeUserId: input.employeeId,
-          }),
+      await db.transaction(async (tx) => {
+        const insertResult = await tx.insert(trainingRecords).values({
+          companyId,
+          employeeUserId: input.employeeId,
           title: input.title,
-          provider: input.provider ?? null,
+          provider: input.provider,
+          description: input.description,
+          startDate: input.startDate,
+          endDate: input.endDate,
+          dueDate: input.dueDate,
+          durationHours: input.durationHours,
           trainingCategory: input.category,
-        },
+          trainingStatus: "assigned",
+          assignedByUserId: ctx.user.id,
+        });
+        const newId = Number(insertResult[0].insertId);
+        await insertHrPerformanceAuditEvent(tx, {
+          companyId,
+          actorUserId: ctx.user.id,
+          entityType: "training_record",
+          entityId: newId,
+          action: "training.assigned",
+          beforeState: null,
+          afterState: {
+            ...trainingRecordAuditSnapshot({
+              trainingStatus: "assigned",
+              score: null,
+              certificateUrl: null,
+              completedAt: null,
+              employeeUserId: input.employeeId,
+            }),
+            title: input.title,
+            provider: input.provider ?? null,
+            trainingCategory: input.category,
+          },
+        });
       });
       return { success: true };
     }),
@@ -467,18 +467,6 @@ export const financeHRRouter = router({
 
       const beforeSnapshot = trainingRecordAuditSnapshot(row);
 
-      await db
-        .update(trainingRecords)
-        .set({
-          ...(input.trainingStatus !== undefined && {
-            trainingStatus: input.trainingStatus,
-            completedAt: input.trainingStatus === "completed" ? new Date() : null,
-          }),
-          ...(input.score !== undefined && { score: input.score }),
-          ...(input.certificateUrl !== undefined && { certificateUrl: input.certificateUrl ?? null }),
-        })
-        .where(eq(trainingRecords.id, input.id));
-
       const afterMerged = {
         ...row,
         ...(input.trainingStatus !== undefined && {
@@ -488,14 +476,29 @@ export const financeHRRouter = router({
         ...(input.score !== undefined && { score: input.score }),
         ...(input.certificateUrl !== undefined && { certificateUrl: input.certificateUrl ?? null }),
       };
-      await insertHrPerformanceAuditEvent(db, {
-        companyId,
-        actorUserId: ctx.user.id,
-        entityType: "training_record",
-        entityId: row.id,
-        action: "training.updated",
-        beforeState: beforeSnapshot,
-        afterState: trainingRecordAuditSnapshot(afterMerged),
+
+      await db.transaction(async (tx) => {
+        await tx
+          .update(trainingRecords)
+          .set({
+            ...(input.trainingStatus !== undefined && {
+              trainingStatus: input.trainingStatus,
+              completedAt: input.trainingStatus === "completed" ? new Date() : null,
+            }),
+            ...(input.score !== undefined && { score: input.score }),
+            ...(input.certificateUrl !== undefined && { certificateUrl: input.certificateUrl ?? null }),
+          })
+          .where(eq(trainingRecords.id, input.id));
+
+        await insertHrPerformanceAuditEvent(tx, {
+          companyId,
+          actorUserId: ctx.user.id,
+          entityType: "training_record",
+          entityId: row.id,
+          action: "training.updated",
+          beforeState: beforeSnapshot,
+          afterState: trainingRecordAuditSnapshot(afterMerged),
+        });
       });
       return { success: true };
     }),
@@ -563,17 +566,6 @@ export const financeHRRouter = router({
 
       const beforeSnapshot = selfReviewAuditSnapshot(row);
 
-      await db
-        .update(employeeSelfReviews)
-        .set({
-          ...(input.managerRating !== undefined && { managerRating: input.managerRating }),
-          ...(input.managerFeedback !== undefined && { managerFeedback: input.managerFeedback }),
-          ...(input.goalsNextPeriod !== undefined && { goalsNextPeriod: input.goalsNextPeriod }),
-          ...(input.reviewStatus !== undefined && { reviewStatus: input.reviewStatus }),
-          ...(transitioningToReviewed ? { reviewedAt: new Date(), reviewedByUserId: ctx.user.id } : {}),
-        })
-        .where(eq(employeeSelfReviews.id, input.id));
-
       const afterMerged = {
         ...row,
         ...(input.managerRating !== undefined && { managerRating: input.managerRating }),
@@ -582,14 +574,28 @@ export const financeHRRouter = router({
         ...(input.reviewStatus !== undefined && { reviewStatus: input.reviewStatus }),
         ...(transitioningToReviewed ? { reviewedAt: new Date(), reviewedByUserId: ctx.user.id } : {}),
       };
-      await insertHrPerformanceAuditEvent(db, {
-        companyId,
-        actorUserId: ctx.user.id,
-        entityType: "self_review",
-        entityId: row.id,
-        action: transitioningToReviewed ? "self_review.reviewed" : "self_review.updated",
-        beforeState: beforeSnapshot,
-        afterState: selfReviewAuditSnapshot(afterMerged),
+
+      await db.transaction(async (tx) => {
+        await tx
+          .update(employeeSelfReviews)
+          .set({
+            ...(input.managerRating !== undefined && { managerRating: input.managerRating }),
+            ...(input.managerFeedback !== undefined && { managerFeedback: input.managerFeedback }),
+            ...(input.goalsNextPeriod !== undefined && { goalsNextPeriod: input.goalsNextPeriod }),
+            ...(input.reviewStatus !== undefined && { reviewStatus: input.reviewStatus }),
+            ...(transitioningToReviewed ? { reviewedAt: new Date(), reviewedByUserId: ctx.user.id } : {}),
+          })
+          .where(eq(employeeSelfReviews.id, input.id));
+
+        await insertHrPerformanceAuditEvent(tx, {
+          companyId,
+          actorUserId: ctx.user.id,
+          entityType: "self_review",
+          entityId: row.id,
+          action: transitioningToReviewed ? "self_review.reviewed" : "self_review.updated",
+          beforeState: beforeSnapshot,
+          afterState: selfReviewAuditSnapshot(afterMerged),
+        });
       });
       return { success: true };
     }),

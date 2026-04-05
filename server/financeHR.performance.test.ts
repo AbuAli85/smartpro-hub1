@@ -25,7 +25,7 @@ function makeCtx(userId = 1): TrpcContext {
 }
 
 function createTableAwareDb(queue: { table: object; rows: unknown[] }[]) {
-  return {
+  const mock: Record<string, unknown> = {
     select: vi.fn(() => ({
       from: vi.fn((table: object) => ({
         where: vi.fn(() => ({
@@ -50,7 +50,16 @@ function createTableAwareDb(queue: { table: object; rows: unknown[] }[]) {
     insert: vi.fn(() => ({
       values: vi.fn(() => Promise.resolve([{ insertId: 1 }])),
     })),
+    transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) => fn(mock)),
   };
+  return mock;
+}
+
+/** Spread overrides onto a DB mock and rebind `transaction` so `tx` is the merged object (insert spy works). */
+function mergeMockDb(queue: { table: object; rows: unknown[] }[], overrides: Record<string, unknown> = {}) {
+  const m = { ...createTableAwareDb(queue), ...overrides } as Record<string, unknown>;
+  m.transaction = vi.fn(async (fn: (tx: unknown) => Promise<unknown>) => fn(m));
+  return m;
 }
 
 describe("financeHR performance admin procedures (PR-1 / PR-2)", () => {
@@ -139,6 +148,22 @@ describe("financeHR performance admin procedures (PR-1 / PR-2)", () => {
     ).rejects.toMatchObject({ code: "BAD_REQUEST" });
   });
 
+  it("adminUpdateTraining succeeds for hr_admin via PR-3 role defaults (no JSON permissions)", async () => {
+    const mockDb = createTableAwareDb([
+      { table: companyMembers, rows: [{ role: "hr_admin", permissions: [] }] },
+      {
+        table: trainingRecords,
+        rows: [{ id: 1, companyId: 1, employeeUserId: 10, trainingStatus: "assigned" }],
+      },
+      { table: employees, rows: [{ id: 10, companyId: 1 }] },
+    ]);
+    vi.spyOn(db, "getDb").mockResolvedValue(mockDb as never);
+
+    const caller = financeHRRouter.createCaller(makeCtx());
+    const result = await caller.adminUpdateTraining({ id: 1, trainingStatus: "in_progress" });
+    expect(result).toEqual({ success: true });
+  });
+
   it("adminUpdateTraining succeeds with company_admin membership", async () => {
     const mockDb = createTableAwareDb([
       { table: companyMembers, rows: [{ role: "company_admin", permissions: [] }] },
@@ -200,7 +225,7 @@ describe("financeHR performance admin procedures (PR-1 / PR-2)", () => {
     const setSpy = vi.fn().mockReturnValue({
       where: vi.fn(() => Promise.resolve()),
     });
-    const mockDb = {
+    const mockDb: Record<string, unknown> = {
       select: vi.fn(() => ({
         from: vi.fn((table: object) => {
           if (table === companyMembers) {
@@ -243,6 +268,7 @@ describe("financeHR performance admin procedures (PR-1 / PR-2)", () => {
         values: vi.fn(() => Promise.resolve([{ insertId: 1 }])),
       })),
     };
+    mockDb.transaction = vi.fn(async (fn: (tx: unknown) => Promise<unknown>) => fn(mockDb));
     vi.spyOn(db, "getDb").mockResolvedValue(mockDb as never);
 
     const caller = financeHRRouter.createCaller(makeCtx());
@@ -258,17 +284,17 @@ describe("financeHR performance admin procedures (PR-1 / PR-2)", () => {
   it("PR-2 adminUpdateTraining emits audit with training.updated action", async () => {
     const auditValuesSpy = vi.fn(() => Promise.resolve([{ insertId: 1 }]));
     const insertSpy = vi.fn(() => ({ values: auditValuesSpy }));
-    const mockDb = {
-      ...createTableAwareDb([
+    const mockDb = mergeMockDb(
+      [
         { table: companyMembers, rows: [{ role: "company_admin", permissions: [] }] },
         {
           table: trainingRecords,
           rows: [{ id: 1, companyId: 1, employeeUserId: 10, trainingStatus: "assigned" }],
         },
         { table: employees, rows: [{ id: 10, companyId: 1 }] },
-      ]),
-      insert: insertSpy,
-    };
+      ],
+      { insert: insertSpy }
+    );
     vi.spyOn(db, "getDb").mockResolvedValue(mockDb as never);
 
     const caller = financeHRRouter.createCaller(makeCtx());

@@ -11,7 +11,19 @@ import { Separator } from "@/components/ui/separator";
 import { fmtDateLong, fmtDateTime } from "@/lib/dateUtils";
 import { slaLabel, getDueUrgency, actionRequiredOverdueLabel } from "@/lib/taskSla";
 import { cn } from "@/lib/utils";
-import { Clock, CheckCircle2, Circle, PlayCircle, Ban, XCircle, ListChecks, ExternalLink } from "lucide-react";
+import {
+  Clock,
+  CheckCircle2,
+  Circle,
+  PlayCircle,
+  Ban,
+  XCircle,
+  ListChecks,
+  ExternalLink,
+  Copy,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 
 type TaskLike = {
   id?: number;
@@ -75,12 +87,23 @@ function TimelineRow({
   );
 }
 
+function linkHostname(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./i, "");
+  } catch {
+    return "";
+  }
+}
+
 export function TaskDetailSheet({
   task,
   open,
   onOpenChange,
   showInternalNotes,
   footer,
+  checklistInteractive,
+  onToggleChecklistItem,
+  checklistTogglePending,
 }: {
   task: TaskLike;
   open: boolean;
@@ -88,6 +111,10 @@ export function TaskDetailSheet({
   /** Admin-only: internal HR notes */
   showInternalNotes?: boolean;
   footer?: React.ReactNode;
+  /** Assignee can toggle checklist items (Model A: does not block completion). */
+  checklistInteractive?: boolean;
+  onToggleChecklistItem?: (index: number, completed: boolean) => void;
+  checklistTogglePending?: boolean;
 }) {
   const st = task.status ?? "pending";
   const meta = STATUS_META[st] ?? STATUS_META.pending;
@@ -149,8 +176,10 @@ export function TaskDetailSheet({
 
           {task.estimatedDurationMinutes != null && task.estimatedDurationMinutes > 0 && (
             <div className="text-sm">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Estimated effort</p>
-              <p className="font-medium mt-1">{task.estimatedDurationMinutes} minutes</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Estimated effort (minutes)
+              </p>
+              <p className="font-medium mt-1">{task.estimatedDurationMinutes}</p>
             </div>
           )}
 
@@ -168,21 +197,50 @@ export function TaskDetailSheet({
                 Checklist
               </p>
               <ul className="space-y-1.5 text-sm">
-                {task.checklist.map((item, i) => (
-                  <li key={i} className="flex gap-2 items-start">
-                    <span
-                      className={cn(
-                        "mt-0.5 h-4 w-4 rounded border shrink-0 flex items-center justify-center text-[10px]",
-                        item.completed
-                          ? "border-green-600 bg-green-600 text-white"
-                          : "border-muted-foreground/40",
+                {task.checklist.map((item, i) => {
+                  const canToggle =
+                    checklistInteractive &&
+                    onToggleChecklistItem &&
+                    st !== "completed" &&
+                    st !== "cancelled";
+                  return (
+                    <li key={i} className="flex gap-2 items-start">
+                      {canToggle ? (
+                        <button
+                          type="button"
+                          disabled={checklistTogglePending}
+                          onClick={() => onToggleChecklistItem(i, !item.completed)}
+                          className={cn(
+                            "mt-0.5 h-4 w-4 rounded border shrink-0 flex items-center justify-center text-[10px] transition-colors",
+                            item.completed
+                              ? "border-green-600 bg-green-600 text-white"
+                              : "border-muted-foreground/40 hover:border-primary",
+                            checklistTogglePending && "opacity-50 pointer-events-none",
+                          )}
+                          aria-label={
+                            item.completed ? `Mark not done: ${item.title}` : `Mark done: ${item.title}`
+                          }
+                        >
+                          {item.completed ? <CheckCircle2 className="w-3 h-3" /> : null}
+                        </button>
+                      ) : (
+                        <span
+                          className={cn(
+                            "mt-0.5 h-4 w-4 rounded border shrink-0 flex items-center justify-center text-[10px]",
+                            item.completed
+                              ? "border-green-600 bg-green-600 text-white"
+                              : "border-muted-foreground/40",
+                          )}
+                        >
+                          {item.completed ? <CheckCircle2 className="w-3 h-3" /> : null}
+                        </span>
                       )}
-                    >
-                      {item.completed ? <CheckCircle2 className="w-3 h-3" /> : null}
-                    </span>
-                    <span className={item.completed ? "line-through text-muted-foreground" : ""}>{item.title}</span>
-                  </li>
-                ))}
+                      <span className={cn(item.completed ? "line-through text-muted-foreground" : "", "pt-0.5")}>
+                        {item.title}
+                      </span>
+                    </li>
+                  );
+                })}
               </ul>
             </div>
           )}
@@ -190,20 +248,61 @@ export function TaskDetailSheet({
           {Array.isArray(task.attachmentLinks) && task.attachmentLinks.length > 0 && (
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">References</p>
-              <ul className="space-y-1.5 text-sm">
-                {task.attachmentLinks.map((link, i) => (
-                  <li key={i}>
-                    <a
-                      href={link.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-primary inline-flex items-center gap-1 hover:underline"
+              <ul className="space-y-2 text-sm">
+                {task.attachmentLinks.map((link, i) => {
+                  const host = linkHostname(link.url);
+                  return (
+                    <li
+                      key={i}
+                      className="rounded-lg border border-border/70 bg-muted/20 px-2.5 py-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"
                     >
-                      {link.name || link.url}
-                      <ExternalLink className="w-3 h-3 shrink-0 opacity-70" />
-                    </a>
-                  </li>
-                ))}
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          {host ? (
+                            <Badge variant="outline" className="text-[10px] font-mono px-1.5 py-0 h-5 font-normal">
+                              {host}
+                            </Badge>
+                          ) : null}
+                          <a
+                            href={link.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-primary font-medium inline-flex items-center gap-1 hover:underline min-w-0 break-all"
+                          >
+                            {link.name || link.url}
+                            <ExternalLink className="w-3 h-3 shrink-0 opacity-70" />
+                          </a>
+                        </div>
+                      </div>
+                      <div className="flex gap-1 shrink-0">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 text-xs"
+                          onClick={() => {
+                            void navigator.clipboard.writeText(link.url).then(
+                              () => {
+                                toast.success("Link copied");
+                              },
+                              () => {
+                                toast.error("Could not copy");
+                              },
+                            );
+                          }}
+                        >
+                          <Copy className="w-3 h-3 mr-1" />
+                          Copy
+                        </Button>
+                        <Button variant="outline" size="sm" className="h-8 text-xs" asChild>
+                          <a href={link.url} target="_blank" rel="noopener noreferrer">
+                            Open
+                          </a>
+                        </Button>
+                      </div>
+                    </li>
+                  );
+                })}
               </ul>
             </div>
           )}

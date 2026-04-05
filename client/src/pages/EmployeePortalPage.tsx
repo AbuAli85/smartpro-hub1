@@ -826,6 +826,13 @@ export default function EmployeePortalPage() {
     },
     onError: (err) => toast.error(err.message),
   });
+  const toggleTaskChecklistItem = trpc.employeePortal.toggleTaskChecklistItem.useMutation({
+    onSuccess: (data, vars) => {
+      void utils.employeePortal.getMyTasks.invalidate();
+      setEmpTaskDetail((t: any) => (t && t.id === vars.taskId ? { ...t, checklist: data.checklist } : t));
+    },
+    onError: (err) => toast.error(err.message),
+  });
   const submitShiftRequest = trpc.shiftRequests.submit.useMutation({
     onSuccess: () => {
       toast.success("Request submitted — HR will review and notify you.");
@@ -2304,7 +2311,7 @@ export default function EmployeePortalPage() {
                                 if (!cl && !est && !al) return null;
                                 return (
                                   <p className="text-[11px] text-muted-foreground mt-1 flex flex-wrap gap-x-2 gap-y-0.5">
-                                    {est ? <span>~{est} min estimated</span> : null}
+                                    {est ? <span>~{est} min estimated effort</span> : null}
                                     {cl > 0 ? (
                                       <span>
                                         {cl} checklist step{cl !== 1 ? "s" : ""}
@@ -2425,6 +2432,17 @@ export default function EmployeePortalPage() {
                   if (!v) setEmpTaskDetail(null);
                 }}
                 showInternalNotes={false}
+                checklistInteractive
+                checklistTogglePending={toggleTaskChecklistItem.isPending}
+                onToggleChecklistItem={(index, completed) => {
+                  if (empTaskDetail.id == null) return;
+                  toggleTaskChecklistItem.mutate({
+                    taskId: empTaskDetail.id,
+                    index,
+                    completed,
+                    companyId: activeCompanyId ?? undefined,
+                  });
+                }}
               />
             )}
           </TabsContent>

@@ -325,6 +325,51 @@ export const employeePortalRouter = router({
       return { success: true };
     }),
 
+  // ─── Toggle checklist item (assignee only; does not block task completion) ─
+  toggleTaskChecklistItem: protectedProcedure
+    .input(
+      z.object({
+        taskId: z.number(),
+        index: z.number().int().min(0),
+        completed: z.boolean(),
+        companyId: z.number().optional(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId);
+      const myEmp = await resolveMyEmployee(ctx.user.id, ctx.user.email ?? "", companyId);
+      if (!myEmp) throw new TRPCError({ code: "NOT_FOUND", message: "Employee record not found" });
+      const db = await requireDb();
+      const [task] = await db.select().from(employeeTasks).where(eq(employeeTasks.id, input.taskId));
+      if (!task || task.companyId !== companyId) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Task not found" });
+      }
+      if (task.assignedToEmployeeId !== myEmp.id) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "You are not assigned to this task" });
+      }
+      if (task.status === "completed" || task.status === "cancelled") {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Task is closed" });
+      }
+      const raw = task.checklist;
+      const list: { title: string; completed: boolean }[] = Array.isArray(raw)
+        ? raw
+            .filter((x: unknown): x is { title?: unknown; completed?: unknown } => !!x && typeof x === "object")
+            .map((x) => ({
+              title: typeof x.title === "string" ? x.title : "",
+              completed: !!x.completed,
+            }))
+            .filter((x) => x.title.length > 0)
+        : [];
+      if (input.index >= list.length) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid checklist item" });
+      }
+      const next = list.map((item, i) =>
+        i === input.index ? { title: item.title, completed: input.completed } : item,
+      );
+      await db.update(employeeTasks).set({ checklist: next }).where(eq(employeeTasks.id, input.taskId));
+      return { success: true as const, checklist: next };
+    }),
+
   // ─── Get my announcements ─────────────────────────────────────────────────
   getMyAnnouncements: protectedProcedure.query(async ({ ctx }) => {
     const membership = await getUserCompany(ctx.user.id);

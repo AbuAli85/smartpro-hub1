@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -38,6 +39,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { fmtDateLong } from "@/lib/dateUtils";
+import { normalizeAttachmentLinks } from "@/lib/taskAttachmentLinks";
 
 export type TaskAssignEmployee = {
   id: number;
@@ -158,7 +160,7 @@ function initials(e: TaskAssignEmployee): string {
   return (a + b) || "?";
 }
 
-type ChecklistRow = { id: string; title: string };
+type ChecklistRow = { id: string; title: string; completed: boolean };
 type LinkRow = { id: string; name: string; url: string };
 
 const QUICK_TEMPLATES: {
@@ -234,7 +236,7 @@ export function TaskAssignDialog({
   const [checklist, setChecklist] = useState<ChecklistRow[]>([]);
   const [links, setLinks] = useState<LinkRow[]>([]);
   const [assignOpen, setAssignOpen] = useState(false);
-  const [errors, setErrors] = useState<{ title?: string; assignee?: string; dueDate?: string }>({});
+  const [errors, setErrors] = useState<{ title?: string; assignee?: string; dueDate?: string; links?: string }>({});
 
   const resetFormForOpen = useCallback(() => {
     if (initial) {
@@ -250,9 +252,13 @@ export function TaskAssignDialog({
         initial.estimatedDurationMinutes != null ? String(initial.estimatedDurationMinutes) : "",
       );
       const raw = initial.checklist;
-      const items: { title: string }[] = Array.isArray(raw) ? raw : [];
+      const items: { title?: string; completed?: boolean }[] = Array.isArray(raw) ? raw : [];
       setChecklist(
-        items.map((it, i) => ({ id: `c-${i}-${it.title.slice(0, 8)}`, title: it.title })),
+        items.map((it, i) => ({
+          id: `c-${i}-${String(it.title ?? "").slice(0, 8)}`,
+          title: typeof it.title === "string" ? it.title : "",
+          completed: !!it.completed,
+        })),
       );
       const al = initial.attachmentLinks;
       const linkArr: { name: string; url: string }[] = Array.isArray(al) ? al : [];
@@ -342,22 +348,22 @@ export function TaskAssignDialog({
         e.dueDate = "Due date must be today or in the future.";
       }
     }
+    const hasLinkRows = links.some((l) => l.name.trim() || l.url.trim());
+    if (hasLinkRows) {
+      const norm = normalizeAttachmentLinks(links.map((l) => ({ name: l.name, url: l.url })));
+      if (!norm?.length) {
+        e.links =
+          "Add at least one valid http(s) link with a label (max 5 unique links, label ≤ 60 chars, URL ≤ 500 chars).";
+      }
+    }
     setErrors(e);
     return Object.keys(e).length === 0;
   };
 
-  const buildChecklistPayload = () => {
-    const items = checklist.map((c) => c.title.trim()).filter(Boolean);
-    if (!items.length) return undefined;
-    return items.map((t) => ({ title: t, completed: false }));
-  };
-
-  const buildLinksPayload = () => {
-    const cleaned = links
-      .map((l) => ({ name: l.name.trim(), url: l.url.trim() }))
-      .filter((l) => l.name && l.url);
-    if (!cleaned.length) return undefined;
-    return cleaned;
+  const buildChecklistPayload = (): { title: string; completed: boolean }[] | null => {
+    const rows = checklist.filter((c) => c.title.trim());
+    if (!rows.length) return null;
+    return rows.map((c) => ({ title: c.title.trim(), completed: c.completed }));
   };
 
   const parsedEstimate = (): number | undefined => {
@@ -368,10 +374,8 @@ export function TaskAssignDialog({
 
   const handleSave = () => {
     if (!validate()) return;
-    const hasChecklist = checklist.some((c) => c.title.trim());
-    const checklistPayload = hasChecklist ? buildChecklistPayload()! : null;
-    const hasLinkRows = links.some((l) => l.name.trim() && l.url.trim());
-    const linksPayload = hasLinkRows ? buildLinksPayload()! : null;
+    const checklistPayload = buildChecklistPayload();
+    const linksNorm = normalizeAttachmentLinks(links.map((l) => ({ name: l.name, url: l.url })));
     const est = parsedEstimate();
 
     if (initial) {
@@ -386,7 +390,7 @@ export function TaskAssignDialog({
         companyId: companyId ?? undefined,
         estimatedDurationMinutes: estimatedMinutes.trim() === "" ? null : (est ?? null),
         checklist: checklistPayload,
-        attachmentLinks: linksPayload,
+        attachmentLinks: linksNorm,
       };
       if (Number(assignedTo) !== initial.assignedToEmployeeId) {
         payload.assignedToEmployeeId = Number(assignedTo);
@@ -405,8 +409,8 @@ export function TaskAssignDialog({
         notes: notes.trim() || undefined,
         companyId: companyId ?? undefined,
         estimatedDurationMinutes: est,
-        checklist: hasChecklist ? checklistPayload! : undefined,
-        attachmentLinks: hasLinkRows ? linksPayload! : undefined,
+        checklist: checklistPayload ?? undefined,
+        attachmentLinks: linksNorm ?? undefined,
       });
     }
   };
@@ -421,6 +425,7 @@ export function TaskAssignDialog({
       a.checklist.map((t, i) => ({
         id: `tpl-${tpl.id}-${i}`,
         title: t,
+        completed: false,
       })),
     );
     toast.message(`Applied “${tpl.label}” template — review and adjust.`);
@@ -732,7 +737,7 @@ export function TaskAssignDialog({
                 size="sm"
                 className="h-7 text-xs"
                 onClick={() =>
-                  setChecklist((c) => [...c, { id: `n-${Date.now()}`, title: "" }])
+                  setChecklist((c) => [...c, { id: `n-${Date.now()}`, title: "", completed: false }])
                 }
               >
                 <Plus className="w-3 h-3 mr-1" />
@@ -740,11 +745,21 @@ export function TaskAssignDialog({
               </Button>
             </div>
             <p className="text-[11px] text-muted-foreground">
-              Ordered steps — assignees see them in the task detail. Empty rows are ignored.
+              Ordered steps — assignees can check them off in their portal. Empty rows are ignored.
             </p>
             <div className="space-y-2">
               {checklist.map((row, idx) => (
                 <div key={row.id} className="flex gap-2 items-center">
+                  <Checkbox
+                    checked={row.completed}
+                    onCheckedChange={(v) =>
+                      setChecklist((list) =>
+                        list.map((x) => (x.id === row.id ? { ...x, completed: v === true } : x)),
+                      )
+                    }
+                    className="shrink-0"
+                    aria-label={`Step ${idx + 1} pre-marked done (optional)`}
+                  />
                   <Badge variant="secondary" className="w-7 h-7 shrink-0 p-0 justify-center text-xs">
                     {idx + 1}
                   </Badge>
@@ -776,7 +791,7 @@ export function TaskAssignDialog({
               <div>
                 <Label>Reference links (optional)</Label>
                 <p className="text-[11px] text-muted-foreground mt-0.5">
-                  Paste SharePoint, Drive, or policy URLs — <strong>visible to the assignee</strong>.
+                  Up to 5 unique http(s) links — SharePoint, Drive, or policy URLs. <strong>Visible to the assignee.</strong>
                 </p>
               </div>
               <Button
@@ -784,32 +799,38 @@ export function TaskAssignDialog({
                 variant="outline"
                 size="sm"
                 className="h-7 text-xs shrink-0"
+                disabled={links.length >= 5}
                 onClick={() => setLinks((l) => [...l, { id: `ln-${Date.now()}`, name: "", url: "" }])}
               >
                 <Link2 className="w-3 h-3 mr-1" />
                 Add link
               </Button>
             </div>
+            {errors.links && <p className="text-xs text-destructive font-medium">{errors.links}</p>}
             <div className="space-y-2">
               {links.map((row) => (
                 <div key={row.id} className="grid grid-cols-1 sm:grid-cols-2 gap-2 items-start">
                   <Input
                     value={row.name}
+                    maxLength={60}
                     onChange={(e) =>
                       setLinks((list) =>
                         list.map((x) => (x.id === row.id ? { ...x, name: e.target.value } : x)),
                       )
                     }
+                    onFocus={() => errors.links && setErrors((x) => ({ ...x, links: undefined }))}
                     placeholder="Label (e.g. Policy PDF)"
                   />
                   <div className="flex gap-1">
                     <Input
                       value={row.url}
+                      maxLength={500}
                       onChange={(e) =>
                         setLinks((list) =>
                           list.map((x) => (x.id === row.id ? { ...x, url: e.target.value } : x)),
                         )
                       }
+                      onFocus={() => errors.links && setErrors((x) => ({ ...x, links: undefined }))}
                       placeholder="https://…"
                       className="flex-1"
                     />

@@ -20,25 +20,54 @@ async function requireDb() {
 const taskStatusEnum = z.enum(["pending", "in_progress", "completed", "cancelled", "blocked"]);
 const taskPriorityEnum = z.enum(["low", "medium", "high", "urgent"]);
 
-const taskChecklistSchema = z
+const taskChecklistRowsSchema = z
   .array(
     z.object({
       title: z.string().min(1).max(400),
       completed: z.boolean().optional(),
     }),
   )
-  .max(25)
-  .optional();
+  .max(25);
 
+const taskChecklistSchema = taskChecklistRowsSchema.optional();
+
+/** Accept raw rows; normalize to max 5 unique https URLs, trimmed labels. */
 const taskAttachmentLinksSchema = z
   .array(
     z.object({
-      name: z.string().min(1).max(160),
-      url: z.string().min(1).max(2000),
+      name: z.string(),
+      url: z.string(),
     }),
   )
-  .max(12)
+  .max(24)
   .optional();
+
+function normalizeAttachmentLinks(
+  links: { name: string; url: string }[] | null | undefined,
+): { name: string; url: string }[] | null {
+  if (!links?.length) return null;
+  const seen = new Set<string>();
+  const out: { name: string; url: string }[] = [];
+  for (const raw of links) {
+    const name = raw.name.trim().slice(0, 60);
+    let url = raw.url.trim().replace(/\s+/g, "");
+    if (url.length > 500) url = url.slice(0, 500);
+    if (!name || !url) continue;
+    let parsed: URL;
+    try {
+      parsed = new URL(url);
+    } catch {
+      continue;
+    }
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") continue;
+    const key = parsed.href.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ name, url: parsed.href });
+    if (out.length >= 5) break;
+  }
+  return out.length ? out : null;
+}
 
 function normalizeChecklist(
   items: { title: string; completed?: boolean }[] | undefined | null,
@@ -129,7 +158,7 @@ export const tasksRouter = router({
         estimatedDurationMinutes: rest.estimatedDurationMinutes ?? undefined,
         notes: rest.notes,
         checklist: normalizeChecklist(rest.checklist ?? null),
-        attachmentLinks: rest.attachmentLinks?.length ? rest.attachmentLinks : undefined,
+        attachmentLinks: normalizeAttachmentLinks(rest.attachmentLinks ?? undefined) ?? undefined,
         status: "pending",
         notifiedOverdue: false,
       });
@@ -162,8 +191,8 @@ export const tasksRouter = router({
       notes: z.string().optional(),
       blockedReason: z.string().nullable().optional(),
       estimatedDurationMinutes: z.number().int().min(5).max(43200).nullable().optional(),
-      checklist: taskChecklistSchema.nullable().optional(),
-      attachmentLinks: taskAttachmentLinksSchema.nullable().optional(),
+      checklist: taskChecklistRowsSchema.nullish(),
+      attachmentLinks: taskAttachmentLinksSchema.nullish(),
       assignedToEmployeeId: z.number().optional(),
       companyId: z.number().optional(),
     }))
@@ -192,7 +221,7 @@ export const tasksRouter = router({
         updateData.checklist = normalizeChecklist(checklist);
       }
       if (attachmentLinks !== undefined) {
-        updateData.attachmentLinks = attachmentLinks?.length ? attachmentLinks : null;
+        updateData.attachmentLinks = normalizeAttachmentLinks(attachmentLinks ?? undefined);
       }
       if (dueDate !== undefined) {
         updateData.dueDate = dueDate ? new Date(dueDate) : null;

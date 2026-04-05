@@ -1,5 +1,6 @@
 import { trpc } from "@/lib/trpc";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
+import { useSearch } from "wouter";
 import { FileText, Plus, Search, CheckCircle2, Clock, AlertTriangle, PenLine, Sparkles, Download, Printer, Users, PenSquare, History, Shield } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -377,7 +378,21 @@ function SaveToStorageButton({ contractId }: { contractId: number }) {
   );
 }
 
+function parseContractIdFromSearch(search: string): number | null {
+  const q = search.startsWith("?") ? search.slice(1) : search;
+  const raw = new URLSearchParams(q).get("id");
+  if (!raw) return null;
+  const n = parseInt(raw, 10);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
 export default function ContractsPage() {
+  const urlSearch = useSearch();
+  const highlightContractId = useMemo(() => parseContractIdFromSearch(urlSearch), [urlSearch]);
+  const deepLinkTriedReset = useRef(false);
+  const prevHighlightId = useRef<number | null>(null);
+  const [flashRowId, setFlashRowId] = useState<number | null>(null);
+
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
@@ -392,6 +407,44 @@ export default function ContractsPage() {
   const filtered = contracts?.filter((c) =>
     !search || (c.title ?? "").toLowerCase().includes(search.toLowerCase()) || c.contractNumber?.toLowerCase().includes(search.toLowerCase())
   );
+
+  useEffect(() => {
+    if (prevHighlightId.current !== highlightContractId) {
+      prevHighlightId.current = highlightContractId;
+      deepLinkTriedReset.current = false;
+    }
+
+    if (highlightContractId == null || !contracts?.length) return;
+    if (!contracts.some((c) => c.id === highlightContractId)) return;
+
+    let flashTimer: number | undefined;
+
+    const tryScroll = () => {
+      const el = document.getElementById(`contract-row-${highlightContractId}`);
+      if (!el) return false;
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      setFlashRowId(highlightContractId);
+      flashTimer = window.setTimeout(() => setFlashRowId(null), 2600);
+      return true;
+    };
+
+    if (tryScroll()) {
+      return () => {
+        if (flashTimer != null) window.clearTimeout(flashTimer);
+      };
+    }
+
+    if (
+      !deepLinkTriedReset.current &&
+      (statusFilter !== "all" || typeFilter !== "all" || search !== "")
+    ) {
+      deepLinkTriedReset.current = true;
+      setStatusFilter("all");
+      setTypeFilter("all");
+      setSearch("");
+    }
+  }, [highlightContractId, contracts, filtered, statusFilter, typeFilter, search]);
+
   const stats = {
     total: contracts?.length ?? 0,
     active: contracts?.filter((c) => ["active", "signed"].includes(c.status ?? "")).length ?? 0,
@@ -498,7 +551,13 @@ export default function ContractsPage() {
                 </tr>
               )}
               {filtered?.map((contract) => (
-                <tr key={contract.id} className="border-b hover:bg-muted/20 transition-colors">
+                <tr
+                  key={contract.id}
+                  id={`contract-row-${contract.id}`}
+                  className={`border-b hover:bg-muted/20 transition-colors ${
+                    flashRowId === contract.id ? "ring-2 ring-inset ring-primary/50 bg-primary/[0.06]" : ""
+                  }`}
+                >
                   <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{contract.contractNumber}</td>
                   <td className="px-4 py-3">
                     <div className="font-medium max-w-48 truncate">{contract.title}</div>

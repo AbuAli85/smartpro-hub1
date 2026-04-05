@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { Link } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -456,7 +457,20 @@ export default function AuditLogPage() {
                 ].map((f) => (
                   <div key={f.label} className="bg-muted/30 rounded-lg p-3">
                     <div className="text-xs text-muted-foreground mb-1">{f.label}</div>
-                    <div className="font-medium text-sm break-all">{String(f.value ?? "")}</div>
+                    <div className="font-medium text-sm break-all">
+                      {f.label === "Route hint" &&
+                      selectedEntry.routeHint &&
+                      selectedEntry.routeHint.startsWith("/") ? (
+                        <Link
+                          href={selectedEntry.routeHint}
+                          className="text-primary underline underline-offset-2 hover:text-primary/90"
+                        >
+                          {selectedEntry.routeHint}
+                        </Link>
+                      ) : (
+                        String(f.value ?? "")
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>

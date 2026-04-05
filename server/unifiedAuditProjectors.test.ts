@@ -70,6 +70,7 @@ describe("projectContractSignatureAuditToUnified", () => {
     expect(out.actorLabel).toBe("Platform User");
     expect((out.newValues as Record<string, unknown>).actorUserId).toBe(42);
     expect((out.newValues as Record<string, unknown>).actorType).toBe("user");
+    expect(out.routeHint).toBe("/contracts?id=9");
   });
 
   it("external signer: no user id, label from stored fields", () => {

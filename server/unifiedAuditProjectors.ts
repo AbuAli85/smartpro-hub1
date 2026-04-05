@@ -149,7 +149,7 @@ export function projectContractSignatureAuditToUnified(
     createdAt: row.createdAt,
     sensitivity: "legal_sensitive",
     summary: `Contract "${title}" (${num}) — ${row.event.replace(/_/g, " ")}`,
-    routeHint: "/contracts",
+    routeHint: `/contracts?id=${row.contractId}`,
     actorLabel,
     actorUserId,
     actorType,

@@ -1,5 +1,5 @@
 import { TRPCError } from "@trpc/server";
-import { and, desc, eq, sql, gte, lte, isNull, not } from "drizzle-orm";
+import { and, asc, desc, eq, sql, gte, lte, isNull, not } from "drizzle-orm";
 import { z } from "zod";
 import { getDb, getUserCompany } from "../db";
 import {
@@ -7,9 +7,11 @@ import {
   automationLogs,
   workforceHealthSnapshots,
   employees,
+  contracts,
 } from "../../drizzle/schema";
 import type { User } from "../../drizzle/schema";
 import { protectedProcedure, router } from "../_core/trpc";
+import { storagePut } from "../storage";
 import { requireActiveCompanyId } from "../_core/tenant";
 
 // ─── Completeness scoring ─────────────────────────────────────────────────────
@@ -157,16 +159,41 @@ export const RULE_TEMPLATES = [
 
 // ─── Router ───────────────────────────────────────────────────────────────────
 export const automationRouter = router({
-  // List all automation rules for the company
+  // List all automation rules for the company (ordered by priority then creation)
   listRules: protectedProcedure.query(async ({ ctx }) => {
     const companyId = await requireActiveCompanyId(ctx.user.id);
     const db = await getDb();
     if (!db) return [];
-    return db
+    const rules = await db
       .select()
       .from(automationRules)
       .where(eq(automationRules.companyId, companyId))
       .orderBy(desc(automationRules.createdAt));
+    // Augment with failure stats from logs
+    try {
+      const mysql = require("mysql2/promise");
+      const conn = mysql.createPool(process.env.DATABASE_URL);
+      const [failureRows] = await conn.query(
+        `SELECT rule_id,
+           SUM(CASE WHEN status='failure' THEN 1 ELSE 0 END) as failure_count,
+           MAX(CASE WHEN status='failure' THEN created_at END) as last_failure_at,
+           MAX(failure_category) as last_failure_category
+         FROM automation_logs WHERE company_id = ? GROUP BY rule_id`,
+        [companyId]
+      );
+      const failureMap = new Map((failureRows as any[]).map((r: any) => [r.rule_id, r]));
+      return rules.map((r) => {
+        const f = failureMap.get(r.id) as any;
+        return {
+          ...r,
+          failureCount: f ? Number(f.failure_count) : 0,
+          lastFailureAt: f?.last_failure_at ?? null,
+          lastFailureCategory: f?.last_failure_category ?? null,
+        };
+      });
+    } catch {
+      return rules;
+    }
   }),
 
   // Get pre-built rule templates
@@ -206,18 +233,18 @@ export const automationRouter = router({
         isActive: true,
       } as any);
 
-      return { id: (result as any).insertId as number, success: true };
+       return { id: (result as any).insertId as number, success: true };
     }),
 
-   // Create a new automation rule
+  // Create a new automation rule
   createRule: protectedProcedure
     .input(
       z.object({
         name: z.string().min(1).max(255),
         description: z.string().optional(),
-        triggerType: z.enum(["visa_expiry", "work_permit_expiry", "passport_expiry", "completeness_below", "no_department"]),
+        triggerType: z.enum(["visa_expiry", "work_permit_expiry", "passport_expiry", "completeness_below", "no_department", "contract_expiry", "booking_overdue", "payment_overdue", "client_inactive"]),
         conditionValue: z.string().optional(),
-        actionType: z.enum(["notify_admin", "notify_employee", "create_task", "escalate"]),
+        actionType: z.enum(["notify_admin", "notify_employee", "create_task", "escalate", "send_email", "flag_review"]),
         actionPayload: z.string().optional(),
         isActive: z.boolean().default(true),
         severity: z.enum(["low", "medium", "high", "critical"]).default("medium"),
@@ -225,6 +252,9 @@ export const automationRouter = router({
         throttleHours: z.number().default(24),
         dryRunMode: z.boolean().default(false),
         alertRecipients: z.enum(["all_admins", "hr_admin", "company_owner"]).default("all_admins"),
+        priority: z.number().min(1).max(10).default(5),
+        maxRetries: z.number().min(0).max(5).default(3),
+        dependsOnRuleId: z.number().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -242,7 +272,17 @@ export const automationRouter = router({
         isActive: input.isActive,
         alertRecipients: input.alertRecipients,
       } as any);
-      return { id: (result as any).insertId as number, success: true };
+      const newId = (result as any).insertId as number;
+      // Store priority/maxRetries/dependsOnRuleId via raw SQL since schema columns were added post-migration
+      try {
+        const mysql = require("mysql2/promise");
+        const conn = mysql.createPool(process.env.DATABASE_URL);
+        await conn.query(
+          `UPDATE automation_rules SET priority = ?, max_retries = ?, depends_on_rule_id = ? WHERE id = ?`,
+          [input.priority, input.maxRetries, input.dependsOnRuleId ?? null, newId]
+        );
+      } catch { /* ignore */ }
+      return { id: newId, success: true };
     }),
 
   // Update an automation rule
@@ -253,13 +293,16 @@ export const automationRouter = router({
         name: z.string().min(1).max(255).optional(),
         description: z.string().optional(),
         conditionValue: z.string().optional(),
-        actionType: z.enum(["notify_admin", "notify_employee", "create_task", "escalate"]).optional(),
+        actionType: z.enum(["notify_admin", "notify_employee", "create_task", "escalate", "send_email", "flag_review"]).optional(),
         actionPayload: z.string().optional(),
         isActive: z.boolean().optional(),
         severity: z.enum(["low", "medium", "high", "critical"]).optional(),
         leadTimeDays: z.number().optional(),
         throttleHours: z.number().optional(),
         dryRunMode: z.boolean().optional(),
+        alertRecipients: z.enum(["all_admins", "hr_admin", "company_owner"]).optional(),
+        priority: z.number().min(1).max(10).optional(),
+        maxRetries: z.number().min(0).max(5).optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -267,7 +310,7 @@ export const automationRouter = router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
-      const { id, ...updates } = input;
+      const { id, priority, maxRetries, ...updates } = input;
       const safeUpdates: Record<string, unknown> = {};
       if (updates.name !== undefined) safeUpdates.name = updates.name;
       if (updates.description !== undefined) safeUpdates.description = updates.description;
@@ -275,6 +318,23 @@ export const automationRouter = router({
       if (updates.actionType !== undefined) safeUpdates.actionType = updates.actionType;
       if (updates.actionPayload !== undefined) safeUpdates.actionPayload = updates.actionPayload;
       if (updates.isActive !== undefined) safeUpdates.isActive = updates.isActive;
+      if (updates.alertRecipients !== undefined) safeUpdates.alertRecipients = updates.alertRecipients;
+
+      // Update priority/maxRetries via raw SQL
+      if (priority !== undefined || maxRetries !== undefined) {
+        try {
+          const mysql = require("mysql2/promise");
+          const conn = mysql.createPool(process.env.DATABASE_URL);
+          const setParts: string[] = [];
+          const vals: unknown[] = [];
+          if (priority !== undefined) { setParts.push("priority = ?"); vals.push(priority); }
+          if (maxRetries !== undefined) { setParts.push("max_retries = ?"); vals.push(maxRetries); }
+          if (setParts.length > 0) {
+            vals.push(id, companyId);
+            await conn.query(`UPDATE automation_rules SET ${setParts.join(", ")} WHERE id = ? AND company_id = ?`, vals);
+          }
+        } catch { /* ignore */ }
+      }
 
       await db
         .update(automationRules)
@@ -680,24 +740,257 @@ export const automationRouter = router({
       return { rulesRun: rules.length, totalMatches, dryRun: input.dryRun, logs: allLogs };
     }),
 
-  // Get recent automation logs
+  // Get recent automation logs with failure details
   getLogs: protectedProcedure
-    .input(z.object({ limit: z.number().default(50), ruleId: z.number().optional() }))
+    .input(z.object({ limit: z.number().default(50), ruleId: z.number().optional(), statusFilter: z.enum(["all", "success", "failure"]).default("all") }))
     .query(async ({ ctx, input }) => {
       const companyId = await requireActiveCompanyId(ctx.user.id);
-      const db = await getDb();
-      if (!db) return [];
-
-      const conditions = [eq(automationLogs.companyId, companyId)];
-      if (input.ruleId) conditions.push(eq(automationLogs.ruleId, input.ruleId));
-
-      return db
-        .select()
-        .from(automationLogs)
-        .where(and(...conditions))
-        .orderBy(desc(automationLogs.createdAt))
-        .limit(input.limit);
+      try {
+        const mysql = require("mysql2/promise");
+        const conn = mysql.createPool(process.env.DATABASE_URL);
+        let where = `WHERE l.company_id = ?`;
+        const params: unknown[] = [companyId];
+        if (input.ruleId) { where += ` AND l.rule_id = ?`; params.push(input.ruleId); }
+        if (input.statusFilter !== "all") { where += ` AND l.status = ?`; params.push(input.statusFilter); }
+        params.push(input.limit);
+        const [rows] = await conn.query(
+          `SELECT l.*, r.name as rule_name, r.severity as rule_severity,
+             l.retry_count, l.failure_category, l.error_detail, l.duration_ms
+           FROM automation_logs l
+           LEFT JOIN automation_rules r ON l.rule_id = r.id
+           ${where} ORDER BY l.created_at DESC LIMIT ?`,
+          params
+        );
+        return rows as any[];
+      } catch {
+        const db = await getDb();
+        if (!db) return [];
+        const conditions = [eq(automationLogs.companyId, companyId)];
+        if (input.ruleId) conditions.push(eq(automationLogs.ruleId, input.ruleId));
+        return db.select().from(automationLogs).where(and(...conditions)).orderBy(desc(automationLogs.createdAt)).limit(input.limit);
+      }
     }),
+
+  // Get failure summary: categorized failures, repeated failures, alert on high failure rate
+  getFailureSummary: protectedProcedure.query(async ({ ctx }) => {
+    const companyId = await requireActiveCompanyId(ctx.user.id);
+    try {
+      const mysql = require("mysql2/promise");
+      const conn = mysql.createPool(process.env.DATABASE_URL);
+      const [byCategory] = await conn.query(
+        `SELECT failure_category, COUNT(*) as count FROM automation_logs
+         WHERE company_id = ? AND status = 'failure' AND failure_category IS NOT NULL
+         GROUP BY failure_category ORDER BY count DESC`,
+        [companyId]
+      );
+      const [repeatedRules] = await conn.query(
+        `SELECT rule_id, r.name as rule_name, COUNT(*) as failure_count,
+           MAX(l.created_at) as last_failure
+         FROM automation_logs l
+         LEFT JOIN automation_rules r ON l.rule_id = r.id
+         WHERE l.company_id = ? AND l.status = 'failure'
+         GROUP BY rule_id HAVING failure_count >= 3
+         ORDER BY failure_count DESC`,
+        [companyId]
+      );
+      const [totalStats] = await conn.query(
+        `SELECT
+           COUNT(*) as total,
+           SUM(CASE WHEN status='failure' THEN 1 ELSE 0 END) as failures,
+           SUM(CASE WHEN status='success' THEN 1 ELSE 0 END) as successes
+         FROM automation_logs WHERE company_id = ?`,
+        [companyId]
+      );
+      const stats = (totalStats as any[])[0] || { total: 0, failures: 0, successes: 0 };
+      const failureRate = stats.total > 0 ? Math.round((stats.failures / stats.total) * 100) : 0;
+      return {
+        failureRate,
+        totalRuns: Number(stats.total),
+        totalFailures: Number(stats.failures),
+        totalSuccesses: Number(stats.successes),
+        byCategory: (byCategory as any[]).map((r: any) => ({ category: r.failure_category || "unknown", count: Number(r.count) })),
+        repeatedFailureRules: (repeatedRules as any[]).map((r: any) => ({ ruleId: r.rule_id, ruleName: r.rule_name, failureCount: Number(r.failure_count), lastFailure: r.last_failure })),
+        highFailureAlert: failureRate > 20,
+      };
+    } catch { return { failureRate: 0, totalRuns: 0, totalFailures: 0, totalSuccesses: 0, byCategory: [], repeatedFailureRules: [], highFailureAlert: false }; }
+  }),
+
+  // Emit an event (event-driven trigger)
+  emitEvent: protectedProcedure
+    .input(z.object({
+      eventType: z.enum(["employee_updated", "doc_added", "new_hire", "contract_expiry_soon", "booking_overdue", "payment_overdue", "client_inactive"]),
+      entityType: z.enum(["employee", "contract", "booking", "payment", "client"]),
+      entityId: z.number(),
+      payload: z.record(z.string(), z.unknown()).optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const companyId = await requireActiveCompanyId(ctx.user.id);
+      try {
+        const mysql = require("mysql2/promise");
+        const conn = mysql.createPool(process.env.DATABASE_URL);
+        await conn.query(
+          `INSERT INTO automation_events (company_id, event_type, entity_type, entity_id, payload, processed, created_at) VALUES (?, ?, ?, ?, ?, 0, ?)`,
+          [companyId, input.eventType, input.entityType, input.entityId, JSON.stringify(input.payload ?? {}), Date.now()]
+        );
+        return { success: true };
+      } catch { return { success: false }; }
+    }),
+
+  // Process pending events (evaluate rules triggered by events)
+  processEvents: protectedProcedure.mutation(async ({ ctx }) => {
+    const companyId = await requireActiveCompanyId(ctx.user.id);
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+    try {
+      const mysql = require("mysql2/promise");
+      const conn = mysql.createPool(process.env.DATABASE_URL);
+      const [events] = await conn.query(
+        `SELECT * FROM automation_events WHERE company_id = ? AND processed = 0 ORDER BY created_at ASC LIMIT 50`,
+        [companyId]
+      );
+      const eventList = events as any[];
+      if (eventList.length === 0) return { processed: 0, triggered: 0 };
+
+      // Map event types to rule trigger types
+      const eventToTrigger: Record<string, string[]> = {
+        employee_updated: ["completeness_below", "no_department"],
+        doc_added: ["visa_expiry", "work_permit_expiry", "passport_expiry"],
+        new_hire: ["completeness_below", "no_department"],
+        contract_expiry_soon: ["contract_expiry"],
+        booking_overdue: ["booking_overdue"],
+        payment_overdue: ["payment_overdue"],
+        client_inactive: ["client_inactive"],
+      };
+
+      const rules = await db.select().from(automationRules)
+        .where(and(eq(automationRules.companyId, companyId), eq(automationRules.isActive, true)));
+
+      let triggered = 0;
+      for (const event of eventList) {
+        const relevantTriggers = eventToTrigger[event.event_type] ?? [];
+        const relevantRules = rules.filter((r) => relevantTriggers.includes(r.triggerType));
+
+        if (event.entity_type === "employee" && relevantRules.length > 0) {
+          const emps = await db.select().from(employees)
+            .where(and(eq(employees.companyId, companyId), eq(employees.id, event.entity_id)));
+          for (const rule of relevantRules) {
+            const matches = await evaluateRule(rule, emps);
+            if (matches.length > 0) {
+              await db.insert(automationLogs).values(matches.map((m) => ({
+                ruleId: rule.id, companyId, employeeId: m.employeeId,
+                triggerType: rule.triggerType, actionType: rule.actionType,
+                status: "success", message: `[Event: ${event.event_type}] ${m.message}`,
+                metadata: JSON.stringify({ ...m.metadata, eventId: event.id }),
+              })));
+              triggered += matches.length;
+            }
+          }
+        }
+        await conn.query(`UPDATE automation_events SET processed = 1, processed_at = ? WHERE id = ?`, [Date.now(), event.id]);
+      }
+      return { processed: eventList.length, triggered };
+    } catch (err) { return { processed: 0, triggered: 0 }; }
+  }),
+
+  // Export automation logs as CSV
+  exportLogsCsv: protectedProcedure
+    .input(z.object({ ruleId: z.number().optional(), days: z.number().default(30) }))
+    .mutation(async ({ ctx, input }) => {
+      const companyId = await requireActiveCompanyId(ctx.user.id);
+      try {
+        const mysql = require("mysql2/promise");
+        const conn = mysql.createPool(process.env.DATABASE_URL);
+        const since = Date.now() - input.days * 24 * 60 * 60 * 1000;
+        let where = `WHERE l.company_id = ? AND l.created_at > ?`;
+        const params: unknown[] = [companyId, since];
+        if (input.ruleId) { where += ` AND l.rule_id = ?`; params.push(input.ruleId); }
+        const [rows] = await conn.query(
+          `SELECT l.id, r.name as rule_name, l.trigger_type, l.action_type, l.status,
+             l.message, l.failure_category, l.error_detail, l.retry_count, l.duration_ms, l.created_at
+           FROM automation_logs l
+           LEFT JOIN automation_rules r ON l.rule_id = r.id
+           ${where} ORDER BY l.created_at DESC LIMIT 5000`,
+          params
+        );
+        const logRows = rows as any[];
+        const header = ["ID","Rule Name","Trigger Type","Action Type","Status","Message","Failure Category","Error Detail","Retry Count","Duration (ms)","Created At"];
+        const csvLines = [header.join(",")];
+        for (const r of logRows) {
+          csvLines.push([
+            r.id, `"${(r.rule_name||'').replace(/"/g,'""')}"`, r.trigger_type, r.action_type, r.status,
+            `"${(r.message||'').replace(/"/g,'""')}"`, r.failure_category||'', `"${(r.error_detail||'').replace(/"/g,'""')}"`,
+            r.retry_count||0, r.duration_ms||'', new Date(r.created_at).toISOString()
+          ].join(","));
+        }
+        const csvContent = csvLines.join("\n");
+        const fileKey = `automation-exports/${companyId}/logs-${Date.now()}.csv`;
+        const { url } = await storagePut(fileKey, Buffer.from(csvContent, "utf-8"), "text/csv");
+        return { url, filename: `automation-logs-${new Date().toISOString().slice(0,10)}.csv`, rowCount: logRows.length };
+      } catch (err) { throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: String(err) }); }
+    }),
+
+  // Export rule history as CSV
+  exportRuleHistoryCsv: protectedProcedure.mutation(async ({ ctx }) => {
+    const companyId = await requireActiveCompanyId(ctx.user.id);
+    try {
+      const mysql = require("mysql2/promise");
+      const conn = mysql.createPool(process.env.DATABASE_URL);
+      const [rows] = await conn.query(
+        `SELECT r.id, r.name, r.trigger_type, r.action_type, r.condition_value, r.severity,
+           r.is_active, r.run_count, r.last_run_at, r.throttle_hours, r.alert_recipients,
+           r.priority, r.max_retries, r.created_at,
+           SUM(CASE WHEN l.status='success' THEN 1 ELSE 0 END) as success_count,
+           SUM(CASE WHEN l.status='failure' THEN 1 ELSE 0 END) as failure_count
+         FROM automation_rules r
+         LEFT JOIN automation_logs l ON r.id = l.rule_id
+         WHERE r.company_id = ? GROUP BY r.id ORDER BY r.created_at DESC`,
+        [companyId]
+      );
+      const ruleRows = rows as any[];
+      const header = ["ID","Name","Trigger Type","Action Type","Condition","Severity","Active","Total Runs","Success","Failures","Last Run","Throttle Hours","Alert Recipients","Priority","Max Retries","Created At"];
+      const csvLines = [header.join(",")];
+      for (const r of ruleRows) {
+        csvLines.push([
+          r.id, `"${(r.name||'').replace(/"/g,'""')}"`, r.trigger_type, r.action_type,
+          r.condition_value||'', r.severity||'', r.is_active ? 'Yes':'No',
+          r.run_count||0, r.success_count||0, r.failure_count||0,
+          r.last_run_at ? new Date(r.last_run_at).toISOString() : '',
+          r.throttle_hours||24, r.alert_recipients||'all_admins', r.priority||5, r.max_retries||3,
+          new Date(r.created_at).toISOString()
+        ].join(","));
+      }
+      const csvContent = csvLines.join("\n");
+      const fileKey = `automation-exports/${companyId}/rule-history-${Date.now()}.csv`;
+      const { url } = await storagePut(fileKey, Buffer.from(csvContent, "utf-8"), "text/csv");
+      return { url, filename: `rule-history-${new Date().toISOString().slice(0,10)}.csv`, rowCount: ruleRows.length };
+    } catch (err) { throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: String(err) }); }
+  }),
+
+  // Get platform-wide trigger summary (contracts, bookings, payments)
+  getPlatformTriggerSummary: protectedProcedure.query(async ({ ctx }) => {
+    const companyId = await requireActiveCompanyId(ctx.user.id);
+    const db = await getDb();
+    if (!db) return { contractsExpiringSoon: 0, pendingEvents: 0 };
+    try {
+      const mysql = require("mysql2/promise");
+      const conn = mysql.createPool(process.env.DATABASE_URL);
+      // Contracts expiring in 30 days
+      const soon = Date.now() + 30 * 24 * 60 * 60 * 1000;
+      const [[contractRow]] = await conn.query(
+        `SELECT COUNT(*) as c FROM contracts WHERE company_id = ? AND status NOT IN ('signed','completed','cancelled') AND end_date IS NOT NULL AND end_date < ?`,
+        [companyId, new Date(soon).toISOString()]
+      );
+      // Pending unprocessed events
+      const [[eventRow]] = await conn.query(
+        `SELECT COUNT(*) as c FROM automation_events WHERE company_id = ? AND processed = 0`,
+        [companyId]
+      );
+      return {
+        contractsExpiringSoon: Number((contractRow as any).c),
+        pendingEvents: Number((eventRow as any).c),
+      };
+    } catch { return { contractsExpiringSoon: 0, pendingEvents: 0 }; }
+  }),
 
   // ─── Notifications ────────────────────────────────────────────────────────
 

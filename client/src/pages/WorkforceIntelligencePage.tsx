@@ -16,13 +16,13 @@ import {
   AlertTriangle, CheckCircle2, Clock, Users, TrendingUp, TrendingDown,
   Zap, Plus, Trash2, Edit3, Play, RefreshCw, ChevronRight,
   Shield, FileWarning, UserX, BarChart3, Activity, Bell, Settings2,
-  ArrowUpRight, Calendar, Building2
+  ArrowUpRight, Calendar, Building2, Download, Cpu, GitBranch, Repeat, XCircle
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type Priority = "critical" | "high" | "medium";
-type TriggerType = "visa_expiry" | "work_permit_expiry" | "passport_expiry" | "completeness_below" | "no_department";
-type ActionType = "notify_admin" | "notify_employee" | "create_task" | "escalate";
+type TriggerType = "visa_expiry" | "work_permit_expiry" | "passport_expiry" | "completeness_below" | "no_department" | "contract_expiry" | "booking_overdue" | "payment_overdue" | "client_inactive";
+type ActionType = "notify_admin" | "notify_employee" | "create_task" | "escalate" | "send_email" | "flag_review";
 
 // ─── Health Score Gauge ───────────────────────────────────────────────────────
 function HealthGauge({ score }: { score: number }) {
@@ -111,6 +111,10 @@ const TRIGGER_LABELS: Record<TriggerType, string> = {
   passport_expiry: "Passport Expiry",
   completeness_below: "Profile Completeness Below",
   no_department: "No Department Assigned",
+  contract_expiry: "Contract Expiry",
+  booking_overdue: "Booking Overdue",
+  payment_overdue: "Payment Overdue",
+  client_inactive: "Client Inactive",
 };
 
 const ACTION_LABELS: Record<ActionType, string> = {
@@ -118,6 +122,8 @@ const ACTION_LABELS: Record<ActionType, string> = {
   notify_employee: "Notify Employee",
   create_task: "Create Task",
   escalate: "Escalate",
+  send_email: "Send Email",
+  flag_review: "Flag for Review",
 };
 
 const PRIORITY_COLORS: Record<Priority, string> = {
@@ -202,6 +208,29 @@ export default function WorkforceIntelligencePage() {
     { id: simulatingRuleId! },
     { enabled: simulatingRuleId !== null }
   );
+  const { data: failureSummary } = trpc.automation.getFailureSummary.useQuery();
+  const { data: platformSummary } = trpc.automation.getPlatformTriggerSummary.useQuery();
+  const processEvents = trpc.automation.processEvents.useMutation({
+    onSuccess: (data) => {
+      utils.automation.getLogs.invalidate();
+      toast.success(`Processed ${data.processed} event(s) — ${data.triggered} rule(s) triggered`);
+    },
+    onError: (e) => toast.error(e.message),
+  });
+  const exportLogsCsv = trpc.automation.exportLogsCsv.useMutation({
+    onSuccess: (data) => {
+      toast.success(`Exported ${data.rowCount} log entries`);
+      window.open(data.url, "_blank");
+    },
+    onError: (e) => toast.error(e.message),
+  });
+  const exportRuleHistoryCsv = trpc.automation.exportRuleHistoryCsv.useMutation({
+    onSuccess: (data) => {
+      toast.success(`Exported ${data.rowCount} rule(s)`);
+      window.open(data.url, "_blank");
+    },
+    onError: (e) => toast.error(e.message),
+  });
 
   function openCreateDialog() {
     setEditingRule(null);
@@ -265,6 +294,9 @@ export default function WorkforceIntelligencePage() {
           <TabsTrigger value="automation">Automation Rules</TabsTrigger>
           <TabsTrigger value="templates">Rule Templates</TabsTrigger>
           <TabsTrigger value="observability">Observability</TabsTrigger>
+          <TabsTrigger value="failures">Failure Analysis</TabsTrigger>
+          <TabsTrigger value="platform">Platform Triggers</TabsTrigger>
+          <TabsTrigger value="exports">Exports</TabsTrigger>
           <TabsTrigger value="logs">Activity Logs</TabsTrigger>
         </TabsList>
 
@@ -832,6 +864,183 @@ export default function WorkforceIntelligencePage() {
                     <p className="text-sm">Select a rule above to see how it would have performed over the last 30 days</p>
                   </div>
                 )}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ── FAILURE ANALYSIS TAB ── */}
+        <TabsContent value="failures" className="mt-4 space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <XCircle className="h-4 w-4 text-red-500" />
+                Failure Analysis
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {failureSummary ? (
+                <>
+                  {failureSummary.highFailureAlert && (
+                    <div className="flex items-center gap-2 p-3 rounded-lg bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 text-sm">
+                      <AlertTriangle className="h-4 w-4 shrink-0" />
+                      <span>High failure rate detected: <strong>{failureSummary.failureRate}%</strong> of rule executions are failing.</span>
+                    </div>
+                  )}
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="p-4 rounded-lg border text-center">
+                      <div className="text-2xl font-bold">{failureSummary.totalRuns}</div>
+                      <div className="text-xs text-muted-foreground mt-1">Total Runs</div>
+                    </div>
+                    <div className="p-4 rounded-lg border text-center">
+                      <div className="text-2xl font-bold text-green-600">{failureSummary.totalSuccesses}</div>
+                      <div className="text-xs text-muted-foreground mt-1">Successes</div>
+                    </div>
+                    <div className="p-4 rounded-lg border text-center">
+                      <div className="text-2xl font-bold text-red-600">{failureSummary.totalFailures}</div>
+                      <div className="text-xs text-muted-foreground mt-1">Failures ({failureSummary.failureRate}%)</div>
+                    </div>
+                  </div>
+                  {(failureSummary.byCategory as Array<{ category: string; count: number }>).length > 0 && (
+                    <div>
+                      <h4 className="text-sm font-semibold mb-2">Failures by Category</h4>
+                      <div className="space-y-2">
+                        {(failureSummary.byCategory as Array<{ category: string; count: number }>).map((cat) => (
+                          <div key={cat.category} className="flex items-center gap-3">
+                            <Badge variant="outline" className="w-28 justify-center text-xs capitalize">{cat.category}</Badge>
+                            <div className="flex-1 bg-muted rounded-full h-2">
+                              <div className="bg-red-500 h-2 rounded-full" style={{ width: `${Math.min(100, (cat.count / Math.max(1, failureSummary.totalFailures)) * 100)}%` }} />
+                            </div>
+                            <span className="text-sm font-medium w-8 text-right">{cat.count}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {(failureSummary.repeatedFailureRules as Array<{ ruleId: number; ruleName: string; failureCount: number; lastFailure: string | null }>).length > 0 && (
+                    <div>
+                      <h4 className="text-sm font-semibold mb-2 flex items-center gap-1">
+                        <Repeat className="h-3.5 w-3.5 text-orange-500" />
+                        Rules with Repeated Failures (≥3)
+                      </h4>
+                      <div className="space-y-2">
+                        {(failureSummary.repeatedFailureRules as Array<{ ruleId: number; ruleName: string; failureCount: number; lastFailure: string | null }>).map((r) => (
+                          <div key={r.ruleId} className="flex items-center justify-between p-3 rounded-lg border border-orange-200 dark:border-orange-800 bg-orange-50 dark:bg-orange-950">
+                            <div>
+                              <div className="font-medium text-sm">{r.ruleName}</div>
+                              <div className="text-xs text-muted-foreground">Last failed: {r.lastFailure ? new Date(r.lastFailure).toLocaleString() : "Unknown"}</div>
+                            </div>
+                            <Badge variant="destructive">{r.failureCount} failures</Badge>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {failureSummary.totalFailures === 0 && (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <CheckCircle2 className="h-10 w-10 mx-auto mb-2 text-green-500 opacity-60" />
+                      <p>No failures recorded — all rules are running cleanly</p>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">Loading failure data...</div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ── PLATFORM TRIGGERS TAB ── */}
+        <TabsContent value="platform" className="mt-4 space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Cpu className="h-4 w-4 text-primary" />
+                Platform-Wide Automation Triggers
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">Automation rules can now trigger on events across the entire platform — not just HR. Use the triggers below when creating rules.</p>
+              <div className="grid grid-cols-2 gap-3">
+                {([
+                  { icon: FileWarning, label: "Contract Expiry", trigger: "contract_expiry", description: "Fires when a contract is expiring within N days", count: platformSummary?.contractsExpiringSoon ?? 0, countLabel: "expiring soon" },
+                  { icon: Calendar, label: "Booking Overdue", trigger: "booking_overdue", description: "Fires when a marketplace booking is past its scheduled date", count: 0, countLabel: "overdue" },
+                  { icon: AlertTriangle, label: "Payment Overdue", trigger: "payment_overdue", description: "Fires when an invoice payment is past due", count: 0, countLabel: "overdue" },
+                  { icon: Users, label: "Client Inactive", trigger: "client_inactive", description: "Fires when a client has had no activity for N days", count: 0, countLabel: "inactive" },
+                ] as Array<{ icon: React.ElementType; label: string; trigger: string; description: string; count: number; countLabel: string }>).map((item) => (
+                  <div key={item.trigger} className="p-4 rounded-lg border space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <item.icon className="h-4 w-4 text-primary" />
+                        <span className="font-medium text-sm">{item.label}</span>
+                      </div>
+                      {item.count > 0 && <Badge variant="destructive">{item.count} {item.countLabel}</Badge>}
+                    </div>
+                    <p className="text-xs text-muted-foreground">{item.description}</p>
+                    <Button size="sm" variant="outline" className="w-full text-xs" onClick={() => {
+                      setRuleForm((p) => ({ ...p, triggerType: item.trigger as TriggerType }));
+                      setShowRuleDialog(true);
+                    }}>
+                      <Plus className="h-3 w-3 mr-1" />
+                      Create Rule for This Trigger
+                    </Button>
+                  </div>
+                ))}
+              </div>
+              {platformSummary && platformSummary.pendingEvents > 0 && (
+                <div className="flex items-center justify-between p-3 rounded-lg border bg-amber-50 dark:bg-amber-950">
+                  <div className="flex items-center gap-2 text-sm">
+                    <GitBranch className="h-4 w-4 text-amber-600" />
+                    <span><strong>{platformSummary.pendingEvents}</strong> unprocessed event(s) in the queue</span>
+                  </div>
+                  <Button size="sm" onClick={() => processEvents.mutate()} disabled={processEvents.isPending}>
+                    <Play className="h-3.5 w-3.5 mr-1" />
+                    {processEvents.isPending ? "Processing..." : "Process Now"}
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ── EXPORTS TAB ── */}
+        <TabsContent value="exports" className="mt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Download className="h-4 w-4 text-primary" />
+                Audit-Grade Exports
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">Export automation data for compliance audits, regulatory reviews, or internal reporting.</p>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="p-4 rounded-lg border space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Activity className="h-4 w-4 text-primary" />
+                    <span className="font-medium text-sm">Automation Logs</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">All rule execution logs with status, failure details, duration, and retry counts.</p>
+                  <Button size="sm" className="w-full" onClick={() => exportLogsCsv.mutate({ days: 30 })} disabled={exportLogsCsv.isPending}>
+                    <Download className="h-3.5 w-3.5 mr-1" />
+                    {exportLogsCsv.isPending ? "Generating..." : "Export Logs (30 days)"}
+                  </Button>
+                  <Button size="sm" variant="outline" className="w-full" onClick={() => exportLogsCsv.mutate({ days: 90 })} disabled={exportLogsCsv.isPending}>
+                    <Download className="h-3.5 w-3.5 mr-1" />
+                    Export Logs (90 days)
+                  </Button>
+                </div>
+                <div className="p-4 rounded-lg border space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Settings2 className="h-4 w-4 text-primary" />
+                    <span className="font-medium text-sm">Rule History</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">Full rule configuration with success/failure counts, priority, recipients, and execution statistics.</p>
+                  <Button size="sm" className="w-full" onClick={() => exportRuleHistoryCsv.mutate()} disabled={exportRuleHistoryCsv.isPending}>
+                    <Download className="h-3.5 w-3.5 mr-1" />
+                    {exportRuleHistoryCsv.isPending ? "Generating..." : "Export Rule History"}
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </Card>

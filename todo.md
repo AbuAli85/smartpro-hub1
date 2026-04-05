@@ -1888,15 +1888,22 @@ Every company on SmartPRO Hub gets a complete, unified business operating area â
 - [x] Save-as-draft in Add Employee wizard
 
 ## Automation Observability & Governance (Priority 5 Upgrades)
-- [ ] Automation observability: success/failure rate per rule, execution duration, error reasons, retry tracking
-- [ ] Notification fatigue: group similar notifications, suppress duplicates, mute rule, snooze, severity prioritization
-- [ ] Rule simulation: 30-day backtest showing trigger frequency
-- [ ] Data ownership: alert recipient field per rule (HR admin / company owner / all admins)
-- [ ] Performance safeguards: query cost monitoring, notification volume tracking on Workforce Intelligence page
+- [x] Automation observability: success/failure rate per rule, execution duration, error reasons, retry tracking
+- [x] Notification fatigue: group similar notifications, suppress duplicates, mute rule, snooze, severity prioritization
+- [x] Rule simulation: 30-day backtest showing trigger frequency
+- [x] Data ownership: alert recipient field per rule (HR admin / company owner / all admins)
+- [x] Performance safeguards: query cost monitoring, notification volume tracking on Workforce Intelligence page
 
 ## Automation Observability & Governance (Priority 5 Upgrades)
-- [ ] Automation observability: success/failure rate per rule, execution duration, error reasons, retry tracking
-- [ ] Notification fatigue: group similar notifications, suppress duplicates, mute rule, snooze, severity prioritization
-- [ ] Rule simulation: 30-day backtest showing trigger frequency
-- [ ] Data ownership: alert recipient field per rule (HR admin / company owner / all admins)
-- [ ] Performance safeguards: query cost monitoring, notification volume tracking on Workforce Intelligence page
+- [x] Automation observability: success/failure rate per rule, execution duration, error reasons, retry tracking
+- [x] Notification fatigue: group similar notifications, suppress duplicates, mute rule, snooze, severity prioritization
+- [x] Rule simulation: 30-day backtest showing trigger frequency
+- [x] Data ownership: alert recipient field per rule (HR admin / company owner / all admins)
+- [x] Performance safeguards: query cost monitoring, notification volume tracking on Workforce Intelligence page
+
+## Platform Automation Engine â€” Phase 3 (from Pasted_content_86.txt)
+- [ ] Failure handling: retry strategy, failure categorization (validation/DB/permission/timeout), alert on repeated failures
+- [ ] Rule priority/dependency: priority field, execution order, conflict/overlap detection UI
+- [ ] Event-driven triggers: employee-updated, doc-added, new-hire events fire rule evaluation
+- [ ] Audit-grade exports: CSV/PDF for automation logs, compliance reports, rule history
+- [ ] Platform-wide automation engine: extend triggers/actions to bookings, payments, contracts, client inactivity

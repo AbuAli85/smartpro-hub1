@@ -7,11 +7,13 @@ import {
   employeeDocuments, employeeTasks, announcements, announcementReads,
   notifications, companyMembers, users, attendanceRecords,
   employeeSchedules, companyHolidays, shiftTemplates, attendanceCorrections,
+  workPermits,
 } from "../../drizzle/schema";
 import { getDb, getUserCompany } from "../db";
 import { protectedProcedure, router } from "../_core/trpc";
 import { requireActiveCompanyId } from "../_core/tenant";
 import { computePortalOperationalHints } from "@shared/employeePortalOperationalHints";
+import { buildEmployeeWorkStatusSummary } from "@shared/employeePortalWorkStatusSummary";
 
 /** Default annual entitlements (calendar year) — keep in sync with portal UI until per-company policies exist */
 export const DEFAULT_LEAVE_ENTITLEMENTS = { annual: 30, sick: 15, emergency: 5 } as const;
@@ -476,6 +478,57 @@ export const employeePortalRouter = router({
       ))
       .orderBy(desc(employeeDocuments.createdAt));
   }),
+
+  /**
+   * Read-only “work status” strip for My Portal: permit signal, document expiry, assigned tasks.
+   * Not the employer compliance dashboard — no scoring, WPS, or Omanisation.
+   */
+  getMyWorkStatusSummary: protectedProcedure
+    .input(z.object({ companyId: z.number().optional() }).default({}))
+    .query(async ({ ctx, input }) => {
+      let companyId: number;
+      try {
+        companyId = await requireActiveCompanyId(ctx.user.id, input.companyId);
+      } catch {
+        return null;
+      }
+      const myEmp = await resolveMyEmployee(ctx.user.id, ctx.user.email ?? "", companyId);
+      if (!myEmp) return null;
+      const db = await requireDb();
+
+      const permitRows = await db
+        .select()
+        .from(workPermits)
+        .where(and(eq(workPermits.employeeId, myEmp.id), eq(workPermits.companyId, companyId)))
+        .orderBy(desc(workPermits.updatedAt))
+        .limit(25);
+
+      const chosenPermit =
+        permitRows.find((p) => p.permitStatus !== "cancelled" && p.permitStatus !== "transferred") ??
+        permitRows[0] ??
+        null;
+
+      const permitInput = chosenPermit
+        ? { permitStatus: chosenPermit.permitStatus, expiryDate: chosenPermit.expiryDate }
+        : null;
+
+      const docs = await db
+        .select({ expiresAt: employeeDocuments.expiresAt })
+        .from(employeeDocuments)
+        .where(and(eq(employeeDocuments.companyId, companyId), eq(employeeDocuments.employeeId, myEmp.id)));
+
+      const taskRows = await db
+        .select({ status: employeeTasks.status, dueDate: employeeTasks.dueDate })
+        .from(employeeTasks)
+        .where(and(eq(employeeTasks.companyId, companyId), eq(employeeTasks.assignedToEmployeeId, myEmp.id)));
+
+      return buildEmployeeWorkStatusSummary({
+        nationality: myEmp.nationality,
+        permit: permitInput,
+        documents: docs,
+        tasks: taskRows,
+      });
+    }),
 
   // ─── Get my in-app notifications ──────────────────────────────────────────
   getMyNotifications: protectedProcedure

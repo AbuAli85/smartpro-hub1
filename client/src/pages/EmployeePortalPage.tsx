@@ -24,7 +24,7 @@ import {
   AlertTriangle, Info, Wallet, Timer, BarChart2, CalendarCheck,
   FileCheck, FilePlus, ExternalLink, RefreshCw, Star, ArrowLeftRight, Repeat,
   Target, Activity, Award, Zap, PieChart, TrendingDown, Flame, Trophy,
-  Sparkles, Landmark, Play, Ban,
+  Sparkles, Landmark, Play, Ban, ClipboardList,
 } from "lucide-react";
 import { fmtDateLong, fmtDateTime } from "@/lib/dateUtils";
 import { getDueUrgency, slaLabel, actionRequiredOverdueLabel, dueTimingPhrase } from "@/lib/taskSla";
@@ -656,6 +656,11 @@ export default function EmployeePortalPage() {
       { companyId: activeCompanyId ?? undefined },
       { enabled: isAuthenticated }
     );
+  const { data: workStatusSummary, isLoading: workStatusLoading } =
+    trpc.employeePortal.getMyWorkStatusSummary.useQuery(
+      { companyId: activeCompanyId ?? undefined },
+      { enabled: isAuthenticated && activeCompanyId != null }
+    );
   const { data: overviewCorrectionList } = trpc.attendance.myCorrections.useQuery(
     {},
     { enabled: isAuthenticated && !operationalHintsSuccess }
@@ -818,6 +823,7 @@ export default function EmployeePortalPage() {
       setCompleteTaskId(null);
       setEmpTaskDetail(null);
       utils.employeePortal.getMyTasks.invalidate();
+      void utils.employeePortal.getMyWorkStatusSummary.invalidate();
     },
     onError: (err) => toast.error(err.message),
   });
@@ -825,12 +831,14 @@ export default function EmployeePortalPage() {
     onSuccess: () => {
       toast.success("Task in progress");
       utils.employeePortal.getMyTasks.invalidate();
+      void utils.employeePortal.getMyWorkStatusSummary.invalidate();
     },
     onError: (err) => toast.error(err.message),
   });
   const toggleTaskChecklistItem = trpc.employeePortal.toggleTaskChecklistItem.useMutation({
     onSuccess: (data, vars) => {
       void utils.employeePortal.getMyTasks.invalidate();
+      void utils.employeePortal.getMyWorkStatusSummary.invalidate();
       setEmpTaskDetail((t: any) => (t && t.id === vars.taskId ? { ...t, checklist: data.checklist } : t));
     },
     onError: (err) => toast.error(err.message),
@@ -1403,6 +1411,121 @@ export default function EmployeePortalPage() {
                   </CardContent>
                 </Card>
               ) : null
+            )}
+
+            {workStatusLoading && isAuthenticated && activeCompanyId != null && (
+              <Card className="border-border/60">
+                <CardContent className="space-y-3 p-4 animate-pulse">
+                  <div className="h-4 w-44 rounded bg-muted" />
+                  <div className="h-3 w-full rounded bg-muted" />
+                  <div className="h-3 w-[88%] rounded bg-muted" />
+                  <div className="h-8 w-32 rounded bg-muted" />
+                </CardContent>
+              </Card>
+            )}
+            {!workStatusLoading && workStatusSummary && (
+              <Card
+                className={
+                  workStatusSummary.overallStatus === "urgent"
+                    ? "border-red-200/90 bg-red-50/40 ring-1 ring-red-500/15 dark:border-red-900/50 dark:bg-red-950/25"
+                    : workStatusSummary.overallStatus === "needs_attention"
+                      ? "border-amber-200/90 bg-amber-50/35 ring-1 ring-amber-500/15 dark:border-amber-900/45 dark:bg-amber-950/20"
+                      : "border-emerald-200/70 bg-emerald-50/30 ring-1 ring-emerald-500/15 dark:border-emerald-900/40 dark:bg-emerald-950/15"
+                }
+              >
+                <CardContent className="space-y-3 p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="flex min-w-0 items-start gap-3">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-background/80 ring-1 ring-border/60">
+                        <ClipboardList className="h-5 w-5 text-foreground/80" />
+                      </div>
+                      <div className="min-w-0 space-y-1">
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                          Work status
+                        </p>
+                        <p className="text-xs text-muted-foreground leading-snug max-w-xl">
+                          Your work permit signal, employment documents, and HR tasks — not a full company compliance report.
+                        </p>
+                      </div>
+                    </div>
+                    <Badge
+                      variant="outline"
+                      className={
+                        workStatusSummary.overallStatus === "on_track"
+                          ? "border-emerald-500/45 text-emerald-900 dark:text-emerald-100 shrink-0"
+                          : workStatusSummary.overallStatus === "needs_attention"
+                            ? "border-amber-500/45 text-amber-900 dark:text-amber-100 shrink-0"
+                            : "border-red-500/50 text-red-900 dark:text-red-100 shrink-0"
+                      }
+                    >
+                      {workStatusSummary.overallStatus === "on_track"
+                        ? "On track"
+                        : workStatusSummary.overallStatus === "needs_attention"
+                          ? "Needs attention"
+                          : "Urgent"}
+                    </Badge>
+                  </div>
+                  <ul className="space-y-1.5 text-xs text-foreground/90">
+                    <li className="flex gap-2">
+                      <span className="shrink-0 font-medium text-muted-foreground">Permit</span>
+                      <span className="min-w-0">{workStatusSummary.permit.label}</span>
+                    </li>
+                    <li className="flex gap-2">
+                      <span className="shrink-0 font-medium text-muted-foreground">Documents</span>
+                      <span className="min-w-0">{workStatusSummary.documents.label}</span>
+                    </li>
+                    <li className="flex gap-2">
+                      <span className="shrink-0 font-medium text-muted-foreground">Tasks</span>
+                      <span className="min-w-0">{workStatusSummary.tasks.label}</span>
+                    </li>
+                  </ul>
+                  <div className="flex flex-wrap gap-2 pt-0.5">
+                    {workStatusSummary.primaryAction.type !== "none" && (
+                      <Button
+                        size="sm"
+                        className="gap-1.5"
+                        variant={workStatusSummary.overallStatus === "urgent" ? "default" : "secondary"}
+                        onClick={() => {
+                          const tab = workStatusSummary.primaryAction.tab;
+                          if (tab) {
+                            setActiveTab(tab);
+                            requestAnimationFrame(() => {
+                              document.getElementById(`portal-${tab}`)?.scrollIntoView({
+                                behavior: "smooth",
+                                block: "start",
+                              });
+                            });
+                          } else if (workStatusSummary.primaryAction.type === "contact_hr") {
+                            setActiveTab("profile");
+                          }
+                        }}
+                      >
+                        {workStatusSummary.primaryAction.type === "open_tasks" && (
+                          <CheckSquare className="h-3.5 w-3.5" />
+                        )}
+                        {workStatusSummary.primaryAction.type === "open_documents" && (
+                          <FileText className="h-3.5 w-3.5" />
+                        )}
+                        {workStatusSummary.primaryAction.type === "contact_hr" && (
+                          <Mail className="h-3.5 w-3.5" />
+                        )}
+                        {workStatusSummary.primaryAction.label}
+                      </Button>
+                    )}
+                    {workStatusSummary.secondaryAction && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="gap-1.5"
+                        onClick={() => setActiveTab("profile")}
+                      >
+                        <Phone className="h-3.5 w-3.5" />
+                        {workStatusSummary.secondaryAction.label}
+                      </Button>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
             )}
 
             <Card className="border-emerald-200/70 bg-emerald-50/45 dark:bg-emerald-950/20 ring-1 ring-emerald-500/20">
@@ -2220,7 +2343,7 @@ export default function EmployeePortalPage() {
           </TabsContent>
 
           {/* ══ TASKS TAB ════════════════════════════════════════════════════ */}
-          <TabsContent value="tasks" className="mt-4 space-y-4">
+          <TabsContent id="portal-tasks" value="tasks" className="mt-4 space-y-4 scroll-mt-24">
             {/* Task stats */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {[
@@ -2454,7 +2577,7 @@ export default function EmployeePortalPage() {
           </TabsContent>
 
           {/* ══ DOCUMENTS TAB ════════════════════════════════════════════════ */}
-          <TabsContent value="documents" className="mt-4 space-y-4">
+          <TabsContent id="portal-documents" value="documents" className="mt-4 space-y-4 scroll-mt-24">
             {/* Expiry alerts */}
             {expiringDocs.length > 0 && (
               <Card className="border-amber-200 bg-amber-50/50 dark:bg-amber-950/10">

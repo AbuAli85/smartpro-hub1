@@ -1794,22 +1794,22 @@ Every company on SmartPRO Hub gets a complete, unified business operating area �
 
 ## User Roles & Access Management Dashboard (Apr 4, 2026)
 ### Backend
-- [ ] tRPC: platformOps.getRoleAuditReport — full user list with platformRole, all company memberships, role mismatch detection flag
-- [ ] tRPC: platformOps.fixRoleMismatch — auto-heal a user's platformRole to match their highest company membership role
-- [ ] tRPC: platformOps.bulkFixMismatches — fix all detected mismatches in one operation
-- [ ] tRPC: platformOps.updateMembershipRole — change a user's role within a specific company
-- [ ] tRPC: platformOps.removeFromCompany — remove a user from a company (deactivate membership)
-- [ ] tRPC: platformOps.addToCompany — add a user to a company with a specified role
+- [x] tRPC: platformOps.getRoleAuditReport — full user list with platformRole, all company memberships, role mismatch detection flag
+- [x] tRPC: platformOps.fixRoleMismatch — auto-heal a user's platformRole to match their highest company membership role
+- [x] tRPC: platformOps.bulkFixMismatches — fix all detected mismatches in one operation
+- [x] tRPC: platformOps.updateMembershipRole — change a user's role within a specific company
+- [x] tRPC: platformOps.removeFromCompany — remove a user from a company (deactivate membership)
+- [x] tRPC: platformOps.addToCompany — add a user to a company with a specified role
 ### Frontend
-- [ ] Page: UserRolesPage.tsx — admin-only page at /admin/user-roles
-- [ ] Summary stat cards: total users, mismatches detected, company_admins, suspended accounts
-- [ ] Mismatch alert banner: shows count of users with role inconsistencies + "Fix All" button
-- [ ] User table: search/filter by role/company/status, shows platformRole badge, company membership chips, mismatch warning icon
-- [ ] Row expand: shows all company memberships with role, isActive status, edit/remove per membership
-- [ ] Inline actions: change platformRole, fix mismatch, suspend/activate, add to company, remove from company
-- [ ] Add to Company dialog: select company + role, submit
-- [ ] Audit log panel: last 20 role change events with timestamp, actor, target user, change description
-- [ ] Navigation: "User Roles" link added under Admin section in PlatformLayout
+- [x] Page: UserRolesPage.tsx — admin-only page at /admin/user-roles
+- [x] Summary stat cards: total users, mismatches detected, company_admins, suspended accounts
+- [x] Mismatch alert banner: shows count of users with role inconsistencies + "Fix All" button
+- [x] User table: search/filter by role/company/status, shows platformRole badge, company membership chips, mismatch warning icon
+- [x] Row expand: shows all company memberships with role, isActive status, edit/remove per membership
+- [x] Inline actions: change platformRole, fix mismatch, suspend/activate, add to company, remove from company
+- [x] Add to Company dialog: select company + role, submit
+- [x] Audit log panel: last 20 role change events with timestamp, actor, target user, change description
+- [x] Navigation: "User Roles" link added under Admin section in PlatformLayout
 
 ## User Roles & Access Management Dashboard (Apr 4, 2026)
 ### Backend
@@ -1828,7 +1828,7 @@ Every company on SmartPRO Hub gets a complete, unified business operating area �
 - [ ] Inline actions: change platformRole, fix mismatch, suspend/activate, add to company, remove from company
 - [ ] Add to Company dialog: select company + role, submit
 - [ ] Audit log panel: last 20 role change events with timestamp, actor, target user, change description
-- [ ] Navigation: User Roles link added under Admin section in PlatformLayout
+- [x] Navigation: User Roles link added under Admin section in PlatformLayout
 
 ## User Roles & Access Management Dashboard — COMPLETED (Apr 4, 2026)
 
@@ -1848,18 +1848,18 @@ Every company on SmartPRO Hub gets a complete, unified business operating area �
 
 ## User Roles Page — Clean UI Redesign (Phase 1, Apr 4, 2026)
 
-- [ ] Backend: compute accountType from platformRole
-- [ ] Backend: compute effectiveAccess label
-- [ ] Backend: compute scope string
-- [ ] UI: group users into 3 sections — Platform Staff / Business Users / Customers
-- [ ] UI: replace raw platformRole with Effective Access label
-- [ ] UI: hide legacy users.role field
-- [ ] UI: show Scope column
-- [ ] UI: summary cards by account type
+- [x] Backend: compute accountType from platformRole
+- [x] Backend: compute effectiveAccess label
+- [x] Backend: compute scope string
+- [x] UI: group users into 3 sections — Platform Staff / Business Users / Customers
+- [x] UI: replace raw platformRole with Effective Access label
+- [x] UI: hide legacy users.role field
+- [x] UI: show Scope column
+- [x] UI: summary cards by account type
 
 ## User Roles Page — Final QA (Phase 1 Sign-off)
-- [ ] Move computeAccountType, computeEffectiveAccess, computeScope, computeEdgeCaseWarning to shared/roleHelpers.ts
-- [ ] Add unknown/null role fallback bucket ("Needs Review") so no user disappears
+- [x] Move computeAccountType, computeEffectiveAccess, computeScope, computeEdgeCaseWarning to shared/roleHelpers.ts
+- [x] Add unknown/null role fallback bucket ("Needs Review") so no user disappears
 - [ ] Rename "Business Users" group to "Company Users"
 - [ ] Fix warning color semantics: orange=recoverable warning, red=error/action-required
 - [ ] Ensure status (Suspended/Active) is visually distinct from access state and mismatch state

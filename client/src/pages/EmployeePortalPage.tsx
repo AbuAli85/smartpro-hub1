@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,10 +24,27 @@ import {
   AlertTriangle, Info, Wallet, Timer, BarChart2, CalendarCheck,
   FileCheck, FilePlus, ExternalLink, RefreshCw, Star, ArrowLeftRight, Repeat,
   Target, Activity, Award, Zap, PieChart, TrendingDown, Flame, Trophy,
+  Sparkles, Landmark,
 } from "lucide-react";
 import { fmtDateLong, fmtDateTime } from "@/lib/dateUtils";
 import { RequestsCalendar } from "@/components/RequestsCalendar";
 import { DateInput } from "@/components/ui/date-input";
+import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
+import { employeePortalConfig } from "@/config/employeePortalConfig";
+import {
+  computeProductivityScore,
+  getShiftOperationalState,
+  titleCaseFirstName,
+} from "@/lib/employeePortalUtils";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 type TaskStatus = "pending" | "in_progress" | "completed" | "cancelled";
@@ -525,6 +542,7 @@ export default function EmployeePortalPage() {
   const [editPhone, setEditPhone] = useState("");
   const [editEmergencyName, setEditEmergencyName] = useState("");
   const [editEmergencyPhone, setEditEmergencyPhone] = useState("");
+  const [portalClock, setPortalClock] = useState(0);
 
   // ── Queries ──────────────────────────────────────────────────────────────
   const { data: profile, isLoading: profileLoading, refetch: refetchProfile } = trpc.employeePortal.getMyProfile.useQuery(
@@ -560,6 +578,11 @@ export default function EmployeePortalPage() {
   const { data: myActiveSchedule } = trpc.scheduling.getMyActiveSchedule.useQuery(
     {}, { enabled: isAuthenticated }
   );
+  const { data: todayAttendanceRecord } = trpc.attendance.myToday.useQuery(
+    undefined,
+    { enabled: isAuthenticated }
+  );
+  const { companies: myCompanies, activeCompany: activeCompanyCtx } = useActiveCompany();
   const { data: myShiftRequests } = trpc.shiftRequests.listMine.useQuery(
     {}, { enabled: isAuthenticated }
   );
@@ -645,6 +668,11 @@ export default function EmployeePortalPage() {
   });
 
   const utils = trpc.useUtils();
+
+  useEffect(() => {
+    const id = window.setInterval(() => setPortalClock((c) => c + 1), 30000);
+    return () => clearInterval(id);
+  }, []);
 
   // ── Mutations ─────────────────────────────────────────────────────────────
   const submitLeave = trpc.employeePortal.submitLeaveRequest.useMutation({
@@ -737,6 +765,46 @@ export default function EmployeePortalPage() {
   const attendanceRate = attSummary.total > 0
     ? Math.round(((attSummary.present + attSummary.late) / attSummary.total) * 100)
     : null;
+
+  const sickDaysUsedYtd = useMemo(() => {
+    return leave
+      .filter(
+        (l: any) =>
+          l.status === "approved" &&
+          l.leaveType === "sick" &&
+          new Date(l.startDate).getFullYear() === leaveYear
+      )
+      .reduce((s: number, l: any) => s + calcDays(l.startDate, l.endDate), 0);
+  }, [leave, leaveYear]);
+
+  const productivity = useMemo(
+    () =>
+      computeProductivityScore({
+        attendanceRatePercent: attendanceRate,
+        tasks: (tasks as any[]) ?? [],
+      }),
+    [attendanceRate, tasks]
+  );
+
+  const shiftIntel = useMemo(() => {
+    const sh = myActiveSchedule?.shift as { startTime?: string; endTime?: string } | undefined;
+    if (!sh?.startTime || !sh?.endTime) return null;
+    return getShiftOperationalState(sh.startTime, sh.endTime, new Date());
+  }, [myActiveSchedule?.shift, portalClock]);
+
+  const shiftAttendanceHints = useMemo(() => {
+    const checkIn = todayAttendanceRecord?.checkIn;
+    const checkOut = todayAttendanceRecord?.checkOut;
+    if (!shiftIntel) return null;
+    const missedActive = shiftIntel.phase === "active" && !checkIn;
+    const missedEnded = shiftIntel.phase === "ended" && !checkIn;
+    let ctaLabel = "Open attendance";
+    if (shiftIntel.phase === "upcoming") ctaLabel = "Prepare";
+    if (shiftIntel.phase === "active" && !checkIn) ctaLabel = "Check in now";
+    if (shiftIntel.phase === "active" && checkIn && !checkOut) ctaLabel = "Check out";
+    if (shiftIntel.phase === "ended") ctaLabel = checkIn ? "Shift summary" : "Request correction";
+    return { missedActive, missedEnded, ctaLabel, checkIn, checkOut };
+  }, [shiftIntel, todayAttendanceRecord]);
 
   // Build attendance map for calendar
   const attMap = useMemo(() => {
@@ -908,8 +976,12 @@ export default function EmployeePortalPage() {
                 : <User className="w-5 h-5 text-primary" />}
             </div>
             <div className="min-w-0">
-              <p className="font-semibold text-sm leading-tight truncate">{fullName}</p>
-              <p className="text-xs text-muted-foreground truncate">
+              <p className="font-semibold text-sm leading-tight truncate">
+                Welcome back, {titleCaseFirstName(emp.firstName)}
+                <span className="ml-1 font-normal text-muted-foreground" aria-hidden>👋</span>
+              </p>
+              <p className="text-xs text-muted-foreground truncate" title={fullName}>
+                <span className="sr-only">Full name: {fullName}. </span>
                 {emp.position ?? "Employee"}{emp.department ? ` · ${emp.department}` : ""}
                 {companyInfo ? ` · ${companyInfo.name}` : ""}
               </p>
@@ -924,41 +996,160 @@ export default function EmployeePortalPage() {
                 </span>
               </Button>
             )}
-            <Button variant="ghost" size="icon" className="relative" onClick={() => setShowNotifications(true)}>
-              {unreadCount > 0 ? <BellRing className="w-5 h-5 text-primary" /> : <Bell className="w-5 h-5" />}
-              {unreadCount > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
-                  {unreadCount > 9 ? "9+" : unreadCount}
-                </span>
-              )}
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="relative" aria-label="Open notifications menu">
+                  {unreadCount > 0 ? <BellRing className="w-5 h-5 text-primary" /> : <Bell className="w-5 h-5" />}
+                  {unreadCount > 0 && (
+                    <span className="absolute -top-0.5 -right-0.5 min-w-4 h-4 px-0.5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                      {unreadCount > 9 ? "9+" : unreadCount}
+                    </span>
+                  )}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-80 z-50">
+                <DropdownMenuLabel className="flex items-center justify-between gap-2">
+                  <span>Notifications</span>
+                  {unreadCount > 0 && (
+                    <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => markAllRead.mutate()}>
+                      Mark all read
+                    </Button>
+                  )}
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {notifications.length === 0 ? (
+                  <div className="px-2 py-6 text-center text-sm text-muted-foreground">You&apos;re all caught up.</div>
+                ) : (
+                  <div className="max-h-72 overflow-y-auto">
+                    {notifications.slice(0, 6).map((n: any) => (
+                      <DropdownMenuItem
+                        key={n.id}
+                        className="flex cursor-pointer flex-col items-start gap-0.5 py-2"
+                        onClick={() => {
+                          if (!n.isRead) markNotifRead.mutate({ notificationId: n.id });
+                        }}
+                      >
+                        <span className="flex w-full items-start justify-between gap-2 text-sm font-medium">
+                          <span className="line-clamp-1">{n.title}</span>
+                          {!n.isRead && <span className="h-2 w-2 shrink-0 rounded-full bg-primary" />}
+                        </span>
+                        <span className="line-clamp-2 text-xs text-muted-foreground">{n.message}</span>
+                        <span className="text-[10px] text-muted-foreground">{fmtDateTime(n.createdAt)}</span>
+                      </DropdownMenuItem>
+                    ))}
+                  </div>
+                )}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem className="cursor-pointer justify-center text-primary" onClick={() => setShowNotifications(true)}>
+                  View all notifications
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
       </div>
 
       <div className="max-w-5xl mx-auto px-4 py-6 space-y-5">
-        {/* ── Quick Stats ── */}
+        {/* ── Quick Stats (secondary tier — soft surface + ring) ── */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[
-            { label: "Annual Leave Left", value: `${balance.annual} days`, icon: Calendar, color: "text-blue-500", bg: "bg-blue-50 dark:bg-blue-950/20", onClick: () => setActiveTab("leave") },
-            { label: "Sick Leave Left", value: `${balance.sick} days`, icon: AlertCircle, color: "text-amber-500", bg: "bg-amber-50 dark:bg-amber-950/20", onClick: () => setActiveTab("leave") },
-            { label: "Pending Tasks", value: String(pendingTasks), icon: CheckSquare, color: "text-purple-500", bg: "bg-purple-50 dark:bg-purple-950/20", onClick: () => setActiveTab("tasks") },
-            { label: "This Month Present", value: `${realAttSummary.total} days`, icon: UserCheck, color: "text-green-500", bg: "bg-green-50 dark:bg-green-950/20", onClick: () => setActiveTab("attendance") },
-          ].map(({ label, value, icon: Icon, color, bg, onClick }) => (
-            <Card key={label} className={`hover:shadow-md transition-shadow cursor-pointer ${bg} border-0`} onClick={onClick}>
+            {
+              label: "Annual leave",
+              value: `${balance.annual} days`,
+              hint:
+                balance.annual >= entitlements.annual
+                  ? "Full balance"
+                  : `${Math.max(0, entitlements.annual - balance.annual)} days used this year`,
+              icon: Calendar,
+              color: "text-blue-500",
+              bg: "bg-blue-50 dark:bg-blue-950/20",
+              onClick: () => setActiveTab("leave"),
+            },
+            {
+              label: "Sick leave",
+              value: `${balance.sick} days`,
+              hint:
+                sickDaysUsedYtd === 0
+                  ? "No sick leave taken this year"
+                  : `${sickDaysUsedYtd} sick day${sickDaysUsedYtd === 1 ? "" : "s"} used YTD`,
+              icon: AlertCircle,
+              color: "text-amber-500",
+              bg: "bg-amber-50 dark:bg-amber-950/20",
+              onClick: () => setActiveTab("leave"),
+            },
+            {
+              label: "Pending tasks",
+              value: String(pendingTasks),
+              hint: pendingTasks === 0 ? "Inbox clear" : `${pendingTasks} need your attention`,
+              icon: CheckSquare,
+              color: "text-purple-500",
+              bg: "bg-purple-50 dark:bg-purple-950/20",
+              onClick: () => setActiveTab("tasks"),
+            },
+            {
+              label: "This month present",
+              value: `${realAttSummary.total} days`,
+              hint:
+                realAttSummary.total === 0
+                  ? "Check in from Attendance"
+                  : `${realAttSummary.total} day${realAttSummary.total === 1 ? "" : "s"} on record`,
+              icon: UserCheck,
+              color: "text-green-500",
+              bg: "bg-green-50 dark:bg-green-950/20",
+              onClick: () => setActiveTab("attendance"),
+            },
+          ].map(({ label, value, hint, icon: Icon, color, bg, onClick }) => (
+            <Card
+              key={label}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  onClick();
+                }
+              }}
+              className={`hover:shadow-md transition-shadow cursor-pointer ${bg} border-0 ring-1 ring-border/50`}
+              onClick={onClick}
+            >
               <CardContent className="p-4">
                 <Icon className={`w-5 h-5 ${color} mb-2`} />
                 <p className="text-xl font-bold leading-tight">{value}</p>
-                <p className="text-xs text-muted-foreground mt-0.5">{label}</p>
+                <p className="text-xs font-medium text-foreground/90 mt-0.5">{label}</p>
+                <p className="text-[11px] text-muted-foreground mt-1 leading-snug line-clamp-2">{hint}</p>
               </CardContent>
             </Card>
           ))}
         </div>
 
-        {/* ── Main Tabs (scroll on small screens — avoids invalid grid-cols-13 / crushed labels) ── */}
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <div className="rounded-xl border border-border/60 bg-muted/50 p-1 shadow-sm">
-            <TabsList className="flex h-auto w-full flex-nowrap items-stretch justify-start gap-0.5 overflow-x-auto overflow-y-hidden bg-transparent p-0 [scrollbar-width:thin]">
+        {myCompanies.length > 1 && (
+          <Card className="border-dashed border-primary/25 bg-muted/20 ring-1 ring-primary/10">
+            <CardContent className="p-4 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2 min-w-0">
+                <Building2 className="w-5 h-5 text-primary shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold">Assigned companies</p>
+                  <p className="text-xs text-muted-foreground truncate">
+                    You have access to {myCompanies.length} companies. Active:{" "}
+                    <span className="font-medium text-foreground">{activeCompanyCtx?.name ?? companyInfo?.name}</span>
+                  </p>
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground max-w-md">
+                Switch organization from the company menu in the sidebar to work across your portfolio.
+              </p>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* ── Main Tabs — sticky below header for long pages ── */}
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="gap-0" activationMode="automatic">
+          <div className="sticky top-16 z-[15] -mx-4 px-4 py-2 bg-background/92 backdrop-blur-md border-b border-border/60 supports-[backdrop-filter]:bg-background/80">
+            <div className="rounded-xl border border-border/60 bg-muted/50 p-1 shadow-sm max-w-5xl mx-auto">
+              <TabsList
+                aria-label="Employee portal sections"
+                className="flex h-auto w-full flex-nowrap items-stretch justify-start gap-0.5 overflow-x-auto overflow-y-hidden bg-transparent p-0 [scrollbar-width:thin]"
+              >
               {[
                 { value: "overview", icon: Home, label: "Overview" },
                 { value: "attendance", icon: UserCheck, label: "Attendance" },
@@ -988,7 +1179,8 @@ export default function EmployeePortalPage() {
                   )}
                 </TabsTrigger>
               ))}
-            </TabsList>
+              </TabsList>
+            </div>
           </div>
 
           {/* ══ OVERVIEW TAB ══════════════════════════════════════════════════ */}
@@ -1008,28 +1200,106 @@ export default function EmployeePortalPage() {
                   </CardContent>
                 </Card>
               ) : myActiveSchedule.schedule && myActiveSchedule.shift ? (
-                <Card className="border-primary/20 bg-primary/5">
-                  <CardContent className="p-4 flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                      <Clock className="w-5 h-5 text-primary" />
+                <Card className="border-primary/35 bg-gradient-to-br from-primary/[0.07] to-background shadow-md shadow-primary/10 ring-1 ring-primary/15">
+                  <CardContent className="p-4 space-y-3">
+                    <div className="flex flex-wrap items-start gap-3">
+                      <div className="w-10 h-10 rounded-full bg-primary/15 flex items-center justify-center shrink-0">
+                        <Clock className="w-5 h-5 text-primary" />
+                      </div>
+                      <div className="flex-1 min-w-0 space-y-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          {shiftIntel && (
+                            <span className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-card/80 px-2 py-0.5 text-[11px] font-medium">
+                              <span className={`h-2 w-2 rounded-full ${shiftIntel.statusDotClass}`} />
+                              {shiftIntel.statusLabel}
+                            </span>
+                          )}
+                          <p className="font-semibold text-sm">
+                            Today&apos;s shift: {formatShiftDisplayName(myActiveSchedule.shift.name)}
+                          </p>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {myActiveSchedule.shift.startTime} – {myActiveSchedule.shift.endTime}
+                          {myActiveSchedule.site ? ` · ${myActiveSchedule.site.name}` : ""}
+                        </p>
+                        {shiftIntel?.detailLine && (
+                          <p className="text-xs font-medium text-blue-700 dark:text-blue-300">{shiftIntel.detailLine}</p>
+                        )}
+                        {shiftAttendanceHints?.missedActive && (
+                          <p className="text-xs font-medium text-amber-700 dark:text-amber-300">
+                            No check-in recorded yet for this shift.
+                          </p>
+                        )}
+                        {shiftAttendanceHints?.missedEnded && (
+                          <p className="text-xs font-medium text-red-700 dark:text-red-300">
+                            No attendance recorded for this shift — request a correction if this was a mistake.
+                          </p>
+                        )}
+                      </div>
+                      <div
+                        className="w-3 h-3 rounded-full shrink-0 self-center"
+                        style={{ backgroundColor: (myActiveSchedule.shift as any).color ?? "#6366f1" }}
+                      />
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-sm">Today&apos;s shift: {formatShiftDisplayName(myActiveSchedule.shift.name)}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {myActiveSchedule.shift.startTime} – {myActiveSchedule.shift.endTime}
-                        {myActiveSchedule.site ? ` · ${myActiveSchedule.site.name}` : ""}
-                      </p>
+                    <div className="flex flex-wrap gap-2">
+                      <Button size="sm" className="gap-1.5" onClick={() => setActiveTab("attendance")}>
+                        <UserCheck className="w-3.5 h-3.5" />
+                        {shiftAttendanceHints?.ctaLabel ?? "Open attendance"}
+                      </Button>
+                      {shiftIntel?.phase === "ended" && (
+                        <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setActiveTab("worklog")}>
+                          <Timer className="w-3.5 h-3.5" /> Log work
+                        </Button>
+                      )}
                     </div>
-                    <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: (myActiveSchedule.shift as any).color ?? "#6366f1" }} />
                   </CardContent>
                 </Card>
               ) : null
             )}
 
+            <Card className="border-emerald-200/70 bg-emerald-50/45 dark:bg-emerald-950/20 ring-1 ring-emerald-500/20">
+              <CardContent className="p-4 flex flex-wrap items-center justify-between gap-4">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-11 h-11 rounded-xl bg-emerald-500/15 flex items-center justify-center shrink-0">
+                    <Sparkles className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Performance snapshot</p>
+                    <p className="text-2xl font-bold text-emerald-800 dark:text-emerald-300 tabular-nums">{productivity.score}%</p>
+                    <p className="text-xs text-muted-foreground max-w-md leading-snug">{productivity.hint}</p>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button size="sm" variant="outline" onClick={() => setActiveTab("attendance")}>
+                    Attendance
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => setActiveTab("tasks")}>
+                    Tasks
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            {!employeePortalConfig.compliance.governmentFeaturesEnabled && (
+              <Card className="border-dashed border-muted-foreground/30 bg-muted/15">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm flex items-center gap-2 text-muted-foreground">
+                    <Landmark className="w-4 h-4" /> Labour &amp; government (roadmap)
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="text-xs text-muted-foreground space-y-2 leading-relaxed">
+                  <p>
+                    Planned: visa / work permit status, MoL-style requests, and compliance tasks — structured for Oman workforce programs and reporting.
+                  </p>
+                  <p className="text-[11px] italic">Not connected to external systems yet; placeholders signal enterprise direction.</p>
+                </CardContent>
+              </Card>
+            )}
+
             {/* Attendance Rate + Leave Balance */}
             <div className="grid sm:grid-cols-2 gap-4">
               {/* Attendance Rate */}
-              <Card>
+              <Card className="border-border/60 bg-card">
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm flex items-center gap-2">
                     <BarChart2 className="w-4 h-4 text-green-500" /> This Month Attendance
@@ -1059,10 +1329,19 @@ export default function EmployeePortalPage() {
                       </div>
                     </>
                   ) : (
-                    <div className="text-center py-4">
-                      <p className="text-sm text-muted-foreground">No attendance data this month</p>
-                      <Button size="sm" variant="outline" className="mt-2" onClick={() => setActiveTab("attendance")}>
-                        View Attendance
+                    <div className="text-center py-4 space-y-2">
+                      <p className="text-sm text-muted-foreground">
+                        {todayAttendanceRecord?.checkIn
+                          ? "No summary rows for this month yet — your check-ins still count."
+                          : "No attendance summary for this month yet."}
+                      </p>
+                      {!todayAttendanceRecord?.checkIn && (
+                        <p className="text-xs text-amber-800 dark:text-amber-200 max-w-xs mx-auto leading-snug">
+                          You haven&apos;t checked in today. Open Attendance to check in at your assigned site.
+                        </p>
+                      )}
+                      <Button size="sm" className="mt-1" onClick={() => setActiveTab("attendance")}>
+                        {todayAttendanceRecord?.checkIn ? "View attendance" : "Check in now"}
                       </Button>
                     </div>
                   )}
@@ -1070,7 +1349,7 @@ export default function EmployeePortalPage() {
               </Card>
 
               {/* Leave Balance */}
-              <Card>
+              <Card className="border-border/60 bg-card">
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm flex items-center justify-between">
                     <span className="flex items-center gap-2"><Calendar className="w-4 h-4 text-blue-500" /> Leave balance ({leaveYear})</span>
@@ -1100,6 +1379,9 @@ export default function EmployeePortalPage() {
                       </div>
                     );
                   })}
+                  <p className="text-[11px] text-muted-foreground pt-2 mt-1 border-t border-border/50 leading-relaxed">
+                    Plan ahead: request leave from the next working day onward. Use <span className="font-medium text-foreground">Request</span> or the Leave tab.
+                  </p>
                 </CardContent>
               </Card>
             </div>
@@ -1131,7 +1413,7 @@ export default function EmployeePortalPage() {
 
             {/* Recent Leave + Tasks */}
             <div className="grid sm:grid-cols-2 gap-4">
-              <Card>
+              <Card className="border-border/50 shadow-sm">
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm flex items-center justify-between">
                     <span className="flex items-center gap-2"><Calendar className="w-4 h-4" /> Recent Leave</span>
@@ -1142,10 +1424,13 @@ export default function EmployeePortalPage() {
                 </CardHeader>
                 <CardContent>
                   {leaveLoading ? <Skeleton className="h-12" /> : leave.length === 0 ? (
-                    <div className="text-center py-5 text-muted-foreground text-sm">
-                      <p>No leave requests yet</p>
-                      <Button size="sm" variant="outline" className="mt-2" onClick={() => setShowLeaveDialog(true)}>
-                        <Plus className="w-3 h-3 mr-1" /> Submit Request
+                    <div className="text-center py-5 text-muted-foreground text-sm space-y-2">
+                      <p className="font-medium text-foreground">No leave requests yet</p>
+                      <p className="text-xs max-w-xs mx-auto leading-relaxed">
+                        Request your first leave to start the approval workflow with HR.
+                      </p>
+                      <Button size="sm" variant="outline" className="mt-1" onClick={() => setShowLeaveDialog(true)}>
+                        <Plus className="w-3 h-3 mr-1" /> Request leave
                       </Button>
                     </div>
                   ) : (
@@ -1169,7 +1454,7 @@ export default function EmployeePortalPage() {
                 </CardContent>
               </Card>
 
-              <Card>
+              <Card className="border-border/50 shadow-sm">
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm flex items-center justify-between">
                     <span className="flex items-center gap-2"><CheckSquare className="w-4 h-4" /> My Tasks</span>
@@ -1180,11 +1465,19 @@ export default function EmployeePortalPage() {
                 </CardHeader>
                 <CardContent>
                   {tasksLoading ? <Skeleton className="h-12" /> : (tasks as any[]).filter((t: any) => t.status !== "completed").length === 0 ? (
-                    <div className="text-center py-5 text-muted-foreground text-sm">
-                      <p>No pending tasks</p>
-                      <Button size="sm" variant="outline" className="mt-2" onClick={() => setActiveTab("tasks")}>
-                        View tasks
-                      </Button>
+                    <div className="text-center py-5 text-muted-foreground text-sm space-y-2">
+                      <p className="font-medium text-foreground">No pending tasks</p>
+                      <p className="text-xs max-w-xs mx-auto leading-relaxed">
+                        If you expected assignments, check Training or confirm with your manager.
+                      </p>
+                      <div className="flex flex-wrap gap-2 justify-center pt-1">
+                        <Button size="sm" variant="outline" onClick={() => setActiveTab("training")}>
+                          Training
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => setActiveTab("tasks")}>
+                          All tasks
+                        </Button>
+                      </div>
                     </div>
                   ) : (
                     <div className="space-y-2">
@@ -2647,8 +2940,16 @@ export default function EmployeePortalPage() {
                               </Button>
                             )}
                             {t.certificateUrl && (
-                              <a href={t.certificateUrl} target="_blank" rel="noopener noreferrer">
-                                <Button size="sm" variant="ghost"><ExternalLink className="w-3.5 h-3.5" /></Button>
+                              <a
+                                href={t.certificateUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                aria-label="Open training certificate"
+                                title="Open training certificate"
+                              >
+                                <Button size="sm" variant="ghost">
+                                  <ExternalLink className="w-3.5 h-3.5" aria-hidden />
+                                </Button>
                               </a>
                             )}
                           </div>
@@ -2749,6 +3050,33 @@ export default function EmployeePortalPage() {
 
         </Tabs>
       </div>
+
+      <div className="fixed bottom-5 right-5 z-40 md:bottom-8 md:right-8 max-sm:bottom-20">
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button
+              size="lg"
+              className="h-14 w-14 rounded-full shadow-lg shadow-primary/20 gap-0 p-0"
+              aria-label="Quick actions"
+            >
+              <Zap className="w-6 h-6" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-56 p-2" align="end" side="top">
+            <p className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">Quick actions</p>
+            <Button variant="ghost" className="w-full justify-start h-9 text-sm" onClick={() => setShowLeaveDialog(true)}>
+              <Calendar className="w-4 h-4 mr-2 shrink-0" /> Request leave
+            </Button>
+            <Button variant="ghost" className="w-full justify-start h-9 text-sm" onClick={() => setShowWorkLogDialog(true)}>
+              <Timer className="w-4 h-4 mr-2 shrink-0" /> Log work
+            </Button>
+            <Button variant="ghost" className="w-full justify-start h-9 text-sm" onClick={() => setActiveTab("documents")}>
+              <FilePlus className="w-4 h-4 mr-2 shrink-0" /> Upload document
+            </Button>
+          </PopoverContent>
+        </Popover>
+      </div>
+
       {/* ── Self-Review Dialog ── */}
       <Dialog open={showReviewDialog} onOpenChange={setShowReviewDialog}>
         <DialogContent className="sm:max-w-md">

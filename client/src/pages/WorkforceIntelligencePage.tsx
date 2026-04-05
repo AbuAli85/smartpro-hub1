@@ -139,7 +139,11 @@ export default function WorkforceIntelligencePage() {
     conditionValue: "30",
     actionType: "notify_admin" as ActionType,
     isActive: true,
+    alertRecipients: "all_admins" as "all_admins" | "hr_admin" | "company_owner",
+    throttleHours: 24,
   });
+  const [simulatingRuleId, setSimulatingRuleId] = useState<number | null>(null);
+  const [snoozeRuleId, setSnoozeRuleId] = useState<number | null>(null);
 
   const utils = trpc.useUtils();
 
@@ -184,16 +188,30 @@ export default function WorkforceIntelligencePage() {
     },
     onError: (e) => toast.error(e.message),
   });
+  const muteRule = trpc.automation.muteRule.useMutation({
+    onSuccess: () => { utils.automation.listRules.invalidate(); toast.success("Rule muted"); },
+    onError: (e) => toast.error(e.message),
+  });
+  const snoozeRule = trpc.automation.snoozeRule.useMutation({
+    onSuccess: () => { utils.automation.listRules.invalidate(); toast.success("Rule snoozed for 24 hours"); setSnoozeRuleId(null); },
+    onError: (e) => toast.error(e.message),
+  });
+  const { data: ruleStats = [] } = trpc.automation.getRuleStats.useQuery();
+  const { data: perfMetrics } = trpc.automation.getPerformanceMetrics.useQuery();
+  const { data: simulation, isLoading: simLoading } = trpc.automation.simulateRule.useQuery(
+    { id: simulatingRuleId! },
+    { enabled: simulatingRuleId !== null }
+  );
 
   function openCreateDialog() {
     setEditingRule(null);
-    setRuleForm({ name: "", description: "", triggerType: "visa_expiry", conditionValue: "30", actionType: "notify_admin", isActive: true });
+    setRuleForm({ name: "", description: "", triggerType: "visa_expiry", conditionValue: "30", actionType: "notify_admin", isActive: true, alertRecipients: "all_admins", throttleHours: 24 });
     setShowRuleDialog(true);
   }
 
   function openEditDialog(rule: NonNullable<typeof rules>[number]) {
     setEditingRule({ id: rule.id, name: rule.name, description: rule.description ?? "", triggerType: rule.triggerType as TriggerType, conditionValue: rule.conditionValue ?? "30", actionType: rule.actionType as ActionType, isActive: rule.isActive });
-    setRuleForm({ name: rule.name, description: rule.description ?? "", triggerType: rule.triggerType as TriggerType, conditionValue: rule.conditionValue ?? "30", actionType: rule.actionType as ActionType, isActive: rule.isActive });
+    setRuleForm({ name: rule.name, description: rule.description ?? "", triggerType: rule.triggerType as TriggerType, conditionValue: rule.conditionValue ?? "30", actionType: rule.actionType as ActionType, isActive: rule.isActive, alertRecipients: (rule as any).alertRecipients ?? "all_admins", throttleHours: (rule as any).throttleHours ?? 24 });
     setShowRuleDialog(true);
   }
 
@@ -205,6 +223,12 @@ export default function WorkforceIntelligencePage() {
       createRule.mutate(ruleForm);
     }
   }
+
+  const RECIPIENT_LABELS: Record<string, string> = {
+    all_admins: "All Admins",
+    hr_admin: "HR Admin Only",
+    company_owner: "Company Owner Only",
+  };
 
   const needsConditionValue = ["visa_expiry", "work_permit_expiry", "passport_expiry", "completeness_below"].includes(ruleForm.triggerType);
 
@@ -240,6 +264,7 @@ export default function WorkforceIntelligencePage() {
           <TabsTrigger value="expiry">Expiry Timeline</TabsTrigger>
           <TabsTrigger value="automation">Automation Rules</TabsTrigger>
           <TabsTrigger value="templates">Rule Templates</TabsTrigger>
+          <TabsTrigger value="observability">Observability</TabsTrigger>
           <TabsTrigger value="logs">Activity Logs</TabsTrigger>
         </TabsList>
 
@@ -537,6 +562,20 @@ export default function WorkforceIntelligencePage() {
                           checked={rule.isActive}
                           onCheckedChange={(v) => toggleRule.mutate({ id: rule.id, isActive: v })}
                         />
+                        <Button
+                          variant="ghost" size="icon" className="h-7 w-7"
+                          title="Simulate (30-day backtest)"
+                          onClick={() => { setSimulatingRuleId(rule.id); setActiveTab("observability"); }}
+                        >
+                          <BarChart3 className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost" size="icon" className="h-7 w-7"
+                          title={(rule as any).isMuted ? "Unmute rule" : "Mute rule"}
+                          onClick={() => muteRule.mutate({ id: rule.id, muted: !(rule as any).isMuted })}
+                        >
+                          <Bell className={`h-3.5 w-3.5 ${(rule as any).isMuted ? "text-muted-foreground line-through" : ""}`} />
+                        </Button>
                         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEditDialog(rule as any)}>
                           <Edit3 className="h-3.5 w-3.5" />
                         </Button>
@@ -611,6 +650,191 @@ export default function WorkforceIntelligencePage() {
               })}
             </div>
           )}
+        </TabsContent>
+
+        {/* ── OBSERVABILITY TAB ── */}
+        <TabsContent value="observability" className="mt-4 space-y-6">
+          {/* Performance Metrics */}
+          {perfMetrics && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Activity className="h-4 w-4 text-primary" />
+                  System Performance Metrics
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="p-3 rounded-lg bg-muted/50 text-center">
+                    <div className="text-2xl font-bold">{perfMetrics.activeEmployees}</div>
+                    <div className="text-xs text-muted-foreground mt-1">Active Employees</div>
+                  </div>
+                  <div className="p-3 rounded-lg bg-muted/50 text-center">
+                    <div className="text-2xl font-bold">{perfMetrics.activeRules}</div>
+                    <div className="text-xs text-muted-foreground mt-1">Active Rules</div>
+                  </div>
+                  <div className="p-3 rounded-lg bg-muted/50 text-center">
+                    <div className="text-2xl font-bold text-amber-600">{perfMetrics.estimatedRuleEvalCost}</div>
+                    <div className="text-xs text-muted-foreground mt-1">Est. Eval Operations</div>
+                  </div>
+                  <div className="p-3 rounded-lg bg-muted/50 text-center">
+                    <div className="text-2xl font-bold">{perfMetrics.queryTimeMs}ms</div>
+                    <div className="text-xs text-muted-foreground mt-1">Query Time</div>
+                  </div>
+                  <div className="p-3 rounded-lg bg-muted/50 text-center">
+                    <div className="text-2xl font-bold">{perfMetrics.totalNotifications}</div>
+                    <div className="text-xs text-muted-foreground mt-1">Total Notifications</div>
+                  </div>
+                  <div className="p-3 rounded-lg bg-muted/50 text-center">
+                    <div className="text-2xl font-bold text-red-600">{perfMetrics.unreadNotifications}</div>
+                    <div className="text-xs text-muted-foreground mt-1">Unread</div>
+                  </div>
+                  <div className="p-3 rounded-lg bg-muted/50 text-center">
+                    <div className="text-2xl font-bold">{perfMetrics.notificationsLast24h}</div>
+                    <div className="text-xs text-muted-foreground mt-1">Notifications (24h)</div>
+                  </div>
+                  <div className="p-3 rounded-lg bg-muted/50 text-center">
+                    <div className="text-2xl font-bold">{perfMetrics.totalLogEntries}</div>
+                    <div className="text-xs text-muted-foreground mt-1">Log Entries</div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Rule Success/Failure Stats */}
+          {ruleStats.length > 0 && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <BarChart3 className="h-4 w-4 text-primary" />
+                  Rule Execution Stats
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {ruleStats.map((stat) => {
+                    const rule = rules?.find((r) => r.id === stat.ruleId);
+                    return (
+                      <div key={stat.ruleId} className="flex items-center gap-4 p-3 rounded-lg border">
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-sm">{rule?.name ?? `Rule #${stat.ruleId}`}</div>
+                          <div className="text-xs text-muted-foreground mt-0.5">
+                            {stat.totalRuns} runs · Last: {stat.lastRunAt ? new Date(stat.lastRunAt).toLocaleDateString() : "Never"}
+                            {stat.avgDurationMs && ` · Avg ${stat.avgDurationMs}ms`}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3 shrink-0">
+                          <div className="text-center">
+                            <div className="text-sm font-bold text-green-600">{stat.successRuns}</div>
+                            <div className="text-xs text-muted-foreground">Success</div>
+                          </div>
+                          <div className="text-center">
+                            <div className="text-sm font-bold text-red-600">{stat.failureRuns}</div>
+                            <div className="text-xs text-muted-foreground">Failure</div>
+                          </div>
+                          <div className="w-16">
+                            <div className="text-xs text-muted-foreground mb-1 text-right">{stat.successRate}%</div>
+                            <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                              <div className="h-full bg-green-500 rounded-full" style={{ width: `${stat.successRate}%` }} />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Rule Simulation (30-day backtest) */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Play className="h-4 w-4 text-primary" />
+                Rule Simulation (30-Day Backtest)
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <Select
+                    value={simulatingRuleId?.toString() ?? ""}
+                    onValueChange={(v) => setSimulatingRuleId(v ? parseInt(v) : null)}
+                  >
+                    <SelectTrigger className="w-64">
+                      <SelectValue placeholder="Select a rule to simulate..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {rules?.map((r) => (
+                        <SelectItem key={r.id} value={r.id.toString()}>{r.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {simulatingRuleId && (
+                    <Button variant="outline" size="sm" onClick={() => setSimulatingRuleId(null)}>
+                      Clear
+                    </Button>
+                  )}
+                </div>
+
+                {simLoading && <div className="h-24 bg-muted animate-pulse rounded-lg" />}
+
+                {simulation && !simLoading && (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      <div className="p-3 rounded-lg bg-blue-50 text-center">
+                        <div className="text-2xl font-bold text-blue-700">{simulation.totalTriggers}</div>
+                        <div className="text-xs text-muted-foreground mt-1">Total Triggers (30d)</div>
+                      </div>
+                      <div className="p-3 rounded-lg bg-muted/50 text-center">
+                        <div className="text-2xl font-bold">{simulation.avgPerDay}</div>
+                        <div className="text-xs text-muted-foreground mt-1">Avg / Day</div>
+                      </div>
+                      <div className="p-3 rounded-lg bg-orange-50 text-center">
+                        <div className="text-2xl font-bold text-orange-700">{simulation.peakCount}</div>
+                        <div className="text-xs text-muted-foreground mt-1">Peak Day Count</div>
+                      </div>
+                      <div className="p-3 rounded-lg bg-muted/50 text-center">
+                        <div className="text-sm font-bold">{simulation.peakDay ?? "—"}</div>
+                        <div className="text-xs text-muted-foreground mt-1">Peak Date</div>
+                      </div>
+                    </div>
+                    {/* Daily bar chart */}
+                    <div className="space-y-1">
+                      <p className="text-xs font-medium text-muted-foreground">Daily trigger count (last 30 days)</p>
+                      <div className="flex items-end gap-0.5 h-20">
+                        {simulation.dailyResults.map((d) => {
+                          const maxCount = Math.max(...simulation.dailyResults.map((x) => x.triggerCount), 1);
+                          const pct = (d.triggerCount / maxCount) * 100;
+                          return (
+                            <div
+                              key={d.date}
+                              className="flex-1 rounded-t cursor-pointer group relative"
+                              style={{ height: `${Math.max(pct, 4)}%`, backgroundColor: d.triggerCount > 0 ? "#3b82f6" : "#e5e7eb" }}
+                              title={`${d.date}: ${d.triggerCount} trigger(s)`}
+                            />
+                          );
+                        })}
+                      </div>
+                      <div className="flex justify-between text-xs text-muted-foreground">
+                        <span>{simulation.dailyResults[0]?.date}</span>
+                        <span>{simulation.dailyResults[simulation.dailyResults.length - 1]?.date}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {!simulatingRuleId && (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <BarChart3 className="h-8 w-8 mx-auto mb-2 opacity-30" />
+                    <p className="text-sm">Select a rule above to see how it would have performed over the last 30 days</p>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         {/* ── ACTIVITY LOGS TAB ── */}
@@ -714,6 +938,30 @@ export default function WorkforceIntelligencePage() {
                 />
               </div>
             )}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Alert Recipients</Label>
+                <Select value={ruleForm.alertRecipients} onValueChange={(v) => setRuleForm((p) => ({ ...p, alertRecipients: v as typeof ruleForm.alertRecipients }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(RECIPIENT_LABELS).map(([k, v]) => (
+                      <SelectItem key={k} value={k}>{v}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Throttle (hours)</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={168}
+                  value={ruleForm.throttleHours}
+                  onChange={(e) => setRuleForm((p) => ({ ...p, throttleHours: parseInt(e.target.value) || 24 }))}
+                  placeholder="24"
+                />
+              </div>
+            </div>
             <div className="flex items-center gap-2">
               <Switch
                 checked={ruleForm.isActive}

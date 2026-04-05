@@ -1886,3 +1886,17 @@ Every company on SmartPRO Hub gets a complete, unified business operating area â
 - [x] Icon-based indicators (not just color) for accessibility
 - [x] Enriched tooltips: show missing fields + urgency (e.g. "Visa expires in 12 days")
 - [x] Save-as-draft in Add Employee wizard
+
+## Automation Observability & Governance (Priority 5 Upgrades)
+- [ ] Automation observability: success/failure rate per rule, execution duration, error reasons, retry tracking
+- [ ] Notification fatigue: group similar notifications, suppress duplicates, mute rule, snooze, severity prioritization
+- [ ] Rule simulation: 30-day backtest showing trigger frequency
+- [ ] Data ownership: alert recipient field per rule (HR admin / company owner / all admins)
+- [ ] Performance safeguards: query cost monitoring, notification volume tracking on Workforce Intelligence page
+
+## Automation Observability & Governance (Priority 5 Upgrades)
+- [ ] Automation observability: success/failure rate per rule, execution duration, error reasons, retry tracking
+- [ ] Notification fatigue: group similar notifications, suppress duplicates, mute rule, snooze, severity prioritization
+- [ ] Rule simulation: 30-day backtest showing trigger frequency
+- [ ] Data ownership: alert recipient field per rule (HR admin / company owner / all admins)
+- [ ] Performance safeguards: query cost monitoring, notification volume tracking on Workforce Intelligence page

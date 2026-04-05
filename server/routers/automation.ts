@@ -204,12 +204,12 @@ export const automationRouter = router({
         conditionValue: template.conditionValue,
         actionType: template.actionType,
         isActive: true,
-      });
+      } as any);
 
       return { id: (result as any).insertId as number, success: true };
     }),
 
-  // Create a new automation rule
+   // Create a new automation rule
   createRule: protectedProcedure
     .input(
       z.object({
@@ -224,13 +224,13 @@ export const automationRouter = router({
         leadTimeDays: z.number().default(30),
         throttleHours: z.number().default(24),
         dryRunMode: z.boolean().default(false),
+        alertRecipients: z.enum(["all_admins", "hr_admin", "company_owner"]).default("all_admins"),
       })
     )
     .mutation(async ({ ctx, input }) => {
       const companyId = await requireActiveCompanyId(ctx.user.id);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-
       const [result] = await db.insert(automationRules).values({
         companyId,
         name: input.name,
@@ -240,8 +240,8 @@ export const automationRouter = router({
         actionType: input.actionType,
         actionPayload: input.actionPayload ?? null,
         isActive: input.isActive,
-      });
-
+        alertRecipients: input.alertRecipients,
+      } as any);
       return { id: (result as any).insertId as number, success: true };
     }),
 
@@ -347,6 +347,177 @@ export const automationRouter = router({
       };
     }),
 
+  // Mute a rule (suppress all notifications from it)
+  muteRule: protectedProcedure
+    .input(z.object({ id: z.number(), muted: z.boolean() }))
+    .mutation(async ({ ctx, input }) => {
+      const companyId = await requireActiveCompanyId(ctx.user.id);
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      await db
+        .update(automationRules)
+        .set({ isMuted: input.muted } as any)
+        .where(and(eq(automationRules.id, input.id), eq(automationRules.companyId, companyId)));
+      return { success: true };
+    }),
+
+  // Snooze a rule until a specific time
+  snoozeRule: protectedProcedure
+    .input(z.object({ id: z.number(), snoozeUntil: z.number().nullable() }))
+    .mutation(async ({ ctx, input }) => {
+      const companyId = await requireActiveCompanyId(ctx.user.id);
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      await db
+        .update(automationRules)
+        .set({ snoozeUntil: input.snoozeUntil } as any)
+        .where(and(eq(automationRules.id, input.id), eq(automationRules.companyId, companyId)));
+      return { success: true };
+    }),
+
+  // Snooze a notification
+  snoozeNotification: protectedProcedure
+    .input(z.object({ id: z.number(), snoozeUntil: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const companyId = await requireActiveCompanyId(ctx.user.id);
+      try {
+        const mysql = require("mysql2/promise");
+        const conn = mysql.createPool(process.env.DATABASE_URL);
+        await conn.query(
+          `UPDATE notifications SET snoozed_until = ? WHERE company_id = ? AND id = ?`,
+          [input.snoozeUntil, companyId, input.id]
+        );
+        return { success: true };
+      } catch { return { success: false }; }
+    }),
+
+  // Simulate a rule against the last 30 days of data (backtest)
+  simulateRule: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .query(async ({ ctx, input }) => {
+      const companyId = await requireActiveCompanyId(ctx.user.id);
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      const [rule] = await db
+        .select()
+        .from(automationRules)
+        .where(and(eq(automationRules.id, input.id), eq(automationRules.companyId, companyId)))
+        .limit(1);
+      if (!rule) throw new TRPCError({ code: "NOT_FOUND" });
+
+      const emps = await db
+        .select()
+        .from(employees)
+        .where(and(eq(employees.companyId, companyId), eq(employees.status, "active")));
+
+      // Simulate for each of the last 30 days
+      const dailyResults: { date: string; triggerCount: number; employeeIds: number[] }[] = [];
+      const now = Date.now();
+      for (let i = 29; i >= 0; i--) {
+        const dayOffset = i * 24 * 60 * 60 * 1000;
+        const simDate = new Date(now - dayOffset);
+        // For expiry-based rules, adjust the threshold relative to simDate
+        const threshold = parseInt(rule.conditionValue ?? "30", 10);
+        const simMatches: number[] = [];
+        for (const emp of emps) {
+          let triggered = false;
+          if (rule.triggerType === "visa_expiry" && emp.visaExpiryDate) {
+            const expiry = new Date(emp.visaExpiryDate);
+            const days = Math.floor((expiry.getTime() - simDate.getTime()) / (1000 * 60 * 60 * 24));
+            if (days >= 0 && days <= threshold) triggered = true;
+          } else if (rule.triggerType === "work_permit_expiry" && emp.workPermitExpiryDate) {
+            const expiry = new Date(emp.workPermitExpiryDate);
+            const days = Math.floor((expiry.getTime() - simDate.getTime()) / (1000 * 60 * 60 * 24));
+            if (days >= 0 && days <= threshold) triggered = true;
+          } else if (rule.triggerType === "completeness_below") {
+            const score = calcCompletenessScore(emp);
+            if (score < threshold) triggered = true;
+          } else if (rule.triggerType === "no_department") {
+            if (!emp.department) triggered = true;
+          }
+          if (triggered) simMatches.push(emp.id);
+        }
+        dailyResults.push({
+          date: simDate.toISOString().slice(0, 10),
+          triggerCount: simMatches.length,
+          employeeIds: simMatches,
+        });
+      }
+
+      const totalTriggers = dailyResults.reduce((s, d) => s + d.triggerCount, 0);
+      const avgPerDay = Math.round(totalTriggers / 30);
+      const peakDay = dailyResults.reduce((max, d) => d.triggerCount > max.triggerCount ? d : max, dailyResults[0]);
+
+      return {
+        ruleId: rule.id,
+        ruleName: rule.name,
+        triggerType: rule.triggerType,
+        conditionValue: rule.conditionValue,
+        simulationDays: 30,
+        totalTriggers,
+        avgPerDay,
+        peakDay: peakDay?.date ?? null,
+        peakCount: peakDay?.triggerCount ?? 0,
+        dailyResults,
+      };
+    }),
+
+  // Get observability stats per rule (success/failure rates, avg duration)
+  getRuleStats: protectedProcedure.query(async ({ ctx }) => {
+    const companyId = await requireActiveCompanyId(ctx.user.id);
+    try {
+      const mysql = require("mysql2/promise");
+      const conn = mysql.createPool(process.env.DATABASE_URL);
+      const [rows] = await conn.query(
+        `SELECT rule_id,
+           COUNT(*) as total_runs,
+           SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) as success_runs,
+           SUM(CASE WHEN status = 'failure' THEN 1 ELSE 0 END) as failure_runs,
+           AVG(duration_ms) as avg_duration_ms,
+           MAX(created_at) as last_run_at
+         FROM automation_logs WHERE company_id = ? GROUP BY rule_id`,
+        [companyId]
+      );
+      return (rows as any[]).map((r) => ({
+        ruleId: r.rule_id as number,
+        totalRuns: Number(r.total_runs),
+        successRuns: Number(r.success_runs),
+        failureRuns: Number(r.failure_runs),
+        successRate: r.total_runs > 0 ? Math.round((r.success_runs / r.total_runs) * 100) : 100,
+        avgDurationMs: r.avg_duration_ms ? Math.round(r.avg_duration_ms) : null,
+        lastRunAt: r.last_run_at as number,
+      }));
+    } catch { return []; }
+  }),
+
+  // Get performance metrics (query cost, notification volume)
+  getPerformanceMetrics: protectedProcedure.query(async ({ ctx }) => {
+    const companyId = await requireActiveCompanyId(ctx.user.id);
+    const startTime = Date.now();
+    try {
+      const mysql = require("mysql2/promise");
+      const conn = mysql.createPool(process.env.DATABASE_URL);
+      const [[empCount]] = await conn.query(`SELECT COUNT(*) as c FROM employees WHERE company_id = ? AND status = 'active'`, [companyId]);
+      const [[ruleCount]] = await conn.query(`SELECT COUNT(*) as c FROM automation_rules WHERE company_id = ? AND is_active = 1`, [companyId]);
+      const [[notifCount]] = await conn.query(`SELECT COUNT(*) as c FROM notifications WHERE company_id = ?`, [companyId]);
+      const [[unreadCount]] = await conn.query(`SELECT COUNT(*) as c FROM notifications WHERE company_id = ? AND is_read = 0`, [companyId]);
+      const [[logCount]] = await conn.query(`SELECT COUNT(*) as c FROM automation_logs WHERE company_id = ?`, [companyId]);
+      const [[last24h]] = await conn.query(`SELECT COUNT(*) as c FROM notifications WHERE company_id = ? AND created_at > ?`, [companyId, Date.now() - 86400000]);
+      const queryTime = Date.now() - startTime;
+      return {
+        activeEmployees: Number((empCount as any).c),
+        activeRules: Number((ruleCount as any).c),
+        totalNotifications: Number((notifCount as any).c),
+        unreadNotifications: Number((unreadCount as any).c),
+        totalLogEntries: Number((logCount as any).c),
+        notificationsLast24h: Number((last24h as any).c),
+        queryTimeMs: queryTime,
+        estimatedRuleEvalCost: Number((empCount as any).c) * Number((ruleCount as any).c),
+      };
+    } catch { return null; }
+  }),
+
   // Run all active automation rules for the company
   runRules: protectedProcedure
     .input(z.object({ dryRun: z.boolean().default(false) }))
@@ -373,6 +544,9 @@ export const automationRouter = router({
         matchCount: number;
         dryRun: boolean;
         matches: { employeeId: number; message: string }[];
+        durationMs?: number;
+        successCount?: number;
+        failureCount?: number;
       }[] = [];
 
       // Track which employees are already targeted by a rule (conflict detection)
@@ -403,8 +577,19 @@ export const automationRouter = router({
         });
 
         if (!input.dryRun && matches.length > 0) {
+          const ruleStartTime = Date.now();
+          // Skip muted rules
+          if ((rule as any).isMuted) {
+            allLogs[allLogs.length - 1].dryRun = true;
+            continue;
+          }
+          // Skip snoozed rules
+          if ((rule as any).snoozeUntil && (rule as any).snoozeUntil > Date.now()) {
+            allLogs[allLogs.length - 1].dryRun = true;
+            continue;
+          }
           // Throttle check: skip if rule ran recently (within throttle window)
-          const throttleHours = 24; // default
+          const throttleHours = (rule as any).throttleHours ?? 24;
           if (rule.lastRunAt) {
             const lastRun = new Date(rule.lastRunAt);
             const hoursSince = (Date.now() - lastRun.getTime()) / (1000 * 60 * 60);
@@ -429,28 +614,52 @@ export const automationRouter = router({
           const recentEmployeeIds = new Set(recentLogs.map((l) => l.employeeId));
           const newMatches = matches.filter((m) => !recentEmployeeIds.has(m.employeeId));
 
+          const ruleEndTime = Date.now();
+          const durationMs = ruleEndTime - (allLogs[allLogs.length - 1] as any)._startTime || 0;
+          allLogs[allLogs.length - 1].durationMs = durationMs;
+
           if (newMatches.length > 0) {
-            await db.insert(automationLogs).values(
-              newMatches.map((m) => ({
-                ruleId: rule.id,
-                companyId,
-                employeeId: m.employeeId,
-                triggerType: rule.triggerType,
-                actionType: rule.actionType,
-                status: "success",
-                message: m.message,
-                metadata: JSON.stringify(m.metadata),
-              }))
-            );
+            let successCount = 0;
+            let failureCount = 0;
+            try {
+              await db.insert(automationLogs).values(
+                newMatches.map((m) => ({
+                  ruleId: rule.id,
+                  companyId,
+                  employeeId: m.employeeId,
+                  triggerType: rule.triggerType,
+                  actionType: rule.actionType,
+                  status: "success",
+                  message: m.message,
+                  metadata: JSON.stringify(m.metadata),
+                }))
+              );
+              successCount = newMatches.length;
+            } catch (err) {
+              failureCount = newMatches.length;
+            }
+            allLogs[allLogs.length - 1].successCount = successCount;
+            allLogs[allLogs.length - 1].failureCount = failureCount;
 
             // Create in-app notifications for notify_admin actions
+            // Group by rule to prevent fatigue: max 5 notifications per rule per run
             if (rule.actionType === "notify_admin") {
               try {
                 const conn = require("mysql2/promise").createPool(process.env.DATABASE_URL);
-                for (const m of newMatches.slice(0, 5)) {
+                const alertRecipients = (rule as any).alertRecipients ?? "all_admins";
+                const groupKey = `rule_${rule.id}_${new Date().toISOString().slice(0, 10)}`;
+                // Suppress duplicates: check if this group_key already has notifications today
+                const [[existingGroup]] = await conn.query(
+                  `SELECT COUNT(*) as c FROM notifications WHERE company_id = ? AND group_key = ?`,
+                  [companyId, groupKey]
+                );
+                if (Number((existingGroup as any).c) === 0) {
+                  // Create a single grouped notification instead of one per employee
+                  const empNames = newMatches.slice(0, 3).map((m) => `Employee #${m.employeeId}`).join(", ");
+                  const extraCount = newMatches.length > 3 ? ` (+${newMatches.length - 3} more)` : "";
                   await conn.query(
-                    `INSERT INTO notifications (company_id, title, message, type, category, link, rule_id, affected_employee_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                    [companyId, `Automation Alert: ${rule.name}`, m.message, "warning", "automation", `/hr/workforce-intelligence`, rule.id, m.employeeId, Date.now()]
+                    `INSERT INTO notifications (company_id, title, message, type, category, link, rule_id, affected_employee_id, group_key, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                    [companyId, `Automation Alert: ${rule.name}`, `${newMatches.length} employee(s) triggered: ${empNames}${extraCount}`, "warning", "automation", `/hr/workforce-intelligence`, rule.id, newMatches[0].employeeId, groupKey, Date.now()]
                   );
                 }
               } catch { /* notifications table may not exist yet */ }

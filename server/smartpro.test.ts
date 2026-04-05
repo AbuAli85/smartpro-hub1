@@ -48,6 +48,7 @@ vi.mock("./db", () => ({
   upsertUser: vi.fn(),
   getUserByOpenId: vi.fn(),
   getUserCompany: vi.fn().mockResolvedValue(null),
+  getUserCompanyById: vi.fn().mockResolvedValue(null),
   getCompanyStats: vi.fn().mockResolvedValue({ employees: 0, contracts: 0, proServices: 0, sanadApplications: 0, contacts: 0, deals: 0, pendingLeave: 0 }),
   getPlatformStats: vi.fn().mockResolvedValue({ companies: 5, users: 42, contracts: 18, proServices: 7, sanadApplications: 3, marketplaceProviders: 12, contacts: 88 }),
   getCompanies: vi.fn().mockResolvedValue([]),
@@ -93,7 +94,7 @@ vi.mock("./db", () => ({
   getAuditLogs: vi.fn().mockResolvedValue([]),
   // Attendance
   getAttendance: vi.fn().mockResolvedValue([]),
-  createAttendanceRecord: vi.fn().mockResolvedValue({ id: 1 }),
+  createAttendanceRecord: vi.fn().mockResolvedValue(1),
   updateAttendanceRecord: vi.fn().mockResolvedValue({}),
   deleteAttendanceRecord: vi.fn().mockResolvedValue({}),
   getAttendanceStats: vi.fn().mockResolvedValue({ present: 5, absent: 1, late: 2, half_day: 0, remote: 3, byDay: [] }),
@@ -511,10 +512,14 @@ describe("hr.attendance", () => {
   });
 
   it("createAttendance succeeds when membership and employee match company", async () => {
-    const { getUserCompany, getEmployeeById } = await import("./db");
+    const { getUserCompany, getUserCompanyById, getEmployeeById } = await import("./db");
     (getUserCompany as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
       company: { id: 1 },
-      member: {},
+      member: { role: "company_admin" },
+    } as any);
+    (getUserCompanyById as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      company: { id: 1 },
+      member: { role: "company_admin" },
     } as any);
     (getEmployeeById as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ id: 1, companyId: 1 } as any);
     const caller = appRouter.createCaller(makeCtx({ role: "user", platformRole: "company_admin" }));

@@ -38,6 +38,7 @@ import {
 import { assertRowBelongsToActiveCompany, requireActiveCompanyId } from "../_core/tenant";
 import { getActiveCompanyMembership, requireNotAuditor } from "../_core/membership";
 import { protectedProcedure, router } from "../_core/trpc";
+import { attendancePayloadJson, logAttendanceAudit } from "../attendanceAudit";
 
 export const hrRouter = router({
   // Employees
@@ -542,18 +543,45 @@ export const hrRouter = router({
     }))
     .mutation(async ({ input, ctx }) => {
       const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId);
+      const membership = await getActiveCompanyMembership(ctx.user.id, companyId);
+      if (!membership) throw new TRPCError({ code: "FORBIDDEN", message: "No company membership" });
+      requireNotAuditor(membership.role);
       const emp = await getEmployeeById(input.employeeId);
       if (!emp) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
       if (emp.companyId !== companyId) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
       const auditPrefix = `[HR audit userId=${ctx.user.id} at ${new Date().toISOString()}] `;
-      await createAttendanceRecord({
+      const fullNotes = auditPrefix + input.notes.trim();
+      const hrId = await createAttendanceRecord({
         companyId,
         employeeId: input.employeeId,
         date: new Date(input.date),
         checkIn: input.checkIn ? new Date(input.checkIn) : undefined,
         checkOut: input.checkOut ? new Date(input.checkOut) : undefined,
         status: input.status,
-        notes: auditPrefix + input.notes.trim(),
+        notes: fullNotes,
+      });
+      await logAttendanceAudit({
+        companyId,
+        employeeId: input.employeeId,
+        hrAttendanceId: hrId,
+        actorUserId: ctx.user.id,
+        actorRole: membership.role,
+        actionType: "hr_attendance_create",
+        entityType: "hr_attendance",
+        entityId: hrId,
+        afterPayload:
+          attendancePayloadJson({
+            id: hrId,
+            companyId,
+            employeeId: input.employeeId,
+            date: input.date,
+            checkIn: input.checkIn ?? null,
+            checkOut: input.checkOut ?? null,
+            status: input.status,
+            notes: fullNotes,
+          }) ?? undefined,
+        reason: input.notes.trim(),
+        source: "hr_panel",
       });
       return { success: true };
     }),
@@ -571,10 +599,29 @@ export const hrRouter = router({
       const row = await getAttendanceRecordById(id);
       if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Attendance record not found" });
       await assertRowBelongsToActiveCompany(ctx.user, row.companyId, "Attendance record");
+      const membership = await getActiveCompanyMembership(ctx.user.id, row.companyId);
+      if (!membership) throw new TRPCError({ code: "FORBIDDEN", message: "No company membership" });
+      requireNotAuditor(membership.role);
+      const beforePayload = attendancePayloadJson(row);
       await updateAttendanceRecord(id, {
         ...rest,
         checkIn: checkIn ? new Date(checkIn) : undefined,
         checkOut: checkOut ? new Date(checkOut) : undefined,
+      });
+      const afterRow = await getAttendanceRecordById(id);
+      await logAttendanceAudit({
+        companyId: row.companyId,
+        employeeId: row.employeeId,
+        hrAttendanceId: id,
+        actorUserId: ctx.user.id,
+        actorRole: membership.role,
+        actionType: "hr_attendance_update",
+        entityType: "hr_attendance",
+        entityId: id,
+        beforePayload: beforePayload ?? undefined,
+        afterPayload: attendancePayloadJson(afterRow) ?? undefined,
+        reason: input.notes?.trim(),
+        source: "hr_panel",
       });
       return { success: true };
     }),
@@ -585,7 +632,23 @@ export const hrRouter = router({
       const row = await getAttendanceRecordById(input.id);
       if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Attendance record not found" });
       await assertRowBelongsToActiveCompany(ctx.user, row.companyId, "Attendance record");
+      const membership = await getActiveCompanyMembership(ctx.user.id, row.companyId);
+      if (!membership) throw new TRPCError({ code: "FORBIDDEN", message: "No company membership" });
+      requireNotAuditor(membership.role);
+      const beforePayload = attendancePayloadJson(row);
       await deleteAttendanceRecord(input.id);
+      await logAttendanceAudit({
+        companyId: row.companyId,
+        employeeId: row.employeeId,
+        hrAttendanceId: input.id,
+        actorUserId: ctx.user.id,
+        actorRole: membership.role,
+        actionType: "hr_attendance_delete",
+        entityType: "hr_attendance",
+        entityId: input.id,
+        beforePayload: beforePayload ?? undefined,
+        source: "hr_panel",
+      });
       return { success: true };
     }),
 

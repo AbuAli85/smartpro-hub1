@@ -892,10 +892,13 @@ export async function createAttendanceRecord(data: {
   checkOut?: Date;
   status: "present" | "absent" | "late" | "half_day" | "remote";
   notes?: string;
-}) {
+}): Promise<number> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  await db.insert(attendance).values(data);
+  const [result] = (await db.insert(attendance).values(data)) as unknown as [{ insertId?: number }];
+  const insertId = Number(result?.insertId ?? 0);
+  if (!insertId) throw new Error("Failed to resolve attendance insert id");
+  return insertId;
 }
 
 export async function getAttendanceStats(companyId: number, month?: string) {

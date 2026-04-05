@@ -936,6 +936,51 @@ export const attendance = mysqlTable("attendance", {
 export type Attendance = typeof attendance.$inferSelect;
 export type InsertAttendance = typeof attendance.$inferInsert;
 
+/** First-class audit trail for HR attendance, corrections, and manual check-in decisions. */
+export const attendanceAudit = mysqlTable(
+  "attendance_audit",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    companyId: int("company_id").notNull(),
+    employeeId: int("employee_id"),
+    hrAttendanceId: int("hr_attendance_id"),
+    attendanceRecordId: int("attendance_record_id"),
+    correctionId: int("correction_id"),
+    manualCheckinRequestId: int("manual_checkin_request_id"),
+    actorUserId: int("actor_user_id").notNull(),
+    actorRole: varchar("actor_role", { length: 64 }),
+    actionType: mysqlEnum("aa_action_type", [
+      "hr_attendance_create",
+      "hr_attendance_update",
+      "hr_attendance_delete",
+      "correction_approve",
+      "correction_reject",
+      "manual_checkin_approve",
+      "manual_checkin_reject",
+    ]).notNull(),
+    entityType: varchar("entity_type", { length: 64 }).notNull(),
+    entityId: int("entity_id"),
+    beforePayload: json("before_payload"),
+    afterPayload: json("after_payload"),
+    reason: text("reason"),
+    source: mysqlEnum("aa_source", ["hr_panel", "employee_portal", "admin_panel", "system"])
+      .notNull()
+      .default("hr_panel"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("idx_aa_company").on(t.companyId),
+    index("idx_aa_actor").on(t.actorUserId),
+    index("idx_aa_employee").on(t.employeeId),
+    index("idx_aa_hr_att").on(t.hrAttendanceId),
+    index("idx_aa_ar").on(t.attendanceRecordId),
+    index("idx_aa_correction").on(t.correctionId),
+    index("idx_aa_mcr").on(t.manualCheckinRequestId),
+  ]
+);
+export type AttendanceAuditRow = typeof attendanceAudit.$inferSelect;
+export type InsertAttendanceAudit = typeof attendanceAudit.$inferInsert;
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // WORKFORCE & GOVERNMENT SERVICES HUB (MOL-Aligned)
 // ═══════════════════════════════════════════════════════════════════════════════

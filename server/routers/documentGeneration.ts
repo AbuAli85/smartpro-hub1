@@ -22,6 +22,7 @@ function mapDocGenError(e: unknown): never {
       FORBIDDEN: "FORBIDDEN",
       VALIDATION_ERROR: "BAD_REQUEST",
       NOT_FOUND: "NOT_FOUND",
+      CONFLICT: "CONFLICT",
       NOT_CONFIGURED: "PRECONDITION_FAILED",
       INTERNAL_ERROR: "INTERNAL_SERVER_ERROR",
     };
@@ -56,6 +57,8 @@ export const documentGenerationRouter = router({
         templateKey: z.string().min(1),
         entityId: z.string().uuid(),
         outputFormat: z.enum(["pdf"]),
+        /** Force a new Google run even if a recent PDF already exists for this fingerprint. */
+        regenerate: z.boolean().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -81,6 +84,7 @@ export const documentGenerationRouter = router({
           user: ctx.user,
           activeCompanyId: companyId,
           membershipRole: membership.role,
+          regenerate: input.regenerate,
         });
       } catch (e) {
         mapDocGenError(e);

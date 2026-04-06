@@ -32,6 +32,8 @@ export type DocumentGenerationErrorCode =
   | "FORBIDDEN"
   | "VALIDATION_ERROR"
   | "NOT_FOUND"
+  /** Concurrent or duplicate in-flight generation for the same fingerprint */
+  | "CONFLICT"
   /** Service not usable because a required env / integration is missing (e.g. Google service account not set) */
   | "NOT_CONFIGURED"
   | "INTERNAL_ERROR";
@@ -62,6 +64,8 @@ export type GenerateDocumentInput = {
   user: User;
   activeCompanyId: number;
   membershipRole: string;
+  /** When false (default), return an existing recent successful generation if present instead of re-running Google. */
+  regenerate?: boolean;
 };
 
 export type GenerateDocumentResult = {
@@ -70,6 +74,8 @@ export type GenerateDocumentResult = {
   filePath: string;
   generatedGoogleDocId: string;
   missingFields: string[];
+  /** True when an existing `generated` row was returned without calling Google / storage. */
+  fromCache?: boolean;
 };
 
 export type AuthLikeContext = {

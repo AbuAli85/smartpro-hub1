@@ -2625,6 +2625,14 @@ export const generatedDocuments = mysqlTable(
     index("idx_gd_company").on(t.companyId),
     index("idx_gd_template").on(t.templateId),
     index("idx_gd_entity").on(t.entityType, t.entityId),
+    index("idx_gd_fingerprint_created").on(
+      t.companyId,
+      t.templateId,
+      t.entityType,
+      t.entityId,
+      t.outputFormat,
+      t.createdAt
+    ),
   ]
 );
 export type GeneratedDocument = typeof generatedDocuments.$inferSelect;

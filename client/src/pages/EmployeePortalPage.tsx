@@ -726,13 +726,16 @@ export default function EmployeePortalPage() {
   );
   // KPI queries
   const { data: myKpiProgress, refetch: refetchKpi } = trpc.kpi.getMyProgress.useQuery(
-    { month: kpiMonth, year: kpiYear }, { enabled: isAuthenticated }
+    { month: kpiMonth, year: kpiYear, companyId: activeCompanyId ?? undefined },
+    { enabled: isAuthenticated && activeCompanyId != null },
   );
   const { data: myKpiLogs, refetch: refetchKpiLogs } = trpc.kpi.listMyLogs.useQuery(
-    { month: kpiMonth, year: kpiYear }, { enabled: isAuthenticated }
+    { month: kpiMonth, year: kpiYear, companyId: activeCompanyId ?? undefined },
+    { enabled: isAuthenticated && activeCompanyId != null },
   );
   const { data: kpiLeaderboard } = trpc.kpi.getLeaderboard.useQuery(
-    { month: kpiMonth, year: kpiYear }, { enabled: isAuthenticated }
+    { month: kpiMonth, year: kpiYear, companyId: activeCompanyId ?? undefined },
+    { enabled: isAuthenticated && activeCompanyId != null },
   );
   // KPI mutations
   const logActivityMut = trpc.kpi.logActivity.useMutation({
@@ -4057,6 +4060,10 @@ export default function EmployeePortalPage() {
               disabled={!logDate || !logValue || logActivityMut.isPending}
               onClick={() => {
                 if (!logDate || !logValue) return;
+                if (!activeCompanyId) {
+                  toast.error("Select a company workspace to log KPI activity.");
+                  return;
+                }
                 logActivityMut.mutate({
                   kpiTargetId: logTargetId ?? undefined,
                   metricName: logTargetName || "Activity",
@@ -4065,6 +4072,7 @@ export default function EmployeePortalPage() {
                   valueAchieved: Number(logValue),
                   clientName: logClientName || undefined,
                   notes: logNote || undefined,
+                  companyId: activeCompanyId,
                 });
               }}
             >

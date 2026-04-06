@@ -215,7 +215,7 @@ export const sanadRouter = router({
     )
     .mutation(async ({ input, ctx }) => {
       const { companyId: _cid, ...createInput } = input;
-      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId);
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const referenceNumber = "SAN-" + Date.now() + "-" + nanoid(4).toUpperCase();
       const title = createInput.title || createInput.serviceType.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
       await createSanadApplication({

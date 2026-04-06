@@ -14,6 +14,8 @@ vi.mock("./db", async (importOriginal) => {
   return {
     ...actual,
     getUserCompany: vi.fn(),
+    getUserCompanies: vi.fn(),
+    getUserCompanyById: vi.fn(),
     getDb: vi.fn(),
     getContractById: vi.fn(),
   };
@@ -44,32 +46,34 @@ describe("requireActiveCompanyId", () => {
 describe("assertRowBelongsToActiveCompany", () => {
   beforeEach(() => {
     vi.mocked(db.getUserCompany).mockReset();
+    vi.mocked(db.getUserCompanies).mockReset();
   });
 
   const memberUser = { id: 1, role: "user" as const, platformRole: "company_member" as const };
 
   it("throws NOT_FOUND when row company differs from membership", async () => {
-    vi.mocked(db.getUserCompany).mockResolvedValue({ company: { id: 1 }, member: {} } as any);
+    vi.mocked(db.getUserCompanies).mockResolvedValue([{ company: { id: 1 }, member: {} }] as any);
     await expect(assertRowBelongsToActiveCompany(memberUser as any, 2, "Row")).rejects.toMatchObject({
       code: "NOT_FOUND",
     });
   });
 
   it("allows when companies match", async () => {
-    vi.mocked(db.getUserCompany).mockResolvedValue({ company: { id: 3 }, member: {} } as any);
+    vi.mocked(db.getUserCompanies).mockResolvedValue([{ company: { id: 3 }, member: {} }] as any);
     await expect(assertRowBelongsToActiveCompany(memberUser as any, 3, "Row")).resolves.toBeUndefined();
   });
 
   it("platform super_admin bypasses tenant check", async () => {
     const admin = { id: 1, role: "user" as const, platformRole: "super_admin" as const };
     await expect(assertRowBelongsToActiveCompany(admin as any, 999, "Row")).resolves.toBeUndefined();
-    expect(db.getUserCompany).not.toHaveBeenCalled();
+    expect(db.getUserCompanies).not.toHaveBeenCalled();
   });
 });
 
 describe("assertQuotationTenantAccess", () => {
   beforeEach(() => {
     vi.mocked(db.getUserCompany).mockReset();
+    vi.mocked(db.getUserCompanyById).mockReset();
   });
 
   const memberUser = { id: 10, role: "user" as const, platformRole: "company_member" as const };
@@ -87,7 +91,7 @@ describe("assertQuotationTenantAccess", () => {
   });
 
   it("uses company membership when companyId is set", async () => {
-    vi.mocked(db.getUserCompany).mockResolvedValue({ company: { id: 4 }, member: {} } as any);
+    vi.mocked(db.getUserCompanyById).mockResolvedValue({ company: { id: 4 }, member: {} } as any);
     await expect(
       assertQuotationTenantAccess(memberUser as any, { companyId: 4, createdBy: 99 }),
     ).resolves.toBeUndefined();
@@ -96,20 +100,21 @@ describe("assertQuotationTenantAccess", () => {
 
 describe("resolveStatsCompanyFilter", () => {
   beforeEach(() => {
-    vi.mocked(db.getUserCompany).mockReset();
+    vi.mocked(db.getUserCompanies).mockReset();
+    vi.mocked(db.getUserCompanyById).mockReset();
   });
 
   const memberUser = { id: 10, role: "user" as const, platformRole: "company_member" as const };
 
   it("throws FORBIDDEN when non-platform user has no company", async () => {
-    vi.mocked(db.getUserCompany).mockResolvedValue(null);
+    vi.mocked(db.getUserCompanies).mockResolvedValue([]);
     await expect(resolveStatsCompanyFilter(memberUser as any, undefined)).rejects.toMatchObject({
       code: "FORBIDDEN",
     });
   });
 
   it("returns scoped company for tenant user", async () => {
-    vi.mocked(db.getUserCompany).mockResolvedValue({ company: { id: 5 }, member: {} } as any);
+    vi.mocked(db.getUserCompanies).mockResolvedValue([{ company: { id: 5 }, member: {} }] as any);
     await expect(resolveStatsCompanyFilter(memberUser as any, undefined)).resolves.toEqual({
       aggregateAllTenants: false,
       companyId: 5,
@@ -117,14 +122,24 @@ describe("resolveStatsCompanyFilter", () => {
   });
 
   it("throws FORBIDDEN when tenant passes another company id", async () => {
-    vi.mocked(db.getUserCompany).mockResolvedValue({ company: { id: 5 }, member: {} } as any);
+    vi.mocked(db.getUserCompanyById).mockResolvedValue(null);
     await expect(resolveStatsCompanyFilter(memberUser as any, 99)).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("throws BAD_REQUEST when tenant has multiple companies and companyId is omitted", async () => {
+    vi.mocked(db.getUserCompanies).mockResolvedValue([
+      { company: { id: 1 }, member: {} },
+      { company: { id: 2 }, member: {} },
+    ] as any);
+    await expect(resolveStatsCompanyFilter(memberUser as any, undefined)).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+    });
   });
 });
 
 describe("resolvePlatformOrCompanyScope", () => {
   beforeEach(() => {
-    vi.mocked(db.getUserCompany).mockReset();
+    vi.mocked(db.getUserCompanies).mockReset();
   });
 
   const memberUser = { id: 10, role: "user" as const, platformRole: "company_member" as const };
@@ -132,11 +147,11 @@ describe("resolvePlatformOrCompanyScope", () => {
 
   it("returns null for platform super_admin", async () => {
     await expect(resolvePlatformOrCompanyScope(superAdmin as any)).resolves.toBeNull();
-    expect(db.getUserCompany).not.toHaveBeenCalled();
+    expect(db.getUserCompanies).not.toHaveBeenCalled();
   });
 
   it("returns company id for member", async () => {
-    vi.mocked(db.getUserCompany).mockResolvedValue({ company: { id: 8 }, member: {} } as any);
+    vi.mocked(db.getUserCompanies).mockResolvedValue([{ company: { id: 8 }, member: {} }] as any);
     await expect(resolvePlatformOrCompanyScope(memberUser as any)).resolves.toBe(8);
   });
 });

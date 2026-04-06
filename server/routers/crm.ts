@@ -1,6 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { canAccessGlobalAdminProcedures } from "@shared/rbac";
+import type { User } from "../../drizzle/schema";
 import { assertRowBelongsToActiveCompany, requireActiveCompanyId } from "../_core/tenant";
 import {
   createCrmCommunication,
@@ -24,7 +25,7 @@ async function resolveCrmCompanyId(
     if (inputCompanyId != null) return inputCompanyId;
     throw new TRPCError({ code: "BAD_REQUEST", message: "companyId is required when you have no company membership" });
   }
-  return requireActiveCompanyId(ctx.user.id, inputCompanyId);
+  return requireActiveCompanyId(ctx.user.id, inputCompanyId, ctx.user as User);
 }
 
 export const crmRouter = router({
@@ -75,6 +76,7 @@ export const crmRouter = router({
     .input(
       z.object({
         id: z.number(),
+        companyId: z.number().optional(),
         firstName: z.string().optional(),
         lastName: z.string().optional(),
         email: z.string().email().optional(),
@@ -89,8 +91,8 @@ export const crmRouter = router({
     .mutation(async ({ input, ctx }) => {
       const row = await getCrmContactById(input.id);
       if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Contact not found" });
-      await assertRowBelongsToActiveCompany(ctx.user, row.companyId, "Contact");
-      const { id, ...data } = input;
+      await assertRowBelongsToActiveCompany(ctx.user, row.companyId, "Contact", input.companyId ?? row.companyId);
+      const { id, companyId: _c, ...data } = input;
       await updateCrmContact(id, data);
       return { success: true };
     }),
@@ -146,6 +148,7 @@ export const crmRouter = router({
     .input(
       z.object({
         id: z.number(),
+        companyId: z.number().optional(),
         title: z.string().optional(),
         stage: z.enum(["lead", "qualified", "proposal", "negotiation", "closed_won", "closed_lost"]).optional(),
         value: z.number().optional(),
@@ -157,8 +160,8 @@ export const crmRouter = router({
     .mutation(async ({ input, ctx }) => {
       const row = await getCrmDealById(input.id);
       if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Deal not found" });
-      await assertRowBelongsToActiveCompany(ctx.user, row.companyId, "Deal");
-      const { id, ...data } = input;
+      await assertRowBelongsToActiveCompany(ctx.user, row.companyId, "Deal", input.companyId ?? row.companyId);
+      const { id, companyId: _c, ...data } = input;
       const updateData: Record<string, unknown> = { ...data };
       if (data.value !== undefined) updateData.value = String(data.value);
       if (data.expectedCloseDate) updateData.expectedCloseDate = new Date(data.expectedCloseDate);

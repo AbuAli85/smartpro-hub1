@@ -61,7 +61,7 @@ export const hrRouter = router({
     .input(z.object({ status: z.string().optional(), department: z.string().optional(), companyId: z.number().optional() }))
     .query(async ({ input, ctx }) => {
       const { companyId: inputCid, ...filters } = input;
-      const cid = await requireActiveCompanyId(ctx.user.id, inputCid).catch(() => null);
+      const cid = await requireActiveCompanyId(ctx.user.id, inputCid, ctx.user).catch(() => null);
       if (!cid) return [];
       return getEmployees(cid, filters);
     }),
@@ -69,7 +69,7 @@ export const hrRouter = router({
   getEmployee: protectedProcedure.input(z.object({ id: z.number() })).query(async ({ input, ctx }) => {
     const emp = await getEmployeeById(input.id);
     if (!emp) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
-    await assertRowBelongsToActiveCompany(ctx.user, emp.companyId, "Employee");
+    await assertRowBelongsToActiveCompany(ctx.user, emp.companyId, "Employee", emp.companyId);
     return emp;
   }),
 
@@ -202,7 +202,7 @@ export const hrRouter = router({
         dateOfBirth, visaExpiryDate, workPermitExpiryDate, ...data } = input;
       const existing = await getEmployeeById(id);
       if (!existing) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
-      await assertRowBelongsToActiveCompany(ctx.user, existing.companyId, "Employee");
+      await assertRowBelongsToActiveCompany(ctx.user, existing.companyId, "Employee", existing.companyId);
       const updateData: any = { ...data };
       if (data.salary !== undefined) updateData.salary = String(data.salary);
       if (data.hireDate !== undefined) updateData.hireDate = data.hireDate ? new Date(data.hireDate) : null;
@@ -251,7 +251,7 @@ export const hrRouter = router({
     .query(async ({ input, ctx }) => {
       const emp = await getEmployeeById(input.id);
       if (!emp) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
-      await assertRowBelongsToActiveCompany(ctx.user, emp.companyId, "Employee");
+      await assertRowBelongsToActiveCompany(ctx.user, emp.companyId, "Employee", emp.companyId);
       const db = await getDb();
       let permit = null;
       if (db) {
@@ -289,7 +289,7 @@ export const hrRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId);
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const { companyId: _omit, ...jobData } = input;
       await createJobPosting({
         ...jobData,
@@ -316,7 +316,7 @@ export const hrRouter = router({
       const { id, ...data } = input;
       const job = await getJobPostingById(id);
       if (!job) throw new TRPCError({ code: "NOT_FOUND", message: "Job not found" });
-      await assertRowBelongsToActiveCompany(ctx.user, job.companyId, "Job");
+      await assertRowBelongsToActiveCompany(ctx.user, job.companyId, "Job", job.companyId);
       await updateJobPosting(id, data);
       return { success: true };
     }),
@@ -342,7 +342,7 @@ export const hrRouter = router({
       const { id, ...data } = input;
       const app = await getJobApplicationById(id);
       if (!app) throw new TRPCError({ code: "NOT_FOUND", message: "Application not found" });
-      await assertRowBelongsToActiveCompany(ctx.user, app.companyId, "Application");
+      await assertRowBelongsToActiveCompany(ctx.user, app.companyId, "Application", app.companyId);
       await updateJobApplication(id, data);
       return { success: true };
     }),
@@ -351,7 +351,7 @@ export const hrRouter = router({
   listLeave: protectedProcedure
     .input(z.object({ employeeId: z.number().optional(), companyId: z.number().optional() }))
     .query(async ({ input, ctx }) => {
-      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId).catch(() => null);
+      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user).catch(() => null);
       if (!cid) return [];
       return getLeaveRequests(cid, input.employeeId);
     }),
@@ -369,7 +369,7 @@ export const hrRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId);
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const emp = await getEmployeeById(input.employeeId);
       if (!emp) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
       if (emp.companyId !== companyId) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
@@ -395,7 +395,7 @@ export const hrRouter = router({
       const { id, ...data } = input;
       const row = await getLeaveRequestById(id);
       if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Leave request not found" });
-      await assertRowBelongsToActiveCompany(ctx.user, row.companyId, "Leave request");
+      await assertRowBelongsToActiveCompany(ctx.user, row.companyId, "Leave request", row.companyId);
       await updateLeaveRequest(id, { ...data, approvedBy: ctx.user.id });
       // Notify the employee about the leave decision
       if (input.status === "approved" || input.status === "rejected") {
@@ -426,7 +426,7 @@ export const hrRouter = router({
   listPayroll: protectedProcedure
     .input(z.object({ year: z.number().optional(), month: z.number().optional(), companyId: z.number().optional() }))
     .query(async ({ input, ctx }) => {
-      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId).catch(() => null);
+      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user).catch(() => null);
       if (!cid) return [];
       return getPayrollRecords(cid, input.year, input.month);
     }),
@@ -446,7 +446,7 @@ export const hrRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId);
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const emp = await getEmployeeById(input.employeeId);
       if (!emp) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
       if (emp.companyId !== companyId) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
@@ -468,7 +468,7 @@ export const hrRouter = router({
     .mutation(async ({ input, ctx }) => {
       const row = await getPayrollRecordById(input.id);
       if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Payroll record not found" });
-      await assertRowBelongsToActiveCompany(ctx.user, row.companyId, "Payroll record");
+      await assertRowBelongsToActiveCompany(ctx.user, row.companyId, "Payroll record", row.companyId);
       const updateData: any = { status: input.status };
       if (input.status === "paid") updateData.paidAt = new Date();
       await updatePayrollRecord(input.id, updateData);
@@ -519,7 +519,7 @@ export const hrRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId);
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const emp = await getEmployeeById(input.employeeId);
       if (!emp) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
       if (emp.companyId !== companyId) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
@@ -535,7 +535,7 @@ export const hrRouter = router({
   departments: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }).optional())
     .query(async ({ input, ctx }) => {
-      const cid = await requireActiveCompanyId(ctx.user.id, input?.companyId).catch(() => null);
+      const cid = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user).catch(() => null);
       if (!cid) return [];
       const emps = await getEmployees(cid);
       const depts = Array.from(new Set(emps.map((e) => e.department).filter(Boolean)));
@@ -546,7 +546,7 @@ export const hrRouter = router({
   listAttendance: protectedProcedure
     .input(z.object({ month: z.string().optional(), companyId: z.number().optional() }))
     .query(async ({ input, ctx }) => {
-      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId).catch(() => null);
+      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user).catch(() => null);
       if (!cid) return [];
       return getAttendance(cid, input.month);
     }),
@@ -563,7 +563,7 @@ export const hrRouter = router({
       companyId: z.number().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId);
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const membership = await getActiveCompanyMembership(ctx.user.id, companyId);
       if (!membership) throw new TRPCError({ code: "FORBIDDEN", message: "No company membership" });
       requireNotAuditor(membership.role);
@@ -623,7 +623,7 @@ export const hrRouter = router({
       const { id, checkIn, checkOut, ...rest } = input;
       const row = await getAttendanceRecordById(id);
       if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Attendance record not found" });
-      await assertRowBelongsToActiveCompany(ctx.user, row.companyId, "Attendance record");
+      await assertRowBelongsToActiveCompany(ctx.user, row.companyId, "Attendance record", row.companyId);
       const membership = await getActiveCompanyMembership(ctx.user.id, row.companyId);
       if (!membership) throw new TRPCError({ code: "FORBIDDEN", message: "No company membership" });
       requireNotAuditor(membership.role);
@@ -663,7 +663,7 @@ export const hrRouter = router({
     .mutation(async ({ input, ctx }) => {
       const row = await getAttendanceRecordById(input.id);
       if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Attendance record not found" });
-      await assertRowBelongsToActiveCompany(ctx.user, row.companyId, "Attendance record");
+      await assertRowBelongsToActiveCompany(ctx.user, row.companyId, "Attendance record", row.companyId);
       const membership = await getActiveCompanyMembership(ctx.user.id, row.companyId);
       if (!membership) throw new TRPCError({ code: "FORBIDDEN", message: "No company membership" });
       requireNotAuditor(membership.role);
@@ -691,7 +691,7 @@ export const hrRouter = router({
   attendanceStats: protectedProcedure
     .input(z.object({ month: z.string().optional(), companyId: z.number().optional() }))
     .query(async ({ input, ctx }) => {
-      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId).catch(() => null);
+      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user).catch(() => null);
       if (!cid) return { present: 0, absent: 0, late: 0, half_day: 0, remote: 0, byDay: [] };
       return getAttendanceStats(cid, input.month);
     }),
@@ -700,7 +700,7 @@ export const hrRouter = router({
   getLeaveBalance: protectedProcedure
     .input(z.object({ employeeId: z.number(), companyId: z.number().optional() }))
     .query(async ({ input, ctx }) => {
-      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId).catch(() => null);
+      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user).catch(() => null);
       if (!cid) throw new TRPCError({ code: "FORBIDDEN", message: "No company" });
       const allLeave = await getLeaveRequests(cid, input.employeeId);
       const ENTITLEMENTS: Record<string, number> = { annual: 30, sick: 10, emergency: 6, maternity: 50, paternity: 3, unpaid: 0, other: 0 };
@@ -724,7 +724,7 @@ export const hrRouter = router({
   getLeaveBalanceSummary: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }).optional())
     .query(async ({ input, ctx }) => {
-    const cid = await requireActiveCompanyId(ctx.user.id, input?.companyId).catch(() => null);
+    const cid = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user).catch(() => null);
     if (!cid) return [];
     const emps = await getEmployees(cid);
     const activeEmps = emps.filter((e) => e.status === "active");
@@ -757,7 +757,7 @@ export const hrRouter = router({
   getEmployeeCompleteness: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }).optional())
     .query(async ({ input, ctx }) => {
-    const cid = await requireActiveCompanyId(ctx.user.id, input?.companyId).catch(() => null);
+    const cid = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user).catch(() => null);
     if (!cid) return [];
     const emps = await getEmployees(cid);
     const REQUIRED_FIELDS = ["firstName", "lastName", "email", "phone", "nationality", "department", "position", "hireDate", "salary"];
@@ -781,7 +781,7 @@ export const hrRouter = router({
   getStats: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }).optional())
     .query(async ({ input, ctx }) => {
-    const cid = await requireActiveCompanyId(ctx.user.id, input?.companyId).catch(() => null);
+    const cid = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user).catch(() => null);
     if (!cid) return { total: 0, active: 0, onLeave: 0, terminated: 0, omani: 0, expat: 0, omanisationRate: 0, departments: 0, avgSalary: 0, totalPayroll: 0 };
     const emps = await getEmployees(cid);
     const active = emps.filter((e) => e.status === "active");
@@ -816,7 +816,7 @@ export const hrRouter = router({
       status: z.enum(["all", "expired", "expiring_soon"]).default("all"),
     }))
     .query(async ({ input, ctx }) => {
-      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId).catch(() => null);
+      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user).catch(() => null);
       if (!cid) return { rows: [], stats: { total: 0, expired: 0, expiringSoon: 0 } };
       const db = await getDb();
       if (!db) return { rows: [], stats: { total: 0, expired: 0, expiringSoon: 0 } };
@@ -895,7 +895,7 @@ export const hrRouter = router({
   getDashboardStats: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }).optional())
     .query(async ({ input, ctx }) => {
-      const cid = await requireActiveCompanyId(ctx.user.id, input?.companyId).catch(() => null);
+      const cid = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user).catch(() => null);
       const emptyResult = {
         todayPresent: 0, todayAbsent: 0, todayTotal: 0,
         pendingLeave: 0, kpiTargetsCount: 0, kpiAvgPct: 0,
@@ -1006,7 +1006,7 @@ export const hrRouter = router({
       companyId: z.number().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId);
+      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
       for (const empId of input.employeeIds) {
@@ -1022,7 +1022,7 @@ export const hrRouter = router({
   listDepartmentMembers: protectedProcedure
     .input(z.object({ departmentName: z.string(), companyId: z.number().optional() }))
     .query(async ({ input, ctx }) => {
-      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId).catch(() => null);
+      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user).catch(() => null);
       if (!cid) return [];
       const db = await getDb();
       if (!db) return [];
@@ -1047,7 +1047,7 @@ export const hrRouter = router({
   listDepartments: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }).optional())
     .query(async ({ input, ctx }) => {
-      const cid = await requireActiveCompanyId(ctx.user.id, input?.companyId).catch(() => null);
+      const cid = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user).catch(() => null);
       if (!cid) return [];
       const db = await getDb();
       if (!db) return [];
@@ -1070,7 +1070,7 @@ export const hrRouter = router({
       companyId: z.number().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId);
+      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
       const [result] = await db.insert(departments).values({
@@ -1095,7 +1095,7 @@ export const hrRouter = router({
       companyId: z.number().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId);
+      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
       const [existing] = await db.select().from(departments).where(and(eq(departments.id, input.id), eq(departments.companyId, cid)));
@@ -1112,7 +1112,7 @@ export const hrRouter = router({
   deleteDepartment: protectedProcedure
     .input(z.object({ id: z.number(), companyId: z.number().optional() }))
     .mutation(async ({ input, ctx }) => {
-      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId);
+      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
       const [existing] = await db.select().from(departments).where(and(eq(departments.id, input.id), eq(departments.companyId, cid)));
@@ -1124,7 +1124,7 @@ export const hrRouter = router({
   listPositions: protectedProcedure
     .input(z.object({ departmentId: z.number().optional(), companyId: z.number().optional() }).optional())
     .query(async ({ input, ctx }) => {
-      const cid = await requireActiveCompanyId(ctx.user.id, input?.companyId).catch(() => null);
+      const cid = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user).catch(() => null);
       if (!cid) return [];
       const db = await getDb();
       if (!db) return [];
@@ -1141,7 +1141,7 @@ export const hrRouter = router({
       companyId: z.number().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId);
+      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
       const [result] = await db.insert(positions).values({
@@ -1156,7 +1156,7 @@ export const hrRouter = router({
   deletePosition: protectedProcedure
     .input(z.object({ id: z.number(), companyId: z.number().optional() }))
     .mutation(async ({ input, ctx }) => {
-      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId);
+      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
       const [existing] = await db.select().from(positions).where(and(eq(positions.id, input.id), eq(positions.companyId, cid)));
@@ -1169,7 +1169,7 @@ export const hrRouter = router({
   getOrgChart: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }).optional())
     .query(async ({ input, ctx }) => {
-      const cid = await requireActiveCompanyId(ctx.user.id, input?.companyId).catch(() => null);
+      const cid = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user).catch(() => null);
       if (!cid) return { departments: [], unassigned: [] };
       const db = await getDb();
       if (!db) return { departments: [], unassigned: [] };
@@ -1249,7 +1249,7 @@ export const hrRouter = router({
     .query(async ({ input, ctx }) => {
       const emp = await getEmployeeById(input.employeeId);
       if (!emp) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
-      await assertRowBelongsToActiveCompany(ctx.user, emp.companyId, "Employee");
+      await assertRowBelongsToActiveCompany(ctx.user, emp.companyId, "Employee", input.companyId ?? emp.companyId);
       const db = await getDb();
       if (!db) return [];
 
@@ -1347,7 +1347,7 @@ export const hrRouter = router({
   getWorkforceHealth: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }).optional())
     .query(async ({ input, ctx }) => {
-      const cid = await requireActiveCompanyId(ctx.user.id, input?.companyId).catch(() => null);
+      const cid = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user).catch(() => null);
       if (!cid) return {
         total: 0, critical: 0, warning: 0, incomplete: 0, healthy: 0,
         criticalEmployees: [] as Array<{ id: number; name: string; reason: string }>,

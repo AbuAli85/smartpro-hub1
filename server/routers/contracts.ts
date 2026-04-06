@@ -36,7 +36,7 @@ export const contractsRouter = router({
     )
     .query(async ({ input, ctx }) => {
       if (canAccessGlobalAdminProcedures(ctx.user)) return getAllContracts({ status: input.status });
-      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId);
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       return getContracts(companyId, { status: input.status, type: input.type });
     }),
 
@@ -63,13 +63,15 @@ export const contractsRouter = router({
         templateId: z.number().optional(),
         notes: z.string().optional(),
         tags: z.array(z.string()).default([]),
+        companyId: z.number().optional(),
       })
     )
     .mutation(async ({ input, ctx }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id);
+      const { companyId: workspaceId, ...createFields } = input;
+      const companyId = await requireActiveCompanyId(ctx.user.id, workspaceId, ctx.user);
       const contractNumber = "CON-" + Date.now() + "-" + nanoid(4).toUpperCase();
       await createContract({
-        ...input,
+        ...createFields,
         companyId,
         createdBy: ctx.user.id,
         contractNumber,
@@ -84,6 +86,7 @@ export const contractsRouter = router({
     .input(
       z.object({
         id: z.number(),
+        companyId: z.number().optional(),
         title: z.string().optional(),
         status: z
           .enum(["draft", "pending_review", "pending_signature", "signed", "active", "expired", "terminated", "cancelled"])
@@ -99,10 +102,10 @@ export const contractsRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
-      const { id, ...data } = input;
+      const { id, companyId: _wc, ...data } = input;
       const existing = await getContractById(id);
       if (!existing) throw new TRPCError({ code: "NOT_FOUND" });
-      await assertRowBelongsToActiveCompany(ctx.user, existing.companyId, "Contract");
+      await assertRowBelongsToActiveCompany(ctx.user, existing.companyId, "Contract", input.companyId ?? existing.companyId);
       const updateData: any = { ...data };
       if (data.value !== undefined) updateData.value = String(data.value);
       if (data.startDate) updateData.startDate = new Date(data.startDate);
@@ -115,7 +118,7 @@ export const contractsRouter = router({
   templates: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }).optional())
     .query(async ({ ctx, input }) => {
-    const companyId = await requireActiveCompanyId(ctx.user.id, input?.companyId);
+    const companyId = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user);
     return getContractTemplates(companyId);
   }),
 
@@ -169,7 +172,7 @@ Generate a complete, professional contract document with all standard clauses fo
     .query(async ({ input, ctx }) => {
       const contract = await getContractById(input.id);
       if (!contract) throw new TRPCError({ code: "NOT_FOUND" });
-      await assertRowBelongsToActiveCompany(ctx.user, contract.companyId, "Contract");
+      await assertRowBelongsToActiveCompany(ctx.user, contract.companyId, "Contract", contract.companyId);
       const html = `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><title>${contract.title}</title>
@@ -218,7 +221,7 @@ Generate a complete, professional contract document with all standard clauses fo
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       const c = await getContractById(input.contractId);
       if (!c) throw new TRPCError({ code: "NOT_FOUND" });
-      await assertRowBelongsToActiveCompany(ctx.user, c.companyId, "Contract");
+      await assertRowBelongsToActiveCompany(ctx.user, c.companyId, "Contract", c.companyId);
       const [result] = await db.insert(contractSignatures).values({
         contractId: input.contractId,
         signerName: input.signerName,
@@ -364,7 +367,7 @@ Generate a complete, professional contract document with all standard clauses fo
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       const contract = await getContractById(input.id);
       if (!contract) throw new TRPCError({ code: "NOT_FOUND" });
-      await assertRowBelongsToActiveCompany(ctx.user, contract.companyId, "Contract");
+      await assertRowBelongsToActiveCompany(ctx.user, contract.companyId, "Contract", contract.companyId);
       const cid = contract.companyId!;
       const signers = await db.select().from(contractSignatures)
         .where(eq(contractSignatures.contractId, input.id))
@@ -414,7 +417,7 @@ h1{text-align:center;font-size:20px;text-transform:uppercase;border-bottom:2px s
     .mutation(async ({ input, ctx }) => {
       const contract = await getContractById(input.id);
       if (!contract) throw new TRPCError({ code: "NOT_FOUND" });
-      await assertRowBelongsToActiveCompany(ctx.user, contract.companyId, "Contract");
+      await assertRowBelongsToActiveCompany(ctx.user, contract.companyId, "Contract", contract.companyId);
       const cid = contract.companyId!;
       const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${contract.title}</title><style>body{font-family:'Times New Roman',serif;max-width:800px;margin:40px auto;padding:40px;line-height:1.8;color:#1a1a1a}h1{text-align:center;font-size:20px;text-transform:uppercase;border-bottom:2px solid #1a1a1a;padding-bottom:12px;margin-bottom:24px}.meta{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:24px;font-size:13px}.content{white-space:pre-wrap;font-size:13px}.signatures{margin-top:60px;display:grid;grid-template-columns:1fr 1fr;gap:40px}.sig-block{border-top:1px solid #333;padding-top:8px;font-size:12px}@media print{body{margin:0}}</style></head><body><h1>${contract.title}</h1><div class="meta"><div><span>Contract No:</span><strong>${contract.contractNumber}</strong></div><div><span>Status:</span><strong>${contract.status?.toUpperCase()}</strong></div><div><span>Party A:</span><strong>${contract.partyAName ?? "—"}</strong></div><div><span>Party B:</span><strong>${contract.partyBName ?? "—"}</strong></div>${contract.value ? `<div><span>Value:</span><strong>${contract.value} ${contract.currency}</strong></div>` : ""}</div><div class="content">${contract.content ?? "No content."}</div><div class="signatures"><div class="sig-block"><p>Party A: ${contract.partyAName ?? "___"}</p><p>Signature: _______________</p><p>Date: _______________</p></div><div class="sig-block"><p>Party B: ${contract.partyBName ?? "___"}</p><p>Signature: _______________</p><p>Date: _______________</p></div></div></body></html>`;
       const fileKey = `contracts/${cid}/${input.id}-${contract.contractNumber?.replace(/[^a-zA-Z0-9]/g, "-")}-${Date.now()}.html`;

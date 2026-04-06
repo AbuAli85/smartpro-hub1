@@ -19,7 +19,7 @@ import {
   employeeDocuments,
   companyDocuments,
 } from "../../drizzle/schema";
-import { and, eq, gte, lte, lt, count, sum, desc, isNull, ne, notInArray } from "drizzle-orm";
+import { and, eq, gte, lte, lt, count, sum, desc, isNull, isNotNull, ne, notInArray } from "drizzle-orm";
 import { resolvePlatformOrCompanyScope } from "../_core/tenant";
 import {
   canReadHrPerformanceAuditSensitiveRows,
@@ -231,6 +231,63 @@ export const operationsRouter = router({
 
     const totalOpenCases = openCases.reduce((s, r) => s + Number(r.cnt), 0);
 
+    const casesActionRequiredQuery = db
+      .select({ cnt: count() })
+      .from(governmentServiceCases)
+      .where(
+        and(
+          eq(governmentServiceCases.caseStatus, "action_required"),
+          ...(companyId ? [eq(governmentServiceCases.companyId, companyId)] : []),
+        ),
+      );
+    const [casesActionRequiredRow] = await casesActionRequiredQuery;
+
+    const overdueInvoicesRow = await db
+      .select({ cnt: count(), total: sum(proBillingCycles.amountOmr) })
+      .from(proBillingCycles)
+      .where(
+        and(
+          eq(proBillingCycles.status, "overdue"),
+          ...(companyId ? [eq(proBillingCycles.companyId, companyId)] : []),
+        ),
+      );
+
+    const failedRenewalsRow = await db
+      .select({ cnt: count() })
+      .from(renewalWorkflowRuns)
+      .where(
+        and(
+          eq(renewalWorkflowRuns.status, "failed"),
+          ...(companyId ? [eq(renewalWorkflowRuns.companyId, companyId)] : []),
+        ),
+      );
+
+    const currentMonthNum = now.getMonth() + 1;
+    const currentYearNum = now.getFullYear();
+    const payrollDraftThisMonthRow = await db
+      .select({ cnt: count() })
+      .from(payrollRuns)
+      .where(
+        and(
+          eq(payrollRuns.status, "draft"),
+          eq(payrollRuns.periodMonth, currentMonthNum),
+          eq(payrollRuns.periodYear, currentYearNum),
+          ...(companyId ? [eq(payrollRuns.companyId, companyId)] : []),
+        ),
+      );
+
+    const employeeDocsExpiring7dRow = await db
+      .select({ cnt: count() })
+      .from(employeeDocuments)
+      .where(
+        and(
+          isNotNull(employeeDocuments.expiresAt),
+          ...(companyId ? [eq(employeeDocuments.companyId, companyId)] : []),
+          gte(employeeDocuments.expiresAt, now),
+          lte(employeeDocuments.expiresAt, in7Days),
+        ),
+      );
+
     return {
       openCases: {
         total: totalOpenCases,
@@ -239,8 +296,16 @@ export const operationsRouter = router({
       slaBreaches: slaBreaches.length,
       slaBreachList: slaBreaches,
       casesDueToday,
+      casesActionRequired: Number(casesActionRequiredRow?.cnt ?? 0),
       expiringDocs7Days: expiringDocs.length,
       expiringDocsList: expiringDocs,
+      employeeDocsExpiring7Days: Number(employeeDocsExpiring7dRow[0]?.cnt ?? 0),
+      overdueInvoices: {
+        count: Number(overdueInvoicesRow[0]?.cnt ?? 0),
+        totalOmr: Number(overdueInvoicesRow[0]?.total ?? 0),
+      },
+      renewalWorkflowsFailed: Number(failedRenewalsRow[0]?.cnt ?? 0),
+      payrollDraftThisMonth: Number(payrollDraftThisMonthRow[0]?.cnt ?? 0),
       pendingPayrollApprovals: pendingPayroll.length,
       pendingPayrollList: pendingPayroll,
       pendingLeaveRequests: Number(pendingLeave[0]?.cnt ?? 0),

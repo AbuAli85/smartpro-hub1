@@ -9,8 +9,9 @@ import {
   getProviderById,
   getProviderServices,
   updateProvider,
+  getUserCompanyById,
 } from "../db";
-import { getActiveCompanyMembership } from "../_core/membership";
+import { requireNotAuditor } from "../_core/membership";
 import { canAccessGlobalAdminProcedures } from "@shared/rbac";
 import { requireActiveCompanyId } from "../_core/tenant";
 import { protectedProcedure, publicProcedure, router } from "../_core/trpc";
@@ -51,12 +52,15 @@ export const marketplaceRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
-      const m = await getActiveCompanyMembership(ctx.user.id, input.companyId);
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      const m = await getUserCompanyById(ctx.user.id, companyId);
+      if (!m?.member) throw new TRPCError({ code: "FORBIDDEN", message: "No active company membership." });
+      requireNotAuditor(m.member.role, "External Auditors cannot register providers.");
       const { companyId: _omit, ...rest } = input;
       await createProvider({
         ...rest,
         userId: ctx.user.id,
-        companyId: m?.companyId,
+        companyId,
       });
       return { success: true };
     }),
@@ -90,9 +94,8 @@ export const marketplaceRouter = router({
   listBookings: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }).optional())
     .query(async ({ ctx, input }) => {
-      const m = await getActiveCompanyMembership(ctx.user.id, input?.companyId);
-      if (!m) return [];
-      return getMarketplaceBookings(m.companyId);
+      const companyId = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user);
+      return getMarketplaceBookings(companyId);
     }),
 
   createBooking: protectedProcedure
@@ -107,7 +110,7 @@ export const marketplaceRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId);
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const bookingNumber = "BK-" + Date.now() + "-" + nanoid(4).toUpperCase();
       const { companyId: _omit, ...bookingRest } = input;
       await createMarketplaceBooking({

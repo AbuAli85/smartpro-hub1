@@ -189,7 +189,7 @@ export const contractManagementRouter = router({
   companiesForPartyPickers: protectedProcedure
     .input(z.object({ clientCompanyId: z.number().int().positive().optional() }).optional())
     .query(async ({ ctx, input }) => {
-      const activeId = await requireActiveCompanyId(ctx.user.id);
+      const activeId = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
       await requireCanManageContracts(ctx.user, activeId);
       const db = await getDb();
       if (!db) return { clientOptions: [], employerOptions: [] };
@@ -235,7 +235,7 @@ export const contractManagementRouter = router({
       if (!db) return [];
       const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
       if (!isPlatform) {
-        await requireActiveCompanyId(ctx.user.id);
+        await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
         await requireCanManageContracts(ctx.user, input.clientCompanyId);
       }
       return db
@@ -268,7 +268,7 @@ export const contractManagementRouter = router({
       const db = await getDb();
       if (!db) return [];
       const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
-      const activeId = await requireActiveCompanyId(ctx.user.id);
+      const activeId = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
 
       if (isPlatform && input.clientCompanyId == null && !input.forEmployerPerspective) {
         throw new TRPCError({
@@ -335,7 +335,7 @@ export const contractManagementRouter = router({
       const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
       const employerCompanyId = isPlatform
         ? input?.employerCompanyId
-        : await requireActiveCompanyId(ctx.user.id);
+        : await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
       if (employerCompanyId == null) {
         throw new TRPCError({
           code: "BAD_REQUEST",
@@ -368,7 +368,7 @@ export const contractManagementRouter = router({
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
-      const activeId = await requireActiveCompanyId(ctx.user.id);
+      const activeId = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
       await requireCanManageContracts(ctx.user, activeId);
       const partyId = await createManagedExternalParty(db, {
         managedByCompanyId: activeId,
@@ -620,7 +620,7 @@ export const contractManagementRouter = router({
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
 
     const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
-    const activeId = isPlatform ? 0 : await requireActiveCompanyId(ctx.user.id);
+    const activeId = isPlatform ? 0 : await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
 
     // Apply the same RBAC gate as the list query: only managers/admins, not auditors
     if (!isPlatform) {
@@ -639,7 +639,7 @@ export const contractManagementRouter = router({
       }).optional()
     )
     .query(async ({ ctx, input }) => {
-      const activeId = await requireActiveCompanyId(ctx.user.id);
+      const activeId = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
       await requireCanManageContracts(ctx.user, activeId);
       const db = await getDb();
       if (!db) return [];
@@ -678,7 +678,7 @@ export const contractManagementRouter = router({
 
       const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
       if (!isPlatform) {
-        const activeId = await requireActiveCompanyId(ctx.user.id);
+        const activeId = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
         if (
           !activeCompanyInvolvedInContract(
             activeId,
@@ -721,7 +721,7 @@ export const contractManagementRouter = router({
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
 
       const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
-      const activeId = isPlatform ? null : await requireActiveCompanyId(ctx.user.id);
+      const activeId = isPlatform ? null : await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
 
       if (!isPlatform) {
         if (input.creationPerspective === "employer") {
@@ -971,7 +971,7 @@ export const contractManagementRouter = router({
 
       const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
       if (!isPlatform) {
-        const activeId = await requireActiveCompanyId(ctx.user.id);
+        const activeId = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
         if (
           !activeCompanyInvolvedInContract(
             activeId,
@@ -1101,7 +1101,7 @@ export const contractManagementRouter = router({
 
       const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
       if (!isPlatform) {
-        const activeId = await requireActiveCompanyId(ctx.user.id);
+        const activeId = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
         if (
           !activeCompanyInvolvedInContract(
             activeId,
@@ -1163,7 +1163,7 @@ export const contractManagementRouter = router({
 
       const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
       if (!isPlatform) {
-        const activeId = await requireActiveCompanyId(ctx.user.id);
+        const activeId = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
         if (
           !activeCompanyInvolvedInContract(
             activeId,
@@ -1312,7 +1312,7 @@ export const contractManagementRouter = router({
 
       const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
       if (!isPlatform) {
-        const activeId = await requireActiveCompanyId(ctx.user.id);
+        const activeId = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
         if (
           !activeCompanyInvolvedInContract(
             activeId,
@@ -1469,7 +1469,7 @@ export const contractManagementRouter = router({
 
       const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
       if (!isPlatform) {
-        const activeId = await requireActiveCompanyId(ctx.user.id);
+        const activeId = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
         if (
           !activeCompanyInvolvedInContract(
             activeId,
@@ -1540,7 +1540,7 @@ export const contractManagementRouter = router({
       let uploaderCompanyId: number;
 
       if (!isPlatform) {
-        const activeId = await requireActiveCompanyId(ctx.user.id);
+        const activeId = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
         uploaderCompanyId = activeId;
         await requireCanManageContracts(ctx.user, activeId);
 
@@ -1562,7 +1562,7 @@ export const contractManagementRouter = router({
           });
         }
       } else {
-        const activeId = await requireActiveCompanyId(ctx.user.id).catch(() => 0);
+        const activeId = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user).catch(() => 0);
         uploaderCompanyId = activeId;
       }
 
@@ -1651,7 +1651,7 @@ export const contractManagementRouter = router({
 
       const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
       if (!isPlatform) {
-        const activeId = await requireActiveCompanyId(ctx.user.id);
+        const activeId = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
         await requireCanManageContracts(ctx.user, activeId);
 
         const contract = await getOutsourcingContractById(db, doc.contractId);
@@ -1689,7 +1689,7 @@ export const contractManagementRouter = router({
 
       const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
       if (!isPlatform) {
-        const activeId = await requireActiveCompanyId(ctx.user.id);
+        const activeId = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
         if (
           !activeCompanyInvolvedInContract(
             activeId,
@@ -1722,7 +1722,7 @@ export const contractManagementRouter = router({
 
       const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
       if (!isPlatform) {
-        const activeId = await requireActiveCompanyId(ctx.user.id);
+        const activeId = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
         if (
           !activeCompanyInvolvedInContract(
             activeId,

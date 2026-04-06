@@ -62,7 +62,7 @@ export const documentGenerationRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id);
+      const companyId = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
       const membership = await getActiveCompanyMembership(ctx.user.id, companyId);
       if (!membership) {
         throw new TRPCError({ code: "FORBIDDEN", message: "No company membership" });

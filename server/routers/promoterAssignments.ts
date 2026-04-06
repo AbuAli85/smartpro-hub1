@@ -58,7 +58,7 @@ export const promoterAssignmentsRouter = router({
   companiesForPartyPickers: protectedProcedure
     .input(z.object({ clientCompanyId: z.number().int().positive().optional() }).optional())
     .query(async ({ ctx, input }) => {
-      const activeId = await requireActiveCompanyId(ctx.user.id);
+      const activeId = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
       await requireCanManagePromoterAssignments(ctx.user, activeId);
       const db = await getDb();
       if (!db) {
@@ -111,7 +111,7 @@ export const promoterAssignmentsRouter = router({
       if (!db) return [];
       const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
       if (!isPlatform) {
-        await requireActiveCompanyId(ctx.user.id);
+        await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
         await requireCanManagePromoterAssignments(ctx.user, input.clientCompanyId);
       }
       return db
@@ -146,7 +146,7 @@ export const promoterAssignmentsRouter = router({
       const db = await getDb();
       if (!db) return [];
       const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
-      const activeId = await requireActiveCompanyId(ctx.user.id);
+      const activeId = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
 
       if (isPlatform && input.clientCompanyId == null && !input.forEmployerPerspective) {
         throw new TRPCError({
@@ -206,7 +206,7 @@ export const promoterAssignmentsRouter = router({
    * Previously only first_party (companyId) was checked — employer was invisible.
    */
   list: protectedProcedure.query(async ({ ctx }) => {
-    const activeId = await requireActiveCompanyId(ctx.user.id);
+    const activeId = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
     await requireCanManagePromoterAssignments(ctx.user, activeId);
     const db = await getDb();
     if (!db) return [];
@@ -300,7 +300,7 @@ export const promoterAssignmentsRouter = router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
 
-      const activeId = await requireActiveCompanyId(ctx.user.id);
+      const activeId = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
       const [row] = await db
         .select({ id: promoterAssignments.id, companyId: promoterAssignments.companyId })
         .from(promoterAssignments)
@@ -356,7 +356,7 @@ export const promoterAssignmentsRouter = router({
 
       const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
       if (!isPlatform) {
-        await requireActiveCompanyId(ctx.user.id);
+        await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
         await requireCanManagePromoterAssignments(ctx.user, input.clientCompanyId);
       }
 
@@ -554,7 +554,7 @@ export const promoterAssignmentsRouter = router({
 
       const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
       if (!isPlatform) {
-        const activeId = await requireActiveCompanyId(ctx.user.id);
+        const activeId = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
         // Only first party can edit
         if (existing.companyId !== activeId) {
           throw new TRPCError({ code: "FORBIDDEN", message: "Only the first party can edit this assignment" });

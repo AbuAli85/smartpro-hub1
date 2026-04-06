@@ -101,7 +101,7 @@ export const shiftRequestsRouter = router({
       attachmentUrl: z.string().url().optional(), // S3 URL for supporting document
     }))
     .mutation(async ({ ctx, input }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId);
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
       // Use the employee's own userId as the key (consistent with schedule lookup)
@@ -135,7 +135,7 @@ export const shiftRequestsRouter = router({
   listMine: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }))
     .query(async ({ ctx, input }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId);
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
       // Dual lookup: by userId AND by employees.id
@@ -168,7 +168,7 @@ export const shiftRequestsRouter = router({
   cancel: protectedProcedure
     .input(z.object({ id: z.number(), companyId: z.number().optional() }))
     .mutation(async ({ ctx, input }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId);
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
       const [empRow] = await db.select({ id: employees.id })
@@ -321,7 +321,7 @@ export const shiftRequestsRouter = router({
       companyId: z.number().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId);
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const ext = input.fileName.split(".").pop() ?? "pdf";
       const key = `shift-request-attachments/${companyId}/${ctx.user.id}-${randomSuffix()}.${ext}`;
       const buffer = Buffer.from(input.fileBase64, "base64");

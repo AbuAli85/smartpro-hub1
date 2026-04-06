@@ -114,10 +114,10 @@ export const kpiRouter = router({
 
   // ── Employee: list my targets for a period ──────────────────────────────────
   listMyTargets: protectedProcedure
-    .input(z.object({ year: z.number().optional(), month: z.number().optional() }))
+    .input(z.object({ year: z.number().optional(), month: z.number().optional(), companyId: z.number().optional() }))
     .query(async ({ ctx, input }) => {
       const db = await requireDb();
-      const companyId = await requireActiveCompanyId(ctx.user.id);
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const year = input.year ?? new Date().getFullYear();
       const month = input.month ?? new Date().getMonth() + 1;
       return db.select().from(kpiTargets).where(
@@ -133,10 +133,10 @@ export const kpiRouter = router({
 
   // ── Employee: get my progress (targets + achievements) ─────────────────────
   getMyProgress: protectedProcedure
-    .input(z.object({ year: z.number().optional(), month: z.number().optional() }))
+    .input(z.object({ year: z.number().optional(), month: z.number().optional(), companyId: z.number().optional() }))
     .query(async ({ ctx, input }) => {
       const db = await requireDb();
-      const companyId = await requireActiveCompanyId(ctx.user.id);
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const year = input.year ?? new Date().getFullYear();
       const month = input.month ?? new Date().getMonth() + 1;
 
@@ -185,10 +185,11 @@ export const kpiRouter = router({
       notes: z.string().optional(),
       attachmentUrl: z.string().optional(),
       kpiTargetId: z.number().optional(),
+      companyId: z.number().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const db = await requireDb();
-      const companyId = await requireActiveCompanyId(ctx.user.id);
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       await db.insert(kpiDailyLogs).values({
         companyId,
         employeeUserId: ctx.user.id,
@@ -235,10 +236,11 @@ export const kpiRouter = router({
       year: z.number().optional(),
       month: z.number().optional(),
       limit: z.number().optional(),
+      companyId: z.number().optional(),
     }))
     .query(async ({ ctx, input }) => {
       const db = await requireDb();
-      const companyId = await requireActiveCompanyId(ctx.user.id);
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const year = input.year ?? new Date().getFullYear();
       const month = input.month ?? new Date().getMonth() + 1;
       const startDate = `${year}-${String(month).padStart(2, "0")}-01`;
@@ -255,10 +257,10 @@ export const kpiRouter = router({
 
   // ── Employee: delete a log ──────────────────────────────────────────────────
   deleteLog: protectedProcedure
-    .input(z.object({ id: z.number() }))
+    .input(z.object({ id: z.number(), companyId: z.number().optional() }))
     .mutation(async ({ ctx, input }) => {
       const db = await requireDb();
-      const companyId = await requireActiveCompanyId(ctx.user.id);
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const log = await db.select().from(kpiDailyLogs).where(
         and(eq(kpiDailyLogs.id, input.id), eq(kpiDailyLogs.employeeUserId, ctx.user.id), eq(kpiDailyLogs.companyId, companyId))
       ).limit(1);
@@ -269,10 +271,10 @@ export const kpiRouter = router({
 
   // ── Employee: get total commission this month ───────────────────────────────
   getMyCommission: protectedProcedure
-    .input(z.object({ year: z.number().optional(), month: z.number().optional() }))
+    .input(z.object({ year: z.number().optional(), month: z.number().optional(), companyId: z.number().optional() }))
     .query(async ({ ctx, input }) => {
       const db = await requireDb();
-      const companyId = await requireActiveCompanyId(ctx.user.id);
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const year = input.year ?? new Date().getFullYear();
       const month = input.month ?? new Date().getMonth() + 1;
       return db.select({
@@ -304,10 +306,11 @@ export const kpiRouter = router({
       notes: z.string().optional(),
       /** New rows only; default `active` preserves legacy behaviour. */
       initialStatus: z.enum(["draft", "active"]).optional(),
+      companyId: z.number().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const db = await requireDb();
-      const companyId = await requireActiveCompanyId(ctx.user.id);
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       await assertCanManageKpiTargets(ctx.user, companyId);
 
       if (input.id !== undefined) {
@@ -422,11 +425,12 @@ export const kpiRouter = router({
       z.object({
         id: z.number(),
         to: z.enum(["draft", "active", "completed", "archived", "cancelled"]),
+        companyId: z.number().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
       const db = await requireDb();
-      const companyId = await requireActiveCompanyId(ctx.user.id);
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       await assertCanManageKpiTargets(ctx.user, companyId);
 
       const [row] = await db
@@ -462,10 +466,10 @@ export const kpiRouter = router({
 
   /** @deprecated Prefer `transitionKpiTarget` with `to: "cancelled"`. Cancels in-place with audit. */
   deleteTarget: protectedProcedure
-    .input(z.object({ id: z.number() }))
+    .input(z.object({ id: z.number(), companyId: z.number().optional() }))
     .mutation(async ({ ctx, input }) => {
       const db = await requireDb();
-      const companyId = await requireActiveCompanyId(ctx.user.id);
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       await assertCanManageKpiTargets(ctx.user, companyId);
 
       const [row] = await db
@@ -501,10 +505,10 @@ export const kpiRouter = router({
 
   // ── Admin: list all employees' progress for a period ───────────────────────
   adminGetTeamProgress: protectedProcedure
-    .input(z.object({ year: z.number().optional(), month: z.number().optional() }))
+    .input(z.object({ year: z.number().optional(), month: z.number().optional(), companyId: z.number().optional() }))
     .query(async ({ ctx, input }) => {
       const db = await requireDb();
-      const companyId = await requireActiveCompanyId(ctx.user.id);
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       await assertCanReadKpiTargets(ctx.user, companyId);
       const year = input.year ?? new Date().getFullYear();
       const month = input.month ?? new Date().getMonth() + 1;
@@ -545,10 +549,10 @@ export const kpiRouter = router({
 
   // ── Admin: leaderboard for a period ────────────────────────────────────────
   getLeaderboard: protectedProcedure
-    .input(z.object({ year: z.number().optional(), month: z.number().optional() }))
+    .input(z.object({ year: z.number().optional(), month: z.number().optional(), companyId: z.number().optional() }))
     .query(async ({ ctx, input }) => {
       const db = await requireDb();
-      const companyId = await requireActiveCompanyId(ctx.user.id);
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       await assertCanReadKpiTargets(ctx.user, companyId);
       const year = input.year ?? new Date().getFullYear();
       const month = input.month ?? new Date().getMonth() + 1;
@@ -588,10 +592,11 @@ export const kpiRouter = router({
       employeeUserId: z.number(),
       year: z.number().optional(),
       month: z.number().optional(),
+      companyId: z.number().optional(),
     }))
     .query(async ({ ctx, input }) => {
       const db = await requireDb();
-      const companyId = await requireActiveCompanyId(ctx.user.id);
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       await assertCanReadKpiTargets(ctx.user, companyId);
       const year = input.year ?? new Date().getFullYear();
       const month = input.month ?? new Date().getMonth() + 1;

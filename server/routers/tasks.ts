@@ -86,7 +86,7 @@ export const tasksRouter = router({
       companyId: z.number().optional(),
     }))
     .query(async ({ input, ctx }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId);
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const db = await requireDb();
 
       const rows = await db
@@ -120,7 +120,7 @@ export const tasksRouter = router({
   getTask: protectedProcedure
     .input(z.object({ id: z.number(), companyId: z.number().optional() }))
     .query(async ({ input, ctx }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId);
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const db = await requireDb();
       const [row] = await db.select().from(employeeTasks).where(eq(employeeTasks.id, input.id));
       if (!row || row.companyId !== companyId)
@@ -142,7 +142,7 @@ export const tasksRouter = router({
       companyId: z.number().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId);
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const db = await requireDb();
       const { companyId: _cid, ...rest } = input;
       const now = new Date();
@@ -197,7 +197,7 @@ export const tasksRouter = router({
       companyId: z.number().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId);
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const db = await requireDb();
       const [existing] = await db.select().from(employeeTasks).where(eq(employeeTasks.id, input.id));
       if (!existing || existing.companyId !== companyId)
@@ -289,7 +289,7 @@ export const tasksRouter = router({
   deleteTask: protectedProcedure
     .input(z.object({ id: z.number(), companyId: z.number().optional() }))
     .mutation(async ({ input, ctx }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId);
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const db = await requireDb();
       const [existing] = await db.select().from(employeeTasks).where(eq(employeeTasks.id, input.id));
       if (!existing || existing.companyId !== companyId)
@@ -301,7 +301,7 @@ export const tasksRouter = router({
   getTaskStats: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }).optional())
     .query(async ({ ctx, input }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id, input?.companyId);
+      const companyId = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user);
       const db = await requireDb();
       const tasks = await db
         .select({ status: employeeTasks.status, dueDate: employeeTasks.dueDate })

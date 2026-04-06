@@ -119,11 +119,14 @@ export default function HRPerformancePage() {
     { year, month },
     { retry: false }
   );
-  const { data: teamProgress, isLoading: progressLoading } = trpc.kpi.adminGetTeamProgress.useQuery({
-    year,
-    month,
-  });
-  const { data: leaderboard } = trpc.kpi.getLeaderboard.useQuery({ year, month });
+  const { data: teamProgress, isLoading: progressLoading } = trpc.kpi.adminGetTeamProgress.useQuery(
+    { year, month, companyId: activeCompanyId ?? undefined },
+    { enabled: activeCompanyId != null },
+  );
+  const { data: leaderboard } = trpc.kpi.getLeaderboard.useQuery(
+    { year, month, companyId: activeCompanyId ?? undefined },
+    { enabled: activeCompanyId != null },
+  );
   const { data: trainingRows, isLoading: trainingLoading } = trpc.financeHR.adminListTraining.useQuery();
   const { data: selfReviews, isLoading: selfLoading } = trpc.financeHR.adminListSelfReviews.useQuery();
   const { data: formalReviews, isLoading: formalLoading } = trpc.hr.listReviews.useQuery(

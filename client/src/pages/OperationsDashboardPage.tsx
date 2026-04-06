@@ -67,7 +67,12 @@ export default function OperationsDashboardPage() {
       (tasks?.pendingLeaveApprovals?.length ?? 0) > 0 ||
       (tasks?.pendingPayrollApprovals?.length ?? 0) > 0 ||
       (snapshot?.expiringDocs7Days ?? 0) > 0 ||
-      (snapshot?.pendingContracts ?? 0) > 0
+      (snapshot?.employeeDocsExpiring7Days ?? 0) > 0 ||
+      (snapshot?.pendingContracts ?? 0) > 0 ||
+      (snapshot?.casesActionRequired ?? 0) > 0 ||
+      (snapshot?.overdueInvoices?.count ?? 0) > 0 ||
+      (snapshot?.renewalWorkflowsFailed ?? 0) > 0 ||
+      (snapshot?.payrollDraftThisMonth ?? 0) > 0
     );
 
   return (
@@ -102,10 +107,17 @@ export default function OperationsDashboardPage() {
               <p className="text-xs text-muted-foreground mt-0.5">
                 {[
                   (snapshot?.slaBreaches ?? 0) > 0 ? `${snapshot?.slaBreaches} SLA breach(es)` : null,
+                  (snapshot?.casesActionRequired ?? 0) > 0 ? `${snapshot?.casesActionRequired} case(s) need client action` : null,
                   (tasks?.pendingLeaveApprovals?.length ?? 0) > 0 ? `${tasks?.pendingLeaveApprovals?.length} leave approval(s)` : null,
-                  (tasks?.pendingPayrollApprovals?.length ?? 0) > 0 ? `${tasks?.pendingPayrollApprovals?.length} payroll run(s)` : null,
-                  (snapshot?.expiringDocs7Days ?? 0) > 0 ? `${snapshot?.expiringDocs7Days} doc(s) expiring in 7d` : null,
+                  (tasks?.pendingPayrollApprovals?.length ?? 0) > 0 ? `${tasks?.pendingPayrollApprovals?.length} payroll run(s) awaiting payment` : null,
+                  (snapshot?.payrollDraftThisMonth ?? 0) > 0 ? `${snapshot?.payrollDraftThisMonth} payroll draft(s) this month` : null,
+                  (snapshot?.expiringDocs7Days ?? 0) > 0 ? `${snapshot?.expiringDocs7Days} permit(s) expiring in 7d` : null,
+                  (snapshot?.employeeDocsExpiring7Days ?? 0) > 0 ? `${snapshot?.employeeDocsExpiring7Days} employee doc(s) expiring in 7d` : null,
                   (snapshot?.pendingContracts ?? 0) > 0 ? `${snapshot?.pendingContracts} contract(s) pending signature` : null,
+                  (snapshot?.overdueInvoices?.count ?? 0) > 0
+                    ? `OMR ${(snapshot?.overdueInvoices?.totalOmr ?? 0).toFixed(3)} overdue AR (${snapshot?.overdueInvoices?.count})`
+                    : null,
+                  (snapshot?.renewalWorkflowsFailed ?? 0) > 0 ? `${snapshot?.renewalWorkflowsFailed} renewal workflow(s) failed` : null,
                 ]
                   .filter(Boolean)
                   .join(" · ")}
@@ -113,19 +125,29 @@ export default function OperationsDashboardPage() {
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
+            {(snapshot?.slaBreaches ?? 0) > 0 && (
+              <Link href="/sla-management">
+                <Button size="sm" className="h-8 text-xs bg-orange-600 hover:bg-orange-700 text-white">SLA</Button>
+              </Link>
+            )}
+            {((snapshot?.casesActionRequired ?? 0) > 0 || (tasks?.casesDue?.length ?? 0) > 0) && (
+              <Link href="/pro-services">
+                <Button size="sm" variant="secondary" className="h-8 text-xs">Cases</Button>
+              </Link>
+            )}
             {(tasks?.pendingLeaveApprovals?.length ?? 0) > 0 && (
               <Link href="/hr/leave">
                 <Button size="sm" variant="secondary" className="h-8 text-xs">Leave</Button>
               </Link>
             )}
-            {(tasks?.pendingPayrollApprovals?.length ?? 0) > 0 && (
+            {((tasks?.pendingPayrollApprovals?.length ?? 0) > 0 || (snapshot?.payrollDraftThisMonth ?? 0) > 0) && (
               <Link href="/payroll">
                 <Button size="sm" variant="secondary" className="h-8 text-xs">Payroll</Button>
               </Link>
             )}
-            {(snapshot?.expiringDocs7Days ?? 0) > 0 && (
-              <Link href="/alerts">
-                <Button size="sm" variant="secondary" className="h-8 text-xs">Alerts</Button>
+            {((snapshot?.expiringDocs7Days ?? 0) > 0 || (snapshot?.employeeDocsExpiring7Days ?? 0) > 0) && (
+              <Link href="/hr/documents-dashboard">
+                <Button size="sm" variant="secondary" className="h-8 text-xs">Docs</Button>
               </Link>
             )}
             {(snapshot?.pendingContracts ?? 0) > 0 && (
@@ -133,9 +155,14 @@ export default function OperationsDashboardPage() {
                 <Button size="sm" variant="secondary" className="h-8 text-xs">Contracts</Button>
               </Link>
             )}
-            {(snapshot?.slaBreaches ?? 0) > 0 && (
-              <Link href="/sla-management">
-                <Button size="sm" className="h-8 text-xs bg-orange-600 hover:bg-orange-700 text-white">SLA</Button>
+            {(snapshot?.overdueInvoices?.count ?? 0) > 0 && (
+              <Link href="/billing">
+                <Button size="sm" variant="secondary" className="h-8 text-xs">Overdue AR</Button>
+              </Link>
+            )}
+            {(snapshot?.renewalWorkflowsFailed ?? 0) > 0 && (
+              <Link href="/renewal-workflows">
+                <Button size="sm" variant="secondary" className="h-8 text-xs">Renewals</Button>
               </Link>
             )}
           </div>

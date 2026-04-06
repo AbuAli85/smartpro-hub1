@@ -26,7 +26,7 @@ async function requirePortalCompanyId(user: User): Promise<number> {
   if (canAccessGlobalAdminProcedures(user)) {
     throw new TRPCError({ code: "FORBIDDEN", message: "Client portal is for company accounts" });
   }
-  return requireActiveCompanyId(user.id);
+  return requireActiveCompanyId(user.id, undefined, user);
 }
 
 // ─── Router ───────────────────────────────────────────────────────────────────

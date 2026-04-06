@@ -69,7 +69,7 @@ export const employeeRequestsRouter = router({
       details: z.record(z.string(), z.unknown()).optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId);
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const db = await requireDb();
       const emp = await resolveMyEmployee(ctx.user.id, ctx.user.email ?? "", companyId);
       if (!emp) throw new TRPCError({ code: "NOT_FOUND", message: "Employee record not found" });

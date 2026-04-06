@@ -28,7 +28,7 @@ export const workLogsRouter = router({
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      const companyId = await requireActiveCompanyId(ctx.user.id);
+      const companyId = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
       const empUserId = await resolveEmpUserId(ctx.user.id, companyId);
       await db.insert(workLogs).values({
         companyId,
@@ -50,7 +50,7 @@ export const workLogsRouter = router({
     .query(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) return [];
-      const companyId = await requireActiveCompanyId(ctx.user.id);
+      const companyId = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
       const empUserId = await resolveEmpUserId(ctx.user.id, companyId);
       const conditions = [eq(workLogs.companyId, companyId), eq(workLogs.employeeUserId, empUserId)];
       if (input?.fromDate) conditions.push(gte(workLogs.logDate, input.fromDate));
@@ -72,7 +72,7 @@ export const workLogsRouter = router({
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      const companyId = await requireActiveCompanyId(ctx.user.id);
+      const companyId = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
       const empUserId = await resolveEmpUserId(ctx.user.id, companyId);
       const { id, category, ...rest } = input;
       const updates: Record<string, unknown> = { ...rest };
@@ -86,7 +86,7 @@ export const workLogsRouter = router({
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      const companyId = await requireActiveCompanyId(ctx.user.id);
+      const companyId = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
       const empUserId = await resolveEmpUserId(ctx.user.id, companyId);
       await db.delete(workLogs).where(and(eq(workLogs.id, input.id), eq(workLogs.employeeUserId, empUserId)));
       return { success: true };
@@ -97,7 +97,7 @@ export const workLogsRouter = router({
     .query(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) return [];
-      const companyId = await requireActiveCompanyId(ctx.user.id);
+      const companyId = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
       const empUserId = await resolveEmpUserId(ctx.user.id, companyId);
       const start = new Date(input.weekStart);
       const end = new Date(start);

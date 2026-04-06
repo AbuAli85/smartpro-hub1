@@ -28,6 +28,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { invalidateAfterKpiLifecycleMutation, invalidateAfterKpiTargetMutation } from "@/lib/hrPerformanceInvalidation";
+import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import {
   Target, Trophy, Activity, TrendingUp, Plus, Edit2,
   Users, Award, Zap, ChevronDown, ChevronUp, Eye,
@@ -140,16 +141,22 @@ export default function HRKpiPage() {
   } | null>(null);
 
   // ── Data ───────────────────────────────────────────────────────────────────
-  const { data: employees, isLoading: empsLoading } = trpc.hr.listEmployees.useQuery({ status: "active" });
+  const { activeCompanyId } = useActiveCompany();
+  const { data: employees, isLoading: empsLoading } = trpc.hr.listEmployees.useQuery(
+    { status: "active", companyId: activeCompanyId ?? undefined },
+    { enabled: activeCompanyId != null },
+  );
   const { data: teamProgress, isLoading: progressLoading, refetch: refetchProgress } = trpc.kpi.adminGetTeamProgress.useQuery(
-    { year, month }, { enabled: true }
+    { year, month, companyId: activeCompanyId ?? undefined },
+    { enabled: activeCompanyId != null },
   );
   const { data: leaderboard, isLoading: lbLoading, refetch: refetchLb } = trpc.kpi.getLeaderboard.useQuery(
-    { year, month }
+    { year, month, companyId: activeCompanyId ?? undefined },
+    { enabled: activeCompanyId != null },
   );
   const { data: empLogs } = trpc.kpi.adminListEmployeeLogs.useQuery(
-    { employeeUserId: logsEmpUserId ?? 0, year, month },
-    { enabled: !!logsEmpUserId }
+    { employeeUserId: logsEmpUserId ?? 0, year, month, companyId: activeCompanyId ?? undefined },
+    { enabled: !!logsEmpUserId && activeCompanyId != null },
   );
 
   const utils = trpc.useUtils();
@@ -182,7 +189,11 @@ export default function HRKpiPage() {
       setPendingLifecycleConfirm({ id, to });
       return;
     }
-    transitionMut.mutate({ id, to });
+    if (!activeCompanyId) {
+      toast.error("Select a company workspace.");
+      return;
+    }
+    transitionMut.mutate({ id, to, companyId: activeCompanyId });
   }
 
   function resetTargetForm() {
@@ -227,6 +238,10 @@ export default function HRKpiPage() {
       toast.error("Please fill in all required fields.");
       return;
     }
+    if (!activeCompanyId) {
+      toast.error("Select a company workspace.");
+      return;
+    }
     setTargetMut.mutate({
       id: editTargetId ?? undefined,
       employeeUserId: tEmpUserId,
@@ -239,6 +254,7 @@ export default function HRKpiPage() {
       commissionType: tCommType as any,
       currency: tCurrency,
       notes: tNotes || undefined,
+      companyId: activeCompanyId,
     });
   }
 
@@ -678,9 +694,11 @@ export default function HRKpiPage() {
             <AlertDialogAction
               onClick={() => {
                 if (!pendingLifecycleConfirm) return;
+                if (!activeCompanyId) return;
                 transitionMut.mutate({
                   id: pendingLifecycleConfirm.id,
                   to: pendingLifecycleConfirm.to,
+                  companyId: activeCompanyId,
                 });
               }}
             >

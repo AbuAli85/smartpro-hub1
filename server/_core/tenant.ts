@@ -1,6 +1,6 @@
 import { TRPCError } from "@trpc/server";
 import { eq } from "drizzle-orm";
-import { getContractById, getDb, getUserCompany, getUserCompanyById } from "../db";
+import { getContractById, getDb, getUserCompanies, getUserCompany, getUserCompanyById } from "../db";
 import { canAccessGlobalAdminProcedures } from "@shared/rbac";
 import type { User } from "../../drizzle/schema";
 import { contractSignatures } from "../../drizzle/schema";
@@ -15,7 +15,7 @@ export async function assertQuotationTenantAccess(
 ): Promise<void> {
   if (canAccessGlobalAdminProcedures(user)) return;
   if (quotation.companyId != null) {
-    await assertRowBelongsToActiveCompany(user, quotation.companyId, entityLabel);
+    await assertRowBelongsToActiveCompany(user, quotation.companyId, entityLabel, quotation.companyId);
     return;
   }
   if (quotation.createdBy !== user.id) {
@@ -28,16 +28,39 @@ export function normalizeEmail(e: string | null | undefined): string {
 }
 
 /**
- * Active company for the user. Fails if the user has no company membership.
- * If companyId is provided, validates the user is a member of that specific company.
+ * Resolves the workspace company for tenant-scoped operations.
+ * - If `companyId` is set, validates membership in that company.
+ * - If `user` is passed and unset: platform operators use first membership; **non-platform** users with
+ *   **multiple** memberships must pass `companyId` (selected workspace); a single membership resolves to it.
+ * - If `user` is **omitted** (legacy internal callers), falls back to `getUserCompany` (first membership).
  */
-export async function requireActiveCompanyId(userId: number, companyId?: number | null): Promise<number> {
+export async function requireActiveCompanyId(userId: number, companyId?: number | null, user?: User): Promise<number> {
   if (companyId != null) {
     const m = await getUserCompanyById(userId, companyId);
     if (!m?.company?.id) {
       throw new TRPCError({ code: "FORBIDDEN", message: "You are not a member of this company" });
     }
     return m.company.id;
+  }
+  if (user && canAccessGlobalAdminProcedures(user)) {
+    const m = await getUserCompany(userId);
+    if (!m?.company?.id) {
+      throw new TRPCError({ code: "FORBIDDEN", message: "No company membership" });
+    }
+    return m.company.id;
+  }
+  if (user) {
+    const list = await getUserCompanies(userId);
+    if (list.length === 0) {
+      throw new TRPCError({ code: "FORBIDDEN", message: "No company membership" });
+    }
+    if (list.length > 1) {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: "Select a company workspace — pass companyId for this operation.",
+      });
+    }
+    return list[0].company.id;
   }
   const m = await getUserCompany(userId);
   if (!m?.company?.id) {
@@ -59,7 +82,7 @@ export async function assertRowBelongsToActiveCompany(
     throw new TRPCError({ code: "NOT_FOUND", message: `${entityLabel} not found` });
   }
   if (canAccessGlobalAdminProcedures(user)) return;
-  const cid = await requireActiveCompanyId(user.id, activeCompanyId);
+  const cid = await requireActiveCompanyId(user.id, activeCompanyId, user);
   if (rowCompanyId !== cid) {
     throw new TRPCError({ code: "NOT_FOUND", message: `${entityLabel} not found` });
   }
@@ -123,7 +146,7 @@ export type StatsCompanyFilterResult =
 /** Dashboard / operations: `null` = platform may aggregate all tenants; otherwise active company id. */
 export async function resolvePlatformOrCompanyScope(user: User, inputCompanyId?: number | null): Promise<number | null> {
   if (canAccessGlobalAdminProcedures(user)) return null;
-  return requireActiveCompanyId(user.id, inputCompanyId);
+  return requireActiveCompanyId(user.id, inputCompanyId, user);
 }
 
 export async function resolveStatsCompanyFilter(
@@ -134,6 +157,6 @@ export async function resolveStatsCompanyFilter(
     if (inputCompanyId != null) return { aggregateAllTenants: false, companyId: inputCompanyId };
     return { aggregateAllTenants: true };
   }
-  const cid = await requireActiveCompanyId(user.id, inputCompanyId);
+  const cid = await requireActiveCompanyId(user.id, inputCompanyId, user);
   return { aggregateAllTenants: false, companyId: cid };
 }

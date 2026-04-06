@@ -161,7 +161,7 @@ export const RULE_TEMPLATES = [
 export const automationRouter = router({
   // List all automation rules for the company (ordered by priority then creation)
   listRules: protectedProcedure.query(async ({ ctx }) => {
-    const companyId = await requireActiveCompanyId(ctx.user.id);
+    const companyId = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
     const db = await getDb();
     if (!db) return [];
     const rules = await db
@@ -198,7 +198,7 @@ export const automationRouter = router({
 
   // Get pre-built rule templates
   getTemplates: protectedProcedure.query(async ({ ctx }) => {
-    const companyId = await requireActiveCompanyId(ctx.user.id);
+    const companyId = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
     const db = await getDb();
     if (!db) return RULE_TEMPLATES.map((t) => ({ ...t, installed: false }));
 
@@ -216,7 +216,7 @@ export const automationRouter = router({
   installTemplate: protectedProcedure
     .input(z.object({ templateKey: z.string() }))
     .mutation(async ({ ctx, input }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id);
+      const companyId = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
@@ -258,7 +258,7 @@ export const automationRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id);
+      const companyId = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       const [result] = await db.insert(automationRules).values({
@@ -306,7 +306,7 @@ export const automationRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id);
+      const companyId = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
@@ -348,7 +348,7 @@ export const automationRouter = router({
   deleteRule: protectedProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ ctx, input }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id);
+      const companyId = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
@@ -363,7 +363,7 @@ export const automationRouter = router({
   toggleRule: protectedProcedure
     .input(z.object({ id: z.number(), isActive: z.boolean() }))
     .mutation(async ({ ctx, input }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id);
+      const companyId = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
@@ -379,7 +379,7 @@ export const automationRouter = router({
   dryRunRule: protectedProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ ctx, input }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id);
+      const companyId = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
@@ -411,7 +411,7 @@ export const automationRouter = router({
   muteRule: protectedProcedure
     .input(z.object({ id: z.number(), muted: z.boolean() }))
     .mutation(async ({ ctx, input }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id);
+      const companyId = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       await db
@@ -425,7 +425,7 @@ export const automationRouter = router({
   snoozeRule: protectedProcedure
     .input(z.object({ id: z.number(), snoozeUntil: z.number().nullable() }))
     .mutation(async ({ ctx, input }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id);
+      const companyId = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       await db
@@ -439,7 +439,7 @@ export const automationRouter = router({
   snoozeNotification: protectedProcedure
     .input(z.object({ id: z.number(), snoozeUntil: z.number() }))
     .mutation(async ({ ctx, input }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id);
+      const companyId = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
       try {
         const mysql = require("mysql2/promise");
         const conn = mysql.createPool(process.env.DATABASE_URL);
@@ -455,7 +455,7 @@ export const automationRouter = router({
   simulateRule: protectedProcedure
     .input(z.object({ id: z.number() }))
     .query(async ({ ctx, input }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id);
+      const companyId = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
@@ -525,7 +525,7 @@ export const automationRouter = router({
 
   // Get observability stats per rule (success/failure rates, avg duration)
   getRuleStats: protectedProcedure.query(async ({ ctx }) => {
-    const companyId = await requireActiveCompanyId(ctx.user.id);
+    const companyId = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
     try {
       const mysql = require("mysql2/promise");
       const conn = mysql.createPool(process.env.DATABASE_URL);
@@ -553,7 +553,7 @@ export const automationRouter = router({
 
   // Get performance metrics (query cost, notification volume)
   getPerformanceMetrics: protectedProcedure.query(async ({ ctx }) => {
-    const companyId = await requireActiveCompanyId(ctx.user.id);
+    const companyId = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
     const startTime = Date.now();
     try {
       const mysql = require("mysql2/promise");
@@ -582,7 +582,7 @@ export const automationRouter = router({
   runRules: protectedProcedure
     .input(z.object({ dryRun: z.boolean().default(false) }))
     .mutation(async ({ ctx, input }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id);
+      const companyId = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
@@ -744,7 +744,7 @@ export const automationRouter = router({
   getLogs: protectedProcedure
     .input(z.object({ limit: z.number().default(50), ruleId: z.number().optional(), statusFilter: z.enum(["all", "success", "failure"]).default("all") }))
     .query(async ({ ctx, input }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id);
+      const companyId = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
       try {
         const mysql = require("mysql2/promise");
         const conn = mysql.createPool(process.env.DATABASE_URL);
@@ -773,7 +773,7 @@ export const automationRouter = router({
 
   // Get failure summary: categorized failures, repeated failures, alert on high failure rate
   getFailureSummary: protectedProcedure.query(async ({ ctx }) => {
-    const companyId = await requireActiveCompanyId(ctx.user.id);
+    const companyId = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
     try {
       const mysql = require("mysql2/promise");
       const conn = mysql.createPool(process.env.DATABASE_URL);
@@ -824,7 +824,7 @@ export const automationRouter = router({
       payload: z.record(z.string(), z.unknown()).optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id);
+      const companyId = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
       try {
         const mysql = require("mysql2/promise");
         const conn = mysql.createPool(process.env.DATABASE_URL);
@@ -838,7 +838,7 @@ export const automationRouter = router({
 
   // Process pending events (evaluate rules triggered by events)
   processEvents: protectedProcedure.mutation(async ({ ctx }) => {
-    const companyId = await requireActiveCompanyId(ctx.user.id);
+    const companyId = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
     try {
@@ -896,7 +896,7 @@ export const automationRouter = router({
   exportLogsCsv: protectedProcedure
     .input(z.object({ ruleId: z.number().optional(), days: z.number().default(30) }))
     .mutation(async ({ ctx, input }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id);
+      const companyId = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
       try {
         const mysql = require("mysql2/promise");
         const conn = mysql.createPool(process.env.DATABASE_URL);
@@ -931,7 +931,7 @@ export const automationRouter = router({
 
   // Export rule history as CSV
   exportRuleHistoryCsv: protectedProcedure.mutation(async ({ ctx }) => {
-    const companyId = await requireActiveCompanyId(ctx.user.id);
+    const companyId = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
     try {
       const mysql = require("mysql2/promise");
       const conn = mysql.createPool(process.env.DATABASE_URL);
@@ -968,7 +968,7 @@ export const automationRouter = router({
 
   // Get platform-wide trigger summary (contracts, bookings, payments)
   getPlatformTriggerSummary: protectedProcedure.query(async ({ ctx }) => {
-    const companyId = await requireActiveCompanyId(ctx.user.id);
+    const companyId = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
     const db = await getDb();
     if (!db) return { contractsExpiringSoon: 0, pendingEvents: 0 };
     try {
@@ -998,7 +998,7 @@ export const automationRouter = router({
   listNotifications: protectedProcedure
     .input(z.object({ limit: z.number().default(30), unreadOnly: z.boolean().default(false) }))
     .query(async ({ ctx, input }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id);
+      const companyId = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
       try {
         const mysql = require("mysql2/promise");
         const conn = mysql.createPool(process.env.DATABASE_URL);
@@ -1018,7 +1018,7 @@ export const automationRouter = router({
   markNotificationsRead: protectedProcedure
     .input(z.object({ ids: z.array(z.number()).optional(), all: z.boolean().default(false) }))
     .mutation(async ({ ctx, input }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id);
+      const companyId = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
       try {
         const mysql = require("mysql2/promise");
         const conn = mysql.createPool(process.env.DATABASE_URL);
@@ -1034,7 +1034,7 @@ export const automationRouter = router({
 
   // Get unread notification count
   getUnreadCount: protectedProcedure.query(async ({ ctx }) => {
-    const companyId = await requireActiveCompanyId(ctx.user.id);
+    const companyId = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
     try {
       const mysql = require("mysql2/promise");
       const conn = mysql.createPool(process.env.DATABASE_URL);
@@ -1049,7 +1049,7 @@ export const automationRouter = router({
   // ─── Workforce Health KPI ─────────────────────────────────────────────────
 
   getWorkforceKPI: protectedProcedure.query(async ({ ctx }) => {
-    const companyId = await requireActiveCompanyId(ctx.user.id);
+    const companyId = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
@@ -1157,7 +1157,7 @@ export const automationRouter = router({
 
   // Get historical health trend (last 30 days)
   getHealthTrend: protectedProcedure.query(async ({ ctx }) => {
-    const companyId = await requireActiveCompanyId(ctx.user.id);
+    const companyId = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
     try {
       const mysql = require("mysql2/promise");
       const conn = mysql.createPool(process.env.DATABASE_URL);
@@ -1184,7 +1184,7 @@ export const automationRouter = router({
       })
     )
     .query(async ({ ctx, input }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id);
+      const companyId = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
       const db = await getDb();
       if (!db) return { valid: true, errors: [] };
 

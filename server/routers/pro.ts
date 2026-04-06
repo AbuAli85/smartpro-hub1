@@ -39,7 +39,7 @@ export const proRouter = router({
     )
     .query(async ({ input, ctx }) => {
       if (canAccessGlobalAdminProcedures(ctx.user)) return getAllProServices({ status: input.status });
-      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId);
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       return getProServices(companyId, { status: input.status, serviceType: input.serviceType });
     }),
 
@@ -48,7 +48,7 @@ export const proRouter = router({
     .query(async ({ input, ctx }) => {
       const row = await getProServiceById(input.id);
       if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "PRO service not found" });
-      await assertRowBelongsToActiveCompany(ctx.user, row.companyId, "PRO service");
+      await assertRowBelongsToActiveCompany(ctx.user, row.companyId, "PRO service", row.companyId);
       return row;
     }),
 
@@ -58,7 +58,7 @@ export const proRouter = router({
     const all =
       canAccessGlobalAdminProcedures(ctx.user)
         ? await getAllProServices({})
-        : await getProServices(await requireActiveCompanyId(ctx.user.id, input?.companyId), {});
+        : await getProServices(await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user), {});
     const now = new Date();
     const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     return {
@@ -94,7 +94,7 @@ export const proRouter = router({
         if (input.companyId != null) return rows.filter((r) => r.companyId === input.companyId);
         return rows;
       }
-      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId);
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       return rows.filter((r) => r.companyId === companyId);
     }),
 
@@ -169,7 +169,7 @@ export const proRouter = router({
       const { id, ...data } = input;
       const existing = await getProServiceById(id);
       if (!existing) throw new TRPCError({ code: "NOT_FOUND", message: "PRO service not found" });
-      await assertRowBelongsToActiveCompany(ctx.user, existing.companyId, "PRO service");
+      await assertRowBelongsToActiveCompany(ctx.user, existing.companyId, "PRO service", existing.companyId);
       const updateData: any = { ...data };
       if (data.status === "completed") updateData.completedAt = new Date();
       if (data.expiryDate) updateData.expiryDate = new Date(data.expiryDate);

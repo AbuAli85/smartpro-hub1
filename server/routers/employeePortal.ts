@@ -252,7 +252,7 @@ export const employeePortalRouter = router({
     .query(async ({ ctx, input }) => {
       let companyId: number;
       try {
-        companyId = await requireActiveCompanyId(ctx.user.id, input.companyId);
+        companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       } catch {
         return [];
       }
@@ -278,7 +278,7 @@ export const employeePortalRouter = router({
   startTask: protectedProcedure
     .input(z.object({ taskId: z.number(), companyId: z.number().optional() }))
     .mutation(async ({ input, ctx }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId);
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const myEmp = await resolveMyEmployee(ctx.user.id, ctx.user.email ?? "", companyId);
       if (!myEmp) throw new TRPCError({ code: "NOT_FOUND", message: "Employee record not found" });
       const db = await requireDb();
@@ -304,7 +304,7 @@ export const employeePortalRouter = router({
   completeTask: protectedProcedure
     .input(z.object({ taskId: z.number(), companyId: z.number().optional() }))
     .mutation(async ({ input, ctx }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId);
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const myEmp = await resolveMyEmployee(ctx.user.id, ctx.user.email ?? "", companyId);
       if (!myEmp) throw new TRPCError({ code: "NOT_FOUND", message: "Employee record not found" });
       const db = await requireDb();
@@ -346,7 +346,7 @@ export const employeePortalRouter = router({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId);
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const myEmp = await resolveMyEmployee(ctx.user.id, ctx.user.email ?? "", companyId);
       if (!myEmp) throw new TRPCError({ code: "NOT_FOUND", message: "Employee record not found" });
       const db = await requireDb();
@@ -512,7 +512,7 @@ export const employeePortalRouter = router({
     .query(async ({ ctx, input }) => {
       let companyId: number;
       try {
-        companyId = await requireActiveCompanyId(ctx.user.id, input.companyId);
+        companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       } catch {
         return null;
       }
@@ -757,7 +757,7 @@ export const employeePortalRouter = router({
   getMyOperationalHints: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }).optional())
     .query(async ({ ctx, input }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id, input?.companyId);
+      const companyId = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user);
       const db = await requireDb();
       const myEmp = await resolveMyEmployee(ctx.user.id, ctx.user.email ?? "", companyId);
       if (!myEmp) return null;

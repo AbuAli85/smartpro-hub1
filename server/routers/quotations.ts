@@ -52,7 +52,7 @@ export const quotationsRouter = router({
 
       const companyId = canAccessGlobalAdminProcedures(ctx.user)
         ? input.companyId ?? null
-        : await requireActiveCompanyId(ctx.user.id);
+        : await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
 
       const lines = calcLineTotals(input.lineItems);
       const subtotal = lines.reduce((s, l) => s + l.lineTotal, 0);
@@ -115,7 +115,7 @@ export const quotationsRouter = router({
       if (canAccessGlobalAdminProcedures(ctx.user)) {
         if (input.companyId != null) conditions.push(eq(serviceQuotations.companyId, input.companyId));
       } else {
-        const cid = await requireActiveCompanyId(ctx.user.id);
+        const cid = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
         conditions.push(
           or(
             eq(serviceQuotations.companyId, cid),
@@ -417,7 +417,7 @@ Terms: ${quotation.terms ?? "Payment due within 30 days. All prices in Omani Ria
       : await base
           .where(
             or(
-              eq(serviceQuotations.companyId, await requireActiveCompanyId(ctx.user.id)),
+              eq(serviceQuotations.companyId, await requireActiveCompanyId(ctx.user.id, undefined, ctx.user)),
               and(isNull(serviceQuotations.companyId), eq(serviceQuotations.createdBy, ctx.user.id)),
             )!,
           )

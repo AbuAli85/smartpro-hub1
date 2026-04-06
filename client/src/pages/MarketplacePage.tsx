@@ -1,4 +1,5 @@
 import { trpc } from "@/lib/trpc";
+import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { useState } from "react";
 import { ShoppingBag, Search, Star, MapPin, Phone, Plus, CheckCircle2, MessageSquare } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -87,7 +88,7 @@ function ReviewDialog({ booking, onSuccess }: { booking: any; onSuccess: () => v
   );
 }
 
-function BookingDialog({ provider, onSuccess }: { provider: any; onSuccess: () => void }) {
+function BookingDialog({ provider, companyId, onSuccess }: { provider: any; companyId: number | null; onSuccess: () => void }) {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ notes: "", scheduledAt: "" });
 
@@ -103,7 +104,9 @@ function BookingDialog({ provider, onSuccess }: { provider: any; onSuccess: () =
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button size="sm" className="gap-1.5"><Plus size={14} /> Book</Button>
+        <Button size="sm" className="gap-1.5" disabled={companyId == null} title={companyId == null ? "Select a company workspace first" : undefined}>
+          <Plus size={14} /> Book
+        </Button>
       </DialogTrigger>
       <DialogContent className="max-w-md">
         <DialogHeader>
@@ -118,8 +121,9 @@ function BookingDialog({ provider, onSuccess }: { provider: any; onSuccess: () =
             <Label>Notes / Requirements</Label>
             <Textarea placeholder="Describe your requirements..." value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={3} />
           </div>
-          <Button className="w-full" disabled={createMutation.isPending}
+          <Button className="w-full" disabled={createMutation.isPending || companyId == null}
             onClick={() => createMutation.mutate({
+              companyId: companyId ?? undefined,
               providerId: provider.id,
               serviceId: provider.id,
               scheduledAt: form.scheduledAt || undefined,
@@ -136,7 +140,11 @@ function BookingDialog({ provider, onSuccess }: { provider: any; onSuccess: () =
 export default function MarketplacePage() {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("all");
-  const { data: bookings, refetch } = trpc.marketplace.listBookings.useQuery();
+  const { activeCompanyId } = useActiveCompany();
+  const { data: bookings, refetch } = trpc.marketplace.listBookings.useQuery(
+    { companyId: activeCompanyId ?? undefined },
+    { enabled: activeCompanyId != null },
+  );
 
   const { data: providers } = trpc.marketplace.listProviders.useQuery({
     search: search || undefined,
@@ -264,7 +272,7 @@ export default function MarketplacePage() {
                           <span className="text-xs text-muted-foreground">({provider.reviewCount})</span>
                         )}
                       </div>
-                      <BookingDialog provider={provider} onSuccess={refetch} />
+                      <BookingDialog provider={provider} companyId={activeCompanyId} onSuccess={refetch} />
                     </div>
                   </CardContent>
                 </Card>

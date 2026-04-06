@@ -48,7 +48,7 @@ export const schedulingRouter = router({
   listShiftTemplates: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }))
     .query(async ({ ctx, input }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId);
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const db = await requireDb();
       return db.select().from(shiftTemplates)
         .where(and(eq(shiftTemplates.companyId, companyId), eq(shiftTemplates.isActive, true)))
@@ -65,7 +65,7 @@ export const schedulingRouter = router({
       color: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId);
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const db = await requireDb();
       const [result] = await db.insert(shiftTemplates).values({
         companyId,
@@ -90,7 +90,7 @@ export const schedulingRouter = router({
       color: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId);
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const db = await requireDb();
       const { id, companyId: _cid, ...updates } = input;
       await db.update(shiftTemplates).set(updates)
@@ -101,7 +101,7 @@ export const schedulingRouter = router({
   deleteShiftTemplate: protectedProcedure
     .input(z.object({ id: z.number(), companyId: z.number().optional() }))
     .mutation(async ({ ctx, input }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId);
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const db = await requireDb();
       await db.update(shiftTemplates).set({ isActive: false })
         .where(and(eq(shiftTemplates.id, input.id), eq(shiftTemplates.companyId, companyId)));
@@ -116,7 +116,7 @@ export const schedulingRouter = router({
       activeOnly: z.boolean().default(true),
     }))
     .query(async ({ ctx, input }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId);
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const db = await requireDb();
       const conds = [eq(employeeSchedules.companyId, companyId)] as Parameters<typeof and>;
       if (input.employeeUserId) conds.push(eq(employeeSchedules.employeeUserId, input.employeeUserId));
@@ -151,7 +151,7 @@ export const schedulingRouter = router({
       notes: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId);
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const db = await requireDb();
       const [result] = await db.insert(employeeSchedules).values({
         companyId,
@@ -181,7 +181,7 @@ export const schedulingRouter = router({
       notes: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId);
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const db = await requireDb();
       const { id, companyId: _cid, workingDays, ...rest } = input;
       const updates: Record<string, unknown> = { ...rest };
@@ -194,7 +194,7 @@ export const schedulingRouter = router({
   deleteSchedule: protectedProcedure
     .input(z.object({ id: z.number(), companyId: z.number().optional() }))
     .mutation(async ({ ctx, input }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId);
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const db = await requireDb();
       await db.update(employeeSchedules).set({ isActive: false })
         .where(and(eq(employeeSchedules.id, input.id), eq(employeeSchedules.companyId, companyId)));
@@ -204,7 +204,7 @@ export const schedulingRouter = router({
   listHolidays: protectedProcedure
     .input(z.object({ companyId: z.number().optional(), year: z.number().optional() }))
     .query(async ({ ctx, input }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId);
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const db = await requireDb();
       const year = input.year ?? new Date().getFullYear();
       return db.select().from(companyHolidays)
@@ -226,7 +226,7 @@ export const schedulingRouter = router({
       notes: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId);
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const db = await requireDb();
       const [result] = await db.insert(companyHolidays).values({
         companyId,
@@ -242,7 +242,7 @@ export const schedulingRouter = router({
   deleteHoliday: protectedProcedure
     .input(z.object({ id: z.number(), companyId: z.number().optional() }))
     .mutation(async ({ ctx, input }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId);
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const db = await requireDb();
       await db.delete(companyHolidays)
         .where(and(eq(companyHolidays.id, input.id), eq(companyHolidays.companyId, companyId)));
@@ -252,7 +252,7 @@ export const schedulingRouter = router({
   seedOmanHolidays: protectedProcedure
     .input(z.object({ companyId: z.number().optional(), year: z.number() }))
     .mutation(async ({ ctx, input }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId);
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const db = await requireDb();
       const y = input.year;
       const list = [
@@ -290,7 +290,7 @@ export const schedulingRouter = router({
       date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
     }))
     .query(async ({ ctx, input }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId);
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const db = await requireDb();
       const today = input.date ?? todayStr();
       const dow = input.date
@@ -439,7 +439,7 @@ export const schedulingRouter = router({
   getMyTodaySchedule: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }))
     .query(async ({ ctx, input }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId);
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const db = await requireDb();
       const today = todayStr();
       const dow = todayDow();
@@ -484,7 +484,7 @@ export const schedulingRouter = router({
   getMyActiveSchedule: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }))
     .query(async ({ ctx, input }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId);
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const db = await requireDb();
       const today = todayStr();
       const dow = todayDow();
@@ -536,7 +536,7 @@ export const schedulingRouter = router({
       employeeUserId: z.number().optional(),
     }))
     .query(async ({ ctx, input }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId);
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const db = await requireDb();
       const { year, month } = input;
       const mm = String(month).padStart(2, "0");

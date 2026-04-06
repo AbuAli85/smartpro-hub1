@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useLocation } from "wouter";
+import { Link, useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
@@ -12,7 +12,7 @@ import {
   Users, DollarSign, FileText, Shield, Bell, CheckCircle2,
   Clock, AlertTriangle, ChevronRight, Plus, Play, TrendingUp,
   Building2, Calendar, Briefcase, UserPlus, RefreshCw,
-  ArrowRight, Zap, Target, Activity, BarChart3,
+  ArrowRight, Zap, Target, Activity, BarChart3, Timer,
 } from "lucide-react";
 import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
 
@@ -155,6 +155,10 @@ export default function BusinessDashboardPage() {
   const { data: smartDash } = trpc.operations.getSmartDashboard.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
   const { data: payrollRuns } = trpc.payroll.listRuns.useQuery({ year: new Date().getFullYear(), companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
   const { data: alertsData } = trpc.alerts.getExpiryAlerts.useQuery({ maxDays: 30, companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
+  const { data: opsSnapshot } = trpc.operations.getDailySnapshot.useQuery(
+    { companyId: activeCompanyId ?? undefined },
+    { enabled: activeCompanyId != null },
+  );
   const alerts = alertsData?.alerts ?? [];
 
   const companyName = company?.company?.name ?? "Your Company";
@@ -186,6 +190,17 @@ export default function BusinessDashboardPage() {
   const criticalAlerts = alerts.filter((a: any) => a.severity === "critical" || a.severity === "high").length;
   const smartActions = smartDash?.actions ?? [];
   const totalActions = Math.max(pendingLeaves + pendingPayrolls + criticalAlerts, smartActions.filter(a => a.priority === "critical" || a.priority === "high").length);
+
+  const deliveryRisk =
+    opsSnapshot &&
+    ((opsSnapshot.slaBreaches ?? 0) > 0 ||
+      (opsSnapshot.pendingContracts ?? 0) > 0 ||
+      (opsSnapshot.casesDueToday?.length ?? 0) > 0 ||
+      (opsSnapshot.casesActionRequired ?? 0) > 0 ||
+      (opsSnapshot.overdueInvoices?.count ?? 0) > 0 ||
+      (opsSnapshot.renewalWorkflowsFailed ?? 0) > 0 ||
+      (opsSnapshot.payrollDraftThisMonth ?? 0) > 0 ||
+      (opsSnapshot.employeeDocsExpiring7Days ?? 0) > 0);
 
   return (
     <div className="min-h-screen bg-background">
@@ -229,6 +244,74 @@ export default function BusinessDashboardPage() {
       </div>
 
       <div className="max-w-7xl mx-auto px-6 py-6 space-y-6">
+
+        {deliveryRisk && (
+          <Card className="border-orange-200 bg-orange-50/90 dark:bg-orange-950/25 dark:border-orange-900/50">
+            <CardContent className="py-4">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div className="flex items-start gap-2 min-w-0">
+                  <Timer className="w-5 h-5 text-orange-600 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">Operations & delivery risk</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {[
+                        (opsSnapshot!.slaBreaches ?? 0) > 0 ? `${opsSnapshot!.slaBreaches} SLA breach(es)` : null,
+                        (opsSnapshot!.pendingContracts ?? 0) > 0 ? `${opsSnapshot!.pendingContracts} contract(s) awaiting signature` : null,
+                        (opsSnapshot!.casesDueToday?.length ?? 0) > 0 ? `${opsSnapshot!.casesDueToday?.length} government case(s) due today` : null,
+                        (opsSnapshot!.casesActionRequired ?? 0) > 0 ? `${opsSnapshot!.casesActionRequired} case(s) need client action` : null,
+                        (opsSnapshot!.overdueInvoices?.count ?? 0) > 0
+                          ? `OMR ${(opsSnapshot!.overdueInvoices?.totalOmr ?? 0).toFixed(3)} overdue (${opsSnapshot!.overdueInvoices?.count} inv.)`
+                          : null,
+                        (opsSnapshot!.renewalWorkflowsFailed ?? 0) > 0 ? `${opsSnapshot!.renewalWorkflowsFailed} renewal workflow(s) failed` : null,
+                        (opsSnapshot!.payrollDraftThisMonth ?? 0) > 0 ? `${opsSnapshot!.payrollDraftThisMonth} payroll draft(s) this month` : null,
+                        (opsSnapshot!.employeeDocsExpiring7Days ?? 0) > 0 ? `${opsSnapshot!.employeeDocsExpiring7Days} employee doc(s) expiring in 7d` : null,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2 shrink-0">
+                  {(opsSnapshot!.slaBreaches ?? 0) > 0 && (
+                    <Link href="/sla-management">
+                      <Button size="sm" variant="secondary" className="h-8 text-xs">SLA</Button>
+                    </Link>
+                  )}
+                  {(opsSnapshot!.pendingContracts ?? 0) > 0 && (
+                    <Link href="/contracts">
+                      <Button size="sm" variant="secondary" className="h-8 text-xs">Contracts</Button>
+                    </Link>
+                  )}
+                  {((opsSnapshot!.casesDueToday?.length ?? 0) > 0 || (opsSnapshot!.casesActionRequired ?? 0) > 0) && (
+                    <Link href="/pro-services">
+                      <Button size="sm" className="h-8 text-xs bg-orange-600 hover:bg-orange-700 text-white">Cases</Button>
+                    </Link>
+                  )}
+                  {(opsSnapshot!.overdueInvoices?.count ?? 0) > 0 && (
+                    <Link href="/billing">
+                      <Button size="sm" variant="secondary" className="h-8 text-xs">Overdue AR</Button>
+                    </Link>
+                  )}
+                  {(opsSnapshot!.renewalWorkflowsFailed ?? 0) > 0 && (
+                    <Link href="/renewal-workflows">
+                      <Button size="sm" variant="secondary" className="h-8 text-xs">Renewals</Button>
+                    </Link>
+                  )}
+                  {(opsSnapshot!.payrollDraftThisMonth ?? 0) > 0 && (
+                    <Link href="/payroll">
+                      <Button size="sm" variant="secondary" className="h-8 text-xs">Payroll</Button>
+                    </Link>
+                  )}
+                  {(opsSnapshot!.employeeDocsExpiring7Days ?? 0) > 0 && (
+                    <Link href="/hr/documents-dashboard">
+                      <Button size="sm" variant="secondary" className="h-8 text-xs">HR docs</Button>
+                    </Link>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* ── Setup Checklist (new companies) ── */}
         {isNewCompany && (

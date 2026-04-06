@@ -36,6 +36,13 @@
       "when": 1775100000000,
       "tag": "0017_promoter_assignment_client_site",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "5",
+      "when": 1744000000000,
+      "tag": "0018_contract_management_system",
+      "breakpoints": true
     }
   ]
 }

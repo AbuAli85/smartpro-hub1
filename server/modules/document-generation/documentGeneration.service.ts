@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { auditEvents, generatedDocuments } from "../../../drizzle/schema";
 import { getDb } from "../../db";
 import { storagePut } from "../../storage";
+import { canAccessGlobalAdminProcedures } from "@shared/rbac";
 import {
   findTemplateByKeyForCompany,
   insertDocumentGenerationAuditLog,
@@ -10,6 +11,7 @@ import {
   seedDocumentGenerationBootstrap,
 } from "./documentGeneration.repository";
 import { buildPromoterAssignmentDocumentContext } from "./promoterAssignmentContext";
+import { buildOutsourcingContractDocumentContext } from "../contractManagement/outsourcingContractContext";
 import { resolvePlaceholders, type PlaceholderDefinitionRow } from "./placeholderResolver";
 import {
   assertOutputFormatAllowed,
@@ -42,6 +44,33 @@ export function hashUuidToAuditEntityId(uuid: string): number {
   return n === 0 ? 1 : n;
 }
 
+/**
+ * Registry of entity-type → context builder functions.
+ * Add new contract types here without touching the generation engine.
+ * Each builder receives (db, entityId, activeCompanyId, isPlatformAdmin, user)
+ * and returns a plain Record used as the placeholder resolution root.
+ */
+type ContextBuilderFn = (
+  db: AppDb,
+  entityId: string,
+  activeCompanyId: number,
+  isPlatformAdmin: boolean,
+  user: GenerateDocumentInput["user"]
+) => Promise<Record<string, unknown>>;
+
+const entityContextBuilders: Record<string, ContextBuilderFn> = {
+  // Legacy builder — kept for backward compatibility with existing generated_documents rows
+  promoter_assignment: async (db, entityId, activeCompanyId, _isPlatformAdmin, user) => {
+    const ctx = await buildPromoterAssignmentDocumentContext(db, entityId, activeCompanyId, user);
+    return ctx as unknown as Record<string, unknown>;
+  },
+  // New normalized contract system (Phase 2+)
+  outsourcing_contract: async (db, entityId, activeCompanyId, isPlatformAdmin) => {
+    const ctx = await buildOutsourcingContractDocumentContext(db, entityId, activeCompanyId, isPlatformAdmin);
+    return ctx as unknown as Record<string, unknown>;
+  },
+};
+
 async function buildEntityContext(
   db: AppDb,
   entityType: string,
@@ -49,14 +78,15 @@ async function buildEntityContext(
   activeCompanyId: number,
   user: GenerateDocumentInput["user"]
 ): Promise<Record<string, unknown>> {
-  if (entityType === "promoter_assignment") {
-    const ctx = await buildPromoterAssignmentDocumentContext(db, entityId, activeCompanyId, user);
-    return ctx as unknown as Record<string, unknown>;
+  const isPlatformAdmin = canAccessGlobalAdminProcedures(user);
+  const builder = entityContextBuilders[entityType];
+  if (!builder) {
+    throw new DocumentGenerationError(
+      "VALIDATION_ERROR",
+      `No context builder registered for entity type "${entityType}"`
+    );
   }
-  throw new DocumentGenerationError(
-    "VALIDATION_ERROR",
-    `No context builder registered for entity type "${entityType}"`
-  );
+  return builder(db, entityId, activeCompanyId, isPlatformAdmin, user);
 }
 
 export type GenerateDocumentDeps = {

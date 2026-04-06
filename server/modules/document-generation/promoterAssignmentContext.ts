@@ -46,17 +46,20 @@ export async function buildPromoterAssignmentDocumentContext(
   }
 
   const isPlatform = canAccessGlobalAdminProcedures(user);
-  const inTenant =
-    row.companyId === activeCompanyId ||
-    row.firstPartyCompanyId === activeCompanyId ||
-    row.secondPartyCompanyId === activeCompanyId;
 
-  if (!isPlatform && !inTenant) {
-    throw new DocumentGenerationError("FORBIDDEN", "Promoter assignment is not in your company scope");
-  }
+  if (!isPlatform) {
+    // ADR-001: a contract is accessible by the first_party OR the second_party.
+    // companyId is always set to the first_party; secondPartyCompanyId gives the
+    // employer access. Previously only companyId was checked, blocking the employer.
+    const isFirstParty = row.companyId === activeCompanyId;
+    const isSecondParty = row.secondPartyCompanyId === activeCompanyId;
 
-  if (!isPlatform && row.companyId !== activeCompanyId) {
-    throw new DocumentGenerationError("FORBIDDEN", "Promoter assignment does not belong to your active company");
+    if (!isFirstParty && !isSecondParty) {
+      throw new DocumentGenerationError(
+        "FORBIDDEN",
+        "Promoter assignment does not involve your active company"
+      );
+    }
   }
 
   const companyIds = [row.firstPartyCompanyId, row.secondPartyCompanyId];

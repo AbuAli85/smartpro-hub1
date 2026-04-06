@@ -2646,3 +2646,198 @@ export const documentGenerationAuditLogs = mysqlTable(
 );
 export type DocumentGenerationAuditLog = typeof documentGenerationAuditLogs.$inferSelect;
 export type InsertDocumentGenerationAuditLog = typeof documentGenerationAuditLogs.$inferInsert;
+
+// ─── CONTRACT MANAGEMENT SYSTEM (CMS) ─────────────────────────────────────────
+// Normalized, multi-type outsourcing contract infrastructure.
+// Phase 1 is promoter_assignment; schema is intentionally extensible.
+// ADR-001: party role (first_party/second_party) is per-contract, never global.
+//   first_party  = client  (owns the work location)
+//   second_party = employer/vendor (supplies the promoter employee)
+
+// A. Contract type registry
+export const contractTypeDefs = mysqlTable("contract_type_defs", {
+  id: varchar("id", { length: 50 }).primaryKey(),
+  labelEn: varchar("label_en", { length: 255 }).notNull(),
+  labelAr: varchar("label_ar", { length: 255 }),
+  description: text("description"),
+  isActive: boolean("is_active").notNull().default(true),
+  sortOrder: int("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export type ContractTypeDef = typeof contractTypeDefs.$inferSelect;
+
+// B. Contract header
+export const outsourcingContracts = mysqlTable(
+  "outsourcing_contracts",
+  {
+    id: char("id", { length: 36 }).primaryKey(),
+    /** Tenant scope = first party (client) company id */
+    companyId: int("company_id").notNull(),
+    contractTypeId: varchar("contract_type_id", { length: 50 })
+      .notNull()
+      .references(() => contractTypeDefs.id),
+    contractNumber: varchar("contract_number", { length: 100 }),
+    /** draft | active | expired | terminated | renewed | suspended */
+    status: varchar("status", { length: 50 }).notNull().default("draft"),
+    issueDate: date("issue_date"),
+    effectiveDate: date("effective_date").notNull(),
+    expiryDate: date("expiry_date").notNull(),
+    templateVersion: int("template_version").notNull().default(1),
+    generatedPdfUrl: text("generated_pdf_url"),
+    signedPdfUrl: text("signed_pdf_url"),
+    renewalOfContractId: char("renewal_of_contract_id", { length: 36 }),
+    metadata: json("metadata").$type<Record<string, unknown>>(),
+    createdBy: int("created_by"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  },
+  (t) => [
+    index("idx_oc_company").on(t.companyId),
+    index("idx_oc_type").on(t.contractTypeId),
+    index("idx_oc_status").on(t.status),
+    index("idx_oc_expiry").on(t.expiryDate),
+    index("idx_oc_number").on(t.contractNumber),
+    index("idx_oc_renewal").on(t.renewalOfContractId),
+  ]
+);
+export type OutsourcingContract = typeof outsourcingContracts.$inferSelect;
+export type InsertOutsourcingContract = typeof outsourcingContracts.$inferInsert;
+
+// C. Contract parties — normalized snapshot per role
+export const outsourcingContractParties = mysqlTable(
+  "outsourcing_contract_parties",
+  {
+    id: char("id", { length: 36 }).primaryKey(),
+    contractId: char("contract_id", { length: 36 })
+      .notNull()
+      .references(() => outsourcingContracts.id, { onDelete: "cascade" }),
+    /** first_party | second_party | third_party */
+    partyRole: varchar("party_role", { length: 50 }).notNull(),
+    /** Links to companies table when the party is a known tenant; NULL = external */
+    companyId: int("company_id"),
+    /** Snapshot of company name at contract-creation time for PDF stability */
+    displayNameEn: varchar("display_name_en", { length: 255 }).notNull(),
+    displayNameAr: varchar("display_name_ar", { length: 255 }),
+    registrationNumber: varchar("registration_number", { length: 100 }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("idx_ocp_contract").on(t.contractId),
+    index("idx_ocp_role").on(t.partyRole),
+    index("idx_ocp_company").on(t.companyId),
+  ]
+);
+export type OutsourcingContractParty = typeof outsourcingContractParties.$inferSelect;
+export type InsertOutsourcingContractParty = typeof outsourcingContractParties.$inferInsert;
+
+// D. Contract locations — work site; for promoter contracts always belongs to first_party
+export const outsourcingContractLocations = mysqlTable(
+  "outsourcing_contract_locations",
+  {
+    id: char("id", { length: 36 }).primaryKey(),
+    contractId: char("contract_id", { length: 36 })
+      .notNull()
+      .references(() => outsourcingContracts.id, { onDelete: "cascade" }),
+    /** Which party owns this location. For promoter_assignment: always 'first_party' */
+    belongsToPartyRole: varchar("belongs_to_party_role", { length: 50 })
+      .notNull()
+      .default("first_party"),
+    siteNameEn: varchar("site_name_en", { length: 500 }),
+    siteNameAr: varchar("site_name_ar", { length: 500 }),
+    locationEn: varchar("location_en", { length: 500 }),
+    locationAr: varchar("location_ar", { length: 500 }),
+    /** Optional FK to attendance_sites for auto-fill; free-text fields are authoritative */
+    clientSiteId: int("client_site_id").references(() => attendanceSites.id),
+    siteCode: varchar("site_code", { length: 50 }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [index("idx_ocl_contract").on(t.contractId)]
+);
+export type OutsourcingContractLocation = typeof outsourcingContractLocations.$inferSelect;
+export type InsertOutsourcingContractLocation = typeof outsourcingContractLocations.$inferInsert;
+
+// E. Promoter-specific details — 1:1 with outsourcing_contracts for promoter_assignment type
+export const outsourcingPromoterDetails = mysqlTable(
+  "outsourcing_promoter_details",
+  {
+    id: char("id", { length: 36 }).primaryKey(),
+    contractId: char("contract_id", { length: 36 })
+      .notNull()
+      .unique()
+      .references(() => outsourcingContracts.id, { onDelete: "cascade" }),
+    promoterEmployeeId: int("promoter_employee_id").notNull(),
+    /** Second party / employer company — denormalized for fast querying */
+    employerCompanyId: int("employer_company_id").notNull(),
+    /** Name snapshot at contract time — authoritative for PDF generation */
+    fullNameEn: varchar("full_name_en", { length: 255 }).notNull(),
+    fullNameAr: varchar("full_name_ar", { length: 255 }),
+    /** Oman civil ID / national ID card number */
+    civilId: varchar("civil_id", { length: 50 }),
+    passportNumber: varchar("passport_number", { length: 50 }),
+    passportExpiry: date("passport_expiry"),
+    nationality: varchar("nationality", { length: 100 }),
+    jobTitleEn: varchar("job_title_en", { length: 255 }),
+    jobTitleAr: varchar("job_title_ar", { length: 255 }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  },
+  (t) => [
+    index("idx_opd_contract").on(t.contractId),
+    index("idx_opd_employee").on(t.promoterEmployeeId),
+    index("idx_opd_employer").on(t.employerCompanyId),
+  ]
+);
+export type OutsourcingPromoterDetail = typeof outsourcingPromoterDetails.$inferSelect;
+export type InsertOutsourcingPromoterDetail = typeof outsourcingPromoterDetails.$inferInsert;
+
+// F. Contract documents — all file attachments per contract
+export const outsourcingContractDocuments = mysqlTable(
+  "outsourcing_contract_documents",
+  {
+    id: char("id", { length: 36 }).primaryKey(),
+    contractId: char("contract_id", { length: 36 })
+      .notNull()
+      .references(() => outsourcingContracts.id, { onDelete: "cascade" }),
+    /** generated_pdf | signed_pdf | passport_copy | id_copy | attachment */
+    documentKind: varchar("document_kind", { length: 50 }).notNull(),
+    fileUrl: text("file_url"),
+    filePath: varchar("file_path", { length: 1024 }),
+    fileName: varchar("file_name", { length: 500 }),
+    mimeType: varchar("mime_type", { length: 100 }),
+    uploadedBy: int("uploaded_by"),
+    metadata: json("metadata").$type<Record<string, unknown>>(),
+    uploadedAt: timestamp("uploaded_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("idx_ocd_contract").on(t.contractId),
+    index("idx_ocd_kind").on(t.documentKind),
+  ]
+);
+export type OutsourcingContractDocument = typeof outsourcingContractDocuments.$inferSelect;
+export type InsertOutsourcingContractDocument = typeof outsourcingContractDocuments.$inferInsert;
+
+// G. Contract audit events — append-only timeline
+export const outsourcingContractEvents = mysqlTable(
+  "outsourcing_contract_events",
+  {
+    id: char("id", { length: 36 }).primaryKey(),
+    contractId: char("contract_id", { length: 36 })
+      .notNull()
+      .references(() => outsourcingContracts.id, { onDelete: "cascade" }),
+    /** created | activated | edited | pdf_generated | signed_uploaded |
+        renewed | terminated | suspended | expiry_alerted */
+    action: varchar("action", { length: 100 }).notNull(),
+    actorId: int("actor_id"),
+    actorName: varchar("actor_name", { length: 255 }),
+    snapshotBefore: json("snapshot_before").$type<Record<string, unknown>>(),
+    snapshotAfter: json("snapshot_after").$type<Record<string, unknown>>(),
+    details: json("details").$type<Record<string, unknown>>(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("idx_oce_contract").on(t.contractId),
+    index("idx_oce_created").on(t.createdAt),
+  ]
+);
+export type OutsourcingContractEvent = typeof outsourcingContractEvents.$inferSelect;
+export type InsertOutsourcingContractEvent = typeof outsourcingContractEvents.$inferInsert;

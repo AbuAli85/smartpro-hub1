@@ -44,6 +44,7 @@ import { automationRouter } from "./routers/automation";
 import { automationSlaRouter } from "./routers/automationSla";
 import { documentGenerationRouter } from "./routers/documentGeneration";
 import { promoterAssignmentsRouter } from "./routers/promoterAssignments";
+import { contractManagementRouter } from "./routers/contractManagement";
 
 export const appRouter = router({
   system: systemRouter,
@@ -99,6 +100,7 @@ export const appRouter = router({
   automationSla: automationSlaRouter,
   documentGeneration: documentGenerationRouter,
   promoterAssignments: promoterAssignmentsRouter,
+  contractManagement: contractManagementRouter,
 });
 
 export type AppRouter = typeof appRouter;

@@ -1,7 +1,9 @@
 import { trpc } from "@/lib/trpc";
 import { useState, useRef, useEffect, useMemo } from "react";
 import { useSearch } from "wouter";
-import { FileText, Plus, Search, CheckCircle2, Clock, AlertTriangle, PenLine, Sparkles, Download, Printer, Users, PenSquare, History, Shield } from "lucide-react";
+import { FileText, Plus, Search, CheckCircle2, Clock, AlertTriangle, PenLine, Sparkles, Download, Printer, Users, PenSquare, History, Shield, Loader2 } from "lucide-react";
+import { usePromoterAssignmentForm } from "@/components/contracts/usePromoterAssignmentForm";
+import { PromoterAssignmentFormSection } from "@/components/contracts/PromoterAssignmentFormSection";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,296 +29,79 @@ const statusColors: Record<string, string> = {
   cancelled: "bg-gray-100 text-gray-400",
 };
 
-/** Client = first party; employer = second party; promoter = employee of employer only. */
+/**
+ * Promoter assignment quick-create dialog.
+ * Delegates all form state and queries to the shared hook/component.
+ * Previously this was a 295-line duplicate — now ~50 lines.
+ */
 function PromoterAssignmentDialog({ onSuccess }: { onSuccess: () => void }) {
-  const { activeCompanyId } = useActiveCompany();
   const [open, setOpen] = useState(false);
-  const [clientCompanyId, setClientCompanyId] = useState<number | "">("");
-  const [clientSiteId, setClientSiteId] = useState<number | "">("");
-  const [employerCompanyId, setEmployerCompanyId] = useState<number | "">("");
-  const [promoterEmployeeId, setPromoterEmployeeId] = useState<number | "">("");
-  const [form, setForm] = useState({
-    locationEn: "",
-    locationAr: "",
-    startDate: "",
-    endDate: "",
-    contractReferenceNumber: "",
-    issueDate: "",
-  });
-
-  useEffect(() => {
-    if (open && activeCompanyId != null && clientCompanyId === "") {
-      setClientCompanyId(activeCompanyId);
-    }
-  }, [open, activeCompanyId, clientCompanyId]);
-
-  const pickersInput =
-    typeof clientCompanyId === "number" ? { clientCompanyId } : undefined;
-  const { data: pickers } = trpc.promoterAssignments.companiesForPartyPickers.useQuery(
-    pickersInput,
-    { enabled: open && activeCompanyId != null }
-  );
-
-  const clientIdForQueries =
-    typeof clientCompanyId === "number" ? clientCompanyId : activeCompanyId ?? undefined;
-
-  const { data: clientSites = [] } = trpc.promoterAssignments.listClientWorkLocations.useQuery(
-    { clientCompanyId: typeof clientCompanyId === "number" ? clientCompanyId : 0 },
-    {
-      enabled: open && typeof clientCompanyId === "number" && clientCompanyId > 0,
-    }
-  );
-
-  const { data: employerEmployees = [] } = trpc.promoterAssignments.listEmployerEmployees.useQuery(
-    {
-      employerCompanyId: typeof employerCompanyId === "number" ? employerCompanyId : 0,
-      clientCompanyId: clientIdForQueries,
-    },
-    {
-      enabled:
-        open &&
-        typeof employerCompanyId === "number" &&
-        employerCompanyId > 0 &&
-        clientIdForQueries != null,
-    }
-  );
+  const form = usePromoterAssignmentForm({ enabled: open });
 
   const createMutation = trpc.promoterAssignments.create.useMutation({
     onSuccess: (data) => {
       toast.success(`Promoter assignment saved (${data.id.slice(0, 8)}…)`);
       setOpen(false);
-      setEmployerCompanyId("");
-      setClientSiteId("");
-      setPromoterEmployeeId("");
-      setForm({
-        locationEn: "",
-        locationAr: "",
-        startDate: "",
-        endDate: "",
-        contractReferenceNumber: "",
-        issueDate: "",
-      });
+      form.reset();
       onSuccess();
     },
     onError: (e) => toast.error(e.message),
   });
 
-  const canSubmit =
-    typeof clientCompanyId === "number" &&
-    typeof employerCompanyId === "number" &&
-    typeof promoterEmployeeId === "number" &&
-    form.locationEn.trim() &&
-    form.locationAr.trim() &&
-    form.startDate &&
-    form.endDate &&
-    clientCompanyId !== employerCompanyId;
+  function handleSave() {
+    if (!form.canSubmit) return;
+    const s = form.state;
+    createMutation.mutate({
+      clientCompanyId: s.clientCompanyId as number,
+      employerCompanyId: s.employerCompanyId as number,
+      promoterEmployeeId: s.promoterEmployeeId as number,
+      locationEn: s.locationEn.trim(),
+      locationAr: s.locationAr.trim(),
+      startDate: s.effectiveDate,
+      endDate: s.expiryDate,
+      contractReferenceNumber: s.contractNumber.trim() || undefined,
+      issueDate: s.issueDate || undefined,
+      clientSiteId: typeof s.clientSiteId === "number" ? s.clientSiteId : undefined,
+      civilId: s.civilId.trim() || undefined,
+      passportNumber: s.passportNumber.trim() || undefined,
+      passportExpiry: s.passportExpiry || undefined,
+      nationality: s.nationality.trim() || undefined,
+      jobTitleEn: s.jobTitleEn.trim() || undefined,
+    });
+  }
+
+  const canSubmit = form.canSubmit;
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) form.reset(); }}>
       <DialogTrigger asChild>
         <Button size="sm" variant="outline" className="gap-2">
           <Users size={16} /> Promoter assignment
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>New promoter assignment</DialogTitle>
-          <p className="text-sm text-muted-foreground text-left font-normal">
-            Example: client <strong>eXtra</strong> (first party), employer <strong>Falcon Eye Modern Investments</strong>{" "}
-            (second party). <strong>Work location</strong> is always the client&apos;s site or store; the{" "}
-            <strong>promoter</strong> is an employee of the employer only.
-          </p>
-        </DialogHeader>
-        <div className="space-y-4 mt-2">
-          <div className="space-y-1.5">
-            <Label>Client (first party) *</Label>
-            <Select
-              value={clientCompanyId === "" ? "" : String(clientCompanyId)}
-              onValueChange={(v) => {
-                const n = Number(v);
-                setClientCompanyId(n);
-                setClientSiteId("");
-                setEmployerCompanyId("");
-                setPromoterEmployeeId("");
-                setForm((f) => ({ ...f, locationEn: "", locationAr: "" }));
-              }}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select client company…" />
-              </SelectTrigger>
-              <SelectContent>
-                {(pickers?.clientOptions ?? []).map((c) => (
-                  <SelectItem key={c.id} value={String(c.id)}>
-                    {c.name}
-                    {c.nameAr ? ` · ${c.nameAr}` : ""}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5">
-            <Label>Client work location (optional)</Label>
-            <p className="text-xs text-muted-foreground">
-              Linked to the client (first party), e.g. eXtra branch. Pick a saved site or type the address below.
+      <DialogContent className="max-w-3xl max-h-[92vh] overflow-y-auto gap-0 p-0">
+        <div className="p-6 pb-0">
+          <DialogHeader>
+            <DialogTitle>New Promoter Assignment</DialogTitle>
+            <p className="text-sm text-muted-foreground font-normal">
+              First party = client (hosts the site). Second party = employer (supplies the promoter).
             </p>
-            <Select
-              value={clientSiteId === "" ? "__manual__" : String(clientSiteId)}
-              onValueChange={(v) => {
-                if (v === "__manual__") {
-                  setClientSiteId("");
-                  return;
-                }
-                const sid = Number(v);
-                setClientSiteId(sid);
-                const site = clientSites.find((s) => s.id === sid);
-                if (site) {
-                  const en = [site.name, site.location].filter(Boolean).join(" — ");
-                  setForm((f) => ({
-                    ...f,
-                    locationEn: en,
-                    locationAr: site.name,
-                  }));
-                }
-              }}
-              disabled={typeof clientCompanyId !== "number"}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select client site or type manually below…" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__manual__">Type location manually</SelectItem>
-                {clientSites.map((s) => (
-                  <SelectItem key={s.id} value={String(s.id)}>
-                    {s.name}
-                    {s.location ? ` — ${s.location}` : ""}
-                    {s.clientName ? ` (${s.clientName})` : ""}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5">
-            <Label>Work location (English) *</Label>
-            <p className="text-xs text-muted-foreground">Where the promoter works — must describe the client&apos;s site.</p>
-            <Input
-              placeholder="e.g. eXtra - Muscat City Centre"
-              value={form.locationEn}
-              onChange={(e) => setForm({ ...form, locationEn: e.target.value })}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Work location (Arabic) *</Label>
-            <Input
-              placeholder="مثال: اكسترا - مسقط سيتي سنتر"
-              value={form.locationAr}
-              onChange={(e) => setForm({ ...form, locationAr: e.target.value })}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Employer (second party) *</Label>
-            <Select
-              value={employerCompanyId === "" ? "" : String(employerCompanyId)}
-              onValueChange={(v) => {
-                setEmployerCompanyId(Number(v));
-                setPromoterEmployeeId("");
-              }}
-              disabled={typeof clientCompanyId !== "number"}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select employer company…" />
-              </SelectTrigger>
-              <SelectContent>
-                {(pickers?.employerOptions ?? []).map((c) => (
-                  <SelectItem key={c.id} value={String(c.id)}>
-                    {c.name}
-                    {c.nameAr ? ` · ${c.nameAr}` : ""}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5">
-            <Label>Promoter employee *</Label>
-            <p className="text-xs text-muted-foreground">
-              Only employees of the selected employer are listed.
-            </p>
-            <Select
-              value={promoterEmployeeId === "" ? "" : String(promoterEmployeeId)}
-              onValueChange={(v) => setPromoterEmployeeId(Number(v))}
-              disabled={typeof employerCompanyId !== "number"}
-            >
-              <SelectTrigger>
-                <SelectValue
-                  placeholder={
-                    typeof employerCompanyId !== "number"
-                      ? "Select employer first…"
-                      : "Select employee…"
-                  }
-                />
-              </SelectTrigger>
-              <SelectContent>
-                {employerEmployees.map((e) => (
-                  <SelectItem key={e.id} value={String(e.id)}>
-                    {e.firstName} {e.lastName}
-                    {e.firstNameAr || e.lastNameAr
-                      ? ` · ${[e.firstNameAr, e.lastNameAr].filter(Boolean).join(" ")}`
-                      : ""}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <Label>Start date *</Label>
-              <DateInput
-                value={form.startDate}
-                onChange={(e) => setForm({ ...form, startDate: e.target.value })}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label>End date *</Label>
-              <DateInput
-                value={form.endDate}
-                onChange={(e) => setForm({ ...form, endDate: e.target.value })}
-              />
-            </div>
-          </div>
-          <div className="space-y-1.5">
-            <Label>Contract reference no.</Label>
-            <Input
-              placeholder="e.g. PA-2026-001"
-              value={form.contractReferenceNumber}
-              onChange={(e) => setForm({ ...form, contractReferenceNumber: e.target.value })}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Issue date</Label>
-            <DateInput
-              value={form.issueDate}
-              onChange={(e) => setForm({ ...form, issueDate: e.target.value })}
-            />
-          </div>
+          </DialogHeader>
+        </div>
+        <div className="px-6 py-4">
+          <PromoterAssignmentFormSection form={form} showStatus={false} />
+        </div>
+        <div className="p-6 pt-2 border-t bg-muted/20 flex justify-end gap-2">
+          <Button variant="outline" onClick={() => { setOpen(false); form.reset(); }}>
+            Cancel
+          </Button>
           <Button
-            className="w-full"
             disabled={!canSubmit || createMutation.isPending}
-            onClick={() => {
-              if (!canSubmit || typeof clientCompanyId !== "number" || typeof employerCompanyId !== "number" || typeof promoterEmployeeId !== "number") return;
-              createMutation.mutate({
-                clientCompanyId,
-                employerCompanyId,
-                promoterEmployeeId,
-                locationAr: form.locationAr.trim(),
-                locationEn: form.locationEn.trim(),
-                startDate: form.startDate,
-                endDate: form.endDate,
-                contractReferenceNumber: form.contractReferenceNumber.trim() || undefined,
-                issueDate: form.issueDate || undefined,
-                clientSiteId: typeof clientSiteId === "number" ? clientSiteId : undefined,
-              });
-            }}
+            onClick={handleSave}
+            className="min-w-[140px] gap-2"
           >
-            {createMutation.isPending ? "Saving…" : "Save assignment"}
+            {createMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+            {createMutation.isPending ? "Saving…" : "Save Assignment"}
           </Button>
         </div>
       </DialogContent>

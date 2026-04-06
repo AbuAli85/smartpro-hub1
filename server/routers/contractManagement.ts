@@ -10,9 +10,10 @@
 
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { and, asc, eq, inArray, ne } from "drizzle-orm";
+import { and, asc, eq, inArray, ne, or } from "drizzle-orm";
 import { canAccessGlobalAdminProcedures } from "@shared/rbac";
 import { getDb, getCompanies, getUserCompanies } from "../db";
+import { outsourcingContracts } from "../../drizzle/schema";
 import { attendanceSites, companies, employees } from "../../drizzle/schema";
 import { getActiveCompanyMembership, requireNotAuditor } from "../_core/membership";
 import { requireActiveCompanyId } from "../_core/tenant";
@@ -322,7 +323,9 @@ export const contractManagementRouter = router({
           lastNameAr: employees.lastNameAr,
           nationalId: employees.nationalId,
           passportNumber: employees.passportNumber,
-          jobTitle: employees.jobTitle,
+          nationality: employees.nationality,
+          position: employees.position,
+          profession: employees.profession,
         })
         .from(employees)
         .where(eq(employees.id, input.promoterEmployeeId))
@@ -421,7 +424,7 @@ export const contractManagementRouter = router({
           passportNumber: input.passportNumber?.trim() || emp.passportNumber?.trim() || null,
           passportExpiry: input.passportExpiry ? new Date(input.passportExpiry) : null,
           nationality: input.nationality?.trim() || null,
-          jobTitleEn: input.jobTitleEn?.trim() || (emp.jobTitle as string | undefined)?.trim() || null,
+          jobTitleEn: input.jobTitleEn?.trim() || emp.position?.trim() || emp.profession?.trim() || null,
           jobTitleAr: input.jobTitleAr?.trim() || null,
         },
         actorName: ctx.user.name ?? ctx.user.email ?? `User #${ctx.user.id}`,
@@ -574,8 +577,11 @@ export const contractManagementRouter = router({
 
       // Link the renewal and update original status
       await updateOutsourcingContract(db, input.originalContractId, { status: "renewed" });
-      // Set the renewalOfContractId on the new contract via the repository update helper
-      await updateOutsourcingContract(db, newContractId, { renewalOfContractId: input.originalContractId } as Parameters<typeof updateOutsourcingContract>[2]);
+      // Set the renewalOfContractId on the new contract
+      await db
+        .update(outsourcingContracts)
+        .set({ renewalOfContractId: input.originalContractId })
+        .where(eq(outsourcingContracts.id, newContractId));
 
       await appendContractEvent(db, {
         contractId: input.originalContractId,

@@ -2647,6 +2647,53 @@ export const documentGenerationAuditLogs = mysqlTable(
 export type DocumentGenerationAuditLog = typeof documentGenerationAuditLogs.$inferSelect;
 export type InsertDocumentGenerationAuditLog = typeof documentGenerationAuditLogs.$inferInsert;
 
+// ─── AGREEMENT PARTY FOUNDATION ────────────────────────────────────────────────
+// Canonical counterparty identity: platform tenant, external record, or both after link.
+// See docs/AGREEMENT_PARTY_FOUNDATION.md
+
+export const businessParties = mysqlTable(
+  "business_parties",
+  {
+    id: char("id", { length: 36 }).primaryKey(),
+    displayNameEn: varchar("display_name_en", { length: 255 }).notNull(),
+    displayNameAr: varchar("display_name_ar", { length: 255 }),
+    legalNameEn: varchar("legal_name_en", { length: 255 }),
+    legalNameAr: varchar("legal_name_ar", { length: 255 }),
+    status: varchar("status", { length: 50 }).notNull().default("active"),
+    linkedCompanyId: int("linked_company_id"),
+    managedByCompanyId: int("managed_by_company_id"),
+    registrationNumber: varchar("registration_number", { length: 100 }),
+    phone: varchar("phone", { length: 64 }),
+    email: varchar("email", { length: 320 }),
+    createdBy: int("created_by"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  },
+  (t) => [
+    index("idx_bp_linked_co").on(t.linkedCompanyId),
+    index("idx_bp_managed_by").on(t.managedByCompanyId),
+  ]
+);
+export type BusinessParty = typeof businessParties.$inferSelect;
+export type InsertBusinessParty = typeof businessParties.$inferInsert;
+
+export const businessPartyEvents = mysqlTable(
+  "business_party_events",
+  {
+    id: char("id", { length: 36 }).primaryKey(),
+    partyId: char("party_id", { length: 36 })
+      .notNull()
+      .references(() => businessParties.id, { onDelete: "cascade" }),
+    action: varchar("action", { length: 100 }).notNull(),
+    actorId: int("actor_id"),
+    actorName: varchar("actor_name", { length: 255 }),
+    details: json("details").$type<Record<string, unknown>>(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [index("idx_bpe_party").on(t.partyId)]
+);
+export type BusinessPartyEvent = typeof businessPartyEvents.$inferSelect;
+
 // ─── CONTRACT MANAGEMENT SYSTEM (CMS) ─────────────────────────────────────────
 // Normalized, multi-type outsourcing contract infrastructure.
 // Phase 1 is promoter_assignment; schema is intentionally extensible.
@@ -2671,8 +2718,8 @@ export const outsourcingContracts = mysqlTable(
   "outsourcing_contracts",
   {
     id: char("id", { length: 36 }).primaryKey(),
-    /** Tenant scope = first party (client) company id */
-    companyId: int("company_id").notNull(),
+    /** Tenant anchor: historically first-party client company; NULL when client is external-only (employer-anchored draft). */
+    companyId: int("company_id"),
     contractTypeId: varchar("contract_type_id", { length: 50 })
       .notNull()
       .references(() => contractTypeDefs.id),
@@ -2715,6 +2762,8 @@ export const outsourcingContractParties = mysqlTable(
     partyRole: varchar("party_role", { length: 50 }).notNull(),
     /** Links to companies table when the party is a known tenant; NULL = external */
     companyId: int("company_id"),
+    /** Optional FK to business_parties — canonical identity for renewals / linking */
+    partyId: char("party_id", { length: 36 }),
     /** Snapshot of company name at contract-creation time for PDF stability */
     displayNameEn: varchar("display_name_en", { length: 255 }).notNull(),
     displayNameAr: varchar("display_name_ar", { length: 255 }),
@@ -2725,6 +2774,7 @@ export const outsourcingContractParties = mysqlTable(
     index("idx_ocp_contract").on(t.contractId),
     index("idx_ocp_role").on(t.partyRole),
     index("idx_ocp_company").on(t.companyId),
+    index("idx_ocp_party").on(t.partyId),
   ]
 );
 export type OutsourcingContractParty = typeof outsourcingContractParties.$inferSelect;

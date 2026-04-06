@@ -1,19 +1,24 @@
 /**
  * Shared form-state hook for the Promoter Assignment create/edit form.
- * Used by PromoterAssignmentsPage, ContractsPage, and ContractDetailPage.
+ * Used by PromoterAssignmentsPage, ContractsPage, ContractDetailPage, ContractManagementPage.
  *
- * Encapsulates:
- *   - Controlled form state
- *   - Party picker, site, and employee queries
- *   - Reset helpers
- *   - canSubmit validation
+ * `creationPerspective`:
+ *   - `client` — legacy: active company defaults as first party (client); dual company pickers.
+ *   - `employer` — employer-side flow: second party locked to active company; unified client picker
+ *     (platform tenants + managed external parties via contractManagement.promoterFlowClientOptions).
  */
 
 import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
+import type { ContractCreationPerspective, PromoterFlowClientOptionDto } from "@shared/agreementParties";
 
 export type PromoterAssignmentFormState = {
+  creationPerspective: ContractCreationPerspective;
+  /** Subset of client selection for employer flow */
+  clientSelectionKind: "" | "platform" | "external_party";
+  /** UUID when client is an external managed party */
+  clientPartyId: string;
   clientCompanyId: number | "";
   employerCompanyId: number | "";
   promoterEmployeeId: number | "";
@@ -25,7 +30,6 @@ export type PromoterAssignmentFormState = {
   contractNumber: string;
   issueDate: string;
   status: "active" | "inactive" | "expired";
-  // Identity fields (PR 2)
   civilId: string;
   passportNumber: string;
   passportExpiry: string;
@@ -34,6 +38,9 @@ export type PromoterAssignmentFormState = {
 };
 
 const DEFAULT_STATE: PromoterAssignmentFormState = {
+  creationPerspective: "client",
+  clientSelectionKind: "",
+  clientPartyId: "",
   clientCompanyId: "",
   employerCompanyId: "",
   promoterEmployeeId: "",
@@ -53,27 +60,67 @@ const DEFAULT_STATE: PromoterAssignmentFormState = {
 };
 
 type Options = {
-  /** Open state — queries are paused when false */
   enabled: boolean;
-  /** Pre-populate form for edit mode */
   initialValues?: Partial<PromoterAssignmentFormState>;
+  creationPerspective?: ContractCreationPerspective;
 };
 
-export function usePromoterAssignmentForm({ enabled, initialValues }: Options) {
+export function usePromoterAssignmentForm({
+  enabled,
+  initialValues,
+  creationPerspective = "client",
+}: Options) {
   const { activeCompanyId } = useActiveCompany();
 
   const [state, setState] = useState<PromoterAssignmentFormState>(() => ({
     ...DEFAULT_STATE,
+    creationPerspective,
     ...initialValues,
   }));
 
-  // Auto-set clientCompanyId to active company when dialog opens
+  // Keep perspective in state when prop changes (dialog open)
   useEffect(() => {
-    if (enabled && activeCompanyId != null && state.clientCompanyId === "") {
+    if (enabled) {
+      setState((s) => ({ ...s, creationPerspective }));
+    }
+  }, [enabled, creationPerspective]);
+
+  // Client perspective: default first party to active company
+  useEffect(() => {
+    if (
+      enabled &&
+      state.creationPerspective === "client" &&
+      activeCompanyId != null &&
+      state.clientCompanyId === ""
+    ) {
       setState((s) => ({ ...s, clientCompanyId: activeCompanyId }));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled, activeCompanyId]);
+  }, [enabled, activeCompanyId, state.creationPerspective]);
+
+  // Employer perspective: lock employer to active company when dialog opens (do not wipe after client pick).
+  useEffect(() => {
+    if (!enabled || state.creationPerspective !== "employer" || activeCompanyId == null) return;
+    setState((s) => {
+      const sameEmployer = s.employerCompanyId === activeCompanyId;
+      if (sameEmployer && s.clientSelectionKind !== "") return s;
+      if (sameEmployer && s.clientSelectionKind === "" && s.clientCompanyId === "" && s.clientPartyId === "") {
+        return { ...s, employerCompanyId: activeCompanyId };
+      }
+      return {
+        ...s,
+        employerCompanyId: activeCompanyId,
+        clientCompanyId: "",
+        clientPartyId: "",
+        clientSelectionKind: "",
+        promoterEmployeeId: "",
+        clientSiteId: "",
+        locationEn: "",
+        locationAr: "",
+      };
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled, activeCompanyId, state.creationPerspective]);
 
   function set<K extends keyof PromoterAssignmentFormState>(
     field: K,
@@ -86,6 +133,8 @@ export function usePromoterAssignmentForm({ enabled, initialValues }: Options) {
     setState((s) => ({
       ...s,
       clientCompanyId: id,
+      clientSelectionKind: "platform",
+      clientPartyId: "",
       employerCompanyId: "",
       promoterEmployeeId: "",
       clientSiteId: "",
@@ -98,11 +147,40 @@ export function usePromoterAssignmentForm({ enabled, initialValues }: Options) {
     setState((s) => ({ ...s, employerCompanyId: id, promoterEmployeeId: "" }));
   }
 
-  function reset(overrides?: Partial<PromoterAssignmentFormState>) {
-    setState({ ...DEFAULT_STATE, ...overrides });
+  /** Employer flow: user picked a row from promoterFlowClientOptions */
+  function setClientFromFlowOption(opt: PromoterFlowClientOptionDto) {
+    if (opt.kind === "platform") {
+      setState((s) => ({
+        ...s,
+        clientSelectionKind: "platform",
+        clientCompanyId: opt.companyId,
+        clientPartyId: "",
+        promoterEmployeeId: "",
+        clientSiteId: "",
+        locationEn: "",
+        locationAr: "",
+      }));
+    } else {
+      setState((s) => ({
+        ...s,
+        clientSelectionKind: "external_party",
+        clientPartyId: opt.partyId,
+        clientCompanyId: "",
+        promoterEmployeeId: "",
+        clientSiteId: "",
+        locationEn: "",
+        locationAr: "",
+      }));
+    }
   }
 
-  // ─── QUERIES ──────────────────────────────────────────────────────────────
+  function reset(overrides?: Partial<PromoterAssignmentFormState>) {
+    setState({
+      ...DEFAULT_STATE,
+      creationPerspective,
+      ...overrides,
+    });
+  }
 
   const pickersInput =
     typeof state.clientCompanyId === "number"
@@ -111,29 +189,51 @@ export function usePromoterAssignmentForm({ enabled, initialValues }: Options) {
 
   const { data: pickers, isLoading: pickersLoading } =
     trpc.promoterAssignments.companiesForPartyPickers.useQuery(pickersInput, {
-      enabled: enabled && activeCompanyId != null,
+      enabled:
+        enabled &&
+        state.creationPerspective === "client" &&
+        activeCompanyId != null,
     });
 
+  const { data: flowClientOptions = [], isLoading: flowClientOptionsLoading } =
+    trpc.contractManagement.promoterFlowClientOptions.useQuery(undefined, {
+      enabled:
+        enabled &&
+        state.creationPerspective === "employer" &&
+        activeCompanyId != null,
+    });
+
+  const platformClientIdForSites =
+    state.creationPerspective === "employer" && state.clientSelectionKind === "platform"
+      ? typeof state.clientCompanyId === "number"
+        ? state.clientCompanyId
+        : 0
+      : typeof state.clientCompanyId === "number"
+        ? state.clientCompanyId
+        : 0;
+
   const { data: clientSites = [], isLoading: sitesLoading } =
-    trpc.promoterAssignments.listClientWorkLocations.useQuery(
-      {
-        clientCompanyId:
-          typeof state.clientCompanyId === "number" ? state.clientCompanyId : 0,
-      },
+    trpc.contractManagement.listClientWorkLocations.useQuery(
+      { clientCompanyId: platformClientIdForSites },
       {
         enabled:
           enabled &&
-          typeof state.clientCompanyId === "number" &&
-          state.clientCompanyId > 0,
+          platformClientIdForSites > 0,
       }
     );
 
   const employerEmployeesEnabled =
     enabled &&
-    typeof state.clientCompanyId === "number" &&
-    state.clientCompanyId > 0 &&
     typeof state.employerCompanyId === "number" &&
-    state.employerCompanyId > 0;
+    state.employerCompanyId > 0 &&
+    (state.creationPerspective === "employer"
+      ? state.clientSelectionKind === "platform"
+        ? typeof state.clientCompanyId === "number" && state.clientCompanyId > 0
+        : state.clientSelectionKind === "external_party" && state.clientPartyId.length > 0
+      : typeof state.clientCompanyId === "number" &&
+        state.clientCompanyId > 0 &&
+        typeof state.employerCompanyId === "number" &&
+        state.employerCompanyId > 0);
 
   const {
     data: employerEmployees = [],
@@ -141,19 +241,23 @@ export function usePromoterAssignmentForm({ enabled, initialValues }: Options) {
     isError: employeesError,
     error: employeesErrorObj,
     refetch: refetchEmployees,
-  } = trpc.promoterAssignments.listEmployerEmployees.useQuery(
+  } = trpc.contractManagement.listEmployerEmployees.useQuery(
     {
       employerCompanyId:
         typeof state.employerCompanyId === "number" ? state.employerCompanyId : 0,
       clientCompanyId:
-        typeof state.clientCompanyId === "number" && state.clientCompanyId > 0
-          ? state.clientCompanyId
-          : undefined,
+        state.creationPerspective === "employer" && state.clientSelectionKind === "platform"
+          ? typeof state.clientCompanyId === "number"
+            ? state.clientCompanyId
+            : undefined
+          : typeof state.clientCompanyId === "number" && state.clientCompanyId > 0
+            ? state.clientCompanyId
+            : undefined,
+      forEmployerPerspective: state.creationPerspective === "employer",
     },
     { enabled: employerEmployeesEnabled }
   );
 
-  // Auto-fill identity from selected employee
   function onSelectEmployee(empId: number) {
     set("promoterEmployeeId", empId);
     const emp = employerEmployees.find((e) => e.id === empId);
@@ -186,33 +290,44 @@ export function usePromoterAssignmentForm({ enabled, initialValues }: Options) {
     }
   }
 
-  // ─── VALIDATION ───────────────────────────────────────────────────────────
-
-  const canSubmit =
+  const clientReadyClientPerspective =
     typeof state.clientCompanyId === "number" &&
     state.clientCompanyId > 0 &&
     typeof state.employerCompanyId === "number" &&
     state.employerCompanyId > 0 &&
+    state.clientCompanyId !== state.employerCompanyId;
+
+  const clientReadyEmployerPerspective =
+    typeof state.employerCompanyId === "number" &&
+    state.employerCompanyId > 0 &&
+    (state.clientSelectionKind === "platform"
+      ? typeof state.clientCompanyId === "number" && state.clientCompanyId > 0
+      : state.clientSelectionKind === "external_party" && state.clientPartyId.length > 0);
+
+  const canSubmit =
+    (state.creationPerspective === "client" ? clientReadyClientPerspective : clientReadyEmployerPerspective) &&
     typeof state.promoterEmployeeId === "number" &&
     state.promoterEmployeeId > 0 &&
     state.locationEn.trim().length > 0 &&
     state.locationAr.trim().length > 0 &&
     state.effectiveDate.length > 0 &&
-    state.expiryDate.length > 0 &&
-    state.clientCompanyId !== state.employerCompanyId;
+    state.expiryDate.length > 0;
 
   return {
     state,
     set,
     setClient,
     setEmployer,
+    setClientFromFlowOption,
     reset,
     onSelectEmployee,
     onSelectSite,
     canSubmit,
-    // Queries
+    creationPerspective,
     pickers,
     pickersLoading,
+    flowClientOptions,
+    flowClientOptionsLoading,
     clientSites,
     sitesLoading,
     employerEmployees,

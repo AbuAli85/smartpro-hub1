@@ -43,6 +43,13 @@
       "when": 1744000000000,
       "tag": "0018_contract_management_system",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1744100000000,
+      "tag": "0019_agreement_party_foundation",
+      "breakpoints": true
     }
   ]
 }

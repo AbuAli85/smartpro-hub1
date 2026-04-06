@@ -48,6 +48,13 @@ import {
 } from "../modules/contractManagement/contractManagement.types";
 import { storagePut, fileUrlMatchesConfiguredStorage } from "../storage";
 import { ENV } from "../_core/env";
+import {
+  createManagedExternalParty,
+  ensurePartyForLinkedCompany,
+  getPartyById,
+  linkPartyToPlatformCompany,
+  listPromoterFlowClientOptions,
+} from "../modules/agreementParties/party.repository";
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 
@@ -90,30 +97,68 @@ async function requireCanManageContracts(
   }
 }
 
+/** True if the user's active company is involved in the contract (header + parties + promoter employer). */
+function activeCompanyInvolvedInContract(
+  activeId: number,
+  contract: { companyId: number | null },
+  parties: { companyId: number | null }[],
+  promoterEmployerCompanyId: number | null | undefined
+): boolean {
+  const ids = new Set<number>();
+  if (contract.companyId != null) ids.add(contract.companyId);
+  for (const p of parties) {
+    if (p.companyId != null) ids.add(p.companyId);
+  }
+  if (promoterEmployerCompanyId != null) ids.add(promoterEmployerCompanyId);
+  return ids.has(activeId);
+}
+
 // ─── ZOD SCHEMAS ──────────────────────────────────────────────────────────────
 
 const contractStatusEnum = z.enum(CONTRACT_STATUSES);
 
-const createPromoterAssignmentInput = z.object({
-  clientCompanyId: z.number().int().positive(),
-  employerCompanyId: z.number().int().positive(),
-  promoterEmployeeId: z.number().int().positive(),
-  locationEn: z.string().min(1, "Work location (English) is required"),
-  locationAr: z.string().min(1, "Work location (Arabic) is required"),
-  clientSiteId: z.number().int().positive().optional(),
-  effectiveDate: z.string().min(1, "Effective (start) date is required"),
-  expiryDate: z.string().min(1, "Expiry (end) date is required"),
-  contractNumber: z.string().max(100).optional(),
-  issueDate: z.string().optional(),
-  status: contractStatusEnum.optional().default("draft"),
-  // Identity fields — strongly encouraged for production
-  civilId: z.string().max(50).optional(),
-  passportNumber: z.string().max(50).optional(),
-  passportExpiry: z.string().optional(),
-  nationality: z.string().max(100).optional(),
-  jobTitleEn: z.string().max(255).optional(),
-  jobTitleAr: z.string().max(255).optional(),
-});
+const createPromoterAssignmentInput = z
+  .object({
+    /** Optimizes RBAC and UX defaults: client = legacy first-party creator; employer = second-party creator. */
+    creationPerspective: z.enum(["client", "employer"]).optional().default("client"),
+    /** Platform tenant client vs employer-managed external counterparty. */
+    clientKind: z.enum(["platform", "external_party"]).optional().default("platform"),
+    clientCompanyId: z.number().int().positive().optional(),
+    clientPartyId: z.string().uuid().optional(),
+    employerCompanyId: z.number().int().positive(),
+    promoterEmployeeId: z.number().int().positive(),
+    locationEn: z.string().min(1, "Work location (English) is required"),
+    locationAr: z.string().min(1, "Work location (Arabic) is required"),
+    clientSiteId: z.number().int().positive().optional(),
+    effectiveDate: z.string().min(1, "Effective (start) date is required"),
+    expiryDate: z.string().min(1, "Expiry (end) date is required"),
+    contractNumber: z.string().max(100).optional(),
+    issueDate: z.string().optional(),
+    status: contractStatusEnum.optional().default("draft"),
+    civilId: z.string().max(50).optional(),
+    passportNumber: z.string().max(50).optional(),
+    passportExpiry: z.string().optional(),
+    nationality: z.string().max(100).optional(),
+    jobTitleEn: z.string().max(255).optional(),
+    jobTitleAr: z.string().max(255).optional(),
+  })
+  .superRefine((val, ctx) => {
+    if (val.clientKind === "external_party") {
+      if (!val.clientPartyId) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "External client requires clientPartyId",
+          path: ["clientPartyId"],
+        });
+      }
+    } else if (!val.clientCompanyId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Platform client requires clientCompanyId",
+        path: ["clientCompanyId"],
+      });
+    }
+  });
 
 const updatePromoterAssignmentInput = z.object({
   id: z.string().uuid(),
@@ -217,6 +262,8 @@ export const contractManagementRouter = router({
       z.object({
         employerCompanyId: z.number().int().positive(),
         clientCompanyId: z.number().int().positive().optional(),
+        /** When true, RBAC is anchored on the employer (external client has no platform company id). */
+        forEmployerPerspective: z.boolean().optional(),
       })
     )
     .query(async ({ ctx, input }) => {
@@ -224,18 +271,31 @@ export const contractManagementRouter = router({
       if (!db) return [];
       const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
       const activeId = await requireActiveCompanyId(ctx.user.id);
-      const clientId = input.clientCompanyId ?? activeId;
 
-      if (isPlatform && input.clientCompanyId == null) {
+      if (isPlatform && input.clientCompanyId == null && !input.forEmployerPerspective) {
         throw new TRPCError({
           code: "BAD_REQUEST",
           message: "Select the client company before loading employer employees",
         });
       }
       if (!isPlatform) {
-        await requireCanManageContracts(ctx.user, clientId);
+        if (input.forEmployerPerspective) {
+          await requireCanManageContracts(ctx.user, input.employerCompanyId);
+          if (activeId !== input.employerCompanyId) {
+            throw new TRPCError({
+              code: "FORBIDDEN",
+              message: "Employer perspective requires your active company to be the employer",
+            });
+          }
+        } else {
+          const clientId = input.clientCompanyId ?? activeId;
+          await requireCanManageContracts(ctx.user, clientId);
+        }
       }
-      if (input.employerCompanyId === clientId) {
+      if (
+        input.clientCompanyId != null &&
+        input.employerCompanyId === input.clientCompanyId
+      ) {
         throw new TRPCError({
           code: "BAD_REQUEST",
           message: "Employer (second party) must be a different company from the client (first party)",
@@ -251,6 +311,8 @@ export const contractManagementRouter = router({
           lastNameAr: employees.lastNameAr,
           nationalId: employees.nationalId,
           passportNumber: employees.passportNumber,
+          nationality: employees.nationality,
+          position: employees.position,
           status: employees.status,
         })
         .from(employees)
@@ -261,6 +323,98 @@ export const contractManagementRouter = router({
           )
         )
         .orderBy(asc(employees.lastName), asc(employees.firstName));
+    }),
+
+  /**
+   * Unified first-party (client) options for employer-side promoter assignment:
+   * active platform tenants (except self) plus employer-managed external parties.
+   */
+  promoterFlowClientOptions: protectedProcedure
+    .input(z.object({ employerCompanyId: z.number().int().positive().optional() }).optional())
+    .query(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) return [] as Awaited<ReturnType<typeof listPromoterFlowClientOptions>>;
+      const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
+      const employerCompanyId = isPlatform
+        ? input?.employerCompanyId
+        : await requireActiveCompanyId(ctx.user.id);
+      if (employerCompanyId == null) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "employerCompanyId is required for platform administrators",
+        });
+      }
+      if (!isPlatform) {
+        await requireCanManageContracts(ctx.user, employerCompanyId);
+      }
+      return listPromoterFlowClientOptions(db, employerCompanyId);
+    }),
+
+  /** Create an external client/counterparty managed by the active employer company. */
+  createManagedExternalClient: protectedProcedure
+    .input(
+      z.object({
+        displayNameEn: z.string().min(1, "Display name (English) is required"),
+        displayNameAr: z.string().max(255).optional(),
+        legalNameEn: z.string().max(255).optional(),
+        legalNameAr: z.string().max(255).optional(),
+        registrationNumber: z.string().max(100).optional(),
+        phone: z.string().max(64).optional(),
+        email: z
+          .string()
+          .max(320)
+          .optional()
+          .transform((s) => (s == null || s.trim() === "" ? undefined : s.trim())),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      const activeId = await requireActiveCompanyId(ctx.user.id);
+      await requireCanManageContracts(ctx.user, activeId);
+      const partyId = await createManagedExternalParty(db, {
+        managedByCompanyId: activeId,
+        displayNameEn: input.displayNameEn,
+        displayNameAr: input.displayNameAr,
+        legalNameEn: input.legalNameEn,
+        legalNameAr: input.legalNameAr,
+        registrationNumber: input.registrationNumber,
+        phone: input.phone,
+        email: input.email,
+        createdBy: ctx.user.id,
+      });
+      return { partyId };
+    }),
+
+  /**
+   * Link a business_party (usually external-managed) to a platform company.
+   * Platform admins only in this phase — avoids mistaken merges across tenants.
+   */
+  linkPartyToPlatformCompany: protectedProcedure
+    .input(
+      z.object({
+        partyId: z.string().uuid(),
+        platformCompanyId: z.number().int().positive(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      if (!canAccessGlobalAdminProcedures(ctx.user)) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Only platform administrators can link parties" });
+      }
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      try {
+        await linkPartyToPlatformCompany(db, {
+          partyId: input.partyId,
+          platformCompanyId: input.platformCompanyId,
+          actorId: ctx.user.id,
+          actorName: ctx.user.name ?? ctx.user.email ?? undefined,
+        });
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "Link failed";
+        throw new TRPCError({ code: "BAD_REQUEST", message: msg });
+      }
+      return { ok: true as const };
     }),
 
   // ─── CONTRACT CRUD ──────────────────────────────────────────────────────────
@@ -341,14 +495,14 @@ export const contractManagementRouter = router({
       const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
       if (!isPlatform) {
         const activeId = await requireActiveCompanyId(ctx.user.id);
-        const partyCompanyIds = new Set(
-          result.parties.map((p) => p.companyId).filter(Boolean)
-        );
-        partyCompanyIds.add(result.contract.companyId);
-        if (result.promoterDetail) {
-          partyCompanyIds.add(result.promoterDetail.employerCompanyId);
-        }
-        if (!partyCompanyIds.has(activeId)) {
+        if (
+          !activeCompanyInvolvedInContract(
+            activeId,
+            result.contract,
+            result.parties,
+            result.promoterDetail?.employerCompanyId
+          )
+        ) {
           throw new TRPCError({ code: "FORBIDDEN", message: "Contract not in your company scope" });
         }
       }
@@ -383,18 +537,22 @@ export const contractManagementRouter = router({
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
 
       const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
+      const activeId = isPlatform ? null : await requireActiveCompanyId(ctx.user.id);
+
       if (!isPlatform) {
-        await requireActiveCompanyId(ctx.user.id);
-        await requireCanManageContracts(ctx.user, input.clientCompanyId);
+        if (input.creationPerspective === "employer") {
+          if (input.employerCompanyId !== activeId) {
+            throw new TRPCError({
+              code: "FORBIDDEN",
+              message: "Your active company must be the employer (second party) for this flow",
+            });
+          }
+          await requireCanManageContracts(ctx.user, input.employerCompanyId);
+        } else if (input.clientCompanyId != null) {
+          await requireCanManageContracts(ctx.user, input.clientCompanyId);
+        }
       }
 
-      // ── Initial status guard ───────────────────────────────────────────────
-      // Regular users must start every contract in "draft".
-      // The activation confirmation step (draft → active) is intentional UX:
-      // it prevents contracts from going live without an explicit review.
-      //
-      // Platform admins may create in any non-terminal status to support
-      // backfill / migration scenarios (e.g., importing historical active contracts).
       const requestedInitialStatus: ContractStatus = input.status ?? "draft";
       if (isTerminalStatus(requestedInitialStatus)) {
         throw new TRPCError({
@@ -409,14 +567,17 @@ export const contractManagementRouter = router({
         });
       }
 
-      if (input.clientCompanyId === input.employerCompanyId) {
+      if (
+        input.clientKind === "platform" &&
+        input.clientCompanyId != null &&
+        input.clientCompanyId === input.employerCompanyId
+      ) {
         throw new TRPCError({
           code: "BAD_REQUEST",
           message: "First party (client) and second party (employer) must be different companies",
         });
       }
 
-      // Validate dates
       const effectiveDate = new Date(input.effectiveDate);
       const expiryDate = new Date(input.expiryDate);
       if (isNaN(effectiveDate.getTime()) || isNaN(expiryDate.getTime())) {
@@ -426,7 +587,6 @@ export const contractManagementRouter = router({
         throw new TRPCError({ code: "BAD_REQUEST", message: "Expiry date must be after the effective date" });
       }
 
-      // Validate promoter belongs to the employer
       const [emp] = await db
         .select({
           id: employees.id,
@@ -453,9 +613,14 @@ export const contractManagementRouter = router({
         });
       }
 
-      // Validate optional client site belongs to the client
       let clientSiteId: number | null = null;
       if (input.clientSiteId != null) {
+        if (input.clientKind !== "platform" || input.clientCompanyId == null) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Attendance sites can only be selected when the client is a platform company",
+          });
+        }
         const [site] = await db
           .select({ id: attendanceSites.id })
           .from(attendanceSites)
@@ -476,9 +641,7 @@ export const contractManagementRouter = router({
         clientSiteId = site.id;
       }
 
-      // Load company snapshots for party records
-      const companyIds = [input.clientCompanyId, input.employerCompanyId];
-      const coRows = await db
+      const [employerCo] = await db
         .select({
           id: companies.id,
           name: companies.name,
@@ -487,14 +650,72 @@ export const contractManagementRouter = router({
           registrationNumber: companies.registrationNumber,
         })
         .from(companies)
-        .where(inArray(companies.id, companyIds));
+        .where(eq(companies.id, input.employerCompanyId))
+        .limit(1);
 
-      const coMap = new Map(coRows.map((c) => [c.id, c]));
-      const clientCo = coMap.get(input.clientCompanyId);
-      const employerCo = coMap.get(input.employerCompanyId);
+      if (!employerCo) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Employer company not found" });
+      }
 
-      if (!clientCo || !employerCo) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "One or both companies not found" });
+      const employerPartyId = await ensurePartyForLinkedCompany(db, input.employerCompanyId, ctx.user.id);
+
+      let headerCompanyId: number | null;
+      let firstParty: {
+        companyId: number | null;
+        partyId: string | null;
+        nameEn: string;
+        nameAr: string | null;
+        regNumber: string | null;
+      };
+
+      if (input.clientKind === "platform") {
+        const cid = input.clientCompanyId!;
+        const [clientCo] = await db
+          .select({
+            id: companies.id,
+            name: companies.name,
+            nameAr: companies.nameAr,
+            crNumber: companies.crNumber,
+            registrationNumber: companies.registrationNumber,
+          })
+          .from(companies)
+          .where(eq(companies.id, cid))
+          .limit(1);
+        if (!clientCo) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Client company not found" });
+        }
+        headerCompanyId = cid;
+        const clientPartyId = await ensurePartyForLinkedCompany(db, cid, ctx.user.id);
+        firstParty = {
+          companyId: cid,
+          partyId: clientPartyId,
+          nameEn: clientCo.name,
+          nameAr: clientCo.nameAr ?? null,
+          regNumber: clientCo.crNumber ?? clientCo.registrationNumber ?? null,
+        };
+      } else {
+        const party = await getPartyById(db, input.clientPartyId!);
+        if (!party) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Client party not found" });
+        }
+        if (
+          !isPlatform &&
+          party.managedByCompanyId != null &&
+          party.managedByCompanyId !== input.employerCompanyId
+        ) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "This external client is not managed by your employer company",
+          });
+        }
+        headerCompanyId = party.linkedCompanyId ?? null;
+        firstParty = {
+          companyId: party.linkedCompanyId ?? null,
+          partyId: party.id,
+          nameEn: party.displayNameEn,
+          nameAr: party.displayNameAr ?? null,
+          regNumber: party.registrationNumber ?? null,
+        };
       }
 
       const contractId = crypto.randomUUID();
@@ -504,7 +725,7 @@ export const contractManagementRouter = router({
 
       await createOutsourcingContractFull(db, {
         contractId,
-        companyId: input.clientCompanyId,
+        companyId: headerCompanyId,
         contractTypeId: "promoter_assignment",
         contractNumber: input.contractNumber?.trim() || null,
         status: requestedInitialStatus,
@@ -512,14 +733,10 @@ export const contractManagementRouter = router({
         effectiveDate,
         expiryDate,
         createdBy: ctx.user.id,
-        firstParty: {
-          companyId: input.clientCompanyId,
-          nameEn: clientCo.name,
-          nameAr: clientCo.nameAr ?? null,
-          regNumber: clientCo.crNumber ?? clientCo.registrationNumber ?? null,
-        },
+        firstParty,
         secondParty: {
           companyId: input.employerCompanyId,
+          partyId: employerPartyId,
           nameEn: employerCo.name,
           nameAr: employerCo.nameAr ?? null,
           regNumber: employerCo.crNumber ?? employerCo.registrationNumber ?? null,
@@ -542,6 +759,10 @@ export const contractManagementRouter = router({
           jobTitleAr: input.jobTitleAr?.trim() || null,
         },
         actorName: ctx.user.name ?? ctx.user.email ?? `User #${ctx.user.id}`,
+        auditExtra: {
+          creationPerspective: input.creationPerspective,
+          clientKind: input.clientKind,
+        },
       });
 
       return { id: contractId };
@@ -567,10 +788,17 @@ export const contractManagementRouter = router({
       const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
       if (!isPlatform) {
         const activeId = await requireActiveCompanyId(ctx.user.id);
-        if (result.contract.companyId !== activeId) {
+        if (
+          !activeCompanyInvolvedInContract(
+            activeId,
+            result.contract,
+            result.parties,
+            result.promoterDetail?.employerCompanyId
+          )
+        ) {
           throw new TRPCError({
             code: "FORBIDDEN",
-            message: "Only the first party (client) company can edit this contract",
+            message: "Your company is not a party to this contract",
           });
         }
         await requireCanManageContracts(ctx.user, activeId);
@@ -670,7 +898,7 @@ export const contractManagementRouter = router({
    * The caller is expected to show a confirmation dialog on the frontend
    * before calling this mutation.
    *
-   * Only the first party (client company) can activate.
+   * Any involved party (first_party, second_party, or promoter employer company) with contract-management RBAC may activate.
    */
   activate: protectedProcedure
     .input(
@@ -690,10 +918,17 @@ export const contractManagementRouter = router({
       const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
       if (!isPlatform) {
         const activeId = await requireActiveCompanyId(ctx.user.id);
-        if (result.contract.companyId !== activeId) {
+        if (
+          !activeCompanyInvolvedInContract(
+            activeId,
+            result.contract,
+            result.parties,
+            result.promoterDetail?.employerCompanyId
+          )
+        ) {
           throw new TRPCError({
             code: "FORBIDDEN",
-            message: "Only the first party (client) company can activate this contract",
+            message: "Your company is not a party to this contract",
           });
         }
         await requireCanManageContracts(ctx.user, activeId);
@@ -745,8 +980,18 @@ export const contractManagementRouter = router({
       const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
       if (!isPlatform) {
         const activeId = await requireActiveCompanyId(ctx.user.id);
-        if (original.contract.companyId !== activeId) {
-          throw new TRPCError({ code: "FORBIDDEN", message: "Only the first party can renew this contract" });
+        if (
+          !activeCompanyInvolvedInContract(
+            activeId,
+            original.contract,
+            original.parties,
+            original.promoterDetail?.employerCompanyId
+          )
+        ) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "Your company is not a party to this contract",
+          });
         }
         await requireCanManageContracts(ctx.user, activeId);
       }
@@ -807,13 +1052,15 @@ export const contractManagementRouter = router({
         expiryDate,
         createdBy: ctx.user.id,
         firstParty: {
-          companyId: firstParty.companyId!,
+          companyId: firstParty.companyId ?? null,
+          partyId: firstParty.partyId ?? null,
           nameEn: firstParty.displayNameEn,
           nameAr: firstParty.displayNameAr ?? null,
           regNumber: firstParty.registrationNumber ?? null,
         },
         secondParty: {
-          companyId: secondParty.companyId!,
+          companyId: secondParty.companyId ?? null,
+          partyId: secondParty.partyId ?? null,
           nameEn: secondParty.displayNameEn,
           nameAr: secondParty.displayNameAr ?? null,
           regNumber: secondParty.registrationNumber ?? null,
@@ -881,8 +1128,18 @@ export const contractManagementRouter = router({
       const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
       if (!isPlatform) {
         const activeId = await requireActiveCompanyId(ctx.user.id);
-        if (result.contract.companyId !== activeId) {
-          throw new TRPCError({ code: "FORBIDDEN", message: "Only the first party can terminate this contract" });
+        if (
+          !activeCompanyInvolvedInContract(
+            activeId,
+            result.contract,
+            result.parties,
+            result.promoterDetail?.employerCompanyId
+          )
+        ) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "Your company is not a party to this contract",
+          });
         }
         await requireCanManageContracts(ctx.user, activeId);
       }
@@ -955,14 +1212,14 @@ export const contractManagementRouter = router({
         const result = await getOutsourcingContractById(db, input.contractId);
         if (!result) throw new TRPCError({ code: "NOT_FOUND", message: "Contract not found" });
 
-        const partyCompanyIds = new Set(
-          result.parties.map((p) => p.companyId).filter(Boolean)
-        );
-        partyCompanyIds.add(result.contract.companyId);
-        if (result.promoterDetail) {
-          partyCompanyIds.add(result.promoterDetail.employerCompanyId);
-        }
-        if (!partyCompanyIds.has(activeId)) {
+        if (
+          !activeCompanyInvolvedInContract(
+            activeId,
+            result.contract,
+            result.parties,
+            result.promoterDetail?.employerCompanyId
+          )
+        ) {
           throw new TRPCError({
             code: "FORBIDDEN",
             message: "Your company is not a party to this contract",
@@ -1061,13 +1318,19 @@ export const contractManagementRouter = router({
         const activeId = await requireActiveCompanyId(ctx.user.id);
         await requireCanManageContracts(ctx.user, activeId);
 
-        // Only first party (companyId owner) can delete
         const contract = await getOutsourcingContractById(db, doc.contractId);
         if (!contract) throw new TRPCError({ code: "NOT_FOUND", message: "Contract not found" });
-        if (contract.contract.companyId !== activeId) {
+        if (
+          !activeCompanyInvolvedInContract(
+            activeId,
+            contract.contract,
+            contract.parties,
+            contract.promoterDetail?.employerCompanyId
+          )
+        ) {
           throw new TRPCError({
             code: "FORBIDDEN",
-            message: "Only the first party (client) can delete contract documents",
+            message: "Your company is not a party to this contract",
           });
         }
       }
@@ -1091,8 +1354,18 @@ export const contractManagementRouter = router({
       const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
       if (!isPlatform) {
         const activeId = await requireActiveCompanyId(ctx.user.id);
-        if (result.contract.companyId !== activeId) {
-          throw new TRPCError({ code: "FORBIDDEN", message: "Only the first party can delete this contract" });
+        if (
+          !activeCompanyInvolvedInContract(
+            activeId,
+            result.contract,
+            result.parties,
+            result.promoterDetail?.employerCompanyId
+          )
+        ) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "Your company is not a party to this contract",
+          });
         }
         await requireCanManageContracts(ctx.user, activeId);
       }
@@ -1114,10 +1387,14 @@ export const contractManagementRouter = router({
       const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
       if (!isPlatform) {
         const activeId = await requireActiveCompanyId(ctx.user.id);
-        const partyIds = new Set(result.parties.map((p) => p.companyId).filter(Boolean));
-        partyIds.add(result.contract.companyId);
-        if (result.promoterDetail) partyIds.add(result.promoterDetail.employerCompanyId);
-        if (!partyIds.has(activeId)) {
+        if (
+          !activeCompanyInvolvedInContract(
+            activeId,
+            result.contract,
+            result.parties,
+            result.promoterDetail?.employerCompanyId
+          )
+        ) {
           throw new TRPCError({ code: "FORBIDDEN", message: "Not in your scope" });
         }
       }

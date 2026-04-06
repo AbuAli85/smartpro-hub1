@@ -685,7 +685,8 @@ export async function createOutsourcingContractFull(
   db: AppDb,
   params: {
     contractId: string;
-    companyId: number;
+    /** NULL when first party is external-only (employer-anchored); see outsourcing_contract_parties.first_party */
+    companyId: number | null;
     contractTypeId: string;
     contractNumber: string | null;
     status: ContractStatus;
@@ -693,8 +694,20 @@ export async function createOutsourcingContractFull(
     effectiveDate: Date;
     expiryDate: Date;
     createdBy: number;
-    firstParty: { companyId: number; nameEn: string; nameAr: string | null; regNumber: string | null };
-    secondParty: { companyId: number; nameEn: string; nameAr: string | null; regNumber: string | null };
+    firstParty: {
+      companyId: number | null;
+      partyId: string | null;
+      nameEn: string;
+      nameAr: string | null;
+      regNumber: string | null;
+    };
+    secondParty: {
+      companyId: number | null;
+      partyId: string | null;
+      nameEn: string;
+      nameAr: string | null;
+      regNumber: string | null;
+    };
     location: {
       locationEn: string;
       locationAr: string;
@@ -713,6 +726,8 @@ export async function createOutsourcingContractFull(
       jobTitleAr: string | null;
     };
     actorName: string;
+    /** Merged into the initial `created` audit event (e.g. creation perspective / client kind). */
+    auditExtra?: Record<string, unknown>;
   }
 ): Promise<void> {
   const header: InsertOutsourcingContract = {
@@ -734,6 +749,7 @@ export async function createOutsourcingContractFull(
     contractId: params.contractId,
     partyRole: "first_party",
     companyId: params.firstParty.companyId,
+    partyId: params.firstParty.partyId,
     displayNameEn: params.firstParty.nameEn,
     displayNameAr: params.firstParty.nameAr,
     registrationNumber: params.firstParty.regNumber,
@@ -743,6 +759,7 @@ export async function createOutsourcingContractFull(
     contractId: params.contractId,
     partyRole: "second_party",
     companyId: params.secondParty.companyId,
+    partyId: params.secondParty.partyId,
     displayNameEn: params.secondParty.nameEn,
     displayNameAr: params.secondParty.nameAr,
     registrationNumber: params.secondParty.regNumber,
@@ -780,7 +797,11 @@ export async function createOutsourcingContractFull(
     action: "created",
     actorId: params.createdBy,
     actorName: params.actorName,
-    details: { contractTypeId: params.contractTypeId, status: params.status },
+    details: {
+      contractTypeId: params.contractTypeId,
+      status: params.status,
+      ...params.auditExtra,
+    },
   });
 }
 

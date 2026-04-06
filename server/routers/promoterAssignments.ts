@@ -139,6 +139,7 @@ export const promoterAssignmentsRouter = router({
       z.object({
         employerCompanyId: z.number().int().positive(),
         clientCompanyId: z.number().int().positive().optional(),
+        forEmployerPerspective: z.boolean().optional(),
       })
     )
     .query(async ({ ctx, input }) => {
@@ -146,18 +147,31 @@ export const promoterAssignmentsRouter = router({
       if (!db) return [];
       const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
       const activeId = await requireActiveCompanyId(ctx.user.id);
-      const clientId = input.clientCompanyId ?? activeId;
 
-      if (isPlatform && input.clientCompanyId == null) {
+      if (isPlatform && input.clientCompanyId == null && !input.forEmployerPerspective) {
         throw new TRPCError({
           code: "BAD_REQUEST",
           message: "Select the client company before loading employer employees",
         });
       }
       if (!isPlatform) {
-        await requireCanManagePromoterAssignments(ctx.user, clientId);
+        if (input.forEmployerPerspective) {
+          await requireCanManagePromoterAssignments(ctx.user, input.employerCompanyId);
+          if (activeId !== input.employerCompanyId) {
+            throw new TRPCError({
+              code: "FORBIDDEN",
+              message: "Employer perspective requires your active company to be the employer",
+            });
+          }
+        } else {
+          const clientId = input.clientCompanyId ?? activeId;
+          await requireCanManagePromoterAssignments(ctx.user, clientId);
+        }
       }
-      if (input.employerCompanyId === clientId) {
+      if (
+        input.clientCompanyId != null &&
+        input.employerCompanyId === input.clientCompanyId
+      ) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Employer must differ from client company" });
       }
 
@@ -457,12 +471,14 @@ export const promoterAssignmentsRouter = router({
               createdBy: ctx.user.id,
               firstParty: {
                 companyId: clientCo.id,
+                partyId: null,
                 nameEn: clientCo.name,
                 nameAr: clientCo.nameAr ?? null,
                 regNumber: clientCo.crNumber ?? clientCo.registrationNumber ?? null,
               },
               secondParty: {
                 companyId: employerCo.id,
+                partyId: null,
                 nameEn: employerCo.name,
                 nameAr: employerCo.nameAr ?? null,
                 regNumber: employerCo.crNumber ?? employerCo.registrationNumber ?? null,

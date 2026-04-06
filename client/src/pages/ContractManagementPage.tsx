@@ -162,7 +162,7 @@ function googleDocsReadinessDiagnosis(issue: string | undefined): string | null 
 
 function CreateContractDialog({ onSuccess }: { onSuccess: () => void }) {
   const [open, setOpen] = useState(false);
-  const form = usePromoterAssignmentForm({ enabled: open });
+  const form = usePromoterAssignmentForm({ enabled: open, creationPerspective: "employer" });
   const utils = trpc.useUtils();
 
   const createMutation = trpc.contractManagement.createPromoterAssignment.useMutation({
@@ -185,7 +185,12 @@ function CreateContractDialog({ onSuccess }: { onSuccess: () => void }) {
     }
     const s = form.state;
     createMutation.mutate({
-      clientCompanyId: s.clientCompanyId as number,
+      creationPerspective: "employer",
+      clientKind: s.clientSelectionKind === "external_party" ? "external_party" : "platform",
+      clientCompanyId:
+        s.clientSelectionKind === "platform" ? (s.clientCompanyId as number) : undefined,
+      clientPartyId:
+        s.clientSelectionKind === "external_party" ? s.clientPartyId : undefined,
       employerCompanyId: s.employerCompanyId as number,
       promoterEmployeeId: s.promoterEmployeeId as number,
       locationEn: s.locationEn.trim(),

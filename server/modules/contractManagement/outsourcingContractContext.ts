@@ -73,11 +73,14 @@ export async function buildOutsourcingContractDocumentContext(
       .where(eq(outsourcingPromoterDetails.contractId, entityId))
       .limit(1);
 
-    const involvedCompanyIds = new Set([
-      contract.companyId,
-      ...parties.map((p) => p.companyId).filter(Boolean),
-      promoterDetail?.employerCompanyId,
-    ]);
+    const involvedCompanyIds = new Set<number>();
+    if (contract.companyId != null) involvedCompanyIds.add(contract.companyId);
+    for (const p of parties) {
+      if (p.companyId != null) involvedCompanyIds.add(p.companyId);
+    }
+    if (promoterDetail?.employerCompanyId != null) {
+      involvedCompanyIds.add(promoterDetail.employerCompanyId);
+    }
 
     if (!involvedCompanyIds.has(activeCompanyId)) {
       throw new DocumentGenerationError(
@@ -136,16 +139,19 @@ export async function buildOutsourcingContractDocumentContext(
     );
   }
 
+  const firstCr = (firstPartyRow.registrationNumber ?? "").trim() || "—";
+  const secondCr = (secondPartyRow.registrationNumber ?? "").trim() || "—";
+
   const ctx: OutsourcingContractDocumentContext = {
     first_party: {
       company_name_en: nonEmpty("First party English name", firstPartyRow.displayNameEn),
       company_name_ar: nonEmpty("First party Arabic name", firstPartyRow.displayNameAr ?? firstPartyRow.displayNameEn),
-      cr_number: nonEmpty("First party registration number", firstPartyRow.registrationNumber),
+      cr_number: firstCr,
     },
     second_party: {
       company_name_en: nonEmpty("Second party English name", secondPartyRow.displayNameEn),
       company_name_ar: nonEmpty("Second party Arabic name", secondPartyRow.displayNameAr ?? secondPartyRow.displayNameEn),
-      cr_number: nonEmpty("Second party registration number", secondPartyRow.registrationNumber),
+      cr_number: secondCr,
     },
     promoter: {
       full_name_en: nonEmpty("Promoter English name", promoterDetail.fullNameEn),

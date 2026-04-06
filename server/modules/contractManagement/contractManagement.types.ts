@@ -323,7 +323,8 @@ export type UpdateOutsourcingContractInput = {
 export type OutsourcingContractRow = {
   id: string;
   contractTypeId: string;
-  companyId: number;
+  /** Contract header tenant anchor; NULL when first party was external-only at creation. */
+  companyId: number | null;
   contractNumber: string | null;
   status: string;
   issueDate: Date | string | null;

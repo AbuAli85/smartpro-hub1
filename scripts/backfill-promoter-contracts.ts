@@ -132,12 +132,14 @@ async function main() {
         createdBy: 0, // system backfill
         firstParty: {
           companyId: clientCo.id,
+          partyId: null,
           nameEn: clientCo.name,
           nameAr: clientCo.nameAr ?? null,
           regNumber: clientCo.crNumber ?? clientCo.registrationNumber ?? null,
         },
         secondParty: {
           companyId: employerCo.id,
+          partyId: null,
           nameEn: employerCo.name,
           nameAr: employerCo.nameAr ?? null,
           regNumber: employerCo.crNumber ?? employerCo.registrationNumber ?? null,

@@ -8,28 +8,21 @@ import {
 } from "../db";
 import { getDb } from "../db";
 import { employees } from "../../drizzle/schema";
-import { getActiveCompanyMembership, requireActiveCompanyMembership } from "../_core/membership";
-import { requireNotAuditor } from "../_core/membership";
+import { requireNotAuditor, requireWorkspaceMembership } from "../_core/membership";
 import { assertRowBelongsToActiveCompany } from "../_core/tenant";
+import type { User } from "../../drizzle/schema";
 import { protectedProcedure, router } from "../_core/trpc";
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
-/**
- * Resolves the company ID for the current user.
- * If companyId is provided, validates the user is a member of that company.
- * Otherwise falls back to the user's first active company membership.
- */
-async function requireCompanyId(userId: number, companyId?: number | null): Promise<number> {
-  const m = await getActiveCompanyMembership(userId, companyId);
-  if (!m) throw new TRPCError({ code: "FORBIDDEN", message: "No active company membership." });
+/** Workspace-scoped company id — multi-company users must pass `companyId` (selected workspace). */
+async function requireCompanyId(user: User, companyId?: number | null): Promise<number> {
+  const m = await requireWorkspaceMembership(user, companyId);
   return m.companyId;
 }
 
-async function requireMembership(userId: number, companyId?: number | null) {
-  const m = await getActiveCompanyMembership(userId, companyId);
-  if (!m) throw new TRPCError({ code: "FORBIDDEN", message: "No active company membership." });
-  return m;
+async function requireMembership(user: User, companyId?: number | null) {
+  return requireWorkspaceMembership(user, companyId);
 }
 
 /** Parse a DD-MM-YYYY or YYYY-MM-DD date string into a Date object, or return undefined */
@@ -105,7 +98,7 @@ export const teamRouter = router({
       })
     )
     .query(async ({ input, ctx }) => {
-      const companyId = await requireCompanyId(ctx.user.id, input.companyId);
+      const companyId = await requireCompanyId(ctx.user as User, input.companyId);
       const rows = await getEmployees(companyId, {
         status: input.status,
         department: input.department,
@@ -161,7 +154,7 @@ export const teamRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
-      const membership = await requireMembership(ctx.user.id, input.companyId);
+      const membership = await requireMembership(ctx.user as User, input.companyId);
       requireNotAuditor(membership.role, "External Auditors cannot add staff.");
       const { companyId: _cid, ...rest } = input;
       await createEmployee({
@@ -219,7 +212,7 @@ export const teamRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
-      const membership = await requireMembership(ctx.user.id, input.companyId);
+      const membership = await requireMembership(ctx.user as User, input.companyId);
       requireNotAuditor(membership.role, "External Auditors cannot update staff.");
       const { id, companyId: _cid, hireDate, dateOfBirth, visaExpiryDate, workPermitExpiryDate, ...data } = input;
       const existing = await getEmployeeById(id);
@@ -242,7 +235,7 @@ export const teamRouter = router({
   removeMember: protectedProcedure
     .input(z.object({ id: z.number(), companyId: z.number().optional(), reason: z.string().optional() }))
     .mutation(async ({ input, ctx }) => {
-      const membership = await requireMembership(ctx.user.id, input.companyId);
+      const membership = await requireMembership(ctx.user as User, input.companyId);
       requireNotAuditor(membership.role, "External Auditors cannot remove staff.");
       const existing = await getEmployeeById(input.id);
       if (!existing) throw new TRPCError({ code: "NOT_FOUND", message: "Staff member not found." });
@@ -258,7 +251,7 @@ export const teamRouter = router({
   getTeamStats: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }).optional())
     .query(async ({ input, ctx }) => {
-      const companyId = await requireCompanyId(ctx.user.id, input?.companyId);
+      const companyId = await requireCompanyId(ctx.user as User, input?.companyId);
       const all = await getEmployees(companyId, {});
 
       const byStatus: Record<string, number> = {};
@@ -322,7 +315,7 @@ export const teamRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
-      const membership = await requireMembership(ctx.user.id, input.companyId);
+      const membership = await requireMembership(ctx.user as User, input.companyId);
       requireNotAuditor(membership.role, "External Auditors cannot import staff.");
 
       const companyId = membership.companyId;
@@ -426,7 +419,7 @@ export const teamRouter = router({
   clearAllEmployees: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }))
     .mutation(async ({ ctx, input }) => {
-      const membership = await requireMembership(ctx.user.id, input.companyId);
+      const membership = await requireMembership(ctx.user as User, input.companyId);
       if (membership.role !== "company_admin") {
         throw new TRPCError({ code: "FORBIDDEN", message: "Only company admins can clear employee data" });
       }

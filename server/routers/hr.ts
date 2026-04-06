@@ -45,8 +45,9 @@ import {
   updateLeaveRequest,
   updatePayrollRecord,
 } from "../db";
+import type { User } from "../../drizzle/schema";
 import { assertRowBelongsToActiveCompany, requireActiveCompanyId } from "../_core/tenant";
-import { getActiveCompanyMembership, requireNotAuditor } from "../_core/membership";
+import { getActiveCompanyMembership, requireNotAuditor, requireWorkspaceMembership } from "../_core/membership";
 import { protectedProcedure, router } from "../_core/trpc";
 import {
   ATTENDANCE_AUDIT_ACTION,
@@ -193,16 +194,18 @@ export const hrRouter = router({
         bankAccountNumber: z.string().optional(),
         emergencyContactName: z.string().optional(),
         emergencyContactPhone: z.string().optional(),
+        companyId: z.number().optional(),
       })
     )
     .mutation(async ({ input, ctx }) => {
-      const _auditorCheck = await getActiveCompanyMembership(ctx.user.id);
-      if (_auditorCheck) requireNotAuditor(_auditorCheck.role, "External Auditors cannot update employees.");
-      const { id, workPermitNumber, visaNumber, occupationCode, occupationName, workPermitExpiry, visaExpiry, passportExpiry,
+      const { id, companyId: inputCompanyId, workPermitNumber, visaNumber, occupationCode, occupationName, workPermitExpiry, visaExpiry, passportExpiry,
         dateOfBirth, visaExpiryDate, workPermitExpiryDate, ...data } = input;
       const existing = await getEmployeeById(id);
       if (!existing) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
-      await assertRowBelongsToActiveCompany(ctx.user, existing.companyId, "Employee", existing.companyId);
+      const workspaceHint = inputCompanyId ?? existing.companyId;
+      const membership = await requireWorkspaceMembership(ctx.user as User, workspaceHint);
+      requireNotAuditor(membership.role, "External Auditors cannot update employees.");
+      await assertRowBelongsToActiveCompany(ctx.user, existing.companyId, "Employee", workspaceHint);
       const updateData: any = { ...data };
       if (data.salary !== undefined) updateData.salary = String(data.salary);
       if (data.hireDate !== undefined) updateData.hireDate = data.hireDate ? new Date(data.hireDate) : null;

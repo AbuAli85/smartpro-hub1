@@ -71,6 +71,7 @@ export default function ComplianceDashboardPage() {
     { enabled: scopeEnabled },
   );
   const { data: permitMatrix } = trpc.compliance.getPermitMatrix.useQuery(companyScope, { enabled: scopeEnabled });
+  const { data: opsSnapshot } = trpc.operations.getDailySnapshot.useQuery(companyScope, { enabled: scopeEnabled && !isPlatform });
 
   const failedChecks = score?.checks?.filter((c) => c.status === "fail").length ?? 0;
   const wpsBlocked =
@@ -81,10 +82,14 @@ export default function ComplianceDashboardPage() {
     (permitMatrix?.summary.expired ?? 0) > 0 || (permitMatrix?.summary.expiring ?? 0) > 0;
   const pasiOpen = pasi && pasi.status !== "paid" && pasi.status !== "not_calculated";
   const omanGap = (omanisation?.gap ?? 0) > 0;
+  const arRisk = !isPlatform && (opsSnapshot?.overdueInvoices?.count ?? 0) > 0;
+  const payrollBlocked =
+    !isPlatform &&
+    ((opsSnapshot?.payrollDraftThisMonth ?? 0) > 0 || (opsSnapshot?.pendingPayrollApprovals ?? 0) > 0);
   const complianceAttention =
     scopeEnabled &&
     !scoreLoading &&
-    (failedChecks > 0 || wpsBlocked || permitCritical || pasiOpen || omanGap);
+    (failedChecks > 0 || wpsBlocked || permitCritical || pasiOpen || omanGap || arRisk || payrollBlocked);
 
   return (
     <div className="p-6 space-y-6 max-w-7xl">
@@ -122,6 +127,10 @@ export default function ComplianceDashboardPage() {
                   permitCritical
                     ? `${permitMatrix?.summary.expired ?? 0} expired / ${permitMatrix?.summary.expiring ?? 0} expiring permits`
                     : null,
+                  arRisk
+                    ? `OMR ${(opsSnapshot?.overdueInvoices?.totalOmr ?? 0).toFixed(3)} overdue receivables (${opsSnapshot?.overdueInvoices?.count})`
+                    : null,
+                  payrollBlocked ? "Payroll runs need payment or approval" : null,
                 ]
                   .filter(Boolean)
                   .join(" · ")}
@@ -144,6 +153,13 @@ export default function ComplianceDashboardPage() {
                 Alerts <ArrowRight className="w-3 h-3" />
               </Button>
             </Link>
+            {arRisk && (
+              <Link href="/billing">
+                <Button size="sm" variant="secondary" className="h-8 text-xs gap-1">
+                  Overdue AR <ArrowRight className="w-3 h-3" />
+                </Button>
+              </Link>
+            )}
           </div>
         </div>
       )}

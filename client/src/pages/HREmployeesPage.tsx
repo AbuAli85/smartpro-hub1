@@ -383,10 +383,11 @@ function AddEmployeeWizard({ onSuccess, companyId }: { onSuccess: () => void; co
 // ─── Employee Detail Panel ────────────────────────────────────────────────────
 function EmployeeDetailPanel({ employeeId, onClose, onUpdate }: { employeeId: number; onClose: () => void; onUpdate: () => void }) {
   const [, setLocation] = useLocation();
+  const { activeCompanyId, expiryWarningDays } = useActiveCompany();
   const { data: emp, refetch } = trpc.hr.getEmployee.useQuery({ id: employeeId });
   const [editSalary, setEditSalary] = useState(false);
   const [salary, setSalary] = useState("");
-  const { expiryWarningDays } = useActiveCompany();
+  const cid = activeCompanyId ?? undefined;
 
   const updateMutation = trpc.hr.updateEmployee.useMutation({
     onSuccess: () => { toast.success("Updated"); refetch(); onUpdate(); },
@@ -451,8 +452,8 @@ function EmployeeDetailPanel({ employeeId, onClose, onUpdate }: { employeeId: nu
           <div className="p-3 bg-orange-50 border border-orange-200 rounded-xl">
             <p className="text-xs font-semibold text-orange-800 mb-2">Quick Actions</p>
             <div className="flex flex-wrap gap-2">
-              <Button size="sm" className="h-7 text-xs" variant="outline" onClick={() => updateMutation.mutate({ id: emp.id, status: "on_leave" })}>Mark On Leave</Button>
-              <Button size="sm" className="h-7 text-xs border-red-300 text-red-600" variant="outline" onClick={() => updateMutation.mutate({ id: emp.id, status: "terminated" })}>Terminate</Button>
+              <Button size="sm" className="h-7 text-xs" variant="outline" onClick={() => updateMutation.mutate({ id: emp.id, companyId: cid, status: "on_leave" })}>Mark On Leave</Button>
+              <Button size="sm" className="h-7 text-xs border-red-300 text-red-600" variant="outline" onClick={() => updateMutation.mutate({ id: emp.id, companyId: cid, status: "terminated" })}>Terminate</Button>
               <Button size="sm" className="h-7 text-xs gap-1" variant="outline" onClick={() => setLocation(`/business/employee/${employeeId}`)}>
                 <Activity size={11} /> Lifecycle
               </Button>
@@ -462,7 +463,7 @@ function EmployeeDetailPanel({ employeeId, onClose, onUpdate }: { employeeId: nu
         {["on_leave","terminated","resigned"].includes(emp.status ?? "") && (
           <div className="p-3 bg-muted/40 rounded-xl">
             <p className="text-xs font-semibold text-muted-foreground mb-2">Status Actions</p>
-            <Button size="sm" className="h-7 text-xs bg-emerald-600 text-white hover:bg-emerald-700" onClick={() => updateMutation.mutate({ id: emp.id, status: "active" })}>Reactivate</Button>
+            <Button size="sm" className="h-7 text-xs bg-emerald-600 text-white hover:bg-emerald-700" onClick={() => updateMutation.mutate({ id: emp.id, companyId: cid, status: "active" })}>Reactivate</Button>
           </div>
         )}
 
@@ -583,7 +584,7 @@ function EmployeeDetailPanel({ employeeId, onClose, onUpdate }: { employeeId: nu
           {editSalary ? (
             <div className="flex gap-2">
               <Input className="h-8 text-sm" type="number" step="0.001" value={salary} onChange={(e) => setSalary(e.target.value)} />
-              <Button size="sm" className="h-8 text-xs" onClick={() => { updateMutation.mutate({ id: emp.id, salary: Number(salary) }); setEditSalary(false); }}>Save</Button>
+              <Button size="sm" className="h-8 text-xs" onClick={() => { updateMutation.mutate({ id: emp.id, companyId: cid, salary: Number(salary) }); setEditSalary(false); }}>Save</Button>
               <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => setEditSalary(false)}>Cancel</Button>
             </div>
           ) : (
@@ -968,7 +969,7 @@ export default function HREmployeesPage() {
                         <Button size="sm" className="bg-[var(--smartpro-orange)] text-white hover:bg-orange-600" disabled={!bulkPositionValue || bulkUpdatePosMutation.isPending}
                           onClick={async () => {
                             const ids = Array.from(selectedIds);
-                            await Promise.all(ids.map((id) => bulkUpdatePosMutation.mutateAsync({ id, position: bulkPositionValue })));
+                            await Promise.all(ids.map((id) => bulkUpdatePosMutation.mutateAsync({ id, companyId: activeCompanyId ?? undefined, position: bulkPositionValue })));
                             refetch(); setSelectedIds(new Set()); setBulkPositionOpen(false); setBulkPositionValue("");
                             toast.success(`Position updated for ${ids.length} employee(s)`);
                           }}>

@@ -15,7 +15,7 @@ vi.mock("./db", () => ({
 }));
 
 vi.mock("./_core/membership", () => ({
-  getActiveCompanyMembership: vi.fn(),
+  requireWorkspaceMembership: vi.fn(),
   requireNotAuditor: vi.fn(),
 }));
 
@@ -24,7 +24,7 @@ vi.mock("./_core/tenant", () => ({
 }));
 
 import { getEmployees, getEmployeeById, createEmployee, updateEmployee } from "./db";
-import { getActiveCompanyMembership, requireNotAuditor } from "./_core/membership";
+import { requireWorkspaceMembership, requireNotAuditor } from "./_core/membership";
 import { assertRowBelongsToActiveCompany } from "./_core/tenant";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -63,7 +63,7 @@ const mockEmployee = {
 describe("team router — listMembers", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(getActiveCompanyMembership).mockResolvedValue(mockMembership as any);
+    vi.mocked(requireWorkspaceMembership).mockResolvedValue(mockMembership as any);
     vi.mocked(getEmployees).mockResolvedValue([mockEmployee] as any);
   });
 
@@ -79,22 +79,20 @@ describe("team router — listMembers", () => {
     expect(result).toHaveLength(0);
   });
 
-  it("throws FORBIDDEN when user has no active membership", async () => {
-    vi.mocked(getActiveCompanyMembership).mockResolvedValue(null);
-    // Simulate the router logic
-    const membership = await getActiveCompanyMembership(USER_ID);
-    if (!membership) {
-      expect(() => {
-        throw new TRPCError({ code: "FORBIDDEN", message: "No active company membership." });
-      }).toThrow(TRPCError);
-    }
+  it("rejects when workspace membership cannot be resolved", async () => {
+    vi.mocked(requireWorkspaceMembership).mockRejectedValue(
+      new TRPCError({ code: "FORBIDDEN", message: "No active company membership." }),
+    );
+    await expect(requireWorkspaceMembership({ id: USER_ID } as any, undefined)).rejects.toMatchObject({
+      code: "FORBIDDEN",
+    });
   });
 });
 
 describe("team router — getMember", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(getActiveCompanyMembership).mockResolvedValue(mockMembership as any);
+    vi.mocked(requireWorkspaceMembership).mockResolvedValue(mockMembership as any);
     vi.mocked(getEmployeeById).mockResolvedValue(mockEmployee as any);
     vi.mocked(assertRowBelongsToActiveCompany).mockResolvedValue(undefined);
   });
@@ -120,14 +118,14 @@ describe("team router — getMember", () => {
 describe("team router — addMember", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(getActiveCompanyMembership).mockResolvedValue(mockMembership as any);
+    vi.mocked(requireWorkspaceMembership).mockResolvedValue(mockMembership as any);
     vi.mocked(requireNotAuditor).mockReturnValue(undefined);
     vi.mocked(createEmployee).mockResolvedValue({ insertId: 11 } as any);
   });
 
   it("calls createEmployee with correct companyId", async () => {
-    const membership = await getActiveCompanyMembership(USER_ID);
-    expect(membership?.companyId).toBe(COMPANY_ID);
+    const membership = await requireWorkspaceMembership({ id: USER_ID } as any, undefined);
+    expect(membership.companyId).toBe(COMPANY_ID);
     await createEmployee({
       firstName: "Sara",
       lastName: "Al-Balushi",
@@ -149,7 +147,7 @@ describe("team router — addMember", () => {
 describe("team router — updateMember", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(getActiveCompanyMembership).mockResolvedValue(mockMembership as any);
+    vi.mocked(requireWorkspaceMembership).mockResolvedValue(mockMembership as any);
     vi.mocked(requireNotAuditor).mockReturnValue(undefined);
     vi.mocked(getEmployeeById).mockResolvedValue(mockEmployee as any);
     vi.mocked(assertRowBelongsToActiveCompany).mockResolvedValue(undefined);
@@ -174,7 +172,7 @@ describe("team router — updateMember", () => {
 describe("team router — getTeamStats", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(getActiveCompanyMembership).mockResolvedValue(mockMembership as any);
+    vi.mocked(requireWorkspaceMembership).mockResolvedValue(mockMembership as any);
   });
 
   it("computes correct status counts from employee list", async () => {

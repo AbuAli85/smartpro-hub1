@@ -1,11 +1,13 @@
 import { TRPCError } from "@trpc/server";
 import { getUserCompany, getUserCompanyById } from "../db";
-import type { CompanyMember } from "../../drizzle/schema";
+import type { CompanyMember, User } from "../../drizzle/schema";
+import { requireActiveCompanyId } from "./tenant";
 
 /**
  * Canonical active company membership (one row: `company_members.isActive` + join to `companies`).
  * If companyId is provided, validates the user is a member of that specific company.
- * Use instead of ad hoc `company_members` queries so behavior matches `getUserCompany` everywhere.
+ * If omitted, uses first membership only — legacy-friendly; for tRPC handlers with `ctx.user`, prefer
+ * {@link requireWorkspaceMembership} so multi-company tenants must pass an explicit workspace.
  */
 export async function getActiveCompanyMembership(
   userId: number,
@@ -18,6 +20,22 @@ export async function getActiveCompanyMembership(
   }
   const m = await getUserCompany(userId);
   if (!m?.company?.id || !m.member) return null;
+  return { companyId: m.company.id, role: m.member.role };
+}
+
+/**
+ * Selected workspace + role for mutations and tenant-scoped reads that must not guess the company
+ * when the user belongs to multiple tenants.
+ */
+export async function requireWorkspaceMembership(
+  user: User,
+  companyId?: number | null
+): Promise<{ companyId: number; role: CompanyMember["role"] }> {
+  const cid = await requireActiveCompanyId(user.id, companyId, user);
+  const m = await getUserCompanyById(user.id, cid);
+  if (!m?.company?.id || !m.member) {
+    throw new TRPCError({ code: "FORBIDDEN", message: "No active company membership." });
+  }
   return { companyId: m.company.id, role: m.member.role };
 }
 

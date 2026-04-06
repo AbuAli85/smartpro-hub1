@@ -179,6 +179,14 @@ export default function CompanyWorkspacePage() {
     { companyId: activeCompanyId ?? undefined },
     { enabled: activeCompanyId != null },
   );
+  const { data: opsSnapshot } = trpc.operations.getDailySnapshot.useQuery(
+    { companyId: activeCompanyId ?? undefined },
+    { enabled: activeCompanyId != null },
+  );
+  const { data: smartDash } = trpc.operations.getSmartDashboard.useQuery(
+    { companyId: activeCompanyId ?? undefined },
+    { enabled: activeCompanyId != null },
+  );
 
   const company = myCompany?.company;
   const now = new Date();
@@ -194,9 +202,32 @@ export default function CompanyWorkspacePage() {
   const setupDone = [Boolean(company), hasStaff, hasContract, hasProService].filter(Boolean).length;
 
   const pendingLeave = tasks?.pendingLeaveApprovals?.length ?? 0;
-  const pendingPayroll = tasks?.pendingPayrollApprovals?.length ?? 0;
+  const pendingPayrollRuns = opsSnapshot?.pendingPayrollApprovals ?? tasks?.pendingPayrollApprovals?.length ?? 0;
   const alertN = alertCount?.count ?? 0;
-  const needsAttentionTotal = pendingLeave + pendingPayroll + alertN;
+  const opsDeliveryRisk =
+    (opsSnapshot?.slaBreaches ?? 0) > 0 ||
+    (opsSnapshot?.casesActionRequired ?? 0) > 0 ||
+    (opsSnapshot?.casesDueToday?.length ?? 0) > 0;
+  const cashRisk = (opsSnapshot?.overdueInvoices?.count ?? 0) > 0;
+  const blockedRenewals = (opsSnapshot?.renewalWorkflowsFailed ?? 0) > 0;
+  const payrollReadiness =
+    (opsSnapshot?.payrollDraftThisMonth ?? 0) > 0 ||
+    (smartDash?.payroll?.thisMonthStatus === "draft") ||
+    (smartDash?.payroll?.thisMonthStatus === "not_run" && (teamStats?.active ?? 0) > 0);
+  const contractsPending = (opsSnapshot?.pendingContracts ?? 0) > 0;
+  const docsRisk =
+    ((opsSnapshot?.expiringDocs7Days ?? 0) + (opsSnapshot?.employeeDocsExpiring7Days ?? 0)) > 0 || alertN > 0;
+  const attentionBuckets = [
+    pendingLeave > 0,
+    pendingPayrollRuns > 0,
+    payrollReadiness,
+    opsDeliveryRisk,
+    cashRisk,
+    blockedRenewals,
+    contractsPending,
+    docsRisk,
+  ].filter(Boolean).length;
+  const needsAttentionTotal = attentionBuckets;
 
   // Show guard if company is loaded but doesn't exist
   if (!companyLoading && !company) {
@@ -266,42 +297,89 @@ export default function CompanyWorkspacePage() {
 
           {!companyLoading && needsAttentionTotal > 0 && (
             <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50/90 dark:bg-amber-950/25 dark:border-amber-900/50 px-4 py-3">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
                 <div className="flex items-start gap-2 min-w-0">
                   <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-sm font-semibold text-foreground">Needs attention in this workspace</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      {[
-                        pendingLeave > 0 ? `${pendingLeave} leave approval${pendingLeave === 1 ? "" : "s"}` : null,
-                        pendingPayroll > 0 ? `${pendingPayroll} payroll run${pendingPayroll === 1 ? "" : "s"}` : null,
-                        alertN > 0 ? `${alertN} expiry alert${alertN === 1 ? "" : "s"}` : null,
-                      ]
-                        .filter(Boolean)
-                        .join(" · ")}
+                  <div className="space-y-2">
+                    <p className="text-sm font-semibold text-foreground">
+                      Needs attention ({needsAttentionTotal} area{needsAttentionTotal === 1 ? "" : "s"})
                     </p>
+                    <div className="text-xs text-muted-foreground space-y-1">
+                      {(pendingLeave > 0 || pendingPayrollRuns > 0 || payrollReadiness) && (
+                        <p>
+                          <span className="font-medium text-foreground/90">People & payroll:</span>{" "}
+                          {[
+                            pendingLeave > 0 ? `${pendingLeave} leave approval(s)` : null,
+                            pendingPayrollRuns > 0 ? `${pendingPayrollRuns} payroll run(s) awaiting payment` : null,
+                            payrollReadiness ? "payroll not finalised this month" : null,
+                          ].filter(Boolean).join(" · ")}
+                        </p>
+                      )}
+                      {(opsDeliveryRisk || contractsPending) && (
+                        <p>
+                          <span className="font-medium text-foreground/90">Delivery:</span>{" "}
+                          {[
+                            (opsSnapshot?.slaBreaches ?? 0) > 0 ? `${opsSnapshot?.slaBreaches} SLA breach(es)` : null,
+                            (opsSnapshot?.casesActionRequired ?? 0) > 0 ? `${opsSnapshot?.casesActionRequired} case(s) need action` : null,
+                            (opsSnapshot?.casesDueToday?.length ?? 0) > 0 ? `${opsSnapshot?.casesDueToday?.length} case(s) due today` : null,
+                            contractsPending ? `${opsSnapshot?.pendingContracts} contract(s) unsigned` : null,
+                          ].filter(Boolean).join(" · ")}
+                        </p>
+                      )}
+                      {(cashRisk || blockedRenewals) && (
+                        <p>
+                          <span className="font-medium text-foreground/90">Cash & renewals:</span>{" "}
+                          {[
+                            cashRisk
+                              ? `OMR ${(opsSnapshot?.overdueInvoices?.totalOmr ?? 0).toFixed(3)} overdue (${opsSnapshot?.overdueInvoices?.count})`
+                              : null,
+                            blockedRenewals ? `${opsSnapshot?.renewalWorkflowsFailed} failed renewal workflow(s)` : null,
+                          ].filter(Boolean).join(" · ")}
+                        </p>
+                      )}
+                      {docsRisk && (
+                        <p>
+                          <span className="font-medium text-foreground/90">Documents & alerts:</span>{" "}
+                          {[
+                            ((opsSnapshot?.expiringDocs7Days ?? 0) + (opsSnapshot?.employeeDocsExpiring7Days ?? 0)) > 0
+                              ? `${(opsSnapshot?.expiringDocs7Days ?? 0) + (opsSnapshot?.employeeDocsExpiring7Days ?? 0)} doc(s) expiring in 7d`
+                              : null,
+                            alertN > 0 ? `${alertN} alert(s)` : null,
+                          ].filter(Boolean).join(" · ")}
+                        </p>
+                      )}
+                    </div>
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-2 shrink-0">
                   {pendingLeave > 0 && (
                     <Link href="/hr/leave">
-                      <Button size="sm" variant="secondary" className="h-8 text-xs">
-                        Review leave
-                      </Button>
+                      <Button size="sm" variant="secondary" className="h-8 text-xs">Leave</Button>
                     </Link>
                   )}
-                  {pendingPayroll > 0 && (
+                  {(pendingPayrollRuns > 0 || payrollReadiness) && (
                     <Link href="/payroll">
-                      <Button size="sm" variant="secondary" className="h-8 text-xs">
-                        Payroll
-                      </Button>
+                      <Button size="sm" variant="secondary" className="h-8 text-xs">Payroll</Button>
                     </Link>
                   )}
-                  {alertN > 0 && (
+                  {(opsDeliveryRisk || contractsPending) && (
+                    <Link href="/pro-services">
+                      <Button size="sm" variant="secondary" className="h-8 text-xs">Cases</Button>
+                    </Link>
+                  )}
+                  {cashRisk && (
+                    <Link href="/billing">
+                      <Button size="sm" variant="secondary" className="h-8 text-xs">Overdue AR</Button>
+                    </Link>
+                  )}
+                  {blockedRenewals && (
+                    <Link href="/renewal-workflows">
+                      <Button size="sm" variant="secondary" className="h-8 text-xs">Renewals</Button>
+                    </Link>
+                  )}
+                  {docsRisk && (
                     <Link href="/alerts">
-                      <Button size="sm" className="h-8 text-xs bg-amber-600 hover:bg-amber-700 text-white">
-                        Open alerts
-                      </Button>
+                      <Button size="sm" className="h-8 text-xs bg-amber-600 hover:bg-amber-700 text-white">Alerts</Button>
                     </Link>
                   )}
                 </div>

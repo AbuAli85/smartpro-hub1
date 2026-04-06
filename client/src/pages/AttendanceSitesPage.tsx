@@ -52,6 +52,7 @@ import {
   FileText, AlertTriangle, ThumbsUp, ThumbsDown,
 } from "lucide-react";
 import { DateInput } from "@/components/ui/date-input";
+import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 type SiteType = "mall" | "brand_store" | "office" | "warehouse" | "client_site" | "showroom" | "factory" | "other";
@@ -203,11 +204,12 @@ function MapLocationPicker({
 
 // ─── Site Form Dialog ─────────────────────────────────────────────────────────
 function SiteFormDialog({
-  open, onClose, editSite, onSuccess,
+  open, onClose, editSite, companyId, onSuccess,
 }: {
   open: boolean;
   onClose: () => void;
   editSite?: any;
+  companyId: number | null;
   onSuccess: () => void;
 }) {
   const [form, setForm] = useState<SiteFormData>(DEFAULT_FORM);
@@ -267,7 +269,11 @@ function SiteFormDialog({
     if (editSite) {
       updateMutation.mutate({ siteId: editSite.id, ...payload });
     } else {
-      createMutation.mutate(payload);
+      if (companyId == null) {
+        toast.error("Select a company in the workspace switcher before creating a site.");
+        return;
+      }
+      createMutation.mutate({ companyId, ...payload });
     }
   };
 
@@ -462,12 +468,22 @@ export default function AttendanceSitesPage() {
   const [reviewNote, setReviewNote] = useState("");
 
   const utils = trpc.useUtils();
-  const { data: sites = [], isLoading } = trpc.attendance.listSites.useQuery({});
-  const { data: board = [] } = trpc.attendance.adminBoard.useQuery(
-    { date: new Date().toISOString().slice(0, 10) },
-    { refetchInterval: 30000 }
+  const { activeCompanyId } = useActiveCompany();
+  const { data: sites = [], isLoading } = trpc.attendance.listSites.useQuery(
+    { companyId: activeCompanyId ?? undefined },
+    { enabled: activeCompanyId != null },
   );
-  const { data: historyBoard = [] } = trpc.attendance.adminBoard.useQuery({ date: historyDate });
+  const { data: board = [] } = trpc.attendance.adminBoard.useQuery(
+    {
+      companyId: activeCompanyId ?? undefined,
+      date: new Date().toISOString().slice(0, 10),
+    },
+    { refetchInterval: 30000, enabled: activeCompanyId != null },
+  );
+  const { data: historyBoard = [] } = trpc.attendance.adminBoard.useQuery(
+    { companyId: activeCompanyId ?? undefined, date: historyDate },
+    { enabled: activeCompanyId != null },
+  );
 
   const toggleMutation = trpc.attendance.toggleSite.useMutation({
     onSuccess: () => utils.attendance.listSites.invalidate(),
@@ -477,8 +493,8 @@ export default function AttendanceSitesPage() {
   const checkedInNow = board.filter((r) => !r.record.checkOut);
 
   const { data: manualRequests = [], refetch: refetchManual } = trpc.attendance.listManualCheckIns.useQuery(
-    { status: "pending" },
-    { enabled: mainTab === "manual" }
+    { companyId: activeCompanyId ?? undefined, status: "pending" },
+    { enabled: mainTab === "manual" && activeCompanyId != null },
   );
 
   const approveMutation = trpc.attendance.approveManualCheckIn.useMutation({
@@ -512,7 +528,16 @@ export default function AttendanceSitesPage() {
             Smart QR check-in with geo-fence, operating hours, and live monitoring
           </p>
         </div>
-        <Button onClick={() => { setEditSite(null); setShowForm(true); }}>
+        <Button
+          onClick={() => {
+            if (activeCompanyId == null) {
+              toast.error("Select a company in the workspace switcher first.");
+              return;
+            }
+            setEditSite(null);
+            setShowForm(true);
+          }}
+        >
           <Plus className="h-4 w-4 mr-2" /> New Site
         </Button>
       </div>
@@ -581,7 +606,11 @@ export default function AttendanceSitesPage() {
 
         {/* ── Sites Tab ── */}
         <TabsContent value="sites" className="pt-4">
-          {isLoading ? (
+          {activeCompanyId == null ? (
+            <div className="text-center py-12 text-muted-foreground border border-dashed rounded-xl">
+              Select a company in the workspace switcher to manage attendance sites.
+            </div>
+          ) : isLoading ? (
             <div className="text-center py-12 text-muted-foreground">Loading sites...</div>
           ) : sites.length === 0 ? (
             <div className="text-center py-16 border border-dashed rounded-xl">
@@ -879,14 +908,26 @@ export default function AttendanceSitesPage() {
                 variant="outline"
                 className="border-red-200 text-red-600 hover:bg-red-50 dark:border-red-800 dark:text-red-400"
                 disabled={rejectMutation.isPending}
-                onClick={() => rejectMutation.mutate({ requestId: reviewingRequest.id, adminNote: reviewNote || "Request rejected by admin" })}
+                onClick={() =>
+                  activeCompanyId != null &&
+                  rejectMutation.mutate({
+                    companyId: activeCompanyId,
+                    requestId: reviewingRequest.id,
+                    adminNote: reviewNote || "Request rejected by admin",
+                  })}
               >
                 {rejectMutation.isPending ? "Rejecting..." : <><ThumbsDown className="h-4 w-4 mr-1.5" /> Reject</>}
               </Button>
               <Button
                 className="bg-green-600 hover:bg-green-700 text-white"
                 disabled={approveMutation.isPending}
-                onClick={() => approveMutation.mutate({ requestId: reviewingRequest.id, adminNote: reviewNote || undefined })}
+                onClick={() =>
+                  activeCompanyId != null &&
+                  approveMutation.mutate({
+                    companyId: activeCompanyId,
+                    requestId: reviewingRequest.id,
+                    adminNote: reviewNote || undefined,
+                  })}
               >
                 {approveMutation.isPending ? "Approving..." : <><ThumbsUp className="h-4 w-4 mr-1.5" /> Approve</>}
               </Button>
@@ -901,6 +942,7 @@ export default function AttendanceSitesPage() {
           open={showForm}
           onClose={() => { setShowForm(false); setEditSite(null); }}
           editSite={editSite}
+          companyId={activeCompanyId}
           onSuccess={() => utils.attendance.listSites.invalidate()}
         />
       )}

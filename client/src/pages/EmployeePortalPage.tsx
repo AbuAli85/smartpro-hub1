@@ -188,11 +188,13 @@ function Skeleton({ className = "" }: { className?: string }) {
 // ── Attendance Today Card ──────────────────────────────────────────────────
 function AttendanceTodayCard({
   employeeId,
+  companyId,
   todaySchedule,
   operationalHints,
   operationalHintsReady,
 }: {
   employeeId: number | null;
+  companyId: number | null;
   todaySchedule?: any;
   operationalHints: ServerEligibilityHints | null | undefined;
   operationalHintsReady: boolean;
@@ -204,10 +206,12 @@ function AttendanceTodayCard({
   const [corrCheckOut, setCorrCheckOut] = useState("");
   const [corrReason, setCorrReason] = useState("");
   const { data: todayRec, isLoading: todayRecLoading, refetch: refetchToday } = trpc.attendance.myToday.useQuery(
-    undefined, { enabled: !!employeeId }
+    { companyId: companyId ?? undefined },
+    { enabled: !!employeeId && companyId != null },
   );
   const { data: myCorrList, refetch: refetchCorr } = trpc.attendance.myCorrections.useQuery(
-    {}, { enabled: !!employeeId }
+    { companyId: companyId ?? undefined },
+    { enabled: !!employeeId && companyId != null },
   );
   const submitCorr = trpc.attendance.submitCorrection.useMutation({
     onSuccess: () => {
@@ -297,11 +301,17 @@ function AttendanceTodayCard({
   function handleCheckOut() {
     if (site?.enforceGeofence) {
       navigator.geolocation.getCurrentPosition(
-        (pos) => doCheckOut.mutate({ siteToken: siteToken ?? undefined, lat: pos.coords.latitude, lng: pos.coords.longitude }),
-        () => doCheckOut.mutate({ siteToken: siteToken ?? undefined })
+        (pos) =>
+          doCheckOut.mutate({
+            companyId: companyId ?? undefined,
+            siteToken: siteToken ?? undefined,
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+          }),
+        () => doCheckOut.mutate({ companyId: companyId ?? undefined, siteToken: siteToken ?? undefined })
       );
     } else {
-      doCheckOut.mutate({ siteToken: siteToken ?? undefined });
+      doCheckOut.mutate({ companyId: companyId ?? undefined, siteToken: siteToken ?? undefined });
     }
   }
 
@@ -542,13 +552,16 @@ function AttendanceTodayCard({
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowCorrForm(false)}>Cancel</Button>
             <Button
-              disabled={!corrReason.trim() || corrReason.trim().length < 10 || submitCorr.isPending}
-              onClick={() => submitCorr.mutate({
-                requestedDate: corrDate,
-                requestedCheckIn: corrCheckIn || undefined,
-                requestedCheckOut: corrCheckOut || undefined,
-                reason: corrReason,
-              })}>
+              disabled={companyId == null || !corrReason.trim() || corrReason.trim().length < 10 || submitCorr.isPending}
+              onClick={() =>
+                companyId != null &&
+                submitCorr.mutate({
+                  companyId,
+                  requestedDate: corrDate,
+                  requestedCheckIn: corrCheckIn || undefined,
+                  requestedCheckOut: corrCheckOut || undefined,
+                  reason: corrReason,
+                })}>
               {submitCorr.isPending ? "Submitting…" : "Submit Request"}
             </Button>
           </DialogFooter>
@@ -673,8 +686,8 @@ export default function EmployeePortalPage() {
     { enabled: isAuthenticated }
   );
   const { data: todayAttendanceRecord, isLoading: todayAttendanceLoading } = trpc.attendance.myToday.useQuery(
-    undefined,
-    { enabled: isAuthenticated }
+    { companyId: activeCompanyId ?? undefined },
+    { enabled: isAuthenticated && activeCompanyId != null },
   );
   const { data: operationalHints, isSuccess: operationalHintsSuccess } =
     trpc.employeePortal.getMyOperationalHints.useQuery(
@@ -694,8 +707,8 @@ export default function EmployeePortalPage() {
       }
     );
   const { data: overviewCorrectionList } = trpc.attendance.myCorrections.useQuery(
-    {},
-    { enabled: isAuthenticated && !operationalHintsSuccess }
+    { companyId: activeCompanyId ?? undefined },
+    { enabled: isAuthenticated && activeCompanyId != null && !operationalHintsSuccess },
   );
   const { data: myShiftRequests } = trpc.shiftRequests.listMine.useQuery(
     {}, { enabled: isAuthenticated }
@@ -1895,6 +1908,7 @@ export default function EmployeePortalPage() {
             {/* Today's Status + Correction Request */}
             <AttendanceTodayCard
               employeeId={emp.id}
+              companyId={activeCompanyId}
               todaySchedule={myActiveSchedule}
               operationalHints={operationalHintsSuccess ? operationalHints ?? null : undefined}
               operationalHintsReady={operationalHintsSuccess}

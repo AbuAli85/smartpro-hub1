@@ -10,8 +10,9 @@ import {
   manualCheckinRequests,
   attendanceAudit,
 } from "../../drizzle/schema";
-import { getDb, getUserCompany } from "../db";
+import { getDb } from "../db";
 import { protectedProcedure, publicProcedure, router } from "../_core/trpc";
+import { getActiveCompanyMembership } from "../_core/membership";
 import {
   CheckInEligibilityReasonCode,
   evaluateSelfServiceCheckInEligibility,
@@ -32,14 +33,14 @@ async function requireDb() {
   return db;
 }
 
-async function requireAdminOrHR(userId: number) {
-  const membership = await getUserCompany(userId);
-  if (!membership) throw new TRPCError({ code: "FORBIDDEN", message: "No company membership" });
-  const role = membership.member.role;
-  if (role !== "company_admin" && role !== "hr_admin") {
+/** HR/company admin for the active or explicitly selected company (never arbitrary first membership). */
+async function requireAdminOrHR(userId: number, companyId?: number | null) {
+  const m = await getActiveCompanyMembership(userId, companyId ?? undefined);
+  if (!m) throw new TRPCError({ code: "FORBIDDEN", message: "No company membership" });
+  if (m.role !== "company_admin" && m.role !== "hr_admin") {
     throw new TRPCError({ code: "FORBIDDEN", message: "HR Admin or Company Admin required" });
   }
-  return membership;
+  return { company: { id: m.companyId }, member: { role: m.role } };
 }
 
 async function resolveMyEmployee(userId: number, userEmail: string, companyId: number) {
@@ -139,7 +140,7 @@ export const attendanceRouter = router({
   createSite: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }).merge(siteInputSchema))
     .mutation(async ({ ctx, input }) => {
-      const membership = await requireAdminOrHR(ctx.user.id);
+      const membership = await requireAdminOrHR(ctx.user.id, input.companyId);
       const companyId = input.companyId ?? membership.company.id;
       const db = await requireDb();
       const qrToken = randomBytes(24).toString("hex");
@@ -170,7 +171,7 @@ export const attendanceRouter = router({
   listSites: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }))
     .query(async ({ ctx, input }) => {
-      const membership = await requireAdminOrHR(ctx.user.id);
+      const membership = await requireAdminOrHR(ctx.user.id, input.companyId);
       const companyId = input.companyId ?? membership.company.id;
       const db = await requireDb();
       return db
@@ -184,10 +185,11 @@ export const attendanceRouter = router({
   toggleSite: protectedProcedure
     .input(z.object({ siteId: z.number(), isActive: z.boolean() }))
     .mutation(async ({ ctx, input }) => {
-      const membership = await requireAdminOrHR(ctx.user.id);
       const db = await requireDb();
       const [site] = await db.select().from(attendanceSites).where(eq(attendanceSites.id, input.siteId)).limit(1);
-      if (!site || site.companyId !== membership.company.id) {
+      if (!site) throw new TRPCError({ code: "NOT_FOUND" });
+      const membership = await requireAdminOrHR(ctx.user.id, site.companyId);
+      if (site.companyId !== membership.company.id) {
         throw new TRPCError({ code: "NOT_FOUND" });
       }
       await db.update(attendanceSites).set({ isActive: input.isActive }).where(eq(attendanceSites.id, input.siteId));
@@ -198,10 +200,11 @@ export const attendanceRouter = router({
   updateSite: protectedProcedure
     .input(z.object({ siteId: z.number() }).merge(siteInputSchema))
     .mutation(async ({ ctx, input }) => {
-      const membership = await requireAdminOrHR(ctx.user.id);
       const db = await requireDb();
       const [existing] = await db.select().from(attendanceSites).where(eq(attendanceSites.id, input.siteId)).limit(1);
-      if (!existing || existing.companyId !== membership.company.id) {
+      if (!existing) throw new TRPCError({ code: "NOT_FOUND" });
+      const membership = await requireAdminOrHR(ctx.user.id, existing.companyId);
+      if (existing.companyId !== membership.company.id) {
         throw new TRPCError({ code: "NOT_FOUND" });
       }
       await db.update(attendanceSites).set({
@@ -375,9 +378,9 @@ export const attendanceRouter = router({
         }
       }
 
-      // Resolve employee
-      const membership = await getUserCompany(ctx.user.id);
-      if (!membership || membership.company.id !== site.companyId) {
+      // Resolve employee — site defines the company workspace (not arbitrary first membership)
+      const membership = await getActiveCompanyMembership(ctx.user.id, site.companyId);
+      if (!membership) {
         await logAttendanceAuditSafe({
           companyId: site.companyId,
           actorUserId: ctx.user.id,
@@ -396,7 +399,7 @@ export const attendanceRouter = router({
         });
         throw new TRPCError({ code: "FORBIDDEN", message: "You are not a member of this company" });
       }
-      const memberRole = membership.member.role;
+      const memberRole = membership.role;
       const emp = await resolveMyEmployee(ctx.user.id, ctx.user.email ?? "", site.companyId);
       if (!emp) {
         await logAttendanceAuditSafe({
@@ -561,15 +564,16 @@ export const attendanceRouter = router({
   // ─── Employee: Check out ──────────────────────────────────────────────────
   checkOut: protectedProcedure
     .input(z.object({
+      companyId: z.number().optional(),
       siteToken: z.string().optional(),
       lat: z.number().optional(),
       lng: z.number().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const db = await requireDb();
-      const membership = await getUserCompany(ctx.user.id);
+      const membership = await getActiveCompanyMembership(ctx.user.id, input.companyId ?? undefined);
       if (!membership) throw new TRPCError({ code: "FORBIDDEN" });
-      const emp = await resolveMyEmployee(ctx.user.id, ctx.user.email ?? "", membership.company.id);
+      const emp = await resolveMyEmployee(ctx.user.id, ctx.user.email ?? "", membership.companyId);
       if (!emp) throw new TRPCError({ code: "NOT_FOUND", message: "Employee record not found" });
 
       const [existing] = await db
@@ -577,7 +581,7 @@ export const attendanceRouter = router({
         .from(attendanceRecords)
         .where(and(
           eq(attendanceRecords.employeeId, emp.id),
-          eq(attendanceRecords.companyId, membership.company.id),
+          eq(attendanceRecords.companyId, membership.companyId),
           isNull(attendanceRecords.checkOut),
         ))
         .orderBy(desc(attendanceRecords.checkIn))
@@ -599,11 +603,11 @@ export const attendanceRouter = router({
         const [u] = await tx.select().from(attendanceRecords).where(eq(attendanceRecords.id, existing.id)).limit(1);
         updated = u;
         await insertAttendanceAuditRow(tx, {
-          companyId: membership.company.id,
+          companyId: membership.companyId,
           employeeId: emp.id,
           attendanceRecordId: existing.id,
           actorUserId: ctx.user.id,
-          actorRole: membership.member.role,
+          actorRole: membership.role,
           actionType: ATTENDANCE_AUDIT_ACTION.SELF_CHECKOUT,
           entityType: ATTENDANCE_AUDIT_ENTITY.ATTENDANCE_RECORD,
           entityId: existing.id,
@@ -624,11 +628,13 @@ export const attendanceRouter = router({
     }),
 
   // ─── Employee: Get today's attendance record ──────────────────────────────
-  myToday: protectedProcedure.query(async ({ ctx }) => {
+  myToday: protectedProcedure
+    .input(z.object({ companyId: z.number().optional() }))
+    .query(async ({ ctx, input }) => {
     const db = await requireDb();
-    const membership = await getUserCompany(ctx.user.id);
+    const membership = await getActiveCompanyMembership(ctx.user.id, input.companyId ?? undefined);
     if (!membership) return null;
-    const emp = await resolveMyEmployee(ctx.user.id, ctx.user.email ?? "", membership.company.id);
+    const emp = await resolveMyEmployee(ctx.user.id, ctx.user.email ?? "", membership.companyId);
     if (!emp) return null;
 
     const [open] = await db
@@ -651,18 +657,21 @@ export const attendanceRouter = router({
         lte(attendanceRecords.checkIn, dayEnd),
       ))
       .orderBy(desc(attendanceRecords.checkIn))
-      .limit(1);
+        .limit(1);
     return record ?? null;
   }),
 
   // ─── Employee: Get attendance history ────────────────────────────────────
   myHistory: protectedProcedure
-    .input(z.object({ limit: z.number().min(1).max(100).default(30) }))
+    .input(z.object({
+      companyId: z.number().optional(),
+      limit: z.number().min(1).max(100).default(30),
+    }))
     .query(async ({ ctx, input }) => {
       const db = await requireDb();
-      const membership = await getUserCompany(ctx.user.id);
+      const membership = await getActiveCompanyMembership(ctx.user.id, input.companyId ?? undefined);
       if (!membership) return [];
-      const emp = await resolveMyEmployee(ctx.user.id, ctx.user.email ?? "", membership.company.id);
+      const emp = await resolveMyEmployee(ctx.user.id, ctx.user.email ?? "", membership.companyId);
       if (!emp) return [];
       return db
         .select()
@@ -676,8 +685,8 @@ export const attendanceRouter = router({
   adminBoard: protectedProcedure
     .input(z.object({ companyId: z.number().optional(), date: z.string().optional() }))
     .query(async ({ ctx, input }) => {
-      const membership = await requireAdminOrHR(ctx.user.id);
-      const companyId = input.companyId ?? membership.company.id;
+      const membership = await requireAdminOrHR(ctx.user.id, input.companyId);
+      const companyId = membership.company.id;
       const db = await requireDb();
 
       const targetDate = input.date ? new Date(input.date) : new Date();
@@ -731,11 +740,12 @@ export const attendanceRouter = router({
   // ─── Admin: Get attendance history for a specific employee ────────────────
   employeeHistory: protectedProcedure
     .input(z.object({
+      companyId: z.number().optional(),
       employeeId: z.number(),
       limit: z.number().min(1).max(100).default(30),
     }))
     .query(async ({ ctx, input }) => {
-      const membership = await requireAdminOrHR(ctx.user.id);
+      const membership = await requireAdminOrHR(ctx.user.id, input.companyId);
       const db = await requireDb();
       return db
         .select()
@@ -763,10 +773,7 @@ export const attendanceRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       const db = await requireDb();
-      const membership = await getUserCompany(ctx.user.id);
-      if (!membership) throw new TRPCError({ code: "FORBIDDEN", message: "No company membership" });
-
-      // Resolve site
+      // Resolve site first — company scope follows the site
       const [site] = await db
         .select()
         .from(attendanceSites)
@@ -776,6 +783,9 @@ export const attendanceRouter = router({
         ))
         .limit(1);
       if (!site) throw new TRPCError({ code: "NOT_FOUND", message: "Invalid or inactive site" });
+
+      const membership = await getActiveCompanyMembership(ctx.user.id, site.companyId);
+      if (!membership) throw new TRPCError({ code: "FORBIDDEN", message: "No company membership" });
 
       // Check for duplicate pending request today
       const todayStart = new Date();
@@ -792,13 +802,13 @@ export const attendanceRouter = router({
         .limit(1);
       if (existing) throw new TRPCError({ code: "CONFLICT", message: "You already have a pending manual check-in request for today" });
 
-      const emp = await resolveMyEmployee(ctx.user.id, ctx.user.email ?? "", membership.company.id);
+      const emp = await resolveMyEmployee(ctx.user.id, ctx.user.email ?? "", membership.companyId);
       let newReqId = 0;
       await db.transaction(async (tx) => {
         const [req] = await tx
           .insert(manualCheckinRequests)
           .values({
-            companyId: membership.company.id,
+            companyId: membership.companyId,
             employeeUserId: ctx.user.id,
             siteId: site.id,
             justification: input.justification,
@@ -810,11 +820,11 @@ export const attendanceRouter = router({
           .$returningId();
         newReqId = req.id;
         await insertAttendanceAuditRow(tx, {
-          companyId: membership.company.id,
+          companyId: membership.companyId,
           employeeId: emp?.id,
           manualCheckinRequestId: req.id,
           actorUserId: ctx.user.id,
-          actorRole: membership.member.role,
+          actorRole: membership.role,
           actionType: ATTENDANCE_AUDIT_ACTION.MANUAL_CHECKIN_SUBMIT,
           entityType: ATTENDANCE_AUDIT_ENTITY.MANUAL_CHECKIN_REQUEST,
           entityId: req.id,
@@ -840,12 +850,13 @@ export const attendanceRouter = router({
    */
   listManualCheckIns: protectedProcedure
     .input(z.object({
+      companyId: z.number().optional(),
       status: z.enum(["pending", "approved", "rejected", "all"]).default("pending"),
       siteId: z.number().optional(),
       limit: z.number().min(1).max(200).default(50),
     }))
     .query(async ({ ctx, input }) => {
-      const membership = await requireAdminOrHR(ctx.user.id);
+      const membership = await requireAdminOrHR(ctx.user.id, input.companyId);
       const db = await requireDb();
 
       const conditions = [eq(manualCheckinRequests.companyId, membership.company.id)];
@@ -872,11 +883,12 @@ export const attendanceRouter = router({
    */
   approveManualCheckIn: protectedProcedure
     .input(z.object({
+      companyId: z.number().optional(),
       requestId: z.number(),
       adminNote: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const membership = await requireAdminOrHR(ctx.user.id);
+      const membership = await requireAdminOrHR(ctx.user.id, input.companyId);
       const db = await requireDb();
 
       const [req] = await db
@@ -959,11 +971,12 @@ export const attendanceRouter = router({
    */
   rejectManualCheckIn: protectedProcedure
     .input(z.object({
+      companyId: z.number().optional(),
       requestId: z.number(),
       adminNote: z.string().min(5, "Please provide a reason for rejection"),
     }))
     .mutation(async ({ ctx, input }) => {
-      const membership = await requireAdminOrHR(ctx.user.id);
+      const membership = await requireAdminOrHR(ctx.user.id, input.companyId);
       const db = await requireDb();
 
       const [req] = await db
@@ -1039,6 +1052,7 @@ export const attendanceRouter = router({
   // ─── Employee: Submit a time correction request ─────────────────────────────
   submitCorrection: protectedProcedure
     .input(z.object({
+      companyId: z.number().optional(),
       requestedDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
       requestedCheckIn: z.string().regex(/^\d{2}:\d{2}$/).optional(),
       requestedCheckOut: z.string().regex(/^\d{2}:\d{2}$/).optional(),
@@ -1047,9 +1061,9 @@ export const attendanceRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       const db = await requireDb();
-      const membership = await getUserCompany(ctx.user.id);
+      const membership = await getActiveCompanyMembership(ctx.user.id, input.companyId ?? undefined);
       if (!membership) throw new TRPCError({ code: "FORBIDDEN", message: "No company membership" });
-      const emp = await resolveMyEmployee(ctx.user.id, ctx.user.email ?? "", membership.company.id);
+      const emp = await resolveMyEmployee(ctx.user.id, ctx.user.email ?? "", membership.companyId);
       if (!emp) throw new TRPCError({ code: "FORBIDDEN", message: "No employee record found" });
 
       let newId = 0;
@@ -1069,7 +1083,7 @@ export const attendanceRouter = router({
         const [row] = await tx
           .insert(attendanceCorrections)
           .values({
-            companyId: membership.company.id,
+            companyId: membership.companyId,
             employeeId: emp.id,
             employeeUserId: ctx.user.id,
             attendanceRecordId: input.attendanceRecordId ?? null,
@@ -1082,12 +1096,12 @@ export const attendanceRouter = router({
           .$returningId();
         newId = row.id;
         await insertAttendanceAuditRow(tx, {
-          companyId: membership.company.id,
+          companyId: membership.companyId,
           employeeId: emp.id,
           correctionId: row.id,
           attendanceRecordId: input.attendanceRecordId ?? undefined,
           actorUserId: ctx.user.id,
-          actorRole: membership.member.role,
+          actorRole: membership.role,
           actionType: ATTENDANCE_AUDIT_ACTION.CORRECTION_SUBMITTED,
           entityType: ATTENDANCE_AUDIT_ENTITY.ATTENDANCE_CORRECTION,
           entityId: row.id,
@@ -1108,13 +1122,20 @@ export const attendanceRouter = router({
 
   // ─── Employee: List own correction requests ────────────────────────────────────────
   myCorrections: protectedProcedure
-    .input(z.object({ limit: z.number().min(1).max(50).default(20) }))
+    .input(z.object({
+      companyId: z.number().optional(),
+      limit: z.number().min(1).max(50).default(20),
+    }))
     .query(async ({ ctx, input }) => {
       const db = await requireDb();
+      const conditions = [eq(attendanceCorrections.employeeUserId, ctx.user.id)];
+      if (input.companyId != null) {
+        conditions.push(eq(attendanceCorrections.companyId, input.companyId));
+      }
       return db
         .select()
         .from(attendanceCorrections)
-        .where(eq(attendanceCorrections.employeeUserId, ctx.user.id))
+        .where(and(...conditions))
         .orderBy(desc(attendanceCorrections.createdAt))
         .limit(input.limit);
     }),
@@ -1122,11 +1143,12 @@ export const attendanceRouter = router({
   // ─── Admin: List all correction requests for the company ──────────────────────
   listCorrections: protectedProcedure
     .input(z.object({
+      companyId: z.number().optional(),
       status: z.enum(["pending", "approved", "rejected", "all"]).default("pending"),
       limit: z.number().min(1).max(200).default(50),
     }))
     .query(async ({ ctx, input }) => {
-      const membership = await requireAdminOrHR(ctx.user.id);
+      const membership = await requireAdminOrHR(ctx.user.id, input.companyId);
       const db = await requireDb();
       const conditions = [eq(attendanceCorrections.companyId, membership.company.id)];
       if (input.status !== "all") conditions.push(eq(attendanceCorrections.status, input.status));
@@ -1152,11 +1174,12 @@ export const attendanceRouter = router({
   // ─── Admin: Approve a correction request ───────────────────────────────────────────
   approveCorrection: protectedProcedure
     .input(z.object({
+      companyId: z.number().optional(),
       correctionId: z.number(),
       adminNote: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const membership = await requireAdminOrHR(ctx.user.id);
+      const membership = await requireAdminOrHR(ctx.user.id, input.companyId);
       const db = await requireDb();
       const [req] = await db
         .select()
@@ -1277,11 +1300,12 @@ export const attendanceRouter = router({
   // ─── Admin: Reject a correction request ────────────────────────────────────────────
   rejectCorrection: protectedProcedure
     .input(z.object({
+      companyId: z.number().optional(),
       correctionId: z.number(),
       adminNote: z.string().min(5, "Please provide a reason"),
     }))
     .mutation(async ({ ctx, input }) => {
-      const membership = await requireAdminOrHR(ctx.user.id);
+      const membership = await requireAdminOrHR(ctx.user.id, input.companyId);
       const db = await requireDb();
       const [req] = await db
         .select()
@@ -1334,6 +1358,7 @@ export const attendanceRouter = router({
   listAttendanceAudit: protectedProcedure
     .input(
       z.object({
+        companyId: z.number().optional(),
         employeeId: z.number().optional(),
         actionType: z.string().optional(),
         createdOnOrAfter: z.string().optional(),
@@ -1342,7 +1367,7 @@ export const attendanceRouter = router({
       }),
     )
     .query(async ({ ctx, input }) => {
-      const membership = await requireAdminOrHR(ctx.user.id);
+      const membership = await requireAdminOrHR(ctx.user.id, input.companyId);
       const db = await requireDb();
       const conditions = [eq(attendanceAudit.companyId, membership.company.id)];
       if (input.employeeId != null) {

@@ -79,9 +79,11 @@ type AuditRow = {
 
 function AttendanceAuditLog({
   enabled,
+  companyId,
   employees,
 }: {
   enabled: boolean;
+  companyId: number | null;
   employees: { id: number; firstName: string; lastName: string }[];
 }) {
   const defaultTo = new Date().toISOString().slice(0, 10);
@@ -103,13 +105,14 @@ function AttendanceAuditLog({
 
   const { data, isLoading, refetch, isFetching } = trpc.attendance.listAttendanceAudit.useQuery(
     {
+      companyId: companyId ?? undefined,
       createdOnOrAfter: from,
       createdOnOrBefore: to,
       employeeId: employeeId !== "all" ? Number(employeeId) : undefined,
       actionType: actionType !== "all" ? actionType : undefined,
       limit: 50,
     },
-    { enabled },
+    { enabled: enabled && companyId != null },
   );
 
   const empName = (id: number | null | undefined) => {
@@ -482,8 +485,18 @@ function boardStatusBadge(status: string) {
 }
 
 // ─── Today's Live Board ──────────────────────────────────────────────────────
-function TodayBoard() {
-  const { data, isLoading, refetch } = trpc.scheduling.getTodayBoard.useQuery({});
+function TodayBoard({ companyId }: { companyId: number | null }) {
+  const { data, isLoading, refetch } = trpc.scheduling.getTodayBoard.useQuery(
+    { companyId: companyId ?? undefined },
+    { enabled: companyId != null },
+  );
+  if (companyId == null) {
+    return (
+      <div className="py-12 text-center text-muted-foreground border border-dashed rounded-lg">
+        Select a company in the workspace switcher to load today&apos;s live board.
+      </div>
+    );
+  }
   if (isLoading) return <div className="py-12 text-center text-muted-foreground">Loading today's board…</div>;
   if (!data) return <div className="py-12 text-center text-muted-foreground">No data available</div>;
   const s = data.summary;
@@ -569,12 +582,15 @@ function TodayBoard() {
 }
 
 // ─── Correction Requests ──────────────────────────────────────────────────────
-function CorrectionRequests() {
+function CorrectionRequests({ companyId }: { companyId: number | null }) {
   const [statusFilter, setStatusFilter] = useState<"pending" | "approved" | "rejected" | "all">("pending");
   const [reviewTarget, setReviewTarget] = useState<{ id: number; action: "approve" | "reject" } | null>(null);
   const [adminNote, setAdminNote] = useState("");
   const utils = trpc.useUtils();
-  const { data, isLoading, refetch } = trpc.attendance.listCorrections.useQuery({ status: statusFilter });
+  const { data, isLoading, refetch } = trpc.attendance.listCorrections.useQuery(
+    { companyId: companyId ?? undefined, status: statusFilter },
+    { enabled: companyId != null },
+  );
   const approveMut = trpc.attendance.approveCorrection.useMutation({
     onSuccess: () => {
       toast.success("Correction approved");
@@ -594,11 +610,12 @@ function CorrectionRequests() {
     onError: (e) => toast.error(e.message),
   });
   const handleSubmit = () => {
-    if (!reviewTarget) return;
-    if (reviewTarget.action === "approve") approveMut.mutate({ correctionId: reviewTarget.id, adminNote: adminNote || undefined });
-    else {
+    if (!reviewTarget || companyId == null) return;
+    if (reviewTarget.action === "approve") {
+      approveMut.mutate({ companyId, correctionId: reviewTarget.id, adminNote: adminNote || undefined });
+    } else {
       if (!adminNote.trim() || adminNote.trim().length < 5) { toast.error("Please provide a reason for rejection"); return; }
-      rejectMut.mutate({ correctionId: reviewTarget.id, adminNote });
+      rejectMut.mutate({ companyId, correctionId: reviewTarget.id, adminNote });
     }
   };
   return (
@@ -615,7 +632,9 @@ function CorrectionRequests() {
         </Select>
         <Button variant="outline" size="sm" onClick={() => refetch()}><RefreshCw className="h-3.5 w-3.5 mr-1.5" /> Refresh</Button>
       </div>
-      {isLoading ? <div className="py-12 text-center text-muted-foreground">Loading…</div> : (
+      {companyId == null ? (
+        <div className="py-12 text-center text-muted-foreground">Select a company to review correction requests.</div>
+      ) : isLoading ? <div className="py-12 text-center text-muted-foreground">Loading…</div> : (
         <div className="space-y-3">
           {(data ?? []).map(({ correction, employee }) => (
             <Card key={correction.id}><CardContent className="p-4">
@@ -664,12 +683,15 @@ function CorrectionRequests() {
 }
 
 // ─── Manual Check-in Requests ─────────────────────────────────────────────────
-function ManualCheckInRequests() {
+function ManualCheckInRequests({ companyId }: { companyId: number | null }) {
   const [statusFilter, setStatusFilter] = useState<"pending" | "approved" | "rejected" | "all">("pending");
   const [reviewTarget, setReviewTarget] = useState<{ id: number; action: "approve" | "reject" } | null>(null);
   const [adminNote, setAdminNote] = useState("");
   const utils = trpc.useUtils();
-  const { data, isLoading, refetch } = trpc.attendance.listManualCheckIns.useQuery({ status: statusFilter });
+  const { data, isLoading, refetch } = trpc.attendance.listManualCheckIns.useQuery(
+    { companyId: companyId ?? undefined, status: statusFilter },
+    { enabled: companyId != null },
+  );
   const approveMut = trpc.attendance.approveManualCheckIn.useMutation({
     onSuccess: () => {
       toast.success("Check-in approved");
@@ -689,11 +711,12 @@ function ManualCheckInRequests() {
     onError: (e) => toast.error(e.message),
   });
   const handleSubmit = () => {
-    if (!reviewTarget) return;
-    if (reviewTarget.action === "approve") approveMut.mutate({ requestId: reviewTarget.id, adminNote: adminNote || undefined });
-    else {
+    if (!reviewTarget || companyId == null) return;
+    if (reviewTarget.action === "approve") {
+      approveMut.mutate({ companyId, requestId: reviewTarget.id, adminNote: adminNote || undefined });
+    } else {
       if (!adminNote.trim() || adminNote.trim().length < 5) { toast.error("Please provide a reason"); return; }
-      rejectMut.mutate({ requestId: reviewTarget.id, adminNote });
+      rejectMut.mutate({ companyId, requestId: reviewTarget.id, adminNote });
     }
   };
   return (
@@ -710,7 +733,9 @@ function ManualCheckInRequests() {
         </Select>
         <Button variant="outline" size="sm" onClick={() => refetch()}><RefreshCw className="h-3.5 w-3.5 mr-1.5" /> Refresh</Button>
       </div>
-      {isLoading ? <div className="py-12 text-center text-muted-foreground">Loading…</div> : (
+      {companyId == null ? (
+        <div className="py-12 text-center text-muted-foreground">Select a company to review manual check-in requests.</div>
+      ) : isLoading ? <div className="py-12 text-center text-muted-foreground">Loading…</div> : (
         <div className="space-y-3">
           {(data ?? []).map(({ req, site }) => (
             <Card key={req.id}><CardContent className="p-4">
@@ -796,8 +821,14 @@ export default function HRAttendancePage() {
     return d === today;
   });
 
-  const { data: pendingCorrections } = trpc.attendance.listCorrections.useQuery({ status: "pending", limit: 1 });
-  const { data: pendingManual } = trpc.attendance.listManualCheckIns.useQuery({ status: "pending", limit: 1 });
+  const { data: pendingCorrections } = trpc.attendance.listCorrections.useQuery(
+    { companyId: activeCompanyId ?? undefined, status: "pending", limit: 1 },
+    { enabled: activeCompanyId != null },
+  );
+  const { data: pendingManual } = trpc.attendance.listManualCheckIns.useQuery(
+    { companyId: activeCompanyId ?? undefined, status: "pending", limit: 1 },
+    { enabled: activeCompanyId != null },
+  );
   const pendingCorrDot = (pendingCorrections ?? []).length > 0;
   const pendingManualDot = (pendingManual ?? []).length > 0;
 
@@ -829,12 +860,13 @@ export default function HRAttendancePage() {
           <TabsTrigger value="manual" className="gap-1.5"><AlertCircle className="h-3.5 w-3.5" /> Manual Check-ins{pendingManualDot && <span className="ml-1 h-2 w-2 rounded-full bg-red-500 inline-block" />}</TabsTrigger>
           <TabsTrigger value="audit" className="gap-1.5"><ScrollText className="h-3.5 w-3.5" /> Audit Log</TabsTrigger>
         </TabsList>
-        <TabsContent value="today" className="mt-4"><TodayBoard /></TabsContent>
-        <TabsContent value="corrections" className="mt-4"><CorrectionRequests /></TabsContent>
-        <TabsContent value="manual" className="mt-4"><ManualCheckInRequests /></TabsContent>
+        <TabsContent value="today" className="mt-4"><TodayBoard companyId={activeCompanyId} /></TabsContent>
+        <TabsContent value="corrections" className="mt-4"><CorrectionRequests companyId={activeCompanyId} /></TabsContent>
+        <TabsContent value="manual" className="mt-4"><ManualCheckInRequests companyId={activeCompanyId} /></TabsContent>
         <TabsContent value="audit" className="mt-4">
           <AttendanceAuditLog
             enabled={attendanceTab === "audit" && activeCompanyId != null}
+            companyId={activeCompanyId}
             employees={(employees ?? []).map((e) => ({ id: e.id, firstName: e.firstName, lastName: e.lastName }))}
           />
         </TabsContent>

@@ -116,10 +116,10 @@ export default function AttendCheckInPage() {
     { enabled: !!token, retry: false }
   );
 
-  // Today's record
+  // Today's record — scoped to the site’s company (QR page may not match global company switcher)
   const { data: todayRecord, refetch: refetchToday } = trpc.attendance.myToday.useQuery(
-    undefined,
-    { enabled: !!user }
+    { companyId: site?.companyId },
+    { enabled: !!user && !!site?.companyId },
   );
 
   const checkInMutation = trpc.attendance.checkIn.useMutation({
@@ -212,9 +212,14 @@ export default function AttendCheckInPage() {
   const canSubmit = !geoBlocked && !hoursBlocked;
 
   function handleAction() {
-    if (!user || !canSubmit) return;
+    if (!user || !canSubmit || !site?.companyId) return;
     if (isCheckedIn) {
-      checkOutMutation.mutate({ siteToken: token, lat: coords?.lat, lng: coords?.lng });
+      checkOutMutation.mutate({
+        companyId: site.companyId,
+        siteToken: token,
+        lat: coords?.lat,
+        lng: coords?.lng,
+      });
     } else {
       checkInMutation.mutate({ siteToken: token, lat: coords?.lat, lng: coords?.lng });
     }

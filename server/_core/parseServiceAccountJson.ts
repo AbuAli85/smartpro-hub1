@@ -4,6 +4,14 @@ function stripUtf8Bom(s: string): string {
   return s.length > 0 && s.charCodeAt(0) === 0xfeff ? s.slice(1) : s;
 }
 
+/** Some UIs paste "NAME=value" into the value field by mistake. */
+function stripAccidentalEnvAssignmentPrefix(s: string): string {
+  const prefix = "GOOGLE_DOCS_SERVICE_ACCOUNT_JSON=";
+  let t = s;
+  while (t.startsWith(prefix)) t = t.slice(prefix.length).trim();
+  return t;
+}
+
 export type ParsedServiceAccountCredentials = {
   client_email: string;
   private_key: string;
@@ -22,7 +30,7 @@ export type GoogleDocsConfigReason =
  * or whole value base64-encoded JSON (some secret UIs store it that way).
  */
 export function parseServiceAccountJsonString(raw: string): ParsedServiceAccountCredentials | null {
-  const trimmed = stripUtf8Bom(raw.trim());
+  const trimmed = stripUtf8Bom(stripAccidentalEnvAssignmentPrefix(raw).trim());
   if (!trimmed) return null;
 
   let j: unknown;
@@ -60,7 +68,7 @@ export function isGoogleDocsServiceAccountEnvReady(): boolean {
  */
 export function diagnoseGoogleDocsServiceAccountEnv(): GoogleDocsConfigReason {
   const raw = process.env.GOOGLE_DOCS_SERVICE_ACCOUNT_JSON ?? "";
-  const trimmed = stripUtf8Bom(raw.trim());
+  const trimmed = stripUtf8Bom(stripAccidentalEnvAssignmentPrefix(raw).trim());
   if (!trimmed) return "unset";
 
   const p = parseServiceAccountJsonString(trimmed);

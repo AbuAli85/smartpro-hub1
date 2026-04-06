@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
 import { DateInput } from "@/components/ui/date-input";
 import {
@@ -296,15 +296,28 @@ export default function PromoterAssignmentsPage() {
         {docGenReadiness && !pdfGenerationAvailable && (
           <Alert className="border-amber-500/40 bg-amber-500/5 text-foreground">
             <AlertCircle className="h-4 w-4 text-amber-600" />
-            <AlertDescription className="text-sm leading-relaxed">
-              <span className="font-medium text-foreground">Contract PDFs are not available on this server.</span>{" "}
-              An administrator must set the environment variable{" "}
-              <code className="rounded bg-muted px-1 py-0.5 text-xs font-mono">GOOGLE_DOCS_SERVICE_ACCOUNT_JSON</code>{" "}
-              to the JSON key for a Google Cloud service account with{" "}
-              <strong className="font-medium">Google Drive API</strong> and{" "}
-              <strong className="font-medium">Google Docs API</strong> enabled, then grant that account access to your
-              document templates in Drive. See <code className="rounded bg-muted px-1 py-0.5 text-xs font-mono">.env.example</code>{" "}
-              for a pointer.
+            <AlertTitle className="text-foreground">Contract PDFs are not available on this server</AlertTitle>
+            <AlertDescription className="text-foreground/90 space-y-2">
+              <p className="text-sm leading-relaxed">
+                A server admin should set{" "}
+                <code className="rounded bg-muted px-1.5 py-0.5 text-xs font-mono text-foreground">
+                  GOOGLE_DOCS_SERVICE_ACCOUNT_JSON
+                </code>{" "}
+                to your Google Cloud <span className="text-foreground">service account JSON</span> (full key file as one
+                line or string), then restart the app.
+              </p>
+              <ul className="list-disc pl-4 text-sm text-muted-foreground space-y-1 marker:text-amber-600/80">
+                <li>
+                  Enable <strong className="font-medium text-foreground">Google Drive API</strong> and{" "}
+                  <strong className="font-medium text-foreground">Google Docs API</strong> for the project.
+                </li>
+                <li>Share contract template Docs in Drive with the service account email (Editor).</li>
+                <li>
+                  See repo file{" "}
+                  <code className="rounded bg-muted px-1 py-0.5 text-xs font-mono text-foreground">.env.example</code>{" "}
+                  for the variable name and a short example.
+                </li>
+              </ul>
             </AlertDescription>
           </Alert>
         )}

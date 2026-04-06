@@ -363,19 +363,21 @@ export default function PromoterAssignmentsPage() {
           </Button>
         </div>
 
-        {/* Table */}
-        <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
-          <Table>
+        {/* Table — min-width + horizontal scroll so all columns (esp. Promoter) stay readable */}
+        <div className="rounded-xl border bg-card shadow-sm">
+          <Table className="min-w-[1020px]">
             <TableHeader>
               <TableRow className="bg-muted/50 hover:bg-muted/50">
-                <TableHead className="font-semibold">Promoter</TableHead>
-                <TableHead className="font-semibold">First Party</TableHead>
-                <TableHead className="font-semibold">Second Party</TableHead>
-                <TableHead className="font-semibold">Location</TableHead>
-                <TableHead className="font-semibold">Period</TableHead>
-                <TableHead className="font-semibold">Ref #</TableHead>
-                <TableHead className="font-semibold">Status</TableHead>
-                <TableHead className="text-right font-semibold">Actions</TableHead>
+                <TableHead className="font-semibold min-w-[9.5rem] w-[11rem]">Promoter</TableHead>
+                <TableHead className="font-semibold min-w-[10rem] max-w-[14rem]">First Party</TableHead>
+                <TableHead className="font-semibold min-w-[10rem] max-w-[14rem]">Second Party</TableHead>
+                <TableHead className="font-semibold min-w-[12rem] max-w-[18rem]">Location</TableHead>
+                <TableHead className="font-semibold whitespace-nowrap">Period</TableHead>
+                <TableHead className="font-semibold whitespace-nowrap">Ref #</TableHead>
+                <TableHead className="font-semibold whitespace-nowrap">Status</TableHead>
+                <TableHead className="text-right font-semibold sticky right-0 z-10 bg-muted/95 backdrop-blur-sm border-l border-border/60 shadow-[-6px_0_12px_-6px_rgba(0,0,0,0.08)] min-w-[9rem]">
+                  Actions
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -416,24 +418,35 @@ export default function PromoterAssignmentsPage() {
                 </TableRow>
               ) : (
                 (filtered as AssignmentRow[]).map((a) => (
-                  <TableRow key={a.id} className="hover:bg-muted/30">
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary shrink-0">
+                  <TableRow key={a.id} className="hover:bg-muted/30 group">
+                    <TableCell className="whitespace-normal align-top min-w-[9.5rem] max-w-[13rem]">
+                      <div className="flex items-start gap-2 min-w-0">
+                        <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary shrink-0 mt-0.5">
                           {(a.promoterName || "?").charAt(0).toUpperCase()}
                         </div>
-                        <span className="font-medium text-sm">{a.promoterName || "—"}</span>
+                        <span
+                          className="font-medium text-sm leading-snug break-words"
+                          title={a.promoterName || undefined}
+                        >
+                          {a.promoterName || "—"}
+                        </span>
                       </div>
                     </TableCell>
-                    <TableCell className="text-sm">{a.firstPartyName}</TableCell>
-                    <TableCell className="text-sm">{a.secondPartyName}</TableCell>
-                    <TableCell className="text-sm">
-                      <div className="flex items-start gap-1.5 text-muted-foreground">
+                    <TableCell className="text-sm whitespace-normal align-top min-w-[10rem] max-w-[14rem] break-words">
+                      <span title={a.firstPartyName}>{a.firstPartyName}</span>
+                    </TableCell>
+                    <TableCell className="text-sm whitespace-normal align-top min-w-[10rem] max-w-[14rem] break-words">
+                      <span title={a.secondPartyName}>{a.secondPartyName}</span>
+                    </TableCell>
+                    <TableCell className="text-sm whitespace-normal align-top min-w-[12rem] max-w-[18rem]">
+                      <div className="flex items-start gap-1.5 text-muted-foreground min-w-0">
                         <MapPin className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-                        <span className="line-clamp-2">{a.locationEn ?? "—"}</span>
+                        <span className="line-clamp-3 break-words" title={a.locationEn ?? undefined}>
+                          {a.locationEn ?? "—"}
+                        </span>
                       </div>
                     </TableCell>
-                    <TableCell className="text-sm whitespace-nowrap">
+                    <TableCell className="text-sm whitespace-nowrap align-top">
                       <div className="flex items-center gap-1 text-muted-foreground">
                         <Calendar className="h-3.5 w-3.5 shrink-0" />
                         <span>
@@ -441,15 +454,15 @@ export default function PromoterAssignmentsPage() {
                         </span>
                       </div>
                     </TableCell>
-                    <TableCell className="text-sm text-muted-foreground font-mono text-xs">
+                    <TableCell className="text-sm text-muted-foreground font-mono text-xs whitespace-nowrap align-top max-w-[7rem] truncate" title={a.contractReferenceNumber ?? undefined}>
                       {a.contractReferenceNumber ?? "—"}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="align-top whitespace-nowrap">
                       <Badge variant="outline" className={`text-xs capitalize ${statusColor[a.status] ?? ""}`}>
                         {a.status}
                       </Badge>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="sticky right-0 z-10 bg-card group-hover:bg-muted/40 border-l border-border/50 align-top shadow-[-6px_0_12px_-6px_rgba(0,0,0,0.06)]">
                       <div className="flex items-center justify-end gap-2">
                         <Button
                           size="sm"

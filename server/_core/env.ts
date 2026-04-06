@@ -1,4 +1,4 @@
-import { isPemPrivateKeyParseable } from "./googleServiceAccountPem";
+import { isGoogleDocsServiceAccountEnvReady } from "./parseServiceAccountJson";
 
 export const ENV = {
   appId: process.env.VITE_APP_ID ?? "",
@@ -14,31 +14,9 @@ export const ENV = {
   googleDocsServiceAccountJson: process.env.GOOGLE_DOCS_SERVICE_ACCOUNT_JSON ?? "",
 };
 
-function isGoogleDocsServiceAccountJsonWellFormed(raw: string): boolean {
-  const trimmed = raw.trim();
-  if (!trimmed) return false;
-  try {
-    const j = JSON.parse(trimmed) as { client_email?: unknown; private_key?: unknown };
-    const email = j.client_email;
-    const key = j.private_key;
-    if (
-      typeof email !== "string" ||
-      email.trim().length === 0 ||
-      typeof key !== "string" ||
-      key.trim().length === 0
-    ) {
-      return false;
-    }
-    return isPemPrivateKeyParseable(key);
-  } catch {
-    return false;
-  }
-}
-
-/** True when GOOGLE_DOCS_SERVICE_ACCOUNT_JSON is valid JSON with parseable client_email and private_key.
- * Reads process.env on every call so a restart is not required after the secret is updated. */
+/** True when env has parseable JSON (or base64-wrapped JSON) and a private_key OpenSSL can load. */
 export function isGoogleDocsServiceAccountConfigured(): boolean {
-  return isGoogleDocsServiceAccountJsonWellFormed(process.env.GOOGLE_DOCS_SERVICE_ACCOUNT_JSON ?? "");
+  return isGoogleDocsServiceAccountEnvReady();
 }
 
 /**

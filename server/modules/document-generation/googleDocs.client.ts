@@ -1,45 +1,33 @@
 import { createPrivateKey } from "node:crypto";
 import { google } from "googleapis";
 import { JWT } from "google-auth-library";
-import { ENV } from "../../_core/env";
 import { normalizeServiceAccountPrivateKeyPem } from "../../_core/googleServiceAccountPem";
+import { parseServiceAccountJsonString } from "../../_core/parseServiceAccountJson";
 import { DocumentGenerationError } from "./documentGeneration.types";
 
 const DRIVE_FILE_SCOPE = "https://www.googleapis.com/auth/drive";
 const DOCS_SCOPE = "https://www.googleapis.com/auth/documents";
 
 function parseServiceAccount(): { clientEmail: string; privateKey: string } {
-  const raw = ENV.googleDocsServiceAccountJson?.trim();
-  if (!raw) {
+  const raw = process.env.GOOGLE_DOCS_SERVICE_ACCOUNT_JSON ?? "";
+  const j = parseServiceAccountJsonString(raw);
+  if (!j) {
     throw new DocumentGenerationError(
       "NOT_CONFIGURED",
-      "PDF generation is not available: the server is missing Google Docs credentials. Set the environment variable GOOGLE_DOCS_SERVICE_ACCOUNT_JSON (service account JSON with Drive and Docs API access)."
+      "PDF generation is not available: set GOOGLE_DOCS_SERVICE_ACCOUNT_JSON to the full service account JSON from Google Cloud (valid JSON with client_email and private_key). If the secret UI only accepts one line, paste the JSON as one line or base64-encode the whole JSON."
     );
   }
+  const privateKey = normalizeServiceAccountPrivateKeyPem(j.private_key);
   try {
-    const j = JSON.parse(raw) as { client_email?: string; private_key?: string };
-    if (!j.client_email || !j.private_key) {
-      throw new Error("service account JSON must include client_email and private_key");
-    }
-    const privateKey = normalizeServiceAccountPrivateKeyPem(j.private_key);
-    try {
-      createPrivateKey(privateKey);
-    } catch (e) {
-      throw new DocumentGenerationError(
-        "NOT_CONFIGURED",
-        "Invalid service account private_key: OpenSSL could not load the PEM (often caused by a truncated key or newlines removed when saving the secret). Re-download the JSON key from Google Cloud and paste the full value again.",
-        { cause: e }
-      );
-    }
-    return { clientEmail: j.client_email, privateKey };
+    createPrivateKey(privateKey);
   } catch (e) {
-    if (e instanceof DocumentGenerationError) throw e;
     throw new DocumentGenerationError(
       "NOT_CONFIGURED",
-      "Invalid GOOGLE_DOCS_SERVICE_ACCOUNT_JSON: must be valid JSON with client_email and private_key.",
+      "Invalid service account private_key: OpenSSL could not load the PEM (often caused by a truncated key or newlines removed when saving the secret). Re-download the JSON key from Google Cloud and paste the full value again.",
       { cause: e }
     );
   }
+  return { clientEmail: j.client_email, privateKey };
 }
 
 function createJwtClient(): JWT {

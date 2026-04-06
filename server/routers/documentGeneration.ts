@@ -36,7 +36,7 @@ function mapDocGenError(e: unknown): never {
 
 export const documentGenerationRouter = router({
   /**
-   * Whether PDF generation can run on this deployment (Google service account env set).
+   * Whether PDF generation can run on this deployment (valid service account JSON in env).
    * Does not call Google; safe to poll from the UI to disable buttons.
    */
   readiness: protectedProcedure.query(() => ({

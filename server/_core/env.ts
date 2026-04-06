@@ -12,9 +12,27 @@ export const ENV = {
   googleDocsServiceAccountJson: process.env.GOOGLE_DOCS_SERVICE_ACCOUNT_JSON ?? "",
 };
 
-/** True when PDF generation via Google Docs API can be attempted (env present). */
+function isGoogleDocsServiceAccountJsonWellFormed(raw: string): boolean {
+  const trimmed = raw.trim();
+  if (!trimmed) return false;
+  try {
+    const j = JSON.parse(trimmed) as { client_email?: unknown; private_key?: unknown };
+    const email = j.client_email;
+    const key = j.private_key;
+    return (
+      typeof email === "string" &&
+      email.trim().length > 0 &&
+      typeof key === "string" &&
+      key.trim().length > 0
+    );
+  } catch {
+    return false;
+  }
+}
+
+/** True when GOOGLE_DOCS_SERVICE_ACCOUNT_JSON is valid JSON with client_email and private_key. */
 export function isGoogleDocsServiceAccountConfigured(): boolean {
-  return Boolean(ENV.googleDocsServiceAccountJson.trim());
+  return isGoogleDocsServiceAccountJsonWellFormed(ENV.googleDocsServiceAccountJson);
 }
 
 /**

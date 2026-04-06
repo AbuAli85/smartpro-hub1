@@ -338,3 +338,54 @@ export type OutsourcingContractDocumentContext = {
     issue_date?: string;
   };
 };
+
+// ─── CONTRACT KPIs ────────────────────────────────────────────────────────────
+
+/** Shape returned by `getContractKpis` in the repository. */
+export interface ContractKpis {
+  totals: {
+    total: number;
+    active: number;
+    draft: number;
+    expiringIn30Days: number;
+    expired: number;
+    terminated: number;
+    suspended: number;
+    renewed: number;
+  };
+  /** Distinct count of promoter employees with at least one active contract. */
+  promotersDeployed: number;
+  /**
+   * Contract counts grouped by first-party (client) company.
+   * Sorted descending by total; capped at 10 entries.
+   */
+  contractsPerCompany: Array<{
+    companyId: number | null;
+    companyName: string;
+    total: number;
+    active: number;
+  }>;
+  /**
+   * Active contracts whose expiry_date falls within the next 30 days.
+   * Sorted ascending by days remaining; capped at 15 entries.
+   */
+  expiringSoon: Array<{
+    id: string;
+    contractNumber: string | null;
+    promoterName: string;
+    firstPartyName: string;
+    expiryDate: string;
+    daysLeft: number;
+  }>;
+  /**
+   * Active contracts that are missing one or more required document kinds
+   * (signed_contract_pdf, passport_copy, id_card_copy).
+   * Capped at 20 entries.
+   */
+  missingDocuments: Array<{
+    id: string;
+    contractNumber: string | null;
+    promoterName: string;
+    missingKinds: string[];
+  }>;
+}

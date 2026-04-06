@@ -26,6 +26,7 @@ import {
   deleteContractDocument,
   deleteOutsourcingContract,
   getContractDocumentById,
+  getContractKpis,
   getOutsourcingContractById,
   lazyExpireContract,
   listOutsourcingContracts,
@@ -261,6 +262,24 @@ export const contractManagementRouter = router({
     }),
 
   // ─── CONTRACT CRUD ──────────────────────────────────────────────────────────
+
+  /**
+   * Aggregate KPIs for the contracts visible to the active company.
+   *
+   * Returns status totals, promoters deployed, contracts-per-company breakdown,
+   * and two risk lists (expiring soon + missing required documents).
+   *
+   * Suitable for a dashboard/stats bar — intentionally read-only and fast.
+   */
+  kpis: protectedProcedure.query(async ({ ctx }) => {
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+
+    const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
+    const activeId = isPlatform ? 0 : await requireActiveCompanyId(ctx.user.id);
+
+    return getContractKpis(db, activeId, isPlatform);
+  }),
 
   /** List contracts where the active company is first_party OR second_party. */
   list: protectedProcedure

@@ -30,6 +30,7 @@ import {
   validateStatusTransition,
   type ContractDocumentKind,
   type ContractEventAction,
+  type ContractKpis,
   type ContractStatus,
   type OutsourcingContractRow,
 } from "./contractManagement.types";
@@ -169,6 +170,175 @@ export async function listOutsourcingContracts(
     firstPartyCompanyId: r.firstPartyCompanyId ?? null,
     secondPartyCompanyId: r.secondPartyCompanyId ?? null,
   }));
+}
+
+// ─── KPIs ─────────────────────────────────────────────────────────────────────
+
+/**
+ * Aggregate KPIs for the contracts visible to `activeCompanyId`.
+ *
+ * Strategy:
+ *   1. Re-use `listOutsourcingContracts` for tenant-scoped data (single source of truth).
+ *   2. Compute all numeric totals, role breakdowns, and risk lists in JS — no extra
+ *      raw-SQL aggregates needed at this scale.
+ *   3. One extra DB query to fetch document kinds for active contracts (for the
+ *      "missing documents" risk list).
+ */
+export async function getContractKpis(
+  db: AppDb,
+  activeCompanyId: number,
+  isPlatformAdmin: boolean
+): Promise<ContractKpis> {
+  const EMPTY: ContractKpis = {
+    totals: { total: 0, active: 0, draft: 0, expiringIn30Days: 0, expired: 0, terminated: 0, suspended: 0, renewed: 0 },
+    promotersDeployed: 0,
+    contractsPerCompany: [],
+    expiringSoon: [],
+    missingDocuments: [],
+  };
+
+  const rows = await listOutsourcingContracts(db, activeCompanyId, isPlatformAdmin);
+  if (rows.length === 0) return EMPTY;
+
+  const now = new Date();
+  const in30 = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+
+  // ── Totals ────────────────────────────────────────────────────────────────
+  const totals: ContractKpis["totals"] = {
+    total: rows.length,
+    active: 0, draft: 0, expiringIn30Days: 0,
+    expired: 0, terminated: 0, suspended: 0, renewed: 0,
+  };
+
+  for (const row of rows) {
+    const s = (row.status ?? "draft") as ContractStatus;
+    if (s === "active")     totals.active++;
+    else if (s === "draft")      totals.draft++;
+    else if (s === "expired")    totals.expired++;
+    else if (s === "terminated") totals.terminated++;
+    else if (s === "suspended")  totals.suspended++;
+    else if (s === "renewed")    totals.renewed++;
+
+    if (s === "active" && row.expiryDate) {
+      const exp = new Date(
+        typeof row.expiryDate === "string" ? row.expiryDate : (row.expiryDate as Date).toISOString()
+      );
+      if (exp >= now && exp <= in30) totals.expiringIn30Days++;
+    }
+  }
+
+  // ── Promoters deployed (distinct active promoter employee IDs) ────────────
+  const activePromoterIds = new Set(
+    rows
+      .filter((r) => r.status === "active" && r.promoterEmployeeId)
+      .map((r) => r.promoterEmployeeId)
+  );
+  const promotersDeployed = activePromoterIds.size;
+
+  // ── Contracts per company (by first party, top 10) ────────────────────────
+  const coMap = new Map<
+    string,
+    { companyId: number | null; companyName: string; total: number; active: number }
+  >();
+  for (const row of rows) {
+    const key = String(row.firstPartyCompanyId ?? "unknown");
+    if (!coMap.has(key)) {
+      coMap.set(key, {
+        companyId: row.firstPartyCompanyId ?? null,
+        companyName: row.firstPartyName ?? "Unknown",
+        total: 0,
+        active: 0,
+      });
+    }
+    const entry = coMap.get(key)!;
+    entry.total++;
+    if (row.status === "active") entry.active++;
+  }
+  const contractsPerCompany = [...coMap.values()]
+    .sort((a, b) => b.total - a.total)
+    .slice(0, 10);
+
+  // ── Expiring soon (top 15 by nearest expiry) ─────────────────────────────
+  const expiringSoon: ContractKpis["expiringSoon"] = rows
+    .filter((r) => {
+      if (r.status !== "active" || !r.expiryDate) return false;
+      const exp = new Date(
+        typeof r.expiryDate === "string" ? r.expiryDate : (r.expiryDate as Date).toISOString()
+      );
+      return exp >= now && exp <= in30;
+    })
+    .sort((a, b) => {
+      const da = new Date(typeof a.expiryDate === "string" ? a.expiryDate : (a.expiryDate as Date).toISOString());
+      const db2 = new Date(typeof b.expiryDate === "string" ? b.expiryDate : (b.expiryDate as Date).toISOString());
+      return da.getTime() - db2.getTime();
+    })
+    .slice(0, 15)
+    .map((r) => {
+      const exp = new Date(
+        typeof r.expiryDate === "string" ? r.expiryDate.slice(0, 10) : (r.expiryDate as Date).toISOString().slice(0, 10)
+      );
+      const daysLeft = Math.ceil((exp.getTime() - now.getTime()) / 86_400_000);
+      return {
+        id: r.id,
+        contractNumber: r.contractNumber ?? null,
+        promoterName: r.promoterName ?? "—",
+        firstPartyName: r.firstPartyName ?? "—",
+        expiryDate:
+          typeof r.expiryDate === "string"
+            ? r.expiryDate.slice(0, 10)
+            : (r.expiryDate as Date).toISOString().slice(0, 10),
+        daysLeft,
+      };
+    });
+
+  // ── Missing required documents (active contracts only) ───────────────────
+  const activeIds = rows.filter((r) => r.status === "active").map((r) => r.id);
+  let missingDocuments: ContractKpis["missingDocuments"] = [];
+
+  if (activeIds.length > 0) {
+    const docRows = await db
+      .select({
+        contractId: outsourcingContractDocuments.contractId,
+        documentKind: outsourcingContractDocuments.documentKind,
+      })
+      .from(outsourcingContractDocuments)
+      .where(inArray(outsourcingContractDocuments.contractId, activeIds));
+
+    // Build a map: contractId → Set<normalised kind>
+    const LEGACY: Record<string, string> = {
+      signed_pdf: "signed_contract_pdf",
+      id_copy:    "id_card_copy",
+    };
+    const docsByContract = new Map<string, Set<string>>();
+    for (const d of docRows) {
+      if (!docsByContract.has(d.contractId)) docsByContract.set(d.contractId, new Set());
+      const kind = LEGACY[d.documentKind ?? ""] ?? d.documentKind ?? "";
+      docsByContract.get(d.contractId)!.add(kind);
+    }
+
+    const REQUIRED = [
+      { kind: "signed_contract_pdf", label: "Signed Contract" },
+      { kind: "passport_copy",       label: "Passport Copy" },
+      { kind: "id_card_copy",        label: "ID Card Copy" },
+    ] as const;
+
+    for (const row of rows) {
+      if (row.status !== "active") continue;
+      const kinds = docsByContract.get(row.id) ?? new Set<string>();
+      const missing = REQUIRED.filter((r) => !kinds.has(r.kind)).map((r) => r.label);
+      if (missing.length > 0) {
+        missingDocuments.push({
+          id: row.id,
+          contractNumber: row.contractNumber ?? null,
+          promoterName: row.promoterName ?? "—",
+          missingKinds: missing,
+        });
+      }
+      if (missingDocuments.length >= 20) break;
+    }
+  }
+
+  return { totals, promotersDeployed, contractsPerCompany, expiringSoon, missingDocuments };
 }
 
 /** Get a single contract with all related data. */

@@ -299,23 +299,26 @@ export default function PromoterAssignmentsPage() {
             <AlertTitle className="text-foreground">Contract PDFs are not available on this server</AlertTitle>
             <AlertDescription className="text-foreground/90 space-y-2">
               <p className="text-sm leading-relaxed">
-                A server admin should set{" "}
+                A server admin should set the environment variable or secret{" "}
                 <code className="rounded bg-muted px-1.5 py-0.5 text-xs font-mono text-foreground">
                   GOOGLE_DOCS_SERVICE_ACCOUNT_JSON
                 </code>{" "}
-                to your Google Cloud service account JSON (full key file as one line or string), then restart the app.
+                to the full service account key JSON (one line is fine). It must parse as JSON and include{" "}
+                <code className="rounded bg-muted px-1 py-0.5 text-xs font-mono text-foreground">client_email</code> and{" "}
+                <code className="rounded bg-muted px-1 py-0.5 text-xs font-mono text-foreground">private_key</code>.
+                Restart or redeploy so the server picks it up.
               </p>
               <ul className="list-disc pl-4 text-sm text-muted-foreground space-y-1 marker:text-amber-600/80">
                 <li>Enable Google Drive API and Google Docs API for the GCP project.</li>
                 <li>
-                  Share each template Doc with the service account email (
-                  <code className="rounded bg-muted px-1 py-0.5 text-xs font-mono text-foreground">client_email</code>{" "}
-                  in the JSON) as Editor.
+                  Share each contract template Google Doc with that service account&apos;s email (
+                  <code className="rounded bg-muted px-1 py-0.5 text-xs font-mono text-foreground">client_email</code>
+                  ) as Editor.
                 </li>
                 <li>
                   See{" "}
                   <code className="rounded bg-muted px-1 py-0.5 text-xs font-mono text-foreground">.env.example</code>{" "}
-                  for the variable and a sample.
+                  for naming and a minimal example.
                 </li>
               </ul>
             </AlertDescription>

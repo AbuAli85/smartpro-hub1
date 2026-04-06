@@ -1,5 +1,3 @@
-import { format } from "date-fns";
-
 export type PlaceholderDefinitionRow = {
   placeholder: string;
   sourcePath: string;
@@ -7,8 +5,6 @@ export type PlaceholderDefinitionRow = {
   required: boolean;
   defaultValue: string | null;
 };
-
-const DATE_DISPLAY_FORMAT = "yyyy-MM-dd";
 
 function getByPath(root: unknown, path: string): unknown {
   const segments = path.split(".").filter(Boolean);
@@ -24,15 +20,25 @@ function isEmptyString(v: string): boolean {
   return v.trim().length === 0;
 }
 
+/** Format a Date using its UTC components to avoid local-timezone day shift. */
+function utcDateString(d: Date): string {
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(d.getUTCDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 export function formatDateValue(value: unknown): string | null {
   if (value == null) return null;
   if (value instanceof Date && !Number.isNaN(value.getTime())) {
-    return format(value, DATE_DISPLAY_FORMAT);
+    return utcDateString(value);
   }
   if (typeof value === "string") {
-    const t = Date.parse(value);
-    if (!Number.isNaN(t)) return format(new Date(t), DATE_DISPLAY_FORMAT);
+    // Date-only strings (YYYY-MM-DD) are already timezone-neutral — return as-is
     if (/^\d{4}-\d{2}-\d{2}$/.test(value.trim())) return value.trim();
+    // For datetime strings, parse and extract UTC date
+    const t = Date.parse(value);
+    if (!Number.isNaN(t)) return utcDateString(new Date(t));
   }
   return null;
 }

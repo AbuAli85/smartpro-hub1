@@ -168,7 +168,7 @@ function CreateContractDialog({ onSuccess }: { onSuccess: () => void }) {
   const createMutation = trpc.contractManagement.createPromoterAssignment.useMutation({
     onSuccess: (data) => {
       toast.success("Contract created", {
-        description: `Draft saved — ref ${data.contractNumber ?? data.id.slice(0, 8)}`,
+        description: `Draft saved — ref ${data.id.slice(0, 8)}`,
       });
       setOpen(false);
       form.reset();
@@ -243,8 +243,6 @@ function CreateContractDialog({ onSuccess }: { onSuccess: () => void }) {
 
 // ─── MAIN PAGE ────────────────────────────────────────────────────────────────
 
-type ContractRow = NonNullable<ReturnType<typeof trpc.contractManagement.list.useQuery>["data"]>[number];
-
 export default function ContractManagementPage() {
   const { activeCompany } = useActiveCompany();
   const activeCompanyId = activeCompany?.id ?? null;
@@ -266,6 +264,7 @@ export default function ContractManagementPage() {
     statusFilter !== "all" ? { status: statusFilter as any } : undefined,
     { retry: 1 }
   );
+  type ContractRow = (typeof rawContracts)[number];
 
   const { data: docGenReadiness } = trpc.documentGeneration.readiness.useQuery();
   const pdfAvailable = docGenReadiness?.googleDocsConfigured ?? false;

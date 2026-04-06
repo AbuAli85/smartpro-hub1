@@ -482,7 +482,7 @@ export function aggregateKpisFromRows(
     const eff = effectiveContractStatus(row.status ?? "draft", row.expiryDate, nowUtcDay);
     if (eff === "active") entry.active++;
   }
-  const contractsPerCompany = [...coMap.values()]
+  const contractsPerCompany = Array.from(coMap.values())
     .sort((a, b) => b.total - a.total)
     .slice(0, 10);
 
@@ -527,7 +527,7 @@ export function aggregateKpisFromRows(
 
     const rawKinds = docsByContract.get(row.id) ?? new Set<string>();
     // Normalise on read so the map can contain either canonical or legacy kinds
-    const kinds = new Set([...rawKinds].map(normaliseDocumentKind));
+    const kinds = new Set(Array.from(rawKinds).map(normaliseDocumentKind));
     const missing = required
       .filter((req) => !kinds.has(req.kind))
       .map((req) => req.label);
@@ -556,7 +556,7 @@ export function aggregateKpisFromRows(
     if (!scorableStatusSet.has(eff)) continue;
 
     const rawKinds = docsByContract.get(row.id) ?? new Set<string>();
-    const kinds = new Set([...rawKinds].map(normaliseDocumentKind));
+    const kinds = new Set(Array.from(rawKinds).map(normaliseDocumentKind));
 
     perContractScores.push(scoreContractCompliance(row, eff, kinds, nowUtcDay));
   }

@@ -145,40 +145,6 @@ describe("generateDocument", () => {
     expect(repo.seedDocumentGenerationBootstrap).not.toHaveBeenCalled();
   });
 
-  it("does not call runtime bootstrap", async () => {
-    vi.spyOn(repo, "seedDocumentGenerationBootstrap");
-    const db = {
-      insert: vi.fn(() => ({ values: vi.fn(() => Promise.resolve()) })),
-      update: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn(() => Promise.resolve()) })) })),
-      select: vi.fn(() => ({
-        from: vi.fn(() => ({
-          where: vi.fn(() => ({ limit: vi.fn(() => Promise.resolve([{ status: "processing" }])) })),
-        })),
-      })),
-    };
-    vi.mocked(getDb).mockResolvedValue(db as never);
-    const google: GenerateDocumentDeps["google"] = {
-      copyTemplate: vi.fn().mockResolvedValue("x"),
-      replacePlaceholders: vi.fn().mockResolvedValue(),
-      exportAsPdf: vi.fn().mockResolvedValue(Buffer.from("%PDF")),
-      deleteFile: vi.fn().mockResolvedValue(undefined),
-      fillExportRevert: vi.fn().mockResolvedValue(Buffer.from("%PDF")),
-    };
-    await generateDocument(
-      {
-        templateKey: "promoter_assignment_contract_bilingual",
-        entityId: assignmentId,
-        outputFormat: "pdf",
-        actorUserId: 1,
-        user,
-        activeCompanyId: 1,
-        membershipRole: "hr_admin",
-      },
-      { google }
-    );
-    expect(repo.seedDocumentGenerationBootstrap).not.toHaveBeenCalled();
-  });
-
   it("returns cached PDF when a recent generated row exists and regenerate is false", async () => {
     vi.spyOn(repo, "findLatestGenerationByFingerprint").mockResolvedValue({
       id: "cached-id",

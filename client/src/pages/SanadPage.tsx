@@ -22,6 +22,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
 import { DateInput } from "@/components/ui/date-input";
+import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -77,7 +78,15 @@ const PRIORITY_COLORS: Record<string, string> = {
 
 // ─── New Work Order Dialog ────────────────────────────────────────────────────
 
-function NewWorkOrderDialog({ providers, onSuccess }: { providers: any[]; onSuccess: () => void }) {
+function NewWorkOrderDialog({
+  providers,
+  companyId,
+  onSuccess,
+}: {
+  providers: any[];
+  companyId: number | null;
+  onSuccess: () => void;
+}) {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({
     serviceType: "work_permit" as const,
@@ -186,7 +195,24 @@ function NewWorkOrderDialog({ providers, onSuccess }: { providers: any[]; onSucc
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-            <Button onClick={() => createMutation.mutate({ serviceType: form.serviceType, providerId: form.providerId ? Number(form.providerId) : undefined, priority: form.priority, beneficiaryName: form.beneficiaryName || undefined, nationality: form.nationality || undefined, passportNumber: form.passportNumber || undefined, notes: form.notes || undefined, fees: form.fees ? Number(form.fees) : undefined, dueDate: form.dueDate || undefined })} disabled={createMutation.isPending} className="bg-red-600 hover:bg-red-700 text-white">
+            <Button
+              onClick={() =>
+                companyId != null &&
+                createMutation.mutate({
+                  companyId,
+                  serviceType: form.serviceType,
+                  providerId: form.providerId ? Number(form.providerId) : undefined,
+                  priority: form.priority,
+                  beneficiaryName: form.beneficiaryName || undefined,
+                  nationality: form.nationality || undefined,
+                  passportNumber: form.passportNumber || undefined,
+                  notes: form.notes || undefined,
+                  fees: form.fees ? Number(form.fees) : undefined,
+                  dueDate: form.dueDate || undefined,
+                })}
+              disabled={createMutation.isPending || companyId == null}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
               {createMutation.isPending ? "Creating..." : "Create Work Order"}
             </Button>
           </div>
@@ -529,8 +555,12 @@ export default function SanadPage() {
   const [selectedProvider, setSelectedProvider] = useState<any>(null);
   const [selectedWorkOrderId, setSelectedWorkOrderId] = useState<number | null>(null);
 
+  const { activeCompanyId } = useActiveCompany();
   const providersQuery = trpc.sanad.listProviders.useQuery(undefined);
-  const workOrdersQuery = trpc.sanad.listWorkOrders.useQuery(undefined);
+  const workOrdersQuery = trpc.sanad.listWorkOrders.useQuery(
+    { companyId: activeCompanyId ?? undefined },
+    { enabled: activeCompanyId != null },
+  );
 
   const providers = (providersQuery.data ?? []) as any[];
   const workOrders = (workOrdersQuery.data ?? []) as any[];
@@ -591,7 +621,11 @@ export default function SanadPage() {
             <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-700 border border-amber-200 rounded-full px-2.5 py-0.5 text-[10px] font-semibold">🇶🇦 Qatar</span>
           </div>
         </div>
-        <NewWorkOrderDialog providers={providers} onSuccess={() => workOrdersQuery.refetch()} />
+        <NewWorkOrderDialog
+          providers={providers}
+          companyId={activeCompanyId}
+          onSuccess={() => workOrdersQuery.refetch()}
+        />
       </div>
 
       {/* Stats */}

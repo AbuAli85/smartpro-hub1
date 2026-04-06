@@ -21,10 +21,10 @@ import {
   getSanadApplicationById,
   getSanadApplications,
   getSanadOffices,
-  getUserCompany,
   updateSanadApplication,
   updateSanadOffice,
 } from "../db";
+import { getActiveCompanyMembership } from "../_core/membership";
 import { assertRowBelongsToActiveCompany, requireActiveCompanyId } from "../_core/tenant";
 import { protectedProcedure, publicProcedure, router } from "../_core/trpc";
 
@@ -176,6 +176,7 @@ export const sanadRouter = router({
   listWorkOrders: protectedProcedure
     .input(
       z.object({
+        companyId: z.number().optional(),
         status: z.string().optional(),
         serviceType: z.string().optional(),
         providerId: z.number().optional(),
@@ -185,9 +186,9 @@ export const sanadRouter = router({
       if (canAccessGlobalAdminProcedures(ctx.user)) {
         return getAllSanadApplications({ status: input?.status });
       }
-      const membership = await getUserCompany(ctx.user.id);
-      if (!membership) return [];
-      return getSanadApplications(membership.company.id, {
+      const m = await getActiveCompanyMembership(ctx.user.id, input?.companyId);
+      if (!m) return [];
+      return getSanadApplications(m.companyId, {
         status: input?.status,
         type: input?.serviceType,
       });
@@ -197,6 +198,7 @@ export const sanadRouter = router({
   createWorkOrder: protectedProcedure
     .input(
       z.object({
+        companyId: z.number().optional(),
         serviceType: z.enum(SERVICE_TYPES),
         title: z.string().optional(),
         providerId: z.number().optional(),
@@ -212,17 +214,18 @@ export const sanadRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id);
+      const { companyId: _cid, ...createInput } = input;
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId);
       const referenceNumber = "SAN-" + Date.now() + "-" + nanoid(4).toUpperCase();
-      const title = input.title || input.serviceType.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+      const title = createInput.title || createInput.serviceType.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
       await createSanadApplication({
-        ...input,
+        ...createInput,
         title,
         companyId,
         requestedById: ctx.user.id,
         referenceNumber,
-        fees: input.fees ? String(input.fees) : undefined,
-        dueDate: input.dueDate ? new Date(input.dueDate) : undefined,
+        fees: createInput.fees ? String(createInput.fees) : undefined,
+        dueDate: createInput.dueDate ? new Date(createInput.dueDate) : undefined,
       } as any);
       return { success: true, referenceNumber };
     }),
@@ -789,6 +792,7 @@ export const sanadRouter = router({
   submitServiceRequest: protectedProcedure
     .input(
       z.object({
+        companyId: z.number().optional(),
         officeId: z.number(),
         serviceType: z.string(),
         serviceCatalogueId: z.number().optional(),
@@ -803,17 +807,25 @@ export const sanadRouter = router({
     .mutation(async ({ input, ctx }) => {
       const db = await getDb();
       if (!db) throw new Error("DB unavailable");
-      const membership = await getUserCompany(ctx.user.id);
+      const m = await getActiveCompanyMembership(ctx.user.id, input.companyId ?? undefined);
+      if (!m) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Select a company workspace to submit a service request." });
+      }
+      const [co] = await db
+        .select({ name: companies.name })
+        .from(companies)
+        .where(eq(companies.id, m.companyId))
+        .limit(1);
       const [result] = await db.insert(sanadServiceRequests).values({
         officeId: input.officeId,
-        requesterCompanyId: membership?.company.id ?? null,
+        requesterCompanyId: m.companyId,
         requesterUserId: ctx.user.id,
         serviceType: input.serviceType,
         serviceCatalogueId: input.serviceCatalogueId ?? null,
         contactName: input.contactName,
         contactPhone: input.contactPhone,
         contactEmail: input.contactEmail ?? null,
-        companyName: input.companyName ?? membership?.company.name ?? null,
+        companyName: input.companyName ?? co?.name ?? null,
         companyCr: input.companyCr ?? null,
         message: input.message ?? null,
         status: "new",
@@ -1041,11 +1053,15 @@ export const sanadRouter = router({
     return canAccessGlobalAdminProcedures(ctx.user) ? getAllSanadOffices() : getSanadOffices(0);
   }),
   listApplications: protectedProcedure
-    .input(z.object({ status: z.string().optional(), type: z.string().optional() }).optional())
+    .input(
+      z
+        .object({ companyId: z.number().optional(), status: z.string().optional(), type: z.string().optional() })
+        .optional(),
+    )
     .query(async ({ input, ctx }) => {
       if (canAccessGlobalAdminProcedures(ctx.user)) return getAllSanadApplications({ status: input?.status });
-      const membership = await getUserCompany(ctx.user.id);
-      if (!membership) return [];
-      return getSanadApplications(membership.company.id, input ?? {});
+      const m = await getActiveCompanyMembership(ctx.user.id, input?.companyId);
+      if (!m) return [];
+      return getSanadApplications(m.companyId, input ?? {});
     }),
 });

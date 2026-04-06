@@ -650,36 +650,44 @@ export default function EmployeePortalPage() {
   const { companies: myCompanies, activeCompany: activeCompanyCtx, activeCompanyId } = useActiveCompany();
 
   const { data: profile, isLoading: profileLoading, refetch: refetchProfile } = trpc.employeePortal.getMyProfile.useQuery(
-    undefined, { enabled: isAuthenticated }
+    { companyId: activeCompanyId ?? undefined },
+    { enabled: isAuthenticated && activeCompanyId != null },
   );
   const { data: companyInfo } = trpc.employeePortal.getMyCompanyInfo.useQuery(
-    undefined, { enabled: isAuthenticated }
+    { companyId: activeCompanyId ?? undefined },
+    { enabled: isAuthenticated && activeCompanyId != null },
   );
   const { data: leaveData, isLoading: leaveLoading, refetch: refetchLeave } = trpc.employeePortal.getMyLeave.useQuery(
-    undefined, { enabled: isAuthenticated }
+    { companyId: activeCompanyId ?? undefined },
+    { enabled: isAuthenticated && activeCompanyId != null },
   );
   const { data: attData, isLoading: attLoading } = trpc.employeePortal.getMyAttendanceSummary.useQuery(
-    { month: attMonth }, { enabled: isAuthenticated }
+    { month: attMonth, companyId: activeCompanyId ?? undefined },
+    { enabled: isAuthenticated && activeCompanyId != null },
   );
   const { data: realAttData } = trpc.employeePortal.getMyAttendanceRecords.useQuery(
-    { month: attMonth }, { enabled: isAuthenticated }
+    { month: attMonth, companyId: activeCompanyId ?? undefined },
+    { enabled: isAuthenticated && activeCompanyId != null },
   );
   const { data: payroll, isLoading: payrollLoading } = trpc.employeePortal.getMyPayroll.useQuery(
-    undefined, { enabled: isAuthenticated }
+    { companyId: activeCompanyId ?? undefined },
+    { enabled: isAuthenticated && activeCompanyId != null },
   );
   const { data: docs, isLoading: docsLoading } = trpc.employeePortal.getMyDocuments.useQuery(
-    undefined,
-    { enabled: isAuthenticated, refetchOnWindowFocus: true }
+    { companyId: activeCompanyId ?? undefined },
+    { enabled: isAuthenticated && activeCompanyId != null, refetchOnWindowFocus: true },
   );
   const { data: tasks, isLoading: tasksLoading } = trpc.employeePortal.getMyTasks.useQuery(
     { companyId: activeCompanyId ?? undefined },
     { enabled: isAuthenticated && activeCompanyId != null, refetchOnWindowFocus: true }
   );
   const { data: announcements } = trpc.employeePortal.getMyAnnouncements.useQuery(
-    undefined, { enabled: isAuthenticated }
+    { companyId: activeCompanyId ?? undefined },
+    { enabled: isAuthenticated && activeCompanyId != null },
   );
   const { data: notifData, refetch: refetchNotifs } = trpc.employeePortal.getMyNotifications.useQuery(
-    { limit: 30 }, { enabled: isAuthenticated, refetchInterval: 30000 }
+    { limit: 30, companyId: activeCompanyId ?? undefined },
+    { enabled: isAuthenticated && activeCompanyId != null, refetchInterval: 30000 },
   );
   const { data: myActiveSchedule } = trpc.scheduling.getMyActiveSchedule.useQuery(
     { companyId: activeCompanyId ?? undefined },
@@ -1208,7 +1216,12 @@ export default function EmployeePortalPage() {
                 <DropdownMenuLabel className="flex items-center justify-between gap-2">
                   <span>Notifications</span>
                   {unreadCount > 0 && (
-                    <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => markAllRead.mutate()}>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 text-xs"
+                      onClick={() => activeCompanyId != null && markAllRead.mutate({ companyId: activeCompanyId })}
+                    >
                       Mark all read
                     </Button>
                   )}
@@ -2352,7 +2365,9 @@ export default function EmployeePortalPage() {
                             {l.status === "pending" && (
                               <Button size="sm" variant="outline" className="h-7 text-xs text-red-600 border-red-200 hover:bg-red-50"
                                 disabled={cancelLeave.isPending}
-                                onClick={() => cancelLeave.mutate({ leaveId: l.id })}>
+                                onClick={() =>
+                                  activeCompanyId != null &&
+                                  cancelLeave.mutate({ leaveId: l.id, companyId: activeCompanyId })}>
                                 Cancel
                               </Button>
                             )}
@@ -2834,11 +2849,14 @@ export default function EmployeePortalPage() {
                     <div className="flex gap-2">
                       <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setEditingContact(false)}>Cancel</Button>
                       <Button size="sm" className="h-7 text-xs gap-1" disabled={updateContact.isPending}
-                        onClick={() => updateContact.mutate({
-                          phone: editPhone || undefined,
-                          emergencyContactName: editEmergencyName || undefined,
-                          emergencyContactPhone: editEmergencyPhone || undefined,
-                        })}>
+                        onClick={() =>
+                          activeCompanyId != null &&
+                          updateContact.mutate({
+                            companyId: activeCompanyId,
+                            phone: editPhone || undefined,
+                            emergencyContactName: editEmergencyName || undefined,
+                            emergencyContactPhone: editEmergencyPhone || undefined,
+                          })}>
                         <Save className="w-3 h-3" /> {updateContact.isPending ? "Saving..." : "Save"}
                       </Button>
                     </div>
@@ -3788,12 +3806,15 @@ export default function EmployeePortalPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowLeaveDialog(false)}>Cancel</Button>
             <Button disabled={!leaveStart || !leaveEnd || submitLeave.isPending}
-              onClick={() => submitLeave.mutate({
-                leaveType: leaveType as any,
-                startDate: leaveStart,
-                endDate: leaveEnd,
-                reason: leaveReason || undefined,
-              })}>
+              onClick={() =>
+                activeCompanyId != null &&
+                submitLeave.mutate({
+                  companyId: activeCompanyId,
+                  leaveType: leaveType as any,
+                  startDate: leaveStart,
+                  endDate: leaveEnd,
+                  reason: leaveReason || undefined,
+                })}>
               {submitLeave.isPending ? "Submitting..." : "Submit Request"}
             </Button>
           </DialogFooter>
@@ -3810,7 +3831,12 @@ export default function EmployeePortalPage() {
                 {unreadCount > 0 && <Badge variant="secondary">{unreadCount} unread</Badge>}
               </span>
               {unreadCount > 0 && (
-                <Button variant="ghost" size="sm" className="text-xs h-7" onClick={() => markAllRead.mutate()}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-xs h-7"
+                  onClick={() => activeCompanyId != null && markAllRead.mutate({ companyId: activeCompanyId })}
+                >
                   Mark all read
                 </Button>
               )}

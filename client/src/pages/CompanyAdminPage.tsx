@@ -847,7 +847,7 @@ export default function CompanyAdminPage() {
                             variant="ghost"
                             size="sm"
                             className="h-7 px-2 text-xs text-destructive hover:text-destructive"
-                            onClick={() => revokeInvite.mutate({ id: inv.id })}
+                            onClick={() => revokeInvite.mutate({ id: inv.id, companyId: activeCompanyId ?? undefined })}
                             disabled={revokeInvite.isPending}
                             aria-label={`Revoke invite for ${inv.email}`}
                           >
@@ -1033,7 +1033,14 @@ export default function CompanyAdminPage() {
               <DialogFooter>
                 <Button variant="outline" onClick={() => setShowInviteDialog(false)}>Cancel</Button>
                 <Button
-                  onClick={() => createInvite.mutate({ email: inviteEmail, role: inviteRole as Parameters<typeof createInvite.mutate>[0]['role'], origin: window.location.origin })}
+                  onClick={() =>
+                    activeCompanyId != null &&
+                    createInvite.mutate({
+                      companyId: activeCompanyId,
+                      email: inviteEmail,
+                      role: inviteRole as Parameters<typeof createInvite.mutate>[0]["role"],
+                      origin: window.location.origin,
+                    })}
                   disabled={!inviteEmail.trim() || createInvite.isPending}
                   className="gap-2"
                 >

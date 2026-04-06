@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
+import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 
 const PROVIDER_TYPE_LABELS: Record<string, { label: string; icon: React.ElementType }> = {
   pro_office:    { label: "PRO Office",     icon: Briefcase },
@@ -76,9 +77,10 @@ interface RequestDialogProps {
   officeId: number;
   officeName: string;
   services: any[];
+  companyId: number | null;
 }
 
-function RequestServiceDialog({ open, onClose, officeId, officeName, services }: RequestDialogProps) {
+function RequestServiceDialog({ open, onClose, officeId, officeName, services, companyId }: RequestDialogProps) {
   const [form, setForm] = useState({
     contactName: "", contactPhone: "", contactEmail: "",
     companyName: "", companyCr: "", serviceType: "",
@@ -95,11 +97,16 @@ function RequestServiceDialog({ open, onClose, officeId, officeName, services }:
   });
 
   const handleSubmit = () => {
+    if (companyId == null) {
+      toast.error("Select a company workspace in the header, then try again.");
+      return;
+    }
     if (!form.contactName || !form.contactPhone || !form.serviceType) {
       toast.error("Please fill in your name, phone, and service type.");
       return;
     }
     submitMutation.mutate({
+      companyId,
       officeId,
       contactName: form.contactName,
       contactPhone: form.contactPhone,
@@ -251,6 +258,7 @@ export default function SanadCentreProfilePage() {
   const [requestOpen, setRequestOpen] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
   const { user } = useAuth();
+  const { activeCompanyId } = useActiveCompany();
   const utils = trpc.useUtils();
 
   const { data: profileData, isLoading } = trpc.sanad.getPublicProfile.useQuery({ officeId }, { enabled: !!officeId });
@@ -633,6 +641,7 @@ export default function SanadCentreProfilePage() {
         officeId={officeId}
         officeName={office.name}
         services={catalogue}
+        companyId={activeCompanyId}
       />
       {reviewOpen && (
         <WriteReviewDialog

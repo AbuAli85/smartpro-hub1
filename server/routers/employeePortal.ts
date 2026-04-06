@@ -8,9 +8,11 @@ import {
   notifications, companyMembers, users, attendanceRecords,
   attendanceCorrections,
   workPermits,
+  companies,
 } from "../../drizzle/schema";
-import { getDb, getUserCompany } from "../db";
+import { getDb } from "../db";
 import { protectedProcedure, router } from "../_core/trpc";
+import { getActiveCompanyMembership } from "../_core/membership";
 import { requireActiveCompanyId } from "../_core/tenant";
 import { computePortalOperationalHints } from "@shared/employeePortalOperationalHints";
 import { resolveEmployeeAttendanceDayContext } from "../resolveEmployeeAttendanceDayContext";
@@ -120,20 +122,22 @@ export async function notifyAssignerTaskCompleted(params: {
 
 export const employeePortalRouter = router({
   // ─── Get my employee profile ──────────────────────────────────────────────
-  getMyProfile: protectedProcedure.query(async ({ ctx }) => {
-    const membership = await getUserCompany(ctx.user.id);
-    if (!membership) return null;
-    const emp = await resolveMyEmployee(ctx.user.id, ctx.user.email ?? "", membership.company.id);
-    return emp ?? null;
-  }),
+  getMyProfile: protectedProcedure
+    .input(z.object({ companyId: z.number().optional() }))
+    .query(async ({ ctx, input }) => {
+      const m = await getActiveCompanyMembership(ctx.user.id, input.companyId ?? undefined);
+      if (!m) return null;
+      const emp = await resolveMyEmployee(ctx.user.id, ctx.user.email ?? "", m.companyId);
+      return emp ?? null;
+    }),
 
   // ─── Get my attendance for a given month ──────────────────────────────────
   getMyAttendance: protectedProcedure
-    .input(z.object({ month: z.string() })) // YYYY-MM
+    .input(z.object({ month: z.string(), companyId: z.number().optional() })) // YYYY-MM
     .query(async ({ input, ctx }) => {
-      const membership = await getUserCompany(ctx.user.id);
-      if (!membership) return [];
-      const myEmp = await resolveMyEmployee(ctx.user.id, ctx.user.email ?? "", membership.company.id);
+      const m = await getActiveCompanyMembership(ctx.user.id, input.companyId ?? undefined);
+      if (!m) return [];
+      const myEmp = await resolveMyEmployee(ctx.user.id, ctx.user.email ?? "", m.companyId);
       if (!myEmp) return [];
       const db = await requireDb();
       const [year, month] = input.month.split("-").map(Number);
@@ -143,7 +147,7 @@ export const employeePortalRouter = router({
         .select()
         .from(attendance)
         .where(and(
-          eq(attendance.companyId, membership.company.id),
+          eq(attendance.companyId, m.companyId),
           eq(attendance.employeeId, myEmp.id),
         ))
         .orderBy(desc(attendance.date));
@@ -154,22 +158,24 @@ export const employeePortalRouter = router({
     }),
 
   // ─── Get my leave requests and balance ────────────────────────────────────
-  getMyLeave: protectedProcedure.query(async ({ ctx }) => {
+  getMyLeave: protectedProcedure
+    .input(z.object({ companyId: z.number().optional() }))
+    .query(async ({ ctx, input }) => {
     const empty = {
       requests: [] as (typeof leaveRequests.$inferSelect)[],
       balance: { annual: 0, sick: 0, emergency: 0 },
       entitlements: { ...DEFAULT_LEAVE_ENTITLEMENTS },
     };
-    const membership = await getUserCompany(ctx.user.id);
-    if (!membership) return empty;
-    const myEmp = await resolveMyEmployee(ctx.user.id, ctx.user.email ?? "", membership.company.id);
+    const m = await getActiveCompanyMembership(ctx.user.id, input.companyId ?? undefined);
+    if (!m) return empty;
+    const myEmp = await resolveMyEmployee(ctx.user.id, ctx.user.email ?? "", m.companyId);
     if (!myEmp) return empty;
     const db = await requireDb();
     const requests = await db
       .select()
       .from(leaveRequests)
       .where(and(
-        eq(leaveRequests.companyId, membership.company.id),
+        eq(leaveRequests.companyId, m.companyId),
         eq(leaveRequests.employeeId, myEmp.id),
       ))
       .orderBy(desc(leaveRequests.createdAt));
@@ -197,19 +203,20 @@ export const employeePortalRouter = router({
   // ─── Submit a leave request ────────────────────────────────────────────────
   submitLeaveRequest: protectedProcedure
     .input(z.object({
+      companyId: z.number().optional(),
       leaveType: z.enum(["annual", "sick", "emergency", "unpaid", "maternity", "paternity"]),
       startDate: z.string(),
       endDate: z.string(),
       reason: z.string().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const membership = await getUserCompany(ctx.user.id);
-      if (!membership) throw new TRPCError({ code: "FORBIDDEN" });
-      const myEmp = await resolveMyEmployee(ctx.user.id, ctx.user.email ?? "", membership.company.id);
+      const m = await getActiveCompanyMembership(ctx.user.id, input.companyId ?? undefined);
+      if (!m) throw new TRPCError({ code: "FORBIDDEN" });
+      const myEmp = await resolveMyEmployee(ctx.user.id, ctx.user.email ?? "", m.companyId);
       if (!myEmp) throw new TRPCError({ code: "NOT_FOUND", message: "Employee record not found. Please contact HR to link your account." });
       const db = await requireDb();
       const [result] = await db.insert(leaveRequests).values({
-        companyId: membership.company.id,
+        companyId: m.companyId,
         employeeId: myEmp.id,
         leaveType: input.leaveType,
         startDate: new Date(input.startDate),
@@ -222,14 +229,14 @@ export const employeePortalRouter = router({
         .select({ userId: companyMembers.userId })
         .from(companyMembers)
         .where(and(
-          eq(companyMembers.companyId, membership.company.id),
+          eq(companyMembers.companyId, m.companyId),
           eq(companyMembers.isActive, true),
           inArray(companyMembers.role, ["company_admin", "hr_admin"]),
         ));
       for (const admin of hrAdmins) {
         await sendEmployeeNotification({
           toUserId: admin.userId,
-          companyId: membership.company.id,
+          companyId: m.companyId,
           type: "leave_request",
           title: `Leave Request — ${myEmp.firstName} ${myEmp.lastName}`,
           message: `${myEmp.firstName} ${myEmp.lastName} submitted a ${input.leaveType.replace("_", " ")} leave request (${input.startDate} to ${input.endDate}).`,
@@ -374,17 +381,19 @@ export const employeePortalRouter = router({
     }),
 
   // ─── Get my announcements ─────────────────────────────────────────────────
-  getMyAnnouncements: protectedProcedure.query(async ({ ctx }) => {
-    const membership = await getUserCompany(ctx.user.id);
-    if (!membership) return [];
-    const myEmp = await resolveMyEmployee(ctx.user.id, ctx.user.email ?? "", membership.company.id);
+  getMyAnnouncements: protectedProcedure
+    .input(z.object({ companyId: z.number().optional() }))
+    .query(async ({ ctx, input }) => {
+    const m = await getActiveCompanyMembership(ctx.user.id, input.companyId ?? undefined);
+    if (!m) return [];
+    const myEmp = await resolveMyEmployee(ctx.user.id, ctx.user.email ?? "", m.companyId);
     if (!myEmp) return [];
     const db = await requireDb();
     const anns = await db
       .select()
       .from(announcements)
       .where(and(
-        eq(announcements.companyId, membership.company.id),
+        eq(announcements.companyId, m.companyId),
         eq(announcements.isDeleted, false),
         or(
           eq(announcements.targetEmployeeId, myEmp.id),
@@ -404,13 +413,21 @@ export const employeePortalRouter = router({
 
   // ─── Mark announcement as read ────────────────────────────────────────────
   markAnnouncementRead: protectedProcedure
-    .input(z.object({ announcementId: z.number() }))
+    .input(z.object({ announcementId: z.number(), companyId: z.number().optional() }))
     .mutation(async ({ input, ctx }) => {
-      const membership = await getUserCompany(ctx.user.id);
-      if (!membership) throw new TRPCError({ code: "FORBIDDEN" });
-      const myEmp = await resolveMyEmployee(ctx.user.id, ctx.user.email ?? "", membership.company.id);
+      const m = await getActiveCompanyMembership(ctx.user.id, input.companyId ?? undefined);
+      if (!m) throw new TRPCError({ code: "FORBIDDEN" });
+      const myEmp = await resolveMyEmployee(ctx.user.id, ctx.user.email ?? "", m.companyId);
       if (!myEmp) throw new TRPCError({ code: "NOT_FOUND" });
       const db = await requireDb();
+      const [ann] = await db
+        .select({ id: announcements.id, companyId: announcements.companyId })
+        .from(announcements)
+        .where(eq(announcements.id, input.announcementId))
+        .limit(1);
+      if (!ann || ann.companyId !== m.companyId) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Announcement not found" });
+      }
       // Upsert read record
       const [existing] = await db
         .select({ id: announcementReads.id })
@@ -430,51 +447,57 @@ export const employeePortalRouter = router({
     }),
 
   // ─── Get my payslips ──────────────────────────────────────────────────────
-  getMyPayslips: protectedProcedure.query(async ({ ctx }) => {
-    const membership = await getUserCompany(ctx.user.id);
-    if (!membership) return [];
-    const myEmp = await resolveMyEmployee(ctx.user.id, ctx.user.email ?? "", membership.company.id);
+  getMyPayslips: protectedProcedure
+    .input(z.object({ companyId: z.number().optional() }))
+    .query(async ({ ctx, input }) => {
+    const m = await getActiveCompanyMembership(ctx.user.id, input.companyId ?? undefined);
+    if (!m) return [];
+    const myEmp = await resolveMyEmployee(ctx.user.id, ctx.user.email ?? "", m.companyId);
     if (!myEmp) return [];
     const db = await requireDb();
     return db
       .select()
       .from(payrollRecords)
       .where(and(
-        eq(payrollRecords.companyId, membership.company.id),
+        eq(payrollRecords.companyId, m.companyId),
         eq(payrollRecords.employeeId, myEmp.id),
       ))
       .orderBy(desc(payrollRecords.periodYear), desc(payrollRecords.periodMonth));
   }),
 
   // ─── Get my payroll records ───────────────────────────────────────────────
-  getMyPayroll: protectedProcedure.query(async ({ ctx }) => {
-    const membership = await getUserCompany(ctx.user.id);
-    if (!membership) return [];
-    const myEmp = await resolveMyEmployee(ctx.user.id, ctx.user.email ?? "", membership.company.id);
+  getMyPayroll: protectedProcedure
+    .input(z.object({ companyId: z.number().optional() }))
+    .query(async ({ ctx, input }) => {
+    const m = await getActiveCompanyMembership(ctx.user.id, input.companyId ?? undefined);
+    if (!m) return [];
+    const myEmp = await resolveMyEmployee(ctx.user.id, ctx.user.email ?? "", m.companyId);
     if (!myEmp) return [];
     const db = await requireDb();
     return db
       .select()
       .from(payrollRecords)
       .where(and(
-        eq(payrollRecords.companyId, membership.company.id),
+        eq(payrollRecords.companyId, m.companyId),
         eq(payrollRecords.employeeId, myEmp.id),
       ))
       .orderBy(desc(payrollRecords.periodYear), desc(payrollRecords.periodMonth));
   }),
 
   // ─── Get my documents ─────────────────────────────────────────────────────
-  getMyDocuments: protectedProcedure.query(async ({ ctx }) => {
-    const membership = await getUserCompany(ctx.user.id);
-    if (!membership) return [];
-    const myEmp = await resolveMyEmployee(ctx.user.id, ctx.user.email ?? "", membership.company.id);
+  getMyDocuments: protectedProcedure
+    .input(z.object({ companyId: z.number().optional() }))
+    .query(async ({ ctx, input }) => {
+    const m = await getActiveCompanyMembership(ctx.user.id, input.companyId ?? undefined);
+    if (!m) return [];
+    const myEmp = await resolveMyEmployee(ctx.user.id, ctx.user.email ?? "", m.companyId);
     if (!myEmp) return [];
     const db = await requireDb();
     return db
       .select()
       .from(employeeDocuments)
       .where(and(
-        eq(employeeDocuments.companyId, membership.company.id),
+        eq(employeeDocuments.companyId, m.companyId),
         eq(employeeDocuments.employeeId, myEmp.id),
       ))
       .orderBy(desc(employeeDocuments.createdAt));
@@ -533,16 +556,17 @@ export const employeePortalRouter = router({
 
   // ─── Get my in-app notifications ──────────────────────────────────────────
   getMyNotifications: protectedProcedure
-    .input(z.object({ limit: z.number().min(1).max(50).default(20) }))
+    .input(z.object({ limit: z.number().min(1).max(50).default(20), companyId: z.number().optional() }))
     .query(async ({ input, ctx }) => {
       const db = await requireDb();
-      const membership = await getUserCompany(ctx.user.id);
+      const m = await getActiveCompanyMembership(ctx.user.id, input.companyId ?? undefined);
+      if (!m) return { notifications: [], unreadCount: 0 };
       const items = await db
         .select()
         .from(notifications)
         .where(and(
           eq(notifications.userId, ctx.user.id),
-          membership ? eq(notifications.companyId, membership.company.id) : isNull(notifications.companyId),
+          eq(notifications.companyId, m.companyId),
         ))
         .orderBy(desc(notifications.createdAt))
         .limit(input.limit);
@@ -563,26 +587,29 @@ export const employeePortalRouter = router({
     }),
 
   // ─── Mark all notifications as read ──────────────────────────────────────
-  markAllNotificationsRead: protectedProcedure.mutation(async ({ ctx }) => {
+  markAllNotificationsRead: protectedProcedure
+    .input(z.object({ companyId: z.number().optional() }))
+    .mutation(async ({ ctx, input }) => {
     const db = await requireDb();
-    const membership = await getUserCompany(ctx.user.id);
+    const m = await getActiveCompanyMembership(ctx.user.id, input.companyId ?? undefined);
+    if (!m) return { success: true as const };
     await db
       .update(notifications)
       .set({ isRead: true })
       .where(and(
         eq(notifications.userId, ctx.user.id),
-        membership ? eq(notifications.companyId, membership.company.id) : isNull(notifications.companyId),
+        eq(notifications.companyId, m.companyId),
       ));
     return { success: true };
   }),
 
   // ─── Get attendance summary for a month ──────────────────────────────────
   getMyAttendanceSummary: protectedProcedure
-    .input(z.object({ month: z.string() })) // YYYY-MM
+    .input(z.object({ month: z.string(), companyId: z.number().optional() })) // YYYY-MM
     .query(async ({ input, ctx }) => {
-      const membership = await getUserCompany(ctx.user.id);
-      if (!membership) return { records: [], summary: { present: 0, absent: 0, late: 0, halfDay: 0, remote: 0, total: 0 } };
-      const myEmp = await resolveMyEmployee(ctx.user.id, ctx.user.email ?? "", membership.company.id);
+      const m = await getActiveCompanyMembership(ctx.user.id, input.companyId ?? undefined);
+      if (!m) return { records: [], summary: { present: 0, absent: 0, late: 0, halfDay: 0, remote: 0, total: 0 } };
+      const myEmp = await resolveMyEmployee(ctx.user.id, ctx.user.email ?? "", m.companyId);
       if (!myEmp) return { records: [], summary: { present: 0, absent: 0, late: 0, halfDay: 0, remote: 0, total: 0 } };
       const db = await requireDb();
       const [year, month] = input.month.split("-").map(Number);
@@ -592,7 +619,7 @@ export const employeePortalRouter = router({
         .select()
         .from(attendance)
         .where(and(
-          eq(attendance.companyId, membership.company.id),
+          eq(attendance.companyId, m.companyId),
           eq(attendance.employeeId, myEmp.id),
         ))
         .orderBy(desc(attendance.date));
@@ -616,33 +643,42 @@ export const employeePortalRouter = router({
     }),
 
   // ─── Get my company info (name, industry, role) ─────────────────────────────
-  getMyCompanyInfo: protectedProcedure.query(async ({ ctx }) => {
-    const membership = await getUserCompany(ctx.user.id);
-    if (!membership) return null;
+  getMyCompanyInfo: protectedProcedure
+    .input(z.object({ companyId: z.number().optional() }))
+    .query(async ({ ctx, input }) => {
+    const m = await getActiveCompanyMembership(ctx.user.id, input.companyId ?? undefined);
+    if (!m) return null;
+    const db = await requireDb();
+    const [row] = await db
+      .select()
+      .from(companies)
+      .where(eq(companies.id, m.companyId))
+      .limit(1);
+    if (!row) return null;
     return {
-      id: membership.company.id,
-      name: membership.company.name,
-      nameAr: (membership.company as any).nameAr ?? null,
-      country: membership.company.country,
-      industry: (membership.company as any).industry ?? null,
-      role: membership.member.role ?? null,
+      id: row.id,
+      name: row.name,
+      nameAr: (row as { nameAr?: string | null }).nameAr ?? null,
+      country: row.country,
+      industry: (row as { industry?: string | null }).industry ?? null,
+      role: m.role ?? null,
     };
   }),
 
   // ─── Cancel a pending leave request ──────────────────────────────────────────
   cancelLeaveRequest: protectedProcedure
-    .input(z.object({ leaveId: z.number() }))
+    .input(z.object({ leaveId: z.number(), companyId: z.number().optional() }))
     .mutation(async ({ input, ctx }) => {
-      const membership = await getUserCompany(ctx.user.id);
-      if (!membership) throw new TRPCError({ code: "FORBIDDEN" });
-      const myEmp = await resolveMyEmployee(ctx.user.id, ctx.user.email ?? "", membership.company.id);
+      const m = await getActiveCompanyMembership(ctx.user.id, input.companyId ?? undefined);
+      if (!m) throw new TRPCError({ code: "FORBIDDEN" });
+      const myEmp = await resolveMyEmployee(ctx.user.id, ctx.user.email ?? "", m.companyId);
       if (!myEmp) throw new TRPCError({ code: "NOT_FOUND" });
       const db = await requireDb();
       const [req] = await db.select().from(leaveRequests)
         .where(and(
           eq(leaveRequests.id, input.leaveId),
           eq(leaveRequests.employeeId, myEmp.id),
-          eq(leaveRequests.companyId, membership.company.id),
+          eq(leaveRequests.companyId, m.companyId),
         ))
         .limit(1);
       if (!req) throw new TRPCError({ code: "NOT_FOUND", message: "Leave request not found" });
@@ -656,14 +692,15 @@ export const employeePortalRouter = router({
   // ─── Update my contact info (phone, emergency contact) ───────────────────────
   updateMyContactInfo: protectedProcedure
     .input(z.object({
+      companyId: z.number().optional(),
       phone: z.string().optional(),
       emergencyContactName: z.string().optional(),
       emergencyContactPhone: z.string().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const membership = await getUserCompany(ctx.user.id);
-      if (!membership) throw new TRPCError({ code: "FORBIDDEN" });
-      const myEmp = await resolveMyEmployee(ctx.user.id, ctx.user.email ?? "", membership.company.id);
+      const m = await getActiveCompanyMembership(ctx.user.id, input.companyId ?? undefined);
+      if (!m) throw new TRPCError({ code: "FORBIDDEN" });
+      const myEmp = await resolveMyEmployee(ctx.user.id, ctx.user.email ?? "", m.companyId);
       if (!myEmp) throw new TRPCError({ code: "NOT_FOUND", message: "Employee record not found" });
       const db = await requireDb();
       const updateData: Record<string, any> = {};
@@ -678,11 +715,11 @@ export const employeePortalRouter = router({
 
   // ─── Get my real-time attendance records (from attendanceRecords, not attendance) ─
   getMyAttendanceRecords: protectedProcedure
-    .input(z.object({ month: z.string() })) // YYYY-MM
+    .input(z.object({ month: z.string(), companyId: z.number().optional() })) // YYYY-MM
     .query(async ({ input, ctx }) => {
-      const membership = await getUserCompany(ctx.user.id);
-      if (!membership) return { records: [], summary: { present: 0, late: 0, total: 0, hoursWorked: 0 } };
-      const myEmp = await resolveMyEmployee(ctx.user.id, ctx.user.email ?? "", membership.company.id);
+      const m = await getActiveCompanyMembership(ctx.user.id, input.companyId ?? undefined);
+      if (!m) return { records: [], summary: { present: 0, late: 0, total: 0, hoursWorked: 0 } };
+      const myEmp = await resolveMyEmployee(ctx.user.id, ctx.user.email ?? "", m.companyId);
       if (!myEmp) return { records: [], summary: { present: 0, late: 0, total: 0, hoursWorked: 0 } };
       const db = await requireDb();
       const [year, month] = input.month.split("-").map(Number);
@@ -692,6 +729,7 @@ export const employeePortalRouter = router({
         .select()
         .from(attendanceRecords)
         .where(and(
+          eq(attendanceRecords.companyId, m.companyId),
           eq(attendanceRecords.employeeId, myEmp.id),
           gte(attendanceRecords.checkIn, start),
           lte(attendanceRecords.checkIn, end),

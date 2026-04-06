@@ -170,7 +170,10 @@ export default function CompanyWorkspacePage() {
   const { activeCompanyId } = useActiveCompany();
   const { data: myCompany, isLoading: companyLoading } = trpc.companies.myCompany.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
   const { data: teamStats, isLoading: teamLoading } = trpc.team.getTeamStats.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
-  const { data: alertCount } = trpc.alerts.getAlertBadgeCount.useQuery();
+  const { data: alertCount } = trpc.alerts.getAlertBadgeCount.useQuery(
+    { companyId: activeCompanyId ?? undefined },
+    { enabled: activeCompanyId != null },
+  );
   const { data: companyStats, isLoading: statsLoading } = trpc.companies.myStats.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
 
   const company = myCompany?.company;

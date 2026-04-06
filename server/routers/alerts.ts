@@ -2,7 +2,8 @@ import { TRPCError } from "@trpc/server";
 import { and, asc, eq, gte, lte, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { canAccessGlobalAdminProcedures } from "@shared/rbac";
-import { getDb, getUserCompany, getUserCompanyById } from "../db";
+import { getDb } from "../db";
+import { getActiveCompanyMembership } from "../_core/membership";
 import {
   companies,
   employeeDocuments,
@@ -88,12 +89,8 @@ export const alertsRouter = router({
       if (!db) return { alerts: [], summary: { critical: 0, high: 0, medium: 0, low: 0, total: 0 } };
 
       const isGlobal = canAccessGlobalAdminProcedures(ctx.user);
-      const tenant = await getUserCompany(ctx.user.id);
-      const tenantCompanyId = tenant?.company?.id ?? null;
-
-      if (!isGlobal && input?.companyId != null && input.companyId !== tenantCompanyId) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Alerts not found" });
-      }
+      const tenantM = await getActiveCompanyMembership(ctx.user.id, input?.companyId);
+      const tenantCompanyId = tenantM?.companyId ?? null;
 
       if (!isGlobal && tenantCompanyId == null) {
         return { alerts: [], summary: { critical: 0, high: 0, medium: 0, low: 0, total: 0 } };
@@ -374,15 +371,12 @@ export const alertsRouter = router({
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
       const isGlobal = canAccessGlobalAdminProcedures(ctx.user);
-      const tenant = await getUserCompany(ctx.user.id);
-      const tenantCompanyId = tenant?.company?.id ?? null;
+      const tenantM = await getActiveCompanyMembership(ctx.user.id, input.companyId);
+      const tenantCompanyId = tenantM?.companyId ?? null;
 
       if (!isGlobal) {
         if (tenantCompanyId == null) {
           throw new TRPCError({ code: "FORBIDDEN", message: "No company membership" });
-        }
-        if (input.companyId != null && input.companyId !== tenantCompanyId) {
-          throw new TRPCError({ code: "NOT_FOUND", message: "Resource not found" });
         }
       }
 
@@ -517,12 +511,13 @@ export const alertsRouter = router({
     if (!db) return { count: 0, critical: 0 };
 
     const isGlobal = canAccessGlobalAdminProcedures(ctx.user);
-    const tenant = input?.companyId
-      ? await getUserCompanyById(ctx.user.id, input.companyId)
-      : await getUserCompany(ctx.user.id);
-    const tenantCompanyId = tenant?.company?.id ?? null;
+    const tenantM = await getActiveCompanyMembership(ctx.user.id, input?.companyId);
+    /** Tenant users: membership company. Global users: optional explicit company filter (no filter = all tenants). */
+    const filterCompanyId = isGlobal
+      ? (input?.companyId ?? null)
+      : (tenantM?.companyId ?? null);
 
-    if (!isGlobal && tenantCompanyId == null) {
+    if (!isGlobal && filterCompanyId == null) {
       return { count: 0, critical: 0 };
     }
 
@@ -533,12 +528,12 @@ export const alertsRouter = router({
     const scope30 = [
       gte(workPermits.expiryDate, now),
       lte(workPermits.expiryDate, cutoff30),
-      ...(tenantCompanyId != null && !isGlobal ? [eq(workPermits.companyId, tenantCompanyId)] : []),
+      ...(filterCompanyId != null ? [eq(workPermits.companyId, filterCompanyId)] : []),
     ];
     const scope7 = [
       gte(workPermits.expiryDate, now),
       lte(workPermits.expiryDate, cutoff7),
-      ...(tenantCompanyId != null && !isGlobal ? [eq(workPermits.companyId, tenantCompanyId)] : []),
+      ...(filterCompanyId != null ? [eq(workPermits.companyId, filterCompanyId)] : []),
     ];
 
     const [{ wpCount }] = await db

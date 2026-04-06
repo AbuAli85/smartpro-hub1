@@ -798,7 +798,7 @@ export default function TeamAccessPage() {
                             size="sm"
                             className="h-8 text-xs gap-1 text-red-600 hover:text-red-700 hover:border-red-300"
                             disabled={revokeInviteMutation.isPending}
-                            onClick={() => revokeInviteMutation.mutate({ id: invite.id })}
+                            onClick={() => revokeInviteMutation.mutate({ id: invite.id, companyId: activeCompanyId ?? undefined })}
                           >
                             Revoke
                           </Button>

@@ -1,71 +1,63 @@
 import { createPrivateKey } from "node:crypto";
 
-function stripUtf8Bom(s: string): string {
-  return s.length > 0 && s.charCodeAt(0) === 0xfeff ? s.slice(1) : s;
-}
+/** Unicode "dash-like" characters that some editors/UIs substitute for ASCII hyphen-minus (U+002D). */
+const UNICODE_DASHES_RE =
+  /[\u2010\u2011\u2012\u2013\u2014\u2015\u2212\uFE58\uFE63\uFF0D]/g;
 
-/** Remove zero-width chars; normalize Unicode dashes to ASCII hyphen (PEM headers must use 0x2D). */
-function sanitizePemSource(s: string): string {
-  let k = stripUtf8Bom(s).trim().replace(/\r\n/g, "\n");
-  k = k.replace(/[\u200B-\u200D\uFEFF]/g, "");
-  k = k.replace(/[\u2010-\u2015\u2212\uFE58\uFE63\uFF0D]/g, "-");
-  for (let i = 0; i < 4 && k.includes("\\n"); i++) {
-    k = k.replace(/\\n/g, "\n");
-  }
-  return k;
-}
-
-/**
- * Rebuild PEM with clean 64-column base64 lines. Fixes broken line breaks, extra spaces,
- * and single-line pastes. Strips non-base64 noise inside the body.
- */
-function tryCanonicalReflowPrivateKeyPem(k: string): string | null {
-  const re =
-    /^(-----BEGIN [A-Z0-9 ]+PRIVATE KEY-----)\s*([\s\S]*?)\s*(-----END [A-Z0-9 ]+PRIVATE KEY-----)$/im;
-  const m = k.match(re);
-  if (!m) return null;
-  const begin = m[1];
-  const end = m[3];
-  const b64 = m[2].replace(/\s+/g, "").replace(/[^A-Za-z0-9+/=]/g, "");
-  if (b64.length < 64) return null;
-  const lines = b64.match(/.{1,64}/g)?.join("\n") ?? b64;
-  return `${begin}\n${lines}\n${end}`;
-}
+/** Zero-width and invisible characters that some editors/UIs insert silently. */
+const ZERO_WIDTH_RE =
+  /[\u200B\u200C\u200D\u200E\u200F\uFEFF\u00AD\u2060\u2061\u2062\u2063]/g;
 
 /**
  * Fixes common secret-store mangling of Google service account `private_key`:
- * - BOM / zero-width / Unicode hyphen in PEM headers
- * - Literal `\n` sequences instead of newlines (possibly double-escaped)
- * - CRLF
- * - Entire PEM pasted as one line, or broken wrapping
+ * 1. Strips BOM and zero-width / invisible characters.
+ * 2. Normalises Unicode "dash" characters to ASCII hyphen-minus (so PEM headers parse).
+ * 3. Unescapes literal `\n` sequences (up to 4 passes, handles double-escaping).
+ * 4. CRLF → LF.
+ * 5. Canonical reflow: strips all whitespace and non-base64 chars from the body,
+ *    then rewraps to standard 64-character lines — covers both single-line PEM
+ *    and PEM with irregular line lengths.
  */
 export function normalizeServiceAccountPrivateKeyPem(raw: string): string {
-  const k = sanitizePemSource(raw);
-  const reflowed = tryCanonicalReflowPrivateKeyPem(k);
-  if (reflowed) return reflowed;
+  // 1. Strip BOM and zero-width characters
+  let k = raw.replace(ZERO_WIDTH_RE, "").trim();
 
-  const beginRe = /^(-----BEGIN [A-Z0-9 ]+PRIVATE KEY-----)/i;
-  const endRe = /(-----END [A-Z0-9 ]+PRIVATE KEY-----)$/i;
+  // 2. Normalize Unicode dashes to ASCII hyphen-minus
+  k = k.replace(UNICODE_DASHES_RE, "-");
+
+  // 3. CRLF → LF
+  k = k.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+
+  // 4. Unescape literal \n sequences (up to 4 passes for double-escaping)
+  for (let i = 0; i < 4 && k.includes("\\n"); i++) {
+    k = k.replace(/\\n/g, "\n");
+  }
+
+  // 5. Canonical reflow: extract header/footer and reflow the base64 body
+  const beginRe = /(-----BEGIN [A-Z0-9 ]+PRIVATE KEY-----)/i;
+  const endRe = /(-----END [A-Z0-9 ]+PRIVATE KEY-----)/i;
   const bm = k.match(beginRe);
   const em = k.match(endRe);
   if (!bm || !em) return k;
 
   const begin = bm[1];
   const end = em[1];
-  const inner = k.slice(begin.length, k.length - end.length);
-  const compact = inner.replace(/\s+/g, "");
+  const beginIdx = k.indexOf(begin);
+  const endIdx = k.lastIndexOf(end);
+  if (beginIdx === -1 || endIdx === -1 || endIdx <= beginIdx) return k;
+
+  const inner = k.slice(beginIdx + begin.length, endIdx);
+  // Strip everything that isn't base64 (letters, digits, +, /, =)
+  const compact = inner.replace(/[^A-Za-z0-9+/=]/g, "");
   if (compact.length === 0) return k;
-  if (!/\n/.test(inner.trim())) {
-    const lines = compact.match(/.{1,64}/g)?.join("\n") ?? compact;
-    return `${begin}\n${lines}\n${end}`;
-  }
-  return k;
+
+  const lines = compact.match(/.{1,64}/g)?.join("\n") ?? compact;
+  return `${begin}\n${lines}\n${end}`;
 }
 
 export function isPemPrivateKeyParseable(pem: string): boolean {
-  const n = normalizeServiceAccountPrivateKeyPem(pem);
   try {
-    createPrivateKey({ key: n, format: "pem" });
+    createPrivateKey(normalizeServiceAccountPrivateKeyPem(pem));
     return true;
   } catch {
     return false;

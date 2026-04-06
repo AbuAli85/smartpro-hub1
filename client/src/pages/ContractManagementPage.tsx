@@ -57,21 +57,17 @@ import {
   AlertTriangle,
   Building2,
   Calendar,
-  CheckCircle2,
-  Clock,
   Download,
   ExternalLink,
   FileText,
-  FileWarning,
   Filter,
   Loader2,
   MapPin,
   Plus,
   RefreshCw,
-  TrendingUp,
-  UserCheck,
   Users,
 } from "lucide-react";
+import { ContractKpiWidget } from "@/components/contracts/ContractKpiWidget";
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 
@@ -271,11 +267,6 @@ export default function ContractManagementPage() {
     { retry: 1 }
   );
 
-  const { data: kpis, isLoading: kpisLoading } = trpc.contractManagement.kpis.useQuery(
-    undefined,
-    { refetchOnWindowFocus: false, staleTime: 60_000 }
-  );
-
   const { data: docGenReadiness } = trpc.documentGeneration.readiness.useQuery();
   const pdfAvailable = docGenReadiness?.googleDocsConfigured ?? false;
   const googleDocsIssue =
@@ -285,7 +276,7 @@ export default function ContractManagementPage() {
 
   // ─── MUTATIONS ─────────────────────────────────────────────────────────────
 
-  const kpisUtils = trpc.useUtils();
+  const utils = trpc.useUtils();
 
   const generateMutation = trpc.documentGeneration.generate.useMutation({
     onSuccess: (result) => {
@@ -293,7 +284,7 @@ export default function ContractManagementPage() {
       window.open(result.fileUrl, "_blank");
       setGeneratingId(null);
       refetch();
-      void kpisUtils.contractManagement.kpis.invalidate();
+      void utils.contractManagement.kpis.invalidate();
     },
     onError: (e) => {
       toast.error("PDF generation failed", { description: e.message });
@@ -401,188 +392,8 @@ export default function ContractManagementPage() {
           </Alert>
         )}
 
-        {/* ── KPI Stats Bar ──────────────────────────────────────────────────── */}
-        <div className={`grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 ${kpisLoading ? "opacity-60 animate-pulse" : ""}`}>
-          {[
-            {
-              label: "Total Contracts",
-              value: kpis?.totals.total ?? "—",
-              icon: <FileText className="h-4 w-4" />,
-              bg: "bg-muted/60",
-            },
-            {
-              label: "Active",
-              value: kpis?.totals.active ?? "—",
-              icon: <CheckCircle2 className="h-4 w-4 text-emerald-500" />,
-              bg: kpis && kpis.totals.active > 0 ? "bg-emerald-500/8" : "bg-muted/60",
-            },
-            {
-              label: "Draft",
-              value: kpis?.totals.draft ?? "—",
-              icon: <Building2 className="h-4 w-4 text-zinc-400" />,
-              bg: "bg-muted/60",
-            },
-            {
-              label: "Expiring ≤30d",
-              value: kpis?.totals.expiringIn30Days ?? "—",
-              icon: <Clock className="h-4 w-4 text-amber-500" />,
-              bg: kpis && kpis.totals.expiringIn30Days > 0 ? "bg-amber-500/8" : "bg-muted/60",
-              highlight: kpis && kpis.totals.expiringIn30Days > 0,
-            },
-            {
-              label: "Expired",
-              value: kpis?.totals.expired ?? "—",
-              icon: <AlertCircle className="h-4 w-4 text-red-500" />,
-              bg: kpis && kpis.totals.expired > 0 ? "bg-red-500/8" : "bg-muted/60",
-            },
-            {
-              label: "Promoters Deployed",
-              value: kpis?.promotersDeployed ?? "—",
-              icon: <UserCheck className="h-4 w-4 text-blue-500" />,
-              bg: "bg-blue-500/8",
-            },
-          ].map((s) => (
-            <div
-              key={s.label}
-              className={`rounded-xl border shadow-sm p-4 flex items-center gap-3 ${s.bg} ${
-                (s as any).highlight ? "border-amber-300 dark:border-amber-700" : ""
-              }`}
-            >
-              <div className="p-2 rounded-lg bg-background/60">{s.icon}</div>
-              <div>
-                <p className="text-2xl font-bold tabular-nums">{s.value}</p>
-                <p className="text-xs text-muted-foreground leading-snug">{s.label}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* ── Risk Panel — shown only when there are actionable risk items ──── */}
-        {kpis && (kpis.expiringSoon.length > 0 || kpis.missingDocuments.length > 0) && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-
-            {/* Expiring Soon */}
-            {kpis.expiringSoon.length > 0 && (
-              <div className="rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50/60 dark:bg-amber-950/20 overflow-hidden">
-                <div className="flex items-center gap-2 px-4 py-3 border-b border-amber-200 dark:border-amber-800 bg-amber-100/60 dark:bg-amber-900/20">
-                  <Clock className="h-4 w-4 text-amber-600" />
-                  <span className="font-semibold text-sm text-amber-800 dark:text-amber-300">
-                    Expiring Soon
-                  </span>
-                  <Badge variant="outline" className="ml-auto text-[11px] border-amber-300 text-amber-700 bg-amber-100">
-                    {kpis.expiringSoon.length}
-                  </Badge>
-                </div>
-                <ul className="divide-y divide-amber-100 dark:divide-amber-900/50">
-                  {kpis.expiringSoon.map((item) => (
-                    <li key={item.id} className="flex items-center justify-between px-4 py-2.5 text-sm gap-3">
-                      <div className="min-w-0 flex-1">
-                        <Link href={`/hr/contracts/${item.id}`}>
-                          <span className="font-medium hover:underline cursor-pointer text-foreground truncate block">
-                            {item.promoterName}
-                          </span>
-                        </Link>
-                        <span className="text-xs text-muted-foreground truncate block">
-                          {item.firstPartyName}
-                          {item.contractNumber ? ` · ${item.contractNumber}` : ""}
-                        </span>
-                      </div>
-                      <div className="shrink-0 text-right">
-                        <span
-                          className={`inline-flex items-center gap-1 text-xs font-semibold rounded-full px-2 py-0.5 ${
-                            item.daysLeft <= 7
-                              ? "bg-red-100 text-red-700"
-                              : "bg-amber-100 text-amber-700"
-                          }`}
-                        >
-                          <Calendar className="h-3 w-3" />
-                          {item.daysLeft}d
-                        </span>
-                        <p className="text-[11px] text-muted-foreground mt-0.5">{item.expiryDate}</p>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            {/* Missing Documents */}
-            {kpis.missingDocuments.length > 0 && (
-              <div className="rounded-xl border border-red-200 dark:border-red-800 bg-red-50/60 dark:bg-red-950/20 overflow-hidden">
-                <div className="flex items-center gap-2 px-4 py-3 border-b border-red-200 dark:border-red-800 bg-red-100/60 dark:bg-red-900/20">
-                  <FileWarning className="h-4 w-4 text-red-600" />
-                  <span className="font-semibold text-sm text-red-800 dark:text-red-300">
-                    Missing Documents
-                  </span>
-                  <Badge variant="outline" className="ml-auto text-[11px] border-red-300 text-red-700 bg-red-100">
-                    {kpis.missingDocuments.length}
-                  </Badge>
-                </div>
-                <ul className="divide-y divide-red-100 dark:divide-red-900/50">
-                  {kpis.missingDocuments.slice(0, 8).map((item) => (
-                    <li key={item.id} className="flex items-center justify-between px-4 py-2.5 text-sm gap-3">
-                      <div className="min-w-0 flex-1">
-                        <Link href={`/hr/contracts/${item.id}`}>
-                          <span className="font-medium hover:underline cursor-pointer text-foreground truncate block">
-                            {item.promoterName}
-                          </span>
-                        </Link>
-                        <span className="text-xs text-muted-foreground">
-                          {item.contractNumber ?? "No ref#"}
-                        </span>
-                      </div>
-                      <div className="shrink-0 flex flex-wrap gap-1 justify-end max-w-[140px]">
-                        {item.missingKinds.map((k) => (
-                          <span
-                            key={k}
-                            className="text-[10px] font-medium bg-red-100 text-red-700 rounded px-1.5 py-0.5 whitespace-nowrap"
-                          >
-                            {k}
-                          </span>
-                        ))}
-                      </div>
-                    </li>
-                  ))}
-                  {kpis.missingDocuments.length > 8 && (
-                    <li className="px-4 py-2 text-xs text-muted-foreground italic">
-                      +{kpis.missingDocuments.length - 8} more — upload documents from the contract detail page.
-                    </li>
-                  )}
-                </ul>
-              </div>
-            )}
-
-          </div>
-        )}
-
-        {/* ── Contracts by Company (show when >1 distinct first-party) ────── */}
-        {kpis && kpis.contractsPerCompany.length > 1 && (
-          <div className="rounded-xl border bg-card/80 shadow-sm overflow-hidden">
-            <div className="flex items-center gap-2 px-4 py-3 border-b bg-muted/30">
-              <TrendingUp className="h-4 w-4 text-muted-foreground" />
-              <span className="font-semibold text-sm">Contracts by Client Company</span>
-            </div>
-            <div className="px-4 py-3">
-              <div className="flex flex-wrap gap-3">
-                {kpis.contractsPerCompany.map((co) => (
-                  <div
-                    key={co.companyId ?? co.companyName}
-                    className="flex items-center gap-2 rounded-lg border bg-muted/30 px-3 py-2 text-sm"
-                  >
-                    <Building2 className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                    <span className="font-medium truncate max-w-[180px]">{co.companyName}</span>
-                    <span className="text-muted-foreground tabular-nums">{co.total}</span>
-                    {co.active > 0 && (
-                      <span className="text-[11px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-1.5 py-0">
-                        {co.active} active
-                      </span>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
+        {/* ── KPI Stats Bar, Risk Panel, Company Breakdown ───────────────── */}
+        <ContractKpiWidget variant="full" />
 
         {/* Filters */}
         <div className="flex flex-wrap items-center gap-3">

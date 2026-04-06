@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
+import { ContractKpiWidget } from "@/components/contracts/ContractKpiWidget";
 
 function NewCompanyDialog({ onSuccess }: { onSuccess: () => void }) {
   const [open, setOpen] = useState(false);
@@ -214,6 +215,11 @@ export default function AdminPage() {
             </CardContent>
           </Card>
         ))}
+      </div>
+
+      {/* Promoter Contract KPIs — platform-wide view */}
+      <div className="rounded-xl border bg-card/80 shadow-sm p-4 space-y-1">
+        <ContractKpiWidget variant="stats-bar" showTitle />
       </div>
 
       <Tabs defaultValue="users">

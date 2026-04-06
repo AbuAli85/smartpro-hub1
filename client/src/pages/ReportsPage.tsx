@@ -13,6 +13,7 @@ import {
   FileText, Download, TrendingUp, Users, Shield, CreditCard,
   Loader2, FileBarChart, Receipt, UserCheck, AlertCircle
 } from "lucide-react";
+import { ContractKpiWidget } from "@/components/contracts/ContractKpiWidget";
 
 const MONTHS = [
   { value: 1, label: "January" }, { value: 2, label: "February" },
@@ -371,6 +372,11 @@ export default function ReportsPage() {
           All reports are generated server-side as professional PDFs and stored securely in cloud storage. 
           Downloads open automatically. Reports reflect data at the time of generation.
         </p>
+      </div>
+
+      {/* Live Contract Portfolio Snapshot */}
+      <div className="rounded-xl border bg-card/80 shadow-sm p-4">
+        <ContractKpiWidget variant="stats-bar" showTitle />
       </div>
 
       {/* Report cards grid */}

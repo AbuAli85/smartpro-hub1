@@ -19,6 +19,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
 import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
 import { WorkforceHealthWidget } from "@/components/WorkforceHealthWidget";
+import { ContractKpiWidget } from "@/components/contracts/ContractKpiWidget";
 
 /* ── KPI Stat Card ─────────────────────────────────────────────────────── */
 function StatCard({
@@ -435,6 +436,13 @@ export default function Dashboard() {
               </div>
             </Link>
           </div>
+        </div>
+      )}
+
+      {/* ── Promoter Contract KPIs (compact) ── */}
+      {!showPlatformOverview && activeCompanyId && showHref("/hr/contracts") && (
+        <div className="rounded-xl border bg-card/80 shadow-sm p-4">
+          <ContractKpiWidget variant="compact" />
         </div>
       )}
 

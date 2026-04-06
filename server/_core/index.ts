@@ -1,4 +1,5 @@
-import "dotenv/config";
+// IMPORTANT: instrument Sentry before other imports (loads dotenv + Sentry.init).
+import "./instrument.ts";
 import express from "express";
 import { createServer } from "http";
 import net from "net";
@@ -10,6 +11,7 @@ import { serveStatic, setupVite } from "./vite";
 import { applySecurityMiddleware } from "./security";
 import { validateProductionEnvironment } from "./env";
 import { runEmployeeTaskOverdueNotifications } from "../jobs/employeeTaskOverdue";
+import { registerSentryExpressErrorHandler } from "./sentry";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -56,6 +58,8 @@ async function startServer() {
   } else {
     serveStatic(app);
   }
+
+  registerSentryExpressErrorHandler(app);
 
   const preferredPort = parseInt(process.env.PORT || "3000");
   const port = await findAvailablePort(preferredPort);

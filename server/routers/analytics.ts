@@ -5,11 +5,8 @@ import {
   getCrmDeals,
   getEmployees,
   getPlatformStats,
-  getUserCompany,
-  getUserCompanyById,
   getContracts,
   getProServices,
-  getSanadApplications,
   getLeaveRequests,
   getPayrollRecords,
   getAnalyticsReports,
@@ -21,7 +18,7 @@ import {
 } from "../db";
 import { protectedProcedure, router } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
-import { requireActiveCompanyId } from "../_core/tenant";
+import { getActiveCompanyMembership, requireActiveCompanyMembership } from "../_core/membership";
 import { loadUnifiedAuditTimeline } from "../unifiedAuditTimeline";
 
 async function assertScheduledReportInCompany(reportId: number, companyId: number): Promise<void> {
@@ -42,78 +39,149 @@ export const analyticsRouter = router({
     return getPlatformStats();
   }),
 
-  companyStats: protectedProcedure.query(async ({ ctx }) => {
-    const membership = await getUserCompany(ctx.user.id);
-    if (!membership) return null;
-    return getCompanyStats(membership.company.id);
-  }),
+  companyStats: protectedProcedure
+    .input(z.object({ companyId: z.number().optional() }).optional())
+    .query(async ({ ctx, input }) => {
+      if (canAccessGlobalAdminProcedures(ctx.user)) {
+        if (input?.companyId != null) return getCompanyStats(input.companyId);
+        return null;
+      }
+      const m = await getActiveCompanyMembership(ctx.user.id, input?.companyId);
+      if (!m) return null;
+      return getCompanyStats(m.companyId);
+    }),
 
-  contractsOverview: protectedProcedure.query(async ({ ctx }) => {
-    const membership = await getUserCompany(ctx.user.id);
-    if (!membership) return [];
-    const allContracts = await getContracts(membership.company.id);
-    const statuses = ["draft", "pending_review", "pending_signature", "signed", "active", "expired", "terminated"] as const;
-    return statuses.map((status) => ({
-      status,
-      count: allContracts.filter((c) => c.status === status).length,
-    }));
-  }),
+  contractsOverview: protectedProcedure
+    .input(z.object({ companyId: z.number().optional() }).optional())
+    .query(async ({ ctx, input }) => {
+      if (canAccessGlobalAdminProcedures(ctx.user)) {
+        if (input?.companyId == null) return [];
+        const allContracts = await getContracts(input.companyId);
+        const statuses = ["draft", "pending_review", "pending_signature", "signed", "active", "expired", "terminated"] as const;
+        return statuses.map((status) => ({
+          status,
+          count: allContracts.filter((c) => c.status === status).length,
+        }));
+      }
+      const m = await getActiveCompanyMembership(ctx.user.id, input?.companyId);
+      if (!m) return [];
+      const allContracts = await getContracts(m.companyId);
+      const statuses = ["draft", "pending_review", "pending_signature", "signed", "active", "expired", "terminated"] as const;
+      return statuses.map((status) => ({
+        status,
+        count: allContracts.filter((c) => c.status === status).length,
+      }));
+    }),
 
-  proServicesOverview: protectedProcedure.query(async ({ ctx }) => {
-    const membership = await getUserCompany(ctx.user.id);
-    if (!membership) return [];
-    const services = await getProServices(membership.company.id);
-    const types = [
-      "visa_processing",
-      "work_permit",
-      "labor_card",
-      "residence_renewal",
-      "visa_renewal",
-      "permit_renewal",
-    ] as const;
-    return types.map((type) => ({
-      type,
-      count: services.filter((s) => s.serviceType === type).length,
-    }));
-  }),
+  proServicesOverview: protectedProcedure
+    .input(z.object({ companyId: z.number().optional() }).optional())
+    .query(async ({ ctx, input }) => {
+      if (canAccessGlobalAdminProcedures(ctx.user)) {
+        if (input?.companyId == null) return [];
+        const services = await getProServices(input.companyId, {});
+        const types = [
+          "visa_processing",
+          "work_permit",
+          "labor_card",
+          "residence_renewal",
+          "visa_renewal",
+          "permit_renewal",
+        ] as const;
+        return types.map((type) => ({
+          type,
+          count: services.filter((s) => s.serviceType === type).length,
+        }));
+      }
+      const m = await getActiveCompanyMembership(ctx.user.id, input?.companyId);
+      if (!m) return [];
+      const services = await getProServices(m.companyId, {});
+      const types = [
+        "visa_processing",
+        "work_permit",
+        "labor_card",
+        "residence_renewal",
+        "visa_renewal",
+        "permit_renewal",
+      ] as const;
+      return types.map((type) => ({
+        type,
+        count: services.filter((s) => s.serviceType === type).length,
+      }));
+    }),
 
-  dealsPipeline: protectedProcedure.query(async ({ ctx }) => {
-    const membership = await getUserCompany(ctx.user.id);
-    if (!membership) return [];
-    const deals = await getCrmDeals(membership.company.id);
-    const stages = ["lead", "qualified", "proposal", "negotiation", "closed_won", "closed_lost"] as const;
-    return stages.map((stage) => {
-      const stageDeals = deals.filter((d) => d.stage === stage);
+  dealsPipeline: protectedProcedure
+    .input(z.object({ companyId: z.number().optional() }).optional())
+    .query(async ({ ctx, input }) => {
+      if (canAccessGlobalAdminProcedures(ctx.user)) {
+        if (input?.companyId == null) return [];
+        const deals = await getCrmDeals(input.companyId);
+        const stages = ["lead", "qualified", "proposal", "negotiation", "closed_won", "closed_lost"] as const;
+        return stages.map((stage) => {
+          const stageDeals = deals.filter((d) => d.stage === stage);
+          return {
+            stage,
+            count: stageDeals.length,
+            value: stageDeals.reduce((s, d) => s + Number(d.value ?? 0), 0),
+          };
+        });
+      }
+      const m = await getActiveCompanyMembership(ctx.user.id, input?.companyId);
+      if (!m) return [];
+      const deals = await getCrmDeals(m.companyId);
+      const stages = ["lead", "qualified", "proposal", "negotiation", "closed_won", "closed_lost"] as const;
+      return stages.map((stage) => {
+        const stageDeals = deals.filter((d) => d.stage === stage);
+        return {
+          stage,
+          count: stageDeals.length,
+          value: stageDeals.reduce((s, d) => s + Number(d.value ?? 0), 0),
+        };
+      });
+    }),
+
+  hrOverview: protectedProcedure
+    .input(z.object({ companyId: z.number().optional() }).optional())
+    .query(async ({ ctx, input }) => {
+      if (canAccessGlobalAdminProcedures(ctx.user)) {
+        if (input?.companyId == null) return null;
+        const cid = input.companyId;
+        const emps = await getEmployees(cid);
+        const leaves = await getLeaveRequests(cid);
+        const payroll = await getPayrollRecords(cid, new Date().getFullYear(), new Date().getMonth() + 1);
+        const byDept: Record<string, number> = {};
+        emps.forEach((e) => {
+          const dept = e.department ?? "Unassigned";
+          byDept[dept] = (byDept[dept] ?? 0) + 1;
+        });
+        return {
+          totalEmployees: emps.length,
+          activeEmployees: emps.filter((e) => e.status === "active").length,
+          pendingLeave: leaves.filter((l) => l.status === "pending").length,
+          payrollThisMonth: payroll.reduce((s, p) => s + Number(p.netSalary ?? 0), 0),
+          byDepartment: Object.entries(byDept).map(([dept, count]) => ({ dept, count })),
+        };
+      }
+      const m = await getActiveCompanyMembership(ctx.user.id, input?.companyId);
+      if (!m) return null;
+      const cid = m.companyId;
+      const emps = await getEmployees(cid);
+      const leaves = await getLeaveRequests(cid);
+      const payroll = await getPayrollRecords(cid, new Date().getFullYear(), new Date().getMonth() + 1);
+
+      const byDept: Record<string, number> = {};
+      emps.forEach((e) => {
+        const dept = e.department ?? "Unassigned";
+        byDept[dept] = (byDept[dept] ?? 0) + 1;
+      });
+
       return {
-        stage,
-        count: stageDeals.length,
-        value: stageDeals.reduce((s, d) => s + Number(d.value ?? 0), 0),
+        totalEmployees: emps.length,
+        activeEmployees: emps.filter((e) => e.status === "active").length,
+        pendingLeave: leaves.filter((l) => l.status === "pending").length,
+        payrollThisMonth: payroll.reduce((s, p) => s + Number(p.netSalary ?? 0), 0),
+        byDepartment: Object.entries(byDept).map(([dept, count]) => ({ dept, count })),
       };
-    });
-  }),
-
-  hrOverview: protectedProcedure.query(async ({ ctx }) => {
-    const membership = await getUserCompany(ctx.user.id);
-    if (!membership) return null;
-    const cid = membership.company.id;
-    const emps = await getEmployees(cid);
-    const leaves = await getLeaveRequests(cid);
-    const payroll = await getPayrollRecords(cid, new Date().getFullYear(), new Date().getMonth() + 1);
-
-    const byDept: Record<string, number> = {};
-    emps.forEach((e) => {
-      const dept = e.department ?? "Unassigned";
-      byDept[dept] = (byDept[dept] ?? 0) + 1;
-    });
-
-    return {
-      totalEmployees: emps.length,
-      activeEmployees: emps.filter((e) => e.status === "active").length,
-      pendingLeave: leaves.filter((l) => l.status === "pending").length,
-      payrollThisMonth: payroll.reduce((s, p) => s + Number(p.netSalary ?? 0), 0),
-      byDepartment: Object.entries(byDept).map(([dept, count]) => ({ dept, count })),
-    };
-  }),
+    }),
 
   /**
    * Unified activity timeline: `audit_events` (operational) + `audit_logs` (platform membership / role changes).
@@ -134,23 +202,30 @@ export const analyticsRouter = router({
           memberRole: null,
         });
       }
-      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId);
-      const m = await getUserCompanyById(ctx.user.id, cid);
+      const m = await getActiveCompanyMembership(ctx.user.id, input.companyId);
+      if (!m) return [];
       return loadUnifiedAuditTimeline(ctx, input.limit, {
-        companyId: cid,
-        memberRole: m?.member.role ?? null,
+        companyId: m.companyId,
+        memberRole: m.role ?? null,
       });
     }),
 
   // ── Scheduled Reports ──────────────────────────────────────────────────────
-  listReports: protectedProcedure.query(async ({ ctx }) => {
-    const membership = await getUserCompany(ctx.user.id);
-    if (!membership) return [];
-    return getAnalyticsReports(membership.company.id);
-  }),
+  listReports: protectedProcedure
+    .input(z.object({ companyId: z.number().optional() }).optional())
+    .query(async ({ ctx, input }) => {
+      if (canAccessGlobalAdminProcedures(ctx.user)) {
+        if (input?.companyId == null) return [];
+        return getAnalyticsReports(input.companyId);
+      }
+      const m = await getActiveCompanyMembership(ctx.user.id, input?.companyId);
+      if (!m) return [];
+      return getAnalyticsReports(m.companyId);
+    }),
 
   createReport: protectedProcedure
     .input(z.object({
+      companyId: z.number().optional(),
       name: z.string().min(1),
       type: z.string(),
       frequency: z.enum(["daily", "weekly", "monthly", "quarterly"]).default("weekly"),
@@ -158,8 +233,7 @@ export const analyticsRouter = router({
       recipients: z.string().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const membership = await getUserCompany(ctx.user.id);
-      if (!membership) throw new TRPCError({ code: "FORBIDDEN" });
+      const m = await requireActiveCompanyMembership(ctx.user.id, input.companyId);
       const now = new Date();
       const nextRun = new Date(now);
       if (input.frequency === "daily") nextRun.setDate(now.getDate() + 1);
@@ -167,7 +241,7 @@ export const analyticsRouter = router({
       else if (input.frequency === "monthly") nextRun.setMonth(now.getMonth() + 1);
       else nextRun.setMonth(now.getMonth() + 3);
       await createAnalyticsReport({
-        companyId: membership.company.id,
+        companyId: m.companyId,
         createdBy: ctx.user.id,
         name: input.name,
         type: input.type,
@@ -182,31 +256,28 @@ export const analyticsRouter = router({
     }),
 
   updateReportStatus: protectedProcedure
-    .input(z.object({ id: z.number(), status: z.enum(["active", "paused"]) }))
+    .input(z.object({ id: z.number(), status: z.enum(["active", "paused"]), companyId: z.number().optional() }))
     .mutation(async ({ input, ctx }) => {
-      const membership = await getUserCompany(ctx.user.id);
-      if (!membership) throw new TRPCError({ code: "FORBIDDEN" });
-      await assertScheduledReportInCompany(input.id, membership.company.id);
+      const m = await requireActiveCompanyMembership(ctx.user.id, input.companyId);
+      await assertScheduledReportInCompany(input.id, m.companyId);
       await updateAnalyticsReport(input.id, { status: input.status });
       return { success: true };
     }),
 
   deleteReport: protectedProcedure
-    .input(z.object({ id: z.number() }))
+    .input(z.object({ id: z.number(), companyId: z.number().optional() }))
     .mutation(async ({ input, ctx }) => {
-      const membership = await getUserCompany(ctx.user.id);
-      if (!membership) throw new TRPCError({ code: "FORBIDDEN" });
-      await assertScheduledReportInCompany(input.id, membership.company.id);
+      const m = await requireActiveCompanyMembership(ctx.user.id, input.companyId);
+      await assertScheduledReportInCompany(input.id, m.companyId);
       await deleteAnalyticsReport(input.id);
       return { success: true };
     }),
 
   runReportNow: protectedProcedure
-    .input(z.object({ id: z.number() }))
+    .input(z.object({ id: z.number(), companyId: z.number().optional() }))
     .mutation(async ({ input, ctx }) => {
-      const membership = await getUserCompany(ctx.user.id);
-      if (!membership) throw new TRPCError({ code: "FORBIDDEN" });
-      await assertScheduledReportInCompany(input.id, membership.company.id);
+      const m = await requireActiveCompanyMembership(ctx.user.id, input.companyId);
+      await assertScheduledReportInCompany(input.id, m.companyId);
       await updateAnalyticsReport(input.id, { lastRunAt: new Date() });
       return { success: true };
     }),
@@ -218,17 +289,17 @@ export const analyticsRouter = router({
   buildAdHocReportSpec: protectedProcedure
     .input(
       z.object({
+        companyId: z.number().optional(),
         name: z.string().max(200).optional(),
         module: adHocModuleSchema,
         fields: z.array(z.string().min(1).max(64)).min(1).max(32),
         aggregation: adHocAggregationSchema,
         chartType: adHocChartSchema,
         dateRange: adHocDateRangeSchema,
-      })
+      }),
     )
     .mutation(async ({ input, ctx }) => {
-      const membership = await getUserCompany(ctx.user.id);
-      if (!membership) throw new TRPCError({ code: "FORBIDDEN" });
+      const m = await requireActiveCompanyMembership(ctx.user.id, input.companyId);
       const trimmedName = input.name?.trim();
       const generatedAt = new Date().toISOString();
       return {
@@ -240,7 +311,7 @@ export const analyticsRouter = router({
         chartType: input.chartType,
         dateRange: input.dateRange,
         generatedAt,
-        companyId: membership.company.id,
+        companyId: m.companyId,
         generatedByUserId: ctx.user.id,
         executionNote:
           "Server-validated specification only; aggregated row data is not executed in this version.",

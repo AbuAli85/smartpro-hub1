@@ -26,6 +26,7 @@ import {
   Legend,
 } from "recharts";
 import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
+import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 
 const COLORS = ["#f97316", "#3b82f6", "#8b5cf6", "#10b981", "#f59e0b", "#ef4444"];
 
@@ -49,12 +50,16 @@ function StatCard({ title, value, icon, sub }: { title: string; value: string | 
 }
 
 export default function AnalyticsPage() {
+  const { activeCompanyId } = useActiveCompany();
+  const companyInput = { companyId: activeCompanyId ?? undefined };
+  const companyScoped = activeCompanyId != null;
+
   const { data: platformStats } = trpc.analytics.platformStats.useQuery();
-  const { data: companyStats } = trpc.analytics.companyStats.useQuery();
-  const { data: contractsOverview } = trpc.analytics.contractsOverview.useQuery();
-  const { data: proOverview } = trpc.analytics.proServicesOverview.useQuery();
-  const { data: crmPipeline } = trpc.analytics.dealsPipeline.useQuery();
-  const { data: hrStats } = trpc.analytics.hrOverview.useQuery();
+  const { data: companyStats } = trpc.analytics.companyStats.useQuery(companyInput, { enabled: companyScoped });
+  const { data: contractsOverview } = trpc.analytics.contractsOverview.useQuery(companyInput, { enabled: companyScoped });
+  const { data: proOverview } = trpc.analytics.proServicesOverview.useQuery(companyInput, { enabled: companyScoped });
+  const { data: crmPipeline } = trpc.analytics.dealsPipeline.useQuery(companyInput, { enabled: companyScoped });
+  const { data: hrStats } = trpc.analytics.hrOverview.useQuery(companyInput, { enabled: companyScoped });
 
   const moduleData = [
     { name: "Sanad", value: companyStats?.sanadApplications ?? 0, color: "#3b82f6" },
@@ -337,8 +342,12 @@ const CHANNELS = [
 ];
 
 function ScheduledReportsTab() {
+  const { activeCompanyId } = useActiveCompany();
   const utils = trpc.useUtils();
-  const { data: reports = [], isLoading } = trpc.analytics.listReports.useQuery();
+  const { data: reports = [], isLoading } = trpc.analytics.listReports.useQuery(
+    { companyId: activeCompanyId ?? undefined },
+    { enabled: activeCompanyId != null },
+  );
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({
     name: "",
@@ -382,7 +391,12 @@ function ScheduledReportsTab() {
       toast.error("Please fill in all required fields");
       return;
     }
+    if (activeCompanyId == null) {
+      toast.error("Select a company workspace first");
+      return;
+    }
     createMutation.mutate({
+      companyId: activeCompanyId,
       name: form.name,
       type: form.type,
       frequency: form.frequency as "daily" | "weekly" | "monthly" | "quarterly",
@@ -508,7 +522,10 @@ function ScheduledReportsTab() {
                 <div className="flex items-center gap-1 shrink-0">
                   <Button size="sm" variant="ghost" className="h-7 w-7 p-0" title="Run Now"
                     disabled={runNowMutation.isPending}
-                    onClick={() => runNowMutation.mutate({ id: report.id })}>
+                    onClick={() => {
+                      if (activeCompanyId == null) return;
+                      runNowMutation.mutate({ id: report.id, companyId: activeCompanyId });
+                    }}>
                     <Play size={13} className="text-green-600" />
                   </Button>
                   <Button size="sm" variant="ghost" className="h-7 w-7 p-0" title="Download Last Report" onClick={() => toast.info("Downloading last report...")}>
@@ -519,13 +536,23 @@ function ScheduledReportsTab() {
                     variant="outline"
                     className={`h-7 text-xs ${report.status === "active" ? "text-amber-600 border-amber-200" : "text-green-600 border-green-200"}`}
                     disabled={toggleMutation.isPending}
-                    onClick={() => toggleMutation.mutate({ id: report.id, status: report.status === "active" ? "paused" : "active" })}
+                    onClick={() => {
+                      if (activeCompanyId == null) return;
+                      toggleMutation.mutate({
+                        id: report.id,
+                        status: report.status === "active" ? "paused" : "active",
+                        companyId: activeCompanyId,
+                      });
+                    }}
                   >
                     {report.status === "active" ? "Pause" : "Resume"}
                   </Button>
                   <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-red-500 hover:bg-red-50"
                     disabled={deleteMutation.isPending}
-                    onClick={() => deleteMutation.mutate({ id: report.id })}>
+                    onClick={() => {
+                      if (activeCompanyId == null) return;
+                      deleteMutation.mutate({ id: report.id, companyId: activeCompanyId });
+                    }}>
                     <Trash2 size={13} />
                   </Button>
                 </div>
@@ -553,6 +580,7 @@ const AGGREGATIONS = ["Count", "Sum", "Average", "Min", "Max"];
 const CHART_TYPES = ["Bar Chart", "Line Chart", "Pie Chart", "Table"];
 
 function CustomReportBuilder() {
+  const { activeCompanyId } = useActiveCompany();
   const [selectedModule, setSelectedModule] = useState("");
   const [selectedFields, setSelectedFields] = useState<string[]>([]);
   const [aggregation, setAggregation] = useState("Count");
@@ -578,9 +606,14 @@ function CustomReportBuilder() {
       toast.error("Please select a module and at least one field");
       return;
     }
+    if (activeCompanyId == null) {
+      toast.error("Select a company workspace first");
+      return;
+    }
     setGenerating(true);
     try {
       const spec = await buildSpecMutation.mutateAsync({
+        companyId: activeCompanyId,
         name: reportName || undefined,
         module: selectedModule as "contracts" | "pro" | "hr" | "crm" | "marketplace" | "sanad",
         fields: selectedFields,

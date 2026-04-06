@@ -79,7 +79,7 @@ function googleDocsReadinessDiagnosis(issue: string | undefined): string | null 
     case "missing_client_email_or_private_key":
       return "Diagnosis: JSON parsed, but client_email or private_key is missing or empty. Use the complete service account key JSON from IAM → Service accounts → Keys.";
     case "private_key_unreadable":
-      return "Diagnosis: private_key is present but the server cannot load the PEM (often truncated or mangled when saving the secret). Create a new key in Google Cloud and replace the secret; keep the JSON exactly as downloaded.";
+      return "Diagnosis: private_key is present but the server still cannot load the PEM (truncation, smart quotes, Unicode dashes, or broken line breaks in the secret). Prefer uploading the .json file if your host allows it; otherwise paste the raw file contents once. Create a new key in Google Cloud if needed, redeploy the latest server build, and replace the secret without reformatting.";
     default:
       return null;
   }

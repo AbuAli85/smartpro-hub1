@@ -165,7 +165,13 @@ export async function generateDocument(
     );
     await deps.google.replacePlaceholders(generatedGoogleDocId, values);
     pdfBuffer = await deps.google.exportAsPdf(generatedGoogleDocId);
+
+    // Clean up the temporary copy to avoid filling the service account's Drive quota
+    await deps.google.deleteFile(generatedGoogleDocId);
   } catch (e) {
+    if (generatedGoogleDocId) {
+      await deps.google.deleteFile(generatedGoogleDocId).catch(() => {});
+    }
     const msg = e instanceof Error ? e.message : String(e);
     const code = e instanceof DocumentGenerationError ? e.code : "INTERNAL_ERROR";
     await insertDocumentGenerationAuditLog(db, {

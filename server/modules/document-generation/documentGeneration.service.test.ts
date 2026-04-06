@@ -94,6 +94,7 @@ describe("generateDocument", () => {
       copyTemplate: vi.fn().mockResolvedValue("new-doc-id"),
       replacePlaceholders: vi.fn().mockResolvedValue(),
       exportAsPdf: vi.fn().mockResolvedValue(Buffer.from("%PDF")),
+      deleteFile: vi.fn().mockResolvedValue(undefined),
     };
 
     const res = await generateDocument(
@@ -138,6 +139,7 @@ describe("generateDocument", () => {
       copyTemplate: vi.fn(),
       replacePlaceholders: vi.fn(),
       exportAsPdf: vi.fn(),
+      deleteFile: vi.fn(),
     };
 
     await expect(
@@ -173,6 +175,7 @@ describe("generateDocument", () => {
       copyTemplate: vi.fn(),
       replacePlaceholders: vi.fn(),
       exportAsPdf: vi.fn(),
+      deleteFile: vi.fn(),
     };
 
     await expect(
@@ -212,6 +215,7 @@ describe("generateDocument", () => {
       copyTemplate: vi.fn().mockRejectedValue(new Error("API down")),
       replacePlaceholders: vi.fn(),
       exportAsPdf: vi.fn(),
+      deleteFile: vi.fn().mockResolvedValue(undefined),
     };
 
     await expect(

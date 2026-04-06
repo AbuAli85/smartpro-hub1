@@ -43,6 +43,7 @@ export type GoogleDocsClientDeps = {
   copyTemplate: (templateGoogleDocId: string, title?: string) => Promise<string>;
   replacePlaceholders: (googleDocId: string, values: Record<string, string>) => Promise<void>;
   exportAsPdf: (googleDocId: string) => Promise<Buffer>;
+  deleteFile: (fileId: string) => Promise<void>;
 };
 
 function wrapGoogleError(e: unknown, message: string): never {
@@ -63,11 +64,17 @@ export function createLiveGoogleDocsClient(): GoogleDocsClientDeps {
       try {
         const auth = await getJwt();
         const drive = google.drive({ version: "v3", auth });
+        const sharedDriveId = process.env.GOOGLE_DOCS_SHARED_DRIVE_ID?.trim();
+        const requestBody: Record<string, unknown> = {
+          name: title ?? `Generated ${new Date().toISOString().slice(0, 10)}`,
+        };
+        if (sharedDriveId) {
+          requestBody.parents = [sharedDriveId];
+        }
         const res = await drive.files.copy({
           fileId: templateGoogleDocId,
-          requestBody: {
-            name: title ?? `Generated ${new Date().toISOString().slice(0, 10)}`,
-          },
+          requestBody,
+          supportsAllDrives: true,
           fields: "id",
         });
         const id = res.data.id;
@@ -112,6 +119,16 @@ export function createLiveGoogleDocsClient(): GoogleDocsClientDeps {
         return Buffer.from(res.data as ArrayBuffer);
       } catch (e) {
         return wrapGoogleError(e, "Failed to export Google Doc as PDF");
+      }
+    },
+
+    async deleteFile(fileId: string): Promise<void> {
+      try {
+        const auth = await getJwt();
+        const drive = google.drive({ version: "v3", auth });
+        await drive.files.delete({ fileId, supportsAllDrives: true });
+      } catch {
+        // Best-effort cleanup — don't fail the generation if delete fails
       }
     },
   };

@@ -27,6 +27,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
+import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   invalidateAfterKpiTargetMutation,
@@ -104,7 +105,11 @@ export default function HRPerformancePage() {
   }
 
   const utils = trpc.useUtils();
-  const { data: employees } = trpc.hr.listEmployees.useQuery({ status: "active" });
+  const { activeCompanyId } = useActiveCompany();
+  const { data: employees } = trpc.hr.listEmployees.useQuery(
+    { status: "active", companyId: activeCompanyId ?? undefined },
+    { enabled: activeCompanyId != null },
+  );
   const {
     data: hrDashboard,
     isLoading: hrDashboardLoading,
@@ -121,7 +126,10 @@ export default function HRPerformancePage() {
   const { data: leaderboard } = trpc.kpi.getLeaderboard.useQuery({ year, month });
   const { data: trainingRows, isLoading: trainingLoading } = trpc.financeHR.adminListTraining.useQuery();
   const { data: selfReviews, isLoading: selfLoading } = trpc.financeHR.adminListSelfReviews.useQuery();
-  const { data: formalReviews, isLoading: formalLoading } = trpc.hr.listReviews.useQuery();
+  const { data: formalReviews, isLoading: formalLoading } = trpc.hr.listReviews.useQuery(
+    { companyId: activeCompanyId ?? undefined },
+    { enabled: activeCompanyId != null },
+  );
 
   const departments = useMemo(() => {
     const s = new Set<string>();

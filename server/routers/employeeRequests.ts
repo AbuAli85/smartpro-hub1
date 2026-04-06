@@ -8,9 +8,10 @@ import {
   users,
   leaveRequests,
 } from "../../drizzle/schema";
-import { getDb, getUserCompany } from "../db";
+import { getDb } from "../db";
 import { protectedProcedure, router } from "../_core/trpc";
 import { requireActiveCompanyId } from "../_core/tenant";
+import { getActiveCompanyMembership } from "../_core/membership";
 import { Resend } from "resend";
 import { ENV } from "../_core/env";
 
@@ -62,19 +63,19 @@ export const employeeRequestsRouter = router({
   // ─── Employee: Submit a new request ──────────────────────────────────────
   submit: protectedProcedure
     .input(z.object({
+      companyId: z.number().optional(),
       type: z.enum(REQUEST_TYPES),
       subject: z.string().min(1).max(255),
       details: z.record(z.string(), z.unknown()).optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const membership = await getUserCompany(ctx.user.id);
-      if (!membership) throw new TRPCError({ code: "FORBIDDEN", message: "No company membership" });
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId);
       const db = await requireDb();
-      const emp = await resolveMyEmployee(ctx.user.id, ctx.user.email ?? "", membership.company.id);
+      const emp = await resolveMyEmployee(ctx.user.id, ctx.user.email ?? "", companyId);
       if (!emp) throw new TRPCError({ code: "NOT_FOUND", message: "Employee record not found" });
 
       const [result] = await db.insert(employeeRequests).values({
-        companyId: membership.company.id,
+        companyId,
         employeeId: emp.id,
         type: input.type,
         subject: input.subject,
@@ -89,7 +90,7 @@ export const employeeRequestsRouter = router({
         .select({ userId: companyMembers.userId })
         .from(companyMembers)
         .where(and(
-          eq(companyMembers.companyId, membership.company.id),
+          eq(companyMembers.companyId, companyId),
           eq(companyMembers.role, "hr_admin"),
           eq(companyMembers.isActive, true),
         ));
@@ -126,12 +127,12 @@ export const employeeRequestsRouter = router({
 
   // ─── Employee: List own requests ──────────────────────────────────────────
   myRequests: protectedProcedure
-    .input(z.object({ limit: z.number().min(1).max(100).default(20) }))
+    .input(z.object({ limit: z.number().min(1).max(100).default(20), companyId: z.number().optional() }))
     .query(async ({ ctx, input }) => {
-      const membership = await getUserCompany(ctx.user.id);
-      if (!membership) return [];
+      const m = await getActiveCompanyMembership(ctx.user.id, input.companyId);
+      if (!m) return [];
       const db = await requireDb();
-      const emp = await resolveMyEmployee(ctx.user.id, ctx.user.email ?? "", membership.company.id);
+      const emp = await resolveMyEmployee(ctx.user.id, ctx.user.email ?? "", m.companyId);
       if (!emp) return [];
       return db
         .select()
@@ -150,13 +151,13 @@ export const employeeRequestsRouter = router({
       limit: z.number().min(1).max(200).default(50),
     }))
     .query(async ({ ctx, input }) => {
-      const membership = await getUserCompany(ctx.user.id);
-      if (!membership) throw new TRPCError({ code: "FORBIDDEN" });
-      const role = membership.member.role;
+      const m = await getActiveCompanyMembership(ctx.user.id, input.companyId);
+      if (!m) throw new TRPCError({ code: "FORBIDDEN" });
+      const role = m.role;
       if (role !== "company_admin" && role !== "hr_admin") {
         throw new TRPCError({ code: "FORBIDDEN", message: "HR Admin or Company Admin required" });
       }
-      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId);
+      const companyId = m.companyId;
       const db = await requireDb();
       const lim = input.limit;
       const fetchCap = Math.min(200, lim * 3);
@@ -266,11 +267,12 @@ export const employeeRequestsRouter = router({
       requestId: z.number(),
       status: z.enum(["approved", "rejected", "cancelled"]),
       adminNote: z.string().optional(),
+      companyId: z.number().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const membership = await getUserCompany(ctx.user.id);
-      if (!membership) throw new TRPCError({ code: "FORBIDDEN" });
-      const role = membership.member.role;
+      const m = await getActiveCompanyMembership(ctx.user.id, input.companyId);
+      if (!m) throw new TRPCError({ code: "FORBIDDEN" });
+      const role = m.role;
       if (role !== "company_admin" && role !== "hr_admin") {
         throw new TRPCError({ code: "FORBIDDEN", message: "HR Admin or Company Admin required" });
       }
@@ -281,7 +283,7 @@ export const employeeRequestsRouter = router({
         .from(employeeRequests)
         .where(and(
           eq(employeeRequests.id, input.requestId),
-          eq(employeeRequests.companyId, membership.company.id),
+          eq(employeeRequests.companyId, m.companyId),
         ))
         .limit(1);
       if (!req) throw new TRPCError({ code: "NOT_FOUND" });

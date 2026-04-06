@@ -11,7 +11,6 @@ import {
   getCrmContacts,
   getCrmDealById,
   getCrmDeals,
-  getUserCompany,
   updateCrmContact,
   updateCrmDeal,
 } from "../db";
@@ -23,21 +22,28 @@ async function resolveCrmCompanyId(
 ): Promise<number> {
   if (canAccessGlobalAdminProcedures(ctx.user)) {
     if (inputCompanyId != null) return inputCompanyId;
-    const m = await getUserCompany(ctx.user.id);
-    if (m?.company?.id) return m.company.id;
     throw new TRPCError({ code: "BAD_REQUEST", message: "companyId is required when you have no company membership" });
   }
-  return requireActiveCompanyId(ctx.user.id);
+  return requireActiveCompanyId(ctx.user.id, inputCompanyId);
 }
 
 export const crmRouter = router({
   // Contacts
   listContacts: protectedProcedure
-    .input(z.object({ status: z.string().optional(), search: z.string().optional() }))
+    .input(
+      z.object({
+        status: z.string().optional(),
+        search: z.string().optional(),
+        companyId: z.number().optional(),
+      }),
+    )
     .query(async ({ input, ctx }) => {
-      const membership = await getUserCompany(ctx.user.id);
-      if (!membership) return [];
-      return getCrmContacts(membership.company.id, input);
+      try {
+        const companyId = await resolveCrmCompanyId(ctx, input.companyId);
+        return getCrmContacts(companyId, { status: input.status, search: input.search });
+      } catch {
+        return [];
+      }
     }),
 
   createContact: protectedProcedure
@@ -91,11 +97,14 @@ export const crmRouter = router({
 
   // Deals
   listDeals: protectedProcedure
-    .input(z.object({ stage: z.string().optional() }))
+    .input(z.object({ stage: z.string().optional(), companyId: z.number().optional() }))
     .query(async ({ input, ctx }) => {
-      const membership = await getUserCompany(ctx.user.id);
-      if (!membership) return [];
-      return getCrmDeals(membership.company.id, input);
+      try {
+        const companyId = await resolveCrmCompanyId(ctx, input.companyId);
+        return getCrmDeals(companyId, { stage: input.stage });
+      } catch {
+        return [];
+      }
     }),
 
   createDeal: protectedProcedure
@@ -160,11 +169,14 @@ export const crmRouter = router({
 
   // Communications
   listCommunications: protectedProcedure
-    .input(z.object({ contactId: z.number().optional() }))
+    .input(z.object({ contactId: z.number().optional(), companyId: z.number().optional() }))
     .query(async ({ input, ctx }) => {
-      const membership = await getUserCompany(ctx.user.id);
-      if (!membership) return [];
-      return getCrmCommunications(membership.company.id, input.contactId);
+      try {
+        const companyId = await resolveCrmCompanyId(ctx, input.companyId);
+        return getCrmCommunications(companyId, input.contactId);
+      } catch {
+        return [];
+      }
     }),
 
   createCommunication: protectedProcedure
@@ -207,10 +219,16 @@ export const crmRouter = router({
       return { success: true };
     }),
 
-  pipelineStats: protectedProcedure.query(async ({ ctx }) => {
-    const membership = await getUserCompany(ctx.user.id);
-    if (!membership) return null;
-    const deals = await getCrmDeals(membership.company.id);
+  pipelineStats: protectedProcedure
+    .input(z.object({ companyId: z.number().optional() }).optional())
+    .query(async ({ ctx, input }) => {
+    let deals;
+    try {
+      const companyId = await resolveCrmCompanyId(ctx, input?.companyId);
+      deals = await getCrmDeals(companyId);
+    } catch {
+      return null;
+    }
     const stages = ["lead", "qualified", "proposal", "negotiation", "closed_won", "closed_lost"] as const;
     return stages.map((stage) => {
       const stageDeals = deals.filter((d) => d.stage === stage);

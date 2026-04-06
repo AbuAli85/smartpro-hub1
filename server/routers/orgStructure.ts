@@ -2,8 +2,9 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { eq, and, asc } from "drizzle-orm";
 import { departments, positions, employees } from "../../drizzle/schema";
-import { getDb, getUserCompany, getUserCompanyById } from "../db";
+import { getDb } from "../db";
 import { protectedProcedure, router } from "../_core/trpc";
+import { getActiveCompanyMembership } from "../_core/membership";
 
 async function requireDb() {
   const db = await getDb();
@@ -12,8 +13,9 @@ async function requireDb() {
 }
 
 async function getMembership(userId: number, companyId?: number | null) {
-  if (companyId) return getUserCompanyById(userId, companyId);
-  return getUserCompany(userId);
+  const m = await getActiveCompanyMembership(userId, companyId ?? undefined);
+  if (!m) return null;
+  return { company: { id: m.companyId }, member: { role: m.role } };
 }
 
 export const orgStructureRouter = router({

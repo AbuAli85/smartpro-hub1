@@ -17,6 +17,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { toast } from "sonner";
 import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
+import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { DateInput } from "@/components/ui/date-input";
 
 const DEAL_STAGE_META: Record<string, { label: string; color: string; icon: any }> = {
@@ -39,7 +40,7 @@ function getInitials(first?: string | null, last?: string | null) {
   return ((first?.[0] ?? "") + (last?.[0] ?? "")).toUpperCase() || "?";
 }
 
-function NewContactDialog({ onSuccess }: { onSuccess: () => void }) {
+function NewContactDialog({ onSuccess, companyId }: { onSuccess: () => void; companyId: number | null }) {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ firstName: "", lastName: "", email: "", phone: "", company: "", position: "", status: "lead" as const, notes: "" });
   const createMutation = trpc.crm.createContact.useMutation({
@@ -78,8 +79,8 @@ function NewContactDialog({ onSuccess }: { onSuccess: () => void }) {
             </Select>
           </div>
           <div className="space-y-1.5"><Label>Notes</Label><Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={2} /></div>
-          <Button className="w-full bg-[var(--smartpro-orange)] hover:bg-orange-600 text-white" disabled={!form.firstName || createMutation.isPending}
-            onClick={() => createMutation.mutate({ firstName: form.firstName, lastName: form.lastName || "", email: form.email || undefined, phone: form.phone || undefined, company: form.company || undefined, position: form.position || undefined, status: form.status as any, notes: form.notes || undefined })}>
+          <Button className="w-full bg-[var(--smartpro-orange)] hover:bg-orange-600 text-white" disabled={!form.firstName || createMutation.isPending || companyId == null}
+            onClick={() => companyId != null && createMutation.mutate({ companyId, firstName: form.firstName, lastName: form.lastName || "", email: form.email || undefined, phone: form.phone || undefined, company: form.company || undefined, position: form.position || undefined, status: form.status as any, notes: form.notes || undefined })}>
             {createMutation.isPending ? "Adding..." : "Add Contact"}
           </Button>
         </div>
@@ -88,7 +89,7 @@ function NewContactDialog({ onSuccess }: { onSuccess: () => void }) {
   );
 }
 
-function NewDealDialog({ onSuccess }: { onSuccess: () => void }) {
+function NewDealDialog({ onSuccess, companyId }: { onSuccess: () => void; companyId: number | null }) {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ title: "", value: "", currency: "OMR", stage: "lead" as const, probability: "50", expectedCloseDate: "", notes: "" });
   const createMutation = trpc.crm.createDeal.useMutation({
@@ -133,8 +134,8 @@ function NewDealDialog({ onSuccess }: { onSuccess: () => void }) {
           </div>
           <div className="space-y-1.5"><Label>Expected Close Date</Label><DateInput value={form.expectedCloseDate} onChange={(e) => setForm({ ...form, expectedCloseDate: e.target.value })} /></div>
           <div className="space-y-1.5"><Label>Notes</Label><Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={2} /></div>
-          <Button className="w-full" disabled={!form.title || createMutation.isPending}
-            onClick={() => createMutation.mutate({ ...form, value: form.value ? Number(form.value) : undefined, probability: form.probability ? Number(form.probability) : undefined })}>
+          <Button className="w-full" disabled={!form.title || createMutation.isPending || companyId == null}
+            onClick={() => companyId != null && createMutation.mutate({ companyId, ...form, value: form.value ? Number(form.value) : undefined, probability: form.probability ? Number(form.probability) : undefined })}>
             {createMutation.isPending ? "Creating..." : "Create Deal"}
           </Button>
         </div>
@@ -143,8 +144,11 @@ function NewDealDialog({ onSuccess }: { onSuccess: () => void }) {
   );
 }
 
-function ContactDetailPanel({ contactId, onClose }: { contactId: number; onClose: () => void }) {
-  const { data: comms, refetch: refetchComms } = trpc.crm.listCommunications.useQuery({ contactId });
+function ContactDetailPanel({ contactId, onClose, companyId }: { contactId: number; onClose: () => void; companyId: number | null }) {
+  const { data: comms, refetch: refetchComms } = trpc.crm.listCommunications.useQuery(
+    { contactId, companyId: companyId ?? undefined },
+    { enabled: companyId != null },
+  );
   const [commForm, setCommForm] = useState({ type: "call" as const, subject: "", content: "", direction: "outbound" as const });
   const [showCommForm, setShowCommForm] = useState(false);
 
@@ -215,7 +219,7 @@ function ContactDetailPanel({ contactId, onClose }: { contactId: number; onClose
             </div>
             <div className="flex gap-2">
               <Button size="sm" className="flex-1 h-7 text-xs" disabled={!commForm.subject || createComm.isPending}
-                onClick={() => createComm.mutate({ contactId, type: commForm.type, subject: commForm.subject || undefined, content: commForm.content || undefined, direction: commForm.direction })}>
+                onClick={() => companyId != null && createComm.mutate({ companyId, contactId, type: commForm.type, subject: commForm.subject || undefined, content: commForm.content || undefined, direction: commForm.direction })}>
                 {createComm.isPending ? "Saving..." : "Save"}
               </Button>
               <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setShowCommForm(false)}>Cancel</Button>
@@ -262,15 +266,26 @@ function ContactDetailPanel({ contactId, onClose }: { contactId: number; onClose
 }
 
 export default function CRMPage() {
+  const { activeCompanyId } = useActiveCompany();
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
   const [selectedContactId, setSelectedContactId] = useState<number | null>(null);
 
-  const { data: contacts, refetch: refetchContacts } = trpc.crm.listContacts.useQuery({
-    status: typeFilter !== "all" ? typeFilter : undefined,
-  });
-  const { data: deals, refetch: refetchDeals } = trpc.crm.listDeals.useQuery({});
-  const { data: pipeline } = trpc.crm.pipelineStats.useQuery();
+  const { data: contacts, refetch: refetchContacts } = trpc.crm.listContacts.useQuery(
+    {
+      status: typeFilter !== "all" ? typeFilter : undefined,
+      companyId: activeCompanyId ?? undefined,
+    },
+    { enabled: activeCompanyId != null },
+  );
+  const { data: deals, refetch: refetchDeals } = trpc.crm.listDeals.useQuery(
+    { companyId: activeCompanyId ?? undefined },
+    { enabled: activeCompanyId != null },
+  );
+  const { data: pipeline } = trpc.crm.pipelineStats.useQuery(
+    { companyId: activeCompanyId ?? undefined },
+    { enabled: activeCompanyId != null },
+  );
 
   const updateDealMutation = trpc.crm.updateDeal.useMutation({
     onSuccess: () => { toast.success("Deal updated"); refetchDeals(); },
@@ -325,8 +340,8 @@ export default function CRMPage() {
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            <NewDealDialog onSuccess={refetchDeals} />
-            <NewContactDialog onSuccess={refetchContacts} />
+            <NewDealDialog onSuccess={refetchDeals} companyId={activeCompanyId} />
+            <NewContactDialog onSuccess={refetchContacts} companyId={activeCompanyId} />
           </div>
         </div>
 
@@ -551,6 +566,7 @@ export default function CRMPage() {
           <ContactDetailPanel
             contactId={selectedContactId}
             onClose={() => setSelectedContactId(null)}
+            companyId={activeCompanyId}
           />
         </div>
       )}

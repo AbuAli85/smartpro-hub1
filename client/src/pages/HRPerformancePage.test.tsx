@@ -9,6 +9,17 @@ const { mockDashboardQuery } = vi.hoisted(() => ({
   mockDashboardQuery: vi.fn(),
 }));
 
+vi.mock("@/contexts/ActiveCompanyContext", () => ({
+  useActiveCompany: () => ({
+    activeCompanyId: 1,
+    activeCompany: { id: 1, name: "Test Co", role: "company_admin" },
+    companies: [],
+    loading: false,
+    switchCompany: vi.fn(),
+    expiryWarningDays: 30,
+  }),
+}));
+
 vi.mock("@/lib/trpc", () => ({
   trpc: {
     useUtils: () => ({

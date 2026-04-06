@@ -8,9 +8,9 @@ import {
   getMarketplaceProviders,
   getProviderById,
   getProviderServices,
-  getUserCompany,
   updateProvider,
 } from "../db";
+import { getActiveCompanyMembership } from "../_core/membership";
 import { canAccessGlobalAdminProcedures } from "@shared/rbac";
 import { requireActiveCompanyId } from "../_core/tenant";
 import { protectedProcedure, publicProcedure, router } from "../_core/trpc";
@@ -47,14 +47,16 @@ export const marketplaceRouter = router({
         location: z.string().optional(),
         city: z.string().optional(),
         tags: z.array(z.string()).default([]),
+        companyId: z.number().optional(),
       })
     )
     .mutation(async ({ input, ctx }) => {
-      const membership = await getUserCompany(ctx.user.id);
+      const m = await getActiveCompanyMembership(ctx.user.id, input.companyId);
+      const { companyId: _omit, ...rest } = input;
       await createProvider({
-        ...input,
+        ...rest,
         userId: ctx.user.id,
-        companyId: membership?.company.id,
+        companyId: m?.companyId,
       });
       return { success: true };
     }),
@@ -85,15 +87,18 @@ export const marketplaceRouter = router({
       return { success: true };
     }),
 
-  listBookings: protectedProcedure.query(async ({ ctx }) => {
-    const membership = await getUserCompany(ctx.user.id);
-    if (!membership) return [];
-    return getMarketplaceBookings(membership.company.id);
-  }),
+  listBookings: protectedProcedure
+    .input(z.object({ companyId: z.number().optional() }).optional())
+    .query(async ({ ctx, input }) => {
+      const m = await getActiveCompanyMembership(ctx.user.id, input?.companyId);
+      if (!m) return [];
+      return getMarketplaceBookings(m.companyId);
+    }),
 
   createBooking: protectedProcedure
     .input(
       z.object({
+        companyId: z.number().optional(),
         providerId: z.number(),
         serviceId: z.number(),
         scheduledAt: z.string().optional(),
@@ -102,10 +107,11 @@ export const marketplaceRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id);
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId);
       const bookingNumber = "BK-" + Date.now() + "-" + nanoid(4).toUpperCase();
+      const { companyId: _omit, ...bookingRest } = input;
       await createMarketplaceBooking({
-        ...input,
+        ...bookingRest,
         companyId,
         clientId: ctx.user.id,
         bookingNumber,

@@ -39,7 +39,6 @@ import {
   getPayrollRecordById,
   getPayrollRecords,
   getPerformanceReviews,
-  getUserCompany,
   updateEmployee,
   updateJobApplication,
   updateJobPosting,
@@ -266,11 +265,13 @@ export const hrRouter = router({
     }),
 
   // Job Postings
-  listJobs: protectedProcedure.query(async ({ ctx }) => {
-    const membership = await getUserCompany(ctx.user.id);
-    if (!membership) return [];
-    return getJobPostings(membership.company.id);
-  }),
+  listJobs: protectedProcedure
+    .input(z.object({ companyId: z.number().optional() }).optional())
+    .query(async ({ ctx, input }) => {
+      const m = await getActiveCompanyMembership(ctx.user.id, input?.companyId);
+      if (!m) return [];
+      return getJobPostings(m.companyId);
+    }),
 
   createJob: protectedProcedure
     .input(
@@ -284,12 +285,14 @@ export const hrRouter = router({
         salaryMin: z.number().optional(),
         salaryMax: z.number().optional(),
         applicationDeadline: z.string().optional(),
+        companyId: z.number().optional(),
       })
     )
     .mutation(async ({ input, ctx }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id);
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId);
+      const { companyId: _omit, ...jobData } = input;
       await createJobPosting({
-        ...input,
+        ...jobData,
         companyId,
         createdBy: ctx.user.id,
         status: "open",
@@ -320,11 +323,11 @@ export const hrRouter = router({
 
   // Applications (ATS)
   listApplications: protectedProcedure
-    .input(z.object({ jobId: z.number().optional() }))
+    .input(z.object({ jobId: z.number().optional(), companyId: z.number().optional() }))
     .query(async ({ input, ctx }) => {
-      const membership = await getUserCompany(ctx.user.id);
-      if (!membership) return [];
-      return getJobApplications(input.jobId, membership.company.id);
+      const m = await getActiveCompanyMembership(ctx.user.id, input.companyId);
+      if (!m) return [];
+      return getJobApplications(input.jobId, m.companyId);
     }),
 
   updateApplication: protectedProcedure
@@ -494,11 +497,13 @@ export const hrRouter = router({
     }),
 
   // Performance Reviews
-  listReviews: protectedProcedure.query(async ({ ctx }) => {
-    const membership = await getUserCompany(ctx.user.id);
-    if (!membership) return [];
-    return getPerformanceReviews(membership.company.id);
-  }),
+  listReviews: protectedProcedure
+    .input(z.object({ companyId: z.number().optional() }).optional())
+    .query(async ({ ctx, input }) => {
+      const m = await getActiveCompanyMembership(ctx.user.id, input?.companyId);
+      if (!m) return [];
+      return getPerformanceReviews(m.companyId);
+    }),
 
   createReview: protectedProcedure
     .input(

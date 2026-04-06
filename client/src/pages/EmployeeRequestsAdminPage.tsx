@@ -74,7 +74,7 @@ function emptyRequestsSubtitle(
 }
 
 export default function EmployeeRequestsAdminPage() {
-  const { activeCompany } = useActiveCompany();
+  const { activeCompany, activeCompanyId } = useActiveCompany();
   const utils = trpc.useUtils();
 
   const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "approved" | "rejected" | "cancelled">("pending");
@@ -131,6 +131,7 @@ export default function EmployeeRequestsAdminPage() {
       requestId: reviewRequest.request.id,
       status: actionStatus,
       adminNote: adminNote || undefined,
+      companyId: activeCompanyId ?? undefined,
     });
   }
 

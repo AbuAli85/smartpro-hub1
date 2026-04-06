@@ -32,10 +32,12 @@ function parseServiceAccount(): { clientEmail: string; privateKey: string } {
 
 function createJwtClient(): JWT {
   const { clientEmail, privateKey } = parseServiceAccount();
+  const impersonateEmail = process.env.GOOGLE_DOCS_IMPERSONATE_EMAIL?.trim();
   return new JWT({
     email: clientEmail,
     key: privateKey,
     scopes: [DRIVE_FILE_SCOPE, DOCS_SCOPE],
+    ...(impersonateEmail ? { subject: impersonateEmail } : {}),
   });
 }
 

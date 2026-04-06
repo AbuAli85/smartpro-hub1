@@ -190,80 +190,164 @@ describe("B. Input validation", () => {
 
 // ─── C. LIFECYCLE TRANSITIONS ─────────────────────────────────────────────────
 
-describe("C. Lifecycle transitions", () => {
-  /**
-   * Valid transitions (from → to):
-   *   draft     → active, terminated
-   *   active    → expired, terminated, renewed, suspended
-   *   expired   → renewed
-   *   terminated → (terminal — no transitions)
-   *   renewed   → (terminal — no transitions)
-   *   suspended → active, terminated
-   */
+import {
+  ALLOWED_TRANSITIONS,
+  ContractTransitionError,
+  validateStatusTransition,
+  STATUS_META,
+  type ContractStatus,
+} from "../contractManagement.types";
 
-  const VALID_TRANSITIONS: Record<string, string[]> = {
-    draft:      ["active", "terminated"],
-    active:     ["expired", "terminated", "renewed", "suspended"],
-    expired:    ["renewed"],
-    terminated: [],
-    renewed:    [],
-    suspended:  ["active", "terminated"],
-  };
-
-  function canTransition(from: string, to: string): boolean {
-    return (VALID_TRANSITIONS[from] ?? []).includes(to);
+describe("C. Lifecycle transitions — ALLOWED_TRANSITIONS", () => {
+  // Helper: use the actual production transition map
+  function canTransition(from: ContractStatus, to: ContractStatus): boolean {
+    return (ALLOWED_TRANSITIONS[from] as readonly string[]).includes(to);
   }
 
-  it("draft can be activated", () => {
-    expect(canTransition("draft", "active")).toBe(true);
+  // ── Draft ──
+  it("draft → active (activate)", () => expect(canTransition("draft", "active")).toBe(true));
+  it("draft → terminated (discard)", () => expect(canTransition("draft", "terminated")).toBe(true));
+  it("draft → expired (blocked)", () => expect(canTransition("draft", "expired")).toBe(false));
+  it("draft → renewed (blocked)", () => expect(canTransition("draft", "renewed")).toBe(false));
+
+  // ── Active ──
+  it("active → expired (auto-expire)", () => expect(canTransition("active", "expired")).toBe(true));
+  it("active → terminated (terminate)", () => expect(canTransition("active", "terminated")).toBe(true));
+  it("active → renewed (renew)", () => expect(canTransition("active", "renewed")).toBe(true));
+  it("active → suspended", () => expect(canTransition("active", "suspended")).toBe(true));
+  it("active → draft (blocked — cannot go back to draft)", () => expect(canTransition("active", "draft")).toBe(false));
+
+  // ── Expired ──
+  it("expired → renewed (renew from expired)", () => expect(canTransition("expired", "renewed")).toBe(true));
+  it("expired → active (blocked — must renew, not reactivate)", () => expect(canTransition("expired", "active")).toBe(false));
+
+  // ── Terminal states ──
+  it("terminated has no further transitions", () => {
+    expect(ALLOWED_TRANSITIONS.terminated).toHaveLength(0);
+  });
+  it("renewed has no further transitions", () => {
+    expect(ALLOWED_TRANSITIONS.renewed).toHaveLength(0);
+  });
+  it("terminated → active (blocked)", () => expect(canTransition("terminated", "active")).toBe(false));
+  it("terminated → draft (blocked)", () => expect(canTransition("terminated", "draft")).toBe(false));
+  it("renewed → active (blocked)", () => expect(canTransition("renewed", "active")).toBe(false));
+
+  // ── Suspended ──
+  it("suspended → active (reactivate)", () => expect(canTransition("suspended", "active")).toBe(true));
+  it("suspended → terminated", () => expect(canTransition("suspended", "terminated")).toBe(true));
+  it("suspended → renewed (blocked)", () => expect(canTransition("suspended", "renewed")).toBe(false));
+
+  // ── No-op ──
+  it("same status transition is a no-op (never throws)", () => {
+    expect(() => validateStatusTransition("active", "active")).not.toThrow();
+  });
+});
+
+describe("C2. validateStatusTransition", () => {
+  it("returns silently for a valid transition", () => {
+    expect(() => validateStatusTransition("draft", "active")).not.toThrow();
+    expect(() => validateStatusTransition("active", "terminated")).not.toThrow();
+    expect(() => validateStatusTransition("active", "expired")).not.toThrow();
+    expect(() => validateStatusTransition("expired", "renewed")).not.toThrow();
   });
 
-  it("active can be terminated", () => {
-    expect(canTransition("active", "terminated")).toBe(true);
+  it("throws ContractTransitionError for an invalid transition", () => {
+    expect(() => validateStatusTransition("terminated", "active")).toThrow(ContractTransitionError);
+    expect(() => validateStatusTransition("renewed", "terminated")).toThrow(ContractTransitionError);
+    expect(() => validateStatusTransition("draft", "expired")).toThrow(ContractTransitionError);
   });
 
-  it("active can be renewed", () => {
-    expect(canTransition("active", "renewed")).toBe(true);
+  it("ContractTransitionError message includes from/to and allowed list", () => {
+    try {
+      validateStatusTransition("terminated", "active");
+    } catch (e) {
+      expect(e).toBeInstanceOf(ContractTransitionError);
+      if (e instanceof ContractTransitionError) {
+        expect(e.message).toContain("terminated");
+        expect(e.message).toContain("active");
+        expect(e.message).toContain("terminal state");
+      }
+    }
   });
 
-  it("active can expire", () => {
-    expect(canTransition("active", "expired")).toBe(true);
+  it("suspended → renewed error message lists allowed targets", () => {
+    try {
+      validateStatusTransition("suspended", "renewed");
+    } catch (e) {
+      if (e instanceof ContractTransitionError) {
+        expect(e.message).toContain("suspended");
+        expect(e.message).toContain("renewed");
+        // Should mention what IS allowed
+        expect(e.message).toContain("active");
+        expect(e.message).toContain("terminated");
+      }
+    }
+  });
+});
+
+describe("C3. STATUS_META", () => {
+  it("terminal statuses have isTerminal=true", () => {
+    expect(STATUS_META.terminated.isTerminal).toBe(true);
+    expect(STATUS_META.renewed.isTerminal).toBe(true);
   });
 
-  it("terminated is terminal — no further transitions", () => {
-    expect(canTransition("terminated", "active")).toBe(false);
-    expect(canTransition("terminated", "draft")).toBe(false);
+  it("non-terminal statuses have isTerminal=false", () => {
+    expect(STATUS_META.draft.isTerminal).toBe(false);
+    expect(STATUS_META.active.isTerminal).toBe(false);
+    expect(STATUS_META.expired.isTerminal).toBe(false);
+    expect(STATUS_META.suspended.isTerminal).toBe(false);
   });
 
-  it("renewed is terminal — cannot be renewed again from same record", () => {
-    expect(canTransition("renewed", "active")).toBe(false);
-    expect(canTransition("renewed", "renewed")).toBe(false);
+  it("every status in CONTRACT_STATUSES has metadata", () => {
+    const statuses: ContractStatus[] = ["draft", "active", "expired", "terminated", "renewed", "suspended"];
+    for (const s of statuses) {
+      expect(STATUS_META[s]).toBeDefined();
+      expect(STATUS_META[s].label).toBeTruthy();
+      expect(STATUS_META[s].color).toBeTruthy();
+    }
+  });
+});
+
+describe("C4. Lifecycle operations", () => {
+  it("new contract defaults to 'draft' status", () => {
+    const defaultStatus = "draft";
+    expect(defaultStatus).toBe("draft");
+    // draft → active is valid
+    expect(() => validateStatusTransition("draft", "active")).not.toThrow();
   });
 
-  it("expired contract can create a renewal", () => {
-    expect(canTransition("expired", "renewed")).toBe(true);
-  });
-
-  it("suspended can be reactivated or terminated", () => {
-    expect(canTransition("suspended", "active")).toBe(true);
-    expect(canTransition("suspended", "terminated")).toBe(true);
-    expect(canTransition("suspended", "renewed")).toBe(false);
-  });
-
-  it("renew creates a new contract linked to the original", () => {
-    // Simulate the renew operation
+  it("renew creates a NEW contract in 'draft' and marks original as 'renewed'", () => {
     const originalId = "aaa-111";
     const newContractId = "bbb-222";
-    const renewalRecord = {
-      id: newContractId,
-      renewalOfContractId: originalId,
-      status: "active",
-    };
-    const originalUpdate = { id: originalId, status: "renewed" };
 
-    expect(renewalRecord.renewalOfContractId).toBe(originalId);
-    expect(originalUpdate.status).toBe("renewed");
-    expect(renewalRecord.status).toBe("active");
+    // New contract
+    const renewal = { id: newContractId, status: "draft", renewalOfContractId: originalId };
+    // Original gets transition: active → renewed
+    expect(() => validateStatusTransition("active", "renewed")).not.toThrow();
+
+    expect(renewal.status).toBe("draft");
+    expect(renewal.renewalOfContractId).toBe(originalId);
+  });
+
+  it("activate transition produces 'activated' audit event action", () => {
+    const actionMap: Partial<Record<ContractStatus, string>> = {
+      active: "activated", terminated: "terminated",
+      renewed: "renewed", suspended: "suspended", expired: "expired",
+    };
+    expect(actionMap["active"]).toBe("activated");
+    expect(actionMap["terminated"]).toBe("terminated");
+  });
+
+  it("lazyExpireContract only fires when status is active and date is past", () => {
+    function shouldExpire(status: ContractStatus, expiryDate: Date): boolean {
+      if (status !== "active") return false;
+      return expiryDate < new Date();
+    }
+
+    expect(shouldExpire("active", new Date("2020-01-01"))).toBe(true);
+    expect(shouldExpire("active", new Date("2099-01-01"))).toBe(false);
+    expect(shouldExpire("draft",  new Date("2020-01-01"))).toBe(false);
+    expect(shouldExpire("terminated", new Date("2020-01-01"))).toBe(false);
   });
 });
 

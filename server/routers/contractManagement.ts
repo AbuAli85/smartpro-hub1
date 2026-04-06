@@ -19,17 +19,43 @@ import { getActiveCompanyMembership, requireNotAuditor } from "../_core/membersh
 import { requireActiveCompanyId } from "../_core/tenant";
 import { protectedProcedure, router } from "../_core/trpc";
 import {
+  ALLOWED_TRANSITIONS,
+  ContractTransitionError,
   appendContractEvent,
   createOutsourcingContractFull,
   deleteOutsourcingContract,
   getOutsourcingContractById,
+  lazyExpireContract,
   listOutsourcingContracts,
   outsourcingContractExistsForId,
   recordGeneratedPdf,
   recordSignedPdf,
+  transitionContractStatus,
   updateOutsourcingContract,
 } from "../modules/contractManagement/contractManagement.repository";
-import { CONTRACT_STATUSES } from "../modules/contractManagement/contractManagement.types";
+import {
+  CONTRACT_STATUSES,
+  type ContractStatus,
+} from "../modules/contractManagement/contractManagement.types";
+
+// ─── HELPERS ──────────────────────────────────────────────────────────────────
+
+/** Wrap transition calls so ContractTransitionError surfaces as a BAD_REQUEST */
+async function doTransition(
+  db: Parameters<typeof transitionContractStatus>[0],
+  contractId: string,
+  toStatus: ContractStatus,
+  actor: { id: number; name: string }
+) {
+  try {
+    return await transitionContractStatus(db, contractId, toStatus, actor);
+  } catch (err) {
+    if (err instanceof ContractTransitionError) {
+      throw new TRPCError({ code: "BAD_REQUEST", message: err.message });
+    }
+    throw err;
+  }
+}
 
 // ─── RBAC ─────────────────────────────────────────────────────────────────────
 
@@ -254,7 +280,17 @@ export const contractManagementRouter = router({
       );
     }),
 
-  /** Get a single contract with all related sub-records. */
+  /**
+   * Get a single contract with all related sub-records.
+   *
+   * Lazy expiry: if the contract is "active" and the expiry date is in the past,
+   * it is automatically transitioned to "expired" before the response is returned.
+   * This means the caller always sees an accurate status without needing a cron job.
+   *
+   * The response also includes `allowedTransitions` — the list of statuses
+   * the contract can move to from its current state — so the UI can show only
+   * the action buttons that are actually valid.
+   */
   getById: protectedProcedure
     .input(z.object({ id: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
@@ -279,7 +315,26 @@ export const contractManagementRouter = router({
         }
       }
 
-      return result;
+      // Lazy expiry — transitions active → expired if past expiry date
+      const wasExpired = await lazyExpireContract(
+        db,
+        input.id,
+        result.contract.expiryDate,
+        result.contract.status as ContractStatus
+      );
+
+      // Re-fetch if the status just changed so we return the updated record + events
+      const finalResult = wasExpired
+        ? (await getOutsourcingContractById(db, input.id)) ?? result
+        : result;
+
+      const currentStatus = finalResult.contract.status as ContractStatus;
+      const allowedTransitions: ContractStatus[] = [...(ALLOWED_TRANSITIONS[currentStatus] ?? [])];
+
+      return {
+        ...finalResult,
+        allowedTransitions,
+      };
     }),
 
   /** Create a promoter assignment contract with full normalized structure. */
@@ -433,7 +488,14 @@ export const contractManagementRouter = router({
       return { id: contractId };
     }),
 
-  /** Update mutable fields on an existing contract. */
+  /**
+   * Update mutable (non-lifecycle) fields on an existing contract.
+   *
+   * Status changes are intentionally excluded here — use the dedicated
+   * `activate`, `terminate`, or `renew` mutations instead.
+   * If `status` is passed it will be routed through `transitionContractStatus`
+   * so the transition rules are always enforced.
+   */
   update: protectedProcedure
     .input(updatePromoterAssignmentInput)
     .mutation(async ({ ctx, input }) => {
@@ -455,9 +517,19 @@ export const contractManagementRouter = router({
         await requireCanManageContracts(ctx.user, activeId);
       }
 
+      const actor = {
+        id: ctx.user.id,
+        name: ctx.user.name ?? ctx.user.email ?? `User #${ctx.user.id}`,
+      };
+
+      // If status is changing, route through the transition system
+      if (input.status !== undefined && input.status !== result.contract.status) {
+        await doTransition(db, input.id, input.status as ContractStatus, actor);
+      }
+
+      // Remaining editable fields (excluding status — already handled above)
       const contractUpdates: Record<string, unknown> = {};
       if (input.contractNumber !== undefined) contractUpdates.contractNumber = input.contractNumber?.trim() || null;
-      if (input.status !== undefined) contractUpdates.status = input.status;
       if (input.issueDate !== undefined) contractUpdates.issueDate = input.issueDate ? new Date(input.issueDate) : null;
       if (input.effectiveDate !== undefined) contractUpdates.effectiveDate = new Date(input.effectiveDate);
       if (input.expiryDate !== undefined) contractUpdates.expiryDate = new Date(input.expiryDate);
@@ -474,20 +546,96 @@ export const contractManagementRouter = router({
       if (input.jobTitleEn !== undefined) promoterUpdates.jobTitleEn = input.jobTitleEn?.trim() || null;
       if (input.jobTitleAr !== undefined) promoterUpdates.jobTitleAr = input.jobTitleAr?.trim() || null;
 
-      await updateOutsourcingContract(db, input.id, contractUpdates as Parameters<typeof updateOutsourcingContract>[2], locationUpdates as Parameters<typeof updateOutsourcingContract>[3], promoterUpdates as Parameters<typeof updateOutsourcingContract>[4]);
+      const hasFieldUpdates = [contractUpdates, locationUpdates, promoterUpdates].some(
+        (o) => Object.keys(o).length > 0
+      );
 
-      await appendContractEvent(db, {
-        contractId: input.id,
-        action: "edited",
-        actorId: ctx.user.id,
-        actorName: ctx.user.name ?? ctx.user.email ?? `User #${ctx.user.id}`,
-        details: { updatedFields: Object.keys({ ...contractUpdates, ...locationUpdates, ...promoterUpdates }) },
-      });
+      if (hasFieldUpdates) {
+        await updateOutsourcingContract(
+          db,
+          input.id,
+          contractUpdates as Parameters<typeof updateOutsourcingContract>[2],
+          locationUpdates as Parameters<typeof updateOutsourcingContract>[3],
+          promoterUpdates as Parameters<typeof updateOutsourcingContract>[4]
+        );
+
+        await appendContractEvent(db, {
+          contractId: input.id,
+          action: "edited",
+          actorId: actor.id,
+          actorName: actor.name,
+          details: {
+            updatedFields: Object.keys({ ...contractUpdates, ...locationUpdates, ...promoterUpdates }),
+          },
+        });
+      }
 
       return { ok: true as const };
     }),
 
-  /** Renew a contract — creates a new contract linked to the original via renewalOfContractId. */
+  /**
+   * Activate a draft contract — transition: draft → active.
+   *
+   * This is the "confirmation step" before a contract takes effect.
+   * The caller is expected to show a confirmation dialog on the frontend
+   * before calling this mutation.
+   *
+   * Only the first party (client company) can activate.
+   */
+  activate: protectedProcedure
+    .input(
+      z.object({
+        id: z.string().uuid(),
+        /** Optional note recorded in the audit event */
+        note: z.string().max(500).optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+
+      const result = await getOutsourcingContractById(db, input.id);
+      if (!result) throw new TRPCError({ code: "NOT_FOUND", message: "Contract not found" });
+
+      const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
+      if (!isPlatform) {
+        const activeId = await requireActiveCompanyId(ctx.user.id);
+        if (result.contract.companyId !== activeId) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "Only the first party (client) company can activate this contract",
+          });
+        }
+        await requireCanManageContracts(ctx.user, activeId);
+      }
+
+      const actor = {
+        id: ctx.user.id,
+        name: ctx.user.name ?? ctx.user.email ?? `User #${ctx.user.id}`,
+      };
+
+      const { previousStatus } = await doTransition(db, input.id, "active", actor);
+
+      // Append a second, richer audit event if a note was provided
+      if (input.note?.trim()) {
+        await appendContractEvent(db, {
+          contractId: input.id,
+          action: "activated",
+          actorId: actor.id,
+          actorName: actor.name,
+          details: { note: input.note.trim(), previousStatus },
+        });
+      }
+
+      return { ok: true as const, previousStatus };
+    }),
+
+  /**
+   * Renew a contract.
+   * Creates a new contract (starts as "draft") with the same parties, location,
+   * and promoter. The original contract is marked as "renewed" via
+   * transitionContractStatus (validated: only active/expired → renewed is allowed).
+   */
   renew: protectedProcedure
     .input(
       z.object({
@@ -531,6 +679,11 @@ export const contractManagementRouter = router({
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Original contract data incomplete" });
       }
 
+      const actor = {
+        id: ctx.user.id,
+        name: ctx.user.name ?? ctx.user.email ?? `User #${ctx.user.id}`,
+      };
+
       const newContractId = crypto.randomUUID();
 
       await createOutsourcingContractFull(db, {
@@ -572,31 +725,42 @@ export const contractManagementRouter = router({
           jobTitleEn: promoterDetail.jobTitleEn ?? null,
           jobTitleAr: promoterDetail.jobTitleAr ?? null,
         },
-        actorName: ctx.user.name ?? ctx.user.email ?? `User #${ctx.user.id}`,
+        actorName: actor.name,
       });
 
-      // Link the renewal and update original status
-      await updateOutsourcingContract(db, input.originalContractId, { status: "renewed" });
-      // Set the renewalOfContractId on the new contract
+      // Link the renewal on the new contract
       await db
         .update(outsourcingContracts)
         .set({ renewalOfContractId: input.originalContractId })
         .where(eq(outsourcingContracts.id, newContractId));
 
+      // Mark the original as "renewed" via validated transition
+      await doTransition(db, input.originalContractId, "renewed", actor);
+
+      // Extra audit event on the original with the new contract reference
       await appendContractEvent(db, {
         contractId: input.originalContractId,
         action: "renewed",
-        actorId: ctx.user.id,
-        actorName: ctx.user.name ?? ctx.user.email ?? `User #${ctx.user.id}`,
+        actorId: actor.id,
+        actorName: actor.name,
         details: { newContractId },
       });
 
       return { id: newContractId };
     }),
 
-  /** Terminate a contract. */
+  /**
+   * Terminate a contract.
+   * Valid from: draft, active, suspended.
+   * The transition is validated by `transitionContractStatus`.
+   */
   terminate: protectedProcedure
-    .input(z.object({ id: z.string().uuid(), reason: z.string().optional() }))
+    .input(
+      z.object({
+        id: z.string().uuid(),
+        reason: z.string().max(500).optional(),
+      })
+    )
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
@@ -613,14 +777,23 @@ export const contractManagementRouter = router({
         await requireCanManageContracts(ctx.user, activeId);
       }
 
-      await updateOutsourcingContract(db, input.id, { status: "terminated" });
-      await appendContractEvent(db, {
-        contractId: input.id,
-        action: "terminated",
-        actorId: ctx.user.id,
-        actorName: ctx.user.name ?? ctx.user.email ?? `User #${ctx.user.id}`,
-        details: { reason: input.reason },
-      });
+      const actor = {
+        id: ctx.user.id,
+        name: ctx.user.name ?? ctx.user.email ?? `User #${ctx.user.id}`,
+      };
+
+      await doTransition(db, input.id, "terminated", actor);
+
+      // Append extra event with optional reason
+      if (input.reason?.trim()) {
+        await appendContractEvent(db, {
+          contractId: input.id,
+          action: "terminated",
+          actorId: actor.id,
+          actorName: actor.name,
+          details: { reason: input.reason.trim() },
+        });
+      }
 
       return { ok: true as const };
     }),

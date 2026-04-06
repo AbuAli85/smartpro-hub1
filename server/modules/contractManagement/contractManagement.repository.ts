@@ -24,12 +24,18 @@ import {
   type InsertOutsourcingPromoterDetail,
 } from "../../../drizzle/schema";
 import type { getDb } from "../../db";
-import type {
-  ContractDocumentKind,
-  ContractEventAction,
-  ContractStatus,
-  OutsourcingContractRow,
+import {
+  ALLOWED_TRANSITIONS,
+  ContractTransitionError,
+  validateStatusTransition,
+  type ContractDocumentKind,
+  type ContractEventAction,
+  type ContractStatus,
+  type OutsourcingContractRow,
 } from "./contractManagement.types";
+
+// Re-export so the router only needs one import
+export { ALLOWED_TRANSITIONS, ContractTransitionError, validateStatusTransition };
 
 type AppDb = NonNullable<Awaited<ReturnType<typeof getDb>>>;
 
@@ -458,6 +464,104 @@ export async function appendContractEvent(
     details: params.details,
   };
   await db.insert(outsourcingContractEvents).values(row);
+}
+
+// ─── LIFECYCLE TRANSITIONS ────────────────────────────────────────────────────
+
+/**
+ * The single authoritative path for every status change.
+ *
+ * What it does (in order):
+ *   1. Loads the current status from the database.
+ *   2. Calls validateStatusTransition() — throws ContractTransitionError if invalid.
+ *   3. Writes the new status to outsourcing_contracts.
+ *   4. Appends an audit event with { from, to } in the details.
+ *   5. Returns { previousStatus, newStatus }.
+ *
+ * Every lifecycle mutation in the router (activate, terminate, renew, expire)
+ * MUST call this function instead of doing a raw db.update().
+ */
+export async function transitionContractStatus(
+  db: AppDb,
+  contractId: string,
+  toStatus: ContractStatus,
+  actor: { id: number; name: string }
+): Promise<{ previousStatus: ContractStatus; newStatus: ContractStatus }> {
+  // 1. Load current status
+  const [row] = await db
+    .select({ status: outsourcingContracts.status })
+    .from(outsourcingContracts)
+    .where(eq(outsourcingContracts.id, contractId))
+    .limit(1);
+
+  if (!row) {
+    throw new Error(`[transitionContractStatus] Contract not found: ${contractId}`);
+  }
+
+  const fromStatus = row.status as ContractStatus;
+
+  // 2. Validate — throws ContractTransitionError if invalid
+  validateStatusTransition(fromStatus, toStatus);
+
+  // 3. Write new status
+  await db
+    .update(outsourcingContracts)
+    .set({ status: toStatus })
+    .where(eq(outsourcingContracts.id, contractId));
+
+  // 4. Audit event — use the most specific action name where possible
+  const actionMap: Partial<Record<ContractStatus, ContractEventAction>> = {
+    active:     "activated",
+    terminated: "terminated",
+    renewed:    "renewed",
+    suspended:  "suspended",
+    expired:    "expired",
+  };
+  const action: ContractEventAction = actionMap[toStatus] ?? "status_changed";
+
+  await appendContractEvent(db, {
+    contractId,
+    action,
+    actorId: actor.id,
+    actorName: actor.name,
+    details: { from: fromStatus, to: toStatus },
+  });
+
+  return { previousStatus: fromStatus, newStatus: toStatus };
+}
+
+/**
+ * Lazily expire a single contract if its expiry date has passed and its
+ * current status is "active".  Called from `getById` so the UI always sees
+ * an up-to-date status without needing a cron job.
+ *
+ * Returns `true` if the contract was just transitioned to "expired".
+ * Returns `false` if no change was needed.
+ */
+export async function lazyExpireContract(
+  db: AppDb,
+  contractId: string,
+  expiryDate: Date | string,
+  currentStatus: ContractStatus,
+  systemActorId = 0
+): Promise<boolean> {
+  if (currentStatus !== "active") return false;
+
+  const expiry = expiryDate instanceof Date ? expiryDate : new Date(expiryDate);
+  const now = new Date();
+  if (expiry > now) return false;
+
+  // Transition is valid: active → expired
+  try {
+    await transitionContractStatus(db, contractId, "expired", {
+      id: systemActorId,
+      name: "system:auto-expire",
+    });
+    return true;
+  } catch (err) {
+    if (err instanceof ContractTransitionError) return false; // already expired elsewhere
+    throw err;
+  }
 }
 
 /** Delete a contract and all cascade children. */

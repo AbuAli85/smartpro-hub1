@@ -25,6 +25,103 @@ export const CONTRACT_STATUSES = [
 ] as const;
 export type ContractStatus = (typeof CONTRACT_STATUSES)[number];
 
+// ─── TRANSITION MAP ───────────────────────────────────────────────────────────
+//
+// Defines every valid status → status move.
+// Every status change MUST pass through validateStatusTransition() before
+// being written to the database.  No raw status updates should bypass this.
+//
+//   draft      → active        (activate: first-party confirmation)
+//   draft      → terminated    (discard before activating)
+//   active     → expired       (system: lazy-expire when expiryDate < now)
+//   active     → terminated    (actor: terminate action)
+//   active     → renewed       (system: marked when a renewal contract is created)
+//   active     → suspended     (admin: manual suspension)
+//   expired    → renewed       (actor: renew from expired contract)
+//   suspended  → active        (admin: reactivate)
+//   suspended  → terminated    (admin: terminate while suspended)
+//   terminated → (terminal, no transitions)
+//   renewed    → (terminal, no transitions)
+
+export const ALLOWED_TRANSITIONS: Record<ContractStatus, readonly ContractStatus[]> = {
+  draft:      ["active", "terminated"],
+  active:     ["expired", "terminated", "renewed", "suspended"],
+  expired:    ["renewed"],
+  terminated: [],
+  renewed:    [],
+  suspended:  ["active", "terminated"],
+} as const;
+
+/** Thrown when a requested status change violates the transition rules. */
+export class ContractTransitionError extends Error {
+  constructor(from: ContractStatus, to: ContractStatus) {
+    super(
+      `Cannot transition contract from "${from}" to "${to}". ` +
+        `Allowed transitions from "${from}": [${(ALLOWED_TRANSITIONS[from] as readonly string[]).join(", ") || "none — terminal state"}].`
+    );
+    this.name = "ContractTransitionError";
+  }
+}
+
+/**
+ * Validates a status transition.
+ * Throws `ContractTransitionError` if the transition is not allowed.
+ * Returns silently if valid.
+ */
+export function validateStatusTransition(
+  from: ContractStatus,
+  to: ContractStatus
+): void {
+  if (from === to) return; // no-op transitions are always safe
+  if (!(ALLOWED_TRANSITIONS[from] as readonly string[]).includes(to)) {
+    throw new ContractTransitionError(from, to);
+  }
+}
+
+// ─── STATUS METADATA (shared with frontend via types) ─────────────────────────
+
+export const STATUS_META: Record<
+  ContractStatus,
+  { label: string; description: string; isTerminal: boolean; color: string }
+> = {
+  draft: {
+    label: "Draft",
+    description: "Created but not yet confirmed. Can be activated or discarded.",
+    isTerminal: false,
+    color: "zinc",
+  },
+  active: {
+    label: "Active",
+    description: "Confirmed and in effect.",
+    isTerminal: false,
+    color: "emerald",
+  },
+  expired: {
+    label: "Expired",
+    description: "Past expiry date. Can be renewed.",
+    isTerminal: false,
+    color: "red",
+  },
+  terminated: {
+    label: "Terminated",
+    description: "Manually terminated. No further changes possible.",
+    isTerminal: true,
+    color: "gray",
+  },
+  renewed: {
+    label: "Renewed",
+    description: "Superseded by a new contract. No further changes possible.",
+    isTerminal: true,
+    color: "blue",
+  },
+  suspended: {
+    label: "Suspended",
+    description: "Temporarily suspended. Can be reactivated or terminated.",
+    isTerminal: false,
+    color: "amber",
+  },
+};
+
 // ─── DOCUMENT KINDS ───────────────────────────────────────────────────────────
 
 export const CONTRACT_DOCUMENT_KINDS = [
@@ -47,6 +144,8 @@ export const CONTRACT_EVENT_ACTIONS = [
   "renewed",
   "terminated",
   "suspended",
+  "expired",
+  "status_changed",
   "expiry_alerted",
   "document_uploaded",
   "document_deleted",

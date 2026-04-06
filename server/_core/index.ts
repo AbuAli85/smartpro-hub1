@@ -11,6 +11,7 @@ import { serveStatic, setupVite } from "./vite";
 import { applySecurityMiddleware } from "./security";
 import { validateProductionEnvironment } from "./env";
 import { runEmployeeTaskOverdueNotifications } from "../jobs/employeeTaskOverdue";
+import { runSyncExpiredContracts } from "../jobs/syncExpiredContracts";
 import { registerSentryExpressErrorHandler } from "./sentry";
 
 function isPortAvailable(port: number): Promise<boolean> {
@@ -73,6 +74,9 @@ async function startServer() {
   });
 
   const HOUR_MS = 60 * 60 * 1000;
+  const DAY_MS  = 24 * HOUR_MS;
+
+  // ── Employee task overdue notifications (hourly) ───────────────────────────
   if (process.env.DISABLE_TASK_OVERDUE_CRON !== "1") {
     void runEmployeeTaskOverdueNotifications()
       .then((r) => {
@@ -82,6 +86,38 @@ async function startServer() {
     setInterval(() => {
       void runEmployeeTaskOverdueNotifications().catch((e) => console.error("[tasks] overdue cron", e));
     }, HOUR_MS);
+  }
+
+  // ── Contract expiry sync (daily) ───────────────────────────────────────────
+  // Transitions every active contract whose expiry_date < today to "expired"
+  // and writes one audit event per contract.  Runs once at startup so that
+  // contracts which expired while the server was offline are caught immediately,
+  // then repeats every 24 h.
+  //
+  // Disable with: DISABLE_CONTRACT_EXPIRE_JOB=1
+  // (useful when using an external scheduler such as a Kubernetes CronJob)
+  if (process.env.DISABLE_CONTRACT_EXPIRE_JOB !== "1") {
+    void runSyncExpiredContracts()
+      .then((r) => {
+        if (r.expired > 0 || r.errors > 0) {
+          console.log(
+            `[expire-job] startup run — found: ${r.found}, expired: ${r.expired}, ` +
+            `skipped: ${r.skipped}, errors: ${r.errors}`
+          );
+        }
+      })
+      .catch((e) => console.error("[expire-job] startup run error:", e));
+
+    setInterval(() => {
+      void runSyncExpiredContracts()
+        .then((r) => {
+          console.log(
+            `[expire-job] daily run — found: ${r.found}, expired: ${r.expired}, ` +
+            `skipped: ${r.skipped}, errors: ${r.errors}`
+          );
+        })
+        .catch((e) => console.error("[expire-job] daily run error:", e));
+    }, DAY_MS);
   }
 }
 

@@ -3,7 +3,7 @@
  * All queries go through this file; the router never touches the DB directly.
  */
 
-import { and, asc, desc, eq, inArray, or } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/mysql-core";
 import { format } from "date-fns";
 import {
@@ -896,6 +896,15 @@ export async function transitionContractStatus(
   // 2. Validate — throws ContractTransitionError if invalid
   validateStatusTransition(fromStatus, toStatus);
 
+  // ── No-op guard ───────────────────────────────────────────────────────────
+  // If the DB already has the target status (race condition — another process
+  // or the lazy-expire fired first), skip the UPDATE and audit event entirely.
+  // This makes transitionContractStatus fully idempotent and prevents duplicate
+  // audit entries when the batch expire job runs concurrently with lazy-expire.
+  if (fromStatus === toStatus) {
+    return { previousStatus: fromStatus, newStatus: fromStatus };
+  }
+
   // 3. Write new status
   await db
     .update(outsourcingContracts)
@@ -955,6 +964,97 @@ export async function lazyExpireContract(
     if (err instanceof ContractTransitionError) return false; // already expired elsewhere
     throw err;
   }
+}
+
+// ─── BATCH EXPIRY ─────────────────────────────────────────────────────────────
+//
+// Design notes:
+//
+// 1. WHY NOT A SINGLE BULK UPDATE?
+//    A single `UPDATE ... SET status='expired' WHERE status='active' AND expiry_date < CURDATE()`
+//    would be faster but gives us no per-contract audit events.  Audit events are
+//    required by the product specification, so we process contracts one-by-one.
+//
+// 2. IDEMPOTENCY
+//    The function is safe to call multiple times in a day:
+//    - The SELECT only returns `status='active'` rows; already-expired contracts
+//      are invisible to it on subsequent runs.
+//    - The no-op guard in transitionContractStatus prevents duplicate DB writes
+//      and audit events when a contract is concurrently expired by lazy-expire.
+//
+// 3. RELATIONSHIP WITH effectiveContractStatus / lazyExpireContract
+//    effectiveContractStatus (KPI layer) and lazyExpireContract (getById layer)
+//    remain as real-time fallbacks for contracts that were not yet past their
+//    expiry when the job last ran.  The batch job is the authoritative
+//    end-of-day reconciliation that keeps the database in sync.
+//
+// 4. PERFORMANCE
+//    Two indexes on outsourcing_contracts cover this query efficiently:
+//      idx_oc_status  (status)
+//      idx_oc_expiry  (expiry_date)
+//    MySQL can use either or both via index merge.  At expected scale (<10k
+//    contracts) the per-row loop is not a bottleneck.
+
+/**
+ * Transition every `active` contract whose `expiry_date` is strictly before
+ * today (MySQL `CURDATE()`) to `expired`, appending one audit event per
+ * contract.
+ *
+ * Returns a stats object so callers can log or alert on errors.
+ * `skipped` = contracts that were changed to another status concurrently.
+ */
+export async function expireOverdueContracts(
+  db: AppDb
+): Promise<{ found: number; expired: number; skipped: number; errors: number }> {
+  // Candidate query: uses MySQL CURDATE() so the comparison is always in the
+  // database's configured timezone — avoids server-timezone mismatch issues.
+  const candidates = await db
+    .select({ id: outsourcingContracts.id })
+    .from(outsourcingContracts)
+    .where(
+      and(
+        eq(outsourcingContracts.status, "active"),
+        sql`${outsourcingContracts.expiryDate} < CURDATE()`
+      )
+    );
+
+  let expired = 0;
+  let skipped = 0;
+  let errors  = 0;
+
+  const SYSTEM_ACTOR = { id: 0, name: "system:expire-job" } as const;
+
+  for (const row of candidates) {
+    try {
+      const { previousStatus } = await transitionContractStatus(
+        db,
+        row.id,
+        "expired",
+        SYSTEM_ACTOR
+      );
+      // previousStatus === "active"  → transition fired successfully
+      // previousStatus === "expired" → no-op guard fired (concurrent update)
+      if (previousStatus === "active") {
+        expired++;
+      } else {
+        skipped++;
+      }
+    } catch (err) {
+      if (err instanceof ContractTransitionError) {
+        // The contract's status changed to a non-expirable state (e.g.,
+        // "terminated" or "renewed") between our SELECT and the transition.
+        // This is correct system behaviour — skip without error.
+        skipped++;
+      } else {
+        // Unexpected error.  Log and continue so one bad row does not abort
+        // the entire batch; the next run will retry the contract.
+        errors++;
+        console.error(`[expire-job] Failed to expire contract ${row.id}:`, err);
+      }
+    }
+  }
+
+  return { found: candidates.length, expired, skipped, errors };
 }
 
 /** Delete a contract and all cascade children. */

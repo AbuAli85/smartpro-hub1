@@ -23,6 +23,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
+import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -175,19 +176,24 @@ function MissingDocBadge({ docType }: { docType: string }) {
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function HRDocumentsDashboardPage() {
+  const { activeCompanyId } = useActiveCompany();
+  const companyScope = { companyId: activeCompanyId ?? undefined };
   const [activeTab, setActiveTab] = useState("overview");
   const [search, setSearch] = useState("");
   const [docTypeFilter, setDocTypeFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
 
-  const { data: dashboard, isLoading: dashLoading, refetch } = trpc.documents.getDashboard.useQuery();
+  const { data: dashboard, isLoading: dashLoading, refetch } = trpc.documents.getDashboard.useQuery(
+    companyScope,
+    { enabled: activeCompanyId != null }
+  );
   const { data: allEmployeeDocs, isLoading: docsLoading } = trpc.documents.getAllEmployeeDocs.useQuery(
-    { search, docType: docTypeFilter, status: statusFilter as "valid" | "expiring_soon" | "expired" | "no_expiry" | "all" },
-    { enabled: activeTab === "employee-docs" }
+    { search, docType: docTypeFilter, status: statusFilter as "valid" | "expiring_soon" | "expired" | "no_expiry" | "all", ...companyScope },
+    { enabled: activeTab === "employee-docs" && activeCompanyId != null }
   );
   const { data: companyDocs, isLoading: companyDocsLoading } = trpc.documents.listCompanyDocs.useQuery(
-    undefined,
-    { enabled: activeTab === "company-docs" }
+    companyScope,
+    { enabled: activeTab === "company-docs" && activeCompanyId != null }
   );
 
   const totalDocs = (dashboard?.companyDocStats.total ?? 0) + (dashboard?.employeeDocStats.total ?? 0);

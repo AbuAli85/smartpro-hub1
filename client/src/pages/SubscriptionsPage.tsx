@@ -1,4 +1,5 @@
 import { trpc } from "@/lib/trpc";
+import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { useState } from "react";
 import {
   CreditCard, Check, Zap, Star, Crown, FileText,
@@ -32,18 +33,27 @@ const statusColors: Record<string, string> = {
 };
 
 export default function SubscriptionsPage() {
+  const { activeCompanyId } = useActiveCompany();
+  const companyScope = { companyId: activeCompanyId ?? undefined };
   const [billingCycle, setBillingCycle] = useState<"monthly" | "annual">("monthly");
   const utils = trpc.useUtils();
 
   const { data: plans } = trpc.subscriptions.plans.useQuery();
-  const { data: currentSub, refetch: refetchSub } = trpc.subscriptions.current.useQuery();
-  const { data: invoices, refetch: refetchInvoices } = trpc.subscriptions.invoices.useQuery();
+  const { data: currentSub, refetch: refetchSub } = trpc.subscriptions.current.useQuery(
+    companyScope,
+    { enabled: activeCompanyId != null }
+  );
+  const { data: invoices, refetch: refetchInvoices } = trpc.subscriptions.invoices.useQuery(
+    companyScope,
+    { enabled: activeCompanyId != null }
+  );
 
   const subscribeMutation = trpc.subscriptions.subscribe.useMutation({
     onSuccess: () => {
       toast.success("Subscription updated successfully");
       void refetchSub();
-      void utils.subscriptions.current.invalidate();
+      void utils.subscriptions.current.invalidate(companyScope);
+      void utils.subscriptions.invoices.invalidate(companyScope);
     },
     onError: (e: { message: string }) => toast.error(e.message),
   });
@@ -119,7 +129,7 @@ export default function SubscriptionsPage() {
                         size="sm"
                         variant="outline"
                         className="text-xs text-red-600 border-red-200 hover:bg-red-50 gap-1"
-                        onClick={() => cancelMutation.mutate()}
+                        onClick={() => cancelMutation.mutate(companyScope)}
                         disabled={cancelMutation.isPending}
                       >
                         <X size={12} /> Cancel
@@ -207,7 +217,7 @@ export default function SubscriptionsPage() {
                       className={`w-full ${!isCurrentPlan ? "bg-[var(--smartpro-orange)] hover:bg-orange-600" : ""}`}
                       variant={isCurrentPlan ? "outline" : "default"}
                       disabled={isCurrentPlan || subscribeMutation.isPending}
-                      onClick={() => !isCurrentPlan && subscribeMutation.mutate({ planId: plan.id, billingCycle })}
+                      onClick={() => !isCurrentPlan && subscribeMutation.mutate({ planId: plan.id, billingCycle, ...companyScope })}
                     >
                       {isCurrentPlan ? "Current Plan" : subscribeMutation.isPending ? "Processing..." : `Select ${plan.name}`}
                     </Button>
@@ -282,7 +292,7 @@ export default function SubscriptionsPage() {
             <Button
               size="sm"
               className="gap-2 bg-[var(--smartpro-orange)] hover:bg-orange-600"
-              onClick={() => generateInvoice.mutate()}
+              onClick={() => generateInvoice.mutate(companyScope)}
               disabled={generateInvoice.isPending || !isActive}
             >
               <RefreshCw size={14} className={generateInvoice.isPending ? "animate-spin" : ""} />
@@ -305,7 +315,7 @@ export default function SubscriptionsPage() {
                 <FileText size={32} className="mx-auto text-muted-foreground mb-3" />
                 <p className="text-sm text-muted-foreground">No invoices yet</p>
                 {isActive && (
-                  <Button size="sm" className="mt-3" onClick={() => generateInvoice.mutate()} disabled={generateInvoice.isPending}>
+                  <Button size="sm" className="mt-3" onClick={() => generateInvoice.mutate(companyScope)} disabled={generateInvoice.isPending}>
                     Generate First Invoice
                   </Button>
                 )}
@@ -345,7 +355,7 @@ export default function SubscriptionsPage() {
                               size="sm"
                               variant="outline"
                               className="h-7 text-xs text-green-600 border-green-200 hover:bg-green-50"
-                              onClick={() => markPaid.mutate({ invoiceId: inv.id })}
+                              onClick={() => markPaid.mutate({ invoiceId: inv.id, ...companyScope })}
                               disabled={markPaid.isPending}
                             >
                               Mark Paid

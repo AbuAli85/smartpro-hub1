@@ -2,6 +2,7 @@ import { useState, useRef } from "react";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
+import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -116,6 +117,8 @@ function ExpiryBadge({ status, expiryDate }: { status: string; expiryDate: strin
 
 export default function CompanyDocumentsPage() {
   const [, navigate] = useLocation();
+  const { activeCompanyId } = useActiveCompany();
+  const companyScope = { companyId: activeCompanyId ?? undefined };
   const utils = trpc.useUtils();
 
   const [activeCategory, setActiveCategory] = useState<string>("all");
@@ -140,14 +143,20 @@ export default function CompanyDocumentsPage() {
   });
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const { data: docs = [], isLoading } = trpc.documents.listCompanyDocs.useQuery();
-  const { data: stats } = trpc.documents.getCompanyDocStats.useQuery();
+  const { data: docs = [], isLoading } = trpc.documents.listCompanyDocs.useQuery(
+    companyScope,
+    { enabled: activeCompanyId != null }
+  );
+  const { data: stats } = trpc.documents.getCompanyDocStats.useQuery(
+    companyScope,
+    { enabled: activeCompanyId != null }
+  );
 
   const uploadMutation = trpc.documents.uploadCompanyDoc.useMutation({
     onSuccess: () => {
       toast.success("Document uploaded successfully");
-      utils.documents.listCompanyDocs.invalidate();
-      utils.documents.getCompanyDocStats.invalidate();
+      utils.documents.listCompanyDocs.invalidate(companyScope);
+      utils.documents.getCompanyDocStats.invalidate(companyScope);
       setUploadOpen(false);
       resetForm();
     },
@@ -157,7 +166,7 @@ export default function CompanyDocumentsPage() {
   const updateMutation = trpc.documents.updateCompanyDoc.useMutation({
     onSuccess: () => {
       toast.success("Document updated");
-      utils.documents.listCompanyDocs.invalidate();
+      utils.documents.listCompanyDocs.invalidate(companyScope);
       setEditDoc(null);
     },
     onError: (err) => toast.error("Update failed: " + err.message),
@@ -166,8 +175,8 @@ export default function CompanyDocumentsPage() {
   const deleteMutation = trpc.documents.deleteCompanyDoc.useMutation({
     onSuccess: () => {
       toast.success("Document removed");
-      utils.documents.listCompanyDocs.invalidate();
-      utils.documents.getCompanyDocStats.invalidate();
+      utils.documents.listCompanyDocs.invalidate(companyScope);
+      utils.documents.getCompanyDocStats.invalidate(companyScope);
       setDeleteDocId(null);
     },
     onError: (err) => toast.error("Delete failed: " + err.message),
@@ -463,7 +472,7 @@ export default function CompanyDocumentsPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => { setUploadOpen(false); resetForm(); }}>Cancel</Button>
             <Button
-              onClick={() => uploadMutation.mutate(form)}
+              onClick={() => uploadMutation.mutate({ ...form, ...companyScope })}
               disabled={!form.docType || !form.title || uploadMutation.isPending}
             >
               {uploadMutation.isPending ? "Uploading..." : "Upload Document"}
@@ -543,6 +552,7 @@ export default function CompanyDocumentsPage() {
                   issueDate: editDoc.issueDate ? new Date(editDoc.issueDate).toISOString().split("T")[0] : undefined,
                   expiryDate: editDoc.expiryDate ? new Date(editDoc.expiryDate).toISOString().split("T")[0] : undefined,
                   notes: editDoc.notes,
+                  ...companyScope,
                 })}
                 disabled={updateMutation.isPending}
               >
@@ -566,7 +576,7 @@ export default function CompanyDocumentsPage() {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={() => deleteDocId && deleteMutation.mutate({ id: deleteDocId })}
+              onClick={() => deleteDocId && deleteMutation.mutate({ id: deleteDocId, ...companyScope })}
             >
               Remove
             </AlertDialogAction>

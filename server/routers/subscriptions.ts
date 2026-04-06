@@ -2,10 +2,10 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { protectedProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
-import { subscriptionPlans, companySubscriptions, subscriptionInvoices } from "../../drizzle/schema";
+import { subscriptionPlans, companySubscriptions, subscriptionInvoices, type User } from "../../drizzle/schema";
 import { eq, desc, and } from "drizzle-orm";
 import { nanoid } from "nanoid";
-import { getActiveCompanyMembership, requireActiveCompanyMembership } from "../_core/membership";
+import { requireWorkspaceMembership } from "../_core/membership";
 
 export const subscriptionsRouter = router({
   plans: protectedProcedure.query(async () => {
@@ -14,29 +14,36 @@ export const subscriptionsRouter = router({
     return db.select().from(subscriptionPlans).where(eq(subscriptionPlans.isActive, true));
   }),
 
-  current: protectedProcedure.query(async ({ ctx }) => {
-    const m = await getActiveCompanyMembership(ctx.user.id);
-    if (!m) return null;
-    const db = await getDb();
-    if (!db) return null;
-    const subs = await db
-      .select({ sub: companySubscriptions, plan: subscriptionPlans })
-      .from(companySubscriptions)
-      .leftJoin(subscriptionPlans, eq(companySubscriptions.planId, subscriptionPlans.id))
-      .where(eq(companySubscriptions.companyId, m.companyId))
-      .orderBy(desc(companySubscriptions.createdAt))
-      .limit(1);
-    if (!subs.length) return null;
-    return { ...subs[0].sub, plan: subs[0].plan };
+  current: protectedProcedure
+    .input(z.object({ companyId: z.number().optional() }).optional())
+    .query(async ({ ctx, input }) => {
+    try {
+      const m = await requireWorkspaceMembership(ctx.user as User, input?.companyId);
+      const db = await getDb();
+      if (!db) return null;
+      const subs = await db
+        .select({ sub: companySubscriptions, plan: subscriptionPlans })
+        .from(companySubscriptions)
+        .leftJoin(subscriptionPlans, eq(companySubscriptions.planId, subscriptionPlans.id))
+        .where(eq(companySubscriptions.companyId, m.companyId))
+        .orderBy(desc(companySubscriptions.createdAt))
+        .limit(1);
+      if (!subs.length) return null;
+      return { ...subs[0].sub, plan: subs[0].plan };
+    } catch (e) {
+      if (e instanceof TRPCError && e.code === "FORBIDDEN") return null;
+      throw e;
+    }
   }),
 
   subscribe: protectedProcedure
     .input(z.object({
       planId: z.number(),
       billingCycle: z.enum(["monthly", "annual"]).default("monthly"),
+      companyId: z.number().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const { companyId } = await requireActiveCompanyMembership(ctx.user.id);
+      const { companyId } = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       const db = await getDb();
       if (!db) {
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
@@ -71,8 +78,10 @@ export const subscriptionsRouter = router({
       return { success: true };
     }),
 
-  cancel: protectedProcedure.mutation(async ({ ctx }) => {
-    const { companyId } = await requireActiveCompanyMembership(ctx.user.id);
+  cancel: protectedProcedure
+    .input(z.object({ companyId: z.number().optional() }).optional())
+    .mutation(async ({ ctx, input }) => {
+    const { companyId } = await requireWorkspaceMembership(ctx.user as User, input?.companyId);
     const db = await getDb();
     if (!db) {
       throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
@@ -85,21 +94,29 @@ export const subscriptionsRouter = router({
     return { success: true };
   }),
 
-  invoices: protectedProcedure.query(async ({ ctx }) => {
-    const m = await getActiveCompanyMembership(ctx.user.id);
-    if (!m) return [];
-    const db = await getDb();
-    if (!db) return [];
-    return db
-      .select()
-      .from(subscriptionInvoices)
-      .where(eq(subscriptionInvoices.companyId, m.companyId))
-      .orderBy(desc(subscriptionInvoices.createdAt))
-      .limit(20);
+  invoices: protectedProcedure
+    .input(z.object({ companyId: z.number().optional() }).optional())
+    .query(async ({ ctx, input }) => {
+    try {
+      const m = await requireWorkspaceMembership(ctx.user as User, input?.companyId);
+      const db = await getDb();
+      if (!db) return [];
+      return db
+        .select()
+        .from(subscriptionInvoices)
+        .where(eq(subscriptionInvoices.companyId, m.companyId))
+        .orderBy(desc(subscriptionInvoices.createdAt))
+        .limit(20);
+    } catch (e) {
+      if (e instanceof TRPCError && e.code === "FORBIDDEN") return [];
+      throw e;
+    }
   }),
 
-  generateInvoice: protectedProcedure.mutation(async ({ ctx }) => {
-    const { companyId } = await requireActiveCompanyMembership(ctx.user.id);
+  generateInvoice: protectedProcedure
+    .input(z.object({ companyId: z.number().optional() }).optional())
+    .mutation(async ({ ctx, input }) => {
+    const { companyId } = await requireWorkspaceMembership(ctx.user as User, input?.companyId);
     const db = await getDb();
     if (!db) {
       throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
@@ -139,9 +156,9 @@ export const subscriptionsRouter = router({
   }),
 
   markInvoicePaid: protectedProcedure
-    .input(z.object({ invoiceId: z.number() }))
+    .input(z.object({ invoiceId: z.number(), companyId: z.number().optional() }))
     .mutation(async ({ input, ctx }) => {
-      const { companyId } = await requireActiveCompanyMembership(ctx.user.id);
+      const { companyId } = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       const db = await getDb();
       if (!db) {
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
@@ -158,27 +175,31 @@ export const subscriptionsRouter = router({
     }),
 
   checkFeature: protectedProcedure
-    .input(z.object({ feature: z.string() }))
+    .input(z.object({ feature: z.string(), companyId: z.number().optional() }))
     .query(async ({ input, ctx }) => {
-      const m = await getActiveCompanyMembership(ctx.user.id);
-      if (!m) return { allowed: false, reason: "No company" };
-      const db = await getDb();
-      if (!db) return { allowed: false, reason: "DB unavailable" };
+      try {
+        const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
+        const db = await getDb();
+        if (!db) return { allowed: false, reason: "DB unavailable" };
 
-      const subs = await db
-        .select({ sub: companySubscriptions, plan: subscriptionPlans })
-        .from(companySubscriptions)
-        .leftJoin(subscriptionPlans, eq(companySubscriptions.planId, subscriptionPlans.id))
-        .where(and(
-          eq(companySubscriptions.companyId, m.companyId),
-          eq(companySubscriptions.status, "active"),
-        ))
-        .limit(1);
+        const subs = await db
+          .select({ sub: companySubscriptions, plan: subscriptionPlans })
+          .from(companySubscriptions)
+          .leftJoin(subscriptionPlans, eq(companySubscriptions.planId, subscriptionPlans.id))
+          .where(and(
+            eq(companySubscriptions.companyId, m.companyId),
+            eq(companySubscriptions.status, "active"),
+          ))
+          .limit(1);
 
-      if (!subs.length || !subs[0].plan) return { allowed: false, reason: "No active subscription" };
+        if (!subs.length || !subs[0].plan) return { allowed: false, reason: "No active subscription" };
 
-      const features = subs[0].plan.features as string[] ?? [];
-      const allowed = features.includes(input.feature);
-      return { allowed, planName: subs[0].plan.name, features };
+        const features = subs[0].plan.features as string[] ?? [];
+        const allowed = features.includes(input.feature);
+        return { allowed, planName: subs[0].plan.name, features };
+      } catch (e) {
+        if (e instanceof TRPCError && e.code === "BAD_REQUEST") throw e;
+        return { allowed: false, reason: "No company" };
+      }
     }),
 });

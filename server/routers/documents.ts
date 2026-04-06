@@ -2,13 +2,9 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { eq, and, desc, isNull, gte, lte, or, sql } from "drizzle-orm";
 import { getDb } from "../db";
-import { companyDocuments, employeeDocuments, employees } from "../../drizzle/schema";
-import type { User } from "../../drizzle/schema";
+import { companyDocuments, employeeDocuments, employees, type User } from "../../drizzle/schema";
 import { storagePut } from "../storage";
-import {
-  requireWorkspaceMembership,
-  requireNotAuditor,
-} from "../_core/membership";
+import { requireNotAuditor, requireWorkspaceMembership } from "../_core/membership";
 import { protectedProcedure, router } from "../_core/trpc";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -133,6 +129,9 @@ export const documentsRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      const membership = await requireWorkspaceMembership(ctx.user as User, input.companyId);
+      requireNotAuditor(membership.role);
+
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
       const [existing] = await db
@@ -141,16 +140,13 @@ export const documentsRouter = router({
         .where(
           and(
             eq(companyDocuments.id, input.id),
+            eq(companyDocuments.companyId, membership.companyId),
             eq(companyDocuments.isDeleted, false)
           )
         )
         .limit(1);
 
       if (!existing) throw new TRPCError({ code: "NOT_FOUND" });
-
-      const membership = await requireWorkspaceMembership(ctx.user as User, input.companyId ?? existing.companyId);
-      if (existing.companyId !== membership.companyId) throw new TRPCError({ code: "NOT_FOUND" });
-      requireNotAuditor(membership.role);
 
       const updateData: Record<string, unknown> = {};
       if (input.title !== undefined) updateData.title = input.title;
@@ -175,18 +171,11 @@ export const documentsRouter = router({
   deleteCompanyDoc: protectedProcedure
     .input(z.object({ id: z.number().int().positive(), companyId: z.number().optional() }))
     .mutation(async ({ ctx, input }) => {
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
-      const [existing] = await db
-        .select({ companyId: companyDocuments.companyId })
-        .from(companyDocuments)
-        .where(eq(companyDocuments.id, input.id))
-        .limit(1);
-      if (!existing) throw new TRPCError({ code: "NOT_FOUND" });
-      const membership = await requireWorkspaceMembership(ctx.user as User, input.companyId ?? existing.companyId);
-      if (existing.companyId !== membership.companyId) throw new TRPCError({ code: "NOT_FOUND" });
+      const membership = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       requireNotAuditor(membership.role);
 
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
       await db
         .update(companyDocuments)
         .set({ isDeleted: true })
@@ -237,11 +226,9 @@ export const documentsRouter = router({
 
   // ── Employee: list documents for an employee ──────────────────────────────
   listEmployeeDocs: protectedProcedure
-    .input(z.object({ employeeId: z.number().int().positive() }))
+    .input(z.object({ employeeId: z.number().int().positive(), companyId: z.number().optional() }))
     .query(async ({ ctx, input }) => {
-      const membership = await getActiveCompanyMembership(ctx.user.id);
-      if (!membership)
-        throw new TRPCError({ code: "FORBIDDEN", message: "No active company" });
+      const membership = await requireWorkspaceMembership(ctx.user as User, input.companyId);
 
       const db = await getDb();
       if (!db) return [];
@@ -285,12 +272,11 @@ export const documentsRouter = router({
         fileBase64: z.string().min(1),
         mimeType: z.string().default("application/octet-stream"),
         fileSize: z.number().optional(),
+        companyId: z.number().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const membership = await getActiveCompanyMembership(ctx.user.id);
-      if (!membership)
-        throw new TRPCError({ code: "FORBIDDEN", message: "No active company" });
+      const membership = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       requireNotAuditor(membership.role);
 
       const buffer = Buffer.from(input.fileBase64, "base64");
@@ -329,12 +315,11 @@ export const documentsRouter = router({
         verificationStatus: z
           .enum(["pending", "verified", "rejected", "expired"])
           .optional(),
+        companyId: z.number().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const membership = await getActiveCompanyMembership(ctx.user.id);
-      if (!membership)
-        throw new TRPCError({ code: "FORBIDDEN", message: "No active company" });
+      const membership = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       requireNotAuditor(membership.role);
 
       const db = await getDb();
@@ -363,10 +348,10 @@ export const documentsRouter = router({
     }),
 
   // ── Dashboard: aggregate all documents for HR overview ──────────────────
-  getDashboard: protectedProcedure.query(async ({ ctx }) => {
-    const membership = await getActiveCompanyMembership(ctx.user.id);
-    if (!membership)
-      throw new TRPCError({ code: "FORBIDDEN", message: "No active company" });
+  getDashboard: protectedProcedure
+    .input(z.object({ companyId: z.number().optional() }).optional())
+    .query(async ({ ctx, input }) => {
+    const membership = await requireWorkspaceMembership(ctx.user as User, input?.companyId);
 
     const db = await getDb();
     if (!db) return {
@@ -517,11 +502,10 @@ export const documentsRouter = router({
       search: z.string().optional(),
       docType: z.string().optional(),
       status: z.enum(["valid", "expiring_soon", "expired", "no_expiry", "all"]).optional(),
+      companyId: z.number().optional(),
     }))
     .query(async ({ ctx, input }) => {
-      const membership = await getActiveCompanyMembership(ctx.user.id);
-      if (!membership)
-        throw new TRPCError({ code: "FORBIDDEN", message: "No active company" });
+      const membership = await requireWorkspaceMembership(ctx.user as User, input.companyId);
 
       const db = await getDb();
       if (!db) return [];
@@ -580,11 +564,9 @@ export const documentsRouter = router({
 
   // ── Employee: delete document ─────────────────────────────────────────────
   deleteEmployeeDoc: protectedProcedure
-    .input(z.object({ id: z.number().int().positive() }))
+    .input(z.object({ id: z.number().int().positive(), companyId: z.number().optional() }))
     .mutation(async ({ ctx, input }) => {
-      const membership = await getActiveCompanyMembership(ctx.user.id);
-      if (!membership)
-        throw new TRPCError({ code: "FORBIDDEN", message: "No active company" });
+      const membership = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       requireNotAuditor(membership.role);
 
       const db = await getDb();

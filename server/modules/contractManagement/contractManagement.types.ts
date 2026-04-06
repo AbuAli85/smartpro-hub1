@@ -339,25 +339,102 @@ export type OutsourcingContractDocumentContext = {
   };
 };
 
+// ─── REQUIRED DOCUMENTS BY CONTRACT TYPE ─────────────────────────────────────
+
+/**
+ * Per-contract-type list of required document kinds.
+ *
+ * When `getContractKpis` builds the "missing documents" risk list it looks up
+ * this registry using `row.contractTypeId`.  Adding a new contract type only
+ * requires an entry here — no changes to the aggregation logic.
+ *
+ * Keys must match values stored in `outsourcing_contracts.contract_type_id`.
+ */
+export const REQUIRED_DOCUMENTS_BY_CONTRACT_TYPE: Readonly<
+  Record<string, ReadonlyArray<{ readonly kind: string; readonly label: string }>>
+> = {
+  promoter_assignment: [
+    { kind: "signed_contract_pdf", label: "Signed Contract" },
+    { kind: "passport_copy",       label: "Passport Copy" },
+    { kind: "id_card_copy",        label: "ID Card Copy" },
+  ],
+  // Future contract types: add entries here.
+  // Each entry's `kind` must match a value in CONTRACT_DOCUMENT_KINDS.
+} as const;
+
+/**
+ * Fallback required-document list used when a contract type has no explicit
+ * entry in REQUIRED_DOCUMENTS_BY_CONTRACT_TYPE.
+ */
+export const DEFAULT_REQUIRED_DOCUMENTS: ReadonlyArray<{
+  readonly kind: string;
+  readonly label: string;
+}> = REQUIRED_DOCUMENTS_BY_CONTRACT_TYPE["promoter_assignment"]!;
+
 // ─── CONTRACT KPIs ────────────────────────────────────────────────────────────
 
-/** Shape returned by `getContractKpis` in the repository. */
+/** Shape returned by `getContractKpis` / `aggregateKpisFromRows`. */
 export interface ContractKpis {
+  /**
+   * Scope metadata.
+   *   - scope="company" — results are filtered to the `companyId`'s visibility.
+   *   - scope="platform" — results span all tenants (platform admin only).
+   *   - generatedAt — ISO-8601 timestamp so the client can show data freshness.
+   */
+  meta: {
+    scope: "company" | "platform";
+    /** null when scope="platform" */
+    companyId: number | null;
+    generatedAt: string;
+  };
+
   totals: {
+    /** Total rows in the result set (all statuses). */
     total: number;
+    /**
+     * Contracts whose *effective* status is "active":
+     * stored status = "active" AND expiryDate >= today (UTC).
+     * Contracts that are stored "active" but past their expiry are counted in
+     * `expired` instead, even if lazy-expire hasn't run yet.
+     */
     active: number;
     draft: number;
+    /**
+     * Active contracts (effective) whose expiryDate falls within the next
+     * 30 calendar days (UTC).  Always a subset of `active`.
+     */
     expiringIn30Days: number;
+    /**
+     * Effective expired count — includes:
+     *   (a) rows with stored status = "expired"
+     *   (b) rows with stored status = "active" whose expiryDate < today (UTC)
+     *       (lazy-expire hasn't fired yet, but they are effectively expired)
+     */
     expired: number;
+    /**
+     * Contracts stored as "active" but past their expiry date and not yet
+     * updated by lazy-expire.  Subset of `expired`.
+     * Useful for monitoring data staleness (should remain near 0 in a healthy
+     * system where users regularly open contract detail pages).
+     */
+    storedActiveEffectivelyExpired: number;
     terminated: number;
+    /**
+     * Suspended contracts.  This status is supported by the transition map
+     * (active → suspended → active/terminated) but requires a manual status
+     * update via the `update` mutation (no dedicated `suspend` mutation exists
+     * in Phase 1 — that is intentional; suspension is an admin-only action).
+     */
     suspended: number;
     renewed: number;
   };
-  /** Distinct count of promoter employees with at least one active contract. */
+
+  /** Distinct count of promoter employees with at least one *effectively active* contract. */
   promotersDeployed: number;
+
   /**
    * Contract counts grouped by first-party (client) company.
-   * Sorted descending by total; capped at 10 entries.
+   * Uses *effective* active count.  Sorted descending by total; capped at 10.
    */
   contractsPerCompany: Array<{
     companyId: number | null;
@@ -365,9 +442,10 @@ export interface ContractKpis {
     total: number;
     active: number;
   }>;
+
   /**
-   * Active contracts whose expiry_date falls within the next 30 days.
-   * Sorted ascending by days remaining; capped at 15 entries.
+   * Effectively-active contracts whose expiryDate falls within the next 30 days.
+   * Sorted ascending by days remaining; capped at 15.
    */
   expiringSoon: Array<{
     id: string;
@@ -377,10 +455,11 @@ export interface ContractKpis {
     expiryDate: string;
     daysLeft: number;
   }>;
+
   /**
-   * Active contracts that are missing one or more required document kinds
-   * (signed_contract_pdf, passport_copy, id_card_copy).
-   * Capped at 20 entries.
+   * Effectively-active contracts missing one or more required document kinds.
+   * Required kinds are looked up from REQUIRED_DOCUMENTS_BY_CONTRACT_TYPE
+   * using the contract's contractTypeId.  Capped at 20 entries.
    */
   missingDocuments: Array<{
     id: string;

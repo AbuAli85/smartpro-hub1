@@ -491,3 +491,461 @@ describe("F. Document generation context", () => {
     expect(allPlaceholders.length).toBe(corePlaceholders.length + extendedPlaceholders.length);
   });
 });
+
+// ─── G–K. KPI AGGREGATION ─────────────────────────────────────────────────────
+//
+// These tests exercise the pure `aggregateKpisFromRows` function and the two
+// helper functions (`toUtcDay`, `effectiveContractStatus`) that were extracted
+// from the old monolithic `getContractKpis`.  No DB connection is required.
+
+import {
+  aggregateKpisFromRows,
+  toUtcDay,
+  effectiveContractStatus,
+  normaliseDocumentKind,
+} from "../contractManagement.repository";
+import {
+  REQUIRED_DOCUMENTS_BY_CONTRACT_TYPE,
+  DEFAULT_REQUIRED_DOCUMENTS,
+} from "../contractManagement.types";
+import type { OutsourcingContractRow } from "../contractManagement.types";
+
+// ── Fixture helpers ────────────────────────────────────────────────────────────
+
+function isoDay(offset: number): string {
+  return new Date(Date.now() + offset * 86_400_000).toISOString().slice(0, 10);
+}
+
+function makeRow(
+  overrides: Partial<OutsourcingContractRow> & { id: string }
+): OutsourcingContractRow {
+  return {
+    contractTypeId: "promoter_assignment",
+    companyId: 10,
+    contractNumber: null,
+    status: "active",
+    issueDate: null,
+    effectiveDate: isoDay(-180),
+    expiryDate: isoDay(90),
+    generatedPdfUrl: null,
+    signedPdfUrl: null,
+    renewalOfContractId: null,
+    createdAt: isoDay(-180),
+    updatedAt: isoDay(-180),
+    firstPartyCompanyId: 10,
+    firstPartyName: "Client Co",
+    firstPartyNameAr: null,
+    firstPartyRegNumber: null,
+    secondPartyCompanyId: 20,
+    secondPartyName: "Employer Co",
+    secondPartyNameAr: null,
+    secondPartyRegNumber: null,
+    locationEn: "Branch A",
+    locationAr: null,
+    clientSiteId: null,
+    promoterEmployeeId: 100,
+    promoterName: "Ahmed Ali",
+    promoterNameAr: null,
+    civilId: null,
+    passportNumber: null,
+    passportExpiry: null,
+    nationality: null,
+    jobTitleEn: null,
+    ...overrides,
+  };
+}
+
+// ─── G. KPI status counts ─────────────────────────────────────────────────────
+
+describe("G. KPI status counts — aggregateKpisFromRows", () => {
+  const NOW = new Date("2026-04-06T12:00:00.000Z"); // fixed reference time
+
+  it("empty rows returns zero totals with correct meta", () => {
+    const result = aggregateKpisFromRows([], new Map(), {
+      activeCompanyId: 10,
+      isPlatformAdmin: false,
+      now: NOW,
+    });
+    expect(result.totals.total).toBe(0);
+    expect(result.totals.active).toBe(0);
+    expect(result.meta.scope).toBe("company");
+    expect(result.meta.companyId).toBe(10);
+    expect(result.promotersDeployed).toBe(0);
+  });
+
+  it("counts each status bucket correctly", () => {
+    const rows = [
+      makeRow({ id: "a1", status: "active",     expiryDate: isoDay(60) }),
+      makeRow({ id: "a2", status: "active",     expiryDate: isoDay(45) }),
+      makeRow({ id: "d1", status: "draft",      expiryDate: isoDay(90) }),
+      makeRow({ id: "e1", status: "expired",    expiryDate: isoDay(-10) }),
+      makeRow({ id: "t1", status: "terminated", expiryDate: isoDay(-20) }),
+      makeRow({ id: "r1", status: "renewed",    expiryDate: isoDay(-30) }),
+      makeRow({ id: "s1", status: "suspended",  expiryDate: isoDay(90) }),
+    ];
+    const result = aggregateKpisFromRows(rows, new Map(), {
+      activeCompanyId: 10,
+      isPlatformAdmin: false,
+      now: NOW,
+    });
+
+    expect(result.totals.total).toBe(7);
+    expect(result.totals.active).toBe(2);
+    expect(result.totals.draft).toBe(1);
+    expect(result.totals.expired).toBe(1);
+    expect(result.totals.terminated).toBe(1);
+    expect(result.totals.renewed).toBe(1);
+    expect(result.totals.suspended).toBe(1);
+  });
+
+  it("platform admin result has scope=platform and companyId=null", () => {
+    const result = aggregateKpisFromRows([], new Map(), {
+      activeCompanyId: 0,
+      isPlatformAdmin: true,
+      now: NOW,
+    });
+    expect(result.meta.scope).toBe("platform");
+    expect(result.meta.companyId).toBeNull();
+  });
+
+  it("storedActiveEffectivelyExpired counts lazy-expire gap contracts", () => {
+    const rows = [
+      // stored "active" but expiry was 5 days ago → effectively expired
+      makeRow({ id: "stale1", status: "active", expiryDate: isoDay(-5) }),
+      makeRow({ id: "stale2", status: "active", expiryDate: isoDay(-1) }),
+      // truly active
+      makeRow({ id: "live1",  status: "active", expiryDate: isoDay(10) }),
+    ];
+    const result = aggregateKpisFromRows(rows, new Map(), {
+      activeCompanyId: 10,
+      isPlatformAdmin: false,
+      now: NOW,
+    });
+
+    expect(result.totals.storedActiveEffectivelyExpired).toBe(2);
+    // They should be counted in expired, not active
+    expect(result.totals.active).toBe(1);
+    expect(result.totals.expired).toBe(2);
+  });
+
+  it("promotersDeployed counts distinct employee IDs on effectively-active contracts only", () => {
+    const rows = [
+      makeRow({ id: "c1", status: "active",     expiryDate: isoDay(10),  promoterEmployeeId: 1 }),
+      makeRow({ id: "c2", status: "active",     expiryDate: isoDay(20),  promoterEmployeeId: 1 }), // same person, 2 contracts
+      makeRow({ id: "c3", status: "active",     expiryDate: isoDay(30),  promoterEmployeeId: 2 }),
+      makeRow({ id: "c4", status: "draft",      expiryDate: isoDay(90),  promoterEmployeeId: 3 }), // draft — not deployed
+      makeRow({ id: "c5", status: "active",     expiryDate: isoDay(-1),  promoterEmployeeId: 4 }), // stale — not deployed
+    ];
+    const result = aggregateKpisFromRows(rows, new Map(), {
+      activeCompanyId: 10,
+      isPlatformAdmin: false,
+      now: NOW,
+    });
+
+    // Employee 1 and 2 are truly active; 3 is draft; 4 is stale-expired
+    expect(result.promotersDeployed).toBe(2);
+  });
+});
+
+// ─── H. Expiring-soon logic ───────────────────────────────────────────────────
+
+describe("H. Expiring-soon logic", () => {
+  const NOW = new Date("2026-04-06T00:00:00.000Z");
+
+  it("contract expiring exactly today has daysLeft=0 and is included", () => {
+    const rows = [makeRow({ id: "today", status: "active", expiryDate: "2026-04-06" })];
+    const result = aggregateKpisFromRows(rows, new Map(), { activeCompanyId: 10, isPlatformAdmin: false, now: NOW });
+    expect(result.expiringSoon).toHaveLength(1);
+    expect(result.expiringSoon[0]!.daysLeft).toBe(0);
+    expect(result.totals.expiringIn30Days).toBe(1);
+  });
+
+  it("contract expiring in 15 days is included", () => {
+    const rows = [makeRow({ id: "mid", status: "active", expiryDate: "2026-04-21" })];
+    const result = aggregateKpisFromRows(rows, new Map(), { activeCompanyId: 10, isPlatformAdmin: false, now: NOW });
+    expect(result.expiringSoon).toHaveLength(1);
+    expect(result.expiringSoon[0]!.daysLeft).toBe(15);
+  });
+
+  it("contract expiring in exactly 30 days is included (boundary inclusive)", () => {
+    const rows = [makeRow({ id: "b30", status: "active", expiryDate: "2026-05-06" })];
+    const result = aggregateKpisFromRows(rows, new Map(), { activeCompanyId: 10, isPlatformAdmin: false, now: NOW });
+    expect(result.expiringSoon).toHaveLength(1);
+    expect(result.totals.expiringIn30Days).toBe(1);
+  });
+
+  it("contract expiring in 31 days is NOT included", () => {
+    const rows = [makeRow({ id: "far", status: "active", expiryDate: "2026-05-07" })];
+    const result = aggregateKpisFromRows(rows, new Map(), { activeCompanyId: 10, isPlatformAdmin: false, now: NOW });
+    expect(result.expiringSoon).toHaveLength(0);
+    expect(result.totals.expiringIn30Days).toBe(0);
+  });
+
+  it("draft contract within 30 days is NOT included in expiringSoon", () => {
+    const rows = [makeRow({ id: "drft", status: "draft", expiryDate: "2026-04-10" })];
+    const result = aggregateKpisFromRows(rows, new Map(), { activeCompanyId: 10, isPlatformAdmin: false, now: NOW });
+    expect(result.expiringSoon).toHaveLength(0);
+  });
+
+  it("stale-active (effectively expired) contract is NOT in expiringSoon", () => {
+    const rows = [makeRow({ id: "stale", status: "active", expiryDate: "2026-04-05" })];
+    const result = aggregateKpisFromRows(rows, new Map(), { activeCompanyId: 10, isPlatformAdmin: false, now: NOW });
+    expect(result.expiringSoon).toHaveLength(0);
+  });
+
+  it("expiringSoon is sorted nearest-first", () => {
+    const rows = [
+      makeRow({ id: "far",   status: "active", expiryDate: "2026-04-20", promoterEmployeeId: 1 }),
+      makeRow({ id: "near",  status: "active", expiryDate: "2026-04-10", promoterEmployeeId: 2 }),
+      makeRow({ id: "mid",   status: "active", expiryDate: "2026-04-15", promoterEmployeeId: 3 }),
+    ];
+    const result = aggregateKpisFromRows(rows, new Map(), { activeCompanyId: 10, isPlatformAdmin: false, now: NOW });
+    const ids = result.expiringSoon.map((r) => r.id);
+    expect(ids).toEqual(["near", "mid", "far"]);
+  });
+});
+
+// ─── I. Missing-document detection ────────────────────────────────────────────
+
+describe("I. Missing-document detection", () => {
+  const NOW = new Date("2026-04-06T00:00:00.000Z");
+
+  const CONTRACT_ID = "contract-001";
+  const baseRow = makeRow({ id: CONTRACT_ID, status: "active", expiryDate: "2026-12-31" });
+
+  function docs(...kinds: string[]): Map<string, Set<string>> {
+    return new Map([[CONTRACT_ID, new Set(kinds)]]);
+  }
+
+  it("contract with all three required docs → no missing", () => {
+    const map = docs("signed_contract_pdf", "passport_copy", "id_card_copy");
+    const result = aggregateKpisFromRows([baseRow], map, { activeCompanyId: 10, isPlatformAdmin: false, now: NOW });
+    expect(result.missingDocuments).toHaveLength(0);
+  });
+
+  it("contract with no docs → all three missing", () => {
+    const result = aggregateKpisFromRows([baseRow], new Map(), { activeCompanyId: 10, isPlatformAdmin: false, now: NOW });
+    expect(result.missingDocuments).toHaveLength(1);
+    expect(result.missingDocuments[0]!.missingKinds).toHaveLength(3);
+    expect(result.missingDocuments[0]!.missingKinds).toContain("Signed Contract");
+    expect(result.missingDocuments[0]!.missingKinds).toContain("Passport Copy");
+    expect(result.missingDocuments[0]!.missingKinds).toContain("ID Card Copy");
+  });
+
+  it("contract with only passport_copy → signed contract and ID card missing", () => {
+    const map = docs("passport_copy");
+    const result = aggregateKpisFromRows([baseRow], map, { activeCompanyId: 10, isPlatformAdmin: false, now: NOW });
+    const missing = result.missingDocuments[0]!.missingKinds;
+    expect(missing).toContain("Signed Contract");
+    expect(missing).toContain("ID Card Copy");
+    expect(missing).not.toContain("Passport Copy");
+  });
+
+  it("legacy 'id_copy' is normalised to 'id_card_copy' (satisfies requirement)", () => {
+    const map = docs("signed_contract_pdf", "passport_copy", "id_copy");
+    const result = aggregateKpisFromRows([baseRow], map, { activeCompanyId: 10, isPlatformAdmin: false, now: NOW });
+    expect(result.missingDocuments).toHaveLength(0);
+  });
+
+  it("legacy 'signed_pdf' is normalised to 'signed_contract_pdf'", () => {
+    const map = docs("signed_pdf", "passport_copy", "id_card_copy");
+    const result = aggregateKpisFromRows([baseRow], map, { activeCompanyId: 10, isPlatformAdmin: false, now: NOW });
+    expect(result.missingDocuments).toHaveLength(0);
+  });
+
+  it("attachment-only does not satisfy any required kind", () => {
+    const map = docs("attachment");
+    const result = aggregateKpisFromRows([baseRow], map, { activeCompanyId: 10, isPlatformAdmin: false, now: NOW });
+    expect(result.missingDocuments[0]!.missingKinds).toHaveLength(3);
+  });
+
+  it("draft contract is excluded from missing-documents check", () => {
+    const draftRow = makeRow({ id: "draft-c", status: "draft", expiryDate: "2026-12-31" });
+    const result = aggregateKpisFromRows([draftRow], new Map(), { activeCompanyId: 10, isPlatformAdmin: false, now: NOW });
+    expect(result.missingDocuments).toHaveLength(0);
+  });
+
+  it("stale-active (effectively expired) contract is excluded from missing-documents check", () => {
+    const staleRow = makeRow({ id: "stale-c", status: "active", expiryDate: "2026-01-01" });
+    const result = aggregateKpisFromRows([staleRow], new Map(), { activeCompanyId: 10, isPlatformAdmin: false, now: NOW });
+    expect(result.missingDocuments).toHaveLength(0);
+  });
+
+  it("REQUIRED_DOCUMENTS_BY_CONTRACT_TYPE has promoter_assignment entry with 3 kinds", () => {
+    const reqs = REQUIRED_DOCUMENTS_BY_CONTRACT_TYPE["promoter_assignment"]!;
+    expect(reqs).toHaveLength(3);
+    const kinds = reqs.map((r) => r.kind);
+    expect(kinds).toContain("signed_contract_pdf");
+    expect(kinds).toContain("passport_copy");
+    expect(kinds).toContain("id_card_copy");
+  });
+
+  it("unknown contract type falls back to DEFAULT_REQUIRED_DOCUMENTS", () => {
+    const unknownRow = makeRow({ id: "unk", status: "active", expiryDate: "2026-12-31", contractTypeId: "offer_letter" });
+    const result = aggregateKpisFromRows([unknownRow], new Map(), { activeCompanyId: 10, isPlatformAdmin: false, now: NOW });
+    // Should still produce missing-doc entries using the default (promoter_assignment) list
+    expect(result.missingDocuments).toHaveLength(1);
+    expect(result.missingDocuments[0]!.missingKinds.length).toBe(DEFAULT_REQUIRED_DOCUMENTS.length);
+  });
+
+  it("missingDocuments is capped at 20 entries", () => {
+    const manyRows = Array.from({ length: 25 }, (_, i) =>
+      makeRow({ id: `r${i}`, status: "active", expiryDate: "2026-12-31", promoterEmployeeId: i + 1 })
+    );
+    const result = aggregateKpisFromRows(manyRows, new Map(), { activeCompanyId: 10, isPlatformAdmin: false, now: NOW });
+    expect(result.missingDocuments.length).toBeLessThanOrEqual(20);
+  });
+});
+
+// ─── J. Company breakdown correctness ─────────────────────────────────────────
+
+describe("J. Contracts-per-company breakdown", () => {
+  const NOW = new Date("2026-04-06T00:00:00.000Z");
+
+  it("groups contracts by first-party company", () => {
+    const rows = [
+      makeRow({ id: "c1", firstPartyCompanyId: 10, firstPartyName: "Alpha", status: "active",     expiryDate: "2026-12-31", promoterEmployeeId: 1 }),
+      makeRow({ id: "c2", firstPartyCompanyId: 10, firstPartyName: "Alpha", status: "draft",      expiryDate: "2026-12-31", promoterEmployeeId: 2 }),
+      makeRow({ id: "c3", firstPartyCompanyId: 20, firstPartyName: "Beta",  status: "active",     expiryDate: "2026-12-31", promoterEmployeeId: 3 }),
+    ];
+    const result = aggregateKpisFromRows(rows, new Map(), { activeCompanyId: 10, isPlatformAdmin: false, now: NOW });
+
+    const alpha = result.contractsPerCompany.find((c) => c.companyName === "Alpha")!;
+    const beta  = result.contractsPerCompany.find((c) => c.companyName === "Beta")!;
+
+    expect(alpha.total).toBe(2);
+    expect(alpha.active).toBe(1); // only the active one (draft is not effectively active)
+    expect(beta.total).toBe(1);
+    expect(beta.active).toBe(1);
+  });
+
+  it("sorted descending by total", () => {
+    const rows = [
+      makeRow({ id: "b1", firstPartyCompanyId: 20, firstPartyName: "Beta",  status: "active", expiryDate: "2026-12-31", promoterEmployeeId: 1 }),
+      makeRow({ id: "a1", firstPartyCompanyId: 10, firstPartyName: "Alpha", status: "active", expiryDate: "2026-12-31", promoterEmployeeId: 2 }),
+      makeRow({ id: "a2", firstPartyCompanyId: 10, firstPartyName: "Alpha", status: "active", expiryDate: "2026-12-31", promoterEmployeeId: 3 }),
+    ];
+    const result = aggregateKpisFromRows(rows, new Map(), { activeCompanyId: 10, isPlatformAdmin: false, now: NOW });
+    expect(result.contractsPerCompany[0]!.companyName).toBe("Alpha"); // 2 > 1
+  });
+
+  it("active count uses effective status (stale-active counts as expired not active)", () => {
+    const rows = [
+      makeRow({ id: "live",  firstPartyCompanyId: 10, firstPartyName: "Gamma", status: "active", expiryDate: "2026-12-31", promoterEmployeeId: 1 }),
+      makeRow({ id: "stale", firstPartyCompanyId: 10, firstPartyName: "Gamma", status: "active", expiryDate: "2026-01-01", promoterEmployeeId: 2 }),
+    ];
+    const result = aggregateKpisFromRows(rows, new Map(), { activeCompanyId: 10, isPlatformAdmin: false, now: NOW });
+
+    const gamma = result.contractsPerCompany.find((c) => c.companyName === "Gamma")!;
+    expect(gamma.total).toBe(2);
+    expect(gamma.active).toBe(1); // only the live one
+  });
+
+  it("capped at 10 companies", () => {
+    const rows = Array.from({ length: 12 }, (_, i) =>
+      makeRow({ id: `c${i}`, firstPartyCompanyId: i + 1, firstPartyName: `Co${i}`, status: "active", expiryDate: "2026-12-31", promoterEmployeeId: i + 1 })
+    );
+    const result = aggregateKpisFromRows(rows, new Map(), { activeCompanyId: 1, isPlatformAdmin: false, now: NOW });
+    expect(result.contractsPerCompany.length).toBeLessThanOrEqual(10);
+  });
+});
+
+// ─── K. Tenant-scoped KPI visibility ──────────────────────────────────────────
+
+describe("K. Tenant-scoped KPI visibility (via aggregateKpisFromRows)", () => {
+  const NOW = new Date("2026-04-06T00:00:00.000Z");
+
+  it("company-scope result only reflects rows passed in (tenant filter is in listOutsourcingContracts)", () => {
+    // aggregateKpisFromRows is a pure function — it trusts that the caller has
+    // already applied tenant filtering.  We verify the meta is set correctly.
+    const rows = [makeRow({ id: "x1", status: "active", expiryDate: "2026-12-31" })];
+    const result = aggregateKpisFromRows(rows, new Map(), { activeCompanyId: 42, isPlatformAdmin: false, now: NOW });
+    expect(result.meta.scope).toBe("company");
+    expect(result.meta.companyId).toBe(42);
+    expect(result.totals.total).toBe(1);
+  });
+
+  it("platform-admin result has scope=platform, companyId=null, and sees all passed rows", () => {
+    const rows = [
+      makeRow({ id: "p1", firstPartyCompanyId: 10, status: "active", expiryDate: "2026-12-31", promoterEmployeeId: 1 }),
+      makeRow({ id: "p2", firstPartyCompanyId: 99, status: "active", expiryDate: "2026-12-31", promoterEmployeeId: 2 }),
+    ];
+    const result = aggregateKpisFromRows(rows, new Map(), { activeCompanyId: 0, isPlatformAdmin: true, now: NOW });
+    expect(result.meta.scope).toBe("platform");
+    expect(result.meta.companyId).toBeNull();
+    expect(result.totals.total).toBe(2);
+  });
+
+  it("meta.generatedAt is a valid ISO-8601 timestamp matching the NOW parameter", () => {
+    const result = aggregateKpisFromRows([], new Map(), { activeCompanyId: 10, isPlatformAdmin: false, now: NOW });
+    expect(result.meta.generatedAt).toBe(NOW.toISOString());
+  });
+});
+
+// ─── toUtcDay helper ──────────────────────────────────────────────────────────
+
+describe("toUtcDay", () => {
+  it("converts date string to UTC midnight", () => {
+    const d = toUtcDay("2026-04-06");
+    expect(d.toISOString()).toBe("2026-04-06T00:00:00.000Z");
+  });
+
+  it("strips time component from ISO datetime string", () => {
+    const d = toUtcDay("2026-04-06T14:30:00.000Z");
+    expect(d.toISOString()).toBe("2026-04-06T00:00:00.000Z");
+  });
+
+  it("Date object is converted to its UTC date midnight", () => {
+    const d = toUtcDay(new Date("2026-04-06T22:00:00.000Z"));
+    expect(d.toISOString()).toBe("2026-04-06T00:00:00.000Z");
+  });
+});
+
+// ─── effectiveContractStatus helper ──────────────────────────────────────────
+
+describe("effectiveContractStatus", () => {
+  const NOW = toUtcDay(new Date("2026-04-06T00:00:00.000Z"));
+
+  it("active + future expiry → remains active", () => {
+    expect(effectiveContractStatus("active", "2026-12-31", NOW)).toBe("active");
+  });
+
+  it("active + expiry today → still active (valid through end of day)", () => {
+    expect(effectiveContractStatus("active", "2026-04-06", NOW)).toBe("active");
+  });
+
+  it("active + expiry yesterday → effective expired", () => {
+    expect(effectiveContractStatus("active", "2026-04-05", NOW)).toBe("expired");
+  });
+
+  it("active + null expiry → remains active (no expiry configured)", () => {
+    expect(effectiveContractStatus("active", null, NOW)).toBe("active");
+  });
+
+  it("draft is never auto-expired regardless of expiryDate", () => {
+    expect(effectiveContractStatus("draft", "2020-01-01", NOW)).toBe("draft");
+  });
+
+  it("expired stays expired even with a future expiry date (impossible in practice)", () => {
+    expect(effectiveContractStatus("expired", "2030-01-01", NOW)).toBe("expired");
+  });
+});
+
+// ─── normaliseDocumentKind helper ─────────────────────────────────────────────
+
+describe("normaliseDocumentKind", () => {
+  it("normalises signed_pdf → signed_contract_pdf", () => {
+    expect(normaliseDocumentKind("signed_pdf")).toBe("signed_contract_pdf");
+  });
+  it("normalises id_copy → id_card_copy", () => {
+    expect(normaliseDocumentKind("id_copy")).toBe("id_card_copy");
+  });
+  it("passes through canonical kinds unchanged", () => {
+    expect(normaliseDocumentKind("passport_copy")).toBe("passport_copy");
+    expect(normaliseDocumentKind("id_card_copy")).toBe("id_card_copy");
+    expect(normaliseDocumentKind("generated_pdf")).toBe("generated_pdf");
+  });
+  it("passes through unknown kinds unchanged", () => {
+    expect(normaliseDocumentKind("some_future_kind")).toBe("some_future_kind");
+  });
+});

@@ -269,7 +269,11 @@ export const contractManagementRouter = router({
    * Returns status totals, promoters deployed, contracts-per-company breakdown,
    * and two risk lists (expiring soon + missing required documents).
    *
-   * Suitable for a dashboard/stats bar — intentionally read-only and fast.
+   * Access: same role requirement as `list` — company_admin or hr_admin
+   * (enforced by requireCanManageContracts). Platform admins bypass.
+   *
+   * Suitable for a dashboard stats bar — intentionally read-only and fast.
+   * See repository ADR comment for the performance migration plan.
    */
   kpis: protectedProcedure.query(async ({ ctx }) => {
     const db = await getDb();
@@ -277,6 +281,11 @@ export const contractManagementRouter = router({
 
     const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
     const activeId = isPlatform ? 0 : await requireActiveCompanyId(ctx.user.id);
+
+    // Apply the same RBAC gate as the list query: only managers/admins, not auditors
+    if (!isPlatform) {
+      await requireCanManageContracts(ctx.user, activeId);
+    }
 
     return getContractKpis(db, activeId, isPlatform);
   }),

@@ -27,6 +27,8 @@ import type { getDb } from "../../db";
 import {
   ALLOWED_TRANSITIONS,
   ContractTransitionError,
+  DEFAULT_REQUIRED_DOCUMENTS,
+  REQUIRED_DOCUMENTS_BY_CONTRACT_TYPE,
   validateStatusTransition,
   type ContractDocumentKind,
   type ContractEventAction,
@@ -172,70 +174,160 @@ export async function listOutsourcingContracts(
   }));
 }
 
-// ─── KPIs ─────────────────────────────────────────────────────────────────────
+// ─── KPIs — PURE HELPERS ──────────────────────────────────────────────────────
+//
+// ADR: KPI aggregation strategy and migration path
+//
+// PHASE 1 (current — recommended up to ~2 000 visible contracts)
+// ──────────────────────────────────────────────────────────────
+// All numeric aggregation is done in JavaScript after a single JOIN query
+// (listOutsourcingContracts) plus one extra SELECT for document kinds.
+// Pros: no duplicate tenant-filter logic, easy to test purely, readable.
+// Cons: loads full rows into memory; not suitable for platform-wide queries
+//       once the total contract count reaches several thousand.
+//
+// PHASE 2 (recommended when any single tenant's visible set exceeds ~2 000 rows)
+// ──────────────────────────────────────────────────────────────────────────────
+// Replace the JS counters with a single GROUP BY / CASE SQL aggregate:
+//   SELECT status, COUNT(*) as cnt FROM outsourcing_contracts
+//   WHERE <tenant filter>  GROUP BY status
+// This avoids loading row data just to count it.
+// The document-check subquery can similarly become:
+//   SELECT contract_id, GROUP_CONCAT(document_kind) ...
+//   WHERE contract_id IN (SELECT id ... WHERE status='active' AND <tenant>)
+//   GROUP BY contract_id  HAVING  NOT (MAX(...) = 1) AND ...
+//
+// PHASE 3 (if platform-admin queries exceed ~50 000 rows)
+// ──────────────────────────────────────────────────────
+// Materialise a kpi_snapshot table refreshed by a scheduled job (e.g. daily).
+// The current `meta.generatedAt` field is designed to communicate data
+// freshness to the UI so this transition is transparent to callers.
 
 /**
- * Aggregate KPIs for the contracts visible to `activeCompanyId`.
+ * Normalise any date-like value to a UTC start-of-day Date (midnight UTC).
  *
- * Strategy:
- *   1. Re-use `listOutsourcingContracts` for tenant-scoped data (single source of truth).
- *   2. Compute all numeric totals, role breakdowns, and risk lists in JS — no extra
- *      raw-SQL aggregates needed at this scale.
- *   3. One extra DB query to fetch document kinds for active contracts (for the
- *      "missing documents" risk list).
+ * Why: contract expiryDate values are stored as DATE (no time) in MySQL, which
+ * Drizzle returns as a string like "2026-04-30".  Calling new Date("2026-04-30")
+ * yields 2026-04-30T00:00:00.000Z — UTC midnight.  If we compare this to
+ * `new Date()` (which includes hours/minutes), a contract expiring *today* would
+ * incorrectly appear already expired.  Normalising `now` to UTC midnight gives
+ * consistent date-level comparisons across timezones.
+ *
+ * Exported for unit-testing.
  */
-export async function getContractKpis(
-  db: AppDb,
-  activeCompanyId: number,
-  isPlatformAdmin: boolean
-): Promise<ContractKpis> {
-  const EMPTY: ContractKpis = {
-    totals: { total: 0, active: 0, draft: 0, expiringIn30Days: 0, expired: 0, terminated: 0, suspended: 0, renewed: 0 },
-    promotersDeployed: 0,
-    contractsPerCompany: [],
-    expiringSoon: [],
-    missingDocuments: [],
+export function toUtcDay(d: Date | string): Date {
+  const s = typeof d === "string" ? d : d.toISOString();
+  // Slice to "YYYY-MM-DD" and append UTC midnight
+  return new Date(s.slice(0, 10) + "T00:00:00.000Z");
+}
+
+/**
+ * Returns the *effective* contract status, bridging the lazy-expire gap.
+ *
+ * Lazy-expire only updates the DB when `getById` is called.  A contract stored
+ * as "active" whose expiryDate is strictly before today (UTC) should be treated
+ * as "expired" for KPI purposes — showing it as "active" is misleading.
+ *
+ * Note: "expiring today" means expiryDate === today → effective status = "active"
+ * (the contract is valid through the end of the expiry day, then expires overnight).
+ *
+ * Exported for unit-testing.
+ */
+export function effectiveContractStatus(
+  storedStatus: string,
+  expiryDate: Date | string | null | undefined,
+  nowUtcDay: Date
+): ContractStatus {
+  const s = storedStatus as ContractStatus;
+  if (s === "active" && expiryDate) {
+    const exp = toUtcDay(expiryDate as Date | string);
+    if (exp < nowUtcDay) return "expired";
+  }
+  return s;
+}
+
+/**
+ * Normalise legacy document kind aliases to their canonical name.
+ * Keeps the logic in one place rather than duplicating it.
+ * Exported for unit-testing.
+ */
+export function normaliseDocumentKind(rawKind: string): string {
+  const LEGACY: Record<string, string> = {
+    signed_pdf: "signed_contract_pdf",
+    id_copy:    "id_card_copy",
   };
+  return LEGACY[rawKind] ?? rawKind;
+}
 
-  const rows = await listOutsourcingContracts(db, activeCompanyId, isPlatformAdmin);
-  if (rows.length === 0) return EMPTY;
+/**
+ * Pure KPI aggregation — no DB access.
+ *
+ * Accepts pre-fetched contract rows and a map of document kinds per contract,
+ * and returns the full `ContractKpis` object.  Extracted from `getContractKpis`
+ * so it can be unit-tested without a database mock.
+ *
+ * @param rows          - output of `listOutsourcingContracts`
+ * @param docsByContract - Map<contractId, Set<normalised documentKind>>
+ * @param options.activeCompanyId - 0 for platform admins
+ * @param options.isPlatformAdmin
+ * @param options.now   - override current time (for testing)
+ */
+export function aggregateKpisFromRows(
+  rows: OutsourcingContractRow[],
+  docsByContract: Map<string, Set<string>>,
+  options: {
+    activeCompanyId: number;
+    isPlatformAdmin: boolean;
+    now?: Date;
+  }
+): ContractKpis {
+  const nowUtcDay = toUtcDay(options.now ?? new Date());
+  const in30UtcDay = new Date(nowUtcDay.getTime() + 30 * 24 * 60 * 60 * 1000);
 
-  const now = new Date();
-  const in30 = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
-
-  // ── Totals ────────────────────────────────────────────────────────────────
   const totals: ContractKpis["totals"] = {
     total: rows.length,
     active: 0, draft: 0, expiringIn30Days: 0,
-    expired: 0, terminated: 0, suspended: 0, renewed: 0,
+    expired: 0, storedActiveEffectivelyExpired: 0,
+    terminated: 0, suspended: 0, renewed: 0,
   };
 
   for (const row of rows) {
-    const s = (row.status ?? "draft") as ContractStatus;
-    if (s === "active")     totals.active++;
-    else if (s === "draft")      totals.draft++;
-    else if (s === "expired")    totals.expired++;
-    else if (s === "terminated") totals.terminated++;
-    else if (s === "suspended")  totals.suspended++;
-    else if (s === "renewed")    totals.renewed++;
+    const stored = (row.status ?? "draft") as ContractStatus;
+    const effective = effectiveContractStatus(stored, row.expiryDate, nowUtcDay);
 
-    if (s === "active" && row.expiryDate) {
-      const exp = new Date(
-        typeof row.expiryDate === "string" ? row.expiryDate : (row.expiryDate as Date).toISOString()
-      );
-      if (exp >= now && exp <= in30) totals.expiringIn30Days++;
+    // Status buckets use effective status so KPIs reflect reality even when
+    // lazy-expire hasn't fired yet.
+    if      (effective === "active")     totals.active++;
+    else if (effective === "draft")      totals.draft++;
+    else if (effective === "expired")    totals.expired++;
+    else if (effective === "terminated") totals.terminated++;
+    else if (effective === "suspended")  totals.suspended++;
+    else if (effective === "renewed")    totals.renewed++;
+
+    // Diagnostic: contracts stored "active" but effectively expired
+    if (stored === "active" && effective === "expired") {
+      totals.storedActiveEffectivelyExpired++;
+    }
+
+    // expiringIn30Days: effectively active AND expiry within [today, today+30]
+    if (effective === "active" && row.expiryDate) {
+      const exp = toUtcDay(row.expiryDate as Date | string);
+      if (exp >= nowUtcDay && exp <= in30UtcDay) totals.expiringIn30Days++;
     }
   }
 
-  // ── Promoters deployed (distinct active promoter employee IDs) ────────────
+  // Promoters deployed: distinct promoter IDs with effectively-active contracts
   const activePromoterIds = new Set(
     rows
-      .filter((r) => r.status === "active" && r.promoterEmployeeId)
+      .filter((r) => {
+        const eff = effectiveContractStatus(r.status ?? "draft", r.expiryDate, nowUtcDay);
+        return eff === "active" && r.promoterEmployeeId;
+      })
       .map((r) => r.promoterEmployeeId)
   );
   const promotersDeployed = activePromoterIds.size;
 
-  // ── Contracts per company (by first party, top 10) ────────────────────────
+  // Contracts per company (by first party, top 10, effective active count)
   const coMap = new Map<
     string,
     { companyId: number | null; companyName: string; total: number; active: number }
@@ -252,49 +344,111 @@ export async function getContractKpis(
     }
     const entry = coMap.get(key)!;
     entry.total++;
-    if (row.status === "active") entry.active++;
+    const eff = effectiveContractStatus(row.status ?? "draft", row.expiryDate, nowUtcDay);
+    if (eff === "active") entry.active++;
   }
   const contractsPerCompany = [...coMap.values()]
     .sort((a, b) => b.total - a.total)
     .slice(0, 10);
 
-  // ── Expiring soon (top 15 by nearest expiry) ─────────────────────────────
+  // Expiring soon: effectively active + expiryDate within [today, today+30], sorted nearest-first
   const expiringSoon: ContractKpis["expiringSoon"] = rows
     .filter((r) => {
-      if (r.status !== "active" || !r.expiryDate) return false;
-      const exp = new Date(
-        typeof r.expiryDate === "string" ? r.expiryDate : (r.expiryDate as Date).toISOString()
-      );
-      return exp >= now && exp <= in30;
+      if (!r.expiryDate) return false;
+      const eff = effectiveContractStatus(r.status ?? "draft", r.expiryDate, nowUtcDay);
+      if (eff !== "active") return false;
+      const exp = toUtcDay(r.expiryDate as Date | string);
+      return exp >= nowUtcDay && exp <= in30UtcDay;
     })
     .sort((a, b) => {
-      const da = new Date(typeof a.expiryDate === "string" ? a.expiryDate : (a.expiryDate as Date).toISOString());
-      const db2 = new Date(typeof b.expiryDate === "string" ? b.expiryDate : (b.expiryDate as Date).toISOString());
-      return da.getTime() - db2.getTime();
+      const ta = toUtcDay(a.expiryDate as Date | string).getTime();
+      const tb = toUtcDay(b.expiryDate as Date | string).getTime();
+      return ta - tb;
     })
     .slice(0, 15)
     .map((r) => {
-      const exp = new Date(
-        typeof r.expiryDate === "string" ? r.expiryDate.slice(0, 10) : (r.expiryDate as Date).toISOString().slice(0, 10)
-      );
-      const daysLeft = Math.ceil((exp.getTime() - now.getTime()) / 86_400_000);
+      const exp = toUtcDay(r.expiryDate as Date | string);
+      const daysLeft = Math.ceil((exp.getTime() - nowUtcDay.getTime()) / 86_400_000);
       return {
         id: r.id,
         contractNumber: r.contractNumber ?? null,
         promoterName: r.promoterName ?? "—",
         firstPartyName: r.firstPartyName ?? "—",
-        expiryDate:
-          typeof r.expiryDate === "string"
-            ? r.expiryDate.slice(0, 10)
-            : (r.expiryDate as Date).toISOString().slice(0, 10),
+        expiryDate: exp.toISOString().slice(0, 10),
         daysLeft,
       };
     });
 
-  // ── Missing required documents (active contracts only) ───────────────────
-  const activeIds = rows.filter((r) => r.status === "active").map((r) => r.id);
-  let missingDocuments: ContractKpis["missingDocuments"] = [];
+  // Missing documents: effectively-active contracts lacking required kinds per type
+  const missingDocuments: ContractKpis["missingDocuments"] = [];
+  for (const row of rows) {
+    const eff = effectiveContractStatus(row.status ?? "draft", row.expiryDate, nowUtcDay);
+    if (eff !== "active") continue;
 
+    // Look up required kinds for this contract type; fall back to promoter_assignment
+    const required =
+      REQUIRED_DOCUMENTS_BY_CONTRACT_TYPE[row.contractTypeId ?? "promoter_assignment"]
+      ?? DEFAULT_REQUIRED_DOCUMENTS;
+
+    const rawKinds = docsByContract.get(row.id) ?? new Set<string>();
+    // Normalise on read so the map can contain either canonical or legacy kinds
+    const kinds = new Set([...rawKinds].map(normaliseDocumentKind));
+    const missing = required
+      .filter((req) => !kinds.has(req.kind))
+      .map((req) => req.label);
+
+    if (missing.length > 0) {
+      missingDocuments.push({
+        id: row.id,
+        contractNumber: row.contractNumber ?? null,
+        promoterName: row.promoterName ?? "—",
+        missingKinds: missing,
+      });
+    }
+    if (missingDocuments.length >= 20) break;
+  }
+
+  return {
+    meta: {
+      scope: options.isPlatformAdmin ? "platform" : "company",
+      companyId: options.isPlatformAdmin ? null : options.activeCompanyId,
+      generatedAt: (options.now ?? new Date()).toISOString(),
+    },
+    totals,
+    promotersDeployed,
+    contractsPerCompany,
+    expiringSoon,
+    missingDocuments,
+  };
+}
+
+/**
+ * Async entry point: fetches data, builds document-kind map, then delegates
+ * all aggregation to `aggregateKpisFromRows`.
+ *
+ * See ADR comment at the top of this section for the performance migration plan.
+ */
+export async function getContractKpis(
+  db: AppDb,
+  activeCompanyId: number,
+  isPlatformAdmin: boolean
+): Promise<ContractKpis> {
+  const rows = await listOutsourcingContracts(db, activeCompanyId, isPlatformAdmin);
+
+  const EMPTY: ContractKpis = aggregateKpisFromRows([], new Map(), {
+    activeCompanyId,
+    isPlatformAdmin,
+  });
+  if (rows.length === 0) return EMPTY;
+
+  // Fetch document kinds for effectively-active contracts only
+  // (Phase 2 note: this IN (...) becomes a subquery once activeIds is large)
+  const nowUtcDay = toUtcDay(new Date());
+  const activeIds = rows
+    .filter((r) => effectiveContractStatus(r.status ?? "draft", r.expiryDate, nowUtcDay) === "active")
+    .map((r) => r.id);
+
+  const docsByContract = new Map<string, Set<string>>();
   if (activeIds.length > 0) {
     const docRows = await db
       .select({
@@ -304,41 +458,13 @@ export async function getContractKpis(
       .from(outsourcingContractDocuments)
       .where(inArray(outsourcingContractDocuments.contractId, activeIds));
 
-    // Build a map: contractId → Set<normalised kind>
-    const LEGACY: Record<string, string> = {
-      signed_pdf: "signed_contract_pdf",
-      id_copy:    "id_card_copy",
-    };
-    const docsByContract = new Map<string, Set<string>>();
     for (const d of docRows) {
       if (!docsByContract.has(d.contractId)) docsByContract.set(d.contractId, new Set());
-      const kind = LEGACY[d.documentKind ?? ""] ?? d.documentKind ?? "";
-      docsByContract.get(d.contractId)!.add(kind);
-    }
-
-    const REQUIRED = [
-      { kind: "signed_contract_pdf", label: "Signed Contract" },
-      { kind: "passport_copy",       label: "Passport Copy" },
-      { kind: "id_card_copy",        label: "ID Card Copy" },
-    ] as const;
-
-    for (const row of rows) {
-      if (row.status !== "active") continue;
-      const kinds = docsByContract.get(row.id) ?? new Set<string>();
-      const missing = REQUIRED.filter((r) => !kinds.has(r.kind)).map((r) => r.label);
-      if (missing.length > 0) {
-        missingDocuments.push({
-          id: row.id,
-          contractNumber: row.contractNumber ?? null,
-          promoterName: row.promoterName ?? "—",
-          missingKinds: missing,
-        });
-      }
-      if (missingDocuments.length >= 20) break;
+      docsByContract.get(d.contractId)!.add(normaliseDocumentKind(d.documentKind ?? ""));
     }
   }
 
-  return { totals, promotersDeployed, contractsPerCompany, expiringSoon, missingDocuments };
+  return aggregateKpisFromRows(rows, docsByContract, { activeCompanyId, isPlatformAdmin });
 }
 
 /** Get a single contract with all related data. */

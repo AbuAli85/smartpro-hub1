@@ -2,17 +2,17 @@ import { z } from "zod";
 import { protectedProcedure, router } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { checkSLAs, DEFAULT_SLA_THRESHOLDS } from "../engine";
+import { getUserCompany } from "../db";
+import { createPool } from "mysql2/promise";
 
 async function requireCompanyId(userId: number): Promise<number> {
-  const mysql = require("mysql2/promise");
-  const conn = mysql.createPool(process.env.DATABASE_URL);
-  const [[row]] = await conn.query(
-    `SELECT company_id FROM company_members WHERE user_id = ? AND is_active = 1 LIMIT 1`,
-    [userId]
-  );
-  conn.end();
-  if (!row) throw new TRPCError({ code: "FORBIDDEN", message: "No active company" });
-  return (row as any).company_id as number;
+  const result = await getUserCompany(userId);
+  if (!result) throw new TRPCError({ code: "FORBIDDEN", message: "No active company" });
+  return result.company.id;
+}
+
+function getConn() {
+  return createPool(process.env.DATABASE_URL!);
 }
 
 export const automationSlaRouter = router({
@@ -40,8 +40,7 @@ export const automationSlaRouter = router({
     .input(z.object({ includeAcknowledged: z.boolean().optional() }))
     .query(async ({ ctx, input }) => {
       const companyId = await requireCompanyId(ctx.user.id);
-      const mysql = require("mysql2/promise");
-      const conn = mysql.createPool(process.env.DATABASE_URL);
+      const conn = getConn();
       const [rows] = await conn.query(
         `SELECT * FROM sla_alerts WHERE company_id = ?${input?.includeAcknowledged ? "" : " AND acknowledged = 0"} ORDER BY created_at DESC LIMIT 100`,
         [companyId]
@@ -55,8 +54,7 @@ export const automationSlaRouter = router({
     .input(z.object({ alertId: z.number() }))
     .mutation(async ({ ctx, input }) => {
       const companyId = await requireCompanyId(ctx.user.id);
-      const mysql = require("mysql2/promise");
-      const conn = mysql.createPool(process.env.DATABASE_URL);
+      const conn = getConn();
       await conn.query(
         `UPDATE sla_alerts SET acknowledged = 1, acknowledged_at = NOW() WHERE id = ? AND company_id = ?`,
         [input.alertId, companyId]
@@ -75,8 +73,7 @@ export const automationSlaRouter = router({
     )
     .query(async ({ ctx, input }) => {
       const companyId = await requireCompanyId(ctx.user.id);
-      const mysql = require("mysql2/promise");
-      const conn = mysql.createPool(process.env.DATABASE_URL);
+      const conn = getConn();
 
       let where = "WHERE pt.company_id = ?";
       const params: unknown[] = [companyId];
@@ -119,8 +116,7 @@ export const automationSlaRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       const companyId = await requireCompanyId(ctx.user.id);
-      const mysql = require("mysql2/promise");
-      const conn = mysql.createPool(process.env.DATABASE_URL);
+      const conn = getConn();
 
       const updates: string[] = [];
       const params: unknown[] = [];
@@ -148,8 +144,7 @@ export const automationSlaRouter = router({
   // ─── Executive Summary ─────────────────────────────────────────────────────
   getExecutiveSummary: protectedProcedure.query(async ({ ctx }) => {
     const companyId = await requireCompanyId(ctx.user.id);
-    const mysql = require("mysql2/promise");
-    const conn = mysql.createPool(process.env.DATABASE_URL);
+    const conn = getConn();
     const startTime = Date.now();
 
     const [

@@ -127,7 +127,7 @@ function ModuleCard({
               <div className="flex gap-2 mt-2 flex-wrap">
                 {actions.map((a) => (
                   <button
-                    key={a.href}
+                    key={a.label}
                     onClick={(e) => { e.stopPropagation(); navigate(a.href); }}
                     className="text-xs text-primary hover:underline flex items-center gap-0.5"
                   >
@@ -427,7 +427,7 @@ export default function BusinessDashboardPage() {
                 href="/payroll"
                 actions={[
                   { label: "Run Payroll", href: "/payroll" },
-                  { label: "Payroll History", href: "/payroll" },
+                  { label: "Payroll History", href: "/payroll/process" },
                 ]}
               />
               <ModuleCard
@@ -439,7 +439,7 @@ export default function BusinessDashboardPage() {
                 href="/contracts"
                 actions={[
                   { label: "New Contract", href: "/contracts" },
-                  { label: "View All", href: "/contracts" },
+                  { label: "View All Contracts", href: "/contracts" },
                 ]}
               />
               <ModuleCard

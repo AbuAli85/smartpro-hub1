@@ -4,6 +4,7 @@ import { and, asc, desc, eq, ne } from "drizzle-orm";
 import { canAccessGlobalAdminProcedures } from "@shared/rbac";
 import { getCompanies, getDb, getUserCompanies } from "../db";
 import {
+  attendanceSites,
   companies,
   employees,
   promoterAssignments,
@@ -82,6 +83,45 @@ export const promoterAssignmentsRouter = router({
 
     return { clientOptions, employerOptions };
   }),
+
+  /**
+   * Work locations (attendance sites) for the client / first party only — where the promoter will work.
+   */
+  listClientWorkLocations: protectedProcedure
+    .input(z.object({ clientCompanyId: z.number().int().positive() }))
+    .query(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) return [];
+
+      const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
+      const activeId = await requireActiveCompanyId(ctx.user.id);
+
+      if (!isPlatform) {
+        await requireCanManagePromoterAssignments(ctx.user, activeId);
+        if (input.clientCompanyId !== activeId) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "Switch your active company to the selected client to load its work locations",
+          });
+        }
+      }
+
+      return db
+        .select({
+          id: attendanceSites.id,
+          name: attendanceSites.name,
+          location: attendanceSites.location,
+          clientName: attendanceSites.clientName,
+        })
+        .from(attendanceSites)
+        .where(
+          and(
+            eq(attendanceSites.companyId, input.clientCompanyId),
+            eq(attendanceSites.isActive, true)
+          )
+        )
+        .orderBy(desc(attendanceSites.createdAt));
+    }),
 
   /**
    * Active employees of the employer (second party). Caller must represent the client (active company).
@@ -163,6 +203,8 @@ export const promoterAssignmentsRouter = router({
         endDate: z.string(),
         contractReferenceNumber: z.string().optional(),
         issueDate: z.string().optional(),
+        /** Optional: attendance site on the client (first party) — documents where the work happens */
+        clientSiteId: z.number().int().positive().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -196,6 +238,28 @@ export const promoterAssignmentsRouter = router({
         });
       }
 
+      let clientSiteId: number | null = null;
+      if (input.clientSiteId != null) {
+        const [site] = await db
+          .select({ id: attendanceSites.id })
+          .from(attendanceSites)
+          .where(
+            and(
+              eq(attendanceSites.id, input.clientSiteId),
+              eq(attendanceSites.companyId, input.clientCompanyId),
+              eq(attendanceSites.isActive, true)
+            )
+          )
+          .limit(1);
+        if (!site) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Work location must be an active site belonging to the client (first party)",
+          });
+        }
+        clientSiteId = site.id;
+      }
+
       const id = crypto.randomUUID();
       const issue = input.issueDate?.trim();
       const row: InsertPromoterAssignment = {
@@ -203,6 +267,7 @@ export const promoterAssignmentsRouter = router({
         companyId: input.clientCompanyId,
         firstPartyCompanyId: input.clientCompanyId,
         secondPartyCompanyId: input.employerCompanyId,
+        clientSiteId,
         promoterEmployeeId: input.promoterEmployeeId,
         locationAr: input.locationAr,
         locationEn: input.locationEn,

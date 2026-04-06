@@ -29,6 +29,13 @@
       "when": 1775000000000,
       "tag": "0016_document_generation",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1775100000000,
+      "tag": "0017_promoter_assignment_client_site",
+      "breakpoints": true
     }
   ]
 }

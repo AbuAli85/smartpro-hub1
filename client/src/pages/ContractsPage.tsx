@@ -32,6 +32,7 @@ function PromoterAssignmentDialog({ onSuccess }: { onSuccess: () => void }) {
   const { activeCompanyId } = useActiveCompany();
   const [open, setOpen] = useState(false);
   const [clientCompanyId, setClientCompanyId] = useState<number | "">("");
+  const [clientSiteId, setClientSiteId] = useState<number | "">("");
   const [employerCompanyId, setEmployerCompanyId] = useState<number | "">("");
   const [promoterEmployeeId, setPromoterEmployeeId] = useState<number | "">("");
   const [form, setForm] = useState({
@@ -59,6 +60,13 @@ function PromoterAssignmentDialog({ onSuccess }: { onSuccess: () => void }) {
   const clientIdForQueries =
     typeof clientCompanyId === "number" ? clientCompanyId : activeCompanyId ?? undefined;
 
+  const { data: clientSites = [] } = trpc.promoterAssignments.listClientWorkLocations.useQuery(
+    { clientCompanyId: typeof clientCompanyId === "number" ? clientCompanyId : 0 },
+    {
+      enabled: open && typeof clientCompanyId === "number" && clientCompanyId > 0,
+    }
+  );
+
   const { data: employerEmployees = [] } = trpc.promoterAssignments.listEmployerEmployees.useQuery(
     {
       employerCompanyId: typeof employerCompanyId === "number" ? employerCompanyId : 0,
@@ -78,6 +86,7 @@ function PromoterAssignmentDialog({ onSuccess }: { onSuccess: () => void }) {
       toast.success(`Promoter assignment saved (${data.id.slice(0, 8)}…)`);
       setOpen(false);
       setEmployerCompanyId("");
+      setClientSiteId("");
       setPromoterEmployeeId("");
       setForm({
         locationEn: "",
@@ -113,8 +122,9 @@ function PromoterAssignmentDialog({ onSuccess }: { onSuccess: () => void }) {
         <DialogHeader>
           <DialogTitle>New promoter assignment</DialogTitle>
           <p className="text-sm text-muted-foreground text-left font-normal">
-            First party is the <strong>client</strong> (brand / site owner). Second party is the{" "}
-            <strong>employer</strong> (manpower company). The promoter must be an employee of the employer.
+            Example: client <strong>eXtra</strong> (first party), employer <strong>Falcon Eye Modern Investments</strong>{" "}
+            (second party). <strong>Work location</strong> is always the client&apos;s site or store; the{" "}
+            <strong>promoter</strong> is an employee of the employer only.
           </p>
         </DialogHeader>
         <div className="space-y-4 mt-2">
@@ -125,8 +135,10 @@ function PromoterAssignmentDialog({ onSuccess }: { onSuccess: () => void }) {
               onValueChange={(v) => {
                 const n = Number(v);
                 setClientCompanyId(n);
+                setClientSiteId("");
                 setEmployerCompanyId("");
                 setPromoterEmployeeId("");
+                setForm((f) => ({ ...f, locationEn: "", locationAr: "" }));
               }}
             >
               <SelectTrigger>
@@ -141,6 +153,64 @@ function PromoterAssignmentDialog({ onSuccess }: { onSuccess: () => void }) {
                 ))}
               </SelectContent>
             </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Client work location (optional)</Label>
+            <p className="text-xs text-muted-foreground">
+              Linked to the client (first party), e.g. eXtra branch. Pick a saved site or type the address below.
+            </p>
+            <Select
+              value={clientSiteId === "" ? "__manual__" : String(clientSiteId)}
+              onValueChange={(v) => {
+                if (v === "__manual__") {
+                  setClientSiteId("");
+                  return;
+                }
+                const sid = Number(v);
+                setClientSiteId(sid);
+                const site = clientSites.find((s) => s.id === sid);
+                if (site) {
+                  const en = [site.name, site.location].filter(Boolean).join(" — ");
+                  setForm((f) => ({
+                    ...f,
+                    locationEn: en,
+                    locationAr: site.name,
+                  }));
+                }
+              }}
+              disabled={typeof clientCompanyId !== "number"}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select client site or type manually below…" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__manual__">Type location manually</SelectItem>
+                {clientSites.map((s) => (
+                  <SelectItem key={s.id} value={String(s.id)}>
+                    {s.name}
+                    {s.location ? ` — ${s.location}` : ""}
+                    {s.clientName ? ` (${s.clientName})` : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Work location (English) *</Label>
+            <p className="text-xs text-muted-foreground">Where the promoter works — must describe the client&apos;s site.</p>
+            <Input
+              placeholder="e.g. eXtra - Muscat City Centre"
+              value={form.locationEn}
+              onChange={(e) => setForm({ ...form, locationEn: e.target.value })}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Work location (Arabic) *</Label>
+            <Input
+              placeholder="مثال: اكسترا - مسقط سيتي سنتر"
+              value={form.locationAr}
+              onChange={(e) => setForm({ ...form, locationAr: e.target.value })}
+            />
           </div>
           <div className="space-y-1.5">
             <Label>Employer (second party) *</Label>
@@ -196,22 +266,6 @@ function PromoterAssignmentDialog({ onSuccess }: { onSuccess: () => void }) {
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-1.5">
-            <Label>Location (English) *</Label>
-            <Input
-              placeholder="e.g. eXtra - Muscat City Centre"
-              value={form.locationEn}
-              onChange={(e) => setForm({ ...form, locationEn: e.target.value })}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Location (Arabic) *</Label>
-            <Input
-              placeholder="مثال: اكسترا - مسقط سيتي سنتر"
-              value={form.locationAr}
-              onChange={(e) => setForm({ ...form, locationAr: e.target.value })}
-            />
-          </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label>Start date *</Label>
@@ -258,6 +312,7 @@ function PromoterAssignmentDialog({ onSuccess }: { onSuccess: () => void }) {
                 endDate: form.endDate,
                 contractReferenceNumber: form.contractReferenceNumber.trim() || undefined,
                 issueDate: form.issueDate || undefined,
+                clientSiteId: typeof clientSiteId === "number" ? clientSiteId : undefined,
               });
             }}
           >

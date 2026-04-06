@@ -306,18 +306,19 @@ export default function PromoterAssignmentsPage() {
                 to your Google Cloud service account JSON (full key file as one line or string), then restart the app.
               </p>
               <ul className="list-disc pl-4 text-sm text-muted-foreground space-y-1 marker:text-amber-600/80">
-                <li>Enable Google Drive API and Google Docs API for the project.</li>
-                <li>Share contract template Docs in Drive with the service account email (Editor).</li>
+                <li>Enable Google Drive API and Google Docs API for the GCP project.</li>
                 <li>
-                  See repo file{" "}
+                  Share each template Doc with the service account email (<code className="rounded bg-muted px-1 py-0.5 text-xs font-mono text-foreground">client_email</code> in the JSON) as Editor.
+                </li>
+                <li>
+                  See{" "}
                   <code className="rounded bg-muted px-1 py-0.5 text-xs font-mono text-foreground">.env.example</code>{" "}
-                  for the variable name and a short example.
+                  for the variable and a sample.
                 </li>
               </ul>
             </AlertDescription>
           </Alert>
         )}
-
         {/* Stats bar */}
         <div
           className={`grid grid-cols-2 sm:grid-cols-4 gap-3 transition-opacity ${isFetching && !isLoading ? "opacity-80" : ""}`}

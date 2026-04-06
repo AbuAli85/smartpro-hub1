@@ -1,6 +1,8 @@
+import { createPrivateKey } from "node:crypto";
 import { google } from "googleapis";
 import { JWT } from "google-auth-library";
 import { ENV } from "../../_core/env";
+import { normalizeServiceAccountPrivateKeyPem } from "../../_core/googleServiceAccountPem";
 import { DocumentGenerationError } from "./documentGeneration.types";
 
 const DRIVE_FILE_SCOPE = "https://www.googleapis.com/auth/drive";
@@ -19,8 +21,19 @@ function parseServiceAccount(): { clientEmail: string; privateKey: string } {
     if (!j.client_email || !j.private_key) {
       throw new Error("service account JSON must include client_email and private_key");
     }
-    return { clientEmail: j.client_email, privateKey: j.private_key.replace(/\\n/g, "\n") };
+    const privateKey = normalizeServiceAccountPrivateKeyPem(j.private_key);
+    try {
+      createPrivateKey(privateKey);
+    } catch (e) {
+      throw new DocumentGenerationError(
+        "NOT_CONFIGURED",
+        "Invalid service account private_key: OpenSSL could not load the PEM (often caused by a truncated key or newlines removed when saving the secret). Re-download the JSON key from Google Cloud and paste the full value again.",
+        { cause: e }
+      );
+    }
+    return { clientEmail: j.client_email, privateKey };
   } catch (e) {
+    if (e instanceof DocumentGenerationError) throw e;
     throw new DocumentGenerationError(
       "NOT_CONFIGURED",
       "Invalid GOOGLE_DOCS_SERVICE_ACCOUNT_JSON: must be valid JSON with client_email and private_key.",

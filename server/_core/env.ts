@@ -1,3 +1,5 @@
+import { isPemPrivateKeyParseable } from "./googleServiceAccountPem";
+
 export const ENV = {
   appId: process.env.VITE_APP_ID ?? "",
   cookieSecret: process.env.JWT_SECRET ?? "",
@@ -19,12 +21,15 @@ function isGoogleDocsServiceAccountJsonWellFormed(raw: string): boolean {
     const j = JSON.parse(trimmed) as { client_email?: unknown; private_key?: unknown };
     const email = j.client_email;
     const key = j.private_key;
-    return (
-      typeof email === "string" &&
-      email.trim().length > 0 &&
-      typeof key === "string" &&
-      key.trim().length > 0
-    );
+    if (
+      typeof email !== "string" ||
+      email.trim().length === 0 ||
+      typeof key !== "string" ||
+      key.trim().length === 0
+    ) {
+      return false;
+    }
+    return isPemPrivateKeyParseable(key);
   } catch {
     return false;
   }

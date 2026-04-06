@@ -54,6 +54,7 @@ import {
   TrendingDown,
   Network,
   Sparkles,
+  UserSquare2,
 } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
 import { Link, useLocation } from "wouter";
@@ -174,6 +175,7 @@ const navGroups = [
       { label: "HR Documents", href: "/hr/documents-dashboard", icon: <FileText size={18} /> },
       { label: "Document Expiry", href: "/hr/expiry-dashboard", icon: <AlertTriangle size={18} /> },
       { label: "HR Letters", href: "/hr/letters", icon: <Mail size={18} /> },
+      { label: "Promoter Assignments", href: "/hr/promoter-assignments", icon: <UserSquare2 size={18} /> },
       { label: "Employee Requests", href: "/hr/employee-requests", icon: <ClipboardList size={18} /> },
       { label: "Task Manager", href: "/hr/tasks", icon: <ListTodo size={18} /> },
       { label: "Announcements", href: "/hr/announcements", icon: <Megaphone size={18} /> },

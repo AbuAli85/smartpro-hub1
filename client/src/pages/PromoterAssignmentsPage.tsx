@@ -68,6 +68,23 @@ function formatDate(d: Date | string | null | undefined) {
   return s.slice(0, 10);
 }
 
+/** Server-side diagnosis when contract PDF env is not usable (no secrets exposed). */
+function googleDocsReadinessDiagnosis(issue: string | undefined): string | null {
+  if (!issue) return null;
+  switch (issue) {
+    case "unset":
+      return "Diagnosis: the API server does not see GOOGLE_DOCS_SERVICE_ACCOUNT_JSON (empty or not set). Add it in your host's secrets or environment for the Node/backend process that serves /api—not only in a local file used to build the web UI—then redeploy or restart.";
+    case "invalid_json":
+      return "Diagnosis: the value is not valid JSON (or base64-wrapped JSON). Paste the full service account key file from Google Cloud without manual edits, or base64-encode the entire JSON if your secrets UI requires a single opaque line.";
+    case "missing_client_email_or_private_key":
+      return "Diagnosis: JSON parsed, but client_email or private_key is missing or empty. Use the complete service account key JSON from IAM → Service accounts → Keys.";
+    case "private_key_unreadable":
+      return "Diagnosis: private_key is present but the server cannot load the PEM (often truncated or mangled when saving the secret). Create a new key in Google Cloud and replace the secret; keep the JSON exactly as downloaded.";
+    default:
+      return null;
+  }
+}
+
 export default function PromoterAssignmentsPage() {
   const { activeCompanyId } = useActiveCompany();
   const [showCreate, setShowCreate] = useState(false);
@@ -101,6 +118,13 @@ export default function PromoterAssignmentsPage() {
 
   const { data: docGenReadiness } = trpc.documentGeneration.readiness.useQuery();
   const pdfGenerationAvailable = docGenReadiness?.googleDocsConfigured ?? false;
+  const googleDocsIssue =
+    docGenReadiness &&
+    docGenReadiness.googleDocsConfigured === false &&
+    "googleDocsIssue" in docGenReadiness
+      ? docGenReadiness.googleDocsIssue
+      : undefined;
+  const googleDocsDiagnosis = googleDocsReadinessDiagnosis(googleDocsIssue);
 
   const pickersInput =
     typeof clientCompanyId === "number" ? { clientCompanyId } : undefined;
@@ -308,6 +332,11 @@ export default function PromoterAssignmentsPage() {
                 <code className="rounded bg-muted px-1 py-0.5 text-xs font-mono text-foreground">private_key</code>.
                 Restart or redeploy so the server picks it up.
               </p>
+              {googleDocsDiagnosis ? (
+                <p className="text-sm font-medium text-amber-900 dark:text-amber-100/95 border-l-2 border-amber-600/60 pl-3 py-1">
+                  {googleDocsDiagnosis}
+                </p>
+              ) : null}
               <ul className="list-disc pl-4 text-sm text-muted-foreground space-y-1 marker:text-amber-600/80">
                 <li>Enable Google Drive API and Google Docs API for the GCP project.</li>
                 <li>

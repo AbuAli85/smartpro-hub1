@@ -4,7 +4,7 @@ import {
   getActiveCompanyMembership,
   requireNotAuditor,
 } from "../_core/membership";
-import { isGoogleDocsServiceAccountConfigured } from "../_core/env";
+import { getGoogleDocsEnvDiagnostic } from "../_core/parseServiceAccountJson";
 import { requireActiveCompanyId } from "../_core/tenant";
 import { protectedProcedure, router } from "../_core/trpc";
 import {
@@ -39,9 +39,16 @@ export const documentGenerationRouter = router({
    * Whether PDF generation can run on this deployment (valid service account JSON in env).
    * Does not call Google; safe to poll from the UI to disable buttons.
    */
-  readiness: protectedProcedure.query(() => ({
-    googleDocsConfigured: isGoogleDocsServiceAccountConfigured(),
-  })),
+  readiness: protectedProcedure.query(() => {
+    const d = getGoogleDocsEnvDiagnostic();
+    if (d.ok) {
+      return { googleDocsConfigured: true as const };
+    }
+    return {
+      googleDocsConfigured: false as const,
+      googleDocsIssue: d.issue,
+    };
+  }),
 
   generate: protectedProcedure
     .input(

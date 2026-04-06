@@ -9,27 +9,30 @@ export type ParsedServiceAccountCredentials = {
   private_key: string;
 };
 
-/**
- * Parses GOOGLE_DOCS_SERVICE_ACCOUNT_JSON: raw JSON, optional UTF-8 BOM strip,
- * or whole value base64-encoded JSON (some secret UIs store it that way).
- */
-export function parseServiceAccountJsonString(raw: string): ParsedServiceAccountCredentials | null {
+/** Shown when googleDocsConfigured is false (no secret values exposed). */
+export type GoogleDocsEnvIssue =
+  | "unset"
+  | "invalid_json"
+  | "missing_client_email_or_private_key"
+  | "private_key_unreadable";
+
+function tryParseJsonObject(raw: string): unknown | null {
   const trimmed = stripUtf8Bom(raw.trim());
   if (!trimmed) return null;
-
-  let j: unknown;
   try {
-    j = JSON.parse(trimmed);
+    return JSON.parse(trimmed);
   } catch {
     try {
       const b64 = trimmed.replace(/\s/g, "");
       const dec = Buffer.from(b64, "base64").toString("utf8");
-      j = JSON.parse(stripUtf8Bom(dec.trim()));
+      return JSON.parse(stripUtf8Bom(dec.trim()));
     } catch {
       return null;
     }
   }
+}
 
+function extractCredentials(j: unknown): ParsedServiceAccountCredentials | null {
   if (!j || typeof j !== "object") return null;
   const o = j as Record<string, unknown>;
   const client_email = o.client_email;
@@ -39,9 +42,37 @@ export function parseServiceAccountJsonString(raw: string): ParsedServiceAccount
   return { client_email: client_email.trim(), private_key };
 }
 
-export function isGoogleDocsServiceAccountEnvReady(): boolean {
+/**
+ * Parses GOOGLE_DOCS_SERVICE_ACCOUNT_JSON: raw JSON, optional UTF-8 BOM strip,
+ * or whole value base64-encoded JSON (some secret UIs store it that way).
+ */
+export function parseServiceAccountJsonString(raw: string): ParsedServiceAccountCredentials | null {
+  const j = tryParseJsonObject(raw);
+  if (j === null) return null;
+  return extractCredentials(j);
+}
+
+export function getGoogleDocsEnvDiagnostic():
+  | { ok: true }
+  | { ok: false; issue: GoogleDocsEnvIssue } {
   const raw = process.env.GOOGLE_DOCS_SERVICE_ACCOUNT_JSON ?? "";
-  const p = parseServiceAccountJsonString(raw);
-  if (!p) return false;
-  return isPemPrivateKeyParseable(p.private_key);
+  if (!stripUtf8Bom(raw.trim())) {
+    return { ok: false, issue: "unset" };
+  }
+  const j = tryParseJsonObject(raw);
+  if (j === null) {
+    return { ok: false, issue: "invalid_json" };
+  }
+  const creds = extractCredentials(j);
+  if (!creds) {
+    return { ok: false, issue: "missing_client_email_or_private_key" };
+  }
+  if (!isPemPrivateKeyParseable(creds.private_key)) {
+    return { ok: false, issue: "private_key_unreadable" };
+  }
+  return { ok: true };
+}
+
+export function isGoogleDocsServiceAccountEnvReady(): boolean {
+  return getGoogleDocsEnvDiagnostic().ok;
 }

@@ -57,7 +57,7 @@ describe("buildPromoterAssignmentDocumentContext", () => {
   };
   const employee = {
     id: 10,
-    companyId: 1,
+    companyId: 2,
     firstName: "John",
     lastName: "Doe",
     firstNameAr: "جون",

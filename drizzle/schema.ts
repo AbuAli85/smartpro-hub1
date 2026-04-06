@@ -2524,6 +2524,8 @@ export const promoterAssignments = mysqlTable(
     companyId: int("company_id").notNull(),
     firstPartyCompanyId: int("first_party_company_id").notNull(),
     secondPartyCompanyId: int("second_party_company_id").notNull(),
+    /** Optional link to client (first party) attendance site — work location is always client-scoped */
+    clientSiteId: int("client_site_id").references(() => attendanceSites.id),
     promoterEmployeeId: int("promoter_employee_id").notNull(),
     locationAr: varchar("location_ar", { length: 500 }),
     locationEn: varchar("location_en", { length: 500 }),
@@ -2540,6 +2542,7 @@ export const promoterAssignments = mysqlTable(
     index("idx_pa_first_party").on(t.firstPartyCompanyId),
     index("idx_pa_second_party").on(t.secondPartyCompanyId),
     index("idx_pa_employee").on(t.promoterEmployeeId),
+    index("idx_pa_client_site").on(t.clientSiteId),
   ]
 );
 export type PromoterAssignment = typeof promoterAssignments.$inferSelect;

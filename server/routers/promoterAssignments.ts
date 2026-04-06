@@ -1,150 +1,165 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { eq, desc, and, or } from "drizzle-orm";
-import { protectedProcedure, router } from "../_core/trpc";
-import { requireActiveCompanyId } from "../_core/tenant";
-import { getActiveCompanyMembership } from "../_core/membership";
-import { getDb } from "../db";
+import { and, asc, desc, eq, ne } from "drizzle-orm";
+import { canAccessGlobalAdminProcedures } from "@shared/rbac";
+import { getCompanies, getDb, getUserCompanies } from "../db";
 import {
-  promoterAssignments,
+  attendanceSites,
   companies,
   employees,
+  promoterAssignments,
+  type InsertPromoterAssignment,
 } from "../../drizzle/schema";
-import { randomUUID } from "crypto";
-import { canAccessGlobalAdminProcedures } from "@shared/rbac";
+import {
+  getActiveCompanyMembership,
+  requireNotAuditor,
+} from "../_core/membership";
+import { requireActiveCompanyId } from "../_core/tenant";
+import { protectedProcedure, router } from "../_core/trpc";
+
+const ASSIGNMENT_ROLES = ["company_admin", "hr_admin"] as const;
+
+async function requireCanManagePromoterAssignments(
+  user: { id: number; role?: string | null; platformRole?: string | null },
+  companyId: number
+): Promise<void> {
+  const m = await getActiveCompanyMembership(user.id, companyId);
+  if (!m) throw new TRPCError({ code: "FORBIDDEN", message: "No company membership" });
+  requireNotAuditor(m.role);
+  if (!canAccessGlobalAdminProcedures(user) && !(ASSIGNMENT_ROLES as readonly string[]).includes(m.role)) {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "Only company administrators and HR can manage promoter assignments.",
+    });
+  }
+}
 
 export const promoterAssignmentsRouter = router({
-  /** List all promoter assignments for the active company */
-  list: protectedProcedure.query(async ({ ctx }) => {
-    const companyId = await requireActiveCompanyId(ctx.user.id);
+  /**
+   * Client (first party) options: companies the user belongs to.
+   * Employer (second party) options: other active companies (tenant) or full list (platform admin).
+   */
+  companiesForPartyPickers: protectedProcedure
+    .input(z.object({ clientCompanyId: z.number().int().positive().optional() }).optional())
+    .query(async ({ ctx, input }) => {
+    const activeId = await requireActiveCompanyId(ctx.user.id);
+    await requireCanManagePromoterAssignments(ctx.user, activeId);
     const db = await getDb();
-    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-
-    const rows = await db
-      .select()
-      .from(promoterAssignments)
-      .where(eq(promoterAssignments.companyId, companyId))
-      .orderBy(desc(promoterAssignments.createdAt));
-
-    // Enrich with company and employee names
-    const companyIds = [...new Set(rows.flatMap((r) => [r.firstPartyCompanyId, r.secondPartyCompanyId]))];
-    const employeeIds = [...new Set(rows.map((r) => r.promoterEmployeeId))];
-
-    const companiesData = companyIds.length
-      ? await db.select({ id: companies.id, name: companies.name, nameAr: companies.nameAr })
-          .from(companies)
-          .where(or(...companyIds.map((id) => eq(companies.id, id))))
-      : [];
-
-    const employeesData = employeeIds.length
-      ? await db.select({ id: employees.id, firstName: employees.firstName, lastName: employees.lastName, firstNameAr: employees.firstNameAr, lastNameAr: employees.lastNameAr })
-          .from(employees)
-          .where(or(...employeeIds.map((id) => eq(employees.id, id))))
-      : [];
-
-    const companyMap = new Map(companiesData.map((c) => [c.id, c]));
-    const employeeMap = new Map(employeesData.map((e) => [e.id, e]));
-
-    return rows.map((r) => {
-      const fp = companyMap.get(r.firstPartyCompanyId);
-      const sp = companyMap.get(r.secondPartyCompanyId);
-      const emp = employeeMap.get(r.promoterEmployeeId);
+    if (!db) {
       return {
-        ...r,
-        firstPartyName: fp?.name ?? `Company #${r.firstPartyCompanyId}`,
-        secondPartyName: sp?.name ?? `Company #${r.secondPartyCompanyId}`,
-        promoterName: emp
-          ? `${emp.firstName ?? ""} ${emp.lastName ?? ""}`.trim() || `Employee #${r.promoterEmployeeId}`
-          : `Employee #${r.promoterEmployeeId}`,
+        clientOptions: [] as { id: number; name: string; nameAr: string | null }[],
+        employerOptions: [] as { id: number; name: string; nameAr: string | null }[],
       };
-    });
+    }
+
+    if (canAccessGlobalAdminProcedures(ctx.user)) {
+      const all = await getCompanies();
+      const slim = all
+        .filter((c) => c.status === "active")
+        .map((c) => ({ id: c.id, name: c.name, nameAr: c.nameAr ?? null }));
+      slim.sort((a, b) => a.name.localeCompare(b.name));
+      return { clientOptions: slim, employerOptions: slim };
+    }
+
+    const userCos = await getUserCompanies(ctx.user.id);
+    const clientOptions = userCos.map((r) => ({
+      id: r.company.id,
+      name: r.company.name,
+      nameAr: r.company.nameAr ?? null,
+    }));
+
+    const excludeForEmployer = input?.clientCompanyId ?? activeId;
+    const employerRows = await db
+      .select({ id: companies.id, name: companies.name, nameAr: companies.nameAr })
+      .from(companies)
+      .where(and(eq(companies.status, "active"), ne(companies.id, excludeForEmployer)))
+      .orderBy(asc(companies.name));
+
+    const employerOptions = employerRows.map((c) => ({
+      id: c.id,
+      name: c.name,
+      nameAr: c.nameAr ?? null,
+    }));
+
+    return { clientOptions, employerOptions };
   }),
 
-  /** Create a new promoter assignment */
-  create: protectedProcedure
-    .input(
-      z.object({
-        firstPartyCompanyId: z.number().int().positive(),
-        secondPartyCompanyId: z.number().int().positive(),
-        promoterEmployeeId: z.number().int().positive(),
-        locationAr: z.string().min(1, "Arabic location is required"),
-        locationEn: z.string().min(1, "English location is required"),
-        startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Start date must be YYYY-MM-DD"),
-        endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "End date must be YYYY-MM-DD"),
-        contractReferenceNumber: z.string().optional(),
-        issueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-        status: z.enum(["active", "inactive", "expired"]).default("active"),
-      })
-    )
-    .mutation(async ({ ctx, input }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id);
-      const membership = await getActiveCompanyMembership(ctx.user.id, companyId);
-      if (!membership) throw new TRPCError({ code: "FORBIDDEN", message: "No company membership" });
-
+  /**
+   * Work locations (attendance sites) for the client / first party only — where the promoter will work.
+   */
+  listClientWorkLocations: protectedProcedure
+    .input(z.object({ clientCompanyId: z.number().int().positive() }))
+    .query(async ({ ctx, input }) => {
       const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+      if (!db) return [];
 
-      const id = randomUUID();
-      await db.insert(promoterAssignments).values({
-        id,
-        companyId,
-        firstPartyCompanyId: input.firstPartyCompanyId,
-        secondPartyCompanyId: input.secondPartyCompanyId,
-        promoterEmployeeId: input.promoterEmployeeId,
-        locationAr: input.locationAr,
-        locationEn: input.locationEn,
-        startDate: new Date(input.startDate),
-        endDate: new Date(input.endDate),
-        status: input.status,
-        contractReferenceNumber: input.contractReferenceNumber ?? null,
-        issueDate: input.issueDate ? new Date(input.issueDate) : null,
-      });
+      const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
+      const activeId = await requireActiveCompanyId(ctx.user.id);
 
-      return { id };
-    }),
-
-  /** Delete a promoter assignment */
-  delete: protectedProcedure
-    .input(z.object({ id: z.string().uuid() }))
-    .mutation(async ({ ctx, input }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id);
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-
-      const [row] = await db
-        .select({ id: promoterAssignments.id, companyId: promoterAssignments.companyId })
-        .from(promoterAssignments)
-        .where(eq(promoterAssignments.id, input.id))
-        .limit(1);
-
-      if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Assignment not found" });
-      if (row.companyId !== companyId && !canAccessGlobalAdminProcedures(ctx.user)) {
-        throw new TRPCError({ code: "FORBIDDEN", message: "Not your assignment" });
+      if (!isPlatform) {
+        await requireCanManagePromoterAssignments(ctx.user, activeId);
+        if (input.clientCompanyId !== activeId) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "Switch your active company to the selected client to load its work locations",
+          });
+        }
       }
 
-      await db.delete(promoterAssignments).where(eq(promoterAssignments.id, input.id));
-      return { success: true };
+      return db
+        .select({
+          id: attendanceSites.id,
+          name: attendanceSites.name,
+          location: attendanceSites.location,
+          clientName: attendanceSites.clientName,
+        })
+        .from(attendanceSites)
+        .where(
+          and(
+            eq(attendanceSites.companyId, input.clientCompanyId),
+            eq(attendanceSites.isActive, true)
+          )
+        )
+        .orderBy(desc(attendanceSites.createdAt));
     }),
 
-  /** List companies available for party selection (companies the user has access to) */
-  listAvailableCompanies: protectedProcedure.query(async ({ ctx }) => {
-    const db = await getDb();
-    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-    return db
-      .select({ id: companies.id, name: companies.name, nameAr: companies.nameAr, crNumber: companies.crNumber, registrationNumber: companies.registrationNumber })
-      .from(companies)
-      .orderBy(companies.name);
-  }),
-
-  /** List employees for promoter selection */
-  listAvailableEmployees: protectedProcedure
-    .input(z.object({ companyId: z.number().int().positive().optional() }))
+  /**
+   * Active employees of the employer (second party). Caller must represent the client (active company).
+   */
+  listEmployerEmployees: protectedProcedure
+    .input(
+      z.object({
+        employerCompanyId: z.number().int().positive(),
+        clientCompanyId: z.number().int().positive().optional(),
+      })
+    )
     .query(async ({ ctx, input }) => {
-      const activeCompanyId = await requireActiveCompanyId(ctx.user.id);
-      const targetCompanyId = input.companyId ?? activeCompanyId;
       const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-      return db
+      if (!db) return [];
+
+      const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
+      const activeId = await requireActiveCompanyId(ctx.user.id);
+      const clientId = input.clientCompanyId ?? activeId;
+
+      if (isPlatform && input.clientCompanyId == null) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Select the client company before loading employer employees",
+        });
+      }
+
+      if (!isPlatform) {
+        await requireCanManagePromoterAssignments(ctx.user, activeId);
+        if (clientId !== activeId) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Client company must match your active company" });
+        }
+      }
+
+      if (input.employerCompanyId === clientId) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Employer must differ from client company" });
+      }
+
+      const rows = await db
         .select({
           id: employees.id,
           firstName: employees.firstName,
@@ -153,10 +168,117 @@ export const promoterAssignmentsRouter = router({
           lastNameAr: employees.lastNameAr,
           nationalId: employees.nationalId,
           passportNumber: employees.passportNumber,
-          jobTitle: employees.jobTitle,
         })
         .from(employees)
-        .where(and(eq(employees.companyId, targetCompanyId), eq(employees.status, "active")))
-        .orderBy(employees.firstName);
+        .where(and(eq(employees.companyId, input.employerCompanyId), eq(employees.status, "active")))
+        .orderBy(asc(employees.lastName), asc(employees.firstName));
+
+      return rows;
+    }),
+
+  list: protectedProcedure.query(async ({ ctx }) => {
+    const activeId = await requireActiveCompanyId(ctx.user.id);
+    await requireCanManagePromoterAssignments(ctx.user, activeId);
+    const db = await getDb();
+    if (!db) return [];
+    if (canAccessGlobalAdminProcedures(ctx.user)) {
+      return db.select().from(promoterAssignments).orderBy(desc(promoterAssignments.createdAt));
+    }
+    return db
+      .select()
+      .from(promoterAssignments)
+      .where(eq(promoterAssignments.companyId, activeId))
+      .orderBy(desc(promoterAssignments.createdAt));
+  }),
+
+  create: protectedProcedure
+    .input(
+      z.object({
+        clientCompanyId: z.number().int().positive(),
+        employerCompanyId: z.number().int().positive(),
+        promoterEmployeeId: z.number().int().positive(),
+        locationAr: z.string().min(1),
+        locationEn: z.string().min(1),
+        startDate: z.string(),
+        endDate: z.string(),
+        contractReferenceNumber: z.string().optional(),
+        issueDate: z.string().optional(),
+        /** Optional: attendance site on the client (first party) — documents where the work happens */
+        clientSiteId: z.number().int().positive().optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+
+      const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
+      const activeId = await requireActiveCompanyId(ctx.user.id);
+
+      if (!isPlatform) {
+        await requireCanManagePromoterAssignments(ctx.user, activeId);
+        if (input.clientCompanyId !== activeId) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Client company must match your active company" });
+        }
+      }
+
+      if (input.clientCompanyId === input.employerCompanyId) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Client and employer must be different companies" });
+      }
+
+      const [emp] = await db
+        .select({ id: employees.id, companyId: employees.companyId })
+        .from(employees)
+        .where(eq(employees.id, input.promoterEmployeeId))
+        .limit(1);
+      if (!emp) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
+      if (emp.companyId !== input.employerCompanyId) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Promoter must be an employee of the employer (second party) company",
+        });
+      }
+
+      let clientSiteId: number | null = null;
+      if (input.clientSiteId != null) {
+        const [site] = await db
+          .select({ id: attendanceSites.id })
+          .from(attendanceSites)
+          .where(
+            and(
+              eq(attendanceSites.id, input.clientSiteId),
+              eq(attendanceSites.companyId, input.clientCompanyId),
+              eq(attendanceSites.isActive, true)
+            )
+          )
+          .limit(1);
+        if (!site) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Work location must be an active site belonging to the client (first party)",
+          });
+        }
+        clientSiteId = site.id;
+      }
+
+      const id = crypto.randomUUID();
+      const issue = input.issueDate?.trim();
+      const row: InsertPromoterAssignment = {
+        id,
+        companyId: input.clientCompanyId,
+        firstPartyCompanyId: input.clientCompanyId,
+        secondPartyCompanyId: input.employerCompanyId,
+        clientSiteId,
+        promoterEmployeeId: input.promoterEmployeeId,
+        locationAr: input.locationAr,
+        locationEn: input.locationEn,
+        startDate: new Date(input.startDate),
+        endDate: new Date(input.endDate),
+        contractReferenceNumber: input.contractReferenceNumber?.trim() || null,
+        issueDate: issue ? new Date(issue) : null,
+        status: "active",
+      };
+      await db.insert(promoterAssignments).values(row);
+
+      return { id };
     }),
 });

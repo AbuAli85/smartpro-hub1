@@ -32,6 +32,8 @@ export type DocumentGenerationErrorCode =
   | "FORBIDDEN"
   | "VALIDATION_ERROR"
   | "NOT_FOUND"
+  /** Server env / integration missing (e.g. Google service account not set) */
+  | "NOT_CONFIGURED"
   | "INTERNAL_ERROR";
 
 export class DocumentGenerationError extends Error {

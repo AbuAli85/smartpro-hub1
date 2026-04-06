@@ -10,8 +10,8 @@ function parseServiceAccount(): { clientEmail: string; privateKey: string } {
   const raw = ENV.googleDocsServiceAccountJson?.trim();
   if (!raw) {
     throw new DocumentGenerationError(
-      "INTERNAL_ERROR",
-      "Google Docs is not configured: set GOOGLE_DOCS_SERVICE_ACCOUNT_JSON"
+      "NOT_CONFIGURED",
+      "PDF generation is not available: the server is missing Google Docs credentials. Set the environment variable GOOGLE_DOCS_SERVICE_ACCOUNT_JSON (service account JSON with Drive and Docs API access)."
     );
   }
   try {
@@ -22,8 +22,8 @@ function parseServiceAccount(): { clientEmail: string; privateKey: string } {
     return { clientEmail: j.client_email, privateKey: j.private_key.replace(/\\n/g, "\n") };
   } catch (e) {
     throw new DocumentGenerationError(
-      "INTERNAL_ERROR",
-      "Invalid GOOGLE_DOCS_SERVICE_ACCOUNT_JSON",
+      "NOT_CONFIGURED",
+      "Invalid GOOGLE_DOCS_SERVICE_ACCOUNT_JSON: must be valid JSON with client_email and private_key.",
       { cause: e }
     );
   }

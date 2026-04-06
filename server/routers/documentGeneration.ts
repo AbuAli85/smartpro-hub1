@@ -4,6 +4,7 @@ import {
   getActiveCompanyMembership,
   requireNotAuditor,
 } from "../_core/membership";
+import { isGoogleDocsServiceAccountConfigured } from "../_core/env";
 import { requireActiveCompanyId } from "../_core/tenant";
 import { protectedProcedure, router } from "../_core/trpc";
 import {
@@ -21,6 +22,7 @@ function mapDocGenError(e: unknown): never {
       FORBIDDEN: "FORBIDDEN",
       VALIDATION_ERROR: "BAD_REQUEST",
       NOT_FOUND: "NOT_FOUND",
+      NOT_CONFIGURED: "PRECONDITION_FAILED",
       INTERNAL_ERROR: "INTERNAL_SERVER_ERROR",
     };
     throw new TRPCError({
@@ -33,6 +35,14 @@ function mapDocGenError(e: unknown): never {
 }
 
 export const documentGenerationRouter = router({
+  /**
+   * Whether PDF generation can run on this deployment (Google service account env set).
+   * Does not call Google; safe to poll from the UI to disable buttons.
+   */
+  readiness: protectedProcedure.query(() => ({
+    googleDocsConfigured: isGoogleDocsServiceAccountConfigured(),
+  })),
+
   generate: protectedProcedure
     .input(
       z.object({

@@ -12,6 +12,11 @@ export const ENV = {
   googleDocsServiceAccountJson: process.env.GOOGLE_DOCS_SERVICE_ACCOUNT_JSON ?? "",
 };
 
+/** True when PDF generation via Google Docs API can be attempted (env present). */
+export function isGoogleDocsServiceAccountConfigured(): boolean {
+  return Boolean(ENV.googleDocsServiceAccountJson.trim());
+}
+
 /**
  * Fail fast in production when critical configuration is missing.
  * Forge/storage keys remain optional until all deployments use the same storage path.

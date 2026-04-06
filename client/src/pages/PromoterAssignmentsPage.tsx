@@ -99,6 +99,9 @@ export default function PromoterAssignmentsPage() {
     retry: 1,
   });
 
+  const { data: docGenReadiness } = trpc.documentGeneration.readiness.useQuery();
+  const pdfGenerationAvailable = docGenReadiness?.googleDocsConfigured ?? false;
+
   const pickersInput =
     typeof clientCompanyId === "number" ? { clientCompanyId } : undefined;
   const { data: pickers, isLoading: pickersLoading } =
@@ -168,7 +171,8 @@ export default function PromoterAssignmentsPage() {
       setGeneratingId(null);
     },
     onError: (e) => {
-      toast.error("Generation failed", { description: e.message });
+      const isConfig = e.data?.code === "PRECONDITION_FAILED" || /GOOGLE_DOCS_SERVICE_ACCOUNT_JSON/i.test(e.message);
+      toast.error(isConfig ? "PDF generation unavailable" : "Generation failed", { description: e.message });
       setGeneratingId(null);
     },
   });
@@ -285,6 +289,22 @@ export default function PromoterAssignmentsPage() {
               <Button type="button" variant="outline" size="sm" onClick={() => refetch()}>
                 Retry
               </Button>
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {docGenReadiness && !pdfGenerationAvailable && (
+          <Alert className="border-amber-500/40 bg-amber-500/5 text-foreground">
+            <AlertCircle className="h-4 w-4 text-amber-600" />
+            <AlertDescription className="text-sm leading-relaxed">
+              <span className="font-medium text-foreground">Contract PDFs are not available on this server.</span>{" "}
+              An administrator must set the environment variable{" "}
+              <code className="rounded bg-muted px-1 py-0.5 text-xs font-mono">GOOGLE_DOCS_SERVICE_ACCOUNT_JSON</code>{" "}
+              to the JSON key for a Google Cloud service account with{" "}
+              <strong className="font-medium">Google Drive API</strong> and{" "}
+              <strong className="font-medium">Google Docs API</strong> enabled, then grant that account access to your
+              document templates in Drive. See <code className="rounded bg-muted px-1 py-0.5 text-xs font-mono">.env.example</code>{" "}
+              for a pointer.
             </AlertDescription>
           </Alert>
         )}
@@ -435,9 +455,13 @@ export default function PromoterAssignmentsPage() {
                           size="sm"
                           variant="default"
                           className="gap-1.5 text-xs"
-                          disabled={generatingId === a.id}
+                          disabled={generatingId === a.id || !pdfGenerationAvailable}
                           onClick={() => handleGenerate(a)}
-                          title="Generate bilingual PDF contract"
+                          title={
+                            pdfGenerationAvailable
+                              ? "Generate bilingual PDF contract"
+                              : "PDF generation is not configured (GOOGLE_DOCS_SERVICE_ACCOUNT_JSON missing on server)"
+                          }
                         >
                           {generatingId === a.id ? (
                             <Loader2 className="h-3.5 w-3.5 animate-spin" />

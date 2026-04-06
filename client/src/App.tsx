@@ -72,6 +72,7 @@ import EmployeeImportPage from "./pages/EmployeeImportPage";
 import CompanyDocumentsPage from "./pages/CompanyDocumentsPage";
 import EmployeeDocumentsPage from "./pages/EmployeeDocumentsPage";
 import HRDocumentsDashboardPage from "./pages/HRDocumentsDashboardPage";
+import ContractManagementPage from "./pages/ContractManagementPage";
 import PromoterAssignmentsPage from "./pages/PromoterAssignmentsPage";
 import ContractDetailPage from "./pages/ContractDetailPage";
 import DocumentExpiryDashboard from "./pages/DocumentExpiryDashboard";
@@ -185,7 +186,11 @@ function AppRoutes() {
         <Route path="/hr/documents-dashboard" component={HRDocumentsDashboardPage} />
         <Route path="/hr/expiry-dashboard" component={DocumentExpiryDashboard} />
         <Route path="/hr/letters" component={HRLettersPage} />
-        <Route path="/hr/promoter-assignments" component={PromoterAssignmentsPage} />
+        {/* ── Promoter Contract Management (canonical routes) ──────────────── */}
+        <Route path="/hr/contracts" component={ContractManagementPage} />
+        <Route path="/hr/contracts/:id" component={ContractDetailPage} />
+        {/* Legacy aliases — kept for backward compatibility; will be removed in a future release */}
+        <Route path="/hr/promoter-assignments" component={ContractManagementPage} />
         <Route path="/hr/promoter-assignments/:id" component={ContractDetailPage} />
         <Route path="/hr/kpi" component={HRKpiPage} />
         <Route path="/hr/performance" component={HRPerformancePage} />

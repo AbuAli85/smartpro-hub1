@@ -1,5 +1,6 @@
 /**
- * Contract Detail Page — /hr/promoter-assignments/:id
+ * Contract Detail Page — /hr/contracts/:id
+ * (also served at the legacy path /hr/promoter-assignments/:id)
  *
  * Sections:
  *   1. Header — contract number, type badge, status badge, action bar
@@ -397,7 +398,7 @@ export default function ContractDetailPage() {
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>{error?.message ?? "Contract not found."}</AlertDescription>
         </Alert>
-        <Link href="/hr/promoter-assignments">
+        <Link href="/hr/contracts">
           <Button variant="outline" className="mt-4 gap-2">
             <ArrowLeft className="h-4 w-4" /> Back to list
           </Button>
@@ -432,7 +433,7 @@ export default function ContractDetailPage() {
         {/* Back + Header */}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="space-y-1">
-            <Link href="/hr/promoter-assignments">
+            <Link href="/hr/contracts">
               <button className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-1">
                 <ArrowLeft className="h-3.5 w-3.5" /> All Assignments
               </button>
@@ -656,7 +657,7 @@ export default function ContractDetailPage() {
           {contract!.renewalOfContractId && (
             <div className="mt-3 text-sm text-muted-foreground">
               Renewal of{" "}
-              <Link href={`/hr/promoter-assignments/${contract!.renewalOfContractId}`}>
+              <Link href={`/hr/contracts/${contract!.renewalOfContractId}`}>
                 <span className="text-primary underline underline-offset-2 cursor-pointer font-mono text-xs">
                   {contract!.renewalOfContractId.slice(0, 8)}…
                 </span>

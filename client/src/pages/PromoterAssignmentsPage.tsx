@@ -1,3 +1,18 @@
+/**
+ * @deprecated
+ *
+ * This file is SUPERSEDED by ContractManagementPage.tsx and is no longer
+ * rendered by any application route.
+ *
+ * Route changes:
+ *   /hr/promoter-assignments     → ContractManagementPage  (canonical: /hr/contracts)
+ *   /hr/promoter-assignments/:id → ContractDetailPage       (canonical: /hr/contracts/:id)
+ *
+ * All create / edit / list flows now use trpc.contractManagement.* (CMS APIs).
+ * This file is kept temporarily for reference and will be deleted in a future cleanup PR.
+ * Do NOT add features here.
+ */
+
 import { useState, useMemo } from "react";
 import { Link } from "wouter";
 import { trpc } from "@/lib/trpc";

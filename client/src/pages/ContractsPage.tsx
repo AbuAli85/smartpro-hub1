@@ -30,17 +30,16 @@ const statusColors: Record<string, string> = {
 };
 
 /**
- * Promoter assignment quick-create dialog.
- * Delegates all form state and queries to the shared hook/component.
- * Previously this was a 295-line duplicate — now ~50 lines.
+ * Promoter assignment quick-create dialog (on the /contracts page).
+ * Uses trpc.contractManagement.createPromoterAssignment (CMS API).
  */
 function PromoterAssignmentDialog({ onSuccess }: { onSuccess: () => void }) {
   const [open, setOpen] = useState(false);
   const form = usePromoterAssignmentForm({ enabled: open });
 
-  const createMutation = trpc.promoterAssignments.create.useMutation({
+  const createMutation = trpc.contractManagement.createPromoterAssignment.useMutation({
     onSuccess: (data) => {
-      toast.success(`Promoter assignment saved (${data.id.slice(0, 8)}…)`);
+      toast.success(`Promoter contract saved as draft (${data.id.slice(0, 8)}…)`);
       setOpen(false);
       form.reset();
       onSuccess();
@@ -57,9 +56,9 @@ function PromoterAssignmentDialog({ onSuccess }: { onSuccess: () => void }) {
       promoterEmployeeId: s.promoterEmployeeId as number,
       locationEn: s.locationEn.trim(),
       locationAr: s.locationAr.trim(),
-      startDate: s.effectiveDate,
-      endDate: s.expiryDate,
-      contractReferenceNumber: s.contractNumber.trim() || undefined,
+      effectiveDate: s.effectiveDate,
+      expiryDate: s.expiryDate,
+      contractNumber: s.contractNumber.trim() || undefined,
       issueDate: s.issueDate || undefined,
       clientSiteId: typeof s.clientSiteId === "number" ? s.clientSiteId : undefined,
       civilId: s.civilId.trim() || undefined,
@@ -70,21 +69,20 @@ function PromoterAssignmentDialog({ onSuccess }: { onSuccess: () => void }) {
     });
   }
 
-  const canSubmit = form.canSubmit;
-
   return (
     <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) form.reset(); }}>
       <DialogTrigger asChild>
         <Button size="sm" variant="outline" className="gap-2">
-          <Users size={16} /> Promoter assignment
+          <Users size={16} /> Promoter contract
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-3xl max-h-[92vh] overflow-y-auto gap-0 p-0">
         <div className="p-6 pb-0">
           <DialogHeader>
-            <DialogTitle>New Promoter Assignment</DialogTitle>
+            <DialogTitle>New Promoter Assignment Contract</DialogTitle>
             <p className="text-sm text-muted-foreground font-normal">
               First party = client (hosts the site). Second party = employer (supplies the promoter).
+              Saves as a draft — activate from the contract details page.
             </p>
           </DialogHeader>
         </div>
@@ -96,12 +94,12 @@ function PromoterAssignmentDialog({ onSuccess }: { onSuccess: () => void }) {
             Cancel
           </Button>
           <Button
-            disabled={!canSubmit || createMutation.isPending}
+            disabled={!form.canSubmit || createMutation.isPending}
             onClick={handleSave}
             className="min-w-[140px] gap-2"
           >
             {createMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-            {createMutation.isPending ? "Saving…" : "Save Assignment"}
+            {createMutation.isPending ? "Saving…" : "Save as Draft"}
           </Button>
         </div>
       </DialogContent>

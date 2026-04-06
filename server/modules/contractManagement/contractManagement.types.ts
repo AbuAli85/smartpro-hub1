@@ -78,6 +78,58 @@ export function validateStatusTransition(
   }
 }
 
+// ─── STATUS CLASSIFICATION ────────────────────────────────────────────────────
+
+/**
+ * Statuses that are set exclusively by system processes.
+ *
+ * "expired"  — set by lazy-expire when expiryDate < today.
+ * "renewed"  — set by the renew flow when a successor contract is created.
+ *
+ * These MUST NOT be accepted as user input in the `update` mutation or any
+ * direct status-change endpoint.  Attempting to set them manually will be
+ * rejected with a BAD_REQUEST error.
+ */
+export const SYSTEM_ONLY_STATUSES = ["expired", "renewed"] as const satisfies ReadonlyArray<ContractStatus>;
+export type SystemOnlyStatus = (typeof SYSTEM_ONLY_STATUSES)[number];
+
+/**
+ * Terminal statuses — contracts in these states are permanently sealed.
+ *
+ * "terminated" — manually ended by a party.
+ * "renewed"    — superseded by a successor contract.
+ *
+ * No field edits (dates, location, identity, etc.) are allowed once a contract
+ * reaches a terminal state.  Status transitions are also blocked (the transition
+ * map enforces this independently, but this constant makes the intent explicit).
+ */
+export const TERMINAL_STATUSES = ["terminated", "renewed"] as const satisfies ReadonlyArray<ContractStatus>;
+export type TerminalStatus = (typeof TERMINAL_STATUSES)[number];
+
+/**
+ * Statuses a user may set directly via the `update` mutation.
+ * = all statuses minus system-only statuses.
+ *
+ * Note: even USER_WRITABLE_STATUSES are subject to the transition map —
+ * only valid moves from the current state are accepted.
+ */
+export const USER_WRITABLE_STATUSES = CONTRACT_STATUSES.filter(
+  (s) => !(SYSTEM_ONLY_STATUSES as readonly string[]).includes(s)
+) as ContractStatus[];
+
+/** Returns true when a status is set exclusively by the system (never by a user). */
+export function isSystemOnlyStatus(s: ContractStatus): boolean {
+  return (SYSTEM_ONLY_STATUSES as readonly string[]).includes(s);
+}
+
+/**
+ * Returns true when a contract in this status is permanently immutable.
+ * Terminal contracts reject all field edits and further status changes.
+ */
+export function isTerminalStatus(s: ContractStatus): boolean {
+  return (TERMINAL_STATUSES as readonly string[]).includes(s);
+}
+
 // ─── STATUS METADATA (shared with frontend via types) ─────────────────────────
 
 export const STATUS_META: Record<

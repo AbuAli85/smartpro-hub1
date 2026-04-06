@@ -41,6 +41,8 @@ import {
   CONTRACT_STATUSES,
   DOCUMENT_KIND_META,
   UPLOADABLE_DOCUMENT_KINDS,
+  isSystemOnlyStatus,
+  isTerminalStatus,
   type ContractStatus,
   type UploadableDocumentKind,
 } from "../modules/contractManagement/contractManagement.types";
@@ -386,6 +388,27 @@ export const contractManagementRouter = router({
         await requireCanManageContracts(ctx.user, input.clientCompanyId);
       }
 
+      // ── Initial status guard ───────────────────────────────────────────────
+      // Regular users must start every contract in "draft".
+      // The activation confirmation step (draft → active) is intentional UX:
+      // it prevents contracts from going live without an explicit review.
+      //
+      // Platform admins may create in any non-terminal status to support
+      // backfill / migration scenarios (e.g., importing historical active contracts).
+      const requestedInitialStatus: ContractStatus = input.status ?? "draft";
+      if (isTerminalStatus(requestedInitialStatus)) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Cannot create a contract with status "${requestedInitialStatus}". Terminal statuses are not valid as an initial status.`,
+        });
+      }
+      if (!isPlatform && requestedInitialStatus !== "draft") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `New contracts must start in "draft" status. Use the activate action to confirm and make the contract active.`,
+        });
+      }
+
       if (input.clientCompanyId === input.employerCompanyId) {
         throw new TRPCError({
           code: "BAD_REQUEST",
@@ -484,7 +507,7 @@ export const contractManagementRouter = router({
         companyId: input.clientCompanyId,
         contractTypeId: "promoter_assignment",
         contractNumber: input.contractNumber?.trim() || null,
-        status: input.status ?? "draft",
+        status: requestedInitialStatus,
         issueDate: input.issueDate ? new Date(input.issueDate) : null,
         effectiveDate,
         expiryDate,
@@ -553,14 +576,45 @@ export const contractManagementRouter = router({
         await requireCanManageContracts(ctx.user, activeId);
       }
 
+      const currentStatus = result.contract.status as ContractStatus;
+
+      // ── Terminal state guard ───────────────────────────────────────────────
+      // Terminated and renewed contracts are permanently sealed.
+      // No field edits and no further status changes are allowed.
+      if (isTerminalStatus(currentStatus)) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message:
+            `Contract is in a terminal state ("${currentStatus}") and cannot be modified. ` +
+            `Terminated contracts are permanently sealed; renewed contracts are superseded — ` +
+            `open the successor contract to make changes.`,
+        });
+      }
+
       const actor = {
         id: ctx.user.id,
         name: ctx.user.name ?? ctx.user.email ?? `User #${ctx.user.id}`,
       };
 
-      // If status is changing, route through the transition system
+      // ── Status change guard ────────────────────────────────────────────────
       if (input.status !== undefined && input.status !== result.contract.status) {
-        await doTransition(db, input.id, input.status as ContractStatus, actor);
+        const requestedStatus = input.status as ContractStatus;
+
+        // "expired" and "renewed" are system-only — the system sets these
+        // automatically via lazy-expire and the renew flow.  Accepting them
+        // as user input would bypass domain invariants.
+        if (isSystemOnlyStatus(requestedStatus)) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message:
+              `Status "${requestedStatus}" is managed automatically by the system. ` +
+              (requestedStatus === "expired"
+                ? "Contracts expire automatically when their expiry date passes."
+                : "Use the dedicated renew action to mark a contract as renewed."),
+          });
+        }
+
+        await doTransition(db, input.id, requestedStatus, actor);
       }
 
       // Remaining editable fields (excluding status — already handled above)
@@ -695,6 +749,26 @@ export const contractManagementRouter = router({
           throw new TRPCError({ code: "FORBIDDEN", message: "Only the first party can renew this contract" });
         }
         await requireCanManageContracts(ctx.user, activeId);
+      }
+
+      // ── Renewability guard ────────────────────────────────────────────────
+      // Check before doing any expensive work (date validation, DB lookups).
+      // Only active and expired contracts can be renewed; all other statuses
+      // (draft, suspended, terminated, renewed) are explicitly blocked with a
+      // clear message rather than a generic transition error.
+      const originalStatus = original.contract.status as ContractStatus;
+      if (!(ALLOWED_TRANSITIONS[originalStatus] as readonly string[]).includes("renewed")) {
+        const reason =
+          originalStatus === "draft"
+            ? "Draft contracts cannot be renewed. Activate the contract first."
+            : originalStatus === "terminated"
+            ? "Terminated contracts cannot be renewed. Create a new contract instead."
+            : originalStatus === "renewed"
+            ? "This contract has already been renewed and is now superseded. Open the successor contract."
+            : originalStatus === "suspended"
+            ? "Suspended contracts cannot be renewed. Reactivate the contract first, then renew."
+            : `Cannot renew a contract in "${originalStatus}" status.`;
+        throw new TRPCError({ code: "BAD_REQUEST", message: reason });
       }
 
       const effectiveDate = new Date(input.newEffectiveDate);

@@ -192,7 +192,13 @@ describe("B. Input validation", () => {
 
 import {
   ALLOWED_TRANSITIONS,
+  CONTRACT_STATUSES,
   ContractTransitionError,
+  SYSTEM_ONLY_STATUSES,
+  TERMINAL_STATUSES,
+  USER_WRITABLE_STATUSES,
+  isSystemOnlyStatus,
+  isTerminalStatus,
   validateStatusTransition,
   STATUS_META,
   type ContractStatus,
@@ -947,5 +953,368 @@ describe("normaliseDocumentKind", () => {
   });
   it("passes through unknown kinds unchanged", () => {
     expect(normaliseDocumentKind("some_future_kind")).toBe("some_future_kind");
+  });
+});
+
+// ─── L. STRICT LIFECYCLE ENFORCEMENT ─────────────────────────────────────────
+//
+// Tests for the enforcement guards added to the router:
+//   1. isSystemOnlyStatus / isTerminalStatus predicates
+//   2. update mutation: terminal-immutability guard
+//   3. update mutation: system-only status guard
+//   4. create mutation: initial status must be draft for regular users
+//   5. renew mutation: renewability pre-check
+//
+// These tests exercise the pure predicates and the transition-map logic that
+// backs the router guards — no DB or tRPC mock needed.
+
+describe("L1. isSystemOnlyStatus", () => {
+  it("expired is system-only", () => {
+    expect(isSystemOnlyStatus("expired")).toBe(true);
+  });
+
+  it("renewed is system-only", () => {
+    expect(isSystemOnlyStatus("renewed")).toBe(true);
+  });
+
+  it("active is NOT system-only — user activates contracts", () => {
+    expect(isSystemOnlyStatus("active")).toBe(false);
+  });
+
+  it("draft is NOT system-only — user creates contracts", () => {
+    expect(isSystemOnlyStatus("draft")).toBe(false);
+  });
+
+  it("terminated is NOT system-only — user terminates contracts", () => {
+    expect(isSystemOnlyStatus("terminated")).toBe(false);
+  });
+
+  it("suspended is NOT system-only — admin suspends contracts via update", () => {
+    expect(isSystemOnlyStatus("suspended")).toBe(false);
+  });
+
+  it("SYSTEM_ONLY_STATUSES contains exactly expired and renewed", () => {
+    expect([...SYSTEM_ONLY_STATUSES].sort()).toEqual(["expired", "renewed"]);
+  });
+
+  it("USER_WRITABLE_STATUSES contains no system-only statuses", () => {
+    for (const s of USER_WRITABLE_STATUSES) {
+      expect(isSystemOnlyStatus(s)).toBe(false);
+    }
+  });
+
+  it("USER_WRITABLE_STATUSES + SYSTEM_ONLY_STATUSES = all CONTRACT_STATUSES", () => {
+    const all = new Set<string>([...USER_WRITABLE_STATUSES, ...SYSTEM_ONLY_STATUSES]);
+    for (const s of CONTRACT_STATUSES) {
+      expect(all.has(s)).toBe(true);
+    }
+    expect(all.size).toBe(CONTRACT_STATUSES.length);
+  });
+});
+
+describe("L2. isTerminalStatus", () => {
+  it("terminated is terminal", () => {
+    expect(isTerminalStatus("terminated")).toBe(true);
+  });
+
+  it("renewed is terminal", () => {
+    expect(isTerminalStatus("renewed")).toBe(true);
+  });
+
+  it("active is NOT terminal", () => {
+    expect(isTerminalStatus("active")).toBe(false);
+  });
+
+  it("draft is NOT terminal", () => {
+    expect(isTerminalStatus("draft")).toBe(false);
+  });
+
+  it("expired is NOT terminal — expired contracts can be renewed", () => {
+    expect(isTerminalStatus("expired")).toBe(false);
+  });
+
+  it("suspended is NOT terminal — suspended contracts can be reactivated", () => {
+    expect(isTerminalStatus("suspended")).toBe(false);
+  });
+
+  it("TERMINAL_STATUSES contains exactly terminated and renewed", () => {
+    expect([...TERMINAL_STATUSES].sort()).toEqual(["renewed", "terminated"]);
+  });
+
+  it("all terminal statuses have an empty ALLOWED_TRANSITIONS array", () => {
+    for (const s of TERMINAL_STATUSES) {
+      expect(ALLOWED_TRANSITIONS[s]).toHaveLength(0);
+    }
+  });
+
+  it("all terminal statuses are marked isTerminal=true in STATUS_META", () => {
+    for (const s of TERMINAL_STATUSES) {
+      expect(STATUS_META[s].isTerminal).toBe(true);
+    }
+  });
+
+  it("no non-terminal status has isTerminal=true in STATUS_META", () => {
+    for (const s of CONTRACT_STATUSES) {
+      if (!isTerminalStatus(s)) {
+        expect(STATUS_META[s].isTerminal).toBe(false);
+      }
+    }
+  });
+});
+
+describe("L3. update mutation: terminal-immutability guard", () => {
+  // Simulates the guard logic at the top of the update mutation.
+  function canUpdateContract(currentStatus: ContractStatus): { allowed: boolean; reason?: string } {
+    if (isTerminalStatus(currentStatus)) {
+      return {
+        allowed: false,
+        reason: `Contract is in a terminal state ("${currentStatus}") and cannot be modified.`,
+      };
+    }
+    return { allowed: true };
+  }
+
+  it("terminated contract rejects any update", () => {
+    const result = canUpdateContract("terminated");
+    expect(result.allowed).toBe(false);
+    expect(result.reason).toContain("terminated");
+  });
+
+  it("renewed contract rejects any update", () => {
+    const result = canUpdateContract("renewed");
+    expect(result.allowed).toBe(false);
+    expect(result.reason).toContain("renewed");
+  });
+
+  it("active contract allows updates", () => {
+    expect(canUpdateContract("active").allowed).toBe(true);
+  });
+
+  it("draft contract allows updates", () => {
+    expect(canUpdateContract("draft").allowed).toBe(true);
+  });
+
+  it("expired contract allows updates (e.g. correcting dates before renewing)", () => {
+    expect(canUpdateContract("expired").allowed).toBe(true);
+  });
+
+  it("suspended contract allows updates", () => {
+    expect(canUpdateContract("suspended").allowed).toBe(true);
+  });
+
+  it("attempting to set expired via update is rejected by system-only guard", () => {
+    const requestedStatus: ContractStatus = "expired";
+    expect(isSystemOnlyStatus(requestedStatus)).toBe(true);
+  });
+
+  it("attempting to set renewed via update is rejected by system-only guard", () => {
+    const requestedStatus: ContractStatus = "renewed";
+    expect(isSystemOnlyStatus(requestedStatus)).toBe(true);
+  });
+
+  it("setting active via update goes through the transition map (draft → active valid)", () => {
+    expect(isSystemOnlyStatus("active")).toBe(false);
+    expect(() => validateStatusTransition("draft", "active")).not.toThrow();
+  });
+
+  it("reverse transition active → draft is blocked even if not system-only", () => {
+    expect(isSystemOnlyStatus("draft")).toBe(false);
+    expect(() => validateStatusTransition("active", "draft")).toThrow(ContractTransitionError);
+  });
+});
+
+describe("L4. Invalid transitions — comprehensive matrix", () => {
+  // All status → status combinations that MUST throw ContractTransitionError
+  const ILLEGAL_MOVES: Array<[ContractStatus, ContractStatus]> = [
+    // From draft — cannot jump to system-managed or expired
+    ["draft",      "expired"],
+    ["draft",      "renewed"],
+    ["draft",      "suspended"], // not in draft's allowed list
+    // From active — cannot go back
+    ["active",     "draft"],
+    // From expired — only renewed is allowed
+    ["expired",    "active"],
+    ["expired",    "draft"],
+    ["expired",    "terminated"],
+    ["expired",    "suspended"],
+    // Terminal: no exits
+    ["terminated", "active"],
+    ["terminated", "draft"],
+    ["terminated", "expired"],
+    ["terminated", "renewed"],
+    ["terminated", "suspended"],
+    ["renewed",    "active"],
+    ["renewed",    "draft"],
+    ["renewed",    "expired"],
+    ["renewed",    "terminated"],
+    ["renewed",    "suspended"],
+    // Suspended — cannot renew directly; must reactivate first
+    ["suspended",  "renewed"],
+    ["suspended",  "expired"],
+    ["suspended",  "draft"],
+  ];
+
+  for (const [from, to] of ILLEGAL_MOVES) {
+    it(`${from} → ${to} throws ContractTransitionError`, () => {
+      expect(() => validateStatusTransition(from, to)).toThrow(ContractTransitionError);
+    });
+  }
+
+  // All legal transitions from the transition map
+  const LEGAL_MOVES: Array<[ContractStatus, ContractStatus]> = [
+    ["draft",     "active"],
+    ["draft",     "terminated"],
+    ["active",    "expired"],
+    ["active",    "terminated"],
+    ["active",    "renewed"],
+    ["active",    "suspended"],
+    ["expired",   "renewed"],
+    ["suspended", "active"],
+    ["suspended", "terminated"],
+  ];
+
+  for (const [from, to] of LEGAL_MOVES) {
+    it(`${from} → ${to} does NOT throw`, () => {
+      expect(() => validateStatusTransition(from, to)).not.toThrow();
+    });
+  }
+
+  it("no-op (same status) never throws for any status", () => {
+    for (const s of CONTRACT_STATUSES) {
+      expect(() => validateStatusTransition(s, s)).not.toThrow();
+    }
+  });
+});
+
+describe("L5. create mutation: initial status guard", () => {
+  // Simulates the guard logic in createPromoterAssignment.
+  function validateInitialStatus(
+    requestedStatus: ContractStatus,
+    isPlatformAdmin: boolean
+  ): { allowed: boolean; reason?: string } {
+    if (isTerminalStatus(requestedStatus)) {
+      return {
+        allowed: false,
+        reason: `Cannot create a contract with status "${requestedStatus}". Terminal statuses are not valid as an initial status.`,
+      };
+    }
+    if (!isPlatformAdmin && requestedStatus !== "draft") {
+      return {
+        allowed: false,
+        reason: `New contracts must start in "draft" status. Use the activate action to make the contract active.`,
+      };
+    }
+    return { allowed: true };
+  }
+
+  it("regular user: draft is allowed", () => {
+    expect(validateInitialStatus("draft", false).allowed).toBe(true);
+  });
+
+  it("regular user: active is blocked", () => {
+    const r = validateInitialStatus("active", false);
+    expect(r.allowed).toBe(false);
+    expect(r.reason).toContain("draft");
+  });
+
+  it("regular user: expired is blocked (system-only + terminal)", () => {
+    expect(validateInitialStatus("expired", false).allowed).toBe(false);
+  });
+
+  it("regular user: terminated is blocked (terminal)", () => {
+    const r = validateInitialStatus("terminated", false);
+    expect(r.allowed).toBe(false);
+    expect(r.reason).toContain("Terminal statuses");
+  });
+
+  it("regular user: renewed is blocked (terminal)", () => {
+    expect(validateInitialStatus("renewed", false).allowed).toBe(false);
+  });
+
+  it("regular user: suspended is blocked (not draft)", () => {
+    expect(validateInitialStatus("suspended", false).allowed).toBe(false);
+  });
+
+  it("platform admin: draft is allowed", () => {
+    expect(validateInitialStatus("draft", true).allowed).toBe(true);
+  });
+
+  it("platform admin: active is allowed (migration / backfill)", () => {
+    expect(validateInitialStatus("active", true).allowed).toBe(true);
+  });
+
+  it("platform admin: suspended is allowed (edge-case import)", () => {
+    expect(validateInitialStatus("suspended", true).allowed).toBe(true);
+  });
+
+  it("platform admin: terminated is blocked even for admins (terminal cannot be initial)", () => {
+    expect(validateInitialStatus("terminated", true).allowed).toBe(false);
+  });
+
+  it("platform admin: renewed is blocked even for admins (terminal cannot be initial)", () => {
+    expect(validateInitialStatus("renewed", true).allowed).toBe(false);
+  });
+});
+
+describe("L6. renew mutation: renewability pre-check", () => {
+  // Simulates the pre-check guard at the top of the renew mutation.
+  function canRenew(status: ContractStatus): { allowed: boolean; reason?: string } {
+    const allowed = (ALLOWED_TRANSITIONS[status] as readonly string[]).includes("renewed");
+    if (!allowed) {
+      const reason =
+        status === "draft"
+          ? "Draft contracts cannot be renewed. Activate the contract first."
+          : status === "terminated"
+          ? "Terminated contracts cannot be renewed. Create a new contract instead."
+          : status === "renewed"
+          ? "This contract has already been renewed and is now superseded."
+          : status === "suspended"
+          ? "Suspended contracts cannot be renewed. Reactivate first."
+          : `Cannot renew a contract in "${status}" status.`;
+      return { allowed: false, reason };
+    }
+    return { allowed: true };
+  }
+
+  it("active contract can be renewed", () => {
+    expect(canRenew("active").allowed).toBe(true);
+  });
+
+  it("expired contract can be renewed", () => {
+    expect(canRenew("expired").allowed).toBe(true);
+  });
+
+  it("draft contract cannot be renewed — activate first", () => {
+    const r = canRenew("draft");
+    expect(r.allowed).toBe(false);
+    expect(r.reason).toContain("Activate");
+  });
+
+  it("terminated contract cannot be renewed — create new instead", () => {
+    const r = canRenew("terminated");
+    expect(r.allowed).toBe(false);
+    expect(r.reason).toContain("new contract");
+  });
+
+  it("already-renewed contract cannot be renewed again", () => {
+    const r = canRenew("renewed");
+    expect(r.allowed).toBe(false);
+    expect(r.reason).toContain("superseded");
+  });
+
+  it("suspended contract cannot be renewed — reactivate first", () => {
+    const r = canRenew("suspended");
+    expect(r.allowed).toBe(false);
+    expect(r.reason).toContain("Reactivate");
+  });
+
+  it("renew transition validates correctly through the map", () => {
+    // valid
+    expect(() => validateStatusTransition("active",  "renewed")).not.toThrow();
+    expect(() => validateStatusTransition("expired", "renewed")).not.toThrow();
+    // invalid
+    expect(() => validateStatusTransition("draft",      "renewed")).toThrow(ContractTransitionError);
+    expect(() => validateStatusTransition("terminated",  "renewed")).toThrow(ContractTransitionError);
+    expect(() => validateStatusTransition("suspended",   "renewed")).toThrow(ContractTransitionError);
   });
 });

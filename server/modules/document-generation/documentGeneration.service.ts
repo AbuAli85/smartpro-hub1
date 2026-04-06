@@ -159,17 +159,31 @@ export async function generateDocument(
   let pdfBuffer: Buffer;
 
   try {
-    generatedGoogleDocId = await deps.google.copyTemplate(
-      sourceDocId,
-      `${template.name} — ${input.entityId}`
-    );
-    await deps.google.replacePlaceholders(generatedGoogleDocId, values);
-    pdfBuffer = await deps.google.exportAsPdf(generatedGoogleDocId);
+    // Try copy-based flow first; fall back to in-place edit+revert if Drive quota is 0
+    let usedInPlace = false;
+    try {
+      generatedGoogleDocId = await deps.google.copyTemplate(
+        sourceDocId,
+        `${template.name} — ${input.entityId}`
+      );
+      await deps.google.replacePlaceholders(generatedGoogleDocId, values);
+      pdfBuffer = await deps.google.exportAsPdf(generatedGoogleDocId);
+      await deps.google.deleteFile(generatedGoogleDocId);
+    } catch (copyErr) {
+      const isQuota = copyErr instanceof Error && /quota/i.test(copyErr.message);
+      if (!isQuota) throw copyErr;
 
-    // Clean up the temporary copy to avoid filling the service account's Drive quota
-    await deps.google.deleteFile(generatedGoogleDocId);
+      // Drive quota exceeded — edit template in place, export, then revert
+      if (generatedGoogleDocId) {
+        await deps.google.deleteFile(generatedGoogleDocId).catch(() => {});
+        generatedGoogleDocId = "";
+      }
+      pdfBuffer = await deps.google.fillExportRevert(sourceDocId, values);
+      usedInPlace = true;
+    }
+    if (usedInPlace) generatedGoogleDocId = sourceDocId;
   } catch (e) {
-    if (generatedGoogleDocId) {
+    if (generatedGoogleDocId && generatedGoogleDocId !== sourceDocId) {
       await deps.google.deleteFile(generatedGoogleDocId).catch(() => {});
     }
     const msg = e instanceof Error ? e.message : String(e);

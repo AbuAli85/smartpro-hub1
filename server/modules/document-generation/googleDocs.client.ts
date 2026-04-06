@@ -46,7 +46,34 @@ export type GoogleDocsClientDeps = {
   replacePlaceholders: (googleDocId: string, values: Record<string, string>) => Promise<void>;
   exportAsPdf: (googleDocId: string) => Promise<Buffer>;
   deleteFile: (fileId: string) => Promise<void>;
+  /**
+   * Edit the template in place, export PDF, then revert — creates NO files in Drive.
+   * Falls back to this when the service account has 0-byte Drive quota.
+   */
+  fillExportRevert: (templateDocId: string, values: Record<string, string>) => Promise<Buffer>;
 };
+
+/**
+ * Simple async mutex — serialises in-place template edits so two
+ * concurrent generations don't corrupt the shared template doc.
+ */
+class AsyncMutex {
+  private queue: (() => void)[] = [];
+  private locked = false;
+
+  async acquire(): Promise<void> {
+    if (!this.locked) { this.locked = true; return; }
+    return new Promise<void>((resolve) => this.queue.push(resolve));
+  }
+
+  release(): void {
+    const next = this.queue.shift();
+    if (next) next();
+    else this.locked = false;
+  }
+}
+
+const templateMutex = new AsyncMutex();
 
 function wrapGoogleError(e: unknown, message: string): never {
   const err = e as { message?: string; code?: number; errors?: { message?: string }[] };
@@ -131,6 +158,64 @@ export function createLiveGoogleDocsClient(): GoogleDocsClientDeps {
         await drive.files.delete({ fileId, supportsAllDrives: true });
       } catch {
         // Best-effort cleanup — don't fail the generation if delete fails
+      }
+    },
+
+    async fillExportRevert(templateDocId: string, values: Record<string, string>): Promise<Buffer> {
+      const entries = Object.entries(values);
+      if (entries.length === 0) {
+        return this.exportAsPdf(templateDocId);
+      }
+
+      await templateMutex.acquire();
+      try {
+        const auth = await getJwt();
+        const docs = google.docs({ version: "v1", auth });
+
+        const fillRequests = entries.map(([key, text]) => ({
+          replaceAllText: {
+            containsText: { text: `{{${key}}}`, matchCase: true },
+            replaceText: text,
+          },
+        }));
+        await docs.documents.batchUpdate({
+          documentId: templateDocId,
+          requestBody: { requests: fillRequests },
+        });
+
+        const pdfBuffer = await this.exportAsPdf(templateDocId);
+
+        const revertRequests = entries.map(([key, text]) => ({
+          replaceAllText: {
+            containsText: { text, matchCase: true },
+            replaceText: `{{${key}}}`,
+          },
+        }));
+        await docs.documents.batchUpdate({
+          documentId: templateDocId,
+          requestBody: { requests: revertRequests },
+        });
+
+        return pdfBuffer;
+      } catch (e) {
+        // Best-effort revert on failure
+        try {
+          const auth = await getJwt();
+          const docs = google.docs({ version: "v1", auth });
+          const revertRequests = entries.map(([key, text]) => ({
+            replaceAllText: {
+              containsText: { text, matchCase: true },
+              replaceText: `{{${key}}}`,
+            },
+          }));
+          await docs.documents.batchUpdate({
+            documentId: templateDocId,
+            requestBody: { requests: revertRequests },
+          });
+        } catch { /* ignore revert errors */ }
+        return wrapGoogleError(e, "Failed to generate PDF from template");
+      } finally {
+        templateMutex.release();
       }
     },
   };

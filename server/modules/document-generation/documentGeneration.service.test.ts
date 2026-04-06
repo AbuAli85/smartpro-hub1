@@ -95,6 +95,7 @@ describe("generateDocument", () => {
       replacePlaceholders: vi.fn().mockResolvedValue(),
       exportAsPdf: vi.fn().mockResolvedValue(Buffer.from("%PDF")),
       deleteFile: vi.fn().mockResolvedValue(undefined),
+      fillExportRevert: vi.fn().mockResolvedValue(Buffer.from("%PDF")),
     };
 
     const res = await generateDocument(
@@ -140,6 +141,7 @@ describe("generateDocument", () => {
       replacePlaceholders: vi.fn(),
       exportAsPdf: vi.fn(),
       deleteFile: vi.fn(),
+      fillExportRevert: vi.fn(),
     };
 
     await expect(
@@ -176,6 +178,7 @@ describe("generateDocument", () => {
       replacePlaceholders: vi.fn(),
       exportAsPdf: vi.fn(),
       deleteFile: vi.fn(),
+      fillExportRevert: vi.fn(),
     };
 
     await expect(
@@ -192,6 +195,50 @@ describe("generateDocument", () => {
         { google }
       )
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+
+  it("falls back to fillExportRevert when copy fails with quota error", async () => {
+    const insertRecords: { table: unknown; values: Record<string, unknown> }[] = [];
+    const db = {
+      insert: vi.fn((table: object) => ({
+        values: vi.fn((values: Record<string, unknown>) => {
+          insertRecords.push({ table, values });
+          return Promise.resolve();
+        }),
+      })),
+      update: vi.fn(() => ({
+        set: vi.fn(() => ({
+          where: vi.fn(() => Promise.resolve()),
+        })),
+      })),
+    };
+    vi.mocked(getDb).mockResolvedValue(db as never);
+
+    const google: GenerateDocumentDeps["google"] = {
+      copyTemplate: vi.fn().mockRejectedValue(new Error("Drive storage quota has been exceeded")),
+      replacePlaceholders: vi.fn(),
+      exportAsPdf: vi.fn(),
+      deleteFile: vi.fn().mockResolvedValue(undefined),
+      fillExportRevert: vi.fn().mockResolvedValue(Buffer.from("%PDF-fallback")),
+    };
+
+    const res = await generateDocument(
+      {
+        templateKey: "promoter_assignment_contract_bilingual",
+        entityId: assignmentId,
+        outputFormat: "pdf",
+        actorUserId: 1,
+        user,
+        activeCompanyId: 1,
+        membershipRole: "hr_admin",
+      },
+      { google }
+    );
+
+    expect(res.fileUrl).toBe("https://u");
+    expect(google.fillExportRevert).toHaveBeenCalled();
+    expect(google.replacePlaceholders).not.toHaveBeenCalled();
+    expect(storagePut).toHaveBeenCalled();
   });
 
   it("records generation_failed when Google throws", async () => {
@@ -216,6 +263,7 @@ describe("generateDocument", () => {
       replacePlaceholders: vi.fn(),
       exportAsPdf: vi.fn(),
       deleteFile: vi.fn().mockResolvedValue(undefined),
+      fillExportRevert: vi.fn(),
     };
 
     await expect(

@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
 import { DateInput } from "@/components/ui/date-input";
 import { isContractHiddenByFilters, parseContractIdFromSearch } from "@/lib/contractsDeepLink";
+import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 
 const statusColors: Record<string, string> = {
   draft: "bg-gray-100 text-gray-700",
@@ -25,6 +26,248 @@ const statusColors: Record<string, string> = {
   terminated: "bg-gray-100 text-gray-500",
   cancelled: "bg-gray-100 text-gray-400",
 };
+
+/** Client = first party; employer = second party; promoter = employee of employer only. */
+function PromoterAssignmentDialog({ onSuccess }: { onSuccess: () => void }) {
+  const { activeCompanyId } = useActiveCompany();
+  const [open, setOpen] = useState(false);
+  const [clientCompanyId, setClientCompanyId] = useState<number | "">("");
+  const [employerCompanyId, setEmployerCompanyId] = useState<number | "">("");
+  const [promoterEmployeeId, setPromoterEmployeeId] = useState<number | "">("");
+  const [form, setForm] = useState({
+    locationEn: "",
+    locationAr: "",
+    startDate: "",
+    endDate: "",
+    contractReferenceNumber: "",
+    issueDate: "",
+  });
+
+  useEffect(() => {
+    if (open && activeCompanyId != null && clientCompanyId === "") {
+      setClientCompanyId(activeCompanyId);
+    }
+  }, [open, activeCompanyId, clientCompanyId]);
+
+  const pickersInput =
+    typeof clientCompanyId === "number" ? { clientCompanyId } : undefined;
+  const { data: pickers } = trpc.promoterAssignments.companiesForPartyPickers.useQuery(
+    pickersInput,
+    { enabled: open && activeCompanyId != null }
+  );
+
+  const clientIdForQueries =
+    typeof clientCompanyId === "number" ? clientCompanyId : activeCompanyId ?? undefined;
+
+  const { data: employerEmployees = [] } = trpc.promoterAssignments.listEmployerEmployees.useQuery(
+    {
+      employerCompanyId: typeof employerCompanyId === "number" ? employerCompanyId : 0,
+      clientCompanyId: clientIdForQueries,
+    },
+    {
+      enabled:
+        open &&
+        typeof employerCompanyId === "number" &&
+        employerCompanyId > 0 &&
+        clientIdForQueries != null,
+    }
+  );
+
+  const createMutation = trpc.promoterAssignments.create.useMutation({
+    onSuccess: (data) => {
+      toast.success(`Promoter assignment saved (${data.id.slice(0, 8)}…)`);
+      setOpen(false);
+      setEmployerCompanyId("");
+      setPromoterEmployeeId("");
+      setForm({
+        locationEn: "",
+        locationAr: "",
+        startDate: "",
+        endDate: "",
+        contractReferenceNumber: "",
+        issueDate: "",
+      });
+      onSuccess();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const canSubmit =
+    typeof clientCompanyId === "number" &&
+    typeof employerCompanyId === "number" &&
+    typeof promoterEmployeeId === "number" &&
+    form.locationEn.trim() &&
+    form.locationAr.trim() &&
+    form.startDate &&
+    form.endDate &&
+    clientCompanyId !== employerCompanyId;
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="outline" className="gap-2">
+          <Users size={16} /> Promoter assignment
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>New promoter assignment</DialogTitle>
+          <p className="text-sm text-muted-foreground text-left font-normal">
+            First party is the <strong>client</strong> (brand / site owner). Second party is the{" "}
+            <strong>employer</strong> (manpower company). The promoter must be an employee of the employer.
+          </p>
+        </DialogHeader>
+        <div className="space-y-4 mt-2">
+          <div className="space-y-1.5">
+            <Label>Client (first party) *</Label>
+            <Select
+              value={clientCompanyId === "" ? "" : String(clientCompanyId)}
+              onValueChange={(v) => {
+                const n = Number(v);
+                setClientCompanyId(n);
+                setEmployerCompanyId("");
+                setPromoterEmployeeId("");
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select client company…" />
+              </SelectTrigger>
+              <SelectContent>
+                {(pickers?.clientOptions ?? []).map((c) => (
+                  <SelectItem key={c.id} value={String(c.id)}>
+                    {c.name}
+                    {c.nameAr ? ` · ${c.nameAr}` : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Employer (second party) *</Label>
+            <Select
+              value={employerCompanyId === "" ? "" : String(employerCompanyId)}
+              onValueChange={(v) => {
+                setEmployerCompanyId(Number(v));
+                setPromoterEmployeeId("");
+              }}
+              disabled={typeof clientCompanyId !== "number"}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select employer company…" />
+              </SelectTrigger>
+              <SelectContent>
+                {(pickers?.employerOptions ?? []).map((c) => (
+                  <SelectItem key={c.id} value={String(c.id)}>
+                    {c.name}
+                    {c.nameAr ? ` · ${c.nameAr}` : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Promoter employee *</Label>
+            <p className="text-xs text-muted-foreground">
+              Only employees of the selected employer are listed.
+            </p>
+            <Select
+              value={promoterEmployeeId === "" ? "" : String(promoterEmployeeId)}
+              onValueChange={(v) => setPromoterEmployeeId(Number(v))}
+              disabled={typeof employerCompanyId !== "number"}
+            >
+              <SelectTrigger>
+                <SelectValue
+                  placeholder={
+                    typeof employerCompanyId !== "number"
+                      ? "Select employer first…"
+                      : "Select employee…"
+                  }
+                />
+              </SelectTrigger>
+              <SelectContent>
+                {employerEmployees.map((e) => (
+                  <SelectItem key={e.id} value={String(e.id)}>
+                    {e.firstName} {e.lastName}
+                    {e.firstNameAr || e.lastNameAr
+                      ? ` · ${[e.firstNameAr, e.lastNameAr].filter(Boolean).join(" ")}`
+                      : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Location (English) *</Label>
+            <Input
+              placeholder="e.g. eXtra - Muscat City Centre"
+              value={form.locationEn}
+              onChange={(e) => setForm({ ...form, locationEn: e.target.value })}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Location (Arabic) *</Label>
+            <Input
+              placeholder="مثال: اكسترا - مسقط سيتي سنتر"
+              value={form.locationAr}
+              onChange={(e) => setForm({ ...form, locationAr: e.target.value })}
+            />
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label>Start date *</Label>
+              <DateInput
+                value={form.startDate}
+                onChange={(e) => setForm({ ...form, startDate: e.target.value })}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>End date *</Label>
+              <DateInput
+                value={form.endDate}
+                onChange={(e) => setForm({ ...form, endDate: e.target.value })}
+              />
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Contract reference no.</Label>
+            <Input
+              placeholder="e.g. PA-2026-001"
+              value={form.contractReferenceNumber}
+              onChange={(e) => setForm({ ...form, contractReferenceNumber: e.target.value })}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Issue date</Label>
+            <DateInput
+              value={form.issueDate}
+              onChange={(e) => setForm({ ...form, issueDate: e.target.value })}
+            />
+          </div>
+          <Button
+            className="w-full"
+            disabled={!canSubmit || createMutation.isPending}
+            onClick={() => {
+              if (!canSubmit || typeof clientCompanyId !== "number" || typeof employerCompanyId !== "number" || typeof promoterEmployeeId !== "number") return;
+              createMutation.mutate({
+                clientCompanyId,
+                employerCompanyId,
+                promoterEmployeeId,
+                locationAr: form.locationAr.trim(),
+                locationEn: form.locationEn.trim(),
+                startDate: form.startDate,
+                endDate: form.endDate,
+                contractReferenceNumber: form.contractReferenceNumber.trim() || undefined,
+                issueDate: form.issueDate || undefined,
+              });
+            }}
+          >
+            {createMutation.isPending ? "Saving…" : "Save assignment"}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 function NewContractDialog({ onSuccess }: { onSuccess: () => void }) {
   const [open, setOpen] = useState(false);
@@ -470,6 +713,7 @@ export default function ContractsPage() {
         <div className="flex flex-wrap gap-2">
           <AIGenerateContractDialog onSuccess={refetch} />
           <NewContractDialog onSuccess={refetch} />
+          <PromoterAssignmentDialog onSuccess={refetch} />
         </div>
       </div>
 

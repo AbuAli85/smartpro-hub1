@@ -43,6 +43,7 @@ import { financeHRRouter } from "./routers/financeHR";
 import { automationRouter } from "./routers/automation";
 import { automationSlaRouter } from "./routers/automationSla";
 import { documentGenerationRouter } from "./routers/documentGeneration";
+import { promoterAssignmentsRouter } from "./routers/promoterAssignments";
 
 export const appRouter = router({
   system: systemRouter,
@@ -97,6 +98,7 @@ export const appRouter = router({
   automation: automationRouter,
   automationSla: automationSlaRouter,
   documentGeneration: documentGenerationRouter,
+  promoterAssignments: promoterAssignmentsRouter,
 });
 
 export type AppRouter = typeof appRouter;

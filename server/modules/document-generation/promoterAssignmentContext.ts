@@ -1,4 +1,4 @@
-import { and, eq, inArray, or } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import {
   companies,
   employees,
@@ -75,21 +75,15 @@ export async function buildPromoterAssignmentDocumentContext(
   const empList = await db
     .select()
     .from(employees)
-    .where(
-      and(
-        eq(employees.id, row.promoterEmployeeId),
-        or(
-          eq(employees.companyId, row.firstPartyCompanyId),
-          eq(employees.companyId, row.secondPartyCompanyId),
-          eq(employees.companyId, row.companyId)
-        )
-      )
-    )
+    .where(and(eq(employees.id, row.promoterEmployeeId), eq(employees.companyId, row.secondPartyCompanyId)))
     .limit(1);
 
   const promoter = empList[0];
   if (!promoter) {
-    throw new DocumentGenerationError("NOT_FOUND", "Promoter employee not found for this assignment");
+    throw new DocumentGenerationError(
+      "NOT_FOUND",
+      "Promoter must be an active employee of the employer (second party) company"
+    );
   }
 
   const fullNameEn = nonEmptyOrThrow(

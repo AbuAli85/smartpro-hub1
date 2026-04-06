@@ -35,9 +35,10 @@ function isGoogleDocsServiceAccountJsonWellFormed(raw: string): boolean {
   }
 }
 
-/** True when GOOGLE_DOCS_SERVICE_ACCOUNT_JSON is valid JSON with client_email and private_key. */
+/** True when GOOGLE_DOCS_SERVICE_ACCOUNT_JSON is valid JSON with parseable client_email and private_key.
+ * Reads process.env on every call so a restart is not required after the secret is updated. */
 export function isGoogleDocsServiceAccountConfigured(): boolean {
-  return isGoogleDocsServiceAccountJsonWellFormed(ENV.googleDocsServiceAccountJson);
+  return isGoogleDocsServiceAccountJsonWellFormed(process.env.GOOGLE_DOCS_SERVICE_ACCOUNT_JSON ?? "");
 }
 
 /**

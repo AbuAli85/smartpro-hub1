@@ -373,6 +373,103 @@ export async function updateOutsourcingContract(
   }
 }
 
+// ─── DOCUMENT MANAGEMENT ─────────────────────────────────────────────────────
+
+/**
+ * Generic document record — persists any uploaded file linked to a contract.
+ *
+ * Called by the `uploadDocument` tRPC mutation after the file has been
+ * uploaded to the storage proxy and a URL has been minted.
+ *
+ * Returns the new document ID.
+ */
+export async function recordContractDocument(
+  db: AppDb,
+  params: {
+    contractId: string;
+    documentKind: ContractDocumentKind;
+    fileUrl: string;
+    filePath: string;
+    fileName: string;
+    mimeType: string;
+    uploadedBy: number;
+    uploadedByName?: string;
+    metadata?: Record<string, unknown>;
+  }
+): Promise<string> {
+  const docId = crypto.randomUUID();
+
+  await db.insert(outsourcingContractDocuments).values({
+    id: docId,
+    contractId: params.contractId,
+    documentKind: params.documentKind,
+    fileUrl: params.fileUrl,
+    filePath: params.filePath,
+    fileName: params.fileName,
+    mimeType: params.mimeType,
+    uploadedBy: params.uploadedBy,
+    metadata: params.metadata,
+  });
+
+  await appendContractEvent(db, {
+    contractId: params.contractId,
+    action: "document_uploaded",
+    actorId: params.uploadedBy,
+    actorName: params.uploadedByName,
+    details: {
+      documentId: docId,
+      documentKind: params.documentKind,
+      fileName: params.fileName,
+    },
+  });
+
+  return docId;
+}
+
+/** Load a single document row — used for ownership/tenant checks before delete. */
+export async function getContractDocumentById(
+  db: AppDb,
+  documentId: string
+) {
+  const [row] = await db
+    .select()
+    .from(outsourcingContractDocuments)
+    .where(eq(outsourcingContractDocuments.id, documentId))
+    .limit(1);
+  return row ?? null;
+}
+
+/**
+ * Delete a contract document row.
+ * The caller must verify tenant ownership and RBAC before calling this.
+ * Does NOT remove the file from the storage proxy (orphaned files are cleaned
+ * up separately; this is consistent with the rest of the app).
+ */
+export async function deleteContractDocument(
+  db: AppDb,
+  documentId: string,
+  contractId: string,
+  actorId: number,
+  actorName?: string
+): Promise<void> {
+  await db
+    .delete(outsourcingContractDocuments)
+    .where(
+      and(
+        eq(outsourcingContractDocuments.id, documentId),
+        eq(outsourcingContractDocuments.contractId, contractId)
+      )
+    );
+
+  await appendContractEvent(db, {
+    contractId,
+    action: "document_deleted",
+    actorId,
+    actorName,
+    details: { documentId },
+  });
+}
+
 /** Record the generated PDF URL on the contract header and documents table. */
 export async function recordGeneratedPdf(
   db: AppDb,

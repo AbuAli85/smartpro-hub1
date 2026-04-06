@@ -23,11 +23,14 @@ import {
   ContractTransitionError,
   appendContractEvent,
   createOutsourcingContractFull,
+  deleteContractDocument,
   deleteOutsourcingContract,
+  getContractDocumentById,
   getOutsourcingContractById,
   lazyExpireContract,
   listOutsourcingContracts,
   outsourcingContractExistsForId,
+  recordContractDocument,
   recordGeneratedPdf,
   recordSignedPdf,
   transitionContractStatus,
@@ -35,8 +38,13 @@ import {
 } from "../modules/contractManagement/contractManagement.repository";
 import {
   CONTRACT_STATUSES,
+  DOCUMENT_KIND_META,
+  UPLOADABLE_DOCUMENT_KINDS,
   type ContractStatus,
+  type UploadableDocumentKind,
 } from "../modules/contractManagement/contractManagement.types";
+import { storagePut, fileUrlMatchesConfiguredStorage } from "../storage";
+import { ENV } from "../_core/env";
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 
@@ -794,6 +802,176 @@ export const contractManagementRouter = router({
           details: { reason: input.reason.trim() },
         });
       }
+
+      return { ok: true as const };
+    }),
+
+  // ─── DOCUMENT UPLOAD ────────────────────────────────────────────────────────
+
+  /**
+   * Upload a file and attach it to a contract.
+   *
+   * Input:  base64-encoded file bytes (same pattern as documents.uploadCompanyDoc).
+   * Output: { documentId, fileUrl }
+   *
+   * Access:
+   *   - Both parties (first_party and second_party) may upload.
+   *   - Auditors are blocked.
+   *   - Platform admins bypass tenant check.
+   *
+   * File size limit: enforced per-kind (from DOCUMENT_KIND_META).
+   * The decoded buffer is uploaded to the Forge storage proxy via storagePut.
+   * The resulting URL + key are stored in outsourcing_contract_documents and
+   * an audit event is appended.
+   */
+  uploadDocument: protectedProcedure
+    .input(
+      z.object({
+        contractId: z.string().uuid(),
+        documentKind: z.enum(UPLOADABLE_DOCUMENT_KINDS),
+        fileBase64: z.string().min(1, "File data is required"),
+        fileName: z.string().min(1).max(500),
+        mimeType: z.string().min(1).max(200),
+        /** Declared file size in bytes — used for server-side validation */
+        fileSize: z.number().int().positive(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+
+      // ── Tenant / RBAC ──────────────────────────────────────────────────────
+      const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
+      let uploaderCompanyId: number;
+
+      if (!isPlatform) {
+        const activeId = await requireActiveCompanyId(ctx.user.id);
+        uploaderCompanyId = activeId;
+        await requireCanManageContracts(ctx.user, activeId);
+
+        // Confirm the active company is involved in this contract
+        const result = await getOutsourcingContractById(db, input.contractId);
+        if (!result) throw new TRPCError({ code: "NOT_FOUND", message: "Contract not found" });
+
+        const partyCompanyIds = new Set(
+          result.parties.map((p) => p.companyId).filter(Boolean)
+        );
+        partyCompanyIds.add(result.contract.companyId);
+        if (result.promoterDetail) {
+          partyCompanyIds.add(result.promoterDetail.employerCompanyId);
+        }
+        if (!partyCompanyIds.has(activeId)) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "Your company is not a party to this contract",
+          });
+        }
+      } else {
+        const activeId = await requireActiveCompanyId(ctx.user.id).catch(() => 0);
+        uploaderCompanyId = activeId;
+      }
+
+      // ── File validation ────────────────────────────────────────────────────
+      const kindMeta = DOCUMENT_KIND_META[input.documentKind as UploadableDocumentKind];
+      const maxBytes = kindMeta.maxSizeMb * 1024 * 1024;
+
+      if (input.fileSize > maxBytes) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `File too large. Maximum size for ${kindMeta.label} is ${kindMeta.maxSizeMb} MB. ` +
+            `Received: ${(input.fileSize / 1024 / 1024).toFixed(1)} MB.`,
+        });
+      }
+
+      if (!kindMeta.acceptMime.includes(input.mimeType)) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `File type "${input.mimeType}" is not accepted for ${kindMeta.label}. ` +
+            `Accepted types: ${kindMeta.acceptAttr}.`,
+        });
+      }
+
+      // ── Upload to storage ──────────────────────────────────────────────────
+      const buffer = Buffer.from(input.fileBase64, "base64");
+
+      // Validate decoded size matches declared size (within 5% tolerance for base64 padding)
+      const decodedTolerance = Math.ceil(input.fileSize * 1.05);
+      if (buffer.length > decodedTolerance) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Decoded file size does not match declared size",
+        });
+      }
+
+      const safeFileName = input.fileName.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 200);
+      const timestamp = Date.now();
+      const storageKey =
+        `contract-docs/${uploaderCompanyId}/${input.contractId}/${input.documentKind}/${timestamp}-${safeFileName}`;
+
+      const { key: filePath, url: fileUrl } = await storagePut(
+        storageKey,
+        buffer,
+        input.mimeType
+      );
+
+      // ── Persist ───────────────────────────────────────────────────────────
+      const actorName = ctx.user.name ?? ctx.user.email ?? `User #${ctx.user.id}`;
+
+      const documentId = await recordContractDocument(db, {
+        contractId: input.contractId,
+        documentKind: input.documentKind,
+        fileUrl,
+        filePath,
+        fileName: input.fileName,
+        mimeType: input.mimeType,
+        uploadedBy: ctx.user.id,
+        uploadedByName: actorName,
+        metadata: { fileSize: input.fileSize },
+      });
+
+      return { documentId, fileUrl };
+    }),
+
+  /**
+   * Delete a contract document.
+   *
+   * Access: first_party or platform admin only.
+   * System-generated PDFs (documentKind = "generated_pdf") cannot be deleted.
+   */
+  deleteDocument: protectedProcedure
+    .input(z.object({ documentId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+
+      const doc = await getContractDocumentById(db, input.documentId);
+      if (!doc) throw new TRPCError({ code: "NOT_FOUND", message: "Document not found" });
+
+      if (doc.documentKind === "generated_pdf") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "System-generated PDFs cannot be deleted. Generate a new one to replace it.",
+        });
+      }
+
+      const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
+      if (!isPlatform) {
+        const activeId = await requireActiveCompanyId(ctx.user.id);
+        await requireCanManageContracts(ctx.user, activeId);
+
+        // Only first party (companyId owner) can delete
+        const contract = await getOutsourcingContractById(db, doc.contractId);
+        if (!contract) throw new TRPCError({ code: "NOT_FOUND", message: "Contract not found" });
+        if (contract.contract.companyId !== activeId) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "Only the first party (client) can delete contract documents",
+          });
+        }
+      }
+
+      const actorName = ctx.user.name ?? ctx.user.email ?? `User #${ctx.user.id}`;
+      await deleteContractDocument(db, input.documentId, doc.contractId, ctx.user.id, actorName);
 
       return { ok: true as const };
     }),

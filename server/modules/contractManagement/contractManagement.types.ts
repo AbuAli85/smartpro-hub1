@@ -125,13 +125,84 @@ export const STATUS_META: Record<
 // ─── DOCUMENT KINDS ───────────────────────────────────────────────────────────
 
 export const CONTRACT_DOCUMENT_KINDS = [
+  /** System-generated bilingual PDF — produced by the document generation service. */
   "generated_pdf",
-  "signed_pdf",
+  /** User-uploaded signed copy of the printed/scanned contract. */
+  "signed_contract_pdf",
+  /** Promoter passport bio-page scan (PDF or image). */
   "passport_copy",
-  "id_copy",
+  /** Promoter civil ID / national ID card scan (PDF or image). */
+  "id_card_copy",
+  /** Any other supporting attachment. */
   "attachment",
+  // Legacy kind values — kept so existing DB rows remain valid
+  "signed_pdf",
+  "id_copy",
 ] as const;
 export type ContractDocumentKind = (typeof CONTRACT_DOCUMENT_KINDS)[number];
+
+/** Which kinds a user can upload (system-generated kinds are excluded). */
+export const UPLOADABLE_DOCUMENT_KINDS = [
+  "signed_contract_pdf",
+  "passport_copy",
+  "id_card_copy",
+  "attachment",
+] as const;
+export type UploadableDocumentKind = (typeof UPLOADABLE_DOCUMENT_KINDS)[number];
+
+export const DOCUMENT_KIND_META: Record<
+  UploadableDocumentKind,
+  {
+    label: string;
+    description: string;
+    /** MIME types accepted by the file picker */
+    acceptMime: string[];
+    /** Human-readable accept string for <input accept=""> */
+    acceptAttr: string;
+    maxSizeMb: number;
+    icon: "file-text" | "shield" | "id-card" | "paperclip";
+  }
+> = {
+  signed_contract_pdf: {
+    label: "Signed Contract",
+    description: "Scanned or electronically signed copy of the executed contract.",
+    acceptMime: ["application/pdf"],
+    acceptAttr: ".pdf",
+    maxSizeMb: 20,
+    icon: "file-text",
+  },
+  passport_copy: {
+    label: "Passport Copy",
+    description: "Promoter's passport bio-data page (PDF or clear photo).",
+    acceptMime: ["application/pdf", "image/jpeg", "image/png", "image/webp"],
+    acceptAttr: ".pdf,.jpg,.jpeg,.png,.webp",
+    maxSizeMb: 10,
+    icon: "shield",
+  },
+  id_card_copy: {
+    label: "ID Card Copy",
+    description: "Promoter's civil ID / national ID card — both sides if applicable.",
+    acceptMime: ["application/pdf", "image/jpeg", "image/png", "image/webp"],
+    acceptAttr: ".pdf,.jpg,.jpeg,.png,.webp",
+    maxSizeMb: 10,
+    icon: "id-card",
+  },
+  attachment: {
+    label: "Attachment",
+    description: "Any other supporting document.",
+    acceptMime: [
+      "application/pdf",
+      "image/jpeg",
+      "image/png",
+      "image/webp",
+      "application/msword",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ],
+    acceptAttr: ".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx",
+    maxSizeMb: 20,
+    icon: "paperclip",
+  },
+};
 
 // ─── AUDIT EVENT ACTIONS ──────────────────────────────────────────────────────
 

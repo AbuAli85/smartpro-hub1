@@ -10,7 +10,7 @@
  *   6. Edit dialog (reuses shared PromoterAssignmentFormSection)
  */
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Link, useParams } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
@@ -45,14 +45,17 @@ import {
   CheckCircle2,
   CirclePlay,
   Clock,
+  CreditCard,
   Download,
   FileText,
   Loader2,
   MapPin,
+  Paperclip,
   Pencil,
   RefreshCw,
   RotateCcw,
   Shield,
+  Trash2,
   Upload,
   User,
   X,
@@ -148,6 +151,75 @@ function SectionCard({
   );
 }
 
+// ─── DOCUMENT UPLOAD HELPERS ──────────────────────────────────────────────────
+
+/** Reads a File object and resolves with the raw base64 string (no data-URL prefix). */
+function readFileAsBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      resolve(result.split(",")[1] ?? result);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+type UploadableKind = "signed_contract_pdf" | "passport_copy" | "id_card_copy" | "attachment";
+
+const UPLOAD_KIND_META: Record<
+  UploadableKind,
+  { label: string; description: string; icon: React.ReactNode; acceptAttr: string; maxSizeMb: number; mimeTypes: string[] }
+> = {
+  signed_contract_pdf: {
+    label: "Signed Contract",
+    description: "Scanned or electronically signed copy of the executed contract",
+    icon: <FileText className="h-4 w-4" />,
+    acceptAttr: ".pdf",
+    maxSizeMb: 20,
+    mimeTypes: ["application/pdf"],
+  },
+  passport_copy: {
+    label: "Passport Copy",
+    description: "Promoter's passport bio-data page",
+    icon: <Shield className="h-4 w-4" />,
+    acceptAttr: ".pdf,.jpg,.jpeg,.png,.webp",
+    maxSizeMb: 10,
+    mimeTypes: ["application/pdf", "image/jpeg", "image/png", "image/webp"],
+  },
+  id_card_copy: {
+    label: "ID Card Copy",
+    description: "Promoter's civil ID / national ID card",
+    icon: <CreditCard className="h-4 w-4" />,
+    acceptAttr: ".pdf,.jpg,.jpeg,.png,.webp",
+    maxSizeMb: 10,
+    mimeTypes: ["application/pdf", "image/jpeg", "image/png", "image/webp"],
+  },
+  attachment: {
+    label: "Attachment",
+    description: "Any other supporting document",
+    icon: <Paperclip className="h-4 w-4" />,
+    acceptAttr: ".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx",
+    maxSizeMb: 20,
+    mimeTypes: [
+      "application/pdf",
+      "image/jpeg",
+      "image/png",
+      "image/webp",
+      "application/msword",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ],
+  },
+};
+
+const ORDERED_UPLOAD_KINDS: UploadableKind[] = [
+  "signed_contract_pdf",
+  "passport_copy",
+  "id_card_copy",
+  "attachment",
+];
+
 // ─── MAIN PAGE ────────────────────────────────────────────────────────────────
 
 export default function ContractDetailPage() {
@@ -157,6 +229,8 @@ export default function ContractDetailPage() {
   const [showActivate, setShowActivate] = useState(false);
   const [showTerminate, setShowTerminate] = useState(false);
   const [terminateReason, setTerminateReason] = useState("");
+  const [uploadingKind, setUploadingKind] = useState<UploadableKind | null>(null);
+  const fileInputRefs = useRef<Partial<Record<UploadableKind, HTMLInputElement | null>>>({});
   const [generatingPdf, setGeneratingPdf] = useState(false);
 
   const {
@@ -227,6 +301,22 @@ export default function ContractDetailPage() {
       toast.error("PDF generation failed", { description: e.message });
       setGeneratingPdf(false);
     },
+  });
+
+  const uploadDocumentMutation = trpc.contractManagement.uploadDocument.useMutation({
+    onSuccess: () => {
+      toast.success("Document uploaded");
+      refetch();
+    },
+    onError: (e) => toast.error("Upload failed", { description: e.message }),
+  });
+
+  const deleteDocumentMutation = trpc.contractManagement.deleteDocument.useMutation({
+    onSuccess: () => {
+      toast.success("Document removed");
+      refetch();
+    },
+    onError: (e) => toast.error("Delete failed", { description: e.message }),
   });
 
   // ─── EDIT FORM ────────────────────────────────────────────────────────────
@@ -577,42 +667,189 @@ export default function ContractDetailPage() {
 
         {/* 5. Documents */}
         <SectionCard icon={<FileText className="h-4 w-4" />} title="Documents">
-          {documents.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-2">No documents yet. Generate a PDF to get started.</p>
-          ) : (
-            <div className="space-y-2">
-              {documents.map((doc) => (
-                <div
-                  key={doc.id}
-                  className="flex items-center justify-between rounded-lg border bg-muted/30 px-4 py-2.5 text-sm"
-                >
-                  <div className="flex items-center gap-2">
-                    <FileText className="h-4 w-4 text-muted-foreground" />
-                    <div>
-                      <p className="font-medium capitalize">
-                        {doc.documentKind.replace(/_/g, " ")}
+          <div className="space-y-3">
+
+            {/* 5a. System-generated PDFs — read-only */}
+            {(() => {
+              const generatedDocs = documents.filter((d) => d.documentKind === "generated_pdf");
+              return (
+                <div className="rounded-lg border bg-muted/20">
+                  <div className="flex items-center justify-between px-4 py-2.5 border-b border-border/50">
+                    <div className="flex items-center gap-2 text-sm font-medium">
+                      <FileText className="h-4 w-4 text-muted-foreground" />
+                      Generated Contract PDF
+                    </div>
+                    <span className="text-xs text-muted-foreground">System generated</span>
+                  </div>
+                  <div className="px-4 py-2">
+                    {generatedDocs.length === 0 ? (
+                      <p className="text-xs text-muted-foreground py-1">
+                        No PDF generated yet. Use the "Generate PDF" action above.
                       </p>
-                      {doc.fileName && (
-                        <p className="text-xs text-muted-foreground">{doc.fileName}</p>
-                      )}
+                    ) : (
+                      <ul className="space-y-1.5 py-1">
+                        {generatedDocs.map((doc) => (
+                          <li key={doc.id} className="flex items-center justify-between text-sm">
+                            <div>
+                              <span className="font-medium">{doc.fileName ?? "contract.pdf"}</span>
+                              <span className="ml-2 text-xs text-muted-foreground">
+                                {fmtDate(doc.uploadedAt)}
+                              </span>
+                            </div>
+                            {doc.fileUrl && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 gap-1.5 text-xs"
+                                onClick={() => window.open(doc.fileUrl!, "_blank")}
+                              >
+                                <Download className="h-3 w-3" /> Open
+                              </Button>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* 5b. Uploadable document kinds */}
+            {ORDERED_UPLOAD_KINDS.map((kind) => {
+              const meta = UPLOAD_KIND_META[kind];
+              const kindDocs = documents
+                .filter((d) => d.documentKind === kind)
+                .sort(
+                  (a, b) =>
+                    new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime()
+                );
+              const isUploading = uploadingKind === kind && uploadDocumentMutation.isPending;
+
+              async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+                const file = e.target.files?.[0];
+                if (!file || !id) return;
+
+                if (!meta.mimeTypes.includes(file.type)) {
+                  toast.error("Invalid file type", {
+                    description: `Accepted: ${meta.acceptAttr}`,
+                  });
+                  e.target.value = "";
+                  return;
+                }
+                if (file.size > meta.maxSizeMb * 1024 * 1024) {
+                  toast.error("File too large", {
+                    description: `Maximum size is ${meta.maxSizeMb} MB`,
+                  });
+                  e.target.value = "";
+                  return;
+                }
+
+                setUploadingKind(kind);
+                try {
+                  const fileBase64 = await readFileAsBase64(file);
+                  await uploadDocumentMutation.mutateAsync({
+                    contractId: id,
+                    documentKind: kind,
+                    fileBase64,
+                    fileName: file.name,
+                    mimeType: file.type,
+                    fileSize: file.size,
+                  });
+                } finally {
+                  setUploadingKind(null);
+                  e.target.value = "";
+                }
+              }
+
+              return (
+                <div key={kind} className="rounded-lg border bg-muted/20">
+                  <div className="flex items-center justify-between px-4 py-2.5 border-b border-border/50">
+                    <div className="flex items-center gap-2 text-sm font-medium">
+                      <span className="text-muted-foreground">{meta.icon}</span>
+                      {meta.label}
+                    </div>
+                    <div>
+                      <input
+                        ref={(el) => { fileInputRefs.current[kind] = el; }}
+                        type="file"
+                        accept={meta.acceptAttr}
+                        className="hidden"
+                        onChange={handleFileChange}
+                      />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 gap-1.5 text-xs"
+                        disabled={isUploading}
+                        onClick={() => fileInputRefs.current[kind]?.click()}
+                      >
+                        {isUploading ? (
+                          <><Loader2 className="h-3 w-3 animate-spin" /> Uploading…</>
+                        ) : (
+                          <><Upload className="h-3 w-3" /> Upload</>
+                        )}
+                      </Button>
                     </div>
                   </div>
-                  {doc.fileUrl && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="gap-1.5 h-7 text-xs"
-                      onClick={() => window.open(doc.fileUrl!, "_blank")}
-                    >
-                      <Download className="h-3 w-3" /> Open
-                    </Button>
-                  )}
+                  <div className="px-4 py-2">
+                    {kindDocs.length === 0 ? (
+                      <p className="text-xs text-muted-foreground py-1 italic">
+                        {meta.description} — no file uploaded yet.
+                      </p>
+                    ) : (
+                      <ul className="space-y-1.5 py-1">
+                        {kindDocs.map((doc, idx) => (
+                          <li
+                            key={doc.id}
+                            className="flex items-center justify-between text-sm"
+                          >
+                            <div className="min-w-0 flex-1">
+                              <span className="font-medium truncate block max-w-xs">
+                                {doc.fileName ?? "document"}
+                              </span>
+                              <span className="text-xs text-muted-foreground">
+                                Uploaded {fmtDate(doc.uploadedAt)}
+                                {idx === 0 && (
+                                  <span className="ml-2 inline-flex items-center rounded-full bg-emerald-100 px-1.5 py-0 text-[10px] font-medium text-emerald-700">
+                                    latest
+                                  </span>
+                                )}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-1 shrink-0">
+                              {doc.fileUrl && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 gap-1.5 text-xs"
+                                  onClick={() => window.open(doc.fileUrl!, "_blank")}
+                                >
+                                  <Download className="h-3 w-3" /> Open
+                                </Button>
+                              )}
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10"
+                                disabled={deleteDocumentMutation.isPending}
+                                onClick={() => {
+                                  if (!confirm(`Remove "${doc.fileName ?? "this document"}"?`)) return;
+                                  deleteDocumentMutation.mutate({ documentId: doc.id });
+                                }}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
                 </div>
-              ))}
-            </div>
-          )}
-          <div className="mt-3 text-xs text-muted-foreground">
-            Signed copy upload coming soon (PR 5).
+              );
+            })}
+
           </div>
         </SectionCard>
 

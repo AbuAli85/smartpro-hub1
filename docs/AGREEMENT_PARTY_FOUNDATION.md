@@ -1,5 +1,7 @@
 # Agreement & party foundation
 
+For rollout, backfill, QA matrix, and deployment order see [Phase 2 QA & deployment](./AGREEMENT_PHASE2_QA_AND_DEPLOYMENT.md).
+
 ## Problem
 
 Promoter contracts were modeled only as “company A / company B” pickers, with no canonical **business party** identity separate from a **platform tenant**. In practice:
@@ -32,7 +34,10 @@ Promoter contracts were modeled only as “company A / company B” pickers, wit
 |-----------|------|
 | `promoterFlowClientOptions` | Unified client list for employer flow. |
 | `createManagedExternalClient` | Employer creates managed external party. |
-| `linkPartyToPlatformCompany` | Platform admin links party ↔ tenant. |
+| `linkPartyToPlatformCompany` | Platform admin links party ↔ tenant (after preview; warnings require ack codes). |
+| `previewPartyPlatformLink` | Block/warn assessment before link. |
+| `adminListBusinessParties` | Admin list (unlinked managed or all). |
+| `adminSearchCompaniesForPartyLink` | Typeahead for tenant selection. |
 | `createPromoterAssignment` | Accepts `creationPerspective`, `clientKind`, `clientCompanyId` XOR `clientPartyId`. |
 | `listEmployerEmployees` | `forEmployerPerspective` skips client-anchored RBAC when the client is external. |
 

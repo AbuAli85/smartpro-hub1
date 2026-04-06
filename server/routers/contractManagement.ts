@@ -49,12 +49,16 @@ import {
 import { storagePut, fileUrlMatchesConfiguredStorage } from "../storage";
 import { ENV } from "../_core/env";
 import {
+  assessPartyLinkSafety,
   createManagedExternalParty,
   ensurePartyForLinkedCompany,
+  executePartyLinkToPlatformCompany,
   getPartyById,
-  linkPartyToPlatformCompany,
+  listBusinessPartiesForAdmin,
   listPromoterFlowClientOptions,
+  searchActiveCompaniesForPartyLink,
 } from "../modules/agreementParties/party.repository";
+import { activeCompanyInvolvedInContract } from "../modules/contractManagement/contractAccess";
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 
@@ -95,22 +99,6 @@ async function requireCanManageContracts(
       message: "Only company administrators and HR admins can manage contracts.",
     });
   }
-}
-
-/** True if the user's active company is involved in the contract (header + parties + promoter employer). */
-function activeCompanyInvolvedInContract(
-  activeId: number,
-  contract: { companyId: number | null },
-  parties: { companyId: number | null }[],
-  promoterEmployerCompanyId: number | null | undefined
-): boolean {
-  const ids = new Set<number>();
-  if (contract.companyId != null) ids.add(contract.companyId);
-  for (const p of parties) {
-    if (p.companyId != null) ids.add(p.companyId);
-  }
-  if (promoterEmployerCompanyId != null) ids.add(promoterEmployerCompanyId);
-  return ids.has(activeId);
 }
 
 // ─── ZOD SCHEMAS ──────────────────────────────────────────────────────────────
@@ -387,14 +375,75 @@ export const contractManagementRouter = router({
     }),
 
   /**
-   * Link a business_party (usually external-managed) to a platform company.
-   * Platform admins only in this phase — avoids mistaken merges across tenants.
+   * Preview link safety (blocks + warnings). Platform admins only.
+   */
+  previewPartyPlatformLink: protectedProcedure
+    .input(
+      z.object({
+        partyId: z.string().uuid(),
+        platformCompanyId: z.number().int().positive(),
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      if (!canAccessGlobalAdminProcedures(ctx.user)) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Only platform administrators can review party links" });
+      }
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      return assessPartyLinkSafety(db, input.partyId, input.platformCompanyId);
+    }),
+
+  /** Platform admin: list business parties for review (unlinked managed externals or full list). */
+  adminListBusinessParties: protectedProcedure
+    .input(
+      z.object({
+        filter: z.enum(["unlinked_managed", "all"]),
+        search: z.string().optional(),
+        limit: z.number().int().min(1).max(100).default(50),
+        offset: z.number().int().min(0).default(0),
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      if (!canAccessGlobalAdminProcedures(ctx.user)) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Only platform administrators" });
+      }
+      const db = await getDb();
+      if (!db) return [];
+      return listBusinessPartiesForAdmin(db, {
+        filter: input.filter,
+        search: input.search,
+        limit: input.limit,
+        offset: input.offset,
+      });
+    }),
+
+  /** Typeahead for linking — active companies by name. */
+  adminSearchCompaniesForPartyLink: protectedProcedure
+    .input(
+      z.object({
+        q: z.string().default(""),
+        limit: z.number().int().min(1).max(50).default(25),
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      if (!canAccessGlobalAdminProcedures(ctx.user)) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Only platform administrators" });
+      }
+      const db = await getDb();
+      if (!db) return [];
+      return searchActiveCompaniesForPartyLink(db, input.q, input.limit);
+    }),
+
+  /**
+   * Link a business_party to a platform company after preview + optional warning acknowledgement.
+   * Pass `acknowledgedWarningCodes` including every code from `previewPartyPlatformLink.warningCodes` when warnings are shown.
    */
   linkPartyToPlatformCompany: protectedProcedure
     .input(
       z.object({
         partyId: z.string().uuid(),
         platformCompanyId: z.number().int().positive(),
+        acknowledgedWarningCodes: z.array(z.string()).optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -403,8 +452,28 @@ export const contractManagementRouter = router({
       }
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+
+      const assessment = await assessPartyLinkSafety(db, input.partyId, input.platformCompanyId);
+      if (!assessment.canProceed) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: assessment.blockingReasons.join(" "),
+        });
+      }
+
+      const ack = new Set(input.acknowledgedWarningCodes ?? []);
+      const missing = assessment.warningCodes.filter((c) => !ack.has(c));
+      if (assessment.warningCodes.length > 0 && missing.length > 0) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message:
+            `Acknowledge warnings before linking. Missing codes: ${missing.join(", ")}. ` +
+            `Warnings: ${assessment.warnings.join(" | ")}`,
+        });
+      }
+
       try {
-        await linkPartyToPlatformCompany(db, {
+        await executePartyLinkToPlatformCompany(db, {
           partyId: input.partyId,
           platformCompanyId: input.platformCompanyId,
           actorId: ctx.user.id,
@@ -1083,6 +1152,10 @@ export const contractManagementRouter = router({
           jobTitleAr: promoterDetail.jobTitleAr ?? null,
         },
         actorName: actor.name,
+        auditExtra: {
+          lifecycle: "renewal",
+          renewedFromContractId: input.originalContractId,
+        },
       });
 
       // Link the renewal on the new contract

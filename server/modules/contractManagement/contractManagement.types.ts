@@ -361,6 +361,9 @@ export type OutsourcingContractRow = {
 
 // ─── DOCUMENT CONTEXT FOR PDF GENERATION ─────────────────────────────────────
 // Used by the document generation service to build placeholder values.
+//
+// Agreement lifecycle: renewals carry `party_id` via `createOutsourcingContractFull` from prior rows.
+// Future amendments may use `outsourcing_contracts.metadata` keys such as `amendsContractId` (staged).
 
 export type OutsourcingContractDocumentContext = {
   first_party: {

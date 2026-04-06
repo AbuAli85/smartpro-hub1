@@ -30,7 +30,20 @@ import {
   ShieldCheck,
   Activity,
   ArrowUpRight,
+  Link2,
+  Loader2,
 } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -532,11 +545,259 @@ function UsersView() {
   );
 }
 
+// ─── Party linking (platform admins) ───────────────────────────────────────
+
+function PartyLinkingView() {
+  const [filter, setFilter] = useState<"unlinked_managed" | "all">("unlinked_managed");
+  const [search, setSearch] = useState("");
+  const { data: rows = [], isLoading, refetch } = trpc.contractManagement.adminListBusinessParties.useQuery({
+    filter,
+    search: search.trim() || undefined,
+    limit: 50,
+    offset: 0,
+  });
+
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [linkPartyId, setLinkPartyId] = useState<string | null>(null);
+  const [linkPartyLabel, setLinkPartyLabel] = useState("");
+  const [companyQ, setCompanyQ] = useState("");
+  const [selectedCompanyId, setSelectedCompanyId] = useState<number | null>(null);
+  const [ack, setAck] = useState<Record<string, boolean>>({});
+
+  const { data: companyHits = [] } = trpc.contractManagement.adminSearchCompaniesForPartyLink.useQuery(
+    { q: companyQ, limit: 25 },
+    { enabled: dialogOpen }
+  );
+
+  const preview = trpc.contractManagement.previewPartyPlatformLink.useQuery(
+    {
+      partyId: linkPartyId ?? "",
+      platformCompanyId: selectedCompanyId ?? 0,
+    },
+    { enabled: dialogOpen && !!linkPartyId && selectedCompanyId != null && selectedCompanyId > 0 }
+  );
+
+  const linkMut = trpc.contractManagement.linkPartyToPlatformCompany.useMutation({
+    onSuccess: () => {
+      setDialogOpen(false);
+      setLinkPartyId(null);
+      setSelectedCompanyId(null);
+      setAck({});
+      void refetch();
+    },
+  });
+
+  function openLink(row: { id: string; displayNameEn: string }) {
+    setLinkPartyId(row.id);
+    setLinkPartyLabel(row.displayNameEn);
+    setCompanyQ("");
+    setSelectedCompanyId(null);
+    setAck({});
+    setDialogOpen(true);
+  }
+
+  const warningCodes = preview.data?.warningCodes ?? [];
+  const allAcked = warningCodes.every((c) => ack[c]);
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Link2 className="h-4 w-4" />
+            Business parties — link externals to tenants
+          </CardTitle>
+          <p className="text-xs text-muted-foreground">
+            Review employer-managed parties without a platform link. Preview checks registration and name similarity
+            before linking. Contracts that used this party as external client get header and party{" "}
+            <code className="text-[11px]">company_id</code> backfilled.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex flex-wrap gap-2 items-center">
+            <Select value={filter} onValueChange={(v) => setFilter(v as "unlinked_managed" | "all")}>
+              <SelectTrigger className="w-[200px] h-9 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="unlinked_managed">Unlinked (managed external)</SelectItem>
+                <SelectItem value="all">All parties</SelectItem>
+              </SelectContent>
+            </Select>
+            <Input
+              placeholder="Search name / reg…"
+              className="h-9 max-w-xs text-sm"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+
+          {isLoading ? (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground py-8 justify-center">
+              <Loader2 className="h-4 w-4 animate-spin" /> Loading…
+            </div>
+          ) : (
+            <div className="rounded-md border overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b bg-muted/40 text-left text-xs text-muted-foreground">
+                    <th className="p-2 font-medium">Party</th>
+                    <th className="p-2 font-medium">Reg #</th>
+                    <th className="p-2 font-medium">Managed by co.</th>
+                    <th className="p-2 font-medium">Linked tenant</th>
+                    <th className="p-2 font-medium w-24" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((r) => (
+                    <tr key={r.id} className="border-b border-border/50 hover:bg-muted/20">
+                      <td className="p-2">
+                        <div className="font-medium">{r.displayNameEn}</div>
+                        {r.displayNameAr && (
+                          <div className="text-xs text-muted-foreground" dir="rtl">
+                            {r.displayNameAr}
+                          </div>
+                        )}
+                        <div className="text-[10px] font-mono text-muted-foreground mt-0.5">{r.id.slice(0, 8)}…</div>
+                      </td>
+                      <td className="p-2 font-mono text-xs">{r.registrationNumber ?? "—"}</td>
+                      <td className="p-2 text-xs">{r.managedByCompanyId ?? "—"}</td>
+                      <td className="p-2 text-xs">
+                        {r.linkedCompanyId != null
+                          ? `${r.linkedCompanyName ?? "?"} (#${r.linkedCompanyId})`
+                          : "—"}
+                      </td>
+                      <td className="p-2">
+                        {r.linkedCompanyId == null && r.managedByCompanyId != null && (
+                          <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => openLink(r)}>
+                            Link…
+                          </Button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {rows.length === 0 && (
+                <p className="text-sm text-muted-foreground text-center py-8">No rows match this filter.</p>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Link party to platform company</DialogTitle>
+            <DialogDescription>
+              Party: <strong>{linkPartyLabel}</strong>. Choose the tenant that represents the same legal entity.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="space-y-1">
+              <Label className="text-xs">Search companies</Label>
+              <Input
+                className="h-9"
+                placeholder="Type name…"
+                value={companyQ}
+                onChange={(e) => setCompanyQ(e.target.value)}
+              />
+            </div>
+            <div className="max-h-40 overflow-y-auto rounded border divide-y">
+              {companyHits.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  className={`w-full text-left px-3 py-2 text-sm hover:bg-muted/50 ${
+                    selectedCompanyId === c.id ? "bg-primary/10" : ""
+                  }`}
+                  onClick={() => setSelectedCompanyId(c.id)}
+                >
+                  <span className="font-medium">{c.name}</span>
+                  <span className="text-muted-foreground text-xs ml-2">#{c.id}</span>
+                </button>
+              ))}
+            </div>
+
+            {preview.isFetching && (
+              <p className="text-xs text-muted-foreground flex items-center gap-1">
+                <Loader2 className="h-3 w-3 animate-spin" /> Checking safety…
+              </p>
+            )}
+
+            {preview.data && !preview.data.canProceed && (
+              <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
+                {preview.data.blockingReasons.map((b, i) => (
+                  <p key={i}>{b}</p>
+                ))}
+              </div>
+            )}
+
+            {preview.data?.canProceed && preview.data.warnings.length > 0 && (
+              <div className="rounded-md border border-amber-500/40 bg-amber-500/5 p-3 space-y-2 text-sm">
+                <p className="font-medium text-amber-900 dark:text-amber-100">Warnings — confirm before linking</p>
+                {preview.data.warnings.map((w, i) => (
+                  <p key={i} className="text-muted-foreground">
+                    {w}
+                  </p>
+                ))}
+                {warningCodes.map((code) => (
+                  <label key={code} className="flex items-center gap-2 text-xs cursor-pointer">
+                    <Checkbox
+                      checked={!!ack[code]}
+                      onCheckedChange={(v) => setAck((a) => ({ ...a, [code]: v === true }))}
+                    />
+                    <span>
+                      I acknowledge: <code>{code}</code>
+                    </span>
+                  </label>
+                ))}
+              </div>
+            )}
+
+            {preview.data?.canProceed && preview.data.warnings.length === 0 && selectedCompanyId != null && (
+              <p className="text-xs text-emerald-700 dark:text-emerald-400">No warnings — safe to link.</p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" type="button" onClick={() => setDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              disabled={
+                !linkPartyId ||
+                selectedCompanyId == null ||
+                !preview.data?.canProceed ||
+                (warningCodes.length > 0 && !allAcked) ||
+                linkMut.isPending
+              }
+              onClick={() => {
+                if (!linkPartyId || selectedCompanyId == null) return;
+                linkMut.mutate({
+                  partyId: linkPartyId,
+                  platformCompanyId: selectedCompanyId,
+                  acknowledgedWarningCodes:
+                    warningCodes.length > 0 ? warningCodes.filter((c) => ack[c]) : undefined,
+                });
+              }}
+            >
+              {linkMut.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+              Confirm link
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
 // ─── Role access map ─────────────────────────────────────────────────────────
 // Defines which tabs each platform role can see
 const ROLE_TAB_ACCESS: Record<string, string[]> = {
-  super_admin:      ["finance", "regional", "users"],
-  platform_admin:   ["finance", "regional", "users"],
+  super_admin:      ["finance", "regional", "users", "parties"],
+  platform_admin:   ["finance", "regional", "users", "parties"],
   finance_admin:    ["finance"],
   regional_manager: ["regional"],
   client_services:  ["users"],
@@ -617,6 +878,12 @@ export default function PlatformOpsPage() {
               Users
             </TabsTrigger>
           )}
+          {allowedTabs.includes("parties") && (
+            <TabsTrigger value="parties" className="text-xs gap-1.5">
+              <Link2 size={13} />
+              Parties
+            </TabsTrigger>
+          )}
         </TabsList>
 
         {allowedTabs.includes("finance") && (
@@ -632,6 +899,11 @@ export default function PlatformOpsPage() {
         {allowedTabs.includes("users") && (
           <TabsContent value="users" className="mt-4">
             <UsersView />
+          </TabsContent>
+        )}
+        {allowedTabs.includes("parties") && (
+          <TabsContent value="parties" className="mt-4">
+            <PartyLinkingView />
           </TabsContent>
         )}
       </Tabs>

@@ -1,15 +1,19 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Separator } from "@/components/ui/separator";
+import { DateInput } from "@/components/ui/date-input";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogFooter,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import {
   Select,
@@ -40,6 +44,7 @@ import {
   AlertCircle,
   RefreshCw,
 } from "lucide-react";
+import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 
 type AssignmentRow = {
   id: string;
@@ -64,16 +69,75 @@ function formatDate(d: Date | string | null | undefined) {
 }
 
 export default function PromoterAssignmentsPage() {
+  const { activeCompanyId } = useActiveCompany();
   const [showCreate, setShowCreate] = useState(false);
   const [generatingId, setGeneratingId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
 
-  // Data queries
-  const { data: assignments = [], isLoading, refetch } = trpc.promoterAssignments.list.useQuery();
-  const { data: allCompanies = [] } = trpc.promoterAssignments.listAvailableCompanies.useQuery();
-  const { data: allEmployees = [] } = trpc.promoterAssignments.listAvailableEmployees.useQuery({});
+  const [clientCompanyId, setClientCompanyId] = useState<number | "">("");
+  const [employerCompanyId, setEmployerCompanyId] = useState<number | "">("");
+  const [promoterEmployeeId, setPromoterEmployeeId] = useState<number | "">("");
+  const [clientSiteId, setClientSiteId] = useState<number | "">("");
+  const [form, setForm] = useState({
+    locationEn: "",
+    locationAr: "",
+    startDate: "",
+    endDate: "",
+    contractReferenceNumber: "",
+    issueDate: "",
+    status: "active" as "active" | "inactive" | "expired",
+  });
 
-  // Mutations
+  const {
+    data: assignments = [],
+    isLoading,
+    isFetching,
+    isError,
+    error,
+    refetch,
+  } = trpc.promoterAssignments.list.useQuery(undefined, {
+    retry: 1,
+  });
+
+  const pickersInput =
+    typeof clientCompanyId === "number" ? { clientCompanyId } : undefined;
+  const { data: pickers, isLoading: pickersLoading } =
+    trpc.promoterAssignments.companiesForPartyPickers.useQuery(pickersInput, {
+      enabled: showCreate && activeCompanyId != null,
+    });
+
+  const { data: clientSites = [], isLoading: sitesLoading } =
+    trpc.promoterAssignments.listClientWorkLocations.useQuery(
+      { clientCompanyId: typeof clientCompanyId === "number" ? clientCompanyId : 0 },
+      {
+        enabled: showCreate && typeof clientCompanyId === "number" && clientCompanyId > 0,
+      }
+    );
+
+  const clientIdForQueries =
+    typeof clientCompanyId === "number" ? clientCompanyId : activeCompanyId ?? undefined;
+
+  const { data: employerEmployees = [], isLoading: employeesLoading } =
+    trpc.promoterAssignments.listEmployerEmployees.useQuery(
+      {
+        employerCompanyId: typeof employerCompanyId === "number" ? employerCompanyId : 0,
+        clientCompanyId: clientIdForQueries,
+      },
+      {
+        enabled:
+          showCreate &&
+          typeof employerCompanyId === "number" &&
+          employerCompanyId > 0 &&
+          clientIdForQueries != null,
+      }
+    );
+
+  useEffect(() => {
+    if (showCreate && activeCompanyId != null && clientCompanyId === "") {
+      setClientCompanyId(activeCompanyId);
+    }
+  }, [showCreate, activeCompanyId, clientCompanyId]);
+
   const createMutation = trpc.promoterAssignments.create.useMutation({
     onSuccess: () => {
       toast.success("Assignment created", { description: "Promoter assignment saved successfully." });
@@ -104,27 +168,14 @@ export default function PromoterAssignmentsPage() {
     },
   });
 
-  // Form state
-  const [form, setForm] = useState({
-    firstPartyCompanyId: "",
-    secondPartyCompanyId: "",
-    promoterEmployeeId: "",
-    locationAr: "",
-    locationEn: "",
-    startDate: "",
-    endDate: "",
-    contractReferenceNumber: "",
-    issueDate: "",
-    status: "active" as "active" | "inactive" | "expired",
-  });
-
   function resetForm() {
+    setClientCompanyId("");
+    setEmployerCompanyId("");
+    setPromoterEmployeeId("");
+    setClientSiteId("");
     setForm({
-      firstPartyCompanyId: "",
-      secondPartyCompanyId: "",
-      promoterEmployeeId: "",
-      locationAr: "",
       locationEn: "",
+      locationAr: "",
       startDate: "",
       endDate: "",
       contractReferenceNumber: "",
@@ -133,22 +184,40 @@ export default function PromoterAssignmentsPage() {
     });
   }
 
+  function openCreate() {
+    resetForm();
+    setShowCreate(true);
+  }
+
+  const canSubmit =
+    typeof clientCompanyId === "number" &&
+    typeof employerCompanyId === "number" &&
+    typeof promoterEmployeeId === "number" &&
+    form.locationEn.trim().length > 0 &&
+    form.locationAr.trim().length > 0 &&
+    form.startDate &&
+    form.endDate &&
+    clientCompanyId !== employerCompanyId;
+
   function handleCreate() {
-    if (!form.firstPartyCompanyId || !form.secondPartyCompanyId || !form.promoterEmployeeId) {
-      toast.error("Missing fields", { description: "Please fill all required fields." });
+    if (!canSubmit) {
+      toast.error("Missing fields", {
+        description: "Select both parties, promoter, locations, and dates.",
+      });
       return;
     }
     createMutation.mutate({
-      firstPartyCompanyId: Number(form.firstPartyCompanyId),
-      secondPartyCompanyId: Number(form.secondPartyCompanyId),
-      promoterEmployeeId: Number(form.promoterEmployeeId),
-      locationAr: form.locationAr,
-      locationEn: form.locationEn,
+      clientCompanyId,
+      employerCompanyId,
+      promoterEmployeeId,
+      locationAr: form.locationAr.trim(),
+      locationEn: form.locationEn.trim(),
       startDate: form.startDate,
       endDate: form.endDate,
-      status: form.status,
-      contractReferenceNumber: form.contractReferenceNumber || undefined,
+      contractReferenceNumber: form.contractReferenceNumber.trim() || undefined,
       issueDate: form.issueDate || undefined,
+      clientSiteId: typeof clientSiteId === "number" ? clientSiteId : undefined,
+      status: form.status,
     });
   }
 
@@ -166,9 +235,9 @@ export default function PromoterAssignmentsPage() {
     const q = search.toLowerCase();
     return (assignments as AssignmentRow[]).filter(
       (a) =>
-        a.promoterName.toLowerCase().includes(q) ||
-        a.firstPartyName.toLowerCase().includes(q) ||
-        a.secondPartyName.toLowerCase().includes(q) ||
+        (a.promoterName ?? "").toLowerCase().includes(q) ||
+        (a.firstPartyName ?? "").toLowerCase().includes(q) ||
+        (a.secondPartyName ?? "").toLowerCase().includes(q) ||
         (a.locationEn ?? "").toLowerCase().includes(q) ||
         (a.contractReferenceNumber ?? "").toLowerCase().includes(q)
     );
@@ -180,306 +249,486 @@ export default function PromoterAssignmentsPage() {
     expired: "bg-red-500/15 text-red-500 border-red-500/30",
   };
 
+  const assignmentRows = assignments as AssignmentRow[];
+
   return (
-    <div className="p-6 space-y-6 max-w-7xl mx-auto">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            <FileText className="h-6 w-6 text-primary" />
-            Promoter Assignments
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Manage promoter assignment contracts between companies. Generate bilingual PDF contracts instantly.
-          </p>
-        </div>
-        <Button onClick={() => setShowCreate(true)} className="gap-2 shrink-0">
-          <Plus className="h-4 w-4" />
-          New Assignment
-        </Button>
-      </div>
-
-      {/* Stats bar */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {[
-          { label: "Total", value: assignments.length, icon: <FileText className="h-4 w-4" /> },
-          { label: "Active", value: (assignments as AssignmentRow[]).filter((a) => a.status === "active").length, icon: <Users className="h-4 w-4 text-emerald-500" /> },
-          { label: "Expired", value: (assignments as AssignmentRow[]).filter((a) => a.status === "expired").length, icon: <AlertCircle className="h-4 w-4 text-red-500" /> },
-          { label: "Companies", value: new Set((assignments as AssignmentRow[]).flatMap((a) => [a.firstPartyCompanyId, a.secondPartyCompanyId])).size, icon: <Building2 className="h-4 w-4 text-blue-500" /> },
-        ].map((s) => (
-          <div key={s.label} className="rounded-lg border bg-card p-4 flex items-center gap-3">
-            <div className="p-2 rounded-md bg-muted">{s.icon}</div>
-            <div>
-              <p className="text-2xl font-bold">{s.value}</p>
-              <p className="text-xs text-muted-foreground">{s.label}</p>
-            </div>
+    <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
+      <div className="p-6 space-y-6 max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between border-b border-border/60 pb-6">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+              <FileText className="h-6 w-6 text-primary" />
+              Promoter Assignments
+            </h1>
+            <p className="text-sm text-muted-foreground mt-1 max-w-2xl">
+              Manage promoter assignment contracts between companies. The client (first party) hosts the work site; the
+              employer (second party) supplies the promoter employee. Generate bilingual PDF contracts instantly.
+            </p>
           </div>
-        ))}
-      </div>
+          <Button onClick={openCreate} className="gap-2 shrink-0 self-start">
+            <Plus className="h-4 w-4" />
+            New Assignment
+          </Button>
+        </div>
 
-      {/* Search + Refresh */}
-      <div className="flex items-center gap-3">
-        <Input
-          placeholder="Search by promoter, company, or location…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="max-w-sm"
-        />
-        <Button variant="outline" size="icon" onClick={() => refetch()} title="Refresh">
-          <RefreshCw className="h-4 w-4" />
-        </Button>
-      </div>
+        {isError && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription className="flex flex-wrap items-center gap-2">
+              <span>{error?.message ?? "Could not load assignments."}</span>
+              <Button type="button" variant="outline" size="sm" onClick={() => refetch()}>
+                Retry
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
 
-      {/* Table */}
-      <div className="rounded-lg border overflow-hidden">
-        <Table>
-          <TableHeader>
-            <TableRow className="bg-muted/50">
-              <TableHead>Promoter</TableHead>
-              <TableHead>First Party</TableHead>
-              <TableHead>Second Party</TableHead>
-              <TableHead>Location</TableHead>
-              <TableHead>Period</TableHead>
-              <TableHead>Ref #</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isLoading ? (
-              <TableRow>
-                <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
-                  <Loader2 className="h-5 w-5 animate-spin mx-auto mb-2" />
-                  Loading assignments…
-                </TableCell>
+        {/* Stats bar */}
+        <div
+          className={`grid grid-cols-2 sm:grid-cols-4 gap-3 transition-opacity ${isFetching && !isLoading ? "opacity-80" : ""}`}
+        >
+          {[
+            { label: "Total", value: assignmentRows.length, icon: <FileText className="h-4 w-4" /> },
+            {
+              label: "Active",
+              value: assignmentRows.filter((a) => a.status === "active").length,
+              icon: <Users className="h-4 w-4 text-emerald-500" />,
+            },
+            {
+              label: "Expired",
+              value: assignmentRows.filter((a) => a.status === "expired").length,
+              icon: <AlertCircle className="h-4 w-4 text-red-500" />,
+            },
+            {
+              label: "Companies",
+              value: new Set(assignmentRows.flatMap((a) => [a.firstPartyCompanyId, a.secondPartyCompanyId])).size,
+              icon: <Building2 className="h-4 w-4 text-blue-500" />,
+            },
+          ].map((s) => (
+            <div
+              key={s.label}
+              className="rounded-xl border bg-card/80 shadow-sm backdrop-blur-sm p-4 flex items-center gap-3"
+            >
+              <div className="p-2 rounded-lg bg-muted/80">{s.icon}</div>
+              <div>
+                <p className="text-2xl font-bold tabular-nums">{s.value}</p>
+                <p className="text-xs text-muted-foreground">{s.label}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Search + Refresh */}
+        <div className="flex flex-wrap items-center gap-3">
+          <Input
+            placeholder="Search by promoter, company, or location…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="max-w-sm min-w-[200px]"
+          />
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => refetch()}
+            disabled={isFetching}
+            title="Refresh"
+          >
+            <RefreshCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
+          </Button>
+        </div>
+
+        {/* Table */}
+        <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-muted/50 hover:bg-muted/50">
+                <TableHead className="font-semibold">Promoter</TableHead>
+                <TableHead className="font-semibold">First Party</TableHead>
+                <TableHead className="font-semibold">Second Party</TableHead>
+                <TableHead className="font-semibold">Location</TableHead>
+                <TableHead className="font-semibold">Period</TableHead>
+                <TableHead className="font-semibold">Ref #</TableHead>
+                <TableHead className="font-semibold">Status</TableHead>
+                <TableHead className="text-right font-semibold">Actions</TableHead>
               </TableRow>
-            ) : filtered.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={8} className="text-center py-16">
-                  <div className="flex flex-col items-center gap-3 text-muted-foreground">
-                    <FileText className="h-10 w-10 opacity-30" />
-                    <p className="font-medium">No assignments found</p>
-                    <p className="text-sm">Create your first promoter assignment to get started.</p>
-                    <Button size="sm" onClick={() => setShowCreate(true)} className="mt-1 gap-2">
-                      <Plus className="h-4 w-4" /> New Assignment
+            </TableHeader>
+            <TableBody>
+              {isLoading ? (
+                <TableRow>
+                  <TableCell colSpan={8} className="text-center py-16 text-muted-foreground">
+                    <Loader2 className="h-6 w-6 animate-spin mx-auto mb-3" />
+                    <p>Loading assignments…</p>
+                  </TableCell>
+                </TableRow>
+              ) : isError ? (
+                <TableRow>
+                  <TableCell colSpan={8} className="text-center py-16 text-muted-foreground">
+                    <p className="font-medium text-destructive">Unable to load data</p>
+                    <Button variant="outline" size="sm" className="mt-3" onClick={() => refetch()}>
+                      Try again
                     </Button>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ) : (
-              (filtered as AssignmentRow[]).map((a) => (
-                <TableRow key={a.id} className="hover:bg-muted/30">
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">
-                        {a.promoterName.charAt(0).toUpperCase()}
-                      </div>
-                      <span className="font-medium text-sm">{a.promoterName}</span>
-                    </div>
                   </TableCell>
-                  <TableCell className="text-sm">{a.firstPartyName}</TableCell>
-                  <TableCell className="text-sm">{a.secondPartyName}</TableCell>
-                  <TableCell className="text-sm">
-                    <div className="flex items-center gap-1 text-muted-foreground">
-                      <MapPin className="h-3 w-3 shrink-0" />
-                      <span>{a.locationEn ?? "—"}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-sm">
-                    <div className="flex items-center gap-1 text-muted-foreground">
-                      <Calendar className="h-3 w-3 shrink-0" />
-                      <span>{formatDate(a.startDate)} → {formatDate(a.endDate)}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
-                    {a.contractReferenceNumber ?? "—"}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="outline" className={`text-xs ${statusColor[a.status] ?? ""}`}>
-                      {a.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center justify-end gap-2">
-                      <Button
-                        size="sm"
-                        variant="default"
-                        className="gap-1.5 text-xs"
-                        disabled={generatingId === a.id}
-                        onClick={() => handleGenerate(a)}
-                        title="Generate bilingual PDF contract"
-                      >
-                        {generatingId === a.id ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                          <Download className="h-3.5 w-3.5" />
-                        )}
-                        {generatingId === a.id ? "Generating…" : "Generate Contract"}
-                      </Button>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="h-8 w-8 text-destructive hover:text-destructive"
-                        onClick={() => {
-                          if (confirm("Delete this assignment?")) deleteMutation.mutate({ id: a.id });
-                        }}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
+                </TableRow>
+              ) : filtered.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={8} className="text-center py-16">
+                    <div className="flex flex-col items-center gap-3 text-muted-foreground max-w-md mx-auto">
+                      <FileText className="h-12 w-12 opacity-25" />
+                      <p className="font-medium text-foreground">No assignments yet</p>
+                      <p className="text-sm">
+                        {search.trim()
+                          ? "No rows match your search. Clear the filter or try different keywords."
+                          : "Create a promoter assignment to link a client site with an employer’s employee and generate contracts."}
+                      </p>
+                      {!search.trim() && (
+                        <Button size="sm" onClick={openCreate} className="mt-1 gap-2">
+                          <Plus className="h-4 w-4" /> New Assignment
+                        </Button>
+                      )}
                     </div>
                   </TableCell>
                 </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
+              ) : (
+                (filtered as AssignmentRow[]).map((a) => (
+                  <TableRow key={a.id} className="hover:bg-muted/30">
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary shrink-0">
+                          {(a.promoterName || "?").charAt(0).toUpperCase()}
+                        </div>
+                        <span className="font-medium text-sm">{a.promoterName || "—"}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-sm">{a.firstPartyName}</TableCell>
+                    <TableCell className="text-sm">{a.secondPartyName}</TableCell>
+                    <TableCell className="text-sm">
+                      <div className="flex items-start gap-1.5 text-muted-foreground">
+                        <MapPin className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                        <span className="line-clamp-2">{a.locationEn ?? "—"}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-sm whitespace-nowrap">
+                      <div className="flex items-center gap-1 text-muted-foreground">
+                        <Calendar className="h-3.5 w-3.5 shrink-0" />
+                        <span>
+                          {formatDate(a.startDate)} → {formatDate(a.endDate)}
+                        </span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground font-mono text-xs">
+                      {a.contractReferenceNumber ?? "—"}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className={`text-xs capitalize ${statusColor[a.status] ?? ""}`}>
+                        {a.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center justify-end gap-2">
+                        <Button
+                          size="sm"
+                          variant="default"
+                          className="gap-1.5 text-xs"
+                          disabled={generatingId === a.id}
+                          onClick={() => handleGenerate(a)}
+                          title="Generate bilingual PDF contract"
+                        >
+                          {generatingId === a.id ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Download className="h-3.5 w-3.5" />
+                          )}
+                          {generatingId === a.id ? "Generating…" : "Contract"}
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-8 w-8 text-destructive hover:text-destructive"
+                          onClick={() => {
+                            if (confirm("Delete this assignment?")) deleteMutation.mutate({ id: a.id });
+                          }}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
       </div>
 
       {/* Create Dialog */}
-      <Dialog open={showCreate} onOpenChange={(v) => { setShowCreate(v); if (!v) resetForm(); }}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Plus className="h-5 w-5" />
-              New Promoter Assignment
-            </DialogTitle>
-          </DialogHeader>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-2">
-            {/* First Party */}
-            <div className="space-y-1.5">
-              <Label>First Party (Company) <span className="text-destructive">*</span></Label>
-              <Select value={form.firstPartyCompanyId} onValueChange={(v) => setForm((f) => ({ ...f, firstPartyCompanyId: v }))}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select company…" />
-                </SelectTrigger>
-                <SelectContent>
-                  {allCompanies.map((c) => (
-                    <SelectItem key={c.id} value={String(c.id)}>
-                      {c.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Second Party */}
-            <div className="space-y-1.5">
-              <Label>Second Party (Company) <span className="text-destructive">*</span></Label>
-              <Select value={form.secondPartyCompanyId} onValueChange={(v) => setForm((f) => ({ ...f, secondPartyCompanyId: v }))}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select company…" />
-                </SelectTrigger>
-                <SelectContent>
-                  {allCompanies.map((c) => (
-                    <SelectItem key={c.id} value={String(c.id)}>
-                      {c.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Promoter Employee */}
-            <div className="space-y-1.5 sm:col-span-2">
-              <Label>Promoter Employee <span className="text-destructive">*</span></Label>
-              <Select value={form.promoterEmployeeId} onValueChange={(v) => setForm((f) => ({ ...f, promoterEmployeeId: v }))}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select employee…" />
-                </SelectTrigger>
-                <SelectContent>
-                  {allEmployees.map((e) => (
-                    <SelectItem key={e.id} value={String(e.id)}>
-                      {`${e.firstName ?? ""} ${e.lastName ?? ""}`.trim() || `Employee #${e.id}`}
-                      {e.jobTitle ? ` — ${e.jobTitle}` : ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Location EN */}
-            <div className="space-y-1.5">
-              <Label>Location (English) <span className="text-destructive">*</span></Label>
-              <Input
-                placeholder="e.g. eXtra - Muscat City Centre"
-                value={form.locationEn}
-                onChange={(e) => setForm((f) => ({ ...f, locationEn: e.target.value }))}
-              />
-            </div>
-
-            {/* Location AR */}
-            <div className="space-y-1.5">
-              <Label>Location (Arabic) <span className="text-destructive">*</span></Label>
-              <Input
-                dir="rtl"
-                placeholder="مثال: اكسترا - مسقط سيتي سنتر"
-                value={form.locationAr}
-                onChange={(e) => setForm((f) => ({ ...f, locationAr: e.target.value }))}
-              />
-            </div>
-
-            {/* Start Date */}
-            <div className="space-y-1.5">
-              <Label>Start Date <span className="text-destructive">*</span></Label>
-              <Input
-                type="date"
-                value={form.startDate}
-                onChange={(e) => setForm((f) => ({ ...f, startDate: e.target.value }))}
-              />
-            </div>
-
-            {/* End Date */}
-            <div className="space-y-1.5">
-              <Label>End Date <span className="text-destructive">*</span></Label>
-              <Input
-                type="date"
-                value={form.endDate}
-                onChange={(e) => setForm((f) => ({ ...f, endDate: e.target.value }))}
-              />
-            </div>
-
-            {/* Contract Ref */}
-            <div className="space-y-1.5">
-              <Label>Contract Reference No.</Label>
-              <Input
-                placeholder="e.g. PA-2026-001"
-                value={form.contractReferenceNumber}
-                onChange={(e) => setForm((f) => ({ ...f, contractReferenceNumber: e.target.value }))}
-              />
-            </div>
-
-            {/* Issue Date */}
-            <div className="space-y-1.5">
-              <Label>Issue Date</Label>
-              <Input
-                type="date"
-                value={form.issueDate}
-                onChange={(e) => setForm((f) => ({ ...f, issueDate: e.target.value }))}
-              />
-            </div>
-
-            {/* Status */}
-            <div className="space-y-1.5">
-              <Label>Status</Label>
-              <Select value={form.status} onValueChange={(v) => setForm((f) => ({ ...f, status: v as any }))}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="active">Active</SelectItem>
-                  <SelectItem value="inactive">Inactive</SelectItem>
-                  <SelectItem value="expired">Expired</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+      <Dialog
+        open={showCreate}
+        onOpenChange={(v) => {
+          setShowCreate(v);
+          if (!v) resetForm();
+        }}
+      >
+        <DialogContent className="max-w-3xl max-h-[92vh] overflow-y-auto gap-0 p-0 sm:p-0">
+          <div className="p-6 pb-0 space-y-3">
+            <DialogHeader className="space-y-1 text-left">
+              <DialogTitle className="flex items-center gap-2 text-xl">
+                <Plus className="h-5 w-5" />
+                New Promoter Assignment
+              </DialogTitle>
+              <DialogDescription className="text-sm text-muted-foreground leading-relaxed">
+                <strong className="text-foreground">First party</strong> is the client (work site).{" "}
+                <strong className="text-foreground">Second party</strong> is the employer. The{" "}
+                <strong className="text-foreground">promoter</strong> must be an employee of the employer only.
+              </DialogDescription>
+            </DialogHeader>
           </div>
 
-          <DialogFooter className="pt-2">
-            <Button variant="outline" onClick={() => { setShowCreate(false); resetForm(); }}>
+          <div className="px-6 py-4 space-y-6">
+            <section className="space-y-4">
+              <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                <Building2 className="h-4 w-4 text-primary" />
+                Contract parties
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>First party (client) *</Label>
+                  <Select
+                    value={clientCompanyId === "" ? "" : String(clientCompanyId)}
+                    onValueChange={(v) => {
+                      const n = Number(v);
+                      setClientCompanyId(n);
+                      setClientSiteId("");
+                      setEmployerCompanyId("");
+                      setPromoterEmployeeId("");
+                      setForm((f) => ({ ...f, locationEn: "", locationAr: "" }));
+                    }}
+                    disabled={pickersLoading}
+                  >
+                    <SelectTrigger className="h-11">
+                      <SelectValue placeholder={pickersLoading ? "Loading companies…" : "Select client company…"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(pickers?.clientOptions ?? []).map((c) => (
+                        <SelectItem key={c.id} value={String(c.id)}>
+                          {c.name}
+                          {c.nameAr ? ` · ${c.nameAr}` : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Second party (employer) *</Label>
+                  <Select
+                    value={employerCompanyId === "" ? "" : String(employerCompanyId)}
+                    onValueChange={(v) => {
+                      setEmployerCompanyId(Number(v));
+                      setPromoterEmployeeId("");
+                    }}
+                    disabled={typeof clientCompanyId !== "number"}
+                  >
+                    <SelectTrigger className="h-11">
+                      <SelectValue placeholder="Select employer company…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(pickers?.employerOptions ?? []).map((c) => (
+                        <SelectItem key={c.id} value={String(c.id)}>
+                          {c.name}
+                          {c.nameAr ? ` · ${c.nameAr}` : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </section>
+
+            <Separator />
+
+            <section className="space-y-4">
+              <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                <MapPin className="h-4 w-4 text-primary" />
+                Work location
+              </div>
+              <div className="space-y-2">
+                <Label>Client work location (optional)</Label>
+                <p className="text-xs text-muted-foreground">
+                  Pick a saved attendance site to fill English and Arabic location fields, or type manually below.
+                </p>
+                <Select
+                  value={clientSiteId === "" ? "__manual__" : String(clientSiteId)}
+                  onValueChange={(v) => {
+                    if (v === "__manual__") {
+                      setClientSiteId("");
+                      return;
+                    }
+                    const sid = Number(v);
+                    setClientSiteId(sid);
+                    const site = clientSites.find((s) => s.id === sid);
+                    if (site) {
+                      const en = [site.name, site.location].filter(Boolean).join(" — ");
+                      setForm((f) => ({
+                        ...f,
+                        locationEn: en,
+                        locationAr: site.name,
+                      }));
+                    }
+                  }}
+                  disabled={typeof clientCompanyId !== "number" || sitesLoading}
+                >
+                  <SelectTrigger className="h-11">
+                    <SelectValue
+                      placeholder={sitesLoading ? "Loading sites…" : "Select site or type manually…"}
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__manual__">Type location manually</SelectItem>
+                    {clientSites.map((s) => (
+                      <SelectItem key={s.id} value={String(s.id)}>
+                        {s.name}
+                        {s.location ? ` — ${s.location}` : ""}
+                        {s.clientName ? ` (${s.clientName})` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Location (English) *</Label>
+                  <Input
+                    className="h-11"
+                    placeholder="e.g. eXtra - Muscat City Centre"
+                    value={form.locationEn}
+                    onChange={(e) => setForm((f) => ({ ...f, locationEn: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Location (Arabic) *</Label>
+                  <Input
+                    className="h-11"
+                    dir="rtl"
+                    placeholder="مثال: اكسترا - مسقط سيتي سنتر"
+                    value={form.locationAr}
+                    onChange={(e) => setForm((f) => ({ ...f, locationAr: e.target.value }))}
+                  />
+                </div>
+              </div>
+            </section>
+
+            <Separator />
+
+            <section className="space-y-3">
+              <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                <Users className="h-4 w-4 text-primary" />
+                Promoter employee
+              </div>
+              <p className="text-xs text-muted-foreground -mt-1">
+                Only active employees of the selected employer (second party) are listed.
+              </p>
+              <Select
+                value={promoterEmployeeId === "" ? "" : String(promoterEmployeeId)}
+                onValueChange={(v) => setPromoterEmployeeId(Number(v))}
+                disabled={typeof employerCompanyId !== "number" || employeesLoading}
+              >
+                <SelectTrigger className="h-11 w-full">
+                  <SelectValue
+                    placeholder={
+                      typeof employerCompanyId !== "number"
+                        ? "Select employer first…"
+                        : employeesLoading
+                          ? "Loading employees…"
+                          : "Select employee…"
+                    }
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  {employerEmployees.map((e) => (
+                    <SelectItem key={e.id} value={String(e.id)}>
+                      {e.firstName} {e.lastName}
+                      {e.firstNameAr || e.lastNameAr
+                        ? ` · ${[e.firstNameAr, e.lastNameAr].filter(Boolean).join(" ")}`
+                        : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </section>
+
+            <Separator />
+
+            <section className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Start date *</Label>
+                  <DateInput
+                    className="h-11"
+                    value={form.startDate}
+                    onChange={(e) => setForm((f) => ({ ...f, startDate: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>End date *</Label>
+                  <DateInput
+                    className="h-11"
+                    value={form.endDate}
+                    onChange={(e) => setForm((f) => ({ ...f, endDate: e.target.value }))}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Contract reference no.</Label>
+                  <Input
+                    className="h-11 font-mono text-sm"
+                    placeholder="e.g. PA-2026-001"
+                    value={form.contractReferenceNumber}
+                    onChange={(e) => setForm((f) => ({ ...f, contractReferenceNumber: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Issue date</Label>
+                  <DateInput
+                    className="h-11"
+                    value={form.issueDate}
+                    onChange={(e) => setForm((f) => ({ ...f, issueDate: e.target.value }))}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2 max-w-xs">
+                <Label>Status</Label>
+                <Select
+                  value={form.status}
+                  onValueChange={(v) => setForm((f) => ({ ...f, status: v as typeof f.status }))}
+                >
+                  <SelectTrigger className="h-11">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="inactive">Inactive</SelectItem>
+                    <SelectItem value="expired">Expired</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </section>
+          </div>
+
+          <DialogFooter className="p-6 pt-2 border-t bg-muted/20 flex-row justify-end gap-2 sm:gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowCreate(false);
+                resetForm();
+              }}
+            >
               Cancel
             </Button>
-            <Button onClick={handleCreate} disabled={createMutation.isPending} className="gap-2">
+            <Button onClick={handleCreate} disabled={createMutation.isPending || !canSubmit} className="gap-2 min-w-[160px]">
               {createMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
               Create Assignment
             </Button>

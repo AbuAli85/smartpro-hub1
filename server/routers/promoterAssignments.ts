@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { and, asc, desc, eq, ne } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, ne } from "drizzle-orm";
 import { alias } from "drizzle-orm/mysql-core";
 import { canAccessGlobalAdminProcedures } from "@shared/rbac";
 import { getCompanies, getDb, getUserCompanies } from "../db";
@@ -95,16 +95,10 @@ export const promoterAssignmentsRouter = router({
       if (!db) return [];
 
       const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
-      const activeId = await requireActiveCompanyId(ctx.user.id);
 
       if (!isPlatform) {
-        await requireCanManagePromoterAssignments(ctx.user, activeId);
-        if (input.clientCompanyId !== activeId) {
-          throw new TRPCError({
-            code: "FORBIDDEN",
-            message: "Switch your active company to the selected client to load its work locations",
-          });
-        }
+        await requireActiveCompanyId(ctx.user.id);
+        await requireCanManagePromoterAssignments(ctx.user, input.clientCompanyId);
       }
 
       return db
@@ -125,7 +119,8 @@ export const promoterAssignmentsRouter = router({
     }),
 
   /**
-   * Active employees of the employer (second party). Caller must represent the client (active company).
+   * Employees of the employer (second party) eligible as promoters.
+   * Permission is checked against the selected client (first party), not only the workspace active company.
    */
   listEmployerEmployees: protectedProcedure
     .input(
@@ -150,10 +145,7 @@ export const promoterAssignmentsRouter = router({
       }
 
       if (!isPlatform) {
-        await requireCanManagePromoterAssignments(ctx.user, activeId);
-        if (clientId !== activeId) {
-          throw new TRPCError({ code: "FORBIDDEN", message: "Client company must match your active company" });
-        }
+        await requireCanManagePromoterAssignments(ctx.user, clientId);
       }
 
       if (input.employerCompanyId === clientId) {
@@ -169,9 +161,15 @@ export const promoterAssignmentsRouter = router({
           lastNameAr: employees.lastNameAr,
           nationalId: employees.nationalId,
           passportNumber: employees.passportNumber,
+          status: employees.status,
         })
         .from(employees)
-        .where(and(eq(employees.companyId, input.employerCompanyId), eq(employees.status, "active")))
+        .where(
+          and(
+            eq(employees.companyId, input.employerCompanyId),
+            inArray(employees.status, ["active", "on_leave"])
+          )
+        )
         .orderBy(asc(employees.lastName), asc(employees.firstName));
 
       return rows;
@@ -295,13 +293,10 @@ export const promoterAssignmentsRouter = router({
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
 
       const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
-      const activeId = await requireActiveCompanyId(ctx.user.id);
 
       if (!isPlatform) {
-        await requireCanManagePromoterAssignments(ctx.user, activeId);
-        if (input.clientCompanyId !== activeId) {
-          throw new TRPCError({ code: "FORBIDDEN", message: "Client company must match your active company" });
-        }
+        await requireActiveCompanyId(ctx.user.id);
+        await requireCanManagePromoterAssignments(ctx.user, input.clientCompanyId);
       }
 
       if (input.clientCompanyId === input.employerCompanyId) {

@@ -114,23 +114,28 @@ export default function PromoterAssignmentsPage() {
       }
     );
 
-  const clientIdForQueries =
-    typeof clientCompanyId === "number" ? clientCompanyId : activeCompanyId ?? undefined;
+  const employerEmployeesQueryEnabled =
+    showCreate &&
+    typeof clientCompanyId === "number" &&
+    clientCompanyId > 0 &&
+    typeof employerCompanyId === "number" &&
+    employerCompanyId > 0;
 
-  const { data: employerEmployees = [], isLoading: employeesLoading } =
-    trpc.promoterAssignments.listEmployerEmployees.useQuery(
-      {
-        employerCompanyId: typeof employerCompanyId === "number" ? employerCompanyId : 0,
-        clientCompanyId: clientIdForQueries,
-      },
-      {
-        enabled:
-          showCreate &&
-          typeof employerCompanyId === "number" &&
-          employerCompanyId > 0 &&
-          clientIdForQueries != null,
-      }
-    );
+  const {
+    data: employerEmployees = [],
+    isLoading: employeesLoading,
+    isError: employeesQueryError,
+    error: employeesQueryErr,
+    refetch: refetchEmployerEmployees,
+  } = trpc.promoterAssignments.listEmployerEmployees.useQuery(
+    {
+      employerCompanyId: typeof employerCompanyId === "number" ? employerCompanyId : 0,
+      clientCompanyId: typeof clientCompanyId === "number" && clientCompanyId > 0 ? clientCompanyId : undefined,
+    },
+    {
+      enabled: employerEmployeesQueryEnabled,
+    }
+  );
 
   useEffect(() => {
     if (showCreate && activeCompanyId != null && clientCompanyId === "") {
@@ -490,9 +495,9 @@ export default function PromoterAssignmentsPage() {
                 <Building2 className="h-4 w-4 text-primary" />
                 Contract parties
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>First party (client) *</Label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-x-6">
+                <div className="space-y-2 min-w-0">
+                  <Label className="text-foreground">First party (client) *</Label>
                   <Select
                     value={clientCompanyId === "" ? "" : String(clientCompanyId)}
                     onValueChange={(v) => {
@@ -505,7 +510,7 @@ export default function PromoterAssignmentsPage() {
                     }}
                     disabled={pickersLoading}
                   >
-                    <SelectTrigger className="h-11">
+                    <SelectTrigger className="h-11 w-full min-w-0 max-w-full">
                       <SelectValue placeholder={pickersLoading ? "Loading companies…" : "Select client company…"} />
                     </SelectTrigger>
                     <SelectContent>
@@ -518,17 +523,17 @@ export default function PromoterAssignmentsPage() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-2">
-                  <Label>Second party (employer) *</Label>
+                <div className="space-y-2 min-w-0">
+                  <Label className="text-foreground">Second party (employer) *</Label>
                   <Select
                     value={employerCompanyId === "" ? "" : String(employerCompanyId)}
                     onValueChange={(v) => {
                       setEmployerCompanyId(Number(v));
                       setPromoterEmployeeId("");
                     }}
-                    disabled={typeof clientCompanyId !== "number"}
+                    disabled={typeof clientCompanyId !== "number" || clientCompanyId <= 0}
                   >
-                    <SelectTrigger className="h-11">
+                    <SelectTrigger className="h-11 w-full min-w-0 max-w-full">
                       <SelectValue placeholder="Select employer company…" />
                     </SelectTrigger>
                     <SelectContent>
@@ -577,7 +582,7 @@ export default function PromoterAssignmentsPage() {
                   }}
                   disabled={typeof clientCompanyId !== "number" || sitesLoading}
                 >
-                  <SelectTrigger className="h-11">
+                  <SelectTrigger className="h-11 w-full min-w-0 max-w-full">
                     <SelectValue
                       placeholder={sitesLoading ? "Loading sites…" : "Select site or type manually…"}
                     />
@@ -620,27 +625,49 @@ export default function PromoterAssignmentsPage() {
 
             <Separator />
 
-            <section className="space-y-3">
+            <section className="space-y-3 min-w-0">
               <div className="flex items-center gap-2 text-sm font-medium text-foreground">
                 <Users className="h-4 w-4 text-primary" />
                 Promoter employee
               </div>
               <p className="text-xs text-muted-foreground -mt-1">
-                Only active employees of the selected employer (second party) are listed.
+                Lists active and on-leave employees of the selected employer (second party).
               </p>
+              {employeesQueryError && (
+                <Alert variant="destructive" className="py-2">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription className="flex flex-wrap items-center gap-2 text-xs sm:text-sm">
+                    <span>{employeesQueryErr?.message ?? "Could not load employees."}</span>
+                    <Button type="button" variant="outline" size="sm" onClick={() => refetchEmployerEmployees()}>
+                      Retry
+                    </Button>
+                  </AlertDescription>
+                </Alert>
+              )}
               <Select
                 value={promoterEmployeeId === "" ? "" : String(promoterEmployeeId)}
                 onValueChange={(v) => setPromoterEmployeeId(Number(v))}
-                disabled={typeof employerCompanyId !== "number" || employeesLoading}
+                disabled={
+                  typeof clientCompanyId !== "number" ||
+                  clientCompanyId <= 0 ||
+                  typeof employerCompanyId !== "number" ||
+                  employerCompanyId <= 0 ||
+                  employeesLoading ||
+                  employeesQueryError
+                }
               >
-                <SelectTrigger className="h-11 w-full">
+                <SelectTrigger className="h-11 w-full min-w-0 max-w-full">
                   <SelectValue
                     placeholder={
-                      typeof employerCompanyId !== "number"
-                        ? "Select employer first…"
-                        : employeesLoading
-                          ? "Loading employees…"
-                          : "Select employee…"
+                      typeof clientCompanyId !== "number" || clientCompanyId <= 0
+                        ? "Select client (first party) first…"
+                        : typeof employerCompanyId !== "number" || employerCompanyId <= 0
+                          ? "Select employer first…"
+                          : employeesLoading
+                            ? "Loading employees…"
+                            : employeesQueryError
+                              ? "Employee list unavailable"
+                              : "Select employee…"
                     }
                   />
                 </SelectTrigger>
@@ -648,6 +675,7 @@ export default function PromoterAssignmentsPage() {
                   {employerEmployees.map((e) => (
                     <SelectItem key={e.id} value={String(e.id)}>
                       {e.firstName} {e.lastName}
+                      {e.status === "on_leave" ? " (on leave)" : ""}
                       {e.firstNameAr || e.lastNameAr
                         ? ` · ${[e.firstNameAr, e.lastNameAr].filter(Boolean).join(" ")}`
                         : ""}
@@ -655,6 +683,15 @@ export default function PromoterAssignmentsPage() {
                   ))}
                 </SelectContent>
               </Select>
+              {employerEmployeesQueryEnabled &&
+                !employeesLoading &&
+                !employeesQueryError &&
+                employerEmployees.length === 0 && (
+                  <p className="text-xs text-amber-700 dark:text-amber-500/90 bg-amber-500/10 border border-amber-500/20 rounded-md px-3 py-2">
+                    No active or on-leave employees found for this employer in HR. Add employees under the employer
+                    company or check their employment status.
+                  </p>
+                )}
             </section>
 
             <Separator />

@@ -311,14 +311,14 @@ export default function PromoterAssignmentsPage() {
               <ul className="list-disc pl-4 text-sm text-muted-foreground space-y-1 marker:text-amber-600/80">
                 <li>Enable Google Drive API and Google Docs API for the GCP project.</li>
                 <li>
-                  Share each contract template Google Doc with that service account&apos;s email (
-                  <code className="rounded bg-muted px-1 py-0.5 text-xs font-mono text-foreground">client_email</code>
-                  ) as Editor.
+                  Share each contract template Google Doc with the service account email (
+                  <code className="rounded bg-muted px-1 py-0.5 text-xs font-mono text-foreground">client_email</code>{" "}
+                  in the JSON) as Editor.
                 </li>
                 <li>
                   See{" "}
                   <code className="rounded bg-muted px-1 py-0.5 text-xs font-mono text-foreground">.env.example</code>{" "}
-                  for naming and a minimal example.
+                  for the variable naming and a minimal example.
                 </li>
               </ul>
             </AlertDescription>

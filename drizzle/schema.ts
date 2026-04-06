@@ -2668,10 +2668,13 @@ export const businessParties = mysqlTable(
     createdBy: int("created_by"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+    /** Canonical party after admin merge; this row retained for audit only. */
+    mergedIntoPartyId: char("merged_into_party_id", { length: 36 }),
   },
   (t) => [
     index("idx_bp_linked_co").on(t.linkedCompanyId),
     index("idx_bp_managed_by").on(t.managedByCompanyId),
+    index("idx_bp_merged_into").on(t.mergedIntoPartyId),
   ]
 );
 export type BusinessParty = typeof businessParties.$inferSelect;

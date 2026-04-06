@@ -678,6 +678,36 @@ export async function getOutsourcingContractById(db: AppDb, contractId: string) 
   };
 }
 
+/** Walk `renewal_of_contract_id` backward to oldest ancestor (or self if none). */
+export async function resolveRootContractId(db: AppDb, contractId: string, maxDepth = 32): Promise<string> {
+  let current = contractId;
+  for (let i = 0; i < maxDepth; i++) {
+    const [row] = await db
+      .select({ renewalOf: outsourcingContracts.renewalOfContractId })
+      .from(outsourcingContracts)
+      .where(eq(outsourcingContracts.id, current))
+      .limit(1);
+    if (!row?.renewalOf) return current;
+    current = row.renewalOf;
+  }
+  return current;
+}
+
+/** One draft amendment per base contract at a time (metadata.amendsContractId). */
+export async function findDraftAmendmentChildForBase(db: AppDb, baseContractId: string): Promise<string | null> {
+  const rows = await db
+    .select({ id: outsourcingContracts.id })
+    .from(outsourcingContracts)
+    .where(
+      and(
+        eq(outsourcingContracts.status, "draft"),
+        sql`JSON_UNQUOTE(JSON_EXTRACT(${outsourcingContracts.metadata}, '$.amendsContractId')) = ${baseContractId}`
+      )
+    )
+    .limit(1);
+  return rows[0]?.id ?? null;
+}
+
 // ─── WRITES ───────────────────────────────────────────────────────────────────
 
 /** Insert the full normalized contract in a single logical operation (not a DB transaction — MySQL row-by-row). */
@@ -728,6 +758,8 @@ export async function createOutsourcingContractFull(
     actorName: string;
     /** Merged into the initial `created` audit event (e.g. creation perspective / client kind). */
     auditExtra?: Record<string, unknown>;
+    renewalOfContractId?: string | null;
+    metadata?: Record<string, unknown> | null;
   }
 ): Promise<void> {
   const header: InsertOutsourcingContract = {
@@ -741,6 +773,8 @@ export async function createOutsourcingContractFull(
     expiryDate: params.expiryDate,
     createdBy: params.createdBy,
     templateVersion: 1,
+    renewalOfContractId: params.renewalOfContractId ?? undefined,
+    metadata: params.metadata ?? undefined,
   };
   await db.insert(outsourcingContracts).values(header);
 
@@ -1062,7 +1096,8 @@ export async function transitionContractStatus(
   db: AppDb,
   contractId: string,
   toStatus: ContractStatus,
-  actor: { id: number; name: string }
+  actor: { id: number; name: string },
+  options?: { auditDetails?: Record<string, unknown> }
 ): Promise<{ previousStatus: ContractStatus; newStatus: ContractStatus }> {
   // 1. Load current status
   const [row] = await db
@@ -1110,7 +1145,7 @@ export async function transitionContractStatus(
     action,
     actorId: actor.id,
     actorName: actor.name,
-    details: { from: fromStatus, to: toStatus },
+    details: { from: fromStatus, to: toStatus, ...options?.auditDetails },
   });
 
   return { previousStatus: fromStatus, newStatus: toStatus };

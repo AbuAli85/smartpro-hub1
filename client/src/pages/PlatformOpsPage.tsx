@@ -32,7 +32,12 @@ import {
   ArrowUpRight,
   Link2,
   Loader2,
+  ClipboardList,
+  GitMerge,
+  Unlink,
+  ArrowLeftRight,
 } from "lucide-react";
+import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -793,6 +798,346 @@ function PartyLinkingView() {
   );
 }
 
+function PartyIntegrityPanel() {
+  const { data: summary, refetch: refetchSummary } = trpc.contractManagement.adminPartyIntegritySummary.useQuery();
+  const { data: dups = [], refetch: refetchDups } =
+    trpc.contractManagement.adminDuplicatePartyRegistrationGroups.useQuery({ limit: 30 });
+
+  const [mergeOpen, setMergeOpen] = useState(false);
+  const [sourceId, setSourceId] = useState<string | null>(null);
+  const [targetId, setTargetId] = useState<string | null>(null);
+  const [mergePhrase, setMergePhrase] = useState("");
+
+  const mergePreview = trpc.contractManagement.previewPartyMerge.useQuery(
+    { sourcePartyId: sourceId!, targetPartyId: targetId! },
+    { enabled: mergeOpen && !!sourceId && !!targetId }
+  );
+
+  const mergeMut = trpc.contractManagement.executePartyMerge.useMutation({
+    onSuccess: () => {
+      toast.success("Parties merged");
+      setMergeOpen(false);
+      setMergePhrase("");
+      void refetchSummary();
+      void refetchDups();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const [unlinkOpen, setUnlinkOpen] = useState(false);
+  const [unlinkPartyId, setUnlinkPartyId] = useState("");
+  const [unlinkPhrase, setUnlinkPhrase] = useState("");
+
+  const unlinkPreview = trpc.contractManagement.previewPartyPlatformUnlink.useQuery(
+    { partyId: unlinkPartyId },
+    { enabled: unlinkOpen && unlinkPartyId.length === 36 }
+  );
+
+  const unlinkMut = trpc.contractManagement.executePartyPlatformUnlink.useMutation({
+    onSuccess: () => {
+      toast.success("Party unlinked from tenant");
+      setUnlinkOpen(false);
+      setUnlinkPhrase("");
+      setUnlinkPartyId("");
+      void refetchSummary();
+      void refetchDups();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  function openMergeFromDup(partyIds: string[]) {
+    if (partyIds.length < 2) return;
+    setSourceId(partyIds[0]!);
+    setTargetId(partyIds[1]!);
+    setMergePhrase("");
+    setMergeOpen(true);
+  }
+
+  function swapMergeEnds() {
+    setSourceId(targetId);
+    setTargetId(sourceId);
+  }
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base flex items-center gap-2">
+            <ClipboardList className="h-4 w-4" />
+            Agreement party coverage
+          </CardTitle>
+          <p className="text-xs text-muted-foreground">
+            After backfill, <code className="text-[11px]">party_id</code> should be set wherever{" "}
+            <code className="text-[11px]">company_id</code> exists on contract parties. Run{" "}
+            <code className="text-[11px]">scripts/backfill-contract-party-ids.ts</code> if counts are non-zero.
+          </p>
+        </CardHeader>
+        <CardContent className="grid sm:grid-cols-3 gap-4 text-sm">
+          <div className="rounded-lg border bg-muted/20 p-3">
+            <p className="text-xs text-muted-foreground">Contract parties with company, no party_id</p>
+            <p className="text-2xl font-semibold tabular-nums">{summary?.contractPartiesMissingPartyId ?? "—"}</p>
+          </div>
+          <div className="rounded-lg border bg-muted/20 p-3">
+            <p className="text-xs text-muted-foreground">Header NULL but first party has company</p>
+            <p className="text-2xl font-semibold tabular-nums">{summary?.headerNullFirstPartyHasCompanyId ?? "—"}</p>
+          </div>
+          <div className="rounded-lg border bg-muted/20 p-3">
+            <p className="text-xs text-muted-foreground">Distinct companies still needing party backfill</p>
+            <p className="text-2xl font-semibold tabular-nums">
+              {summary?.distinctCompaniesWithMissingPartyIdOnParties ?? "—"}
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base flex items-center gap-2">
+            <GitMerge className="h-4 w-4" />
+            Duplicate registration numbers
+          </CardTitle>
+          <p className="text-xs text-muted-foreground">
+            Operational review only — merge re-points contract party rows to the target and retires the source row.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {dups.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-4 text-center">No duplicate registration groups found.</p>
+          ) : (
+            <div className="rounded-md border overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b bg-muted/40 text-left text-xs text-muted-foreground">
+                    <th className="p-2 font-medium">Reg #</th>
+                    <th className="p-2 font-medium">Parties</th>
+                    <th className="p-2 font-medium w-28" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {dups.map((g) => (
+                    <tr key={g.registrationNumber} className="border-b border-border/50">
+                      <td className="p-2 font-mono text-xs">{g.registrationNumber}</td>
+                      <td className="p-2 text-xs">
+                        <ul className="space-y-1">
+                          {g.partyIds.map((id, i) => (
+                            <li key={id}>
+                              <span className="font-mono text-[10px] text-muted-foreground">{id.slice(0, 8)}…</span>{" "}
+                              {g.displayNames[i] ?? "—"}
+                            </li>
+                          ))}
+                        </ul>
+                      </td>
+                      <td className="p-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 text-xs"
+                          disabled={g.partyIds.length < 2}
+                          onClick={() => openMergeFromDup(g.partyIds)}
+                        >
+                          Merge…
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Unlink className="h-4 w-4" />
+            Guarded unlink
+          </CardTitle>
+          <p className="text-xs text-muted-foreground">
+            Removes <code className="text-[11px]">linked_company_id</code> only when no related contract is active,
+            expired, or suspended. Type the party UUID (36 chars) from the table above.
+          </p>
+        </CardHeader>
+        <CardContent>
+          <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setUnlinkOpen(true)}>
+            Preview unlink…
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Dialog open={mergeOpen} onOpenChange={setMergeOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Merge parties</DialogTitle>
+            <DialogDescription>
+              Source rows are retired; all <code className="text-[11px]">party_id</code> references move to the target.
+              Type <strong>MERGE</strong> to confirm.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 text-sm py-2">
+            <div className="flex flex-wrap gap-2 items-center">
+              <span className="text-xs text-muted-foreground w-14">Source</span>
+              <code className="text-[11px] break-all">{sourceId}</code>
+            </div>
+            <div className="flex justify-center">
+              <Button type="button" variant="ghost" size="sm" className="h-8 gap-1 text-xs" onClick={swapMergeEnds}>
+                <ArrowLeftRight className="h-3.5 w-3.5" /> Swap
+              </Button>
+            </div>
+            <div className="flex flex-wrap gap-2 items-center">
+              <span className="text-xs text-muted-foreground w-14">Target</span>
+              <code className="text-[11px] break-all">{targetId}</code>
+            </div>
+            {mergePreview.isFetching && (
+              <p className="text-xs text-muted-foreground flex items-center gap-1">
+                <Loader2 className="h-3 w-3 animate-spin" /> Checking…
+              </p>
+            )}
+            {mergePreview.data && !mergePreview.data.canProceed && (
+              <div className="text-sm text-destructive space-y-1">
+                {mergePreview.data.blockingReasons.map((b, i) => (
+                  <p key={i}>{b}</p>
+                ))}
+              </div>
+            )}
+            {mergePreview.data?.canProceed && (
+              <p className="text-xs text-muted-foreground">
+                Contract party rows referencing source: <strong>{mergePreview.data.contractPartyReferences}</strong>
+              </p>
+            )}
+            <div className="space-y-1">
+              <Label className="text-xs">Confirmation</Label>
+              <Input className="h-9 font-mono text-sm" value={mergePhrase} onChange={(e) => setMergePhrase(e.target.value)} placeholder="MERGE" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" type="button" onClick={() => setMergeOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              disabled={
+                !mergePreview.data?.canProceed ||
+                mergePhrase.trim().toUpperCase() !== "MERGE" ||
+                mergeMut.isPending ||
+                !sourceId ||
+                !targetId
+              }
+              onClick={() => {
+                if (!sourceId || !targetId) return;
+                mergeMut.mutate({
+                  sourcePartyId: sourceId,
+                  targetPartyId: targetId,
+                  confirmationPhrase: mergePhrase,
+                });
+              }}
+            >
+              {mergeMut.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+              Execute merge
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={unlinkOpen} onOpenChange={setUnlinkOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Unlink party from tenant</DialogTitle>
+            <DialogDescription>
+              Preview safety checks, then type <strong>UNLINK</strong> to confirm.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="space-y-1">
+              <Label className="text-xs">Party ID (UUID)</Label>
+              <Input
+                className="h-9 font-mono text-xs"
+                value={unlinkPartyId}
+                onChange={(e) => setUnlinkPartyId(e.target.value.trim())}
+                placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+              />
+            </div>
+            {unlinkPreview.isFetching && (
+              <p className="text-xs text-muted-foreground flex items-center gap-1">
+                <Loader2 className="h-3 w-3 animate-spin" /> Checking…
+              </p>
+            )}
+            {unlinkPreview.data && Object.keys(unlinkPreview.data.referencingByStatus).length > 0 && (
+              <div className="text-xs rounded border p-2 bg-muted/30 space-y-1">
+                <p className="font-medium">Related contracts by status</p>
+                {Object.entries(unlinkPreview.data.referencingByStatus).map(([st, n]) => (
+                  <p key={st}>
+                    <span className="capitalize">{st}</span>: {n}
+                  </p>
+                ))}
+              </div>
+            )}
+            {unlinkPreview.data && !unlinkPreview.data.canProceed && (
+              <div className="text-sm text-destructive space-y-1">
+                {unlinkPreview.data.blockingReasons.map((b, i) => (
+                  <p key={i}>{b}</p>
+                ))}
+              </div>
+            )}
+            <div className="space-y-1">
+              <Label className="text-xs">Confirmation</Label>
+              <Input
+                className="h-9 font-mono text-sm"
+                value={unlinkPhrase}
+                onChange={(e) => setUnlinkPhrase(e.target.value)}
+                placeholder="UNLINK"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" type="button" onClick={() => setUnlinkOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              disabled={
+                unlinkPartyId.length !== 36 ||
+                !unlinkPreview.data?.canProceed ||
+                unlinkPhrase.trim().toUpperCase() !== "UNLINK" ||
+                unlinkMut.isPending
+              }
+              onClick={() =>
+                unlinkMut.mutate({ partyId: unlinkPartyId, confirmationPhrase: unlinkPhrase })
+              }
+            >
+              {unlinkMut.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+              Execute unlink
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+function PartiesOpsView() {
+  return (
+    <Tabs defaultValue="linking" className="space-y-4">
+      <TabsList className="h-9 flex-wrap">
+        <TabsTrigger value="linking" className="text-xs gap-1.5">
+          <Link2 className="h-3.5 w-3.5" />
+          Linking
+        </TabsTrigger>
+        <TabsTrigger value="integrity" className="text-xs gap-1.5">
+          <ClipboardList className="h-3.5 w-3.5" />
+          Integrity
+        </TabsTrigger>
+      </TabsList>
+      <TabsContent value="linking" className="mt-4">
+        <PartyLinkingView />
+      </TabsContent>
+      <TabsContent value="integrity" className="mt-4">
+        <PartyIntegrityPanel />
+      </TabsContent>
+    </Tabs>
+  );
+}
+
 // ─── Role access map ─────────────────────────────────────────────────────────
 // Defines which tabs each platform role can see
 const ROLE_TAB_ACCESS: Record<string, string[]> = {
@@ -903,7 +1248,7 @@ export default function PlatformOpsPage() {
         )}
         {allowedTabs.includes("parties") && (
           <TabsContent value="parties" className="mt-4">
-            <PartyLinkingView />
+            <PartiesOpsView />
           </TabsContent>
         )}
       </Tabs>

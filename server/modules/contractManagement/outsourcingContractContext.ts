@@ -6,14 +6,17 @@
  * Registered with the document generation service via the context-builder registry.
  */
 
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { format } from "date-fns";
 import {
-  companies,
   outsourcingContractLocations,
   outsourcingContractParties,
   outsourcingContracts,
   outsourcingPromoterDetails,
+  type OutsourcingContract,
+  type OutsourcingContractLocation,
+  type OutsourcingContractParty,
+  type OutsourcingPromoterDetail,
 } from "../../../drizzle/schema";
 import { DocumentGenerationError } from "../document-generation/documentGeneration.types";
 import type { getDb } from "../../db";
@@ -37,6 +40,81 @@ function nonEmpty(label: string, v: string | null | undefined): string {
 
 function maybeEmpty(v: string | null | undefined): string {
   return (v ?? "").trim();
+}
+
+export type OutsourcingContractContextRowBundle = {
+  contract: Pick<OutsourcingContract, "effectiveDate" | "expiryDate" | "contractNumber" | "issueDate">;
+  firstPartyRow: Pick<
+    OutsourcingContractParty,
+    "displayNameEn" | "displayNameAr" | "registrationNumber" | "companyId" | "partyId"
+  >;
+  secondPartyRow: Pick<
+    OutsourcingContractParty,
+    "displayNameEn" | "displayNameAr" | "registrationNumber" | "companyId" | "partyId"
+  >;
+  locationRow: Pick<OutsourcingContractLocation, "locationEn" | "locationAr">;
+  promoterDetail: Pick<
+    OutsourcingPromoterDetail,
+    | "fullNameEn"
+    | "fullNameAr"
+    | "civilId"
+    | "passportNumber"
+    | "passportExpiry"
+    | "nationality"
+    | "jobTitleEn"
+  >;
+};
+
+/**
+ * Pure mapping used by PDF generation and tests (platform tenant vs external vs linked snapshots).
+ */
+export function buildOutsourcingContractDocumentContextFromRows(
+  bundle: OutsourcingContractContextRowBundle
+): OutsourcingContractDocumentContext {
+  const { contract, firstPartyRow, secondPartyRow, locationRow, promoterDetail } = bundle;
+
+  const firstCr = (firstPartyRow.registrationNumber ?? "").trim() || "—";
+  const secondCr = (secondPartyRow.registrationNumber ?? "").trim() || "—";
+
+  const ctx: OutsourcingContractDocumentContext = {
+    first_party: {
+      company_name_en: nonEmpty("First party English name", firstPartyRow.displayNameEn),
+      company_name_ar: nonEmpty("First party Arabic name", firstPartyRow.displayNameAr ?? firstPartyRow.displayNameEn),
+      cr_number: firstCr,
+    },
+    second_party: {
+      company_name_en: nonEmpty("Second party English name", secondPartyRow.displayNameEn),
+      company_name_ar: nonEmpty("Second party Arabic name", secondPartyRow.displayNameAr ?? secondPartyRow.displayNameEn),
+      cr_number: secondCr,
+    },
+    promoter: {
+      full_name_en: nonEmpty("Promoter English name", promoterDetail.fullNameEn),
+      full_name_ar: nonEmpty("Promoter Arabic name", promoterDetail.fullNameAr ?? promoterDetail.fullNameEn),
+      id_card_number: nonEmpty(
+        "Promoter civil ID / national ID",
+        promoterDetail.civilId ?? promoterDetail.passportNumber
+      ),
+      passport_number: maybeEmpty(promoterDetail.passportNumber),
+      passport_expiry: sqlDateToIso(promoterDetail.passportExpiry),
+      nationality: maybeEmpty(promoterDetail.nationality),
+      job_title_en: maybeEmpty(promoterDetail.jobTitleEn),
+    },
+    assignment: {
+      location_en: nonEmpty("Work location (English)", locationRow.locationEn),
+      location_ar: nonEmpty("Work location (Arabic)", locationRow.locationAr),
+      start_date: sqlDateToIso(contract.effectiveDate),
+      end_date: sqlDateToIso(contract.expiryDate),
+    },
+  };
+
+  if (contract.contractNumber?.trim()) {
+    ctx.assignment.contract_reference_number = contract.contractNumber.trim();
+  }
+  if (contract.issueDate) {
+    ctx.assignment.issue_date = sqlDateToIso(contract.issueDate);
+  }
+
+  return ctx;
 }
 
 /**
@@ -67,7 +145,7 @@ export async function buildOutsourcingContractDocumentContext(
       .from(outsourcingContractParties)
       .where(eq(outsourcingContractParties.contractId, entityId));
 
-    const [promoterDetail] = await db
+    const [promoterDetailCheck] = await db
       .select({ employerCompanyId: outsourcingPromoterDetails.employerCompanyId })
       .from(outsourcingPromoterDetails)
       .where(eq(outsourcingPromoterDetails.contractId, entityId))
@@ -78,8 +156,8 @@ export async function buildOutsourcingContractDocumentContext(
     for (const p of parties) {
       if (p.companyId != null) involvedCompanyIds.add(p.companyId);
     }
-    if (promoterDetail?.employerCompanyId != null) {
-      involvedCompanyIds.add(promoterDetail.employerCompanyId);
+    if (promoterDetailCheck?.employerCompanyId != null) {
+      involvedCompanyIds.add(promoterDetailCheck.employerCompanyId);
     }
 
     if (!involvedCompanyIds.has(activeCompanyId)) {
@@ -139,43 +217,11 @@ export async function buildOutsourcingContractDocumentContext(
     );
   }
 
-  const firstCr = (firstPartyRow.registrationNumber ?? "").trim() || "—";
-  const secondCr = (secondPartyRow.registrationNumber ?? "").trim() || "—";
-
-  const ctx: OutsourcingContractDocumentContext = {
-    first_party: {
-      company_name_en: nonEmpty("First party English name", firstPartyRow.displayNameEn),
-      company_name_ar: nonEmpty("First party Arabic name", firstPartyRow.displayNameAr ?? firstPartyRow.displayNameEn),
-      cr_number: firstCr,
-    },
-    second_party: {
-      company_name_en: nonEmpty("Second party English name", secondPartyRow.displayNameEn),
-      company_name_ar: nonEmpty("Second party Arabic name", secondPartyRow.displayNameAr ?? secondPartyRow.displayNameEn),
-      cr_number: secondCr,
-    },
-    promoter: {
-      full_name_en: nonEmpty("Promoter English name", promoterDetail.fullNameEn),
-      full_name_ar: nonEmpty("Promoter Arabic name", promoterDetail.fullNameAr ?? promoterDetail.fullNameEn),
-      id_card_number: nonEmpty("Promoter civil ID / national ID", promoterDetail.civilId ?? promoterDetail.passportNumber),
-      passport_number: maybeEmpty(promoterDetail.passportNumber),
-      passport_expiry: sqlDateToIso(promoterDetail.passportExpiry),
-      nationality: maybeEmpty(promoterDetail.nationality),
-      job_title_en: maybeEmpty(promoterDetail.jobTitleEn),
-    },
-    assignment: {
-      location_en: nonEmpty("Work location (English)", locationRow.locationEn),
-      location_ar: nonEmpty("Work location (Arabic)", locationRow.locationAr),
-      start_date: sqlDateToIso(contract.effectiveDate),
-      end_date: sqlDateToIso(contract.expiryDate),
-    },
-  };
-
-  if (contract.contractNumber?.trim()) {
-    ctx.assignment.contract_reference_number = contract.contractNumber.trim();
-  }
-  if (contract.issueDate) {
-    ctx.assignment.issue_date = sqlDateToIso(contract.issueDate);
-  }
-
-  return ctx;
+  return buildOutsourcingContractDocumentContextFromRows({
+    contract,
+    firstPartyRow,
+    secondPartyRow,
+    locationRow,
+    promoterDetail,
+  });
 }

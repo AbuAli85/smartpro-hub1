@@ -12,6 +12,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { and, asc, eq, inArray, ne, or } from "drizzle-orm";
 import { canAccessGlobalAdminProcedures } from "@shared/rbac";
+import { mergeLifecycleMetadata } from "@shared/agreementLifecycle";
 import { getDb, getCompanies, getUserCompanies } from "../db";
 import { outsourcingContracts } from "../../drizzle/schema";
 import { attendanceSites, companies, employees } from "../../drizzle/schema";
@@ -27,9 +28,11 @@ import {
   deleteOutsourcingContract,
   getContractDocumentById,
   getContractKpis,
+  findDraftAmendmentChildForBase,
   getOutsourcingContractById,
   lazyExpireContract,
   listOutsourcingContracts,
+  resolveRootContractId,
   outsourcingContractExistsForId,
   recordContractDocument,
   recordGeneratedPdf,
@@ -53,9 +56,15 @@ import {
   createManagedExternalParty,
   ensurePartyForLinkedCompany,
   executePartyLinkToPlatformCompany,
+  executePartyMerge,
+  executePartyPlatformUnlink,
+  getAgreementPartyIntegritySummary,
   getPartyById,
   listBusinessPartiesForAdmin,
+  listDuplicateRegistrationPartyGroups,
   listPromoterFlowClientOptions,
+  previewPartyMerge,
+  previewPartyPlatformUnlink,
   searchActiveCompaniesForPartyLink,
 } from "../modules/agreementParties/party.repository";
 import { activeCompanyInvolvedInContract } from "../modules/contractManagement/contractAccess";
@@ -67,10 +76,11 @@ async function doTransition(
   db: Parameters<typeof transitionContractStatus>[0],
   contractId: string,
   toStatus: ContractStatus,
-  actor: { id: number; name: string }
+  actor: { id: number; name: string },
+  options?: { auditDetails?: Record<string, unknown> }
 ) {
   try {
-    return await transitionContractStatus(db, contractId, toStatus, actor);
+    return await transitionContractStatus(db, contractId, toStatus, actor, options);
   } catch (err) {
     if (err instanceof ContractTransitionError) {
       throw new TRPCError({ code: "BAD_REQUEST", message: err.message });
@@ -481,6 +491,111 @@ export const contractManagementRouter = router({
         });
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Link failed";
+        throw new TRPCError({ code: "BAD_REQUEST", message: msg });
+      }
+      return { ok: true as const };
+    }),
+
+  /** Platform admin: NULL `party_id` / header integrity counts for monitoring. */
+  adminPartyIntegritySummary: protectedProcedure.query(async ({ ctx }) => {
+    if (!canAccessGlobalAdminProcedures(ctx.user)) {
+      throw new TRPCError({ code: "FORBIDDEN", message: "Only platform administrators" });
+    }
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+    return getAgreementPartyIntegritySummary(db);
+  }),
+
+  /** Duplicate `business_parties` rows sharing the same registration number. */
+  adminDuplicatePartyRegistrationGroups: protectedProcedure
+    .input(z.object({ limit: z.number().int().min(1).max(100).optional() }).optional())
+    .query(async ({ ctx, input }) => {
+      if (!canAccessGlobalAdminProcedures(ctx.user)) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Only platform administrators" });
+      }
+      const db = await getDb();
+      if (!db) return [];
+      return listDuplicateRegistrationPartyGroups(db, input?.limit ?? 40);
+    }),
+
+  previewPartyMerge: protectedProcedure
+    .input(
+      z.object({
+        sourcePartyId: z.string().uuid(),
+        targetPartyId: z.string().uuid(),
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      if (!canAccessGlobalAdminProcedures(ctx.user)) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Only platform administrators" });
+      }
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      return previewPartyMerge(db, input.sourcePartyId, input.targetPartyId);
+    }),
+
+  executePartyMerge: protectedProcedure
+    .input(
+      z.object({
+        sourcePartyId: z.string().uuid(),
+        targetPartyId: z.string().uuid(),
+        confirmationPhrase: z.string(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      if (!canAccessGlobalAdminProcedures(ctx.user)) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Only platform administrators" });
+      }
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      try {
+        await executePartyMerge(db, {
+          sourcePartyId: input.sourcePartyId,
+          targetPartyId: input.targetPartyId,
+          actorId: ctx.user.id,
+          actorName: ctx.user.name ?? ctx.user.email ?? undefined,
+          confirmationPhrase: input.confirmationPhrase,
+        });
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "Merge failed";
+        throw new TRPCError({ code: "BAD_REQUEST", message: msg });
+      }
+      return { ok: true as const };
+    }),
+
+  previewPartyPlatformUnlink: protectedProcedure
+    .input(z.object({ partyId: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      if (!canAccessGlobalAdminProcedures(ctx.user)) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Only platform administrators" });
+      }
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      return previewPartyPlatformUnlink(db, input.partyId);
+    }),
+
+  executePartyPlatformUnlink: protectedProcedure
+    .input(
+      z.object({
+        partyId: z.string().uuid(),
+        confirmationPhrase: z.string(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      if (!canAccessGlobalAdminProcedures(ctx.user)) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Only platform administrators" });
+      }
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      try {
+        await executePartyPlatformUnlink(db, {
+          partyId: input.partyId,
+          actorId: ctx.user.id,
+          actorName: ctx.user.name ?? ctx.user.email ?? undefined,
+          confirmationPhrase: input.confirmationPhrase,
+        });
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "Unlink failed";
         throw new TRPCError({ code: "BAD_REQUEST", message: msg });
       }
       return { ok: true as const };
@@ -1152,28 +1267,182 @@ export const contractManagementRouter = router({
           jobTitleAr: promoterDetail.jobTitleAr ?? null,
         },
         actorName: actor.name,
+        renewalOfContractId: input.originalContractId,
+        metadata: mergeLifecycleMetadata(null, {
+          lifecycleKind: "renewal",
+          renewedFromContractId: input.originalContractId,
+        }),
         auditExtra: {
           lifecycle: "renewal",
           renewedFromContractId: input.originalContractId,
         },
       });
 
-      // Link the renewal on the new contract
-      await db
-        .update(outsourcingContracts)
-        .set({ renewalOfContractId: input.originalContractId })
-        .where(eq(outsourcingContracts.id, newContractId));
+      await doTransition(db, input.originalContractId, "renewed", actor, {
+        auditDetails: {
+          lifecycleKind: "renewal",
+          successorContractId: newContractId,
+        },
+      });
 
-      // Mark the original as "renewed" via validated transition
-      await doTransition(db, input.originalContractId, "renewed", actor);
+      return { id: newContractId };
+    }),
 
-      // Extra audit event on the original with the new contract reference
+  /**
+   * Create a draft amendment that snapshots the same parties/promoter as the base contract.
+   * Stores `metadata.amendsContractId` + `rootContractId`; appends `amendment_branched` on the base timeline.
+   */
+  createAmendmentDraft: protectedProcedure
+    .input(
+      z.object({
+        baseContractId: z.string().uuid(),
+        newEffectiveDate: z.string(),
+        newExpiryDate: z.string(),
+        newContractNumber: z.string().max(100).optional(),
+        locationEn: z.string().max(500).optional(),
+        locationAr: z.string().max(500).optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+
+      const original = await getOutsourcingContractById(db, input.baseContractId);
+      if (!original) throw new TRPCError({ code: "NOT_FOUND", message: "Contract not found" });
+
+      const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
+      if (!isPlatform) {
+        const activeId = await requireActiveCompanyId(ctx.user.id);
+        if (
+          !activeCompanyInvolvedInContract(
+            activeId,
+            original.contract,
+            original.parties,
+            original.promoterDetail?.employerCompanyId
+          )
+        ) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "Your company is not a party to this contract",
+          });
+        }
+        await requireCanManageContracts(ctx.user, activeId);
+      }
+
+      const baseStatus = original.contract.status as ContractStatus;
+      if (baseStatus !== "active" && baseStatus !== "expired") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Amendments can only branch from active or expired contracts.",
+        });
+      }
+
+      if (original.contract.contractTypeId !== "promoter_assignment") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Amendment draft is only implemented for promoter_assignment contracts.",
+        });
+      }
+
+      const dupDraft = await findDraftAmendmentChildForBase(db, input.baseContractId);
+      if (dupDraft) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `A draft amendment already exists for this contract (${dupDraft.slice(0, 8)}…).`,
+        });
+      }
+
+      const effectiveDate = new Date(input.newEffectiveDate);
+      const expiryDate = new Date(input.newExpiryDate);
+      if (isNaN(effectiveDate.getTime()) || isNaN(expiryDate.getTime())) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid date format" });
+      }
+      if (expiryDate <= effectiveDate) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Expiry date must be after effective date" });
+      }
+
+      const firstParty = original.parties.find((p) => p.partyRole === "first_party");
+      const secondParty = original.parties.find((p) => p.partyRole === "second_party");
+      const location = original.locations[0];
+      const promoterDetail = original.promoterDetail;
+
+      if (!firstParty || !secondParty || !location || !promoterDetail) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Original contract data incomplete" });
+      }
+
+      const actor = {
+        id: ctx.user.id,
+        name: ctx.user.name ?? ctx.user.email ?? `User #${ctx.user.id}`,
+      };
+
+      const rootContractId = await resolveRootContractId(db, input.baseContractId);
+      const newContractId = crypto.randomUUID();
+      const meta = mergeLifecycleMetadata(null, {
+        lifecycleKind: "amendment",
+        amendsContractId: input.baseContractId,
+        rootContractId,
+      });
+
+      await createOutsourcingContractFull(db, {
+        contractId: newContractId,
+        companyId: original.contract.companyId,
+        contractTypeId: original.contract.contractTypeId,
+        contractNumber: input.newContractNumber?.trim() || null,
+        status: "draft",
+        issueDate: null,
+        effectiveDate,
+        expiryDate,
+        createdBy: ctx.user.id,
+        firstParty: {
+          companyId: firstParty.companyId ?? null,
+          partyId: firstParty.partyId ?? null,
+          nameEn: firstParty.displayNameEn,
+          nameAr: firstParty.displayNameAr ?? null,
+          regNumber: firstParty.registrationNumber ?? null,
+        },
+        secondParty: {
+          companyId: secondParty.companyId ?? null,
+          partyId: secondParty.partyId ?? null,
+          nameEn: secondParty.displayNameEn,
+          nameAr: secondParty.displayNameAr ?? null,
+          regNumber: secondParty.registrationNumber ?? null,
+        },
+        location: {
+          locationEn: (input.locationEn ?? location.locationEn ?? "").trim(),
+          locationAr: (input.locationAr ?? location.locationAr ?? "").trim(),
+          clientSiteId: location.clientSiteId ?? null,
+        },
+        promoter: {
+          employeeId: promoterDetail.promoterEmployeeId,
+          employerCompanyId: promoterDetail.employerCompanyId,
+          fullNameEn: promoterDetail.fullNameEn,
+          fullNameAr: promoterDetail.fullNameAr ?? null,
+          civilId: promoterDetail.civilId ?? null,
+          passportNumber: promoterDetail.passportNumber ?? null,
+          passportExpiry: promoterDetail.passportExpiry ? new Date(promoterDetail.passportExpiry) : null,
+          nationality: promoterDetail.nationality ?? null,
+          jobTitleEn: promoterDetail.jobTitleEn ?? null,
+          jobTitleAr: promoterDetail.jobTitleAr ?? null,
+        },
+        actorName: actor.name,
+        metadata: meta,
+        auditExtra: {
+          lifecycle: "amendment",
+          amendsContractId: input.baseContractId,
+          rootContractId,
+        },
+      });
+
       await appendContractEvent(db, {
-        contractId: input.originalContractId,
-        action: "renewed",
+        contractId: input.baseContractId,
+        action: "amendment_branched",
         actorId: actor.id,
         actorName: actor.name,
-        details: { newContractId },
+        details: {
+          lifecycleKind: "amendment",
+          amendmentContractId: newContractId,
+          rootContractId,
+        },
       });
 
       return { id: newContractId };
@@ -1222,18 +1491,12 @@ export const contractManagementRouter = router({
         name: ctx.user.name ?? ctx.user.email ?? `User #${ctx.user.id}`,
       };
 
-      await doTransition(db, input.id, "terminated", actor);
-
-      // Append extra event with optional reason
-      if (input.reason?.trim()) {
-        await appendContractEvent(db, {
-          contractId: input.id,
-          action: "terminated",
-          actorId: actor.id,
-          actorName: actor.name,
-          details: { reason: input.reason.trim() },
-        });
-      }
+      await doTransition(db, input.id, "terminated", actor, {
+        auditDetails: {
+          lifecycleKind: "termination",
+          ...(input.reason?.trim() ? { reason: input.reason.trim() } : {}),
+        },
+      });
 
       return { ok: true as const };
     }),

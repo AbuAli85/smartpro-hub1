@@ -3,7 +3,7 @@
  * Keeps one canonical row per platform company (linked_company_id) when possible.
  */
 
-import { and, asc, desc, eq, inArray, isNotNull, isNull, like, ne, or } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, isNull, like, ne, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/mysql-core";
 import {
   businessParties,
@@ -11,6 +11,7 @@ import {
   companies,
   outsourcingContractParties,
   outsourcingContracts,
+  type BusinessParty,
   type InsertBusinessParty,
 } from "../../../drizzle/schema";
 import type { getDb } from "../../db";
@@ -521,6 +522,324 @@ export async function backfillPartyIdsOnContractParties(
     batchesApplied++;
   }
   return { distinctCompanyIds: companyIds, batchesApplied };
+}
+
+// ─── Phase 3: integrity, duplicates, merge, unlink (platform ops) ─────────────
+
+export type AgreementPartyIntegritySummary = {
+  contractPartiesMissingPartyId: number;
+  headerNullFirstPartyHasCompanyId: number;
+  distinctCompaniesWithMissingPartyIdOnParties: number;
+};
+
+export async function getAgreementPartyIntegritySummary(db: AppDb): Promise<AgreementPartyIntegritySummary> {
+  const [a] = await db
+    .select({ n: sql<number>`cast(count(*) as signed)`.mapWith(Number) })
+    .from(outsourcingContractParties)
+    .where(and(isNotNull(outsourcingContractParties.companyId), isNull(outsourcingContractParties.partyId)));
+
+  const [b] = await db
+    .select({ n: sql<number>`cast(count(*) as signed)`.mapWith(Number) })
+    .from(outsourcingContracts)
+    .innerJoin(
+      outsourcingContractParties,
+      and(
+        eq(outsourcingContractParties.contractId, outsourcingContracts.id),
+        eq(outsourcingContractParties.partyRole, "first_party"),
+        isNotNull(outsourcingContractParties.companyId)
+      )
+    )
+    .where(isNull(outsourcingContracts.companyId));
+
+  const [c] = await db
+    .select({
+      n: sql<number>`cast(count(distinct ${outsourcingContractParties.companyId}) as signed)`.mapWith(Number),
+    })
+    .from(outsourcingContractParties)
+    .where(and(isNotNull(outsourcingContractParties.companyId), isNull(outsourcingContractParties.partyId)));
+
+  return {
+    contractPartiesMissingPartyId: a?.n ?? 0,
+    headerNullFirstPartyHasCompanyId: b?.n ?? 0,
+    distinctCompaniesWithMissingPartyIdOnParties: c?.n ?? 0,
+  };
+}
+
+export type DuplicateRegPartyGroup = {
+  registrationNumber: string;
+  partyCount: number;
+  partyIds: string[];
+  displayNames: string[];
+};
+
+export async function listDuplicateRegistrationPartyGroups(db: AppDb, limit = 40): Promise<DuplicateRegPartyGroup[]> {
+  const groups = await db
+    .select({
+      registrationNumber: businessParties.registrationNumber,
+      cnt: sql<number>`cast(count(*) as signed)`.mapWith(Number),
+    })
+    .from(businessParties)
+    .where(and(isNotNull(businessParties.registrationNumber), ne(businessParties.registrationNumber, "")))
+    .groupBy(businessParties.registrationNumber)
+    .having(sql`count(*) > 1`)
+    .limit(limit);
+
+  const out: DuplicateRegPartyGroup[] = [];
+  for (const g of groups) {
+    if (!g.registrationNumber) continue;
+    const rows = await db
+      .select({ id: businessParties.id, displayNameEn: businessParties.displayNameEn })
+      .from(businessParties)
+      .where(eq(businessParties.registrationNumber, g.registrationNumber))
+      .orderBy(asc(businessParties.createdAt))
+      .limit(20);
+    out.push({
+      registrationNumber: g.registrationNumber,
+      partyCount: g.cnt,
+      partyIds: rows.map((r) => r.id),
+      displayNames: rows.map((r) => r.displayNameEn),
+    });
+  }
+  return out;
+}
+
+export type PartyMergePreview = {
+  canProceed: boolean;
+  blockingReasons: string[];
+  sourcePartyId: string;
+  targetPartyId: string;
+  contractPartyReferences: number;
+  sampleContractIds: string[];
+};
+
+function mergeLinkRuleBlocking(source: BusinessParty, target: BusinessParty): string | null {
+  const sl = source.linkedCompanyId;
+  const tl = target.linkedCompanyId;
+  if (sl != null && tl != null && sl !== tl) {
+    return "Both parties are linked to different platform companies — resolve before merge.";
+  }
+  if (sl != null && tl == null) {
+    return "Source is linked but target is not — use the linked party as the merge target (canonical).";
+  }
+  return null;
+}
+
+export async function previewPartyMerge(db: AppDb, sourcePartyId: string, targetPartyId: string): Promise<PartyMergePreview> {
+  const blockingReasons: string[] = [];
+  if (sourcePartyId === targetPartyId) {
+    blockingReasons.push("Source and target must differ.");
+    return {
+      canProceed: false,
+      blockingReasons,
+      sourcePartyId,
+      targetPartyId,
+      contractPartyReferences: 0,
+      sampleContractIds: [],
+    };
+  }
+  const source = await getPartyById(db, sourcePartyId);
+  const target = await getPartyById(db, targetPartyId);
+  if (!source) blockingReasons.push("Source party not found.");
+  if (!target) blockingReasons.push("Target party not found.");
+  if (!source || !target) {
+    return {
+      canProceed: false,
+      blockingReasons,
+      sourcePartyId,
+      targetPartyId,
+      contractPartyReferences: 0,
+      sampleContractIds: [],
+    };
+  }
+  if (source.mergedIntoPartyId) blockingReasons.push("Source party was already merged into another record.");
+  if (target.mergedIntoPartyId) blockingReasons.push("Target party was merged away — pick the canonical party instead.");
+  const linkBlock = mergeLinkRuleBlocking(source, target);
+  if (linkBlock) blockingReasons.push(linkBlock);
+
+  const [cntRow] = await db
+    .select({ n: sql<number>`cast(count(*) as signed)`.mapWith(Number) })
+    .from(outsourcingContractParties)
+    .where(eq(outsourcingContractParties.partyId, sourcePartyId));
+
+  const sampleRows = await db
+    .select({ contractId: outsourcingContractParties.contractId })
+    .from(outsourcingContractParties)
+    .where(eq(outsourcingContractParties.partyId, sourcePartyId))
+    .limit(8);
+
+  return {
+    canProceed: blockingReasons.length === 0,
+    blockingReasons,
+    sourcePartyId,
+    targetPartyId,
+    contractPartyReferences: cntRow?.n ?? 0,
+    sampleContractIds: sampleRows.map((r) => r.contractId),
+  };
+}
+
+export async function executePartyMerge(
+  db: AppDb,
+  params: {
+    sourcePartyId: string;
+    targetPartyId: string;
+    actorId: number;
+    actorName?: string;
+    confirmationPhrase: string;
+  }
+): Promise<void> {
+  if (params.confirmationPhrase.trim().toUpperCase() !== "MERGE") {
+    throw new Error('Merge requires confirmationPhrase "MERGE"');
+  }
+  const preview = await previewPartyMerge(db, params.sourcePartyId, params.targetPartyId);
+  if (!preview.canProceed) {
+    throw new Error(preview.blockingReasons.join(" "));
+  }
+  await db
+    .update(outsourcingContractParties)
+    .set({ partyId: params.targetPartyId })
+    .where(eq(outsourcingContractParties.partyId, params.sourcePartyId));
+
+  await db
+    .update(businessParties)
+    .set({
+      status: "inactive",
+      mergedIntoPartyId: params.targetPartyId,
+      updatedAt: new Date(),
+    })
+    .where(eq(businessParties.id, params.sourcePartyId));
+
+  await appendPartyEvent(db, {
+    partyId: params.sourcePartyId,
+    action: "party_merged_into",
+    actorId: params.actorId,
+    actorName: params.actorName,
+    details: { targetPartyId: params.targetPartyId },
+  });
+  await appendPartyEvent(db, {
+    partyId: params.targetPartyId,
+    action: "party_merge_absorbed",
+    actorId: params.actorId,
+    actorName: params.actorName,
+    details: { sourcePartyId: params.sourcePartyId },
+  });
+}
+
+export type PartyUnlinkPreview = {
+  canProceed: boolean;
+  blockingReasons: string[];
+  linkedCompanyId: number | null;
+  referencingByStatus: Record<string, number>;
+  sampleContractIds: string[];
+};
+
+const UNLINK_BLOCKED_CONTRACT_STATUSES = new Set(["active", "expired", "suspended"]);
+
+export async function previewPartyPlatformUnlink(db: AppDb, partyId: string): Promise<PartyUnlinkPreview> {
+  const party = await getPartyById(db, partyId);
+  const blockingReasons: string[] = [];
+  if (!party) {
+    return {
+      canProceed: false,
+      blockingReasons: ["Party not found"],
+      linkedCompanyId: null,
+      referencingByStatus: {},
+      sampleContractIds: [],
+    };
+  }
+  if (party.linkedCompanyId == null) {
+    blockingReasons.push("Party is not linked to a platform company.");
+  }
+  if (party.mergedIntoPartyId) {
+    blockingReasons.push("Party was merged away — unlink does not apply.");
+  }
+
+  const rows = await db
+    .select({
+      status: outsourcingContracts.status,
+      contractId: outsourcingContracts.id,
+    })
+    .from(outsourcingContractParties)
+    .innerJoin(outsourcingContracts, eq(outsourcingContracts.id, outsourcingContractParties.contractId))
+    .where(eq(outsourcingContractParties.partyId, partyId))
+    .limit(5000);
+
+  const byStatus: Record<string, number> = {};
+  for (const r of rows) {
+    byStatus[r.status] = (byStatus[r.status] ?? 0) + 1;
+  }
+
+  if (rows.some((r) => UNLINK_BLOCKED_CONTRACT_STATUSES.has(r.status))) {
+    blockingReasons.push(
+      "Unlink blocked while any related contract is active, expired, or suspended (terminal or draft-only references allowed)."
+    );
+  }
+
+  return {
+    canProceed: blockingReasons.length === 0,
+    blockingReasons,
+    linkedCompanyId: party.linkedCompanyId ?? null,
+    referencingByStatus: byStatus,
+    sampleContractIds: Array.from(new Set(rows.map((r) => r.contractId))).slice(0, 8),
+  };
+}
+
+export async function executePartyPlatformUnlink(
+  db: AppDb,
+  params: { partyId: string; actorId: number; actorName?: string; confirmationPhrase: string }
+): Promise<void> {
+  if (params.confirmationPhrase.trim().toUpperCase() !== "UNLINK") {
+    throw new Error('Unlink requires confirmationPhrase "UNLINK"');
+  }
+  const preview = await previewPartyPlatformUnlink(db, params.partyId);
+  if (!preview.canProceed) {
+    throw new Error(preview.blockingReasons.join(" "));
+  }
+  const party = await getPartyById(db, params.partyId);
+  if (!party?.linkedCompanyId) throw new Error("Party is not linked");
+
+  const linkedCo = party.linkedCompanyId;
+
+  const refRows = await db
+    .select({
+      contractId: outsourcingContractParties.contractId,
+      partyRole: outsourcingContractParties.partyRole,
+    })
+    .from(outsourcingContractParties)
+    .where(eq(outsourcingContractParties.partyId, params.partyId));
+
+  await db
+    .update(businessParties)
+    .set({ linkedCompanyId: null, updatedAt: new Date() })
+    .where(eq(businessParties.id, params.partyId));
+
+  const firstPartyContractIds = new Set(
+    refRows.filter((r) => r.partyRole === "first_party").map((r) => r.contractId)
+  );
+
+  for (const cid of Array.from(firstPartyContractIds)) {
+    await db
+      .update(outsourcingContractParties)
+      .set({ companyId: null })
+      .where(
+        and(
+          eq(outsourcingContractParties.contractId, cid),
+          eq(outsourcingContractParties.partyRole, "first_party"),
+          eq(outsourcingContractParties.partyId, params.partyId)
+        )
+      );
+    await db
+      .update(outsourcingContracts)
+      .set({ companyId: null, updatedAt: new Date() })
+      .where(and(eq(outsourcingContracts.id, cid), eq(outsourcingContracts.companyId, linkedCo)));
+  }
+
+  await appendPartyEvent(db, {
+    partyId: params.partyId,
+    action: "party_unlinked_from_company",
+    actorId: params.actorId,
+    actorName: params.actorName,
+    details: { formerLinkedCompanyId: linkedCo },
+  });
 }
 
 export async function searchActiveCompaniesForPartyLink(

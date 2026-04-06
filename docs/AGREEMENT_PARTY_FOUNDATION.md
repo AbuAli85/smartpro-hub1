@@ -1,6 +1,6 @@
 # Agreement & party foundation
 
-For rollout, backfill, QA matrix, and deployment order see [Phase 2 QA & deployment](./AGREEMENT_PHASE2_QA_AND_DEPLOYMENT.md).
+For rollout, backfill, QA matrix, and deployment order see [Phase 2 QA & deployment](./AGREEMENT_PHASE2_QA_AND_DEPLOYMENT.md). Phase 3 operations (integrity UI, merge/unlink, amendment MVP, PDF row tests) are in [Phase 3](./AGREEMENT_PHASE3.md).
 
 ## Problem
 

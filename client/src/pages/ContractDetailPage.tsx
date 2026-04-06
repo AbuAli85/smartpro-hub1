@@ -14,6 +14,7 @@
 import { useRef, useState } from "react";
 import { Link, useParams } from "wouter";
 import { trpc } from "@/lib/trpc";
+import { parseOutsourcingContractLifecycleMetadata } from "@shared/agreementLifecycle";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -60,6 +61,7 @@ import {
   Upload,
   User,
   X,
+  GitBranch,
 } from "lucide-react";
 import {
   usePromoterAssignmentForm,
@@ -227,6 +229,7 @@ export default function ContractDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [showEdit, setShowEdit] = useState(false);
   const [showRenew, setShowRenew] = useState(false);
+  const [showAmendment, setShowAmendment] = useState(false);
   const [showActivate, setShowActivate] = useState(false);
   const [showTerminate, setShowTerminate] = useState(false);
   const [terminateReason, setTerminateReason] = useState("");
@@ -289,6 +292,17 @@ export default function ContractDetailPage() {
       refetch();
     },
     onError: (e) => toast.error("Renew failed", { description: e.message }),
+  });
+
+  const amendmentMutation = trpc.contractManagement.createAmendmentDraft.useMutation({
+    onSuccess: (result) => {
+      toast.success("Amendment draft created", {
+        description: `Open draft ${result.id.slice(0, 8)}… to edit and activate.`,
+      });
+      setShowAmendment(false);
+      refetch();
+    },
+    onError: (e) => toast.error("Amendment failed", { description: e.message }),
   });
 
   const generateMutation = trpc.documentGeneration.generate.useMutation({
@@ -420,6 +434,14 @@ export default function ContractDetailPage() {
   const isTerminal    = allowedTransitions.length === 0;
   const canEdit       = !isTerminal;
 
+  const lifecycleMeta = parseOutsourcingContractLifecycleMetadata(
+    contract!.metadata as Record<string, unknown> | null | undefined
+  );
+  const canAmend =
+    contract!.contractTypeId === "promoter_assignment" &&
+    (contract!.status === "active" || contract!.status === "expired") &&
+    canEdit;
+
   const promoterName =
     promoterDetail?.fullNameEn ??
     (promoterDetail?.fullNameAr ? `(AR) ${promoterDetail.fullNameAr}` : "Unknown promoter");
@@ -522,6 +544,17 @@ export default function ContractDetailPage() {
               </Button>
             )}
 
+            {canAmend && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                onClick={() => setShowAmendment(true)}
+              >
+                <GitBranch className="h-3.5 w-3.5" /> Amendment draft
+              </Button>
+            )}
+
             {/* Terminate */}
             {canTerminate && (
               <Button
@@ -576,6 +609,16 @@ export default function ContractDetailPage() {
               <Field label="Name (EN)" value={firstParty?.displayNameEn} />
               <Field label="Name (AR)" value={firstParty?.displayNameAr} />
               <Field label="CR / Reg. no." value={firstParty?.registrationNumber} />
+              <Field
+                label="Party ID"
+                value={
+                  firstParty?.partyId ? (
+                    <code className="text-[11px] break-all">{firstParty.partyId}</code>
+                  ) : (
+                    <span className="text-amber-700 dark:text-amber-400 text-xs">Not set — run backfill or create new agreements</span>
+                  )
+                }
+              />
             </div>
             <div>
               <p className="text-xs text-muted-foreground uppercase tracking-wide font-semibold mb-2">
@@ -584,6 +627,16 @@ export default function ContractDetailPage() {
               <Field label="Name (EN)" value={secondParty?.displayNameEn} />
               <Field label="Name (AR)" value={secondParty?.displayNameAr} />
               <Field label="CR / Reg. no." value={secondParty?.registrationNumber} />
+              <Field
+                label="Party ID"
+                value={
+                  secondParty?.partyId ? (
+                    <code className="text-[11px] break-all">{secondParty.partyId}</code>
+                  ) : (
+                    <span className="text-muted-foreground text-xs">—</span>
+                  )
+                }
+              />
             </div>
           </div>
         </SectionCard>
@@ -664,6 +717,70 @@ export default function ContractDetailPage() {
               </Link>
             </div>
           )}
+        </SectionCard>
+
+        {/* 4b. Lifecycle lineage (metadata + relationships) */}
+        <SectionCard icon={<GitBranch className="h-4 w-4" />} title="Lifecycle &amp; lineage">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 text-sm">
+            <Field
+              label="Lifecycle (metadata)"
+              value={
+                lifecycleMeta.lifecycleKind ? (
+                  <Badge variant="outline" className="text-xs capitalize">
+                    {lifecycleMeta.lifecycleKind}
+                  </Badge>
+                ) : (
+                  <span className="text-muted-foreground">—</span>
+                )
+              }
+            />
+            <Field
+              label="Root contract"
+              value={
+                lifecycleMeta.rootContractId ? (
+                  <Link href={`/hr/contracts/${lifecycleMeta.rootContractId}`}>
+                    <span className="text-primary underline underline-offset-2 font-mono text-xs">
+                      {lifecycleMeta.rootContractId.slice(0, 8)}…
+                    </span>
+                  </Link>
+                ) : (
+                  "—"
+                )
+              }
+            />
+            <Field
+              label="Amends (base)"
+              value={
+                lifecycleMeta.amendsContractId ? (
+                  <Link href={`/hr/contracts/${lifecycleMeta.amendsContractId}`}>
+                    <span className="text-primary underline underline-offset-2 font-mono text-xs">
+                      {lifecycleMeta.amendsContractId.slice(0, 8)}…
+                    </span>
+                  </Link>
+                ) : (
+                  "—"
+                )
+              }
+            />
+            <Field
+              label="Renewed from"
+              value={
+                lifecycleMeta.renewedFromContractId ? (
+                  <Link href={`/hr/contracts/${lifecycleMeta.renewedFromContractId}`}>
+                    <span className="text-primary underline underline-offset-2 font-mono text-xs">
+                      {lifecycleMeta.renewedFromContractId.slice(0, 8)}…
+                    </span>
+                  </Link>
+                ) : (
+                  "—"
+                )
+              }
+            />
+          </div>
+          <p className="text-xs text-muted-foreground mt-3">
+            Termination and renewal events in the timeline include{" "}
+            <code className="text-[10px]">lifecycleKind</code> in audit details for reporting.
+          </p>
         </SectionCard>
 
         {/* 5. Documents */}
@@ -997,6 +1114,27 @@ export default function ContractDetailPage() {
           />
         </DialogContent>
       </Dialog>
+
+      <Dialog open={showAmendment} onOpenChange={setShowAmendment}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <GitBranch className="h-4 w-4" /> Amendment draft
+            </DialogTitle>
+            <DialogDescription>
+              Creates a new <strong>draft</strong> with the same parties and promoter snapshots. The base contract
+              stays unchanged until you activate and operationalize the amendment process separately.
+            </DialogDescription>
+          </DialogHeader>
+          <AmendmentDraftForm
+            baseContractId={id!}
+            suggestedEffectiveDate={fmtDate(contract!.effectiveDate)}
+            suggestedExpiryDate={fmtDate(contract!.expiryDate)}
+            mutation={amendmentMutation}
+            onCancel={() => setShowAmendment(false)}
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -1013,6 +1151,11 @@ const EVENT_META: Record<
   pdf_generated:   { icon: <Download className="h-3.5 w-3.5" />, label: "PDF generated", color: "bg-indigo-400" },
   signed_uploaded: { icon: <Upload className="h-3.5 w-3.5" />, label: "Signed copy uploaded", color: "bg-teal-500" },
   renewed:         { icon: <RotateCcw className="h-3.5 w-3.5" />, label: "Renewed", color: "bg-blue-500" },
+  amendment_branched: {
+    icon: <GitBranch className="h-3.5 w-3.5" />,
+    label: "Amendment draft created",
+    color: "bg-violet-500",
+  },
   terminated:      { icon: <X className="h-3.5 w-3.5" />, label: "Terminated", color: "bg-red-500" },
   suspended:       { icon: <AlertTriangle className="h-3.5 w-3.5" />, label: "Suspended", color: "bg-amber-500" },
   expired:         { icon: <Clock className="h-3.5 w-3.5" />, label: "Auto-expired", color: "bg-red-400" },
@@ -1041,6 +1184,8 @@ function TimelineEvent({ event: ev }: { event: EventRow }) {
   const reason = details?.reason as string | undefined;
   const note   = details?.note   as string | undefined;
   const updatedFields = details?.updatedFields as string[] | undefined;
+  const successorContractId = details?.successorContractId as string | undefined;
+  const amendmentContractId = details?.amendmentContractId as string | undefined;
 
   return (
     <li className="ml-4 relative pb-4">
@@ -1057,12 +1202,28 @@ function TimelineEvent({ event: ev }: { event: EventRow }) {
           </span>
         )}
       </div>
-      {(ev.actorName || reason || note || updatedFields) && (
+      {(ev.actorName || reason || note || updatedFields || successorContractId || amendmentContractId) && (
         <div className="text-xs text-muted-foreground mt-0.5 space-y-0.5">
           {ev.actorName && ev.actorName !== "system:auto-expire" && (
             <p>by {ev.actorName}</p>
           )}
           {ev.actorName === "system:auto-expire" && <p className="italic">automatic</p>}
+          {successorContractId && (
+            <p>
+              Successor:{" "}
+              <Link href={`/hr/contracts/${successorContractId}`}>
+                <span className="text-primary underline font-mono">{successorContractId.slice(0, 8)}…</span>
+              </Link>
+            </p>
+          )}
+          {amendmentContractId && (
+            <p>
+              Draft:{" "}
+              <Link href={`/hr/contracts/${amendmentContractId}`}>
+                <span className="text-primary underline font-mono">{amendmentContractId.slice(0, 8)}…</span>
+              </Link>
+            </p>
+          )}
           {reason && <p className="italic">"{reason}"</p>}
           {note && <p className="italic">"{note}"</p>}
           {updatedFields && updatedFields.length > 0 && (
@@ -1074,6 +1235,76 @@ function TimelineEvent({ event: ev }: { event: EventRow }) {
         {new Date(ev.createdAt).toLocaleString()}
       </p>
     </li>
+  );
+}
+
+// ─── AMENDMENT DRAFT FORM ─────────────────────────────────────────────────────
+
+function AmendmentDraftForm({
+  baseContractId,
+  suggestedEffectiveDate,
+  suggestedExpiryDate,
+  mutation,
+  onCancel,
+}: {
+  baseContractId: string;
+  suggestedEffectiveDate: string;
+  suggestedExpiryDate: string;
+  mutation: ReturnType<typeof trpc.contractManagement.createAmendmentDraft.useMutation>;
+  onCancel: () => void;
+}) {
+  const [newEffectiveDate, setNewEffectiveDate] = useState(suggestedEffectiveDate);
+  const [newExpiryDate, setNewExpiryDate] = useState(suggestedExpiryDate);
+  const [newContractNumber, setNewContractNumber] = useState("");
+
+  return (
+    <div className="space-y-4 pt-1">
+      <div className="space-y-2">
+        <Label>Effective date</Label>
+        <DateInput
+          value={newEffectiveDate}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewEffectiveDate(e.target.value)}
+          className="h-10"
+        />
+      </div>
+      <div className="space-y-2">
+        <Label>Expiry date <span className="text-destructive">*</span></Label>
+        <DateInput
+          value={newExpiryDate}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewExpiryDate(e.target.value)}
+          className="h-10"
+        />
+      </div>
+      <div className="space-y-2">
+        <Label>Contract reference no. (optional)</Label>
+        <Input
+          placeholder="e.g. PA-AMEND-001"
+          value={newContractNumber}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewContractNumber(e.target.value)}
+          className="h-10 font-mono text-sm"
+        />
+      </div>
+      <div className="flex justify-end gap-2 pt-1">
+        <Button variant="outline" onClick={onCancel}>
+          Cancel
+        </Button>
+        <Button
+          onClick={() =>
+            mutation.mutate({
+              baseContractId,
+              newEffectiveDate,
+              newExpiryDate,
+              newContractNumber: newContractNumber.trim() || undefined,
+            })
+          }
+          disabled={!newEffectiveDate || !newExpiryDate || mutation.isPending}
+          className="gap-2"
+        >
+          {mutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+          Create draft
+        </Button>
+      </div>
+    </div>
   );
 }
 

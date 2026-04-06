@@ -265,6 +265,7 @@ export const CONTRACT_EVENT_ACTIONS = [
   "pdf_generated",
   "signed_uploaded",
   "renewed",
+  "amendment_branched",
   "terminated",
   "suspended",
   "expired",

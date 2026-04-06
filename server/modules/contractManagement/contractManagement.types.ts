@@ -423,6 +423,143 @@ export const DEFAULT_REQUIRED_DOCUMENTS: ReadonlyArray<{
   readonly label: string;
 }> = REQUIRED_DOCUMENTS_BY_CONTRACT_TYPE["promoter_assignment"]!;
 
+// ─── REQUIRED IDENTITY FIELDS BY CONTRACT TYPE ────────────────────────────────
+
+/**
+ * Fields on OutsourcingContractRow (promoter detail) that must be populated
+ * for a contract to be considered "identity-complete".
+ *
+ * Mapped per contract type so future types (offer_letter, etc.) can define
+ * their own required fields.  `field` must be a key of OutsourcingContractRow.
+ *
+ * Checked by `scoreContractCompliance` — a null / empty-string field counts
+ * as missing and contributes a proportional identity penalty.
+ */
+export const REQUIRED_IDENTITY_FIELDS_BY_CONTRACT_TYPE: Readonly<
+  Record<
+    string,
+    ReadonlyArray<{
+      readonly field: "civilId" | "passportNumber" | "passportExpiry" | "nationality" | "jobTitleEn";
+      readonly label: string;
+    }>
+  >
+> = {
+  promoter_assignment: [
+    { field: "civilId",        label: "Civil ID" },
+    { field: "passportNumber", label: "Passport Number" },
+    { field: "passportExpiry", label: "Passport Expiry" },
+    { field: "nationality",    label: "Nationality" },
+    { field: "jobTitleEn",     label: "Job Title" },
+  ],
+  // Future types: add entries here.
+} as const;
+
+/** Fallback when contract type has no explicit entry. */
+export const DEFAULT_REQUIRED_IDENTITY_FIELDS: ReadonlyArray<{
+  readonly field: "civilId" | "passportNumber" | "passportExpiry" | "nationality" | "jobTitleEn";
+  readonly label: string;
+}> = REQUIRED_IDENTITY_FIELDS_BY_CONTRACT_TYPE["promoter_assignment"]!;
+
+// ─── COMPLIANCE SCORING ───────────────────────────────────────────────────────
+
+/**
+ * Penalty weights that drive `scoreContractCompliance`.
+ *
+ * Total maximum penalty = 100 (score can reach 0).
+ *
+ *   expired        — contract has lapsed (big issue; needs renewal)
+ *   missingDocs    — missing one or more required documents (proportional)
+ *   missingIdentity— missing one or more required identity fields (proportional)
+ *   expiringSoon   — active, expiring within 30 days (proportional to urgency)
+ *
+ * All values are exported so the frontend can show a "scoring legend" without
+ * duplicating the weights.
+ */
+export const COMPLIANCE_PENALTY_WEIGHTS = {
+  expired:         40,
+  missingDocs:     30,
+  missingIdentity: 20,
+  expiringSoon:    10,
+} as const;
+
+/**
+ * Statuses included in compliance scoring.
+ *
+ * "draft", "terminated", "renewed" are intentionally excluded:
+ *   - draft      = not yet operational; penalising it distorts the score.
+ *   - terminated = historical record; no longer relevant to operations.
+ *   - renewed    = superseded; the successor contract is what matters.
+ */
+export const COMPLIANCE_SCORABLE_STATUSES: ReadonlyArray<ContractStatus> = [
+  "active",
+  "expired",
+  "suspended",
+] as const;
+
+/** Compliance band thresholds (inclusive lower bound). */
+export const COMPLIANCE_BANDS = {
+  excellent: 90,
+  good:      70,
+  fair:      50,
+  // poor: 0–49 (everything below `fair`)
+} as const;
+
+/** Per-contract compliance score and breakdown. */
+export interface ContractComplianceScore {
+  id:             string;
+  contractNumber: string | null;
+  promoterName:   string;
+  /** Effective status used for scoring (may differ from stored status). */
+  effectiveStatus: ContractStatus;
+  /** 0–100.  Higher = more compliant. */
+  score: number;
+  /**
+   * Non-zero penalty components.
+   * The sum of all values equals `100 - score` (before clamping).
+   */
+  penalties: {
+    expired?:          number;
+    missingDocuments?: number;
+    missingIdentity?:  number;
+    expiringSoon?:     number;
+  };
+  /** Required document kinds that are absent (canonical label strings). */
+  missingDocuments:     string[];
+  /** Required identity field labels that are absent or empty. */
+  missingIdentityFields: string[];
+}
+
+/**
+ * Portfolio-level compliance summary returned inside `ContractKpis`.
+ *
+ * `overallScore` is the mean score across all scorable contracts
+ * (active + expired + suspended).  100 = fully compliant.
+ *
+ * `perContract` contains up to 50 scorable contracts sorted by score
+ * ascending (worst first) — an immediately actionable list.
+ */
+export interface ComplianceKpis {
+  /** Mean compliance score across all scorable contracts (0–100). */
+  overallScore: number;
+  /** Number of contracts included in the score (active + expired + suspended). */
+  scorableCount: number;
+  /**
+   * Count of contracts in each compliance band.
+   * All four counts sum to `scorableCount`.
+   */
+  bands: {
+    excellent: number;  // 90–100
+    good:      number;  // 70–89
+    fair:      number;  // 50–69
+    poor:      number;  // 0–49
+  };
+  /**
+   * Per-contract scores sorted ascending by score (worst compliance first).
+   * Capped at 50 entries; the overall score covers the full population.
+   */
+  perContract: ContractComplianceScore[];
+}
+
 // ─── CONTRACT KPIs ────────────────────────────────────────────────────────────
 
 /** Shape returned by `getContractKpis` / `aggregateKpisFromRows`. */
@@ -519,4 +656,11 @@ export interface ContractKpis {
     promoterName: string;
     missingKinds: string[];
   }>;
+
+  /**
+   * Portfolio compliance score and per-contract breakdown.
+   * Scoring covers active + expired + suspended contracts.
+   * Draft, terminated, and renewed contracts are excluded.
+   */
+  compliance: ComplianceKpis;
 }

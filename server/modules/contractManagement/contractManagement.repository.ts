@@ -26,10 +26,17 @@ import {
 import type { getDb } from "../../db";
 import {
   ALLOWED_TRANSITIONS,
+  COMPLIANCE_BANDS,
+  COMPLIANCE_PENALTY_WEIGHTS,
+  COMPLIANCE_SCORABLE_STATUSES,
   ContractTransitionError,
   DEFAULT_REQUIRED_DOCUMENTS,
+  DEFAULT_REQUIRED_IDENTITY_FIELDS,
   REQUIRED_DOCUMENTS_BY_CONTRACT_TYPE,
+  REQUIRED_IDENTITY_FIELDS_BY_CONTRACT_TYPE,
   validateStatusTransition,
+  type ComplianceKpis,
+  type ContractComplianceScore,
   type ContractDocumentKind,
   type ContractEventAction,
   type ContractKpis,
@@ -259,6 +266,134 @@ export function normaliseDocumentKind(rawKind: string): string {
   return LEGACY[rawKind] ?? rawKind;
 }
 
+// ─── COMPLIANCE SCORING ───────────────────────────────────────────────────────
+
+/**
+ * Returns true when a promoter identity field value is considered "present".
+ * Strings must be non-empty after trimming; Date objects are always present.
+ */
+function isFieldPresent(val: string | Date | null | undefined): boolean {
+  if (val === null || val === undefined) return false;
+  if (typeof val === "string") return val.trim().length > 0;
+  return true; // Date object
+}
+
+/**
+ * Score a single contract for compliance (0–100).
+ *
+ * Penalty model (total max = 100):
+ *   expired         −40  contract has lapsed; needs renewal
+ *   missingDocs     −30  proportional to fraction of required docs absent
+ *   missingIdentity −20  proportional to fraction of required fields absent
+ *   expiringSoon    −10  smooth ramp: 0 pts at day 30, 10 pts at day 0 (active only)
+ *
+ * Statuses scored: active, expired, suspended.
+ * Draft / terminated / renewed are excluded from the portfolio score.
+ *
+ * Exported for unit-testing.
+ */
+export function scoreContractCompliance(
+  row: OutsourcingContractRow,
+  effectiveStatus: ContractStatus,
+  docKinds: Set<string>,     // already-normalised document kind set for this contract
+  nowUtcDay: Date
+): ContractComplianceScore {
+  const contractTypeId = row.contractTypeId ?? "promoter_assignment";
+
+  // ── Required documents ─────────────────────────────────────────────────────
+  const requiredDocs =
+    REQUIRED_DOCUMENTS_BY_CONTRACT_TYPE[contractTypeId] ?? DEFAULT_REQUIRED_DOCUMENTS;
+  const missingDocs = requiredDocs.filter((req) => !docKinds.has(req.kind));
+
+  // ── Required identity fields ───────────────────────────────────────────────
+  const requiredIdentity =
+    REQUIRED_IDENTITY_FIELDS_BY_CONTRACT_TYPE[contractTypeId] ?? DEFAULT_REQUIRED_IDENTITY_FIELDS;
+  const missingIdentity = requiredIdentity.filter((f) => !isFieldPresent(row[f.field]));
+
+  // ── Penalty accumulation ───────────────────────────────────────────────────
+  const penalties: ContractComplianceScore["penalties"] = {};
+  let score = 100;
+
+  // Penalty: expired
+  if (effectiveStatus === "expired") {
+    penalties.expired = COMPLIANCE_PENALTY_WEIGHTS.expired;
+    score -= penalties.expired;
+  }
+
+  // Penalty: missing documents (active + expired; proportional)
+  if (
+    (effectiveStatus === "active" || effectiveStatus === "expired") &&
+    missingDocs.length > 0 &&
+    requiredDocs.length > 0
+  ) {
+    const p = Math.round(
+      COMPLIANCE_PENALTY_WEIGHTS.missingDocs * (missingDocs.length / requiredDocs.length)
+    );
+    if (p > 0) { penalties.missingDocuments = p; score -= p; }
+  }
+
+  // Penalty: missing identity (all scorable statuses; proportional)
+  if (missingIdentity.length > 0 && requiredIdentity.length > 0) {
+    const p = Math.round(
+      COMPLIANCE_PENALTY_WEIGHTS.missingIdentity * (missingIdentity.length / requiredIdentity.length)
+    );
+    if (p > 0) { penalties.missingIdentity = p; score -= p; }
+  }
+
+  // Penalty: expiring soon (active only; smooth ramp 0→10 as days left 30→0)
+  if (effectiveStatus === "active" && row.expiryDate) {
+    const exp = toUtcDay(row.expiryDate as Date | string);
+    const daysLeft = Math.ceil((exp.getTime() - nowUtcDay.getTime()) / 86_400_000);
+    if (daysLeft >= 0 && daysLeft < 30) {
+      const p = Math.round(COMPLIANCE_PENALTY_WEIGHTS.expiringSoon * (1 - daysLeft / 30));
+      if (p > 0) { penalties.expiringSoon = p; score -= p; }
+    }
+  }
+
+  return {
+    id:              row.id,
+    contractNumber:  row.contractNumber ?? null,
+    promoterName:    row.promoterName ?? "—",
+    effectiveStatus,
+    score:           Math.max(0, score),
+    penalties,
+    missingDocuments:     missingDocs.map((d) => d.label),
+    missingIdentityFields: missingIdentity.map((f) => f.label),
+  };
+}
+
+/**
+ * Aggregate per-contract compliance scores into a portfolio summary.
+ * Exported for unit-testing.
+ */
+export function aggregateComplianceKpis(
+  perContractScores: ContractComplianceScore[]
+): ComplianceKpis {
+  const scorableCount = perContractScores.length;
+  const overallScore =
+    scorableCount === 0
+      ? 100 // trivially compliant when there are no scorable contracts
+      : Math.round(
+          perContractScores.reduce((sum, s) => sum + s.score, 0) / scorableCount
+        );
+
+  const bands: ComplianceKpis["bands"] = { excellent: 0, good: 0, fair: 0, poor: 0 };
+  for (const s of perContractScores) {
+    if      (s.score >= COMPLIANCE_BANDS.excellent) bands.excellent++;
+    else if (s.score >= COMPLIANCE_BANDS.good)      bands.good++;
+    else if (s.score >= COMPLIANCE_BANDS.fair)      bands.fair++;
+    else                                            bands.poor++;
+  }
+
+  // Sort worst-first so the caller gets an immediately actionable list.
+  // Cap at 50 to keep the response payload bounded; overallScore covers the rest.
+  const perContract = [...perContractScores]
+    .sort((a, b) => a.score - b.score)
+    .slice(0, 50);
+
+  return { overallScore, scorableCount, bands, perContract };
+}
+
 /**
  * Pure KPI aggregation — no DB access.
  *
@@ -408,6 +543,26 @@ export function aggregateKpisFromRows(
     if (missingDocuments.length >= 20) break;
   }
 
+  // ── Compliance scoring ──────────────────────────────────────────────────────
+  // Score each contract whose effective status is in COMPLIANCE_SCORABLE_STATUSES
+  // (active, expired, suspended).  Per-contract, we re-use the already-normalised
+  // docsByContract map, reading whichever doc kinds exist (even for expired rows
+  // whose documents were not fetched in an older code path).
+  const scorableStatusSet = new Set<string>(COMPLIANCE_SCORABLE_STATUSES);
+  const perContractScores: ContractComplianceScore[] = [];
+
+  for (const row of rows) {
+    const eff = effectiveContractStatus(row.status ?? "draft", row.expiryDate, nowUtcDay);
+    if (!scorableStatusSet.has(eff)) continue;
+
+    const rawKinds = docsByContract.get(row.id) ?? new Set<string>();
+    const kinds = new Set([...rawKinds].map(normaliseDocumentKind));
+
+    perContractScores.push(scoreContractCompliance(row, eff, kinds, nowUtcDay));
+  }
+
+  const compliance = aggregateComplianceKpis(perContractScores);
+
   return {
     meta: {
       scope: options.isPlatformAdmin ? "platform" : "company",
@@ -419,6 +574,7 @@ export function aggregateKpisFromRows(
     contractsPerCompany,
     expiringSoon,
     missingDocuments,
+    compliance,
   };
 }
 
@@ -441,11 +597,18 @@ export async function getContractKpis(
   });
   if (rows.length === 0) return EMPTY;
 
-  // Fetch document kinds for effectively-active contracts only
-  // (Phase 2 note: this IN (...) becomes a subquery once activeIds is large)
+  // Fetch document kinds for all compliance-scorable contracts
+  // (active + expired + suspended) so the compliance scorer has full visibility.
+  // Previously only active contracts were fetched; expanding the scope ensures
+  // expired contracts also show their missing-document penalties correctly.
+  // (Phase 2 note: this IN (...) becomes a subquery once scorableIds is large)
   const nowUtcDay = toUtcDay(new Date());
+  const scorableStatusSet = new Set<string>(COMPLIANCE_SCORABLE_STATUSES);
   const activeIds = rows
-    .filter((r) => effectiveContractStatus(r.status ?? "draft", r.expiryDate, nowUtcDay) === "active")
+    .filter((r) => {
+      const eff = effectiveContractStatus(r.status ?? "draft", r.expiryDate, nowUtcDay);
+      return scorableStatusSet.has(eff);
+    })
     .map((r) => r.id);
 
   const docsByContract = new Map<string, Set<string>>();

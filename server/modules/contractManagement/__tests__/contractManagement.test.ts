@@ -506,13 +506,20 @@ describe("F. Document generation context", () => {
 
 import {
   aggregateKpisFromRows,
+  aggregateComplianceKpis,
+  scoreContractCompliance,
   toUtcDay,
   effectiveContractStatus,
   normaliseDocumentKind,
 } from "../contractManagement.repository";
 import {
-  REQUIRED_DOCUMENTS_BY_CONTRACT_TYPE,
+  COMPLIANCE_BANDS,
+  COMPLIANCE_PENALTY_WEIGHTS,
+  COMPLIANCE_SCORABLE_STATUSES,
   DEFAULT_REQUIRED_DOCUMENTS,
+  DEFAULT_REQUIRED_IDENTITY_FIELDS,
+  REQUIRED_DOCUMENTS_BY_CONTRACT_TYPE,
+  REQUIRED_IDENTITY_FIELDS_BY_CONTRACT_TYPE,
 } from "../contractManagement.types";
 import type { OutsourcingContractRow } from "../contractManagement.types";
 
@@ -1598,5 +1605,472 @@ describe("M4. Interaction: effectiveContractStatus and batch job", () => {
     const isSystemJob = (e: { actorId: number }) => e.actorId === 0;
     expect(isSystemJob(jobAuditEvent)).toBe(true);
     expect(isSystemJob(userAuditEvent)).toBe(false);
+  });
+});
+
+// ─── N. COMPLIANCE SCORING ────────────────────────────────────────────────────
+//
+// Tests for scoreContractCompliance(), aggregateComplianceKpis(), and the
+// constants that drive the scoring model.
+
+// Re-use the makeRow / isoDay helpers defined earlier in section G.
+
+describe("N1. COMPLIANCE_PENALTY_WEIGHTS and constants", () => {
+  it("total max penalty equals 100 (score can bottom out at 0)", () => {
+    const total =
+      COMPLIANCE_PENALTY_WEIGHTS.expired +
+      COMPLIANCE_PENALTY_WEIGHTS.missingDocs +
+      COMPLIANCE_PENALTY_WEIGHTS.missingIdentity +
+      COMPLIANCE_PENALTY_WEIGHTS.expiringSoon;
+    expect(total).toBe(100);
+  });
+
+  it("COMPLIANCE_SCORABLE_STATUSES includes active, expired, suspended", () => {
+    expect(COMPLIANCE_SCORABLE_STATUSES).toContain("active");
+    expect(COMPLIANCE_SCORABLE_STATUSES).toContain("expired");
+    expect(COMPLIANCE_SCORABLE_STATUSES).toContain("suspended");
+  });
+
+  it("COMPLIANCE_SCORABLE_STATUSES excludes draft, terminated, renewed", () => {
+    expect(COMPLIANCE_SCORABLE_STATUSES).not.toContain("draft");
+    expect(COMPLIANCE_SCORABLE_STATUSES).not.toContain("terminated");
+    expect(COMPLIANCE_SCORABLE_STATUSES).not.toContain("renewed");
+  });
+
+  it("COMPLIANCE_BANDS has expected thresholds", () => {
+    expect(COMPLIANCE_BANDS.excellent).toBe(90);
+    expect(COMPLIANCE_BANDS.good).toBe(70);
+    expect(COMPLIANCE_BANDS.fair).toBe(50);
+  });
+
+  it("REQUIRED_IDENTITY_FIELDS_BY_CONTRACT_TYPE has 5 fields for promoter_assignment", () => {
+    const fields = REQUIRED_IDENTITY_FIELDS_BY_CONTRACT_TYPE["promoter_assignment"]!;
+    expect(fields).toHaveLength(5);
+    const names = fields.map((f) => f.field);
+    expect(names).toContain("civilId");
+    expect(names).toContain("passportNumber");
+    expect(names).toContain("passportExpiry");
+    expect(names).toContain("nationality");
+    expect(names).toContain("jobTitleEn");
+  });
+
+  it("DEFAULT_REQUIRED_IDENTITY_FIELDS equals promoter_assignment entry", () => {
+    expect(DEFAULT_REQUIRED_IDENTITY_FIELDS).toBe(
+      REQUIRED_IDENTITY_FIELDS_BY_CONTRACT_TYPE["promoter_assignment"]
+    );
+  });
+});
+
+describe("N2. scoreContractCompliance — fully compliant contract", () => {
+  const NOW = toUtcDay(new Date("2026-04-06T00:00:00.000Z"));
+
+  it("perfect contract scores 100", () => {
+    const row = makeRow({
+      id: "perfect",
+      status: "active",
+      expiryDate: "2026-12-31",
+      civilId: "99012345678",
+      passportNumber: "OM123456",
+      passportExpiry: "2030-01-01",
+      nationality: "Omani",
+      jobTitleEn: "Promoter",
+    });
+    const allDocs = new Set(["signed_contract_pdf", "passport_copy", "id_card_copy"]);
+    const result = scoreContractCompliance(row, "active", allDocs, NOW);
+
+    expect(result.score).toBe(100);
+    expect(result.penalties).toEqual({});
+    expect(result.missingDocuments).toHaveLength(0);
+    expect(result.missingIdentityFields).toHaveLength(0);
+    expect(result.effectiveStatus).toBe("active");
+  });
+});
+
+describe("N3. scoreContractCompliance — penalty: expired", () => {
+  const NOW = toUtcDay(new Date("2026-04-06T00:00:00.000Z"));
+
+  it("expired contract deducts 40 points", () => {
+    const row = makeRow({
+      id: "exp1",
+      status: "active",
+      expiryDate: "2026-03-01", // past
+      civilId: "999",
+      passportNumber: "X",
+      passportExpiry: "2030-01-01",
+      nationality: "Test",
+      jobTitleEn: "Role",
+    });
+    const allDocs = new Set(["signed_contract_pdf", "passport_copy", "id_card_copy"]);
+    const result = scoreContractCompliance(row, "expired", allDocs, NOW);
+
+    expect(result.penalties.expired).toBe(COMPLIANCE_PENALTY_WEIGHTS.expired);
+    expect(result.score).toBe(100 - COMPLIANCE_PENALTY_WEIGHTS.expired);
+  });
+
+  it("expired + all docs + all identity = score 60", () => {
+    const row = makeRow({
+      id: "exp2",
+      status: "active",
+      expiryDate: "2026-01-01",
+      civilId: "999", passportNumber: "X", passportExpiry: "2030-01-01",
+      nationality: "Test", jobTitleEn: "Role",
+    });
+    const result = scoreContractCompliance(
+      row, "expired",
+      new Set(["signed_contract_pdf", "passport_copy", "id_card_copy"]),
+      NOW
+    );
+    expect(result.score).toBe(60); // 100 - 40 expired
+  });
+});
+
+describe("N4. scoreContractCompliance — penalty: missing documents", () => {
+  const NOW = toUtcDay(new Date("2026-04-06T00:00:00.000Z"));
+  const FULL_IDENTITY = {
+    civilId: "A", passportNumber: "B", passportExpiry: "2030-01-01",
+    nationality: "X", jobTitleEn: "Y",
+  };
+
+  it("all 3 docs missing → full 30pt penalty", () => {
+    const row = makeRow({ id: "d1", status: "active", expiryDate: "2026-12-31", ...FULL_IDENTITY });
+    const result = scoreContractCompliance(row, "active", new Set(), NOW);
+    expect(result.penalties.missingDocuments).toBe(COMPLIANCE_PENALTY_WEIGHTS.missingDocs);
+    expect(result.missingDocuments).toHaveLength(3);
+  });
+
+  it("2 of 3 docs missing → 20pt penalty (proportional: 2/3 × 30 = 20)", () => {
+    const row = makeRow({ id: "d2", status: "active", expiryDate: "2026-12-31", ...FULL_IDENTITY });
+    const result = scoreContractCompliance(row, "active", new Set(["signed_contract_pdf"]), NOW);
+    expect(result.penalties.missingDocuments).toBe(20);
+    expect(result.missingDocuments).toHaveLength(2);
+  });
+
+  it("1 of 3 docs missing → 10pt penalty (proportional: 1/3 × 30 = 10)", () => {
+    const row = makeRow({ id: "d3", status: "active", expiryDate: "2026-12-31", ...FULL_IDENTITY });
+    const result = scoreContractCompliance(
+      row, "active",
+      new Set(["signed_contract_pdf", "passport_copy"]),
+      NOW
+    );
+    expect(result.penalties.missingDocuments).toBe(10);
+    expect(result.missingDocuments).toHaveLength(1);
+  });
+
+  it("suspended contract does NOT receive a missing-doc penalty", () => {
+    // Suspended is in COMPLIANCE_SCORABLE_STATUSES but missing-doc penalty
+    // only applies to active and expired.
+    const row = makeRow({ id: "d4", status: "suspended", expiryDate: "2026-12-31", ...FULL_IDENTITY });
+    const result = scoreContractCompliance(row, "suspended", new Set(), NOW);
+    expect(result.penalties.missingDocuments).toBeUndefined();
+  });
+
+  it("legacy id_copy satisfies id_card_copy requirement", () => {
+    const row = makeRow({ id: "d5", status: "active", expiryDate: "2026-12-31", ...FULL_IDENTITY });
+    const docsWithLegacy = new Set(["signed_contract_pdf", "passport_copy", "id_copy"]);
+    const normalised = new Set([...docsWithLegacy].map(normaliseDocumentKind));
+    const result = scoreContractCompliance(row, "active", normalised, NOW);
+    expect(result.missingDocuments).toHaveLength(0);
+    expect(result.penalties.missingDocuments).toBeUndefined();
+  });
+});
+
+describe("N5. scoreContractCompliance — penalty: missing identity fields", () => {
+  const NOW = toUtcDay(new Date("2026-04-06T00:00:00.000Z"));
+  const ALL_DOCS = new Set(["signed_contract_pdf", "passport_copy", "id_card_copy"]);
+
+  it("all 5 identity fields missing → full 20pt penalty", () => {
+    const row = makeRow({
+      id: "i1", status: "active", expiryDate: "2026-12-31",
+      civilId: null, passportNumber: null, passportExpiry: null,
+      nationality: null, jobTitleEn: null,
+    });
+    const result = scoreContractCompliance(row, "active", ALL_DOCS, NOW);
+    expect(result.penalties.missingIdentity).toBe(COMPLIANCE_PENALTY_WEIGHTS.missingIdentity);
+    expect(result.missingIdentityFields).toHaveLength(5);
+  });
+
+  it("4 of 5 identity fields missing → 16pt penalty (proportional: 4/5 × 20 = 16)", () => {
+    const row = makeRow({
+      id: "i2", status: "active", expiryDate: "2026-12-31",
+      civilId: "999", passportNumber: null, passportExpiry: null,
+      nationality: null, jobTitleEn: null,
+    });
+    const result = scoreContractCompliance(row, "active", ALL_DOCS, NOW);
+    expect(result.penalties.missingIdentity).toBe(16);
+    expect(result.missingIdentityFields).toHaveLength(4);
+  });
+
+  it("empty string counts as missing", () => {
+    const row = makeRow({
+      id: "i3", status: "active", expiryDate: "2026-12-31",
+      civilId: "   ", // whitespace-only
+      passportNumber: null, passportExpiry: null,
+      nationality: null, jobTitleEn: null,
+    });
+    const result = scoreContractCompliance(row, "active", ALL_DOCS, NOW);
+    expect(result.missingIdentityFields).toHaveLength(5); // whitespace = missing
+  });
+
+  it("suspended contract still receives identity penalty", () => {
+    const row = makeRow({
+      id: "i4", status: "suspended", expiryDate: "2026-12-31",
+      civilId: null, passportNumber: null, passportExpiry: null,
+      nationality: null, jobTitleEn: null,
+    });
+    const result = scoreContractCompliance(row, "suspended", ALL_DOCS, NOW);
+    expect(result.penalties.missingIdentity).toBeDefined();
+    expect(result.missingIdentityFields).toHaveLength(5);
+  });
+
+  it("expired contract receives identity penalty", () => {
+    const row = makeRow({
+      id: "i5", status: "active", expiryDate: "2026-01-01",
+      civilId: null, passportNumber: null, passportExpiry: null,
+      nationality: null, jobTitleEn: null,
+    });
+    const result = scoreContractCompliance(row, "expired", ALL_DOCS, NOW);
+    expect(result.penalties.missingIdentity).toBeDefined();
+  });
+});
+
+describe("N6. scoreContractCompliance — penalty: expiring soon", () => {
+  const NOW = toUtcDay(new Date("2026-04-06T00:00:00.000Z"));
+  const ALL_DOCS = new Set(["signed_contract_pdf", "passport_copy", "id_card_copy"]);
+  const FULL_IDENTITY = {
+    civilId: "A", passportNumber: "B", passportExpiry: "2030-01-01",
+    nationality: "X", jobTitleEn: "Y",
+  };
+
+  it("expiring today (0 days) → 10pt penalty (max urgency)", () => {
+    const row = makeRow({ id: "es1", status: "active", expiryDate: "2026-04-06", ...FULL_IDENTITY });
+    const result = scoreContractCompliance(row, "active", ALL_DOCS, NOW);
+    expect(result.penalties.expiringSoon).toBe(COMPLIANCE_PENALTY_WEIGHTS.expiringSoon);
+    expect(result.score).toBe(90);
+  });
+
+  it("expiring in 15 days → ~5pt penalty", () => {
+    const row = makeRow({ id: "es2", status: "active", expiryDate: "2026-04-21", ...FULL_IDENTITY });
+    const result = scoreContractCompliance(row, "active", ALL_DOCS, NOW);
+    // 10 * (1 - 15/30) = 10 * 0.5 = 5
+    expect(result.penalties.expiringSoon).toBe(5);
+  });
+
+  it("expiring in exactly 30 days → 0pt penalty (boundary, no penalty)", () => {
+    const row = makeRow({ id: "es3", status: "active", expiryDate: "2026-05-06", ...FULL_IDENTITY });
+    const result = scoreContractCompliance(row, "active", ALL_DOCS, NOW);
+    expect(result.penalties.expiringSoon).toBeUndefined();
+    expect(result.score).toBe(100);
+  });
+
+  it("expiring in 31 days → no penalty", () => {
+    const row = makeRow({ id: "es4", status: "active", expiryDate: "2026-05-07", ...FULL_IDENTITY });
+    const result = scoreContractCompliance(row, "active", ALL_DOCS, NOW);
+    expect(result.penalties.expiringSoon).toBeUndefined();
+  });
+
+  it("expired contract does NOT receive expiringSoon penalty (already penalised for expired)", () => {
+    const row = makeRow({ id: "es5", status: "active", expiryDate: "2026-04-01", ...FULL_IDENTITY });
+    const result = scoreContractCompliance(row, "expired", ALL_DOCS, NOW);
+    expect(result.penalties.expiringSoon).toBeUndefined();
+    expect(result.penalties.expired).toBeDefined();
+  });
+});
+
+describe("N7. scoreContractCompliance — worst-case score", () => {
+  const NOW = toUtcDay(new Date("2026-04-06T00:00:00.000Z"));
+
+  it("expired + all docs missing + all identity missing = score 10 (not 0) due to rounding", () => {
+    // expired (-40) + all docs (-30) + all identity (-20) = -90 → score 10
+    const row = makeRow({
+      id: "wc1", status: "active", expiryDate: "2026-01-01",
+      civilId: null, passportNumber: null, passportExpiry: null,
+      nationality: null, jobTitleEn: null,
+    });
+    const result = scoreContractCompliance(row, "expired", new Set(), NOW);
+    expect(result.score).toBe(10);
+  });
+
+  it("score is never below 0 even with hypothetical excess penalties", () => {
+    const row = makeRow({
+      id: "wc2", status: "active", expiryDate: "2026-04-06", // expiring today
+      civilId: null, passportNumber: null, passportExpiry: null,
+      nationality: null, jobTitleEn: null,
+    });
+    // expired(-40) + allDocs(-30) + allIdentity(-20) + expiringSoon(-10) = -100 → score 0
+    const result = scoreContractCompliance(row, "expired", new Set(), NOW);
+    expect(result.score).toBeGreaterThanOrEqual(0);
+  });
+
+  it("penalties sum equals 100 - score", () => {
+    const row = makeRow({
+      id: "wc3", status: "active", expiryDate: "2026-04-06",
+      civilId: null, passportNumber: null, passportExpiry: null,
+      nationality: null, jobTitleEn: null,
+    });
+    const result = scoreContractCompliance(row, "expired", new Set(), NOW);
+    const penaltySum = Object.values(result.penalties).reduce((a, b) => a + (b ?? 0), 0);
+    expect(result.score).toBe(Math.max(0, 100 - penaltySum));
+  });
+});
+
+describe("N8. aggregateComplianceKpis — portfolio scoring", () => {
+  function makeScore(score: number): import("../contractManagement.types").ContractComplianceScore {
+    return {
+      id: crypto.randomUUID(),
+      contractNumber: null,
+      promoterName: "—",
+      effectiveStatus: "active",
+      score,
+      penalties: {},
+      missingDocuments: [],
+      missingIdentityFields: [],
+    };
+  }
+
+  it("empty list → overallScore=100 (trivially compliant)", () => {
+    const result = aggregateComplianceKpis([]);
+    expect(result.overallScore).toBe(100);
+    expect(result.scorableCount).toBe(0);
+    expect(result.perContract).toHaveLength(0);
+  });
+
+  it("single perfect contract → overallScore=100", () => {
+    const result = aggregateComplianceKpis([makeScore(100)]);
+    expect(result.overallScore).toBe(100);
+    expect(result.scorableCount).toBe(1);
+  });
+
+  it("computes mean correctly", () => {
+    const scores = [makeScore(100), makeScore(60), makeScore(80)];
+    const result = aggregateComplianceKpis(scores);
+    expect(result.overallScore).toBe(Math.round((100 + 60 + 80) / 3)); // 80
+  });
+
+  it("band counts sum to scorableCount", () => {
+    const scores = [
+      makeScore(100), makeScore(95), // excellent
+      makeScore(85), makeScore(70),  // good
+      makeScore(65), makeScore(50),  // fair
+      makeScore(40), makeScore(10),  // poor
+    ];
+    const result = aggregateComplianceKpis(scores);
+    const bandTotal = result.bands.excellent + result.bands.good + result.bands.fair + result.bands.poor;
+    expect(bandTotal).toBe(result.scorableCount);
+    expect(result.bands.excellent).toBe(2);
+    expect(result.bands.good).toBe(2);
+    expect(result.bands.fair).toBe(2);
+    expect(result.bands.poor).toBe(2);
+  });
+
+  it("perContract sorted worst-first", () => {
+    const scores = [makeScore(80), makeScore(40), makeScore(100), makeScore(60)];
+    const result = aggregateComplianceKpis(scores);
+    const ordered = result.perContract.map((s) => s.score);
+    expect(ordered).toEqual([...ordered].sort((a, b) => a - b));
+  });
+
+  it("perContract capped at 50 entries", () => {
+    const many = Array.from({ length: 60 }, (_, i) => makeScore(i));
+    const result = aggregateComplianceKpis(many);
+    expect(result.perContract).toHaveLength(50);
+    expect(result.scorableCount).toBe(60);
+  });
+
+  it("perContract shows the 50 worst entries when capped", () => {
+    const many = Array.from({ length: 60 }, (_, i) => makeScore(i));
+    const result = aggregateComplianceKpis(many);
+    // All returned scores should be ≤ the 50th-worst score
+    const minInResult = Math.min(...result.perContract.map((s) => s.score));
+    const maxInResult = Math.max(...result.perContract.map((s) => s.score));
+    expect(maxInResult).toBe(49); // worst 50 are scores 0..49
+    expect(minInResult).toBe(0);
+  });
+});
+
+describe("N9. compliance in aggregateKpisFromRows — integration", () => {
+  const NOW = new Date("2026-04-06T00:00:00.000Z");
+
+  it("draft contract is excluded from compliance scoring", () => {
+    const rows = [
+      makeRow({ id: "draft1", status: "draft", expiryDate: "2026-12-31" }),
+    ];
+    const result = aggregateKpisFromRows(rows, new Map(), { activeCompanyId: 10, isPlatformAdmin: false, now: NOW });
+    expect(result.compliance.scorableCount).toBe(0);
+    expect(result.compliance.overallScore).toBe(100);
+  });
+
+  it("terminated and renewed contracts are excluded from compliance scoring", () => {
+    const rows = [
+      makeRow({ id: "term1", status: "terminated", expiryDate: "2026-03-01" }),
+      makeRow({ id: "ren1",  status: "renewed",    expiryDate: "2026-02-01" }),
+    ];
+    const result = aggregateKpisFromRows(rows, new Map(), { activeCompanyId: 10, isPlatformAdmin: false, now: NOW });
+    expect(result.compliance.scorableCount).toBe(0);
+  });
+
+  it("active contracts without docs lower the overall score", () => {
+    const rows = [
+      makeRow({ id: "a1", status: "active", expiryDate: "2026-12-31", promoterEmployeeId: 1 }),
+      makeRow({ id: "a2", status: "active", expiryDate: "2026-12-31", promoterEmployeeId: 2 }),
+    ];
+    const result = aggregateKpisFromRows(rows, new Map(), { activeCompanyId: 10, isPlatformAdmin: false, now: NOW });
+    // Both missing all docs AND all identity → both score below 100
+    expect(result.compliance.overallScore).toBeLessThan(100);
+    expect(result.compliance.scorableCount).toBe(2);
+    expect(result.compliance.bands.excellent).toBe(0);
+  });
+
+  it("active contracts with all docs AND all identity fields score 100", () => {
+    const rows = [
+      makeRow({
+        id: "perfect",
+        status: "active",
+        expiryDate: "2026-12-31",
+        civilId: "A", passportNumber: "B", passportExpiry: "2030-01-01",
+        nationality: "X", jobTitleEn: "Y",
+      }),
+    ];
+    const allDocs = new Map([
+      ["perfect", new Set(["signed_contract_pdf", "passport_copy", "id_card_copy"])],
+    ]);
+    const result = aggregateKpisFromRows(rows, allDocs, { activeCompanyId: 10, isPlatformAdmin: false, now: NOW });
+    expect(result.compliance.overallScore).toBe(100);
+    expect(result.compliance.bands.excellent).toBe(1);
+  });
+
+  it("compliance.perContract is sorted worst-first", () => {
+    const rows = [
+      makeRow({ id: "r1", status: "active", expiryDate: "2026-12-31",
+        civilId: "A", passportNumber: "B", passportExpiry: "2030-01-01", nationality: "X", jobTitleEn: "Y",
+        promoterEmployeeId: 1 }),
+      makeRow({ id: "r2", status: "active", expiryDate: "2026-12-31",
+        civilId: null, passportNumber: null, passportExpiry: null, nationality: null, jobTitleEn: null,
+        promoterEmployeeId: 2 }),
+    ];
+    const docsMap = new Map([
+      ["r1", new Set(["signed_contract_pdf", "passport_copy", "id_card_copy"])],
+    ]);
+    const result = aggregateKpisFromRows(rows, docsMap, { activeCompanyId: 10, isPlatformAdmin: false, now: NOW });
+    const scores = result.compliance.perContract.map((s) => s.score);
+    expect(scores[0]).toBeLessThanOrEqual(scores[scores.length - 1]!);
+  });
+
+  it("effectively-expired stale-active contract is included in scoring with expired penalty", () => {
+    const rows = [
+      makeRow({
+        id: "stale1",
+        status: "active",      // stored as active but past expiry
+        expiryDate: "2026-04-05", // yesterday
+        civilId: "A", passportNumber: "B", passportExpiry: "2030-01-01",
+        nationality: "X", jobTitleEn: "Y",
+      }),
+    ];
+    const allDocs = new Map([
+      ["stale1", new Set(["signed_contract_pdf", "passport_copy", "id_card_copy"])],
+    ]);
+    const result = aggregateKpisFromRows(rows, allDocs, { activeCompanyId: 10, isPlatformAdmin: false, now: NOW });
+    // effectiveContractStatus treats this as "expired" → 40pt penalty
+    expect(result.compliance.overallScore).toBe(60);
+    expect(result.compliance.perContract[0]!.penalties.expired).toBe(40);
   });
 });

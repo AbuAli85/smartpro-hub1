@@ -7,6 +7,7 @@
  * - When the user switches company, all pages re-render with the new company's data.
  */
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { trpc } from "@/lib/trpc";
 
 const STORAGE_KEY = "smartpro_active_company_id";
@@ -45,6 +46,7 @@ const ActiveCompanyContext = createContext<ActiveCompanyContextValue>({
 });
 
 export function ActiveCompanyProvider({ children }: { children: React.ReactNode }) {
+  const queryClient = useQueryClient();
   const { data: rawCompanies, isLoading } = trpc.companies.myCompanies.useQuery();
 
 
@@ -91,6 +93,7 @@ export function ActiveCompanyProvider({ children }: { children: React.ReactNode 
   const switchCompany = (companyId: number) => {
     setActiveCompanyId(companyId);
     localStorage.setItem(STORAGE_KEY, String(companyId));
+    void queryClient.invalidateQueries();
   };
 
   return (

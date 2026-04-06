@@ -8,7 +8,7 @@ import {
   users,
   type User,
 } from "../drizzle/schema";
-import { getDb, getUserCompany } from "./db";
+import { getDb } from "./db";
 import { canAccessGlobalAdminProcedures } from "@shared/rbac";
 import {
   canReadHrPerformanceAuditSensitiveRows,
@@ -24,6 +24,13 @@ import {
 
 export type { UnifiedAuditTimelineRow };
 
+export type UnifiedAuditTimelineScope = {
+  /** null = all tenants (platform only); non-null = filter to that company */
+  companyId: number | null;
+  /** Company membership role for contract-signature audit policy (non-platform) */
+  memberRole: string | null;
+};
+
 /**
  * Single timeline for the Audit Log UI and dashboards.
  * - `audit_events`: workforce, HR performance, and other structured mutations.
@@ -33,6 +40,7 @@ export type { UnifiedAuditTimelineRow };
 export async function loadUnifiedAuditTimeline(
   ctx: { user: User },
   limit: number,
+  scope: UnifiedAuditTimelineScope,
 ): Promise<UnifiedAuditTimelineRow[]> {
   const db = await getDb();
   if (!db) return [];
@@ -41,14 +49,9 @@ export async function loadUnifiedAuditTimeline(
   const overfetch = Math.min(cap * 2, 1000);
 
   const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
-  let companyId: number | null = null;
-  let memberRole: string | null = null;
-  if (!isPlatform) {
-    const membership = await getUserCompany(ctx.user.id);
-    if (!membership?.company?.id) return [];
-    companyId = membership.company.id;
-    memberRole = membership.member.role;
-  }
+  const companyId = scope.companyId;
+  const memberRole = scope.memberRole;
+  if (!isPlatform && companyId == null) return [];
 
   const eventConds = [];
   if (companyId != null) {

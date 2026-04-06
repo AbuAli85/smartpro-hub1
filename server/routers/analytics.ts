@@ -6,6 +6,7 @@ import {
   getEmployees,
   getPlatformStats,
   getUserCompany,
+  getUserCompanyById,
   getContracts,
   getProServices,
   getSanadApplications,
@@ -20,6 +21,7 @@ import {
 } from "../db";
 import { protectedProcedure, router } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
+import { requireActiveCompanyId } from "../_core/tenant";
 import { loadUnifiedAuditTimeline } from "../unifiedAuditTimeline";
 
 async function assertScheduledReportInCompany(reportId: number, companyId: number): Promise<void> {
@@ -118,9 +120,26 @@ export const analyticsRouter = router({
    * Replaces the legacy-only `getAuditLogs` read path so the UI reflects real system activity.
    */
   auditLogs: protectedProcedure
-    .input(z.object({ limit: z.number().min(1).max(500).default(50) }))
+    .input(
+      z.object({
+        limit: z.number().min(1).max(500).default(50),
+        companyId: z.number().optional(),
+      }),
+    )
     .query(async ({ input, ctx }) => {
-      return loadUnifiedAuditTimeline(ctx, input.limit);
+      const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
+      if (isPlatform) {
+        return loadUnifiedAuditTimeline(ctx, input.limit, {
+          companyId: input.companyId ?? null,
+          memberRole: null,
+        });
+      }
+      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId);
+      const m = await getUserCompanyById(ctx.user.id, cid);
+      return loadUnifiedAuditTimeline(ctx, input.limit, {
+        companyId: cid,
+        memberRole: m?.member.role ?? null,
+      });
     }),
 
   // ── Scheduled Reports ──────────────────────────────────────────────────────

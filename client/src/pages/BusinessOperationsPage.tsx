@@ -16,6 +16,7 @@ import {
   Users, FileText, TrendingUp,
 } from "lucide-react";
 import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
+import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function fmtOMR(n: number | string | null | undefined) {
@@ -25,12 +26,19 @@ const MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct"
 
 // ─── Leave Approval Panel ─────────────────────────────────────────────────────
 function LeaveApprovalPanel() {
+  const { activeCompanyId } = useActiveCompany();
   const utils = trpc.useUtils();
   const [rejectId, setRejectId] = useState<number | null>(null);
   const [rejectNote, setRejectNote] = useState("");
 
-  const { data: leaveData, isLoading } = trpc.hr.listLeave.useQuery({});
-  const { data: employees } = trpc.team.listMembers.useQuery({});
+  const { data: leaveData, isLoading } = trpc.hr.listLeave.useQuery(
+    { companyId: activeCompanyId ?? undefined },
+    { enabled: activeCompanyId != null },
+  );
+  const { data: employees } = trpc.team.listMembers.useQuery(
+    { companyId: activeCompanyId ?? undefined },
+    { enabled: activeCompanyId != null },
+  );
 
   const approve = trpc.hr.updateLeave.useMutation({
     onSuccess: () => { utils.hr.listLeave.invalidate(); utils.operations.getTodaysTasks.invalidate(); toast.success("Leave approved"); },
@@ -127,10 +135,17 @@ function LeaveApprovalPanel() {
 
 // ─── Payroll Panel ────────────────────────────────────────────────────────────
 function PayrollPanel() {
+  const { activeCompanyId } = useActiveCompany();
   const [, navigate] = useLocation();
   const now = new Date();
-  const { data: runs, isLoading } = trpc.payroll.listRuns.useQuery({ year: now.getFullYear() });
-  const { data: teamStats } = trpc.team.getTeamStats.useQuery();
+  const { data: runs, isLoading } = trpc.payroll.listRuns.useQuery(
+    { year: now.getFullYear(), companyId: activeCompanyId ?? undefined },
+    { enabled: activeCompanyId != null },
+  );
+  const { data: teamStats } = trpc.team.getTeamStats.useQuery(
+    { companyId: activeCompanyId ?? undefined },
+    { enabled: activeCompanyId != null },
+  );
   const utils = trpc.useUtils();
 
   const createRun = trpc.payroll.createRun.useMutation({
@@ -177,7 +192,13 @@ function PayrollPanel() {
               <Button
                 size="sm"
                 className="gap-1.5 h-8"
-                onClick={() => createRun.mutate({ month: now.getMonth() + 1, year: now.getFullYear() })}
+                onClick={() =>
+                  createRun.mutate({
+                    month: now.getMonth() + 1,
+                    year: now.getFullYear(),
+                    companyId: activeCompanyId ?? undefined,
+                  })
+                }
                 disabled={createRun.isPending || (teamStats?.active ?? 0) === 0}
               >
                 <Play size={13} />
@@ -233,8 +254,12 @@ function PayrollPanel() {
 
 // ─── Alerts Panel ─────────────────────────────────────────────────────────────
 function AlertsPanel() {
+  const { activeCompanyId } = useActiveCompany();
   const [, navigate] = useLocation();
-  const { data: alertsData, isLoading } = trpc.alerts.getExpiryAlerts.useQuery({ maxDays: 60 });
+  const { data: alertsData, isLoading } = trpc.alerts.getExpiryAlerts.useQuery(
+    { maxDays: 60, companyId: activeCompanyId ?? undefined },
+    { enabled: activeCompanyId != null },
+  );
   const alerts = alertsData?.alerts ?? [];
 
   const SEVERITY_COLOR: Record<string, string> = {
@@ -295,7 +320,11 @@ function AlertsPanel() {
 // ─── PRO Panel ────────────────────────────────────────────────────────────────
 function ProPanel() {
   const [, navigate] = useLocation();
-  const { data: proData, isLoading } = trpc.pro.list.useQuery({});
+  const { activeCompanyId } = useActiveCompany();
+  const { data: proData, isLoading } = trpc.pro.list.useQuery(
+    { companyId: activeCompanyId ?? undefined },
+    { enabled: activeCompanyId != null },
+  );
   const services = Array.isArray(proData) ? proData : [];
 
   const STATUS_COLOR: Record<string, string> = {
@@ -347,8 +376,15 @@ function ProPanel() {
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function BusinessOperationsPage() {
-  const { data: tasks } = trpc.operations.getTodaysTasks.useQuery();
-  const { data: alertsData } = trpc.alerts.getExpiryAlerts.useQuery({ maxDays: 30 });
+  const { activeCompanyId } = useActiveCompany();
+  const { data: tasks } = trpc.operations.getTodaysTasks.useQuery(
+    { companyId: activeCompanyId ?? undefined },
+    { enabled: activeCompanyId != null },
+  );
+  const { data: alertsData } = trpc.alerts.getExpiryAlerts.useQuery(
+    { maxDays: 30, companyId: activeCompanyId ?? undefined },
+    { enabled: activeCompanyId != null },
+  );
   const alerts = alertsData?.alerts ?? [];
   const utils = trpc.useUtils();
 

@@ -17,6 +17,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
+import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { DateInput } from "@/components/ui/date-input";
 
 const STATUS_META: Record<string, { label: string; color: string; step: number }> = {
@@ -447,6 +448,7 @@ function CaseDetailPanel({ serviceId, onClose, onUpdate }: { serviceId: number; 
 }
 
 export default function ProServicesPage() {
+  const { activeCompanyId } = useActiveCompany();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
@@ -454,12 +456,22 @@ export default function ProServicesPage() {
   const [bulkStatus, setBulkStatus] = useState("");
   const [selectedId, setSelectedId] = useState<number | null>(null);
 
-  const { data: services, refetch } = trpc.pro.list.useQuery({
-    status: statusFilter !== "all" ? statusFilter : undefined,
-    serviceType: typeFilter !== "all" ? typeFilter : undefined,
-  });
-  const { data: stats } = trpc.pro.getStats.useQuery();
-  const { data: expiringDocs } = trpc.pro.expiringDocuments.useQuery({ daysAhead: 60 });
+  const { data: services, refetch } = trpc.pro.list.useQuery(
+    {
+      status: statusFilter !== "all" ? statusFilter : undefined,
+      serviceType: typeFilter !== "all" ? typeFilter : undefined,
+      companyId: activeCompanyId ?? undefined,
+    },
+    { enabled: activeCompanyId != null },
+  );
+  const { data: stats } = trpc.pro.getStats.useQuery(
+    { companyId: activeCompanyId ?? undefined },
+    { enabled: activeCompanyId != null },
+  );
+  const { data: expiringDocs } = trpc.pro.expiringDocuments.useQuery(
+    { daysAhead: 60, companyId: activeCompanyId ?? undefined },
+    { enabled: activeCompanyId != null },
+  );
 
   const updateMutation = trpc.pro.update.useMutation({
     onSuccess: () => { toast.success("Updated"); refetch(); },

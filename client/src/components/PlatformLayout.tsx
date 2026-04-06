@@ -229,7 +229,10 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
   const [location] = useLocation();
   const { user, logout } = useAuth();
   const { activeCompanyId } = useActiveCompany();
-  const { data: myCompany, isLoading: myCompanyLoading } = trpc.companies.myCompany.useQuery({ companyId: activeCompanyId ?? undefined });
+  const { data: myCompany, isLoading: myCompanyLoading } = trpc.companies.myCompany.useQuery(
+    { companyId: activeCompanyId ?? undefined },
+    { enabled: activeCompanyId != null },
+  );
   const [navPrefsEpoch, setNavPrefsEpoch] = useState(0);
 
   useEffect(() => {
@@ -355,10 +358,22 @@ function NotificationBell() {
   const { isAuthenticated } = useAuth();
   const { activeCompanyId } = useActiveCompany();
   const utils = trpc.useUtils();
-  const { data: proServices } = trpc.pro.list.useQuery({ status: "expiring_soon" });
-  const { data: contracts } = trpc.contracts.list.useQuery({ status: "pending_signature" });
-  const { data: leaveRequests } = trpc.hr.listLeave.useQuery({ companyId: activeCompanyId ?? undefined });
-  const { data: alertBadge } = trpc.alerts.getAlertBadgeCount.useQuery({ companyId: activeCompanyId ?? undefined });
+  const { data: proServices } = trpc.pro.list.useQuery(
+    { status: "expiring_soon", companyId: activeCompanyId ?? undefined },
+    { enabled: activeCompanyId != null },
+  );
+  const { data: contracts } = trpc.contracts.list.useQuery(
+    { status: "pending_signature", companyId: activeCompanyId ?? undefined },
+    { enabled: activeCompanyId != null },
+  );
+  const { data: leaveRequests } = trpc.hr.listLeave.useQuery(
+    { companyId: activeCompanyId ?? undefined },
+    { enabled: activeCompanyId != null },
+  );
+  const { data: alertBadge } = trpc.alerts.getAlertBadgeCount.useQuery(
+    { companyId: activeCompanyId ?? undefined },
+    { enabled: activeCompanyId != null },
+  );
   // Automation notifications
   const { data: automationUnread } = trpc.automation.getUnreadCount.useQuery(undefined, {
     enabled: isAuthenticated,

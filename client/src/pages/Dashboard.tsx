@@ -150,13 +150,22 @@ export default function Dashboard() {
     return (href: string) => clientNavItemVisible(href, user, hidden, navOpts);
   }, [user, navOpts, navPrefsEpoch]);
 
-  const { data: expiringDocs } = trpc.pro.expiringDocuments.useQuery({ daysAhead: 30 });
+  const { data: expiringDocs } = trpc.pro.expiringDocuments.useQuery(
+    { daysAhead: 30, companyId: activeCompanyId ?? undefined },
+    { enabled: activeCompanyId != null },
+  );
   const { data: hrStats } = trpc.hr.getDashboardStats.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
   const { data: platformStats } = trpc.analytics.platformStats.useQuery();
-  const { data: alertBadge } = trpc.alerts.getAlertBadgeCount.useQuery();
+  const { data: alertBadge } = trpc.alerts.getAlertBadgeCount.useQuery(
+    { companyId: activeCompanyId ?? undefined },
+    { enabled: activeCompanyId != null },
+  );
   const { data: aiInsights } = trpc.operations.getAiInsights.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
   const { data: todaysTasks } = trpc.operations.getTodaysTasks.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
-  const { data: auditFeed } = trpc.analytics.auditLogs.useQuery({ limit: 8 });
+  const { data: auditFeed } = trpc.analytics.auditLogs.useQuery(
+    { limit: 8, companyId: activeCompanyId ?? undefined },
+    { enabled: activeCompanyId != null },
+  );
 
   const quickAccessModules = useMemo(() => {
     const items = [
@@ -335,15 +344,31 @@ export default function Dashboard() {
       {/* ── Company KPI Stats ── */}
       {!showPlatformOverview && (
         <div>
-          <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
             <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
               <BarChart3 size={13} /> Your Company Overview
             </h2>
-            <Link href="/analytics">
-              <Button variant="ghost" size="sm" className="text-xs gap-1 h-7">
-                Analytics <ArrowUpRight size={11} />
-              </Button>
-            </Link>
+            <div className="flex items-center gap-1 flex-wrap justify-end">
+              {showHref("/business/dashboard") && (
+                <Link href="/business/dashboard">
+                  <Button variant="ghost" size="sm" className="text-xs gap-1 h-7">
+                    Command centre <ArrowUpRight size={11} />
+                  </Button>
+                </Link>
+              )}
+              {showHref("/operations") && (
+                <Link href="/operations">
+                  <Button variant="ghost" size="sm" className="text-xs gap-1 h-7">
+                    Operations <ArrowUpRight size={11} />
+                  </Button>
+                </Link>
+              )}
+              <Link href="/analytics">
+                <Button variant="ghost" size="sm" className="text-xs gap-1 h-7">
+                  Analytics <ArrowUpRight size={11} />
+                </Button>
+              </Link>
+            </div>
           </div>
           {isLoading ? (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

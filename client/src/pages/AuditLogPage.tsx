@@ -10,6 +10,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Shield, Search, RefreshCw, Download, Eye, Clock, User, Building2, AlertTriangle } from "lucide-react";
 import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
+import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
+import { useAuth } from "@/_core/hooks/useAuth";
+import { seesPlatformOperatorNav } from "@shared/clientNav";
 
 const ENTITY_COLORS: Record<string, string> = {
   contract: "bg-blue-100 text-blue-700",
@@ -73,6 +76,9 @@ interface AuditEntry {
 }
 
 export default function AuditLogPage() {
+  const { user } = useAuth();
+  const { activeCompanyId } = useActiveCompany();
+  const platformNav = seesPlatformOperatorNav(user);
   const [limit, setLimit] = useState(100);
   const [search, setSearch] = useState("");
   const [entityFilter, setEntityFilter] = useState("all");
@@ -80,8 +86,8 @@ export default function AuditLogPage() {
   const [selectedEntry, setSelectedEntry] = useState<AuditEntry | null>(null);
 
   const { data: logs = [], isLoading, refetch, isFetching } = trpc.analytics.auditLogs.useQuery(
-    { limit },
-    { refetchInterval: 30000 }
+    { limit, companyId: !platformNav ? activeCompanyId ?? undefined : undefined },
+    { refetchInterval: 30000, enabled: platformNav || activeCompanyId != null },
   );
 
   const filtered = useMemo(() => {

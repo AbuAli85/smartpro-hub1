@@ -107,13 +107,16 @@ function PromoterAssignmentDialog({ onSuccess }: { onSuccess: () => void }) {
   );
 }
 
-function NewContractDialog({ onSuccess }: { onSuccess: () => void }) {
+function NewContractDialog({ onSuccess, companyId }: { onSuccess: () => void; companyId: number | null }) {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({
     title: "", type: "employment" as const, partyAName: "", partyBName: "",
     value: "", currency: "OMR", startDate: "", endDate: "", content: "", notes: "",
   });
-  const { data: templates } = trpc.contracts.templates.useQuery();
+  const { data: templates } = trpc.contracts.templates.useQuery(
+    { companyId: companyId ?? undefined },
+    { enabled: companyId != null },
+  );
   const createMutation = trpc.contracts.create.useMutation({
     onSuccess: (data) => { toast.success(`Contract created: ${data.contractNumber}`); setOpen(false); onSuccess(); },
     onError: (e) => toast.error(e.message),
@@ -461,6 +464,7 @@ function SaveToStorageButton({ contractId }: { contractId: number }) {
 }
 
 export default function ContractsPage() {
+  const { activeCompanyId } = useActiveCompany();
   const urlSearch = useSearch();
   const highlightContractId = useMemo(() => parseContractIdFromSearch(urlSearch), [urlSearch]);
   const deepLinkTriedReset = useRef(false);
@@ -470,10 +474,14 @@ export default function ContractsPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
-  const { data: contracts, refetch } = trpc.contracts.list.useQuery({
-    status: statusFilter !== "all" ? statusFilter : undefined,
-    type: typeFilter !== "all" ? typeFilter : undefined,
-  });
+  const { data: contracts, refetch } = trpc.contracts.list.useQuery(
+    {
+      status: statusFilter !== "all" ? statusFilter : undefined,
+      type: typeFilter !== "all" ? typeFilter : undefined,
+      companyId: activeCompanyId ?? undefined,
+    },
+    { enabled: activeCompanyId != null },
+  );
   const updateMutation = trpc.contracts.update.useMutation({
     onSuccess: () => { toast.success("Contract updated"); refetch(); },
     onError: (e) => toast.error(e.message),
@@ -550,7 +558,7 @@ export default function ContractsPage() {
         </div>
         <div className="flex flex-wrap gap-2">
           <AIGenerateContractDialog onSuccess={refetch} />
-          <NewContractDialog onSuccess={refetch} />
+          <NewContractDialog onSuccess={refetch} companyId={activeCompanyId} />
           <PromoterAssignmentDialog onSuccess={refetch} />
         </div>
       </div>

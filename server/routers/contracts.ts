@@ -11,7 +11,6 @@ import {
   getContractById,
   getContractTemplates,
   getContracts,
-  getUserCompany,
   updateContract,
   getDb,
 } from "../db";
@@ -28,12 +27,17 @@ import { contractSignatures, contractSignatureAudit, contracts } from "../../dri
 
 export const contractsRouter = router({
   list: protectedProcedure
-    .input(z.object({ status: z.string().optional(), type: z.string().optional() }))
+    .input(
+      z.object({
+        status: z.string().optional(),
+        type: z.string().optional(),
+        companyId: z.number().optional(),
+      }),
+    )
     .query(async ({ input, ctx }) => {
       if (canAccessGlobalAdminProcedures(ctx.user)) return getAllContracts({ status: input.status });
-      const membership = await getUserCompany(ctx.user.id);
-      if (!membership) return [];
-      return getContracts(membership.company.id, input);
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId);
+      return getContracts(companyId, { status: input.status, type: input.type });
     }),
 
   getById: protectedProcedure.input(z.object({ id: z.number() })).query(async ({ input, ctx }) => {
@@ -108,9 +112,11 @@ export const contractsRouter = router({
       return { success: true };
     }),
 
-  templates: protectedProcedure.query(async ({ ctx }) => {
-    const membership = await getUserCompany(ctx.user.id);
-    return getContractTemplates(membership?.company.id);
+  templates: protectedProcedure
+    .input(z.object({ companyId: z.number().optional() }).optional())
+    .query(async ({ ctx, input }) => {
+    const companyId = await requireActiveCompanyId(ctx.user.id, input?.companyId);
+    return getContractTemplates(companyId);
   }),
 
   generateFromTemplate: protectedProcedure

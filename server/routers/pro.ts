@@ -9,7 +9,6 @@ import {
   getExpiringDocuments,
   getProServiceById,
   getProServices,
-  getUserCompany,
   updateProService,
 } from "../db";
 import { assertRowBelongsToActiveCompany, requireActiveCompanyId } from "../_core/tenant";
@@ -31,12 +30,17 @@ const SERVICE_TYPE_ENUM = z.enum([
 
 export const proRouter = router({
   list: protectedProcedure
-    .input(z.object({ status: z.string().optional(), serviceType: z.string().optional() }))
+    .input(
+      z.object({
+        status: z.string().optional(),
+        serviceType: z.string().optional(),
+        companyId: z.number().optional(),
+      }),
+    )
     .query(async ({ input, ctx }) => {
       if (canAccessGlobalAdminProcedures(ctx.user)) return getAllProServices({ status: input.status });
-      const membership = await getUserCompany(ctx.user.id);
-      if (!membership) return [];
-      return getProServices(membership.company.id, input);
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId);
+      return getProServices(companyId, { status: input.status, serviceType: input.serviceType });
     }),
 
   getById: protectedProcedure
@@ -48,14 +52,13 @@ export const proRouter = router({
       return row;
     }),
 
-  getStats: protectedProcedure.query(async ({ ctx }) => {
-    const membership = await getUserCompany(ctx.user.id);
+  getStats: protectedProcedure
+    .input(z.object({ companyId: z.number().optional() }).optional())
+    .query(async ({ ctx, input }) => {
     const all =
       canAccessGlobalAdminProcedures(ctx.user)
         ? await getAllProServices({})
-        : membership
-          ? await getProServices(membership.company.id, {})
-          : [];
+        : await getProServices(await requireActiveCompanyId(ctx.user.id, input?.companyId), {});
     const now = new Date();
     const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     return {
@@ -84,11 +87,14 @@ export const proRouter = router({
   }),
 
   expiringDocuments: protectedProcedure
-    .input(z.object({ daysAhead: z.number().default(30) }))
+    .input(z.object({ daysAhead: z.number().default(30), companyId: z.number().optional() }))
     .query(async ({ input, ctx }) => {
       const rows = await getExpiringDocuments(input.daysAhead);
-      if (canAccessGlobalAdminProcedures(ctx.user)) return rows;
-      const companyId = await requireActiveCompanyId(ctx.user.id);
+      if (canAccessGlobalAdminProcedures(ctx.user)) {
+        if (input.companyId != null) return rows.filter((r) => r.companyId === input.companyId);
+        return rows;
+      }
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId);
       return rows.filter((r) => r.companyId === companyId);
     }),
 

@@ -308,7 +308,8 @@ export default function PromoterAssignmentsPage() {
               <ul className="list-disc pl-4 text-sm text-muted-foreground space-y-1 marker:text-amber-600/80">
                 <li>Enable Google Drive API and Google Docs API for the GCP project.</li>
                 <li>
-                  Share each template Doc with the service account email (<code className="text-xs font-mono text-foreground">client_email</code>{" "}
+                  Share each template Doc with the service account email (
+                  <code className="rounded bg-muted px-1 py-0.5 text-xs font-mono text-foreground">client_email</code>{" "}
                   in the JSON) as Editor.
                 </li>
                 <li>
@@ -320,7 +321,6 @@ export default function PromoterAssignmentsPage() {
             </AlertDescription>
           </Alert>
         )}
-
         {/* Stats bar */}
         <div
           className={`grid grid-cols-2 sm:grid-cols-4 gap-3 transition-opacity ${isFetching && !isLoading ? "opacity-80" : ""}`}

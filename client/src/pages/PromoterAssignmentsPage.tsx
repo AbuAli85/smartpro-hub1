@@ -303,14 +303,10 @@ export default function PromoterAssignmentsPage() {
                 <code className="rounded bg-muted px-1.5 py-0.5 text-xs font-mono text-foreground">
                   GOOGLE_DOCS_SERVICE_ACCOUNT_JSON
                 </code>{" "}
-                to your Google Cloud <span className="text-foreground">service account JSON</span> (full key file as one
-                line or string), then restart the app.
+                to your Google Cloud service account JSON (full key file as one line or string), then restart the app.
               </p>
               <ul className="list-disc pl-4 text-sm text-muted-foreground space-y-1 marker:text-amber-600/80">
-                <li>
-                  Enable <strong className="font-medium text-foreground">Google Drive API</strong> and{" "}
-                  <strong className="font-medium text-foreground">Google Docs API</strong> for the project.
-                </li>
+                <li>Enable Google Drive API and Google Docs API for the project.</li>
                 <li>Share contract template Docs in Drive with the service account email (Editor).</li>
                 <li>
                   See repo file{" "}

@@ -1,4 +1,7 @@
 import { trpc } from "@/lib/trpc";
+import { useAuth } from "@/_core/hooks/useAuth";
+import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
+import { seesPlatformOperatorNav } from "@shared/clientNav";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -6,7 +9,7 @@ import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import {
   Shield, CheckCircle2, AlertTriangle, XCircle, Users, FileText,
-  DollarSign, TrendingUp, Building2, Globe, ChevronRight, RefreshCw
+  DollarSign, TrendingUp, Building2, Globe, ChevronRight, RefreshCw, ArrowRight,
 } from "lucide-react";
 import { Link } from "wouter";
 import { format } from "date-fns";
@@ -43,15 +46,45 @@ function GradeCircle({ score, grade }: { score: number; grade: string }) {
 }
 
 export default function ComplianceDashboardPage() {
+  const { user } = useAuth();
+  const isPlatform = seesPlatformOperatorNav(user);
+  const { activeCompanyId } = useActiveCompany();
+  const scopeEnabled = isPlatform || activeCompanyId != null;
+  const companyScope = { companyId: activeCompanyId ?? undefined };
+
   const now = new Date();
   const currentMonth = now.getMonth() + 1;
   const currentYear = now.getFullYear();
 
-  const { data: score, isLoading: scoreLoading, refetch } = trpc.compliance.getComplianceScore.useQuery({});
-  const { data: omanisation, isLoading: omanLoading } = trpc.compliance.getOmanisationStats.useQuery({});
-  const { data: pasi } = trpc.compliance.getPasiStatus.useQuery({ month: currentMonth, year: currentYear });
-  const { data: wps } = trpc.compliance.getWpsStatus.useQuery({ month: currentMonth, year: currentYear });
-  const { data: permitMatrix } = trpc.compliance.getPermitMatrix.useQuery({});
+  const { data: score, isLoading: scoreLoading, refetch } = trpc.compliance.getComplianceScore.useQuery(companyScope, {
+    enabled: scopeEnabled,
+  });
+  const { data: omanisation, isLoading: omanLoading } = trpc.compliance.getOmanisationStats.useQuery(companyScope, {
+    enabled: scopeEnabled,
+  });
+  const { data: pasi } = trpc.compliance.getPasiStatus.useQuery(
+    { month: currentMonth, year: currentYear, ...companyScope },
+    { enabled: scopeEnabled },
+  );
+  const { data: wps } = trpc.compliance.getWpsStatus.useQuery(
+    { month: currentMonth, year: currentYear, ...companyScope },
+    { enabled: scopeEnabled },
+  );
+  const { data: permitMatrix } = trpc.compliance.getPermitMatrix.useQuery(companyScope, { enabled: scopeEnabled });
+
+  const failedChecks = score?.checks?.filter((c) => c.status === "fail").length ?? 0;
+  const wpsBlocked =
+    wps &&
+    wps.status !== "paid" &&
+    wps.status !== "not_generated";
+  const permitCritical =
+    (permitMatrix?.summary.expired ?? 0) > 0 || (permitMatrix?.summary.expiring ?? 0) > 0;
+  const pasiOpen = pasi && pasi.status !== "paid" && pasi.status !== "not_calculated";
+  const omanGap = (omanisation?.gap ?? 0) > 0;
+  const complianceAttention =
+    scopeEnabled &&
+    !scoreLoading &&
+    (failedChecks > 0 || wpsBlocked || permitCritical || pasiOpen || omanGap);
 
   return (
     <div className="p-6 space-y-6 max-w-7xl">
@@ -73,6 +106,47 @@ export default function ComplianceDashboardPage() {
           Refresh
         </Button>
       </div>
+
+      {complianceAttention && (
+        <div className="rounded-xl border border-red-200 bg-red-50/90 dark:bg-red-950/25 dark:border-red-900/50 px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex items-start gap-2 min-w-0">
+            <AlertTriangle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-semibold text-foreground">Compliance & payroll follow-up</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {[
+                  failedChecks > 0 ? `${failedChecks} failed check(s)` : null,
+                  omanGap ? `Omanisation gap ${omanisation?.gap}%` : null,
+                  pasiOpen ? "PASI not fully settled" : null,
+                  wpsBlocked ? "WPS not marked paid" : null,
+                  permitCritical
+                    ? `${permitMatrix?.summary.expired ?? 0} expired / ${permitMatrix?.summary.expiring ?? 0} expiring permits`
+                    : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2 shrink-0">
+            <Link href="/payroll">
+              <Button size="sm" variant="secondary" className="h-8 text-xs gap-1">
+                Payroll & WPS <ArrowRight className="w-3 h-3" />
+              </Button>
+            </Link>
+            <Link href="/workforce">
+              <Button size="sm" variant="secondary" className="h-8 text-xs gap-1">
+                Permits <ArrowRight className="w-3 h-3" />
+              </Button>
+            </Link>
+            <Link href="/alerts">
+              <Button size="sm" className="h-8 text-xs bg-red-600 hover:bg-red-700 text-white gap-1">
+                Alerts <ArrowRight className="w-3 h-3" />
+              </Button>
+            </Link>
+          </div>
+        </div>
+      )}
 
       {/* Overall Score + Checks */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

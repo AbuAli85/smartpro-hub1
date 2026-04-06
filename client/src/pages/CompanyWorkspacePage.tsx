@@ -175,6 +175,10 @@ export default function CompanyWorkspacePage() {
     { enabled: activeCompanyId != null },
   );
   const { data: companyStats, isLoading: statsLoading } = trpc.companies.myStats.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
+  const { data: tasks } = trpc.operations.getTodaysTasks.useQuery(
+    { companyId: activeCompanyId ?? undefined },
+    { enabled: activeCompanyId != null },
+  );
 
   const company = myCompany?.company;
   const now = new Date();
@@ -188,6 +192,11 @@ export default function CompanyWorkspacePage() {
   const hasContract = (companyStats?.contracts ?? 0) > 0;
   const hasProService = (companyStats?.proServices ?? 0) > 0;
   const setupDone = [Boolean(company), hasStaff, hasContract, hasProService].filter(Boolean).length;
+
+  const pendingLeave = tasks?.pendingLeaveApprovals?.length ?? 0;
+  const pendingPayroll = tasks?.pendingPayrollApprovals?.length ?? 0;
+  const alertN = alertCount?.count ?? 0;
+  const needsAttentionTotal = pendingLeave + pendingPayroll + alertN;
 
   // Show guard if company is loaded but doesn't exist
   if (!companyLoading && !company) {
@@ -251,6 +260,51 @@ export default function CompanyWorkspacePage() {
                 {[Boolean(company), hasStaff, hasContract, hasProService].map((done, i) => (
                   <div key={i} className={`w-6 h-1.5 rounded-full transition-colors ${done ? "bg-[var(--smartpro-orange)]" : "bg-border"}`} />
                 ))}
+              </div>
+            </div>
+          )}
+
+          {!companyLoading && needsAttentionTotal > 0 && (
+            <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50/90 dark:bg-amber-950/25 dark:border-amber-900/50 px-4 py-3">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div className="flex items-start gap-2 min-w-0">
+                  <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">Needs attention in this workspace</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {[
+                        pendingLeave > 0 ? `${pendingLeave} leave approval${pendingLeave === 1 ? "" : "s"}` : null,
+                        pendingPayroll > 0 ? `${pendingPayroll} payroll run${pendingPayroll === 1 ? "" : "s"}` : null,
+                        alertN > 0 ? `${alertN} expiry alert${alertN === 1 ? "" : "s"}` : null,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2 shrink-0">
+                  {pendingLeave > 0 && (
+                    <Link href="/hr/leave">
+                      <Button size="sm" variant="secondary" className="h-8 text-xs">
+                        Review leave
+                      </Button>
+                    </Link>
+                  )}
+                  {pendingPayroll > 0 && (
+                    <Link href="/payroll">
+                      <Button size="sm" variant="secondary" className="h-8 text-xs">
+                        Payroll
+                      </Button>
+                    </Link>
+                  )}
+                  {alertN > 0 && (
+                    <Link href="/alerts">
+                      <Button size="sm" className="h-8 text-xs bg-amber-600 hover:bg-amber-700 text-white">
+                        Open alerts
+                      </Button>
+                    </Link>
+                  )}
+                </div>
               </div>
             </div>
           )}

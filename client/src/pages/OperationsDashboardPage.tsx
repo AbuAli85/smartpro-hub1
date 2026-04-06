@@ -59,6 +59,17 @@ export default function OperationsDashboardPage() {
 
   const now = new Date();
 
+  const opsUrgent =
+    !isLoading &&
+    activeCompanyId != null &&
+    (
+      (snapshot?.slaBreaches ?? 0) > 0 ||
+      (tasks?.pendingLeaveApprovals?.length ?? 0) > 0 ||
+      (tasks?.pendingPayrollApprovals?.length ?? 0) > 0 ||
+      (snapshot?.expiringDocs7Days ?? 0) > 0 ||
+      (snapshot?.pendingContracts ?? 0) > 0
+    );
+
   return (
     <div className="p-6 space-y-6 max-w-7xl">
       {/* Header */}
@@ -81,6 +92,55 @@ export default function OperationsDashboardPage() {
           Refresh
         </Button>
       </div>
+
+      {opsUrgent && (
+        <div className="rounded-xl border border-orange-200 bg-orange-50/90 dark:bg-orange-950/30 dark:border-orange-900/50 px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex items-start gap-2">
+            <AlertTriangle className="w-5 h-5 text-orange-600 shrink-0" />
+            <div>
+              <p className="text-sm font-semibold text-foreground">Action queue for this workspace</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {[
+                  (snapshot?.slaBreaches ?? 0) > 0 ? `${snapshot?.slaBreaches} SLA breach(es)` : null,
+                  (tasks?.pendingLeaveApprovals?.length ?? 0) > 0 ? `${tasks?.pendingLeaveApprovals?.length} leave approval(s)` : null,
+                  (tasks?.pendingPayrollApprovals?.length ?? 0) > 0 ? `${tasks?.pendingPayrollApprovals?.length} payroll run(s)` : null,
+                  (snapshot?.expiringDocs7Days ?? 0) > 0 ? `${snapshot?.expiringDocs7Days} doc(s) expiring in 7d` : null,
+                  (snapshot?.pendingContracts ?? 0) > 0 ? `${snapshot?.pendingContracts} contract(s) pending signature` : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {(tasks?.pendingLeaveApprovals?.length ?? 0) > 0 && (
+              <Link href="/hr/leave">
+                <Button size="sm" variant="secondary" className="h-8 text-xs">Leave</Button>
+              </Link>
+            )}
+            {(tasks?.pendingPayrollApprovals?.length ?? 0) > 0 && (
+              <Link href="/payroll">
+                <Button size="sm" variant="secondary" className="h-8 text-xs">Payroll</Button>
+              </Link>
+            )}
+            {(snapshot?.expiringDocs7Days ?? 0) > 0 && (
+              <Link href="/alerts">
+                <Button size="sm" variant="secondary" className="h-8 text-xs">Alerts</Button>
+              </Link>
+            )}
+            {(snapshot?.pendingContracts ?? 0) > 0 && (
+              <Link href="/contracts">
+                <Button size="sm" variant="secondary" className="h-8 text-xs">Contracts</Button>
+              </Link>
+            )}
+            {(snapshot?.slaBreaches ?? 0) > 0 && (
+              <Link href="/sla-management">
+                <Button size="sm" className="h-8 text-xs bg-orange-600 hover:bg-orange-700 text-white">SLA</Button>
+              </Link>
+            )}
+          </div>
+        </div>
+      )}
 
       {isLoading ? (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

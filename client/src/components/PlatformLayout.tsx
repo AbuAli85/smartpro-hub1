@@ -620,7 +620,11 @@ export default function PlatformLayout({ children }: { children: React.ReactNode
 function MobileBottomNav() {
   const [location] = useLocation();
   const { user } = useAuth();
-  const { data: myCompany, isLoading: companyLoading } = trpc.companies.myCompany.useQuery();
+  const { activeCompanyId, loading: companiesLoading } = useActiveCompany();
+  const { data: myCompany, isLoading: companyLoading } = trpc.companies.myCompany.useQuery(
+    { companyId: activeCompanyId ?? undefined },
+    { enabled: activeCompanyId != null && !companiesLoading },
+  );
   const platform = seesPlatformOperatorNav(user);
   const portalShell = shouldUsePortalOnlyShell(user, {
     hasCompanyWorkspace: Boolean(myCompany?.company?.id),

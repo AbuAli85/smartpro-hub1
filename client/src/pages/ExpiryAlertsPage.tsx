@@ -29,6 +29,9 @@ import {
 } from "lucide-react";
 import { Link } from "wouter";
 import { toast } from "sonner";
+import { useAuth } from "@/_core/hooks/useAuth";
+import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
+import { seesPlatformOperatorNav } from "@shared/clientNav";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -104,6 +107,10 @@ const CATEGORY_LABELS: Record<AlertCategory, { label: string; icon: React.ReactN
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function ExpiryAlertsPage() {
+  const { user } = useAuth();
+  const isPlatform = seesPlatformOperatorNav(user);
+  const { activeCompanyId } = useActiveCompany();
+  const utils = trpc.useUtils();
   const [maxDays, setMaxDays] = useState("90");
   const [filterSeverity, setFilterSeverity] = useState("all");
   const [filterCategory, setFilterCategory] = useState("all");
@@ -114,15 +121,22 @@ export default function ExpiryAlertsPage() {
     onSuccess: (data) => {
       setRenewingId(null);
       toast.success(data.message);
+      void utils.alerts.getExpiryAlerts.invalidate();
+      void utils.alerts.getAlertBadgeCount.invalidate();
     },
     onError: (e) => { setRenewingId(null); toast.error(e.message); },
   });
 
-  const alertsQuery = trpc.alerts.getExpiryAlerts.useQuery({
-    maxDays: parseInt(maxDays),
-    severity: filterSeverity !== "all" ? (filterSeverity as AlertSeverity) : undefined,
-    category: filterCategory !== "all" ? (filterCategory as AlertCategory) : undefined,
-  });
+  const maxDaysNum = Math.min(365, Math.max(1, parseInt(maxDays, 10) || 90));
+  const alertsQuery = trpc.alerts.getExpiryAlerts.useQuery(
+    {
+      maxDays: maxDaysNum,
+      severity: filterSeverity !== "all" ? (filterSeverity as AlertSeverity) : undefined,
+      category: filterCategory !== "all" ? (filterCategory as AlertCategory) : undefined,
+      companyId: activeCompanyId ?? undefined,
+    },
+    { enabled: isPlatform || activeCompanyId != null },
+  );
 
   const alerts: ExpiryAlert[] = alertsQuery.data?.alerts ?? [];
   const summary = alertsQuery.data?.summary ?? { critical: 0, high: 0, medium: 0, low: 0, total: 0 };

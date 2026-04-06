@@ -339,8 +339,23 @@ function ProviderDetailDialog({ provider, onClose, onRequestService }: { provide
 
 // ─── Work Order Detail Drawer ────────────────────────────────────────────────
 
-function WorkOrderDetailDrawer({ orderId, providers, onClose, onUpdate }: { orderId: number; providers: any[]; onClose: () => void; onUpdate: () => void }) {
-  const { data: order, refetch } = trpc.sanad.getWorkOrderById.useQuery({ id: orderId });
+function WorkOrderDetailDrawer({
+  orderId,
+  companyId,
+  providers,
+  onClose,
+  onUpdate,
+}: {
+  orderId: number;
+  companyId: number | null;
+  providers: any[];
+  onClose: () => void;
+  onUpdate: () => void;
+}) {
+  const { data: order, refetch } = trpc.sanad.getWorkOrderById.useQuery(
+    { id: orderId, companyId: companyId ?? undefined },
+    { enabled: companyId != null },
+  );
   const updateMutation = trpc.sanad.updateWorkOrder.useMutation({
     onSuccess: () => { toast.success("Work order updated"); refetch(); onUpdate(); },
     onError: (e) => toast.error(e.message),
@@ -394,7 +409,7 @@ function WorkOrderDetailDrawer({ orderId, providers, onClose, onUpdate }: { orde
             {order.priority && order.priority !== "normal" && (
               <Badge className={`${PRIORITY_COLORS[order.priority as keyof typeof PRIORITY_COLORS] ?? ""} text-xs`}>{order.priority}</Badge>
             )}
-            <Select value={order.status} onValueChange={(v) => updateMutation.mutate({ id: order.id, status: v as any })}>
+            <Select value={order.status} onValueChange={(v) => updateMutation.mutate({ id: order.id, companyId: companyId ?? undefined, status: v as any })}>
               <SelectTrigger className="h-7 text-xs w-40"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {["draft","submitted","in_progress","awaiting_documents","awaiting_payment","completed","rejected","cancelled"].map((s) => (
@@ -477,7 +492,7 @@ function WorkOrderDetailDrawer({ orderId, providers, onClose, onUpdate }: { orde
               <div className="space-y-2">
                 <Textarea className="text-xs" rows={3} value={notesEdit} onChange={(e) => setNotesEdit(e.target.value)} />
                 <div className="flex gap-2">
-                  <Button size="sm" className="h-7 text-xs" onClick={() => { updateMutation.mutate({ id: order.id, notes: notesEdit }); setShowNotesEdit(false); }}>Save</Button>
+                  <Button size="sm" className="h-7 text-xs" onClick={() => { updateMutation.mutate({ id: order.id, companyId: companyId ?? undefined, notes: notesEdit }); setShowNotesEdit(false); }}>Save</Button>
                   <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setShowNotesEdit(false)}>Cancel</Button>
                 </div>
               </div>
@@ -498,7 +513,19 @@ function WorkOrderDetailDrawer({ orderId, providers, onClose, onUpdate }: { orde
 
 // ─── Work Order Row ───────────────────────────────────────────────────────────
 
-function WorkOrderRow({ order, providers, onUpdate, onSelect }: { order: any; providers: any[]; onUpdate: () => void; onSelect?: (id: number) => void }) {
+function WorkOrderRow({
+  order,
+  companyId,
+  providers,
+  onUpdate,
+  onSelect,
+}: {
+  order: any;
+  companyId: number | null;
+  providers: any[];
+  onUpdate: () => void;
+  onSelect?: (id: number) => void;
+}) {
   const statusCfg = STATUS_CONFIG[order.status] ?? STATUS_CONFIG.draft;
   const StatusIcon = statusCfg.icon;
   const provider = providers.find((p) => p.id === order.providerId);
@@ -530,7 +557,7 @@ function WorkOrderRow({ order, providers, onUpdate, onSelect }: { order: any; pr
         </div>
       </div>
       <div onClick={(e) => e.stopPropagation()}>
-        <Select value={order.status} onValueChange={(v) => updateMutation.mutate({ id: order.id, status: v as any })}>
+        <Select value={order.status} onValueChange={(v) => updateMutation.mutate({ id: order.id, companyId: companyId ?? undefined, status: v as any })}>
           <SelectTrigger className="h-7 text-xs w-36 shrink-0">
             <SelectValue />
           </SelectTrigger>
@@ -741,7 +768,14 @@ export default function SanadPage() {
           ) : (
             <div className="space-y-2">
               {filteredOrders.map((o) => (
-                <WorkOrderRow key={o.id} order={o} providers={providers} onUpdate={() => workOrdersQuery.refetch()} onSelect={setSelectedWorkOrderId} />
+                <WorkOrderRow
+                  key={o.id}
+                  order={o}
+                  companyId={activeCompanyId}
+                  providers={providers}
+                  onUpdate={() => workOrdersQuery.refetch()}
+                  onSelect={setSelectedWorkOrderId}
+                />
               ))}
             </div>
           )}
@@ -760,6 +794,7 @@ export default function SanadPage() {
       {selectedWorkOrderId && (
         <WorkOrderDetailDrawer
           orderId={selectedWorkOrderId}
+          companyId={activeCompanyId}
           providers={providers}
           onClose={() => setSelectedWorkOrderId(null)}
           onUpdate={() => workOrdersQuery.refetch()}

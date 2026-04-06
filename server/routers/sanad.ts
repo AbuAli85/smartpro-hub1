@@ -235,6 +235,8 @@ export const sanadRouter = router({
     .input(
       z.object({
         id: z.number(),
+        /** Selected workspace — required for correct tenant boundary (not first membership). */
+        companyId: z.number().optional(),
         status: z.enum(WORK_ORDER_STATUSES).optional(),
         assignedToId: z.number().optional(),
         notes: z.string().optional(),
@@ -248,8 +250,8 @@ export const sanadRouter = router({
     .mutation(async ({ input, ctx }) => {
       const wo = await getSanadApplicationById(input.id);
       if (!wo) throw new TRPCError({ code: "NOT_FOUND", message: "Work order not found" });
-      await assertRowBelongsToActiveCompany(ctx.user, wo.companyId, "Work order");
-      const { id, ...data } = input;
+      await assertRowBelongsToActiveCompany(ctx.user, wo.companyId, "Work order", input.companyId);
+      const { id, companyId: _wc, ...data } = input;
       const updateData: any = { ...data };
       if (data.fees !== undefined) updateData.fees = String(data.fees);
       if (data.dueDate) updateData.dueDate = new Date(data.dueDate);
@@ -261,11 +263,11 @@ export const sanadRouter = router({
 
   /** Get a single work order by ID */
   getWorkOrderById: protectedProcedure
-    .input(z.object({ id: z.number() }))
+    .input(z.object({ id: z.number(), companyId: z.number().optional() }))
     .query(async ({ input, ctx }) => {
       const wo = await getSanadApplicationById(input.id);
       if (!wo) return null;
-      await assertRowBelongsToActiveCompany(ctx.user, wo.companyId, "Work order");
+      await assertRowBelongsToActiveCompany(ctx.user, wo.companyId, "Work order", input.companyId);
       return wo;
     }),
 
@@ -274,6 +276,7 @@ export const sanadRouter = router({
     .input(
       z.object({
         id: z.number(),
+        companyId: z.number().optional(),
         rating: z.number().min(1).max(5),
         ratingComment: z.string().optional(),
       })
@@ -281,7 +284,7 @@ export const sanadRouter = router({
     .mutation(async ({ input, ctx }) => {
       const wo = await getSanadApplicationById(input.id);
       if (!wo) throw new TRPCError({ code: "NOT_FOUND", message: "Work order not found" });
-      await assertRowBelongsToActiveCompany(ctx.user, wo.companyId, "Work order");
+      await assertRowBelongsToActiveCompany(ctx.user, wo.companyId, "Work order", input.companyId);
       await updateSanadApplication(input.id, {
         rating: input.rating,
         ratingComment: input.ratingComment,

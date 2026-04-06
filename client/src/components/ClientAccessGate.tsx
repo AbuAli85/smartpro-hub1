@@ -2,6 +2,7 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { getHiddenNavHrefs } from "@/lib/navVisibility";
 import { trpc } from "@/lib/trpc";
 import { clientRouteAccessible } from "@shared/clientNav";
+import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Redirect, useLocation } from "wouter";
 
@@ -12,9 +13,11 @@ import { Redirect, useLocation } from "wouter";
 export function ClientAccessGate({ children }: { children: ReactNode }) {
   const [location] = useLocation();
   const { user, loading: authLoading } = useAuth();
-  const { data: myCompany, isLoading: companyLoading } = trpc.companies.myCompany.useQuery(undefined, {
-    enabled: Boolean(user),
-  });
+  const { activeCompanyId, loading: companiesLoading } = useActiveCompany();
+  const { data: myCompany, isLoading: companyLoading } = trpc.companies.myCompany.useQuery(
+    { companyId: activeCompanyId ?? undefined },
+    { enabled: Boolean(user) && !companiesLoading && activeCompanyId != null },
+  );
   const [prefsEpoch, setPrefsEpoch] = useState(0);
 
   useEffect(() => {
@@ -27,10 +30,10 @@ export function ClientAccessGate({ children }: { children: ReactNode }) {
     if (!user) return true;
     return clientRouteAccessible(location, user, getHiddenNavHrefs(), {
       hasCompanyWorkspace: Boolean(myCompany?.company?.id),
-      companyWorkspaceLoading: companyLoading,
+      companyWorkspaceLoading: companiesLoading || (Boolean(user) && activeCompanyId != null && companyLoading),
       memberRole: myCompany?.member?.role ?? null,
     });
-  }, [location, user, myCompany?.company?.id, myCompany?.member?.role, companyLoading, prefsEpoch]);
+  }, [location, user, myCompany?.company?.id, myCompany?.member?.role, companyLoading, companiesLoading, activeCompanyId, prefsEpoch]);
 
   if (authLoading || !user) {
     return <>{children}</>;

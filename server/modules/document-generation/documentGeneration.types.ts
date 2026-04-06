@@ -32,7 +32,7 @@ export type DocumentGenerationErrorCode =
   | "FORBIDDEN"
   | "VALIDATION_ERROR"
   | "NOT_FOUND"
-  /** Server env / integration missing (e.g. Google service account not set) */
+  /** Service not usable because a required env / integration is missing (e.g. Google service account not set) */
   | "NOT_CONFIGURED"
   | "INTERNAL_ERROR";
 

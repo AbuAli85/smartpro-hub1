@@ -3,9 +3,10 @@ import { TRPCError } from "@trpc/server";
 import { eq, and, desc, isNull, gte, lte, or, sql } from "drizzle-orm";
 import { getDb } from "../db";
 import { companyDocuments, employeeDocuments, employees } from "../../drizzle/schema";
+import type { User } from "../../drizzle/schema";
 import { storagePut } from "../storage";
 import {
-  getActiveCompanyMembership,
+  requireWorkspaceMembership,
   requireNotAuditor,
 } from "../_core/membership";
 import { protectedProcedure, router } from "../_core/trpc";
@@ -34,10 +35,10 @@ function computeExpiryStatus(
 
 export const documentsRouter = router({
   // ── Company: list all documents ───────────────────────────────────────────
-  listCompanyDocs: protectedProcedure.query(async ({ ctx }) => {
-    const membership = await getActiveCompanyMembership(ctx.user.id);
-    if (!membership)
-      throw new TRPCError({ code: "FORBIDDEN", message: "No active company" });
+  listCompanyDocs: protectedProcedure
+    .input(z.object({ companyId: z.number().optional() }).optional())
+    .query(async ({ ctx, input }) => {
+    const membership = await requireWorkspaceMembership(ctx.user as User, input?.companyId);
     const db = await getDb();
     if (!db) return [];
     const docs = await db
@@ -72,12 +73,11 @@ export const documentsRouter = router({
         fileName: z.string().optional(),
         mimeType: z.string().optional(),
         fileSize: z.number().optional(),
+        companyId: z.number().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const membership = await getActiveCompanyMembership(ctx.user.id);
-      if (!membership)
-        throw new TRPCError({ code: "FORBIDDEN", message: "No active company" });
+      const membership = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       requireNotAuditor(membership.role);
 
       let fileUrl: string | undefined;
@@ -129,14 +129,10 @@ export const documentsRouter = router({
         issueDate: z.string().optional(),
         expiryDate: z.string().optional(),
         notes: z.string().optional(),
+        companyId: z.number().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const membership = await getActiveCompanyMembership(ctx.user.id);
-      if (!membership)
-        throw new TRPCError({ code: "FORBIDDEN", message: "No active company" });
-      requireNotAuditor(membership.role);
-
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
       const [existing] = await db
@@ -145,13 +141,16 @@ export const documentsRouter = router({
         .where(
           and(
             eq(companyDocuments.id, input.id),
-            eq(companyDocuments.companyId, membership.companyId),
             eq(companyDocuments.isDeleted, false)
           )
         )
         .limit(1);
 
       if (!existing) throw new TRPCError({ code: "NOT_FOUND" });
+
+      const membership = await requireWorkspaceMembership(ctx.user as User, input.companyId ?? existing.companyId);
+      if (existing.companyId !== membership.companyId) throw new TRPCError({ code: "NOT_FOUND" });
+      requireNotAuditor(membership.role);
 
       const updateData: Record<string, unknown> = {};
       if (input.title !== undefined) updateData.title = input.title;
@@ -174,15 +173,20 @@ export const documentsRouter = router({
 
   // ── Company: delete document ──────────────────────────────────────────────
   deleteCompanyDoc: protectedProcedure
-    .input(z.object({ id: z.number().int().positive() }))
+    .input(z.object({ id: z.number().int().positive(), companyId: z.number().optional() }))
     .mutation(async ({ ctx, input }) => {
-      const membership = await getActiveCompanyMembership(ctx.user.id);
-      if (!membership)
-        throw new TRPCError({ code: "FORBIDDEN", message: "No active company" });
-      requireNotAuditor(membership.role);
-
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      const [existing] = await db
+        .select({ companyId: companyDocuments.companyId })
+        .from(companyDocuments)
+        .where(eq(companyDocuments.id, input.id))
+        .limit(1);
+      if (!existing) throw new TRPCError({ code: "NOT_FOUND" });
+      const membership = await requireWorkspaceMembership(ctx.user as User, input.companyId ?? existing.companyId);
+      if (existing.companyId !== membership.companyId) throw new TRPCError({ code: "NOT_FOUND" });
+      requireNotAuditor(membership.role);
+
       await db
         .update(companyDocuments)
         .set({ isDeleted: true })
@@ -197,10 +201,10 @@ export const documentsRouter = router({
     }),
 
   // ── Company: get stats ────────────────────────────────────────────────────
-  getCompanyDocStats: protectedProcedure.query(async ({ ctx }) => {
-    const membership = await getActiveCompanyMembership(ctx.user.id);
-    if (!membership)
-      return { total: 0, valid: 0, expiringSoon: 0, expired: 0, noExpiry: 0 };
+  getCompanyDocStats: protectedProcedure
+    .input(z.object({ companyId: z.number().optional() }).optional())
+    .query(async ({ ctx, input }) => {
+    const membership = await requireWorkspaceMembership(ctx.user as User, input?.companyId);
 
     const db = await getDb();
     if (!db) return { total: 0, valid: 0, expiringSoon: 0, expired: 0, noExpiry: 0 };

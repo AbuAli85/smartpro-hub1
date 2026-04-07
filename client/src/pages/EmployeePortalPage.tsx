@@ -24,7 +24,7 @@ import {
   AlertTriangle, Info, Wallet, Timer, BarChart2, CalendarCheck,
   FileCheck, FilePlus, ExternalLink, RefreshCw, Star, ArrowLeftRight, Repeat,
   Target, Activity, Award, Zap, PieChart, TrendingDown, Flame, Trophy,
-  Sparkles, Landmark, Play, Ban, ClipboardList,
+  Play, Ban,
 } from "lucide-react";
 import { fmtDateLong, fmtDateTime } from "@/lib/dateUtils";
 import { getDueUrgency, slaLabel, actionRequiredOverdueLabel, dueTimingPhrase } from "@/lib/taskSla";
@@ -44,7 +44,6 @@ import {
 import { RequestsCalendar } from "@/components/RequestsCalendar";
 import { DateInput } from "@/components/ui/date-input";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
-import { employeePortalConfig } from "@/config/employeePortalConfig";
 import { humanCheckInErrorMessage } from "@/lib/checkInErrorMessage";
 import {
   computeProductivityScore,
@@ -66,6 +65,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { EmployeePortalOverview } from "@/components/employee-portal/EmployeePortalOverview";
 
 type QuickActionIcon = React.ComponentType<{ className?: string }>;
 
@@ -942,6 +942,8 @@ export default function EmployeePortalPage() {
   const notifications = notifData?.notifications ?? [];
   const pendingTasks = (tasks as any[] ?? []).filter((t: any) => t.status !== "completed" && t.status !== "cancelled").length;
   const pendingLeave = leave.filter((l: any) => l.status === "pending").length;
+  const pendingShiftRequestsCount = (myShiftRequests ?? []).filter((r: any) => r.request?.status === "pending").length;
+  const pendingExpensesCount = (myExpenses ?? []).filter((e: any) => e.expenseStatus === "pending").length;
 
   // Attendance rate for current month
   const attendanceRate = attSummary.total > 0
@@ -1370,9 +1372,9 @@ export default function EmployeePortalPage() {
                 { value: "payroll", icon: DollarSign, label: "Payslips" },
                 { value: "tasks", icon: CheckSquare, label: "Tasks", badge: pendingTasks },
                 { value: "documents", icon: FileText, label: "Docs", badge: expiringDocs.length },
-                { value: "requests", icon: ArrowLeftRight, label: "Requests", badge: (myShiftRequests ?? []).filter((r: any) => r.request?.status === "pending").length },
+                { value: "requests", icon: ArrowLeftRight, label: "Requests", badge: pendingShiftRequestsCount },
                 { value: "kpi", icon: Target, label: "KPI", badge: 0 },
-                { value: "expenses", icon: Wallet, label: "Expenses", badge: (myExpenses ?? []).filter((e: any) => e.expenseStatus === "pending").length },
+                { value: "expenses", icon: Wallet, label: "Expenses", badge: pendingExpensesCount },
                 { value: "worklog", icon: Timer, label: "Work Log", badge: 0 },
                 { value: "training", icon: Award, label: "Training", badge: ((myTraining as any[]) ?? []).filter((t: any) => t.trainingStatus === "assigned" || t.trainingStatus === "overdue").length },
                 { value: "reviews", icon: Star, label: "Reviews", badge: 0 },
@@ -1398,525 +1400,42 @@ export default function EmployeePortalPage() {
 
           {/* ══ OVERVIEW TAB ══════════════════════════════════════════════════ */}
           <TabsContent value="overview" className="mt-4 space-y-4">
-            {/* Today's Schedule Banner */}
-            {myActiveSchedule && (
-              myActiveSchedule.isHoliday ? (
-                <Card className="border-purple-200 bg-purple-50 dark:bg-purple-950/10">
-                  <CardContent className="p-4 flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center shrink-0">
-                      <Calendar className="w-5 h-5 text-purple-600" />
-                    </div>
-                    <div>
-                      <p className="font-semibold text-purple-700">{myActiveSchedule.holiday?.name ?? "Holiday"}</p>
-                      <p className="text-xs text-purple-600">Today is a public holiday — no attendance required</p>
-                    </div>
-                  </CardContent>
-                </Card>
-              ) : myActiveSchedule.schedule && myActiveSchedule.shift ? (
-                <Card className="border-primary/35 bg-gradient-to-br from-primary/[0.07] to-background shadow-md shadow-primary/10 ring-1 ring-primary/15">
-                  <CardContent className="p-4 space-y-3">
-                    <div className="flex flex-wrap items-start gap-3">
-                      <div className="w-10 h-10 rounded-full bg-primary/15 flex items-center justify-center shrink-0">
-                        <Clock className="w-5 h-5 text-primary" />
-                      </div>
-                      <div className="flex-1 min-w-0 space-y-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          {shiftOverview.operational && (
-                            <span className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-card/80 px-2 py-0.5 text-[11px] font-medium">
-                              <span className={`h-2 w-2 rounded-full ${shiftOverview.operational.statusDotClass}`} />
-                              {shiftOverview.operational.statusLabel}
-                            </span>
-                          )}
-                          <p className="font-semibold text-sm">
-                            Today&apos;s shift: {formatShiftDisplayName(myActiveSchedule.shift.name)}
-                          </p>
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                          {myActiveSchedule.shift.startTime} – {myActiveSchedule.shift.endTime}
-                          {myActiveSchedule.site ? ` · ${myActiveSchedule.site.name}` : ""}
-                        </p>
-                        {shiftOverview.operational?.detailLine && (
-                          <p className="text-xs font-medium text-blue-700 dark:text-blue-300">{shiftOverview.operational.detailLine}</p>
-                        )}
-                        {shiftOverview.attendanceInconsistent && (
-                          <p className="text-xs font-medium text-red-700 dark:text-red-300">
-                            Attendance data looks inconsistent (check-out without check-in). Use Correction on the Attendance tab.
-                          </p>
-                        )}
-                        {shiftOverview.showMissedActiveWarning && (
-                          <p className="text-xs font-medium text-amber-700 dark:text-amber-300">
-                            No check-in recorded yet for this shift.
-                          </p>
-                        )}
-                        {shiftOverview.showMissedEndedWarning && (
-                          <p className="text-xs font-medium text-red-700 dark:text-red-300">
-                            No attendance recorded for this shift — request a correction if this was a mistake.
-                          </p>
-                        )}
-                        {shiftOverview.correctionPendingNote && (
-                          <p className="text-xs font-medium text-muted-foreground">{shiftOverview.correctionPendingNote}</p>
-                        )}
-                      </div>
-                      <div
-                        className="w-3 h-3 rounded-full shrink-0 self-center"
-                        style={{ backgroundColor: (myActiveSchedule.shift as any).color ?? "#6366f1" }}
-                      />
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <Button size="sm" className="gap-1.5" onClick={() => setActiveTab("attendance")}>
-                        <UserCheck className="w-3.5 h-3.5" />
-                        {shiftOverview.primaryCtaLabel}
-                      </Button>
-                      {shiftOverview.showSecondaryLogWork && (
-                        <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setActiveTab("worklog")}>
-                          <Timer className="w-3.5 h-3.5" /> Log work
-                        </Button>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              ) : null
-            )}
-
-            {workStatusLoading && isAuthenticated && activeCompanyId != null && (
-              <Card className="border-border/60">
-                <CardContent className="space-y-3 p-4 animate-pulse">
-                  <div className="h-4 w-44 rounded bg-muted" />
-                  <div className="h-3 w-full rounded bg-muted" />
-                  <div className="h-3 w-[88%] rounded bg-muted" />
-                  <div className="h-8 w-32 rounded bg-muted" />
-                </CardContent>
-              </Card>
-            )}
-            {!workStatusLoading && workStatusSummary && (
-              <Card
-                className={
-                  workStatusSummary.overallStatus === "urgent"
-                    ? "border-red-200/90 bg-red-50/40 ring-1 ring-red-500/15 dark:border-red-900/50 dark:bg-red-950/25"
-                    : workStatusSummary.overallStatus === "needs_attention"
-                      ? "border-amber-200/90 bg-amber-50/35 ring-1 ring-amber-500/15 dark:border-amber-900/45 dark:bg-amber-950/20"
-                      : "border-emerald-200/70 bg-emerald-50/30 ring-1 ring-emerald-500/15 dark:border-emerald-900/40 dark:bg-emerald-950/15"
-                }
-              >
-                <CardContent className="space-y-3 p-4">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="flex min-w-0 items-start gap-3">
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-background/80 ring-1 ring-border/60">
-                        <ClipboardList className="h-5 w-5 text-foreground/80" />
-                      </div>
-                      <div className="min-w-0 space-y-1">
-                        <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                          Work status
-                        </p>
-                        <p className="text-xs text-muted-foreground leading-snug max-w-xl">
-                          Your work permit signal, employment documents, and HR tasks — not a full company compliance report.
-                        </p>
-                      </div>
-                    </div>
-                    <Badge
-                      variant="outline"
-                      className={
-                        workStatusSummary.overallStatus === "on_track"
-                          ? "border-emerald-500/45 text-emerald-900 dark:text-emerald-100 shrink-0"
-                          : workStatusSummary.overallStatus === "needs_attention"
-                            ? "border-amber-500/45 text-amber-900 dark:text-amber-100 shrink-0"
-                            : "border-red-500/50 text-red-900 dark:text-red-100 shrink-0"
-                      }
-                    >
-                      {workStatusSummary.overallStatus === "on_track"
-                        ? "On track"
-                        : workStatusSummary.overallStatus === "needs_attention"
-                          ? "Needs attention"
-                          : "Urgent"}
-                    </Badge>
-                  </div>
-                  <ul className="space-y-1.5 text-xs text-foreground/90">
-                    <li className="flex gap-2">
-                      <span className="shrink-0 font-medium text-muted-foreground">Permit</span>
-                      <span className="min-w-0">{workStatusSummary.permit.label}</span>
-                    </li>
-                    <li className="flex gap-2">
-                      <span className="shrink-0 font-medium text-muted-foreground">Documents</span>
-                      <span className="min-w-0">{workStatusSummary.documents.label}</span>
-                    </li>
-                    <li className="flex gap-2">
-                      <span className="shrink-0 font-medium text-muted-foreground">Tasks</span>
-                      <span className="min-w-0">{workStatusSummary.tasks.label}</span>
-                    </li>
-                  </ul>
-                  <div className="flex flex-wrap gap-2 pt-0.5">
-                    {workStatusSummary.primaryAction.type !== "none" && (
-                      <Button
-                        size="sm"
-                        className="gap-1.5"
-                        variant={workStatusSummary.overallStatus === "urgent" ? "default" : "secondary"}
-                        onClick={() => {
-                          const tab = workStatusSummary.primaryAction.tab;
-                          if (tab) {
-                            setActiveTab(tab);
-                            requestAnimationFrame(() => {
-                              document.getElementById(`portal-${tab}`)?.scrollIntoView({
-                                behavior: "smooth",
-                                block: "start",
-                              });
-                            });
-                          } else if (workStatusSummary.primaryAction.type === "contact_hr") {
-                            setActiveTab("profile");
-                          }
-                        }}
-                      >
-                        {workStatusSummary.primaryAction.type === "open_tasks" && (
-                          <CheckSquare className="h-3.5 w-3.5" />
-                        )}
-                        {workStatusSummary.primaryAction.type === "open_documents" && (
-                          <FileText className="h-3.5 w-3.5" />
-                        )}
-                        {workStatusSummary.primaryAction.type === "contact_hr" && (
-                          <Mail className="h-3.5 w-3.5" />
-                        )}
-                        {workStatusSummary.primaryAction.label}
-                      </Button>
-                    )}
-                    {workStatusSummary.secondaryAction && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="gap-1.5"
-                        onClick={() => setActiveTab("profile")}
-                      >
-                        <Phone className="h-3.5 w-3.5" />
-                        {workStatusSummary.secondaryAction.label}
-                      </Button>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            <Card className="border-emerald-200/70 bg-emerald-50/45 dark:bg-emerald-950/20 ring-1 ring-emerald-500/20">
-              <CardContent className="p-4 space-y-3">
-                <div className="flex flex-wrap items-start justify-between gap-4">
-                  <div className="flex min-w-0 items-start gap-3">
-                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-500/15">
-                      <Sparkles className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
-                    </div>
-                    <div className="min-w-0 space-y-2">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                          {employeePortalConfig.productivity.uiCardTitle}
-                        </p>
-                        <Badge
-                          variant="outline"
-                          className={
-                            productivity.dataConfidence === "low"
-                              ? "border-amber-500/50 text-amber-900 dark:text-amber-100"
-                              : productivity.dataConfidence === "medium"
-                                ? "border-blue-500/45 text-blue-900 dark:text-blue-100"
-                                : "border-emerald-500/45 text-emerald-900 dark:text-emerald-100"
-                          }
-                        >
-                          Data: {productivity.dataConfidence === "low" ? "Low" : productivity.dataConfidence === "medium" ? "Medium" : "High"}
-                        </Badge>
-                      </div>
-                      <p className="text-2xl font-bold tabular-nums text-emerald-800 dark:text-emerald-300">{productivity.score}%</p>
-                      <p className="max-w-xl text-[10px] leading-snug text-muted-foreground">{productivity.disclaimer}</p>
-                      <p className="max-w-xl text-xs leading-snug text-muted-foreground">{productivity.hint}</p>
-                      <div className="mt-1 space-y-1.5 rounded-md border border-border/60 bg-card/60 px-3 py-2 text-xs">
-                        <p className="font-medium text-foreground">How this number is built</p>
-                        <ul className="space-y-1 text-muted-foreground">
-                          <li>
-                            <span className="text-foreground">
-                              Attendance ({Math.round(employeePortalConfig.productivity.attendanceWeight * 100)}% weight):
-                            </span>{" "}
-                            {productivity.usedAttendanceFallback ? (
-                              <>
-                                neutral fill-in (~{employeePortalConfig.productivity.neutralAttendanceFallback}%) → ~
-                                {productivity.attendancePointsDisplay} pts
-                              </>
-                            ) : (
-                              <>
-                                {productivity.attendanceRateActual}% this month → ~{productivity.attendancePointsDisplay} pts
-                              </>
-                            )}
-                          </li>
-                          <li>
-                            <span className="text-foreground">
-                              Tasks ({Math.round(employeePortalConfig.productivity.taskWeight * 100)}% weight):
-                            </span>{" "}
-                            {productivity.usedTaskFallback ? (
-                              <>
-                                neutral fill-in (~{employeePortalConfig.productivity.neutralTaskFallback}%) → ~
-                                {productivity.taskPointsDisplay} pts
-                              </>
-                            ) : (
-                              <>
-                                {productivity.completedTaskCount}/{productivity.assignedTaskCount} completed (
-                                {productivity.taskCompletionPercentActual}%) → ~{productivity.taskPointsDisplay} pts
-                              </>
-                            )}
-                          </li>
-                        </ul>
-                        <p className="border-t border-border/50 pt-1 font-mono text-[10px] text-muted-foreground">
-                          {productivity.formulaSummary}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex shrink-0 flex-wrap gap-2">
-                    <Button size="sm" variant="outline" onClick={() => setActiveTab("attendance")}>
-                      Attendance
-                    </Button>
-                    <Button size="sm" variant="outline" onClick={() => setActiveTab("tasks")}>
-                      Tasks
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {!employeePortalConfig.compliance.governmentFeaturesEnabled && (
-              <Card className="border-dashed border-muted-foreground/30 bg-muted/15">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm flex items-center gap-2 text-muted-foreground">
-                    <Landmark className="w-4 h-4" /> Labour &amp; government (roadmap)
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="text-xs text-muted-foreground space-y-2 leading-relaxed">
-                  <p>
-                    Planned: visa / work permit status, MoL-style requests, and compliance tasks — structured for Oman workforce programs and reporting.
-                  </p>
-                  <p className="text-[11px] italic">Not connected to external systems yet; placeholders signal enterprise direction.</p>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Attendance Rate + Leave Balance */}
-            <div className="grid sm:grid-cols-2 gap-4">
-              {/* Attendance Rate */}
-              <Card className="border-border/60 bg-card">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm flex items-center gap-2">
-                    <BarChart2 className="w-4 h-4 text-green-500" /> This Month Attendance
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {attendanceRate !== null ? (
-                    <>
-                      <div className="flex items-end justify-between">
-                        <p className="text-3xl font-bold text-green-600">{attendanceRate}%</p>
-                        <p className="text-xs text-muted-foreground">{attSummary.present + attSummary.late} / {attSummary.total} days</p>
-                      </div>
-                      <Progress value={attendanceRate} className="h-2" />
-                      <div className="grid grid-cols-3 gap-2 text-center text-xs">
-                        <div className="bg-green-50 dark:bg-green-950/20 rounded p-2">
-                          <p className="font-bold text-green-700">{attSummary.present}</p>
-                          <p className="text-muted-foreground">On Time</p>
-                        </div>
-                        <div className="bg-amber-50 dark:bg-amber-950/20 rounded p-2">
-                          <p className="font-bold text-amber-700">{attSummary.late}</p>
-                          <p className="text-muted-foreground">Late</p>
-                        </div>
-                        <div className="bg-red-50 dark:bg-red-950/20 rounded p-2">
-                          <p className="font-bold text-red-700">{attSummary.absent}</p>
-                          <p className="text-muted-foreground">Absent</p>
-                        </div>
-                      </div>
-                    </>
-                  ) : (
-                    <div className="text-center py-4 space-y-2">
-                      <p className="text-sm text-muted-foreground">
-                        {todayAttendanceRecord?.checkIn
-                          ? "No summary rows for this month yet — your check-ins still count."
-                          : "No attendance summary for this month yet."}
-                      </p>
-                      {!todayAttendanceRecord?.checkIn && (
-                        <p className="text-xs text-amber-800 dark:text-amber-200 max-w-xs mx-auto leading-snug">
-                          You haven&apos;t checked in today. Open Attendance to check in at your assigned site.
-                        </p>
-                      )}
-                      <Button size="sm" className="mt-1" onClick={() => setActiveTab("attendance")}>
-                        {todayAttendanceRecord?.checkIn ? "View attendance" : "Check in now"}
-                      </Button>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Leave Balance */}
-              <Card className="border-border/60 bg-card">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm flex items-center justify-between">
-                    <span className="flex items-center gap-2"><Calendar className="w-4 h-4 text-blue-500" /> Leave balance ({leaveYear})</span>
-                    <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setShowLeaveDialog(true)}>
-                      <Plus className="w-3 h-3 mr-1" /> Request
-                    </Button>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {[
-                    { label: "Annual Leave", total: entitlements.annual, color: "bg-blue-500", remaining: balance.annual },
-                    { label: "Sick Leave", total: entitlements.sick, color: "bg-amber-500", remaining: balance.sick },
-                    { label: "Emergency Leave", total: entitlements.emergency, color: "bg-red-500", remaining: balance.emergency },
-                  ].map(({ label, total, color, remaining }) => {
-                    const used = Math.min(total, Math.max(0, total - remaining));
-                    return (
-                      <div key={label}>
-                        <div className="flex justify-between text-xs mb-1">
-                          <span className="text-muted-foreground">{label}</span>
-                          <span className={`font-semibold ${leaveRemainingTone(remaining, total)}`}>
-                            {remaining} / {total} days left
-                          </span>
-                        </div>
-                        <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-                          <div className={`h-full ${color} rounded-full transition-all`} style={{ width: `${total > 0 ? Math.min(100, (used / total) * 100) : 0}%` }} />
-                        </div>
-                      </div>
-                    );
-                  })}
-                  <p className="text-[11px] text-muted-foreground pt-2 mt-1 border-t border-border/50 leading-relaxed">
-                    Plan ahead: request leave from the next working day onward. Use <span className="font-medium text-foreground">Request</span> or the Leave tab.
-                  </p>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Announcements */}
-            {(announcements as any[])?.length > 0 && (
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm flex items-center gap-2">
-                    <Megaphone className="w-4 h-4 text-primary" /> Company Announcements
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  {(announcements as any[]).slice(0, 3).map((a: any) => (
-                    <div key={a.id} className={`p-3 rounded-lg border text-sm ${!a.isRead ? "border-primary/30 bg-primary/5" : "bg-muted/30"}`}>
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium">{a.title}</p>
-                          {a.content && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{a.content}</p>}
-                        </div>
-                        {!a.isRead && <div className="w-2 h-2 rounded-full bg-primary shrink-0 mt-1" />}
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-1">{formatDate(a.createdAt)}</p>
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Recent Leave + Tasks */}
-            <div className="grid sm:grid-cols-2 gap-4">
-              <Card className="border-border/50 shadow-sm">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm flex items-center justify-between">
-                    <span className="flex items-center gap-2"><Calendar className="w-4 h-4" /> Recent Leave</span>
-                    <Button variant="ghost" size="sm" className="text-xs h-7" onClick={() => setActiveTab("leave")}>
-                      All <ChevronRight className="w-3 h-3 ml-1" />
-                    </Button>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {leaveLoading ? <Skeleton className="h-12" /> : leave.length === 0 ? (
-                    <div className="text-center py-5 text-muted-foreground text-sm space-y-2">
-                      <p className="font-medium text-foreground">No leave requests yet</p>
-                      <p className="text-xs max-w-xs mx-auto leading-relaxed">
-                        Request your first leave to start the approval workflow with HR.
-                      </p>
-                      <Button size="sm" variant="outline" className="mt-1" onClick={() => setShowLeaveDialog(true)}>
-                        <Plus className="w-3 h-3 mr-1" /> Request leave
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      {leave.slice(0, 4).map((l: any) => (
-                        <div key={l.id} className="flex items-center justify-between text-sm">
-                          <div className="min-w-0">
-                            <p className="text-sm font-medium capitalize">{LEAVE_TYPE_LABEL[l.leaveType] ?? l.leaveType}</p>
-                            <p className="text-xs text-muted-foreground">{formatDate(l.startDate)}</p>
-                          </div>
-                          <Badge
-                            variant={l.status === "approved" ? "default" : l.status === "rejected" ? "destructive" : l.status === "cancelled" ? "outline" : "secondary"}
-                            className="capitalize text-xs shrink-0"
-                          >
-                            {l.status}
-                          </Badge>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              <Card className="border-border/50 shadow-sm">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm flex items-center justify-between">
-                    <span className="flex items-center gap-2"><CheckSquare className="w-4 h-4" /> My Tasks</span>
-                    <Button variant="ghost" size="sm" className="text-xs h-7" onClick={() => setActiveTab("tasks")}>
-                      All <ChevronRight className="w-3 h-3 ml-1" />
-                    </Button>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {tasksLoading ? <Skeleton className="h-12" /> : (tasks as any[]).filter((t: any) => t.status !== "completed").length === 0 ? (
-                    <div className="text-center py-5 text-muted-foreground text-sm space-y-2">
-                      <p className="font-medium text-foreground">No pending tasks</p>
-                      <p className="text-xs max-w-xs mx-auto leading-relaxed">
-                        If you expected assignments, check Training or confirm with your manager.
-                      </p>
-                      <div className="flex flex-wrap gap-2 justify-center pt-1">
-                        <Button size="sm" variant="outline" onClick={() => setActiveTab("training")}>
-                          Training
-                        </Button>
-                        <Button size="sm" variant="outline" onClick={() => setActiveTab("tasks")}>
-                          All tasks
-                        </Button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      {(tasks as any[]).filter((t: any) => t.status !== "completed").slice(0, 4).map((t: any) => {
-                        const overdue = t.dueDate && new Date(t.dueDate) < today;
-                        return (
-                          <div key={t.id} className="flex items-center gap-2 text-sm">
-                            {TASK_STATUS_ICON[t.status as TaskStatus]}
-                            <span className={`flex-1 truncate ${overdue ? "text-red-600" : ""}`}>{t.title}</span>
-                            <span className={`text-xs px-1.5 py-0.5 rounded ${PRIORITY_COLOR[t.priority as Priority]}`}>{t.priority}</span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Document Expiry Alerts */}
-            {expiringDocs.length > 0 && (
-              <Card className="border-amber-200 bg-amber-50/50 dark:bg-amber-950/10">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm flex items-center gap-2 text-amber-700">
-                    <AlertTriangle className="w-4 h-4" /> Document Expiry Alerts
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  {expiringDocs.map((d: any) => {
-                    const days = daysUntilExpiry(d.expiresAt);
-                    return (
-                      <div key={d.id} className="flex items-center justify-between text-sm">
-                        <span>{DOC_LABELS[d.documentType] ?? d.documentType}</span>
-                        <span className={`text-xs font-medium ${days !== null && days < 0 ? "text-red-600" : days !== null && days <= 30 ? "text-red-500" : "text-amber-600"}`}>
-                          {days !== null && days < 0 ? "EXPIRED" : days !== null && days === 0 ? "Expires today" : `${days} days left`}
-                        </span>
-                      </div>
-                    );
-                  })}
-                  <Button size="sm" variant="outline" className="w-full mt-1" onClick={() => setActiveTab("documents")}>
-                    View Documents
-                  </Button>
-                </CardContent>
-              </Card>
-            )}
+            <EmployeePortalOverview
+              setActiveTab={setActiveTab}
+              setShowLeaveDialog={setShowLeaveDialog}
+              onOpenTaskById={(taskId) => {
+                const t = (tasks as any[] | undefined)?.find((x: any) => x.id === taskId);
+                if (t) setEmpTaskDetail(t);
+              }}
+              leaveTypeLabel={(k) => LEAVE_TYPE_LABEL[k] ?? k}
+              myActiveSchedule={myActiveSchedule}
+              shiftOverview={shiftOverview}
+              todayAttendanceRecord={todayAttendanceRecord}
+              todayAttendanceLoading={todayAttendanceLoading}
+              operationalHintsReady={operationalHintsSuccess}
+              operationalHints={operationalHintsSuccess ? operationalHints ?? null : undefined}
+              workStatusLoading={workStatusLoading}
+              workStatusSummary={workStatusSummary ?? undefined}
+              productivity={productivity}
+              attendanceRate={attendanceRate}
+              attSummary={attSummary}
+              leave={leave}
+              leaveLoading={leaveLoading}
+              balance={balance}
+              entitlements={entitlements}
+              leaveYear={leaveYear}
+              tasks={tasks as any[]}
+              tasksLoading={tasksLoading}
+              expiringDocs={expiringDocs}
+              announcements={announcements as any[]}
+              notifications={notifications}
+              myTraining={myTraining as any[] | undefined}
+              mySelfReviews={mySelfReviews as any[] | undefined}
+              emp={emp}
+              pendingShiftRequests={pendingShiftRequestsCount}
+              pendingExpenses={pendingExpensesCount}
+              portalClock={portalClock}
+            />
           </TabsContent>
 
           {/* ══ ATTENDANCE TAB ════════════════════════════════════════════════ */}

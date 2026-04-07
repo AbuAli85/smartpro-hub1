@@ -213,6 +213,60 @@ function ContactDetailPanel({ contactId, onClose, companyId }: { contactId: numb
 
       {!loading360 && contact360 && (
         <div className="px-4 py-3 border-b space-y-3 max-h-[46vh] overflow-y-auto">
+          {contact360.accountHealth && (
+            <div className="rounded-lg border border-border/80 bg-muted/25 px-2.5 py-2 space-y-1.5">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Account health</p>
+                <Badge
+                  variant="secondary"
+                  className={
+                    contact360.accountHealth.tier === "urgent"
+                      ? "text-[9px] bg-red-100 text-red-900 border-red-200"
+                      : contact360.accountHealth.tier === "at_risk"
+                        ? "text-[9px] bg-orange-100 text-orange-900 border-orange-200"
+                        : contact360.accountHealth.tier === "watch"
+                          ? "text-[9px] bg-amber-100 text-amber-900 border-amber-200"
+                          : "text-[9px] bg-emerald-100 text-emerald-900 border-emerald-200"
+                  }
+                >
+                  {contact360.accountHealth.tier.replace("_", " ")}
+                </Badge>
+              </div>
+              {contact360.accountHealth.lastActivityAt && (
+                <p className="text-[10px] text-muted-foreground">
+                  Last activity: {fmtDateTimeShort(new Date(contact360.accountHealth.lastActivityAt))}
+                </p>
+              )}
+              {contact360.accountHealth.renewalWeakFollowUp && (
+                <p className="text-[10px] text-amber-800 dark:text-amber-200 flex items-start gap-1">
+                  <AlertTriangle size={11} className="shrink-0 mt-0.5" />
+                  Renewal window — weak follow-up (no CRM touch 21+ days while a contract ends soon).
+                </p>
+              )}
+              {contact360.accountHealth.reasons.length > 0 && (
+                <ul className="text-[10px] text-muted-foreground space-y-0.5 list-disc pl-3.5">
+                  {contact360.accountHealth.reasons.slice(0, 5).map((r, i) => (
+                    <li key={i} className="leading-snug">{r}</li>
+                  ))}
+                </ul>
+              )}
+              {contact360.accountHealth.nextActions.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 pt-0.5">
+                  {contact360.accountHealth.nextActions.map((a) => (
+                    <Button key={a.href} variant="outline" size="sm" className="h-6 text-[10px] px-2" asChild>
+                      <Link href={a.href}>{a.label}</Link>
+                    </Button>
+                  ))}
+                </div>
+              )}
+              <p className="text-[9px] text-muted-foreground leading-snug border-t border-border/60 pt-1.5">
+                {contact360.accountHealth.tenantCollectionsScopeNote && (
+                  <>{contact360.accountHealth.tenantCollectionsScopeNote} </>
+                )}
+                Deterministic rule-based tiers — not a predictive score.
+              </p>
+            </div>
+          )}
           <div className="flex items-center justify-between gap-2">
             <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Commercial lifecycle</p>
             <Button variant="outline" size="sm" className="h-7 text-[10px] shrink-0" asChild>

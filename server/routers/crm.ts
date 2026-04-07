@@ -4,7 +4,13 @@ import { canAccessGlobalAdminProcedures } from "@shared/rbac";
 import type { User } from "../../drizzle/schema";
 import { assertRowBelongsToActiveCompany, requireActiveCompanyId } from "../_core/tenant";
 import { deriveDealLifecycle, type ContractLite } from "../commercialLifecycle";
-import { getContactPostSaleSummary, getPostSaleSignals } from "../postSaleSignals";
+import { getPostSaleSignals, getStalledServiceContractIds, STALLED_DELIVERY_BASIS_SHORT } from "../postSaleSignals";
+import {
+  ACCOUNT_HEALTH_RULES_BASIS,
+  buildAccountHealthForContact,
+  countCommercialFrictionForContact,
+  getContactLastActivityAt,
+} from "../accountHealth";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { contracts, crmDeals, serviceQuotations } from "../../drizzle/schema";
 import {
@@ -315,8 +321,25 @@ export const crmRouter = router({
       }
       thread.sort((a, b) => b.sortAt.getTime() - a.sortAt.getTime());
 
-      const contactPostSale = await getContactPostSaleSummary(db, companyId, contractsFromQuotations);
       const workspacePostSale = await getPostSaleSignals(db, companyId);
+
+      const stalledContractIds = await getStalledServiceContractIds(db, companyId);
+      const contactPostSale = {
+        stalledServiceContracts: contractsFromQuotations
+          .filter((c) => stalledContractIds.has(c.id))
+          .map((c) => ({ id: c.id, title: c.title })),
+        stalledBasis: STALLED_DELIVERY_BASIS_SHORT,
+      };
+      const frictionCount = await countCommercialFrictionForContact(db, companyId, input.contactId);
+      const lastActivityAt = await getContactLastActivityAt(db, companyId, input.contactId);
+      const accountHealth = buildAccountHealthForContact(
+        contractsFromQuotations,
+        stalledContractIds,
+        frictionCount,
+        lastActivityAt,
+        new Date(),
+        workspacePostSale.proBillingOverdueCount > 0,
+      );
 
       return {
         contact,
@@ -326,6 +349,19 @@ export const crmRouter = router({
         dealsWithLifecycle,
         lifecycleThread: thread,
         contactPostSale,
+        accountHealth: {
+          tier: accountHealth.tier,
+          reasons: accountHealth.reasons,
+          nextActions: accountHealth.nextActions,
+          signals: accountHealth.signals,
+          renewalWeakFollowUp: accountHealth.renewalWeakFollowUp,
+          lastActivityAt: lastActivityAt?.toISOString() ?? null,
+          basis: ACCOUNT_HEALTH_RULES_BASIS,
+          tenantCollectionsScopeNote:
+            workspacePostSale.proBillingOverdueCount > 0
+              ? "Workspace has overdue PRO/officer billing — not mapped to this contact in data."
+              : null,
+        },
         workspaceCollections: {
           proBillingOverdueOmr: workspacePostSale.proBillingOverdueOmr,
           proBillingOverdueCount: workspacePostSale.proBillingOverdueCount,

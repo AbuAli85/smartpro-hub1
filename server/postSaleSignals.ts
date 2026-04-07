@@ -112,14 +112,11 @@ export async function getContactPostSaleSummary(
 }
 
 /**
- * A service contract is “stalled” when it is signed/active, effective date is at least STALL_AFTER_DAYS ago,
- * and there is no operational row (PRO service, government case, or marketplace booking) for the same
- * company with createdAt >= contract effective date. This is a best-effort proxy — unrelated work clears the flag.
+ * Service contracts that match the stalled-delivery candidate set and fail the operational-touch check.
+ * (Signed/active service contract, effective ≥14d ago, no PRO / gov case / marketplace booking after anchor.)
  */
-export async function getPostSaleSignals(db: DbClient, companyId: number): Promise<PostSaleSignals> {
+export async function getStalledServiceContractIds(db: DbClient, companyId: number): Promise<Set<number>> {
   const now = new Date();
-  const completedSince = new Date(now.getTime() - COMPLETED_PRO_LOOKBACK_DAYS * 86400000);
-
   const candidates = await db
     .select()
     .from(contracts)
@@ -132,14 +129,22 @@ export async function getPostSaleSignals(db: DbClient, companyId: number): Promi
       ),
     );
 
-  let stalled = 0;
-  let stalledContractSampleId: number | null = null;
-
+  const stalled = new Set<number>();
   for (const c of candidates) {
-    const stalledFlag = await isServiceContractStalledNoDelivery(db, companyId, c);
-    if (!stalledFlag) continue;
-    stalled++;
-    if (stalledContractSampleId == null) stalledContractSampleId = c.id;
+    if (await isServiceContractStalledNoDelivery(db, companyId, c)) stalled.add(c.id);
+  }
+  return stalled;
+}
+
+export async function getPostSaleSignals(db: DbClient, companyId: number): Promise<PostSaleSignals> {
+  const now = new Date();
+  const completedSince = new Date(now.getTime() - COMPLETED_PRO_LOOKBACK_DAYS * 86400000);
+
+  const stalledIds = await getStalledServiceContractIds(db, companyId);
+  let stalledContractSampleId: number | null = null;
+  for (const id of stalledIds) {
+    stalledContractSampleId = id;
+    break;
   }
 
   const [completedProRow] = await db
@@ -167,7 +172,7 @@ export async function getPostSaleSignals(db: DbClient, companyId: number): Promi
     .where(and(eq(subscriptionInvoices.companyId, companyId), eq(subscriptionInvoices.status, "overdue")));
 
   return {
-    serviceContractsStalledNoDeliveryCount: stalled,
+    serviceContractsStalledNoDeliveryCount: stalledIds.size,
     stalledContractSampleId,
     completedProWithFeesLast90dCount: Number(completedProRow?.cnt ?? 0),
     proBillingOverdueOmr: Number(proOverdue?.total ?? 0),

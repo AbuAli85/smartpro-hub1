@@ -655,6 +655,172 @@ export default function Dashboard() {
               </CardContent>
             </Card>
           )}
+
+          {businessPulse.accountPortfolio &&
+            (businessPulse.accountPortfolio.renewalRisk.length +
+              businessPulse.accountPortfolio.stalledDelivery.length +
+              businessPulse.accountPortfolio.combinedRisk.length +
+              businessPulse.accountPortfolio.executiveFollowUp.length) >
+              0 && (
+            <Card className="border-border/80">
+              <CardHeader className="pb-2">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                  <CardTitle
+                    className="text-sm flex items-center gap-2"
+                    title={businessPulse.accountPortfolio.basis}
+                  >
+                    <Users size={14} className="text-[var(--smartpro-orange)]" />
+                    Account control
+                  </CardTitle>
+                  <div className="flex flex-wrap gap-1">
+                    <Button variant="ghost" size="sm" className="text-xs h-7" asChild>
+                      <Link href="/crm">CRM</Link>
+                    </Button>
+                    <Button variant="ghost" size="sm" className="text-xs h-7" asChild>
+                      <Link href="/contracts">Contracts</Link>
+                    </Button>
+                    <Button variant="ghost" size="sm" className="text-xs h-7" asChild>
+                      <Link href="/quotations?filter=accepted">Accepted quotes</Link>
+                    </Button>
+                    <Button variant="ghost" size="sm" className="text-xs h-7" asChild>
+                      <Link href="/pro">PRO</Link>
+                    </Button>
+                  </div>
+                </div>
+                <p className="text-[10px] text-muted-foreground font-normal pt-1">
+                  {businessPulse.accountPortfolio.tenantCollectionsScopeNote} Rule-based tiers; hover the section title for the full derivation basis.
+                </p>
+              </CardHeader>
+              <CardContent className="grid md:grid-cols-2 gap-4 text-xs">
+                {businessPulse.accountPortfolio.renewalRisk.length > 0 && (
+                  <div className="space-y-1.5">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Renewal risk</p>
+                    <ul className="space-y-2">
+                      {businessPulse.accountPortfolio.renewalRisk.map((row) => (
+                        <li key={row.contactId} className="rounded-md border border-border/60 p-2 space-y-1">
+                          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                            <Link href={row.primaryHref} className="font-medium hover:underline">
+                              {row.displayName}
+                            </Link>
+                            {row.companyLabel && (
+                              <span className="text-muted-foreground text-[10px]">· {row.companyLabel}</span>
+                            )}
+                            <Badge
+                              variant="outline"
+                              className={
+                                row.tier === "urgent"
+                                  ? "text-[9px] border-red-200 text-red-800"
+                                  : row.tier === "at_risk"
+                                    ? "text-[9px] border-orange-200 text-orange-800"
+                                    : "text-[9px]"
+                              }
+                            >
+                              {row.tier.replace("_", " ")}
+                            </Badge>
+                          </div>
+                          {row.nearestExpiryEndDate && (
+                            <p className="text-[10px] text-muted-foreground">Ends {row.nearestExpiryEndDate}</p>
+                          )}
+                          {row.renewalWeakFollowUp && (
+                            <p className="text-[10px] text-amber-800">Weak follow-up — no touch 21+ days</p>
+                          )}
+                          <div className="flex flex-wrap gap-2">
+                            {row.sampleContractHref && (
+                              <Link href={row.sampleContractHref} className="text-[10px] text-[var(--smartpro-orange)] font-medium hover:underline">
+                                Open contract
+                              </Link>
+                            )}
+                            <Link href={row.primaryHref} className="text-[10px] text-muted-foreground hover:underline">
+                              Account →
+                            </Link>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {businessPulse.accountPortfolio.stalledDelivery.length > 0 && (
+                  <div className="space-y-1.5">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Delivery stall (linked)</p>
+                    <ul className="space-y-2">
+                      {businessPulse.accountPortfolio.stalledDelivery.map((row) => (
+                        <li key={`sd-${row.contactId}`} className="rounded-md border border-border/60 p-2 space-y-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Link href={row.primaryHref} className="font-medium hover:underline">
+                              {row.displayName}
+                            </Link>
+                            <span className="text-[10px] text-muted-foreground">
+                              {row.signals.stalledServiceContractsCount} stalled (derived)
+                            </span>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            {row.sampleContractHref && (
+                              <Link href={row.sampleContractHref} className="text-[10px] text-[var(--smartpro-orange)] font-medium hover:underline">
+                                Open contract
+                              </Link>
+                            )}
+                            <Link href="/pro" className="text-[10px] text-muted-foreground hover:underline">
+                              PRO →
+                            </Link>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {businessPulse.accountPortfolio.combinedRisk.length > 0 && (
+                  <div className="space-y-1.5">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Combined risk</p>
+                    <ul className="space-y-2">
+                      {businessPulse.accountPortfolio.combinedRisk.map((row) => (
+                        <li key={`cr-${row.contactId}`} className="rounded-md border border-amber-200/80 bg-amber-50/40 dark:bg-amber-950/20 p-2 space-y-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Link href={row.primaryHref} className="font-medium hover:underline">
+                              {row.displayName}
+                            </Link>
+                            <Badge variant="outline" className="text-[9px] border-red-200 text-red-900">
+                              {row.tier.replace("_", " ")}
+                            </Badge>
+                          </div>
+                          <p className="text-[10px] text-muted-foreground line-clamp-2">{row.reasons[0] ?? "Renewal, delivery, or collections pressure."}</p>
+                          <div className="flex flex-wrap gap-2">
+                            {row.sampleContractHref && (
+                              <Link href={row.sampleContractHref} className="text-[10px] text-[var(--smartpro-orange)] font-medium hover:underline">
+                                Contract
+                              </Link>
+                            )}
+                            <Link href="/client-portal?tab=invoices" className="text-[10px] text-muted-foreground hover:underline">
+                              Collections →
+                            </Link>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {businessPulse.accountPortfolio.executiveFollowUp.length > 0 && (
+                  <div className="space-y-1.5 md:col-span-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Executive follow-up</p>
+                    <ul className="grid sm:grid-cols-2 gap-2">
+                      {businessPulse.accountPortfolio.executiveFollowUp.map((row) => (
+                        <li key={`ex-${row.contactId}`} className="rounded-md border border-border/60 p-2">
+                          <Link href={row.primaryHref} className="font-medium hover:underline">
+                            {row.displayName}
+                          </Link>
+                          <p className="text-[10px] text-muted-foreground mt-0.5">
+                            {row.tier === "urgent" ? "Urgent tier" : "At risk + stale activity (45d+)"}
+                          </p>
+                          <Link href={row.primaryHref} className="text-[10px] text-[var(--smartpro-orange)] mt-1 inline-block hover:underline">
+                            Open account →
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
         </div>
       )}
 

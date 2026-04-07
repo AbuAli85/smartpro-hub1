@@ -36,6 +36,7 @@ import { canAccessGlobalAdminProcedures } from "@shared/rbac";
 import { buildOwnerAttentionQueue } from "../ownerAttentionQueue";
 import { getActiveCompanyMembership } from "../_core/membership";
 import { getPostSaleSignals } from "../postSaleSignals";
+import { getCompanyAccountPortfolioSnapshot } from "../accountHealth";
 
 type DbClient = NonNullable<Awaited<ReturnType<typeof getDb>>>;
 
@@ -892,6 +893,11 @@ export const operationsRouter = router({
 
       const lifecycle = await getOwnerLifecycleSignals(db, companyId);
       const postSale = await getPostSaleSignals(db, companyId);
+      const accountPortfolio = await getCompanyAccountPortfolioSnapshot(
+        db,
+        companyId,
+        postSale.proBillingOverdueCount > 0,
+      );
 
       return {
         commercial: {
@@ -948,6 +954,7 @@ export const operationsRouter = router({
             clientBilling: "/client-portal?tab=invoices",
           },
         },
+        accountPortfolio,
       };
     }),
 });

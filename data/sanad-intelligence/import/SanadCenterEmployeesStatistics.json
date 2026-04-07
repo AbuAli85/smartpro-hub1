@@ -1,5 +1,78 @@
-{
-  "Muscat": { "owners": 420, "staff": 2100, "total": 2520 },
-  "Dhofar": { "owners": 180, "staff": 920, "total": 1100 },
-  "North Al Batinah": { "owners": 150, "staff": 780, "total": 930 }
-}
+
+ {
+  "Governorate": "Muscat",
+  "محافظة": " مسقط",
+  "المالك\/Owners": 271,
+  "الموظفين\/Staffs": 604,
+  "المجموع\/Total": 875
+ },
+ {
+  "Governorate": "South Batinah",
+  "محافظة": " جنوب الباطنة ",
+  "المالك\/Owners": 84,
+  "الموظفين\/Staffs": 131,
+  "المجموع\/Total": 215
+ },
+ {
+  "Governorate": "North Al-Sharqiya",
+  "محافظة": " شمال الشرقية",
+  "المالك\/Owners": 72,
+  "الموظفين\/Staffs": 76,
+  "المجموع\/Total": 148
+ },
+ {
+  "Governorate": "North Batinah",
+  "محافظة": " شمال الباطنة ",
+  "المالك\/Owners": 147,
+  "الموظفين\/Staffs": 176,
+  "المجموع\/Total": 323
+ },
+ {
+  "Governorate": "Musandam",
+  "محافظة": " مسندم",
+  "المالك\/Owners": 12,
+  "الموظفين\/Staffs": 15,
+  "المجموع\/Total": 27
+ },
+ {
+  "Governorate": "Al-Dhahirah",
+  "محافظة": " الظاهـرة",
+  "المالك\/Owners": 32,
+  "الموظفين\/Staffs": 39,
+  "المجموع\/Total": 71
+ },
+ {
+  "Governorate": "Al-Dakhiliyah",
+  "محافظة": " الداخلية",
+  "المالك\/Owners": 78,
+  "الموظفين\/Staffs": 97,
+  "المجموع\/Total": 175
+ },
+ {
+  "Governorate": "South Al-Sharqiya",
+  "محافظة": " جنوب الشرقية",
+  "المالك\/Owners": 69,
+  "الموظفين\/Staffs": 75,
+  "المجموع\/Total": 144
+ },
+ {
+  "Governorate": "Al-Wusta'a",
+  "محافظة": " الوسطى",
+  "المالك\/Owners": 23,
+  "الموظفين\/Staffs": 21,
+  "المجموع\/Total": 44
+ },
+ {
+  "Governorate": "Dhofar",
+  "محافظة": " ظفـار",
+  "المالك\/Owners": 118,
+  "الموظفين\/Staffs": 101,
+  "المجموع\/Total": 219
+ },
+ {
+  "Governorate": "Al-Buraimi",
+  "محافظة": " البريمي",
+  "المالك\/Owners": 29,
+  "الموظفين\/Staffs": 25,
+  "المجموع\/Total": 54
+ }

@@ -1513,6 +1513,35 @@ export const proBillingCycles = mysqlTable(
 export type ProBillingCycle = typeof proBillingCycles.$inferSelect;
 export type InsertProBillingCycle = typeof proBillingCycles.$inferInsert;
 
+/** Tenant-scoped collection workflow state for receivables execution (PRO cycles + subscription invoices). */
+export const collectionWorkItems = mysqlTable(
+  "collection_work_items",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    companyId: int("company_id").notNull(),
+    sourceType: mysqlEnum("source_type", ["pro_billing_cycle", "subscription_invoice"]).notNull(),
+    sourceId: int("source_id").notNull(),
+    workflowStatus: mysqlEnum("workflow_status", [
+      "needs_follow_up",
+      "promised_to_pay",
+      "escalated",
+      "disputed",
+      "resolved",
+    ])
+      .notNull()
+      .default("needs_follow_up"),
+    note: text("note"),
+    updatedByUserId: int("updated_by_user_id"),
+    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  },
+  (t) => [
+    unique("uniq_collection_work_source").on(t.sourceType, t.sourceId),
+    index("idx_cwi_company").on(t.companyId),
+  ],
+);
+export type CollectionWorkItem = typeof collectionWorkItems.$inferSelect;
+export type InsertCollectionWorkItem = typeof collectionWorkItems.$inferInsert;
+
 // ─── SHARED OMANI PRO — OFFICER PAYOUTS ──────────────────────────────────────
 export const officerPayouts = mysqlTable(
   "officer_payouts",

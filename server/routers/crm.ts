@@ -11,8 +11,8 @@ import {
   countCommercialFrictionForContact,
   getContactLastActivityAt,
 } from "../accountHealth";
-import { and, count, desc, eq, inArray, sql } from "drizzle-orm";
-import { contracts, crmDeals, proBillingCycles, serviceQuotations } from "../../drizzle/schema";
+import { and, count, desc, eq, inArray, notInArray, sql } from "drizzle-orm";
+import { contracts, crmDeals, proBillingCycles, proServices, serviceQuotations } from "../../drizzle/schema";
 import { buildContactRevenueRealizationHints, buildRevenueRealizationSnapshot } from "../revenueRealization";
 import { resolvePrimaryAccountAction } from "../ownerResolution";
 import { getWorkflowTrackingForContact, RESOLUTION_WORKFLOW_BASIS } from "../resolutionWorkflow";
@@ -413,6 +413,16 @@ export const crmRouter = router({
         nearestExpiryEndDate,
       );
 
+      const [openProRow] = await db
+        .select({ cnt: count() })
+        .from(proServices)
+        .where(
+          and(
+            eq(proServices.companyId, companyId),
+            notInArray(proServices.status, ["completed", "cancelled", "rejected"]),
+          ),
+        );
+
       return {
         contact,
         deals,
@@ -454,6 +464,11 @@ export const crmRouter = router({
             "Deterministic next step from account tier, delivery stall, renewal window, commercial friction, and workspace billing stress — not AI.",
           workflow: resolutionWorkflow,
           workflowTagBasis: RESOLUTION_WORKFLOW_BASIS,
+        },
+        companyDeliverySnapshot: {
+          openProServicesCount: Number(openProRow?.cnt ?? 0),
+          basis:
+            "Company-wide count of open PRO service requests (not attributed to this CRM contact — PRO schema has no crmContactId). Use for operational load alongside this account’s commercial thread.",
         },
       };
     }),

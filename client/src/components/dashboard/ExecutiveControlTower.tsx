@@ -12,6 +12,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { Link } from "wouter";
+import { CollectionsExecutionPanel, DecisionExecutionPanel } from "@/components/dashboard/ExecutionLayer";
 
 type Pulse = NonNullable<RouterOutputs["operations"]["getOwnerBusinessPulse"]>;
 type ControlTower = NonNullable<Pulse["controlTower"]>;
@@ -19,6 +20,9 @@ type ControlTower = NonNullable<Pulse["controlTower"]>;
 type Props = {
   tower: ControlTower;
   showHref: (href: string) => boolean;
+  execution?: NonNullable<Pulse["execution"]>;
+  companyId: number;
+  memberRole?: string | null;
 };
 
 function fmtOmr(n: number) {
@@ -31,8 +35,9 @@ const BUCKET_LABEL: Record<string, string> = {
   "61_plus": "61d+",
 };
 
-export function ExecutiveControlTower({ tower, showHref }: Props) {
+export function ExecutiveControlTower({ tower, showHref, execution, companyId, memberRole }: Props) {
   const { agedReceivables, decisionsQueue, riskCompliance, clientHealthTop, insightSummary } = tower;
+  const canFinance = memberRole === "company_admin" || memberRole === "finance_admin";
   const severityClass =
     insightSummary.severity === "critical"
       ? "border-red-200 bg-red-50/80 dark:bg-red-950/40"
@@ -83,6 +88,17 @@ export function ExecutiveControlTower({ tower, showHref }: Props) {
           </div>
         </div>
       </div>
+
+      {execution && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <DecisionExecutionPanel execution={execution} companyId={companyId} />
+          <CollectionsExecutionPanel
+            execution={execution}
+            companyId={companyId}
+            canFinance={canFinance}
+          />
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card className="border-border/80">

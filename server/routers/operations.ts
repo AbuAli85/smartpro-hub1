@@ -50,6 +50,8 @@ import {
   buildControlTowerBundle,
   buildExecutiveInsightNarrative,
 } from "../controlTower";
+import { listDecisionWorkItems } from "../decisionWorkItems";
+import { listCollectionsExecutionQueue, upsertCollectionWorkItem } from "../collectionsExecution";
 
 type DbClient = NonNullable<Awaited<ReturnType<typeof getDb>>>;
 
@@ -947,8 +949,19 @@ export const operationsRouter = router({
         rankedAccountsCount: ownerResolution.rankedAccountsForReview.length,
       });
 
+      const [decisionWorkItems, collectionExecutionQueue] = await Promise.all([
+        listDecisionWorkItems(db, companyId),
+        listCollectionsExecutionQueue(db, companyId, 20),
+      ]);
+
       return {
         revenue: revenueSnapshot,
+        execution: {
+          basis:
+            "Execution layer: decision rows expose action keys mapped client-side to existing mutations (hr.updateLeave, financeHR.reviewExpense, employeeRequests.updateStatus, quotations.send, payroll.approveRun, payroll.markPaid). Collection workflow persists per receivable in collection_work_items (finance/company admin).",
+          decisionWorkItems,
+          collectionQueue: collectionExecutionQueue,
+        },
         controlTower: {
           agedReceivables: controlTowerCore.agedReceivables,
           decisionsQueue: controlTowerCore.decisionsQueue,
@@ -1077,5 +1090,66 @@ export const operationsRouter = router({
         mimeType: "application/json;charset=utf-8",
         body: buildOwnerResolutionExportJson(snapshot),
       };
+    }),
+
+  /**
+   * Persist collection workflow on a receivable row (PRO billing cycle or subscription invoice).
+   * Finance or company admin only; source row must belong to the tenant.
+   */
+  upsertCollectionWorkItem: protectedProcedure
+    .input(
+      z.object({
+        companyId: z.number().optional(),
+        sourceType: z.enum(["pro_billing_cycle", "subscription_invoice"]),
+        sourceId: z.number().int().positive(),
+        workflowStatus: z.enum([
+          "needs_follow_up",
+          "promised_to_pay",
+          "escalated",
+          "disputed",
+          "resolved",
+        ]),
+        note: z.string().max(4000).optional().nullable(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      const companyId = await resolvePlatformOrCompanyScope(ctx.user as User, input.companyId);
+      if (companyId === null) throw new TRPCError({ code: "BAD_REQUEST", message: "Company required" });
+      const membership = await getActiveCompanyMembership(ctx.user.id, companyId);
+      if (!membership) throw new TRPCError({ code: "FORBIDDEN", message: "No company membership" });
+      if (membership.role === "company_member" || membership.role === "client") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Insufficient access" });
+      }
+      if (membership.role !== "company_admin" && membership.role !== "finance_admin") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Finance or company admin required" });
+      }
+      if (input.sourceType === "pro_billing_cycle") {
+        const [row] = await db
+          .select({ id: proBillingCycles.id })
+          .from(proBillingCycles)
+          .where(and(eq(proBillingCycles.id, input.sourceId), eq(proBillingCycles.companyId, companyId)))
+          .limit(1);
+        if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Billing cycle not found" });
+      } else {
+        const [row] = await db
+          .select({ id: subscriptionInvoices.id })
+          .from(subscriptionInvoices)
+          .where(
+            and(eq(subscriptionInvoices.id, input.sourceId), eq(subscriptionInvoices.companyId, companyId)),
+          )
+          .limit(1);
+        if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Invoice not found" });
+      }
+      await upsertCollectionWorkItem(db, {
+        companyId,
+        userId: ctx.user.id,
+        sourceType: input.sourceType,
+        sourceId: input.sourceId,
+        workflowStatus: input.workflowStatus,
+        note: input.note,
+      });
+      return { success: true as const };
     }),
 });

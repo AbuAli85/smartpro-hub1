@@ -537,7 +537,13 @@ export default function Dashboard() {
       )}
 
       {!showPlatformOverview && activeCompanyId && businessPulse?.controlTower && (
-        <ExecutiveControlTower tower={businessPulse.controlTower} showHref={showHref} />
+        <ExecutiveControlTower
+          tower={businessPulse.controlTower}
+          showHref={showHref}
+          execution={businessPulse.execution}
+          companyId={activeCompanyId!}
+          memberRole={activeCompany?.role ?? null}
+        />
       )}
 
       {/* ── Commercial → contract → cash → delivery (one glance) ── */}
@@ -1525,44 +1531,49 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* ── AI Insights + Today’s Tasks + Recent Activity ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+      {/* ── Rule-based alerts (hidden when Executive control tower narrative is present) + Today’s Tasks + Recent Activity ── */}
+      <div
+        className={`grid grid-cols-1 gap-5 ${
+          !businessPulse?.controlTower ? "lg:grid-cols-3" : "lg:grid-cols-2"
+        }`}
+      >
 
-        {/* AI Insights */}
-        <Card className="border-0 shadow-sm">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-semibold flex items-center gap-2">
-              <Zap size={14} className="text-amber-500" /> AI Insights
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {aiInsights && aiInsights.length > 0 ? aiInsights.map((ins, i) => (
-              <div key={i} className={`p-3 rounded-lg border-l-4 ${
-                ins.severity === "critical" ? "border-red-500 bg-red-50" :
-                ins.severity === "warning" ? "border-amber-500 bg-amber-50" :
-                "border-blue-500 bg-blue-50"
-              }`}>
-                <p className="text-xs font-semibold text-foreground">{ins.title}</p>
-                <p className="text-xs text-muted-foreground mt-0.5">{ins.description}</p>
-                {ins.actionUrl &&
-                  (!ins.actionUrl.startsWith("/") ||
-                    showHref(normalizeClientPath(ins.actionUrl))) && (
-                  <Link href={ins.actionUrl}>
-                    <Button variant="link" size="sm" className="h-5 p-0 text-xs mt-1 gap-1">
-                      {ins.actionLabel} <ArrowRight size={10} />
-                    </Button>
-                  </Link>
-                )}
-              </div>
-            )) : (
-              <div className="text-center py-8 text-muted-foreground">
-                <Zap size={28} className="mx-auto mb-2 opacity-20" />
-                <p className="text-xs">No critical alerts today</p>
-                <p className="text-[10px] mt-0.5 opacity-60">All systems operating normally</p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        {!businessPulse?.controlTower && (
+          <Card className="border-0 shadow-sm">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <Zap size={14} className="text-amber-500" /> Operational alerts
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {aiInsights && aiInsights.length > 0 ? aiInsights.map((ins, i) => (
+                <div key={i} className={`p-3 rounded-lg border-l-4 ${
+                  ins.severity === "critical" ? "border-red-500 bg-red-50" :
+                  ins.severity === "warning" ? "border-amber-500 bg-amber-50" :
+                  "border-blue-500 bg-blue-50"
+                }`}>
+                  <p className="text-xs font-semibold text-foreground">{ins.title}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{ins.description}</p>
+                  {ins.actionUrl &&
+                    (!ins.actionUrl.startsWith("/") ||
+                      showHref(normalizeClientPath(ins.actionUrl))) && (
+                    <Link href={ins.actionUrl}>
+                      <Button variant="link" size="sm" className="h-5 p-0 text-xs mt-1 gap-1">
+                        {ins.actionLabel} <ArrowRight size={10} />
+                      </Button>
+                    </Link>
+                  )}
+                </div>
+              )) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Zap size={28} className="mx-auto mb-2 opacity-20" />
+                  <p className="text-xs">No critical alerts today</p>
+                  <p className="text-[10px] mt-0.5 opacity-60">All systems operating normally</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {/* Today’s Tasks */}
         <Card className="border-0 shadow-sm">

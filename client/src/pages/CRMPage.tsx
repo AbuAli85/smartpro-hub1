@@ -428,11 +428,24 @@ function ContactDetailPanel({ contactId, onClose, companyId }: { contactId: numb
 
           {(contact360.contactPostSale?.stalledServiceContracts?.length ?? 0) > 0 ||
           (contact360.workspaceCollections?.proBillingOverdueCount ?? 0) > 0 ||
-          (contact360.workspaceCollections?.subscriptionOverdueCount ?? 0) > 0 ? (
+          (contact360.workspaceCollections?.subscriptionOverdueCount ?? 0) > 0 ||
+          (contact360.companyDeliverySnapshot?.openProServicesCount ?? 0) > 0 ? (
             <div className="rounded-lg border border-amber-200/80 bg-amber-50/50 dark:bg-amber-950/20 px-2 py-2 space-y-2">
               <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1">
                 <Truck size={12} /> Operations & collections
               </p>
+              {(contact360.companyDeliverySnapshot?.openProServicesCount ?? 0) > 0 && (
+                <p className="text-[10px] text-muted-foreground border-b border-amber-200/60 pb-2">
+                  Company-wide open PRO jobs:{" "}
+                  <span className="font-semibold text-foreground tabular-nums">
+                    {contact360.companyDeliverySnapshot!.openProServicesCount}
+                  </span>{" "}
+                  <Link href="/pro" className="text-[var(--smartpro-orange)] font-medium hover:underline">
+                    Open PRO queue
+                  </Link>
+                  <span className="block text-[9px] mt-1 opacity-90">{contact360.companyDeliverySnapshot?.basis}</span>
+                </p>
+              )}
               {(contact360.contactPostSale?.stalledServiceContracts?.length ?? 0) > 0 && (
                 <div className="space-y-1">
                   <p className="text-[10px] text-amber-900 dark:text-amber-200 flex items-start gap-1">

@@ -44,6 +44,11 @@ export type CheckInEligibilityReasonCodeType =
 /** Non-null denial / policy codes (excludes OK sentinel). */
 export type CheckInDenialReasonCode = Exclude<CheckInEligibilityReasonCodeType, null>;
 
+/** All machine codes the portal / check-in API may emit — use in tests and client exhaustiveness checks. */
+export const ALL_CHECK_IN_DENIAL_REASON_CODES: CheckInDenialReasonCode[] = (
+  Object.values(CheckInEligibilityReasonCode).filter((v): v is CheckInDenialReasonCode => v != null)
+);
+
 function formatHm(d: Date): string {
   return d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false });
 }

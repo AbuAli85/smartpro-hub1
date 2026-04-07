@@ -1,4 +1,8 @@
-import { CheckInEligibilityReasonCode } from "@shared/attendanceCheckInEligibility";
+import {
+  CheckInEligibilityReasonCode,
+  ALL_CHECK_IN_DENIAL_REASON_CODES,
+  type CheckInDenialReasonCode,
+} from "@shared/attendanceCheckInEligibility";
 
 /** Maps to UI treatment — not HR policy */
 export type AttendanceDenialSeverity = "critical" | "warning" | "info" | "success";
@@ -112,13 +116,23 @@ export function getCheckInDenialPresentation(code: string | null | undefined): C
         nextStep: "Try again during site opening hours or contact HR.",
         correctionPrimary: false,
       };
-    default:
+    default: {
+      if (
+        import.meta.env.DEV &&
+        ALL_CHECK_IN_DENIAL_REASON_CODES.includes(code as CheckInDenialReasonCode)
+      ) {
+        console.error(
+          "[attendanceDenialHints] Denial code in ALL_CHECK_IN_DENIAL_REASON_CODES but missing from switch:",
+          code,
+        );
+      }
       return {
         shortLabel: "Can’t check in",
         severity: "warning",
         nextStep: "If this persists, contact HR with a screenshot.",
         correctionPrimary: true,
       };
+    }
   }
 }
 
@@ -127,10 +141,11 @@ export function attendanceDenialNextStep(code: string | null | undefined): strin
   return getCheckInDenialPresentation(code)?.nextStep ?? null;
 }
 
-const RETRY_MUTATION_CODES = new Set([
-  "LOCATION_REQUIRED_FOR_SITE",
-  "SITE_GEOFENCE_VIOLATION",
-  "SITE_OPERATING_HOURS_CLOSED",
+/** Server uses same codes as check-in eligibility; retry after user fixes context (location, site, hours). */
+const RETRY_MUTATION_CODES = new Set<string>([
+  CheckInEligibilityReasonCode.LOCATION_REQUIRED_FOR_SITE,
+  CheckInEligibilityReasonCode.SITE_GEOFENCE_VIOLATION,
+  CheckInEligibilityReasonCode.SITE_OPERATING_HOURS_CLOSED,
 ]);
 
 export function attendanceMutationIsRetryable(code: string): boolean {

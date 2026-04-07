@@ -9,14 +9,23 @@
  * - Never queue offline mutations here without idempotency + conflict rules on the server.
  * - Offline: network-first for navigations, cache fallback for static; /api and /trpc stay uncached as truth.
  * - Add maskable PNG icons (192/512) in manifest for install quality.
+ *
+ * skipWaiting is NOT called here so updates stay in `registration.waiting` until the client
+ * posts { type: 'SKIP_WAITING' } (see registerServiceWorkerUpdatePrompt.ts). First install
+ * still activates immediately when no prior controller exists.
  */
-const CACHE = "employee-portal-shell-v1";
+const CACHE = "employee-portal-shell-v2";
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(CACHE).then((cache) => cache.addAll(["/", "/index.html"]).catch(() => undefined)),
   );
-  self.skipWaiting();
+});
+
+self.addEventListener("message", (event) => {
+  if (event.data && event.data.type === "SKIP_WAITING") {
+    self.skipWaiting();
+  }
 });
 
 self.addEventListener("activate", (event) => {

@@ -191,6 +191,7 @@ function AttendanceTodayCard({
   const [corrCheckIn, setCorrCheckIn] = useState("");
   const [corrCheckOut, setCorrCheckOut] = useState("");
   const [corrReason, setCorrReason] = useState("");
+  const corrDateInputRef = useRef<HTMLInputElement>(null);
   const { data: todayRec, isLoading: todayRecLoading, refetch: refetchToday } = trpc.attendance.myToday.useQuery(
     { companyId: companyId ?? undefined },
     {
@@ -213,7 +214,10 @@ function AttendanceTodayCard({
       utils.employeePortal.getMyOperationalHints.invalidate();
       void utils.attendance.listAttendanceAudit.invalidate();
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e) =>
+      toast.error("Couldn’t submit correction", {
+        description: e.message || "Try again or contact HR.",
+      }),
   });
   // Direct check-in / check-out mutations
   const doCheckIn = trpc.attendance.checkIn.useMutation({
@@ -645,7 +649,14 @@ function AttendanceTodayCard({
 
       {/* Correction request dialog */}
       <Dialog open={showCorrForm} onOpenChange={setShowCorrForm}>
-        <DialogContent aria-describedby="attendance-correction-dialog-desc" aria-busy={submitCorr.isPending}>
+        <DialogContent
+          aria-describedby="attendance-correction-dialog-desc"
+          aria-busy={submitCorr.isPending}
+          onOpenAutoFocus={(e) => {
+            e.preventDefault();
+            requestAnimationFrame(() => corrDateInputRef.current?.focus());
+          }}
+        >
           <DialogHeader>
             <DialogTitle>Request Attendance Correction</DialogTitle>
             <DialogDescription id="attendance-correction-dialog-desc">
@@ -655,7 +666,13 @@ function AttendanceTodayCard({
           <div className="space-y-4">
             <div className="space-y-1.5">
               <Label htmlFor="corrDate">Date</Label>
-              <DateInput id="corrDate" value={corrDate} onChange={(e) => setCorrDate(e.target.value)} max={todayStr} />
+              <DateInput
+                ref={corrDateInputRef}
+                id="corrDate"
+                value={corrDate}
+                onChange={(e) => setCorrDate(e.target.value)}
+                max={todayStr}
+              />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
@@ -669,8 +686,17 @@ function AttendanceTodayCard({
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="corrReason">Reason <span className="text-red-500">*</span></Label>
-              <Textarea id="corrReason" value={corrReason} onChange={(e) => setCorrReason(e.target.value)}
-                placeholder="Explain why the correction is needed…" rows={3} />
+              <p id="corr-reason-hint" className="text-xs text-muted-foreground">
+                At least 10 characters (required by HR).
+              </p>
+              <Textarea
+                id="corrReason"
+                value={corrReason}
+                onChange={(e) => setCorrReason(e.target.value)}
+                placeholder="What should HR fix?"
+                rows={3}
+                aria-describedby="corr-reason-hint"
+              />
             </div>
           </div>
           <DialogFooter>
@@ -728,6 +754,8 @@ export default function EmployeePortalPage() {
   const [workLogDesc, setWorkLogDesc] = useState("");
   const [workLogProject, setWorkLogProject] = useState("");
   const [showLeaveDialog, setShowLeaveDialog] = useState(false);
+  const leaveTypeSelectRef = useRef<HTMLButtonElement>(null);
+  const shiftRequestTypeSelectRef = useRef<HTMLButtonElement>(null);
   const [showNotifications, setShowNotifications] = useState(false);
 
   // Attendance month navigation
@@ -970,7 +998,7 @@ export default function EmployeePortalPage() {
   // ── Mutations ─────────────────────────────────────────────────────────────
   const submitLeave = trpc.employeePortal.submitLeaveRequest.useMutation({
     onSuccess: () => {
-      toast.success("Leave sent", { description: "HR will review and notify you." });
+      toast.success("Leave request sent", { description: "HR will review and notify you." });
       setShowLeaveDialog(false);
       setLeaveType("annual");
       setLeaveStart("");
@@ -978,7 +1006,10 @@ export default function EmployeePortalPage() {
       setLeaveReason("");
       utils.employeePortal.getMyLeave.invalidate();
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) =>
+      toast.error("Couldn’t send leave request", {
+        description: err.message || "Check dates and try again.",
+      }),
   });
 
   const cancelLeave = trpc.employeePortal.cancelLeaveRequest.useMutation({
@@ -1038,7 +1069,7 @@ export default function EmployeePortalPage() {
   });
   const submitShiftRequest = trpc.shiftRequests.submit.useMutation({
     onSuccess: () => {
-      toast.success("Request submitted — HR will review and notify you.");
+      toast.success("Request sent", { description: "HR will review and notify you." });
       setShowShiftRequestDialog(false);
       setShiftReqType("time_off");
       setShiftReqDate("");
@@ -1050,14 +1081,18 @@ export default function EmployeePortalPage() {
       setShiftReqAttachmentName(null);
       utils.shiftRequests.listMine.invalidate();
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) =>
+      toast.error("Couldn’t send request", {
+        description: err.message || "Check required fields and try again.",
+      }),
   });
   const uploadShiftAttachment = trpc.shiftRequests.uploadAttachment.useMutation({
     onSuccess: (data) => {
       setShiftReqAttachmentUrl(data.url);
       toast.success("Document uploaded successfully");
     },
-    onError: (err) => toast.error(`Upload failed: ${err.message}`),
+    onError: (err) =>
+      toast.error("Upload failed", { description: err.message || "Try a smaller file or different format." }),
   });
   const cancelShiftRequest = trpc.shiftRequests.cancel.useMutation({
     onSuccess: () => {
@@ -3343,18 +3378,24 @@ export default function EmployeePortalPage() {
           className="sm:max-w-md"
           aria-describedby="employee-leave-dialog-desc"
           aria-busy={submitLeave.isPending}
+          onOpenAutoFocus={(e) => {
+            e.preventDefault();
+            requestAnimationFrame(() => leaveTypeSelectRef.current?.focus());
+          }}
         >
           <DialogHeader>
             <DialogTitle>Submit Leave Request</DialogTitle>
             <DialogDescription id="employee-leave-dialog-desc">
-              Pick dates and send — HR confirms by notification.
+              Pick type and dates — HR confirms by notification.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-1.5">
               <Label>Leave Type</Label>
               <Select value={leaveType} onValueChange={setLeaveType}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger ref={leaveTypeSelectRef}>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="annual">Annual Leave ({balance.annual} days remaining)</SelectItem>
                   <SelectItem value="sick">Sick Leave ({balance.sick} days remaining)</SelectItem>
@@ -3384,8 +3425,12 @@ export default function EmployeePortalPage() {
             )}
             <div className="space-y-1.5">
               <Label>Reason (optional)</Label>
-              <Textarea placeholder="Briefly explain the reason..." value={leaveReason}
-                onChange={(e) => setLeaveReason(e.target.value)} rows={3} />
+              <Textarea
+                placeholder="Optional note for HR"
+                value={leaveReason}
+                onChange={(e) => setLeaveReason(e.target.value)}
+                rows={2}
+              />
             </div>
           </div>
           <DialogFooter className="flex-col gap-2 sm:flex-row">
@@ -3471,13 +3516,17 @@ export default function EmployeePortalPage() {
           className="sm:max-w-md"
           aria-describedby="employee-shift-request-dialog-desc"
           aria-busy={submitShiftRequest.isPending || uploadingAttachment}
+          onOpenAutoFocus={(e) => {
+            e.preventDefault();
+            requestAnimationFrame(() => shiftRequestTypeSelectRef.current?.focus());
+          }}
         >
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-base">
               <ArrowLeftRight className="h-4 w-4 text-primary" /> Request to HR
             </DialogTitle>
             <DialogDescription id="employee-shift-request-dialog-desc">
-              Type, dates, short reason — one tap to send. HR is notified.
+              Choose type, dates, and reason (5+ characters), then send.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
@@ -3490,7 +3539,9 @@ export default function EmployeePortalPage() {
                   if (v !== "shift_change") setShiftPreferredShiftId("");
                 }}
               >
-                <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                <SelectTrigger ref={shiftRequestTypeSelectRef} className="mt-1">
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="time_off">Time Off</SelectItem>
                   <SelectItem value="shift_change">Shift Change</SelectItem>
@@ -3545,9 +3596,17 @@ export default function EmployeePortalPage() {
             )}
             <div>
               <Label className="text-xs text-muted-foreground uppercase tracking-wide">Reason *</Label>
-              <Textarea className="mt-1" rows={3}
-                placeholder="Please explain the reason for your request..."
-                value={shiftReqReason} onChange={e => setShiftReqReason(e.target.value)} />
+              <p id="shift-req-reason-hint" className="mt-1 text-xs text-muted-foreground">
+                Minimum 5 characters.
+              </p>
+              <Textarea
+                className="mt-1"
+                rows={3}
+                placeholder="What do you need from HR?"
+                value={shiftReqReason}
+                onChange={(e) => setShiftReqReason(e.target.value)}
+                aria-describedby="shift-req-reason-hint"
+              />
             </div>
             {/* Supporting Document Upload */}
             <div>

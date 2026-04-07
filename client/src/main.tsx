@@ -8,6 +8,7 @@ import App from "./App";
 import { getLoginUrl } from "./const";
 import { ActiveCompanyProvider } from "./contexts/ActiveCompanyContext";
 import "./index.css";
+import { registerServiceWorkerWithUpdatePrompt } from "./lib/registerServiceWorkerUpdatePrompt";
 
 const queryClient = new QueryClient();
 
@@ -63,15 +64,4 @@ createRoot(document.getElementById("root")!).render(
   </trpc.Provider>
 );
 
-/**
- * PWA phase-2 hooks (implement when you ship update UX):
- * - After register(), keep `const reg = await navigator.serviceWorker.getRegistration()`.
- * - On `reg?.waiting`, show in-app banner: “Update ready — Reload” → `reg.waiting.postMessage({ type: 'SKIP_WAITING' })` (SW must call skipWaiting on message).
- * - On `controllerchange`, reload once (`window.location.reload()` guarded by a ref).
- * - Do not cache TRPC/API as authoritative offline truth; optional stale shell only (see public/sw.js).
- */
-if (import.meta.env.PROD && typeof navigator !== "undefined" && "serviceWorker" in navigator) {
-  window.addEventListener("load", () => {
-    navigator.serviceWorker.register("/sw.js").catch(() => undefined);
-  });
-}
+registerServiceWorkerWithUpdatePrompt();

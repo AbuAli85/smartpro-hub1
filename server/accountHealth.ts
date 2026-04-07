@@ -303,7 +303,7 @@ export async function getCompanyAccountPortfolioSnapshot(
     byContact.set(cid, list);
   }
 
-  const contactIds = [...byContact.keys()];
+  const contactIds = Array.from(byContact.keys());
   if (contactIds.length === 0) {
     return {
       basis: ACCOUNT_HEALTH_RULES_BASIS,

@@ -453,7 +453,7 @@ function buildInterventionAggByEmployee(
       }
     }
   }
-  for (const agg of m.values()) {
+  for (const agg of Array.from(m.values())) {
     if (agg.earliestFollowUp && agg.earliestFollowUp < todayStr) agg.followUpOverdue = true;
   }
   return m;

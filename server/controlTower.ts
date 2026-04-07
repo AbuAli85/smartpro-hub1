@@ -104,13 +104,6 @@ export function bucketKeyForDaysPastDue(days: number): ArBucketKey {
   return "61_plus";
 }
 
-function toYmd(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
-
 function addToBuckets(
   buckets: Array<{ key: ArBucketKey; omr: number; count: number }>,
   key: ArBucketKey,
@@ -398,8 +391,8 @@ export async function buildRiskComplianceSnapshot(
           eq(companyDocuments.companyId, companyId),
           eq(companyDocuments.isDeleted, false),
           isNotNull(companyDocuments.expiryDate),
-          gte(companyDocuments.expiryDate, toYmd(now)),
-          lte(companyDocuments.expiryDate, toYmd(in30)),
+          gte(companyDocuments.expiryDate, now),
+          lte(companyDocuments.expiryDate, in30),
         ),
       ),
     db

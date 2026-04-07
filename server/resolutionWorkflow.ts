@@ -13,7 +13,7 @@ import type { getDb } from "./db";
 import { crmContacts, employeeTasks, users } from "../drizzle/schema";
 import type { AccountHealthTier } from "./accountHealth";
 import type { CollectionsCycleRow, RankedAccountRow, RenewalReadinessRow } from "./ownerResolution";
-import { deriveResolutionReviewMeta } from "./resolutionReviewDerived";
+import { deriveResolutionReviewMeta, type ResolutionReviewMeta } from "./resolutionReviewDerived";
 
 export { RESOLUTION_TASK_TAG };
 
@@ -49,7 +49,7 @@ export type ResolutionWorkflowTracking = ResolutionWorkflowBase & {
   review: ResolutionReviewMeta;
 };
 
-export type { ResolutionReviewMeta } from "./resolutionReviewDerived";
+export type { ResolutionReviewMeta };
 
 export type OpenResolutionTask = {
   id: number;

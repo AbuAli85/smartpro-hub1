@@ -142,7 +142,7 @@ export async function getPostSaleSignals(db: DbClient, companyId: number): Promi
 
   const stalledIds = await getStalledServiceContractIds(db, companyId);
   let stalledContractSampleId: number | null = null;
-  for (const id of stalledIds) {
+  for (const id of Array.from(stalledIds)) {
     stalledContractSampleId = id;
     break;
   }

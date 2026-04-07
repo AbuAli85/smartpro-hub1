@@ -529,27 +529,32 @@ describe("hr.attendance", () => {
     const mockTx = {
       insert: vi.fn(() => ({ values: valuesFn })),
     };
-    vi.mocked(db.getDb).mockResolvedValueOnce({
-      transaction: async (fn: (tx: typeof mockTx) => Promise<void>) => {
-        await fn(mockTx);
-      },
-    } as any);
     const m = {
       company: { id: 1, name: "Co", slug: "co", country: "OM", status: "active" },
       member: { role: "company_admin" },
     } as any;
-    vi.mocked(db.getUserCompanies).mockResolvedValueOnce([m]);
-    vi.mocked(db.getUserCompany).mockResolvedValueOnce(m);
-    vi.mocked(db.getUserCompanyById).mockResolvedValueOnce(m);
-    vi.mocked(db.getEmployeeById).mockResolvedValueOnce({ id: 1, companyId: 1 } as any);
-    const caller = appRouter.createCaller(makeCtx({ role: "user", platformRole: "company_admin" }));
-    const result = await caller.hr.createAttendance({
-      employeeId: 1,
-      date: "2026-03-01",
-      status: "present",
-      notes: "Manager confirmed present after site visit — audit trail entry.",
-    });
-    expect(result).toHaveProperty("success", true);
+    const byIdSpy = vi.mocked(db.getUserCompanyById).mockResolvedValue(m);
+    try {
+      vi.mocked(db.getDb).mockResolvedValueOnce({
+        transaction: async (fn: (tx: typeof mockTx) => Promise<void>) => {
+          await fn(mockTx);
+        },
+      } as any);
+      vi.mocked(db.getEmployeeById).mockResolvedValueOnce({ id: 1, companyId: 1 } as any);
+      const caller = appRouter.createCaller(makeCtx({ role: "user", platformRole: "company_admin" }));
+      // Pass explicit workspace so `requireActiveCompanyId` uses `getUserCompanyById` (not `getUserCompanies`),
+      // which matches the hoisted `./db` mock reliably in Vitest.
+      const result = await caller.hr.createAttendance({
+        employeeId: 1,
+        companyId: 1,
+        date: "2026-03-01",
+        status: "present",
+        notes: "Manager confirmed present after site visit — audit trail entry.",
+      });
+      expect(result).toHaveProperty("success", true);
+    } finally {
+      byIdSpy.mockRestore();
+    }
   });
 });
 

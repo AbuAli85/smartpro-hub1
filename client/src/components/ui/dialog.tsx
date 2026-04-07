@@ -128,11 +128,8 @@ function DialogContent({
           className
         )}
         onEscapeKeyDown={handleEscapeKeyDown}
-        aria-describedby={props["aria-describedby"] ?? "dialog-fallback-desc"}
         {...props}
       >
-        {/* Visually-hidden fallback description satisfies aria-describedby requirement */}
-        <DialogPrimitive.Description id="dialog-fallback-desc" className="sr-only" />
         {children}
         {showCloseButton && (
           <DialogPrimitive.Close

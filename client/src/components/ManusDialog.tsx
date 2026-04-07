@@ -63,12 +63,16 @@ export function ManusDialog({
             </div>
           ) : null}
 
-          {/* Title and subtitle */}
-          {title ? (
-            <DialogTitle className="text-xl font-semibold text-[#34322d] leading-[26px] tracking-[-0.44px]">
-              {title}
-            </DialogTitle>
-          ) : null}
+          {/* Title and subtitle — DialogTitle is always present for Radix a11y */}
+          <DialogTitle
+            className={
+              title
+                ? "text-xl font-semibold text-[#34322d] leading-[26px] tracking-[-0.44px]"
+                : "sr-only"
+            }
+          >
+            {title ?? "Sign in with Manus"}
+          </DialogTitle>
           <DialogDescription className="text-sm text-[#858481] leading-5 tracking-[-0.154px]">
             Please login with Manus to continue
           </DialogDescription>

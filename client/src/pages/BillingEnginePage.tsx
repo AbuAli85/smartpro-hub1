@@ -15,6 +15,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
@@ -232,6 +233,11 @@ export default function BillingEnginePage() {
     month: filterMonth !== "all" ? parseInt(filterMonth) : undefined,
     year: filterYear !== "all" ? parseInt(filterYear) : undefined,
   });
+
+  const officersForPayoutQuery = trpc.officers.list.useQuery(
+    { status: "active" },
+    { enabled: user?.role === "admin" && showPayoutDialog }
+  );
 
   const generateMutation = trpc.billing.generateMonthlyInvoices.useMutation({
     onSuccess: (data) => {
@@ -617,10 +623,10 @@ export default function BillingEnginePage() {
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
-            <p className="text-sm text-muted-foreground">
+            <DialogDescription className="text-sm text-muted-foreground">
               This will create OMR 100 invoices for all active officer-company assignments for the selected period.
               Existing invoices are skipped automatically.
-            </p>
+            </DialogDescription>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <Label className="text-xs">Month</Label>
@@ -672,15 +678,27 @@ export default function BillingEnginePage() {
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-3 py-2">
+            <DialogDescription className="text-sm text-muted-foreground">
+              Select an active officer and period. Track A uses commission on collected fees; Track B uses the fixed salary you enter.
+            </DialogDescription>
             <div>
-              <Label className="text-xs">Officer ID</Label>
-              <Input
-                className="mt-1"
-                type="number"
-                placeholder="Enter officer ID"
-                value={payoutOfficerId}
-                onChange={(e) => setPayoutOfficerId(e.target.value)}
-              />
+              <Label className="text-xs">Officer</Label>
+              <Select value={payoutOfficerId} onValueChange={setPayoutOfficerId}>
+                <SelectTrigger className="mt-1">
+                  <SelectValue placeholder={officersForPayoutQuery.isLoading ? "Loading officers…" : "Select an officer"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {(officersForPayoutQuery.data ?? []).map((o) => (
+                    <SelectItem key={o.id} value={String(o.id)}>
+                      #{o.id} · {o.fullName}
+                      {o.employmentTrack === "sanad" ? " (Track B)" : " (Track A)"}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {!officersForPayoutQuery.isLoading && (officersForPayoutQuery.data?.length ?? 0) === 0 && (
+                <p className="text-xs text-muted-foreground mt-1">No active officers in the directory.</p>
+              )}
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
@@ -733,17 +751,20 @@ export default function BillingEnginePage() {
             <Button variant="outline" onClick={() => setShowPayoutDialog(false)}>Cancel</Button>
             <Button
               disabled={!payoutOfficerId || calcPayoutMutation.isPending}
-              onClick={() =>
+              onClick={() => {
+                const comm = parseFloat(payoutCommPct);
+                const fixedSal = parseFloat(payoutFixed);
+                const ded = parseFloat(payoutDeductions);
                 calcPayoutMutation.mutate({
-                  officerId: parseInt(payoutOfficerId),
-                  month: parseInt(genMonth),
-                  year: parseInt(genYear),
-                  commissionPct: parseFloat(payoutCommPct),
-                  fixedSalaryOmr: parseFloat(payoutFixed),
-                  deductionsOmr: parseFloat(payoutDeductions),
+                  officerId: parseInt(payoutOfficerId, 10),
+                  month: parseInt(genMonth, 10),
+                  year: parseInt(genYear, 10),
+                  ...(Number.isFinite(comm) ? { commissionPct: comm } : {}),
+                  ...(Number.isFinite(fixedSal) ? { fixedSalaryOmr: fixedSal } : {}),
+                  deductionsOmr: Number.isFinite(ded) ? ded : 0,
                   notes: payoutNotes || undefined,
-                })
-              }
+                });
+              }}
             >
               {calcPayoutMutation.isPending ? "Calculating..." : "Calculate"}
             </Button>
@@ -892,6 +913,9 @@ export default function BillingEnginePage() {
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-3 py-2">
+            <DialogDescription className="text-sm text-muted-foreground">
+              Enter payment details to mark this invoice as paid and update the billing dashboard.
+            </DialogDescription>
             <div>
               <Label className="text-xs">Amount (OMR)</Label>
               <Input className="mt-1" type="number" step="0.001" value={paymentForm.amount} onChange={(e) => setPaymentForm(f => ({ ...f, amount: e.target.value }))} />

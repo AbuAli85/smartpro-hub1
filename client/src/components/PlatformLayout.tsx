@@ -99,7 +99,7 @@ const navGroups = [
   {
     label: "Overview",
     items: [
-      { label: "Command Center", href: "/dashboard", icon: <LayoutDashboard size={18} /> },
+      { label: "Executive Control Tower", href: "/dashboard", icon: <LayoutDashboard size={18} /> },
       { label: "Operations Centre", href: "/operations", icon: <Activity size={18} /> },
       { label: "Analytics", href: "/analytics", icon: <BarChart3 size={18} /> },
       { label: "Compliance", href: "/compliance", icon: <CheckCircle2 size={18} /> },

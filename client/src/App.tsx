@@ -118,6 +118,7 @@ function AppRoutes() {
       <Switch>
         <Route path="/" component={Dashboard} />
         <Route path="/dashboard" component={Dashboard} />
+        <Route path="/control-tower" component={Dashboard} />
         <Route path="/sanad" component={SanadPage} />
         <Route path="/sanad/office-dashboard" component={SanadOfficeDashboardPage} />
         <Route path="/pro" component={ProServicesPage} />

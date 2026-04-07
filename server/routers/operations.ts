@@ -44,6 +44,7 @@ import {
   buildBillingResolutionFollowUpPrefill,
   buildCrmResolutionFollowUpPrefill,
 } from "../resolutionFollowUpPrefill";
+import { buildExecutiveRevenueSnapshot } from "../executiveRevenueSnapshot";
 
 type DbClient = NonNullable<Awaited<ReturnType<typeof getDb>>>;
 
@@ -923,7 +924,10 @@ export const operationsRouter = router({
         postSale,
       );
 
+      const revenueSnapshot = await buildExecutiveRevenueSnapshot(db, companyId);
+
       return {
+        revenue: revenueSnapshot,
         commercial: {
           contactsLeads: Number(contactsLeads?.cnt ?? 0),
           contactsProspects: Number(contactsProspects?.cnt ?? 0),

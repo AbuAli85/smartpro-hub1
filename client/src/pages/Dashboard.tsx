@@ -460,6 +460,81 @@ export default function Dashboard() {
         </div>
       )}
 
+      {/* ── Cash received (paid) — server-authoritative revenue snapshot ── */}
+      {!showPlatformOverview && activeCompanyId && businessPulse?.revenue && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
+              <CircleDollarSign size={13} className="text-emerald-600" /> Cash received (paid)
+            </h2>
+            {showHref("/finance/overview") && (
+              <Link href="/finance/overview">
+                <Button variant="ghost" size="sm" className="text-xs gap-1 h-7">
+                  Finance overview <ArrowUpRight size={11} />
+                </Button>
+              </Link>
+            )}
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <Card className="border-border/80">
+              <CardHeader className="pb-1 pt-4 px-4">
+                <CardTitle className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Today</CardTitle>
+              </CardHeader>
+              <CardContent className="px-4 pb-4 pt-0">
+                <p className="text-2xl font-black tabular-nums text-foreground">
+                  OMR{" "}
+                  {businessPulse.revenue.combinedPaid.todayOmr.toLocaleString("en-OM", {
+                    minimumFractionDigits: 3,
+                    maximumFractionDigits: 3,
+                  })}
+                </p>
+                <p className="text-[10px] text-muted-foreground mt-1">
+                  PRO {businessPulse.revenue.officerProPaid.todayOmr.toLocaleString("en-OM", { minimumFractionDigits: 3, maximumFractionDigits: 3 })} · Sub{" "}
+                  {businessPulse.revenue.platformSubscriptionPaid.todayOmr.toLocaleString("en-OM", { minimumFractionDigits: 3, maximumFractionDigits: 3 })}
+                </p>
+              </CardContent>
+            </Card>
+            <Card className="border-border/80">
+              <CardHeader className="pb-1 pt-4 px-4">
+                <CardTitle className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">This week (Mon–today)</CardTitle>
+              </CardHeader>
+              <CardContent className="px-4 pb-4 pt-0">
+                <p className="text-2xl font-black tabular-nums text-foreground">
+                  OMR{" "}
+                  {businessPulse.revenue.combinedPaid.weekOmr.toLocaleString("en-OM", {
+                    minimumFractionDigits: 3,
+                    maximumFractionDigits: 3,
+                  })}
+                </p>
+                <p className="text-[10px] text-muted-foreground mt-1">
+                  PRO {businessPulse.revenue.officerProPaid.weekOmr.toLocaleString("en-OM", { minimumFractionDigits: 3, maximumFractionDigits: 3 })} · Sub{" "}
+                  {businessPulse.revenue.platformSubscriptionPaid.weekOmr.toLocaleString("en-OM", { minimumFractionDigits: 3, maximumFractionDigits: 3 })}
+                </p>
+              </CardContent>
+            </Card>
+            <Card className="border-border/80">
+              <CardHeader className="pb-1 pt-4 px-4">
+                <CardTitle className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Month to date</CardTitle>
+              </CardHeader>
+              <CardContent className="px-4 pb-4 pt-0">
+                <p className="text-2xl font-black tabular-nums text-foreground">
+                  OMR{" "}
+                  {businessPulse.revenue.combinedPaid.monthToDateOmr.toLocaleString("en-OM", {
+                    minimumFractionDigits: 3,
+                    maximumFractionDigits: 3,
+                  })}
+                </p>
+                <p className="text-[10px] text-muted-foreground mt-1">
+                  PRO {businessPulse.revenue.officerProPaid.monthToDateOmr.toLocaleString("en-OM", { minimumFractionDigits: 3, maximumFractionDigits: 3 })} · Sub{" "}
+                  {businessPulse.revenue.platformSubscriptionPaid.monthToDateOmr.toLocaleString("en-OM", { minimumFractionDigits: 3, maximumFractionDigits: 3 })}
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+          <p className="text-[10px] text-muted-foreground leading-snug max-w-4xl">{businessPulse.revenue.basis}</p>
+        </div>
+      )}
+
       {/* ── Commercial → contract → cash → delivery (one glance) ── */}
       {!showPlatformOverview && activeCompanyId && businessPulse && (
         <div className="space-y-3">

@@ -104,6 +104,7 @@ export const FIELD_EMPLOYEE_HREFS = new Set<string>([
   "/my-portal",
   "/preferences",
   "/dashboard",
+  "/control-tower",
   "/",
 ]);
 

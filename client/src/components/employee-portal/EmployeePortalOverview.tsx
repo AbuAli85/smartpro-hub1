@@ -163,8 +163,6 @@ export function EmployeePortalOverview(props: EmployeePortalOverviewProps) {
     shiftOverview,
     todayAttendanceRecord,
     todayAttendanceLoading,
-    operationalHintsReady,
-    operationalHints,
     workStatusLoading,
     workStatusSummary,
     productivity,
@@ -280,7 +278,7 @@ export function EmployeePortalOverview(props: EmployeePortalOverviewProps) {
     <div className="space-y-3 pb-2">
       {/* 1 — Hero: shift + attendance + primary CTAs */}
       <Card className={`overflow-hidden border-2 shadow-sm ${heroCardTone}`}>
-        <CardContent className="p-4 space-y-3">
+        <CardContent className="space-y-2 p-3 sm:p-4 sm:space-y-3">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0 flex-1">
               <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
@@ -298,55 +296,68 @@ export function EmployeePortalOverview(props: EmployeePortalOverviewProps) {
                 <p className="text-lg font-semibold leading-tight mt-0.5">Shift</p>
               )}
               {!todayAttendanceLoading && model.hero && (
-                <div className="mt-2 flex flex-wrap items-center gap-2">
-                  <Badge className={`text-[11px] font-semibold px-2.5 py-0.5 ${heroStateBadgeClass}`}>{model.hero.stateLabel}</Badge>
+                <div className="mt-1.5 flex flex-wrap items-center gap-2" role="status" aria-live="polite">
+                  <Badge className={`text-[11px] font-semibold px-2.5 py-0.5 ${heroStateBadgeClass}`}>
+                    <span className="sr-only">Today&apos;s status: </span>
+                    {model.hero.stateLabel}
+                  </Badge>
                 </div>
               )}
             </div>
             <div className="flex shrink-0 flex-col items-end gap-1.5">
               {shiftOverview.operational && (
                 <Badge variant="secondary" className="text-[10px] px-2 py-0.5 gap-1">
-                  <span className={`h-1.5 w-1.5 rounded-full ${shiftOverview.operational.statusDotClass}`} />
-                  {shiftOverview.operational.statusLabel}
+                  <span className="sr-only">Shift timing: </span>
+                  <span className={`h-1.5 w-1.5 rounded-full ${shiftOverview.operational.statusDotClass}`} aria-hidden />
+                  <span>{shiftOverview.operational.statusLabel}</span>
                 </Badge>
               )}
             </div>
           </div>
 
           {!todayAttendanceLoading && model.hero?.proactiveHint && (
-            <p className="text-sm font-medium text-foreground/95 leading-snug">{model.hero.proactiveHint}</p>
+            <p className="text-sm font-medium leading-snug text-foreground/95">{model.hero.proactiveHint}</p>
           )}
           {model.proactiveHints.length > 0 && (
-            <ul className="space-y-1 rounded-lg border border-border/60 bg-muted/25 px-3 py-2 text-[11px] text-muted-foreground leading-snug">
-              {model.proactiveHints.map((h, i) => (
-                <li key={i} className="flex gap-2">
-                  <span className="text-primary font-bold shrink-0" aria-hidden>
-                    ·
-                  </span>
-                  <span>{h}</span>
-                </li>
-              ))}
-            </ul>
+            <details className="rounded-lg border border-border/60 bg-muted/20 text-[11px] text-muted-foreground">
+              <summary className="cursor-pointer select-none px-3 py-2 font-medium text-foreground/90">
+                Reminders ({model.proactiveHints.length})
+              </summary>
+              <ul className="space-y-1 border-t border-border/50 px-3 py-2 leading-snug">
+                {model.proactiveHints.map((h, i) => (
+                  <li key={i} className="flex gap-2">
+                    <span className="text-primary font-bold shrink-0" aria-hidden>
+                      ·
+                    </span>
+                    <span>{h}</span>
+                  </li>
+                ))}
+              </ul>
+            </details>
           )}
 
           {!myActiveSchedule?.isHoliday && myActiveSchedule?.shift && (
-            <p className="text-sm text-muted-foreground">
+            <p className="text-xs text-muted-foreground sm:text-sm">
+              <span className="sr-only">Scheduled time: </span>
               {myActiveSchedule.shift.startTime}–{myActiveSchedule.shift.endTime}
               {myActiveSchedule.site?.name ? ` · ${myActiveSchedule.site.name}` : ""}
             </p>
           )}
           {myActiveSchedule?.isHoliday && (
-            <p className="text-sm text-muted-foreground">{myActiveSchedule.holiday?.name ?? "No attendance today."}</p>
+            <p className="text-xs text-muted-foreground sm:text-sm">
+              {myActiveSchedule.holiday?.name ?? "No attendance today."}
+            </p>
           )}
 
           {shiftOverview.operational?.detailLine && !myActiveSchedule?.isHoliday && (
-            <p className="text-sm font-medium text-primary">{shiftOverview.operational.detailLine}</p>
+            <p className="text-xs font-medium text-primary sm:text-sm">{shiftOverview.operational.detailLine}</p>
           )}
 
           {!todayAttendanceLoading && !myActiveSchedule?.isHoliday && (
             <div className="text-sm space-y-1">
               {todayAttendanceRecord?.checkIn ? (
-                <p className="text-green-700 dark:text-green-400 font-medium">
+                <p className="font-medium text-green-800 dark:text-green-300">
+                  <span className="sr-only">Attendance: </span>
                   In {new Date(todayAttendanceRecord.checkIn).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                   {todayAttendanceRecord.checkOut
                     ? ` · Out ${new Date(todayAttendanceRecord.checkOut).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
@@ -358,7 +369,10 @@ export function EmployeePortalOverview(props: EmployeePortalOverviewProps) {
                 </p>
               )}
               {model.shiftTiming?.lateDetail && model.hero?.stateLabel !== "Late" && (
-                <p className="text-amber-800 dark:text-amber-200 text-xs font-medium">{model.shiftTiming.lateDetail}</p>
+                <p className="text-xs font-medium text-amber-900 dark:text-amber-200">
+                  <span className="sr-only">Late notice: </span>
+                  {model.shiftTiming.lateDetail}
+                </p>
               )}
               {shiftOverview.attendanceInconsistent && (
                 <p className="text-xs text-red-700 dark:text-red-300">Record error — use Correction in Attendance.</p>
@@ -372,8 +386,9 @@ export function EmployeePortalOverview(props: EmployeePortalOverviewProps) {
                 primaryCtaDominant ? "min-h-12 text-base font-semibold shadow-md" : "min-h-11"
               }`}
               onClick={() => go("attendance")}
+              aria-label={`${shiftOverview.primaryCtaLabel} — open Attendance`}
             >
-              <UserCheck className="h-5 w-5 shrink-0" />
+              <UserCheck className="h-5 w-5 shrink-0" aria-hidden />
               {shiftOverview.primaryCtaLabel}
             </Button>
             {shiftOverview.showSecondaryLogWork ? (
@@ -386,13 +401,6 @@ export function EmployeePortalOverview(props: EmployeePortalOverviewProps) {
               </Button>
             )}
           </div>
-
-          {operationalHintsReady && operationalHints?.shiftStatusLabel && (
-            <p className="text-[10px] text-muted-foreground leading-snug">
-              {operationalHints.shiftStatusLabel}
-              {operationalHints.shiftDetailLine ? ` · ${operationalHints.shiftDetailLine}` : ""}
-            </p>
-          )}
         </CardContent>
       </Card>
 

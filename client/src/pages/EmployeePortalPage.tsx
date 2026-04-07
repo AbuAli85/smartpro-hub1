@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -44,8 +44,14 @@ import {
 import { RequestsCalendar } from "@/components/RequestsCalendar";
 import { DateInput } from "@/components/ui/date-input";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
-import { humanAttendanceMutationError, humanCheckInErrorMessage } from "@/lib/checkInErrorMessage";
-import { attendanceDenialNextStep } from "@/lib/attendanceDenialHints";
+import { cn } from "@/lib/utils";
+import {
+  getCheckInDenialPresentation,
+  checkInDenialCardAccentClass,
+  checkInDenialInlineBadgeClass,
+  checkInDenialSeverityPlainLabel,
+} from "@/lib/attendanceDenialHints";
+import { toastAttendanceMutationError } from "@/lib/attendanceMutationFeedback";
 import {
   computeProductivityScore,
   titleCaseFirstName,
@@ -70,6 +76,7 @@ import { EmployeePortalOverview } from "@/components/employee-portal/EmployeePor
 import { EmployeePortalMoreHub } from "@/components/employee-portal/EmployeePortalMoreHub";
 import { EmployeePortalBottomNav } from "@/components/employee-portal/EmployeePortalBottomNav";
 import { EmployeePortalTaskCard } from "@/components/employee-portal/EmployeePortalTaskCard";
+import { CheckInEligibilityReasonCode } from "@shared/attendanceCheckInEligibility";
 
 type QuickActionIcon = React.ComponentType<{ className?: string }>;
 
@@ -177,6 +184,8 @@ function AttendanceTodayCard({
   operationalHintsReady: boolean;
 }) {
   const utils = trpc.useUtils();
+  const handleCheckInRef = useRef<() => void>(() => {});
+  const handleCheckOutRef = useRef<() => void>(() => {});
   const [showCorrForm, setShowCorrForm] = useState(false);
   const [corrDate, setCorrDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [corrCheckIn, setCorrCheckIn] = useState("");
@@ -216,7 +225,7 @@ function AttendanceTodayCard({
       utils.employeePortal.getMyOperationalHints.invalidate();
       void utils.attendance.listAttendanceAudit.invalidate();
     },
-    onError: (e) => toast.error(humanCheckInErrorMessage(e.message)),
+    onError: (e) => toastAttendanceMutationError(e.message, () => handleCheckInRef.current()),
   });
   const doCheckOut = trpc.attendance.checkOut.useMutation({
     onSuccess: () => {
@@ -227,7 +236,7 @@ function AttendanceTodayCard({
       utils.employeePortal.getMyOperationalHints.invalidate();
       void utils.attendance.listAttendanceAudit.invalidate();
     },
-    onError: (e) => toast.error(humanAttendanceMutationError(e.message)),
+    onError: (e) => toastAttendanceMutationError(e.message, () => handleCheckOutRef.current()),
   });
 
   const todayStr = new Date().toISOString().split("T")[0];
@@ -327,10 +336,30 @@ function AttendanceTodayCard({
     }
   }
 
-  const denialNext =
-    operationalHintsReady && operationalHints?.checkInDenialCode
-      ? attendanceDenialNextStep(operationalHints.checkInDenialCode)
+  handleCheckInRef.current = handleCheckIn;
+  handleCheckOutRef.current = handleCheckOut;
+
+  const denialPresentation =
+    operationalHintsReady &&
+    operationalHints?.checkInDenialCode &&
+    !checkIn &&
+    !attStrip.attendanceInconsistent &&
+    !attStrip.showCheckIn
+      ? getCheckInDenialPresentation(operationalHints.checkInDenialCode)
       : null;
+
+  const checkoutUnavailableExplain =
+    operationalHintsReady &&
+    !!checkIn &&
+    !checkOut &&
+    !attStrip.showCheckOut &&
+    !attStrip.attendanceInconsistent;
+
+  const correctionEmphasis =
+    attStrip.attendanceInconsistent ||
+    !!denialPresentation?.correctionPrimary ||
+    (operationalHintsReady &&
+      operationalHints?.checkInDenialCode === CheckInEligibilityReasonCode.ATTENDANCE_DATA_INCONSISTENT);
 
   return (
     <div className="space-y-3">
@@ -419,11 +448,12 @@ function AttendanceTodayCard({
         </Card>
       ) : (
         <Card
-          className={
+          className={cn(
             attStrip.usePositiveCardStyle
               ? "border-green-200 bg-green-50/50 dark:bg-green-950/10"
-              : "border-amber-200 bg-amber-50/50 dark:bg-amber-950/10"
-          }
+              : "border-amber-200 bg-amber-50/50 dark:bg-amber-950/10",
+            denialPresentation ? checkInDenialCardAccentClass(denialPresentation.severity) : null,
+          )}
         >
           <CardContent className="p-4">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -455,6 +485,7 @@ function AttendanceTodayCard({
                           </div>
                         ) : (
                           <Badge variant="outline" className="border-green-300 bg-green-50 text-green-700 dark:bg-green-900/20">
+                            <span className="sr-only">Status: </span>
                             On shift
                           </Badge>
                         )}
@@ -490,8 +521,33 @@ function AttendanceTodayCard({
                       <p className="text-xs leading-relaxed text-muted-foreground">
                         {attStrip.attendanceInconsistent ? attStrip.inconsistentSubline : attStrip.notCheckedInSubline}
                       </p>
-                      {denialNext && !attStrip.showCheckIn && (
-                        <p className="text-xs font-medium text-foreground">{denialNext}</p>
+                      {denialPresentation && (
+                        <div
+                          role="status"
+                          aria-live="polite"
+                          className="mt-2 rounded-md border border-border/70 bg-background/60 px-2.5 py-2"
+                        >
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Badge
+                              variant="outline"
+                              className={cn(
+                                "text-[10px] font-semibold",
+                                checkInDenialInlineBadgeClass(denialPresentation.severity),
+                              )}
+                            >
+                              <span className="sr-only">
+                                {checkInDenialSeverityPlainLabel(denialPresentation.severity)}:{" "}
+                              </span>
+                              {denialPresentation.shortLabel}
+                            </Badge>
+                            <span className="text-[10px] font-medium text-muted-foreground">
+                              {checkInDenialSeverityPlainLabel(denialPresentation.severity)}
+                            </span>
+                          </div>
+                          <p className="mt-1 text-xs font-medium leading-snug text-foreground">
+                            {denialPresentation.nextStep}
+                          </p>
+                        </div>
                       )}
                     </div>
                   )}
@@ -521,8 +577,11 @@ function AttendanceTodayCard({
                 )}
                 {attStrip.showCorrectionButton && (
                   <Button
-                    variant="outline"
-                    className="min-h-12 gap-2 touch-manipulation disabled:opacity-60"
+                    variant={correctionEmphasis ? "default" : "outline"}
+                    className={cn(
+                      "min-h-12 gap-2 touch-manipulation disabled:opacity-60",
+                      correctionEmphasis && "ring-2 ring-primary/25",
+                    )}
                     disabled={attendanceMutating}
                     onClick={() => setShowCorrForm(true)}
                   >
@@ -536,6 +595,16 @@ function AttendanceTodayCard({
                 )}
               </div>
             </div>
+            {checkoutUnavailableExplain && (
+              <div
+                role="status"
+                aria-live="polite"
+                className="mt-3 rounded-md border border-amber-200 bg-amber-50/90 px-3 py-2 text-xs text-amber-950 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-100"
+              >
+                <span className="font-semibold">Check out isn’t available right now.</span> Pull down to refresh, or contact HR
+                if you still need to clock out.
+              </div>
+            )}
             {operationalHintsReady && (
               <p className="mt-3 border-t border-border/60 pt-2 text-[10px] leading-snug text-muted-foreground">
                 Times follow your schedule and employer rules.
@@ -564,10 +633,10 @@ function AttendanceTodayCard({
                   )}
                 </div>
                 {c.status === "pending"
-                  ? <Badge variant="outline" className="border-yellow-300 text-yellow-700 bg-yellow-50">Pending</Badge>
+                  ? <Badge variant="outline" className="border-yellow-300 text-yellow-700 bg-yellow-50"><span className="sr-only">Status: </span>Pending</Badge>
                   : c.status === "approved"
-                  ? <Badge variant="outline" className="border-green-300 text-green-700 bg-green-50">Approved</Badge>
-                  : <Badge variant="outline" className="border-red-300 text-red-700 bg-red-50">Rejected</Badge>}
+                  ? <Badge variant="outline" className="border-green-300 text-green-700 bg-green-50"><span className="sr-only">Status: </span>Approved</Badge>
+                  : <Badge variant="outline" className="border-red-300 text-red-700 bg-red-50"><span className="sr-only">Status: </span>Rejected</Badge>}
               </div>
             ))}
           </CardContent>
@@ -576,12 +645,14 @@ function AttendanceTodayCard({
 
       {/* Correction request dialog */}
       <Dialog open={showCorrForm} onOpenChange={setShowCorrForm}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Request Attendance Correction</DialogTitle></DialogHeader>
+        <DialogContent aria-describedby="attendance-correction-dialog-desc" aria-busy={submitCorr.isPending}>
+          <DialogHeader>
+            <DialogTitle>Request Attendance Correction</DialogTitle>
+            <DialogDescription id="attendance-correction-dialog-desc">
+              Wrong or missing times? HR reviews — track status in the list below after you send.
+            </DialogDescription>
+          </DialogHeader>
           <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Wrong or missing times? HR reviews corrections — track status in the list below after you send this.
-            </p>
             <div className="space-y-1.5">
               <Label htmlFor="corrDate">Date</Label>
               <DateInput id="corrDate" value={corrDate} onChange={(e) => setCorrDate(e.target.value)} max={todayStr} />
@@ -615,7 +686,7 @@ function AttendanceTodayCard({
                   requestedCheckOut: corrCheckOut || undefined,
                   reason: corrReason,
                 })}>
-              {submitCorr.isPending ? "Submitting…" : "Submit Request"}
+              {submitCorr.isPending ? "Submitting…" : "Submit correction"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -689,6 +760,8 @@ export default function EmployeePortalPage() {
   const [shiftReqEndDate, setShiftReqEndDate] = useState("");
   const [shiftReqTime, setShiftReqTime] = useState("");
   const [shiftReqReason, setShiftReqReason] = useState("");
+  /** Preferred shift template id when request type is shift_change (sent as preferredShiftId). */
+  const [shiftPreferredShiftId, setShiftPreferredShiftId] = useState("");
   const [shiftReqFilter, setShiftReqFilter] = useState<string>("all");
   const [shiftReqAttachmentUrl, setShiftReqAttachmentUrl] = useState<string | null>(null);
   const [shiftReqAttachmentName, setShiftReqAttachmentName] = useState<string | null>(null);
@@ -972,6 +1045,7 @@ export default function EmployeePortalPage() {
       setShiftReqEndDate("");
       setShiftReqTime("");
       setShiftReqReason("");
+      setShiftPreferredShiftId("");
       setShiftReqAttachmentUrl(null);
       setShiftReqAttachmentName(null);
       utils.shiftRequests.listMine.invalidate();
@@ -3265,9 +3339,16 @@ export default function EmployeePortalPage() {
       </Dialog>
       {/* ── Leave Request Dialog ── */}
       <Dialog open={showLeaveDialog} onOpenChange={setShowLeaveDialog}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent
+          className="sm:max-w-md"
+          aria-describedby="employee-leave-dialog-desc"
+          aria-busy={submitLeave.isPending}
+        >
           <DialogHeader>
             <DialogTitle>Submit Leave Request</DialogTitle>
+            <DialogDescription id="employee-leave-dialog-desc">
+              Pick dates and send — HR confirms by notification.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-1.5">
@@ -3325,7 +3406,7 @@ export default function EmployeePortalPage() {
                 })
               }
             >
-              {submitLeave.isPending ? "Sending…" : "Send leave request"}
+              {submitLeave.isPending ? "Sending…" : "Send request"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -3379,18 +3460,36 @@ export default function EmployeePortalPage() {
       </Dialog>
 
       {/* ── Shift Change / Time Off Request Dialog ── */}
-      <Dialog open={showShiftRequestDialog} onOpenChange={setShowShiftRequestDialog}>
-        <DialogContent className="sm:max-w-md">
+      <Dialog
+        open={showShiftRequestDialog}
+        onOpenChange={(open) => {
+          setShowShiftRequestDialog(open);
+          if (!open) setShiftPreferredShiftId("");
+        }}
+      >
+        <DialogContent
+          className="sm:max-w-md"
+          aria-describedby="employee-shift-request-dialog-desc"
+          aria-busy={submitShiftRequest.isPending || uploadingAttachment}
+        >
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-base">
               <ArrowLeftRight className="h-4 w-4 text-primary" /> Request to HR
             </DialogTitle>
-            <p className="text-xs text-muted-foreground">One form — pick type, date, short reason. HR is notified.</p>
+            <DialogDescription id="employee-shift-request-dialog-desc">
+              Type, dates, short reason — one tap to send. HR is notified.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div>
               <Label className="text-xs text-muted-foreground uppercase tracking-wide">Request Type</Label>
-              <Select value={shiftReqType} onValueChange={setShiftReqType}>
+              <Select
+                value={shiftReqType}
+                onValueChange={(v) => {
+                  setShiftReqType(v);
+                  if (v !== "shift_change") setShiftPreferredShiftId("");
+                }}
+              >
                 <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="time_off">Time Off</SelectItem>
@@ -3425,12 +3524,20 @@ export default function EmployeePortalPage() {
             </div>
             {shiftReqType === "shift_change" && (shiftTemplatesList ?? []).length > 0 && (
               <div>
-                <Label className="text-xs text-muted-foreground uppercase tracking-wide">Preferred Shift (optional)</Label>
-                <Select onValueChange={() => {}}>
-                  <SelectTrigger className="mt-1"><SelectValue placeholder="Select preferred shift..." /></SelectTrigger>
+                <Label className="text-xs text-muted-foreground uppercase tracking-wide">Preferred shift (optional)</Label>
+                <Select
+                  value={shiftPreferredShiftId || "__none__"}
+                  onValueChange={(v) => setShiftPreferredShiftId(v === "__none__" ? "" : v)}
+                >
+                  <SelectTrigger className="mt-1">
+                    <SelectValue placeholder="No preference" />
+                  </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="__none__">No preference</SelectItem>
                     {(shiftTemplatesList ?? []).map((s: any) => (
-                      <SelectItem key={s.id} value={String(s.id)}>{s.name} ({s.startTime}–{s.endTime})</SelectItem>
+                      <SelectItem key={s.id} value={String(s.id)}>
+                        {s.name} ({s.startTime}–{s.endTime})
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -3497,6 +3604,10 @@ export default function EmployeePortalPage() {
                   requestedDate: shiftReqDate,
                   requestedEndDate: shiftReqEndDate || undefined,
                   requestedTime: shiftReqTime || undefined,
+                  preferredShiftId:
+                    shiftReqType === "shift_change" && shiftPreferredShiftId
+                      ? Number(shiftPreferredShiftId)
+                      : undefined,
                   reason: shiftReqReason,
                   attachmentUrl: shiftReqAttachmentUrl || undefined,
                 })

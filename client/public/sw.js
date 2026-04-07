@@ -1,11 +1,14 @@
 /**
  * Employee portal — minimal service worker (shell cache).
  *
- * Next phase (recommended, not implemented here):
- * - Bump CACHE name on each production deploy + precache hashed assets (e.g. vite-plugin-pwa / Workbox).
- * - skipWaiting + clients.claim with an in-app “Update available” toast.
- * - Offline: network-first for navigations, cache fallback for static; never cache /api or /trpc responses as “truth”.
- * - Maskable PNG icons (192/512) in manifest for install quality.
+ * Phase-2 wiring (client):
+ * - `registration.waiting` → user-facing “Update available” + reload (pair with `SKIP_WAITING` message handler below if added).
+ * - Versioned CACHE constant per deploy; delete old keys in activate (already partial).
+ *
+ * Phase-2 safety:
+ * - Never queue offline mutations here without idempotency + conflict rules on the server.
+ * - Offline: network-first for navigations, cache fallback for static; /api and /trpc stay uncached as truth.
+ * - Add maskable PNG icons (192/512) in manifest for install quality.
  */
 const CACHE = "employee-portal-shell-v1";
 

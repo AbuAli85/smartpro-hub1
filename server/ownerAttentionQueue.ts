@@ -34,6 +34,8 @@ export type OwnerAttentionInput = {
   saasSubscriptionOverdueOmr?: number;
   /** CRM deals marked closed won but no quotation is linked via crm_deal_id */
   closedWonDealsWithoutLinkedQuote?: number;
+  /** Closed-won deals with an accepted quote still not converted to a contract */
+  wonDealsAwaitingSignedAgreement?: number;
   /** Service contracts with end date in the next 30 days (signed/active) */
   contractsExpiringNext30Days?: number;
   /** Internal employee tasks past due date */
@@ -63,6 +65,7 @@ export function buildOwnerAttentionQueue(input: OwnerAttentionInput): OwnerAtten
     saasSubscriptionOverdueCount = 0,
     saasSubscriptionOverdueOmr = 0,
     closedWonDealsWithoutLinkedQuote = 0,
+    wonDealsAwaitingSignedAgreement = 0,
     contractsExpiringNext30Days = 0,
     employeeTasksOverdue = 0,
     employeeTasksBlocked = 0,
@@ -186,6 +189,15 @@ export function buildOwnerAttentionQueue(input: OwnerAttentionInput): OwnerAtten
       detail: "Link a quotation to the CRM deal or create one so the commercial record matches delivery and billing.",
       severity: "medium",
       href: "/crm",
+    });
+  }
+  if (wonDealsAwaitingSignedAgreement > 0) {
+    q.push({
+      key: "won_pending_contract",
+      title: `${wonDealsAwaitingSignedAgreement} won deal${wonDealsAwaitingSignedAgreement > 1 ? "s" : ""} — accepted quote still needs a contract`,
+      detail: "Operational and billing handoff starts after a signed agreement or quote conversion.",
+      severity: "high",
+      href: "/quotations?filter=accepted",
     });
   }
   if (contractsExpiringNext30Days > 0) {

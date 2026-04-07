@@ -2,12 +2,51 @@ import { z } from "zod";
 import { protectedProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
 import { TRPCError } from "@trpc/server";
-import { serviceQuotations, quotationLineItems, crmDeals } from "../../drizzle/schema";
+import { serviceQuotations, quotationLineItems, crmDeals, crmContacts } from "../../drizzle/schema";
 import { eq, and, desc, sql, or, isNull } from "drizzle-orm";
 import { invokeLLM } from "../_core/llm";
 import { storagePut } from "../storage";
 import { canAccessGlobalAdminProcedures } from "@shared/rbac";
 import { assertQuotationTenantAccess, requireActiveCompanyId } from "../_core/tenant";
+
+type DbClient = NonNullable<Awaited<ReturnType<typeof getDb>>>;
+
+/** Validates CRM links and aligns contact from deal when omitted. */
+async function resolveQuotationCrmLinks(
+  db: DbClient,
+  companyId: number | null,
+  input: { crmDealId?: number | null; crmContactId?: number | null },
+): Promise<{ crmDealId: number | null; crmContactId: number | null }> {
+  let crmDealId = input.crmDealId ?? null;
+  let crmContactId = input.crmContactId ?? null;
+
+  if (crmDealId != null) {
+    const [deal] = await db.select().from(crmDeals).where(eq(crmDeals.id, crmDealId)).limit(1);
+    if (!deal) throw new TRPCError({ code: "NOT_FOUND", message: "Deal not found" });
+    if (companyId != null && deal.companyId !== companyId) {
+      throw new TRPCError({ code: "NOT_FOUND", message: "Deal not found" });
+    }
+    if (crmContactId != null && deal.contactId != null && deal.contactId !== crmContactId) {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: "Selected contact does not match the deal’s linked contact",
+      });
+    }
+    if (crmContactId == null && deal.contactId != null) {
+      crmContactId = deal.contactId;
+    }
+  }
+
+  if (crmContactId != null) {
+    const [contact] = await db.select().from(crmContacts).where(eq(crmContacts.id, crmContactId)).limit(1);
+    if (!contact) throw new TRPCError({ code: "NOT_FOUND", message: "Contact not found" });
+    if (companyId != null && contact.companyId !== companyId) {
+      throw new TRPCError({ code: "NOT_FOUND", message: "Contact not found" });
+    }
+  }
+
+  return { crmDealId, crmContactId };
+}
 
 function generateRefNumber(): string {
   const year = new Date().getFullYear();
@@ -45,7 +84,9 @@ export const quotationsRouter = router({
           }),
         ).min(1),
         /** Optional CRM deal — ties the quote to pipeline reporting. */
-        crmDealId: z.number().int().positive().optional(),
+        crmDealId: z.number().int().positive().optional().nullable(),
+        /** Optional CRM contact — explicit customer record. */
+        crmContactId: z.number().int().positive().optional().nullable(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -56,17 +97,10 @@ export const quotationsRouter = router({
         ? input.companyId ?? null
         : await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
 
-      if (input.crmDealId != null) {
-        const [deal] = await db
-          .select({ id: crmDeals.id, companyId: crmDeals.companyId })
-          .from(crmDeals)
-          .where(eq(crmDeals.id, input.crmDealId))
-          .limit(1);
-        if (!deal) throw new TRPCError({ code: "NOT_FOUND", message: "Deal not found" });
-        if (companyId != null && deal.companyId !== companyId) {
-          throw new TRPCError({ code: "NOT_FOUND", message: "Deal not found" });
-        }
-      }
+      const { crmDealId, crmContactId } = await resolveQuotationCrmLinks(db, companyId, {
+        crmDealId: input.crmDealId ?? null,
+        crmContactId: input.crmContactId ?? null,
+      });
 
       const lines = calcLineTotals(input.lineItems);
       const subtotal = lines.reduce((s, l) => s + l.lineTotal, 0);
@@ -90,7 +124,8 @@ export const quotationsRouter = router({
           notes: input.notes ?? null,
           terms: input.terms ?? null,
           status: "draft",
-          crmDealId: input.crmDealId ?? null,
+          crmDealId,
+          crmContactId,
           createdBy: ctx.user.id,
         })
         .$returningId();
@@ -195,6 +230,8 @@ export const quotationsRouter = router({
             discountPct: z.number().min(0).max(100).default(0),
           }),
         ).optional(),
+        crmDealId: z.number().int().positive().optional().nullable(),
+        crmContactId: z.number().int().positive().optional().nullable(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -206,6 +243,8 @@ export const quotationsRouter = router({
           status: serviceQuotations.status,
           companyId: serviceQuotations.companyId,
           createdBy: serviceQuotations.createdBy,
+          crmDealId: serviceQuotations.crmDealId,
+          crmContactId: serviceQuotations.crmContactId,
         })
         .from(serviceQuotations)
         .where(eq(serviceQuotations.id, input.id))
@@ -215,7 +254,16 @@ export const quotationsRouter = router({
       await assertQuotationTenantAccess(ctx.user, { companyId: row.companyId, createdBy: row.createdBy });
       if (row.status !== "draft") throw new TRPCError({ code: "BAD_REQUEST", message: "Only draft quotations can be edited" });
 
+      const nextDealId = input.crmDealId !== undefined ? input.crmDealId : row.crmDealId;
+      const nextContactId = input.crmContactId !== undefined ? input.crmContactId : row.crmContactId;
+      const resolved = await resolveQuotationCrmLinks(db, row.companyId, {
+        crmDealId: nextDealId,
+        crmContactId: nextContactId,
+      });
+
       const updateData: Record<string, unknown> = {};
+      updateData.crmDealId = resolved.crmDealId;
+      updateData.crmContactId = resolved.crmContactId;
       if (input.clientName) updateData.clientName = input.clientName;
       if (input.clientEmail) updateData.clientEmail = input.clientEmail;
       if (input.clientPhone) updateData.clientPhone = input.clientPhone;

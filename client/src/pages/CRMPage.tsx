@@ -212,74 +212,44 @@ function ContactDetailPanel({ contactId, onClose, companyId }: { contactId: numb
       </div>
 
       {!loading360 && contact360 && (
-        <div className="px-4 py-3 border-b space-y-3 max-h-[42vh] overflow-y-auto">
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1 mb-1.5">
-              <TrendingUp size={12} /> Deals
-            </p>
-            {contact360.deals.length === 0 ? (
-              <p className="text-xs text-muted-foreground">No deals for this contact.</p>
-            ) : (
-              <ul className="space-y-1.5">
-                {contact360.deals.map((d) => (
-                  <li key={d.id} className="text-xs rounded-lg border bg-muted/30 px-2 py-1.5">
+        <div className="px-4 py-3 border-b space-y-3 max-h-[46vh] overflow-y-auto">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Commercial lifecycle</p>
+            <Button variant="outline" size="sm" className="h-7 text-[10px] shrink-0" asChild>
+              <Link href={`/quotations?contact=${contactId}&new=1`}>New quote</Link>
+            </Button>
+          </div>
+          {contact360.dealsWithLifecycle && contact360.dealsWithLifecycle.length > 0 && (
+            <div className="space-y-1.5">
+              {contact360.dealsWithLifecycle.map(({ deal: d, lifecycle: life }) => (
+                <div key={d.id} className="rounded-lg border bg-muted/20 px-2 py-1.5 text-xs">
+                  <div className="flex items-start justify-between gap-1">
                     <span className="font-medium line-clamp-2">{d.title}</span>
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      <Badge variant="outline" className="text-[10px]">{d.stage?.replace("_", " ")}</Badge>
-                      {d.value != null && (
-                        <span className="text-[10px] text-muted-foreground">{d.currency ?? "OMR"} {Number(d.value).toLocaleString()}</span>
-                      )}
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
+                    <Badge variant="secondary" className="text-[9px] shrink-0 max-w-[120px] truncate" title={life.detail}>
+                      {life.label}
+                    </Badge>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground mt-0.5 line-clamp-2">{life.detail}</p>
+                </div>
+              ))}
+            </div>
+          )}
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1 mb-1.5">
-              <FileText size={12} /> Quotations
-            </p>
-            {contact360.quotations.length === 0 ? (
-              <p className="text-xs text-muted-foreground">No quotations linked (by deal or email).</p>
-            ) : (
-              <ul className="space-y-1.5">
-                {contact360.quotations.map((q) => (
-                  <li key={q.id}>
-                    <Link
-                      href="/quotations"
-                      className="flex items-start justify-between gap-2 text-xs rounded-lg border bg-card px-2 py-1.5 hover:bg-muted/50"
-                    >
-                      <span className="font-mono text-[11px]">{q.referenceNumber}</span>
-                      <div className="text-right shrink-0">
-                        <Badge variant="outline" className="text-[10px] capitalize">{q.status}</Badge>
-                        <p className="text-[10px] text-muted-foreground tabular-nums mt-0.5">OMR {Number(q.totalOmr).toLocaleString()}</p>
-                      </div>
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">Timeline (recent first)</p>
+            {contact360.lifecycleThread && contact360.lifecycleThread.length > 0 ? (
+              <ol className="relative border-l border-border/80 ml-1.5 space-y-2 pl-3">
+                {contact360.lifecycleThread.slice(0, 12).map((row) => (
+                  <li key={`${row.kind}-${row.entityId}`} className="text-xs">
+                    <Link href={row.href} className="block rounded-md -ml-1 pl-1 py-0.5 hover:bg-muted/60">
+                      <span className="text-[10px] uppercase text-muted-foreground">{row.kind}</span>
+                      <span className="font-medium block truncate">{row.title}</span>
+                      <span className="text-[10px] text-muted-foreground">{row.subtitle}</span>
                     </Link>
                   </li>
                 ))}
-              </ul>
-            )}
-          </div>
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1 mb-1.5">
-              <FileText size={12} /> Contracts (from quotes)
-            </p>
-            {contact360.contractsFromQuotations.length === 0 ? (
-              <p className="text-xs text-muted-foreground">No contracts converted from quotations yet.</p>
+              </ol>
             ) : (
-              <ul className="space-y-1.5">
-                {contact360.contractsFromQuotations.map((c) => (
-                  <li key={c.id}>
-                    <Link href="/contracts" className="block text-xs rounded-lg border bg-card px-2 py-1.5 hover:bg-muted/50">
-                      <span className="font-medium line-clamp-2">{c.title}</span>
-                      <div className="flex gap-1 mt-1">
-                        <Badge variant="outline" className="text-[10px] capitalize">{c.status}</Badge>
-                        <span className="text-[10px] text-muted-foreground">{c.contractNumber}</span>
-                      </div>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
+              <p className="text-xs text-muted-foreground">No linked deals, quotes, or contracts yet.</p>
             )}
           </div>
         </div>
@@ -388,7 +358,7 @@ export default function CRMPage() {
     },
     { enabled: activeCompanyId != null },
   );
-  const { data: deals, refetch: refetchDeals } = trpc.crm.listDeals.useQuery(
+  const { data: deals, refetch: refetchDeals } = trpc.crm.listDealsWithLifecycle.useQuery(
     { companyId: activeCompanyId ?? undefined },
     { enabled: activeCompanyId != null },
   );
@@ -558,7 +528,18 @@ export default function CRMPage() {
                               </Select>
                             </td>
                             <td className="px-4 py-3">
-                              <ChevronRight size={14} className={"text-muted-foreground transition-transform " + (isSelected ? "rotate-90 text-[var(--smartpro-orange)]" : "")} />
+                              <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
+                                {activeCompanyId != null && (
+                                  <Link
+                                    href={`/quotations?contact=${contact.id}&new=1`}
+                                    className="text-[10px] font-semibold text-[var(--smartpro-orange)] hover:underline flex items-center gap-0.5"
+                                  >
+                                    <FileText size={10} />
+                                    Quote
+                                  </Link>
+                                )}
+                                <ChevronRight size={14} className={"text-muted-foreground transition-transform shrink-0 " + (isSelected ? "rotate-90 text-[var(--smartpro-orange)]" : "")} />
+                              </div>
                             </td>
                           </tr>
                         );
@@ -582,12 +563,13 @@ export default function CRMPage() {
                       <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">Stage</th>
                       <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">Win %</th>
                       <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">Close Date</th>
+                      <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">Lifecycle</th>
                       <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">Move to</th>
                     </tr>
                   </thead>
                   <tbody>
                     {deals?.length === 0 && (
-                      <tr><td colSpan={6} className="text-center py-12 text-muted-foreground">
+                      <tr><td colSpan={7} className="text-center py-12 text-muted-foreground">
                         <TrendingUp size={32} className="mx-auto mb-2 opacity-30" />
                         <p>No deals yet</p><p className="text-xs mt-1">Create your first deal using the button above</p>
                       </td></tr>
@@ -601,6 +583,11 @@ export default function CRMPage() {
                           <td className="px-4 py-3"><Badge className={"text-xs " + stageMeta.color} variant="outline">{stageMeta.label}</Badge></td>
                           <td className="px-4 py-3 text-xs">{deal.probability ? deal.probability + "%" : "—"}</td>
                           <td className="px-4 py-3 text-xs text-muted-foreground">{deal.expectedCloseDate ? fmtDate(deal.expectedCloseDate) : "—"}</td>
+                          <td className="px-4 py-3 max-w-[140px]">
+                            <span className="text-[10px] leading-tight text-muted-foreground line-clamp-2" title={deal.lifecycle?.detail}>
+                              {deal.lifecycle?.label ?? "—"}
+                            </span>
+                          </td>
                           <td className="px-4 py-3">
                             <Select value={deal.stage ?? "lead"} onValueChange={(v) => updateDealMutation.mutate({ id: deal.id, stage: v as any })}>
                               <SelectTrigger className="h-7 text-xs w-36"><SelectValue /></SelectTrigger>
@@ -646,6 +633,11 @@ export default function CRMPage() {
                         <Card key={deal.id} className="hover:shadow-sm transition-shadow">
                           <CardContent className="p-2.5">
                             <p className="text-xs font-medium truncate">{deal.title}</p>
+                            {deal.lifecycle?.label && (
+                              <p className="text-[9px] text-muted-foreground line-clamp-2 mt-0.5" title={deal.lifecycle?.detail}>
+                                {deal.lifecycle.label}
+                              </p>
+                            )}
                             {deal.value && <p className="text-xs text-muted-foreground mt-0.5">{deal.currency ?? "OMR"} {Number(deal.value).toLocaleString()}</p>}
                             {deal.expectedCloseDate && (
                               <div className="flex items-center gap-1 mt-1 text-[10px] text-muted-foreground">

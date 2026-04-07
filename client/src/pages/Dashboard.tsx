@@ -493,30 +493,36 @@ export default function Dashboard() {
                   <span className="text-muted-foreground">Quotes draft / sent</span>
                   <span>{businessPulse.commercial.quotationsDraft} / {businessPulse.commercial.quotationsSent}</span>
                 </div>
-                <div className="flex justify-between gap-2 text-xs">
-                  <span className="text-muted-foreground">Accepted → no contract</span>
+                <Link href="/quotations?filter=accepted" className="flex justify-between gap-2 text-xs hover:opacity-80">
+                  <span className="text-muted-foreground">Accepted quotes → no contract</span>
                   <span className={businessPulse.commercial.quotationsAcceptedUnconverted > 0 ? "text-amber-700 font-semibold" : ""}>
                     {businessPulse.commercial.quotationsAcceptedUnconverted}
                   </span>
-                </div>
+                </Link>
+                <Link href="/quotations?filter=accepted" className="flex justify-between gap-2 text-xs hover:opacity-80">
+                  <span className="text-muted-foreground">Won deals — accepted, still no contract</span>
+                  <span className={(businessPulse.commercial.wonDealsAwaitingSignedAgreement ?? 0) > 0 ? "text-amber-700 font-semibold" : ""}>
+                    {businessPulse.commercial.wonDealsAwaitingSignedAgreement ?? 0}
+                  </span>
+                </Link>
                 <div className="flex justify-between gap-2 text-xs">
                   <span className="text-muted-foreground">Contracts awaiting signature</span>
                   <span className={businessPulse.commercial.contractsPendingSignature > 0 ? "text-amber-700 font-semibold" : ""}>
                     {businessPulse.commercial.contractsPendingSignature}
                   </span>
                 </div>
-                <div className="flex justify-between gap-2 text-xs">
+                <Link href="/crm" className="flex justify-between gap-2 text-xs hover:opacity-80">
                   <span className="text-muted-foreground">Won deals → no linked quote</span>
                   <span className={businessPulse.commercial.closedWonDealsWithoutLinkedQuote > 0 ? "text-amber-700 font-semibold" : ""}>
                     {businessPulse.commercial.closedWonDealsWithoutLinkedQuote}
                   </span>
-                </div>
-                <div className="flex justify-between gap-2 text-xs">
+                </Link>
+                <Link href="/contracts" className="flex justify-between gap-2 text-xs hover:opacity-80">
                   <span className="text-muted-foreground">Contracts ending (30d)</span>
                   <span className={businessPulse.commercial.contractsExpiringNext30Days > 0 ? "text-amber-700 font-semibold" : ""}>
                     {businessPulse.commercial.contractsExpiringNext30Days}
                   </span>
-                </div>
+                </Link>
               </CardContent>
             </Card>
             <Card className="border-border/80">

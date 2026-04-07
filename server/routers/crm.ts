@@ -3,6 +3,7 @@ import { z } from "zod";
 import { canAccessGlobalAdminProcedures } from "@shared/rbac";
 import type { User } from "../../drizzle/schema";
 import { assertRowBelongsToActiveCompany, requireActiveCompanyId } from "../_core/tenant";
+import { deriveDealLifecycle, type ContractLite } from "../commercialLifecycle";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { contracts, crmDeals, serviceQuotations } from "../../drizzle/schema";
 import {
@@ -232,8 +233,13 @@ export const crmRouter = router({
               )
           : [];
 
+      const byContactId = await db
+        .select()
+        .from(serviceQuotations)
+        .where(and(eq(serviceQuotations.companyId, companyId), eq(serviceQuotations.crmContactId, input.contactId)));
+
       const quoteMap = new Map<number, (typeof byDeal)[0]>();
-      for (const q of [...byDeal, ...byEmail]) quoteMap.set(q.id, q);
+      for (const q of [...byDeal, ...byEmail, ...byContactId]) quoteMap.set(q.id, q);
       const quotations = Array.from(quoteMap.values()).sort(
         (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
       );
@@ -246,12 +252,119 @@ export const crmRouter = router({
           ? await db.select().from(contracts).where(inArray(contracts.id, convIds))
           : [];
 
+      const contractById = new Map<number, ContractLite>(
+        contractsFromQuotations.map((c) => [
+          c.id,
+          {
+            id: c.id,
+            status: c.status ?? "",
+            endDate: c.endDate ? new Date(c.endDate) : null,
+          },
+        ]),
+      );
+
+      const dealsWithLifecycle = deals.map((deal) => {
+        const dq = quotations.filter((q) => q.crmDealId === deal.id);
+        const lifecycle = deriveDealLifecycle(
+          { id: deal.id, stage: deal.stage ?? "lead" },
+          dq.map((q) => ({ status: q.status, convertedToContractId: q.convertedToContractId })),
+          contractById,
+        );
+        return { deal, lifecycle, quotations: dq };
+      });
+
+      type ThreadRow = {
+        sortAt: Date;
+        kind: "deal" | "quotation" | "contract";
+        title: string;
+        subtitle: string;
+        href: string;
+        entityId: number;
+      };
+      const thread: ThreadRow[] = [];
+      for (const d of deals) {
+        thread.push({
+          sortAt: new Date(d.updatedAt),
+          kind: "deal",
+          title: d.title,
+          subtitle: d.stage ?? "",
+          href: `/crm?contact=${input.contactId}&deal=${d.id}`,
+          entityId: d.id,
+        });
+      }
+      for (const q of quotations) {
+        thread.push({
+          sortAt: new Date(q.createdAt),
+          kind: "quotation",
+          title: q.referenceNumber,
+          subtitle: q.status,
+          href: `/quotations?quote=${q.id}`,
+          entityId: q.id,
+        });
+      }
+      for (const c of contractsFromQuotations) {
+        thread.push({
+          sortAt: new Date(c.updatedAt ?? c.createdAt),
+          kind: "contract",
+          title: c.title,
+          subtitle: c.status ?? "",
+          href: `/contracts?id=${c.id}`,
+          entityId: c.id,
+        });
+      }
+      thread.sort((a, b) => b.sortAt.getTime() - a.sortAt.getTime());
+
       return {
         contact,
         deals,
         quotations,
         contractsFromQuotations,
+        dealsWithLifecycle,
+        lifecycleThread: thread,
       };
+    }),
+
+  /** Deals with derived commercial lifecycle (for pipeline / owner views). */
+  listDealsWithLifecycle: protectedProcedure
+    .input(z.object({ companyId: z.number().optional() }))
+    .query(async ({ ctx, input }) => {
+      const companyId = await resolveCrmCompanyId(ctx, input.companyId);
+      const db = await getDb();
+      if (!db) return [];
+      const deals = await db
+        .select()
+        .from(crmDeals)
+        .where(eq(crmDeals.companyId, companyId))
+        .orderBy(desc(crmDeals.updatedAt));
+      if (deals.length === 0) return [];
+      const dealIds = deals.map((d) => d.id);
+      const quotes = await db
+        .select()
+        .from(serviceQuotations)
+        .where(and(eq(serviceQuotations.companyId, companyId), inArray(serviceQuotations.crmDealId, dealIds)));
+      const convIds = quotes.map((q) => q.convertedToContractId).filter((id): id is number => id != null);
+      const contractRows =
+        convIds.length > 0 ? await db.select().from(contracts).where(inArray(contracts.id, convIds)) : [];
+      const contractById = new Map<number, ContractLite>(
+        contractRows.map((c) => [
+          c.id,
+          {
+            id: c.id,
+            status: c.status ?? "",
+            endDate: c.endDate ? new Date(c.endDate) : null,
+          },
+        ]),
+      );
+
+      return deals.map((deal) => {
+        const dq = quotes.filter((q) => q.crmDealId === deal.id);
+        const lifecycle = deriveDealLifecycle(
+          { id: deal.id, stage: deal.stage ?? "lead" },
+          dq.map((q) => ({ status: q.status, convertedToContractId: q.convertedToContractId })),
+          contractById,
+        );
+        return { ...deal, lifecycle };
+      });
     }),
 
   createCommunication: protectedProcedure

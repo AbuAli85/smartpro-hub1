@@ -1,5 +1,8 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useSearch } from "wouter";
 import { trpc } from "@/lib/trpc";
+import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
+import { parseQuotationUrlParams } from "@/lib/quotationsDeepLink";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -12,7 +15,7 @@ import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import {
   FileText, Plus, Send, Check, X, Trash2, Eye, Download,
-  TrendingUp, Clock, CheckCircle2, AlertCircle, DollarSign
+  TrendingUp, Clock, CheckCircle2, AlertCircle, DollarSign, Users, Pencil,
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -136,14 +139,68 @@ function LineItemRow({
 }
 
 export default function QuotationsPage() {
-  
+  const search = useSearch();
+  const { activeCompanyId } = useActiveCompany();
   const utils = trpc.useUtils();
 
   const { data: quotations, isLoading } = trpc.quotations.list.useQuery({});
   const { data: summary } = trpc.quotations.getSummary.useQuery();
+  const { data: crmContacts } = trpc.crm.listContacts.useQuery(
+    { companyId: activeCompanyId ?? undefined },
+    { enabled: activeCompanyId != null },
+  );
+  const { data: crmDeals } = trpc.crm.listDeals.useQuery(
+    { companyId: activeCompanyId ?? undefined },
+    { enabled: activeCompanyId != null },
+  );
+
+  const [showCreate, setShowCreate] = useState(false);
+  const [filterStatus, setFilterStatus] = useState<string>("all");
+  const [highlightQuoteId, setHighlightQuoteId] = useState<number | null>(null);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [crmContactId, setCrmContactId] = useState<string>("");
+  const [crmDealId, setCrmDealId] = useState<string>("");
+
+  const [clientName, setClientName] = useState("");
+  const [clientEmail, setClientEmail] = useState("");
+  const [clientPhone, setClientPhone] = useState("");
+  const [validityDays, setValidityDays] = useState(30);
+  const [notes, setNotes] = useState("");
+  const [terms, setTerms] = useState("Payment due within 30 days of acceptance. All prices in Omani Rial (OMR). VAT at 5% is included.");
+  const [lineItems, setLineItems] = useState<LineItem[]>([
+    { serviceName: "", description: "", qty: 1, unitPriceOmr: 0, discountPct: 0 },
+  ]);
+
+  const resetCreateForm = () => {
+    setClientName("");
+    setClientEmail("");
+    setClientPhone("");
+    setValidityDays(30);
+    setNotes("");
+    setTerms("Payment due within 30 days of acceptance. All prices in Omani Rial (OMR). VAT at 5% is included.");
+    setLineItems([{ serviceName: "", description: "", qty: 1, unitPriceOmr: 0, discountPct: 0 }]);
+    setCrmContactId("");
+    setCrmDealId("");
+  };
 
   const createMutation = trpc.quotations.create.useMutation({
-    onSuccess: () => { utils.quotations.list.invalidate(); utils.quotations.getSummary.invalidate(); setShowCreate(false); toast.success("Quotation created"); },
+    onSuccess: () => {
+      utils.quotations.list.invalidate();
+      utils.quotations.getSummary.invalidate();
+      setShowCreate(false);
+      resetCreateForm();
+      toast.success("Quotation created");
+    },
+    onError: (e) => toast.error(e.message),
+  });
+  const updateMutation = trpc.quotations.update.useMutation({
+    onSuccess: () => {
+      utils.quotations.list.invalidate();
+      utils.quotations.getSummary.invalidate();
+      utils.quotations.getById.invalidate();
+      setEditingId(null);
+      toast.success("Quotation updated");
+    },
     onError: (e) => toast.error(e.message),
   });
   const sendMutation = trpc.quotations.send.useMutation({
@@ -160,19 +217,98 @@ export default function QuotationsPage() {
     onSuccess: () => { utils.quotations.list.invalidate(); utils.quotations.getSummary.invalidate(); toast.success("Quotation deleted"); },
   });
 
-  const [showCreate, setShowCreate] = useState(false);
-  const [filterStatus, setFilterStatus] = useState<string>("all");
+  const { data: editingQuotation } = trpc.quotations.getById.useQuery(
+    { id: editingId! },
+    { enabled: editingId != null },
+  );
 
-  // Form state
-  const [clientName, setClientName] = useState("");
-  const [clientEmail, setClientEmail] = useState("");
-  const [clientPhone, setClientPhone] = useState("");
-  const [validityDays, setValidityDays] = useState(30);
-  const [notes, setNotes] = useState("");
-  const [terms, setTerms] = useState("Payment due within 30 days of acceptance. All prices in Omani Rial (OMR). VAT at 5% is included.");
-  const [lineItems, setLineItems] = useState<LineItem[]>([
-    { serviceName: "", description: "", qty: 1, unitPriceOmr: 0, discountPct: 0 },
-  ]);
+  type EditFormState = {
+    clientName: string;
+    clientEmail: string;
+    clientPhone: string;
+    validityDays: number;
+    notes: string;
+    terms: string;
+    lineItems: LineItem[];
+    crmContactId: string;
+    crmDealId: string;
+  };
+  const [editForm, setEditForm] = useState<EditFormState | null>(null);
+
+  const newQuoteOpenedRef = useRef(false);
+
+  useEffect(() => {
+    const p = parseQuotationUrlParams(search);
+    setHighlightQuoteId(p.quoteId);
+    if (p.filter && ["all", "draft", "sent", "accepted", "declined", "expired"].includes(p.filter)) {
+      setFilterStatus(p.filter);
+    }
+    if (!p.newRequest) newQuoteOpenedRef.current = false;
+  }, [search]);
+
+  useEffect(() => {
+    const p = parseQuotationUrlParams(search);
+    if (!p.newRequest || !activeCompanyId) return;
+    if (newQuoteOpenedRef.current) return;
+    newQuoteOpenedRef.current = true;
+    setShowCreate(true);
+  }, [search, activeCompanyId]);
+
+  useEffect(() => {
+    const p = parseQuotationUrlParams(search);
+    if (!p.newRequest || !activeCompanyId) return;
+    if (!crmContacts?.length && p.contactId) return;
+    if (p.dealId && !crmDeals?.length) return;
+    if (p.contactId && crmContacts) {
+      const c = crmContacts.find((x) => x.id === p.contactId);
+      if (c) {
+        setCrmContactId(String(p.contactId));
+        setClientName(`${(c.company ?? `${c.firstName} ${c.lastName}`.trim()).trim() || c.firstName}`);
+        setClientEmail(c.email ?? "");
+        setClientPhone(c.phone ?? "");
+      }
+    }
+    if (p.dealId && crmDeals) {
+      const d = crmDeals.find((x) => x.id === p.dealId);
+      if (d) {
+        setCrmDealId(String(p.dealId));
+        if (d.contactId && crmContacts) {
+          const c = crmContacts.find((x) => x.id === d.contactId);
+          if (c) {
+            setCrmContactId(String(d.contactId));
+            setClientName(`${(c.company ?? `${c.firstName} ${c.lastName}`.trim()).trim() || c.firstName}`);
+            setClientEmail(c.email ?? "");
+            setClientPhone(c.phone ?? "");
+          }
+        }
+      }
+    }
+  }, [search, activeCompanyId, crmContacts, crmDeals]);
+
+  useEffect(() => {
+    if (editingId == null) {
+      setEditForm(null);
+      return;
+    }
+    if (!editingQuotation) return;
+    setEditForm({
+      clientName: editingQuotation.clientName,
+      clientEmail: editingQuotation.clientEmail ?? "",
+      clientPhone: editingQuotation.clientPhone ?? "",
+      validityDays: editingQuotation.validityDays,
+      notes: editingQuotation.notes ?? "",
+      terms: editingQuotation.terms ?? "",
+      lineItems: editingQuotation.lineItems.map((li) => ({
+        serviceName: li.serviceName,
+        description: li.description ?? "",
+        qty: li.qty,
+        unitPriceOmr: Number(li.unitPriceOmr),
+        discountPct: Number(li.discountPct),
+      })),
+      crmContactId: editingQuotation.crmContactId ? String(editingQuotation.crmContactId) : "",
+      crmDealId: editingQuotation.crmDealId ? String(editingQuotation.crmDealId) : "",
+    });
+  }, [editingId, editingQuotation]);
 
   const subtotal = lineItems.reduce((s, l) => s + l.unitPriceOmr * l.qty * (1 - l.discountPct / 100), 0);
   const vat = subtotal * 0.05;
@@ -187,8 +323,50 @@ export default function QuotationsPage() {
   const handleCreate = () => {
     if (!clientName.trim()) { toast.error("Client name required"); return; }
     if (lineItems.some((l) => !l.serviceName.trim())) { toast.error("All line items need a service name"); return; }
-    createMutation.mutate({ clientName, clientEmail: clientEmail || undefined, clientPhone: clientPhone || undefined, validityDays, notes: notes || undefined, terms: terms || undefined, lineItems });
+    createMutation.mutate({
+      companyId: activeCompanyId ?? undefined,
+      clientName,
+      clientEmail: clientEmail || undefined,
+      clientPhone: clientPhone || undefined,
+      validityDays,
+      notes: notes || undefined,
+      terms: terms || undefined,
+      lineItems,
+      crmDealId: crmDealId ? Number(crmDealId) : undefined,
+      crmContactId: crmContactId ? Number(crmContactId) : undefined,
+    });
   };
+
+  const handleSaveEdit = () => {
+    if (!editForm || editingId == null) return;
+    if (!editForm.clientName.trim()) { toast.error("Client name required"); return; }
+    if (editForm.lineItems.some((l) => !l.serviceName.trim())) { toast.error("All line items need a service name"); return; }
+    updateMutation.mutate({
+      id: editingId,
+      clientName: editForm.clientName,
+      clientEmail: editForm.clientEmail || undefined,
+      clientPhone: editForm.clientPhone || undefined,
+      validityDays: editForm.validityDays,
+      notes: editForm.notes || undefined,
+      terms: editForm.terms || undefined,
+      lineItems: editForm.lineItems,
+      crmDealId: editForm.crmDealId ? Number(editForm.crmDealId) : null,
+      crmContactId: editForm.crmContactId ? Number(editForm.crmContactId) : null,
+    });
+  };
+
+  const dealsFilteredForCrm = crmDeals?.filter(
+    (d) => !crmContactId || !d.contactId || String(d.contactId) === crmContactId,
+  ) ?? [];
+
+  const dealsFilteredForEditCrm = crmDeals?.filter(
+    (d) => !editForm?.crmContactId || !d.contactId || String(d.contactId) === editForm.crmContactId,
+  ) ?? [];
+
+  const editSubtotal =
+    editForm?.lineItems.reduce((s, l) => s + l.unitPriceOmr * l.qty * (1 - l.discountPct / 100), 0) ?? 0;
+  const editVat = editSubtotal * 0.05;
+  const editTotal = editSubtotal + editVat;
 
   const filtered = (quotations ?? []).filter((q) => filterStatus === "all" || q.status === filterStatus);
 
@@ -205,7 +383,13 @@ export default function QuotationsPage() {
             <p className="text-sm text-muted-foreground">Professional proposals · OMR pricing · 5% VAT · Oman & GCC</p>
           </div>
         </div>
-        <Button onClick={() => setShowCreate(true)} className="gap-2 bg-orange-500 hover:bg-orange-600">
+        <Button
+          onClick={() => {
+            resetCreateForm();
+            setShowCreate(true);
+          }}
+          className="gap-2 bg-orange-500 hover:bg-orange-600"
+        >
           <Plus className="w-4 h-4" />
           New Quotation
         </Button>
@@ -272,7 +456,13 @@ export default function QuotationsPage() {
       ) : (
         <div className="space-y-3">
           {filtered.map((q) => (
-            <Card key={q.id} className="border-0 shadow-sm hover:shadow-md transition-shadow">
+            <Card
+              key={q.id}
+              className={
+                "border-0 shadow-sm hover:shadow-md transition-shadow " +
+                (highlightQuoteId === q.id ? "ring-2 ring-orange-500 ring-offset-2" : "")
+              }
+            >
               <CardContent className="p-4">
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1 min-w-0">
@@ -284,6 +474,16 @@ export default function QuotationsPage() {
                     </div>
                     <p className="font-semibold">{q.clientName}</p>
                     {q.clientEmail && <p className="text-xs text-muted-foreground">{q.clientEmail}</p>}
+                    {((q as { crmDealId?: number | null }).crmDealId != null || (q as { crmContactId?: number | null }).crmContactId != null) && (
+                      <p className="text-[10px] text-muted-foreground mt-1 flex items-center gap-1">
+                        <Users className="w-3 h-3 shrink-0" />
+                        {(q as { crmDealId?: number | null }).crmDealId != null && <span>Deal #{(q as { crmDealId?: number | null }).crmDealId}</span>}
+                        {(q as { crmDealId?: number | null }).crmDealId != null && (q as { crmContactId?: number | null }).crmContactId != null && " · "}
+                        {(q as { crmContactId?: number | null }).crmContactId != null && (
+                          <span>Contact #{(q as { crmContactId?: number | null }).crmContactId}</span>
+                        )}
+                      </p>
+                    )}
                     <p className="text-xs text-muted-foreground mt-1">
                       Created {format(new Date(q.createdAt), "d MMM yyyy")} ·
                       Valid {q.validityDays} days
@@ -296,6 +496,15 @@ export default function QuotationsPage() {
                     <div className="flex gap-1 mt-2 justify-end flex-wrap">
                       {q.status === "draft" && (
                         <>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-xs gap-1 h-7"
+                            onClick={() => setEditingId(q.id)}
+                          >
+                            <Pencil className="w-3 h-3" />
+                            Edit
+                          </Button>
                           <Button
                             size="sm"
                             variant="outline"
@@ -356,7 +565,13 @@ export default function QuotationsPage() {
       )}
 
       {/* Create Dialog */}
-      <Dialog open={showCreate} onOpenChange={setShowCreate}>
+      <Dialog
+        open={showCreate}
+        onOpenChange={(open) => {
+          if (!open) resetCreateForm();
+          setShowCreate(open);
+        }}
+      >
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -384,6 +599,81 @@ export default function QuotationsPage() {
                 </div>
               </div>
             </div>
+
+            {activeCompanyId != null && (
+              <>
+                <Separator />
+                <div>
+                  <h3 className="font-semibold text-sm mb-2 text-muted-foreground uppercase tracking-wide flex items-center gap-2">
+                    <Users className="w-4 h-4" /> CRM linkage
+                  </h3>
+                  <p className="text-xs text-muted-foreground mb-3">
+                    Tie this quotation to a CRM contact and/or deal so pipeline, contracts, and reporting stay connected.
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <Label className="text-xs">CRM contact</Label>
+                      <Select
+                        value={crmContactId || "__none__"}
+                        onValueChange={(v) => {
+                          const next = v === "__none__" ? "" : v;
+                          setCrmContactId(next);
+                          setCrmDealId("");
+                          if (next && crmContacts) {
+                            const c = crmContacts.find((x) => String(x.id) === next);
+                            if (c) {
+                              setClientName((c.company ?? `${c.firstName} ${c.lastName}`.trim()).trim() || c.firstName);
+                              setClientEmail(c.email ?? "");
+                              setClientPhone(c.phone ?? "");
+                            }
+                          }
+                        }}
+                      >
+                        <SelectTrigger className="mt-1"><SelectValue placeholder="None" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">None</SelectItem>
+                          {(crmContacts ?? []).map((c) => (
+                            <SelectItem key={c.id} value={String(c.id)}>
+                              {c.firstName} {c.lastName}{c.company ? ` · ${c.company}` : ""}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label className="text-xs">CRM deal</Label>
+                      <Select
+                        value={crmDealId || "__none__"}
+                        onValueChange={(v) => {
+                          const next = v === "__none__" ? "" : v;
+                          setCrmDealId(next);
+                          if (next && crmDeals) {
+                            const d = crmDeals.find((x) => String(x.id) === next);
+                            if (d?.contactId) {
+                              setCrmContactId(String(d.contactId));
+                              const c = crmContacts?.find((x) => x.id === d.contactId);
+                              if (c) {
+                                setClientName((c.company ?? `${c.firstName} ${c.lastName}`.trim()).trim() || c.firstName);
+                                setClientEmail(c.email ?? "");
+                                setClientPhone(c.phone ?? "");
+                              }
+                            }
+                          }
+                        }}
+                      >
+                        <SelectTrigger className="mt-1"><SelectValue placeholder="None" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">None</SelectItem>
+                          {dealsFilteredForCrm.map((d) => (
+                            <SelectItem key={d.id} value={String(d.id)}>{d.title}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
 
             <Separator />
 
@@ -451,6 +741,222 @@ export default function QuotationsPage() {
             <Button variant="outline" onClick={() => setShowCreate(false)}>Cancel</Button>
             <Button onClick={handleCreate} disabled={createMutation.isPending} className="bg-orange-500 hover:bg-orange-600">
               {createMutation.isPending ? "Creating…" : "Create Quotation"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={editingId != null} onOpenChange={(o) => !o && setEditingId(null)}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Pencil className="w-5 h-5 text-orange-500" />
+              Edit draft quotation
+            </DialogTitle>
+          </DialogHeader>
+          {editForm && (
+            <div className="space-y-6">
+              <div className="grid grid-cols-3 gap-3">
+                <div className="col-span-3 sm:col-span-1">
+                  <Label className="text-xs">Client / Company Name *</Label>
+                  <Input
+                    className="mt-1"
+                    value={editForm.clientName}
+                    onChange={(e) => setEditForm({ ...editForm, clientName: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs">Email</Label>
+                  <Input
+                    className="mt-1"
+                    type="email"
+                    value={editForm.clientEmail}
+                    onChange={(e) => setEditForm({ ...editForm, clientEmail: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs">Phone</Label>
+                  <Input
+                    className="mt-1"
+                    value={editForm.clientPhone}
+                    onChange={(e) => setEditForm({ ...editForm, clientPhone: e.target.value })}
+                  />
+                </div>
+              </div>
+              {activeCompanyId != null && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <Label className="text-xs">CRM contact</Label>
+                    <Select
+                      value={editForm.crmContactId || "__none__"}
+                      onValueChange={(v) => {
+                        const next = v === "__none__" ? "" : v;
+                        setEditForm((prev) => {
+                          if (!prev) return prev;
+                          const nextForm = { ...prev, crmContactId: next, crmDealId: "" };
+                          if (next && crmContacts) {
+                            const c = crmContacts.find((x) => String(x.id) === next);
+                            if (c) {
+                              nextForm.clientName = (c.company ?? `${c.firstName} ${c.lastName}`.trim()).trim() || c.firstName;
+                              nextForm.clientEmail = c.email ?? "";
+                              nextForm.clientPhone = c.phone ?? "";
+                            }
+                          }
+                          return nextForm;
+                        });
+                      }}
+                    >
+                      <SelectTrigger className="mt-1"><SelectValue placeholder="None" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">None</SelectItem>
+                        {(crmContacts ?? []).map((c) => (
+                          <SelectItem key={c.id} value={String(c.id)}>
+                            {c.firstName} {c.lastName}{c.company ? ` · ${c.company}` : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-xs">CRM deal</Label>
+                    <Select
+                      value={editForm.crmDealId || "__none__"}
+                      onValueChange={(v) => {
+                        const next = v === "__none__" ? "" : v;
+                        setEditForm((prev) => {
+                          if (!prev) return prev;
+                          let nextForm: EditFormState = { ...prev, crmDealId: next };
+                          if (next && crmDeals) {
+                            const d = crmDeals.find((x) => String(x.id) === next);
+                            if (d?.contactId) {
+                              nextForm = { ...nextForm, crmContactId: String(d.contactId) };
+                              const c = crmContacts?.find((x) => x.id === d.contactId);
+                              if (c) {
+                                nextForm.clientName = (c.company ?? `${c.firstName} ${c.lastName}`.trim()).trim() || c.firstName;
+                                nextForm.clientEmail = c.email ?? "";
+                                nextForm.clientPhone = c.phone ?? "";
+                              }
+                            }
+                          }
+                          return nextForm;
+                        });
+                      }}
+                    >
+                      <SelectTrigger className="mt-1"><SelectValue placeholder="None" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">None</SelectItem>
+                        {dealsFilteredForEditCrm.map((d) => (
+                          <SelectItem key={d.id} value={String(d.id)}>{d.title}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              )}
+              <div>
+                <h3 className="font-semibold text-sm mb-3 text-muted-foreground uppercase tracking-wide">Line items</h3>
+                <div className="space-y-2">
+                  {editForm.lineItems.map((item, i) => (
+                    <LineItemRow
+                      key={i}
+                      item={item}
+                      index={i}
+                      onChange={(idx, field, value) =>
+                        setEditForm((prev) => {
+                          if (!prev) return prev;
+                          const next = [...prev.lineItems];
+                          next[idx] = { ...next[idx], [field]: value };
+                          return { ...prev, lineItems: next };
+                        })
+                      }
+                      onRemove={(idx) =>
+                        setEditForm((prev) =>
+                          prev ? { ...prev, lineItems: prev.lineItems.filter((_, j) => j !== idx) } : prev,
+                        )
+                      }
+                    />
+                  ))}
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-3 gap-1 text-xs"
+                  type="button"
+                  onClick={() =>
+                    setEditForm((prev) =>
+                      prev
+                        ? {
+                            ...prev,
+                            lineItems: [
+                              ...prev.lineItems,
+                              { serviceName: "", description: "", qty: 1, unitPriceOmr: 0, discountPct: 0 },
+                            ],
+                          }
+                        : prev,
+                    )
+                  }
+                >
+                  <Plus className="w-3 h-3" />
+                  Add line
+                </Button>
+              </div>
+              <div className="flex justify-end">
+                <div className="w-64 space-y-1 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Subtotal</span>
+                    <span>OMR {editSubtotal.toFixed(3)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">VAT (5%)</span>
+                    <span>OMR {editVat.toFixed(3)}</span>
+                  </div>
+                  <Separator />
+                  <div className="flex justify-between font-black text-base">
+                    <span>Total</span>
+                    <span className="text-orange-600">OMR {editTotal.toFixed(3)}</span>
+                  </div>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-xs">Validity (days)</Label>
+                  <Input
+                    className="mt-1"
+                    type="number"
+                    min={1}
+                    max={365}
+                    value={editForm.validityDays}
+                    onChange={(e) => setEditForm({ ...editForm, validityDays: Number(e.target.value) })}
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs">Notes</Label>
+                  <Input
+                    className="mt-1"
+                    value={editForm.notes}
+                    onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })}
+                  />
+                </div>
+                <div className="col-span-2">
+                  <Label className="text-xs">Terms</Label>
+                  <Textarea
+                    className="mt-1 text-xs"
+                    rows={2}
+                    value={editForm.terms}
+                    onChange={(e) => setEditForm({ ...editForm, terms: e.target.value })}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingId(null)}>Cancel</Button>
+            <Button
+              onClick={handleSaveEdit}
+              disabled={updateMutation.isPending || !editForm}
+              className="bg-orange-500 hover:bg-orange-600"
+            >
+              {updateMutation.isPending ? "Saving…" : "Save changes"}
             </Button>
           </DialogFooter>
         </DialogContent>

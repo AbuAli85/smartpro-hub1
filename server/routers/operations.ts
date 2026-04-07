@@ -85,8 +85,23 @@ async function getOwnerLifecycleSignals(db: DbClient, companyId: number) {
     .from(employeeTasks)
     .where(and(eq(employeeTasks.companyId, companyId), eq(employeeTasks.status, "blocked")));
 
+  const wonAwaitRows = await db
+    .select({ dealId: crmDeals.id })
+    .from(crmDeals)
+    .innerJoin(serviceQuotations, eq(serviceQuotations.crmDealId, crmDeals.id))
+    .where(
+      and(
+        eq(crmDeals.companyId, companyId),
+        eq(crmDeals.stage, "closed_won"),
+        eq(serviceQuotations.status, "accepted"),
+        isNull(serviceQuotations.convertedToContractId),
+      ),
+    );
+  const wonDealsAwaitingSignedAgreement = new Set(wonAwaitRows.map((r) => r.dealId)).size;
+
   return {
     closedWonDealsWithoutLinkedQuote,
+    wonDealsAwaitingSignedAgreement,
     contractsExpiringNext30Days: Number(expiringContractsRow?.cnt ?? 0),
     employeeTasksOverdue: Number(tasksOverdue?.cnt ?? 0),
     employeeTasksBlocked: Number(tasksBlocked?.cnt ?? 0),
@@ -411,6 +426,7 @@ export const operationsRouter = router({
         ? await getOwnerLifecycleSignals(db, companyId)
         : {
             closedWonDealsWithoutLinkedQuote: 0,
+            wonDealsAwaitingSignedAgreement: 0,
             contractsExpiringNext30Days: 0,
             employeeTasksOverdue: 0,
             employeeTasksBlocked: 0,
@@ -434,6 +450,7 @@ export const operationsRouter = router({
       saasSubscriptionOverdueCount: Number(saasSubOverdueRow?.cnt ?? 0),
       saasSubscriptionOverdueOmr: Number(saasSubOverdueRow?.total ?? 0),
       closedWonDealsWithoutLinkedQuote: lifecycleSignals.closedWonDealsWithoutLinkedQuote,
+      wonDealsAwaitingSignedAgreement: lifecycleSignals.wonDealsAwaitingSignedAgreement,
       contractsExpiringNext30Days: lifecycleSignals.contractsExpiringNext30Days,
       employeeTasksOverdue: lifecycleSignals.employeeTasksOverdue,
       employeeTasksBlocked: lifecycleSignals.employeeTasksBlocked,
@@ -888,6 +905,7 @@ export const operationsRouter = router({
           quotationsAcceptedUnconverted: Number(qAcceptedNoContract?.cnt ?? 0),
           contractsPendingSignature: Number(pendingSig?.cnt ?? 0),
           closedWonDealsWithoutLinkedQuote: lifecycle.closedWonDealsWithoutLinkedQuote,
+          wonDealsAwaitingSignedAgreement: lifecycle.wonDealsAwaitingSignedAgreement,
           contractsExpiringNext30Days: lifecycle.contractsExpiringNext30Days,
         },
         finance: {

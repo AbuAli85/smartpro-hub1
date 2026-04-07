@@ -1914,12 +1914,15 @@ export const serviceQuotations = mysqlTable("service_quotations", {
   convertedToContractId: int("converted_to_contract_id"),
   /** Optional CRM deal — links quotation into the commercial pipeline. */
   crmDealId: int("crm_deal_id"),
+  /** Optional CRM contact — explicit customer record (may also be implied via deal). */
+  crmContactId: int("crm_contact_id"),
   createdBy: int("created_by").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (t) => [
   index("idx_sq_company").on(t.companyId),
   index("idx_sq_crm_deal").on(t.crmDealId),
+  index("idx_sq_crm_contact").on(t.crmContactId),
 ]);
 export type ServiceQuotation = typeof serviceQuotations.$inferSelect;
 export type InsertServiceQuotation = typeof serviceQuotations.$inferInsert;

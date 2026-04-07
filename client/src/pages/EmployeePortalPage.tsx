@@ -1049,15 +1049,17 @@ export default function EmployeePortalPage() {
       utils.employeePortal.getMyTasks.invalidate();
       void utils.employeePortal.getMyWorkStatusSummary.invalidate();
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) =>
+      toast.error("Couldn’t complete task", { description: err.message || "Try again in a moment." }),
   });
   const startTask = trpc.employeePortal.startTask.useMutation({
     onSuccess: () => {
-      toast.success("Task in progress");
+      toast.success("Task in progress", { description: "Status updated for your manager." });
       utils.employeePortal.getMyTasks.invalidate();
       void utils.employeePortal.getMyWorkStatusSummary.invalidate();
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) =>
+      toast.error("Couldn’t start task", { description: err.message || "Try again in a moment." }),
   });
   const toggleTaskChecklistItem = trpc.employeePortal.toggleTaskChecklistItem.useMutation({
     onSuccess: (data, vars) => {
@@ -1065,7 +1067,8 @@ export default function EmployeePortalPage() {
       void utils.employeePortal.getMyWorkStatusSummary.invalidate();
       setEmpTaskDetail((t: any) => (t && t.id === vars.taskId ? { ...t, checklist: data.checklist } : t));
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) =>
+      toast.error("Couldn’t update checklist", { description: err.message || "Try again." }),
   });
   const submitShiftRequest = trpc.shiftRequests.submit.useMutation({
     onSuccess: () => {
@@ -3393,7 +3396,7 @@ export default function EmployeePortalPage() {
             <div className="space-y-1.5">
               <Label>Leave Type</Label>
               <Select value={leaveType} onValueChange={setLeaveType}>
-                <SelectTrigger ref={leaveTypeSelectRef}>
+                <SelectTrigger ref={leaveTypeSelectRef} className="w-full min-w-0">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -3539,7 +3542,7 @@ export default function EmployeePortalPage() {
                   if (v !== "shift_change") setShiftPreferredShiftId("");
                 }}
               >
-                <SelectTrigger ref={shiftRequestTypeSelectRef} className="mt-1">
+                <SelectTrigger ref={shiftRequestTypeSelectRef} className="mt-1 w-full min-w-0">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -3580,7 +3583,7 @@ export default function EmployeePortalPage() {
                   value={shiftPreferredShiftId || "__none__"}
                   onValueChange={(v) => setShiftPreferredShiftId(v === "__none__" ? "" : v)}
                 >
-                  <SelectTrigger className="mt-1">
+                  <SelectTrigger className="mt-1 w-full min-w-0">
                     <SelectValue placeholder="No preference" />
                   </SelectTrigger>
                   <SelectContent>

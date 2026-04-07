@@ -21,6 +21,7 @@ import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/
 import { WorkforceHealthWidget } from "@/components/WorkforceHealthWidget";
 import { ContractKpiWidget } from "@/components/contracts/ContractKpiWidget";
 import { OwnerSetupChecklist } from "@/components/OwnerSetupChecklist";
+import { ExecutiveControlTower } from "@/components/dashboard/ExecutiveControlTower";
 
 /* ── KPI Stat Card ─────────────────────────────────────────────────────── */
 function StatCard({
@@ -109,7 +110,7 @@ export default function Dashboard() {
     // Check for a custom redirect configured by the company admin; fall back to system default
     const customRoute = roleRedirectData?.settings?.[memberRole];
     const targetRoute = customRoute || getRoleDefaultRoute(memberRole);
-    if (targetRoute && targetRoute !== "/dashboard" && targetRoute !== "/") {
+    if (targetRoute && targetRoute !== "/dashboard" && targetRoute !== "/" && targetRoute !== "/control-tower") {
       navigate(targetRoute);
     }
   }, [activeCompany?.role, companyLoading, roleRedirectData]);
@@ -533,6 +534,10 @@ export default function Dashboard() {
           </div>
           <p className="text-[10px] text-muted-foreground leading-snug max-w-4xl">{businessPulse.revenue.basis}</p>
         </div>
+      )}
+
+      {!showPlatformOverview && activeCompanyId && businessPulse?.controlTower && (
+        <ExecutiveControlTower tower={businessPulse.controlTower} showHref={showHref} />
       )}
 
       {/* ── Commercial → contract → cash → delivery (one glance) ── */}

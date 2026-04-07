@@ -45,6 +45,11 @@ import {
   buildCrmResolutionFollowUpPrefill,
 } from "../resolutionFollowUpPrefill";
 import { buildExecutiveRevenueSnapshot } from "../executiveRevenueSnapshot";
+import {
+  buildClientHealthTop,
+  buildControlTowerBundle,
+  buildExecutiveInsightNarrative,
+} from "../controlTower";
 
 type DbClient = NonNullable<Awaited<ReturnType<typeof getDb>>>;
 
@@ -926,8 +931,31 @@ export const operationsRouter = router({
 
       const revenueSnapshot = await buildExecutiveRevenueSnapshot(db, companyId);
 
+      const controlTowerCore = await buildControlTowerBundle(db, companyId);
+      const clientHealthTop = buildClientHealthTop(ownerResolution.rankedAccountsForReview);
+      const overdueArInvoiceCount =
+        controlTowerCore.agedReceivables.officerPro.rowCount +
+        controlTowerCore.agedReceivables.platformSubscription.rowCount;
+      const insightSummary = buildExecutiveInsightNarrative({
+        revenueMtdOmr: revenueSnapshot.combinedPaid.monthToDateOmr,
+        combinedAtRiskArOmr: controlTowerCore.agedReceivables.combinedAtRiskOmr,
+        overdueArInvoiceCount,
+        decisionsOpen: controlTowerCore.decisionsQueue.totalOpenCount,
+        slaBreaches: controlTowerCore.riskCompliance.slaOpenBreaches,
+        contractsPendingSignature: controlTowerCore.riskCompliance.contractsPendingSignature,
+        renewalWorkflowsFailed: controlTowerCore.riskCompliance.renewalWorkflowsFailed,
+        rankedAccountsCount: ownerResolution.rankedAccountsForReview.length,
+      });
+
       return {
         revenue: revenueSnapshot,
+        controlTower: {
+          agedReceivables: controlTowerCore.agedReceivables,
+          decisionsQueue: controlTowerCore.decisionsQueue,
+          riskCompliance: controlTowerCore.riskCompliance,
+          clientHealthTop,
+          insightSummary,
+        },
         commercial: {
           contactsLeads: Number(contactsLeads?.cnt ?? 0),
           contactsProspects: Number(contactsProspects?.cnt ?? 0),

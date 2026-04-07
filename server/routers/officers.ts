@@ -3,7 +3,7 @@ import { nanoid } from "nanoid";
 import { and, count, desc, eq, like, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { canAccessGlobalAdminProcedures } from "@shared/rbac";
-import { getDb } from "../db";
+import { getDb, getUserCompany } from "../db";
 import {
   companies,
   complianceCertificates,
@@ -14,10 +14,7 @@ import {
 } from "../../drizzle/schema";
 import { adminProcedure, protectedProcedure, router } from "../_core/trpc";
 import { storagePut } from "../storage";
-import { assertRowBelongsToActiveCompany } from "../_core/tenant";
 import { getActiveCompanyMembership } from "../_core/membership";
-import type { User } from "../../drizzle/schema";
-
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 async function enrichOfficer(officer: typeof omaniProOfficers.$inferSelect & { sanadOfficeName?: string | null }) {
@@ -423,7 +420,15 @@ export const officersRouter = router({
     .input(z.object({ companyId: z.number(), month: z.number().min(1).max(12), year: z.number().min(2024) }))
     .mutation(async ({ input, ctx }) => {
       if (!canAccessGlobalAdminProcedures(ctx.user)) {
-        await assertRowBelongsToActiveCompany(ctx.user as User, input.companyId, "Company");
+        // Use `getUserCompany` (not `requireActiveCompanyId` → `getUserCompanies`) so the active
+        // workspace is one DB round-trip; multi-workspace tenants should pass `companyId` matching their selection.
+        const m = await getUserCompany(ctx.user.id);
+        if (!m?.company?.id) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "No company membership" });
+        }
+        if (input.companyId !== m.company.id) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Company not found" });
+        }
       }
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });

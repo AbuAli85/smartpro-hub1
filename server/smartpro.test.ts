@@ -525,24 +525,23 @@ describe("hr.attendance", () => {
   });
 
   it("createAttendance succeeds when membership and employee match company", async () => {
-    const { getUserCompany, getUserCompanyById, getUserCompanies, getEmployeeById, getDb } = await import("./db");
     const valuesFn = vi.fn().mockResolvedValue([{ insertId: 42 }]);
     const mockTx = {
       insert: vi.fn(() => ({ values: valuesFn })),
     };
-    (getDb as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+    vi.mocked(db.getDb).mockResolvedValueOnce({
       transaction: async (fn: (tx: typeof mockTx) => Promise<void>) => {
         await fn(mockTx);
       },
     } as any);
     const m = {
-      company: { id: 1 },
+      company: { id: 1, name: "Co", slug: "co", country: "OM", status: "active" },
       member: { role: "company_admin" },
     } as any;
-    (getUserCompanies as ReturnType<typeof vi.fn>).mockResolvedValueOnce([m]);
-    (getUserCompany as ReturnType<typeof vi.fn>).mockResolvedValueOnce(m);
-    (getUserCompanyById as ReturnType<typeof vi.fn>).mockResolvedValueOnce(m);
-    (getEmployeeById as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ id: 1, companyId: 1 } as any);
+    vi.mocked(db.getUserCompanies).mockResolvedValueOnce([m]);
+    vi.mocked(db.getUserCompany).mockResolvedValueOnce(m);
+    vi.mocked(db.getUserCompanyById).mockResolvedValueOnce(m);
+    vi.mocked(db.getEmployeeById).mockResolvedValueOnce({ id: 1, companyId: 1 } as any);
     const caller = appRouter.createCaller(makeCtx({ role: "user", platformRole: "company_admin" }));
     const result = await caller.hr.createAttendance({
       employeeId: 1,

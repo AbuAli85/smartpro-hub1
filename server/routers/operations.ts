@@ -25,7 +25,7 @@ import {
   canReadHrPerformanceAuditSensitiveRows,
   HR_AUDIT_SENSITIVE_ENTITY_TYPES,
 } from "../hrPerformanceAuditReadPolicy";
-import type { User } from "../../drizzle/schema";
+import type { PayrollRun, User } from "../../drizzle/schema";
 
 export const operationsRouter = router({
   // ── Daily Snapshot ──────────────────────────────────────────────────────────
@@ -513,12 +513,13 @@ export const operationsRouter = router({
     const contractCount = Number(pendingContracts[0]?.cnt ?? 0);
     if (contractCount > 0) actions.push({ priority: "medium", title: `${contractCount} contract${contractCount > 1 ? "s" : ""} pending signature`, description: "Follow up with signers to unblock service commencement", url: "/contracts", count: contractCount });
     const payrollRun = thisMonthRun[0];
+    const thisMonthPayrollStatus: PayrollRun["status"] | "not_run" = payrollRun?.status ?? "not_run";
     if (!payrollRun) actions.push({ priority: "high", title: "Payroll not run for this month", description: `${new Date().toLocaleString("en", { month: "long" })} ${currentYear} payroll has not been created yet`, url: "/payroll", count: 1 });
     else if (payrollRun.status === "draft") actions.push({ priority: "medium", title: "Payroll draft awaiting approval", description: "Review and approve the current month payroll run", url: "/payroll", count: 1 });
     return {
       headcount: { total: allEmployees.length, active: activeEmps.length, onLeave: allEmployees.filter(e => e.status === "on_leave").length },
       omanisation: { rate: omanisationRate, omani: omaniEmps.length, expat: activeEmps.length - omaniEmps.length },
-      payroll: { monthlyTotal: Math.round(totalPayrollCost * 1000) / 1000, thisMonthStatus: payrollRun?.status ?? "not_run", thisMonthNet: parseFloat(payrollRun?.totalNet ?? "0") },
+      payroll: { monthlyTotal: Math.round(totalPayrollCost * 1000) / 1000, thisMonthStatus: thisMonthPayrollStatus, thisMonthNet: parseFloat(payrollRun?.totalNet ?? "0") },
       leave: { pending: pendingLeaveCount },
       permits: { expiring30d: expiringPermitCount, expired: expiredPermitCount },
       documents: { expiring30d: expiringDocCount, expired: expiredDocCount },

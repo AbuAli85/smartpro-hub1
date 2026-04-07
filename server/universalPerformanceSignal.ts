@@ -5,6 +5,14 @@ export type TrendLabel = "improving" | "stable" | "declining";
 
 export type ReviewState = "none" | "under_review" | "recovery_active" | "escalated";
 
+export type InterventionSignalContext = {
+  /** Open or escalated (active) rows */
+  activeCount: number;
+  hasEscalated: boolean;
+  /** Earliest upcoming follow-up (ISO date) */
+  nextFollowUpAt: string | null;
+};
+
 /**
  * Single user-facing performance snapshot — capped lists, stable labels.
  * All roles share this shape; inputs differ behind the scenes.
@@ -21,6 +29,8 @@ export type UniversalPerformanceSignal = {
   reviewState: ReviewState;
   /** 0–100 heuristic, optional display */
   compositeScore: number;
+  /** When manager follow-up is scheduled */
+  interventionFollowUpAt: string | null;
 };
 
 const STATUS_LABEL: Record<PerformanceStatus, string> = {
@@ -44,7 +54,6 @@ export function toTrendLabel(internal: "improving" | "flat" | "declining"): Tren
 
 /**
  * Review state is lightweight — derived from performance status + self-review pipeline.
- * (Intervention workflow can override later when stored on person.)
  */
 export function deriveReviewState(
   assessment: UnderperformanceAssessment,
@@ -57,23 +66,40 @@ export function deriveReviewState(
 }
 
 /**
+ * Active manager interventions tune review state (without exposing raw counts in the label).
+ */
+export function mergeReviewWithInterventions(
+  base: ReviewState,
+  inv: InterventionSignalContext | null | undefined
+): ReviewState {
+  if (!inv || inv.activeCount === 0) return base;
+  if (inv.hasEscalated) return "escalated";
+  if (base === "under_review") return "under_review";
+  return "recovery_active";
+}
+
+/**
  * Build the universal signal from existing assessment + score (single choke point for UI).
  */
 export function buildUniversalPerformanceSignal(
   assessment: UnderperformanceAssessment,
   compositeScore: number,
   taskTrend: "improving" | "flat" | "declining",
-  lastSelfReviewStatus: string | null
+  lastSelfReviewStatus: string | null,
+  intervention?: InterventionSignalContext | null
 ): UniversalPerformanceSignal {
   const keyReasons = cap(assessment.reasons, 4);
   const topPriorities = cap(assessment.recommendedManagerActions, 4);
+  let reviewState = deriveReviewState(assessment, lastSelfReviewStatus);
+  reviewState = mergeReviewWithInterventions(reviewState, intervention ?? null);
   return {
     status: assessment.status,
     statusLabel: STATUS_LABEL[assessment.status],
     keyReasons,
     topPriorities,
     trend: toTrendLabel(taskTrend),
-    reviewState: deriveReviewState(assessment, lastSelfReviewStatus),
+    reviewState,
     compositeScore,
+    interventionFollowUpAt: intervention?.nextFollowUpAt ?? null,
   };
 }

@@ -2471,6 +2471,38 @@ export const employeeAccountability = mysqlTable(
 export type EmployeeAccountability = typeof employeeAccountability.$inferSelect;
 export type InsertEmployeeAccountability = typeof employeeAccountability.$inferInsert;
 
+// ─── PERFORMANCE INTERVENTIONS (lightweight manager ↔ person) ───────────────
+export const performanceInterventions = mysqlTable(
+  "performance_interventions",
+  {
+    id: int("id").primaryKey().autoincrement(),
+    companyId: int("company_id").notNull(),
+    employeeId: int("employee_id").notNull(),
+    managerUserId: int("manager_user_id").notNull(),
+    status: mysqlEnum("status", ["open", "closed", "escalated"]).notNull().default("open"),
+    kind: mysqlEnum("kind", [
+      "request_update",
+      "corrective_task",
+      "follow_up",
+      "under_review",
+      "escalate",
+    ]).notNull(),
+    followUpAt: timestamp("follow_up_at"),
+    linkedTaskId: int("linked_task_id"),
+    note: text("note"),
+    closedAt: timestamp("closed_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  },
+  (t) => [
+    index("idx_pi_company").on(t.companyId),
+    index("idx_pi_employee").on(t.employeeId),
+    index("idx_pi_employee_open").on(t.companyId, t.employeeId, t.status),
+  ]
+);
+export type PerformanceIntervention = typeof performanceInterventions.$inferSelect;
+export type InsertPerformanceIntervention = typeof performanceInterventions.$inferInsert;
+
 // ─── KPI Targets ───────────────────────────────────────────────────────────────
 export const kpiTargets = mysqlTable("kpi_targets", {
   id: int("id").primaryKey().autoincrement(),

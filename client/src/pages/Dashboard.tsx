@@ -9,7 +9,7 @@ import {
   Briefcase, Building2, CheckCircle2, Clock, FileText,
   Shield, ShoppingBag, TrendingUp, Users, Banknote,
   Globe, Zap, RefreshCw, Award, MapPin, Calendar,
-  ChevronRight, Activity, Bell, Target, CircleDollarSign, Truck, ClipboardList, Download,
+  ChevronDown, ChevronRight, Activity, Bell, Target, CircleDollarSign, Truck, ClipboardList, Download,
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,6 +23,7 @@ import { ContractKpiWidget } from "@/components/contracts/ContractKpiWidget";
 import { OwnerSetupChecklist } from "@/components/OwnerSetupChecklist";
 import { ExecutiveControlTower } from "@/components/dashboard/ExecutiveControlTower";
 import { ManagementCadencePanel } from "@/components/dashboard/ManagementCadencePanel";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 /* ── KPI Stat Card ─────────────────────────────────────────────────────── */
 function StatCard({
@@ -190,6 +191,144 @@ export default function Dashboard() {
       ap.stalledDelivery.length > 0 ||
       ap.combinedRisk.length > 0 ||
       ap.executiveFollowUp.length > 0
+    );
+  }, [businessPulse]);
+
+  const pipelineCashDeliveryGrid = useMemo(() => {
+    if (!businessPulse) return null;
+    const bp = businessPulse;
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card className="border-border/80">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <BarChart3 size={14} className="text-[var(--smartpro-orange)]" />
+              Commercial
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            <div className="flex justify-between gap-2">
+              <span className="text-muted-foreground">Open pipeline (OMR)</span>
+              <span className="font-semibold tabular-nums">
+                {bp.commercial.pipelineValueOmr.toLocaleString("en-OM", { minimumFractionDigits: 3, maximumFractionDigits: 3 })}
+              </span>
+            </div>
+            <div className="flex justify-between gap-2 text-xs">
+              <span className="text-muted-foreground">Leads / prospects</span>
+              <span>
+                {bp.commercial.contactsLeads} / {bp.commercial.contactsProspects}
+              </span>
+            </div>
+            <div className="flex justify-between gap-2 text-xs">
+              <span className="text-muted-foreground">Open deals</span>
+              <span className="font-medium">{bp.commercial.dealsOpen}</span>
+            </div>
+            <div className="flex justify-between gap-2 text-xs">
+              <span className="text-muted-foreground">Quotes draft / sent</span>
+              <span>
+                {bp.commercial.quotationsDraft} / {bp.commercial.quotationsSent}
+              </span>
+            </div>
+            <Link href="/quotations?filter=accepted" className="flex justify-between gap-2 text-xs hover:opacity-80">
+              <span className="text-muted-foreground">Accepted quotes → no contract</span>
+              <span className={bp.commercial.quotationsAcceptedUnconverted > 0 ? "text-amber-700 font-semibold" : ""}>
+                {bp.commercial.quotationsAcceptedUnconverted}
+              </span>
+            </Link>
+            <Link href="/quotations?filter=accepted" className="flex justify-between gap-2 text-xs hover:opacity-80">
+              <span className="text-muted-foreground">Won deals — accepted, still no contract</span>
+              <span className={(bp.commercial.wonDealsAwaitingSignedAgreement ?? 0) > 0 ? "text-amber-700 font-semibold" : ""}>
+                {bp.commercial.wonDealsAwaitingSignedAgreement ?? 0}
+              </span>
+            </Link>
+            <div className="flex justify-between gap-2 text-xs">
+              <span className="text-muted-foreground">Contracts awaiting signature</span>
+              <span className={bp.commercial.contractsPendingSignature > 0 ? "text-amber-700 font-semibold" : ""}>
+                {bp.commercial.contractsPendingSignature}
+              </span>
+            </div>
+            <Link href="/crm" className="flex justify-between gap-2 text-xs hover:opacity-80">
+              <span className="text-muted-foreground">Won deals → no linked quote</span>
+              <span className={bp.commercial.closedWonDealsWithoutLinkedQuote > 0 ? "text-amber-700 font-semibold" : ""}>
+                {bp.commercial.closedWonDealsWithoutLinkedQuote}
+              </span>
+            </Link>
+            <Link href="/contracts" className="flex justify-between gap-2 text-xs hover:opacity-80">
+              <span className="text-muted-foreground">Contracts ending (30d)</span>
+              <span className={bp.commercial.contractsExpiringNext30Days > 0 ? "text-amber-700 font-semibold" : ""}>
+                {bp.commercial.contractsExpiringNext30Days}
+              </span>
+            </Link>
+          </CardContent>
+        </Card>
+        <Card className="border-border/80">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <CircleDollarSign size={14} className="text-emerald-600" />
+              Collections & subscriptions
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            <div className="flex justify-between gap-2">
+              <span className="text-muted-foreground">PRO/officer overdue (OMR)</span>
+              <span className={`font-semibold tabular-nums ${bp.finance.proBillingOverdueOmr > 0 ? "text-red-700" : ""}`}>
+                {bp.finance.proBillingOverdueOmr.toLocaleString("en-OM", { minimumFractionDigits: 3, maximumFractionDigits: 3 })}
+              </span>
+            </div>
+            <div className="flex justify-between gap-2 text-xs">
+              <span className="text-muted-foreground">PRO invoices pending</span>
+              <span>{bp.finance.proBillingPendingCount}</span>
+            </div>
+            <div className="flex justify-between gap-2">
+              <span className="text-muted-foreground">Platform subscription overdue</span>
+              <span className={`font-semibold tabular-nums ${bp.finance.subscriptionOverdueOmr > 0 ? "text-red-700" : ""}`}>
+                {bp.finance.subscriptionOverdueOmr.toLocaleString("en-OM", { minimumFractionDigits: 3, maximumFractionDigits: 3 })}
+              </span>
+            </div>
+            <div className="flex justify-between gap-2 text-xs">
+              <span className="text-muted-foreground">Subscription issued (unpaid)</span>
+              <span>{bp.finance.subscriptionIssuedUnpaidCount}</span>
+            </div>
+            <p className="text-[10px] text-muted-foreground pt-1 border-t border-border/60">
+              Officer billing: use client portal or billing (operator). Subscription: company billing settings.
+            </p>
+          </CardContent>
+        </Card>
+        <Card className="border-border/80">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Truck size={14} className="text-blue-600" />
+              Delivery load
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            <Link href="/pro" className="flex justify-between gap-2 hover:opacity-80">
+              <span className="text-muted-foreground">Open PRO requests</span>
+              <span className="font-semibold">{bp.delivery.openProServices}</span>
+            </Link>
+            <Link href="/workforce/cases" className="flex justify-between gap-2 hover:opacity-80">
+              <span className="text-muted-foreground">Government cases</span>
+              <span className="font-semibold">{bp.delivery.openGovernmentCases}</span>
+            </Link>
+            <Link href="/marketplace" className="flex justify-between gap-2 hover:opacity-80">
+              <span className="text-muted-foreground">Active marketplace bookings</span>
+              <span className="font-semibold">{bp.delivery.activeBookings}</span>
+            </Link>
+            <Link href="/hr/tasks" className="flex justify-between gap-2 hover:opacity-80 text-xs">
+              <span className="text-muted-foreground">Internal tasks overdue</span>
+              <span className={`font-semibold ${bp.delivery.employeeTasksOverdue > 0 ? "text-amber-800" : ""}`}>
+                {bp.delivery.employeeTasksOverdue}
+              </span>
+            </Link>
+            <Link href="/hr/tasks" className="flex justify-between gap-2 hover:opacity-80 text-xs">
+              <span className="text-muted-foreground">Internal tasks blocked</span>
+              <span className={`font-semibold ${bp.delivery.employeeTasksBlocked > 0 ? "text-amber-800" : ""}`}>
+                {bp.delivery.employeeTasksBlocked}
+              </span>
+            </Link>
+          </CardContent>
+        </Card>
+      </div>
     );
   }, [businessPulse]);
 
@@ -552,168 +691,90 @@ export default function Dashboard() {
         />
       )}
 
-      {/* ── Commercial → contract → cash → delivery (one glance) ── */}
+      {/* ── Commercial → contract → cash → delivery (one glance; collapsed when Owner workspace is shown) ── */}
       {!showPlatformOverview && activeCompanyId && businessPulse && (
         <div className="space-y-3">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-            <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
-              <Target size={13} /> Pipeline, cash & delivery
-            </h2>
-            <div className="flex flex-wrap gap-1 justify-end">
-              {showHref("/crm") && (
-                <Button variant="ghost" size="sm" className="text-xs h-7" asChild>
-                  <Link href="/crm">CRM pipeline</Link>
-                </Button>
-              )}
-              {showHref("/quotations") && (
-                <Button variant="ghost" size="sm" className="text-xs h-7" asChild>
-                  <Link href="/quotations">Quotations</Link>
-                </Button>
-              )}
-              {showHref("/contracts") && (
-                <Button variant="ghost" size="sm" className="text-xs h-7" asChild>
-                  <Link href="/contracts">Contracts</Link>
-                </Button>
-              )}
-              {showHref("/finance/overview") && (
-                <Button variant="ghost" size="sm" className="text-xs h-7" asChild>
-                  <Link href="/finance/overview">Finance</Link>
-                </Button>
-              )}
-              {showHref("/subscriptions") && (
-                <Button variant="ghost" size="sm" className="text-xs h-7" asChild>
-                  <Link href="/subscriptions">Subscriptions</Link>
-                </Button>
-              )}
-            </div>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Card className="border-border/80">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm flex items-center gap-2">
-                  <BarChart3 size={14} className="text-[var(--smartpro-orange)]" />
-                  Commercial
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2 text-sm">
-                <div className="flex justify-between gap-2">
-                  <span className="text-muted-foreground">Open pipeline (OMR)</span>
-                  <span className="font-semibold tabular-nums">
-                    {businessPulse.commercial.pipelineValueOmr.toLocaleString("en-OM", { minimumFractionDigits: 3, maximumFractionDigits: 3 })}
-                  </span>
+          {businessPulse.controlTower ? (
+            <Collapsible defaultOpen={false} className="group rounded-lg border border-dashed border-border/60 bg-muted/10">
+              <CollapsibleTrigger className="flex w-full items-start justify-between gap-3 rounded-md px-3 py-2.5 text-left hover:bg-muted/40 transition-colors">
+                <div className="min-w-0 flex-1">
+                  <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
+                    <Target size={13} /> Pipeline, cash & delivery
+                  </h2>
+                  <p className="text-[10px] text-muted-foreground mt-1 leading-snug">
+                    Optional — open for pipeline, collections snapshot, and delivery load when you need the raw numbers.
+                  </p>
                 </div>
-                <div className="flex justify-between gap-2 text-xs">
-                  <span className="text-muted-foreground">Leads / prospects</span>
-                  <span>{businessPulse.commercial.contactsLeads} / {businessPulse.commercial.contactsProspects}</span>
+                <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground mt-0.5 transition-transform duration-200 group-data-[state=open]:rotate-180" />
+              </CollapsibleTrigger>
+              <CollapsibleContent className="space-y-3 px-3 pb-3 pt-0">
+                <div className="flex flex-wrap gap-1 justify-end border-t border-border/40 pt-3">
+                  {showHref("/crm") && (
+                    <Button variant="ghost" size="sm" className="text-xs h-7" asChild>
+                      <Link href="/crm">CRM pipeline</Link>
+                    </Button>
+                  )}
+                  {showHref("/quotations") && (
+                    <Button variant="ghost" size="sm" className="text-xs h-7" asChild>
+                      <Link href="/quotations">Quotations</Link>
+                    </Button>
+                  )}
+                  {showHref("/contracts") && (
+                    <Button variant="ghost" size="sm" className="text-xs h-7" asChild>
+                      <Link href="/contracts">Contracts</Link>
+                    </Button>
+                  )}
+                  {showHref("/finance/overview") && (
+                    <Button variant="ghost" size="sm" className="text-xs h-7" asChild>
+                      <Link href="/finance/overview">Finance</Link>
+                    </Button>
+                  )}
+                  {showHref("/subscriptions") && (
+                    <Button variant="ghost" size="sm" className="text-xs h-7" asChild>
+                      <Link href="/subscriptions">Subscriptions</Link>
+                    </Button>
+                  )}
                 </div>
-                <div className="flex justify-between gap-2 text-xs">
-                  <span className="text-muted-foreground">Open deals</span>
-                  <span className="font-medium">{businessPulse.commercial.dealsOpen}</span>
+                {pipelineCashDeliveryGrid}
+              </CollapsibleContent>
+            </Collapsible>
+          ) : (
+            <>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
+                  <Target size={13} /> Pipeline, cash & delivery
+                </h2>
+                <div className="flex flex-wrap gap-1 justify-end">
+                  {showHref("/crm") && (
+                    <Button variant="ghost" size="sm" className="text-xs h-7" asChild>
+                      <Link href="/crm">CRM pipeline</Link>
+                    </Button>
+                  )}
+                  {showHref("/quotations") && (
+                    <Button variant="ghost" size="sm" className="text-xs h-7" asChild>
+                      <Link href="/quotations">Quotations</Link>
+                    </Button>
+                  )}
+                  {showHref("/contracts") && (
+                    <Button variant="ghost" size="sm" className="text-xs h-7" asChild>
+                      <Link href="/contracts">Contracts</Link>
+                    </Button>
+                  )}
+                  {showHref("/finance/overview") && (
+                    <Button variant="ghost" size="sm" className="text-xs h-7" asChild>
+                      <Link href="/finance/overview">Finance</Link>
+                    </Button>
+                  )}
+                  {showHref("/subscriptions") && (
+                    <Button variant="ghost" size="sm" className="text-xs h-7" asChild>
+                      <Link href="/subscriptions">Subscriptions</Link>
+                    </Button>
+                  )}
                 </div>
-                <div className="flex justify-between gap-2 text-xs">
-                  <span className="text-muted-foreground">Quotes draft / sent</span>
-                  <span>{businessPulse.commercial.quotationsDraft} / {businessPulse.commercial.quotationsSent}</span>
-                </div>
-                <Link href="/quotations?filter=accepted" className="flex justify-between gap-2 text-xs hover:opacity-80">
-                  <span className="text-muted-foreground">Accepted quotes → no contract</span>
-                  <span className={businessPulse.commercial.quotationsAcceptedUnconverted > 0 ? "text-amber-700 font-semibold" : ""}>
-                    {businessPulse.commercial.quotationsAcceptedUnconverted}
-                  </span>
-                </Link>
-                <Link href="/quotations?filter=accepted" className="flex justify-between gap-2 text-xs hover:opacity-80">
-                  <span className="text-muted-foreground">Won deals — accepted, still no contract</span>
-                  <span className={(businessPulse.commercial.wonDealsAwaitingSignedAgreement ?? 0) > 0 ? "text-amber-700 font-semibold" : ""}>
-                    {businessPulse.commercial.wonDealsAwaitingSignedAgreement ?? 0}
-                  </span>
-                </Link>
-                <div className="flex justify-between gap-2 text-xs">
-                  <span className="text-muted-foreground">Contracts awaiting signature</span>
-                  <span className={businessPulse.commercial.contractsPendingSignature > 0 ? "text-amber-700 font-semibold" : ""}>
-                    {businessPulse.commercial.contractsPendingSignature}
-                  </span>
-                </div>
-                <Link href="/crm" className="flex justify-between gap-2 text-xs hover:opacity-80">
-                  <span className="text-muted-foreground">Won deals → no linked quote</span>
-                  <span className={businessPulse.commercial.closedWonDealsWithoutLinkedQuote > 0 ? "text-amber-700 font-semibold" : ""}>
-                    {businessPulse.commercial.closedWonDealsWithoutLinkedQuote}
-                  </span>
-                </Link>
-                <Link href="/contracts" className="flex justify-between gap-2 text-xs hover:opacity-80">
-                  <span className="text-muted-foreground">Contracts ending (30d)</span>
-                  <span className={businessPulse.commercial.contractsExpiringNext30Days > 0 ? "text-amber-700 font-semibold" : ""}>
-                    {businessPulse.commercial.contractsExpiringNext30Days}
-                  </span>
-                </Link>
-              </CardContent>
-            </Card>
-            <Card className="border-border/80">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm flex items-center gap-2">
-                  <CircleDollarSign size={14} className="text-emerald-600" />
-                  Collections & subscriptions
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2 text-sm">
-                <div className="flex justify-between gap-2">
-                  <span className="text-muted-foreground">PRO/officer overdue (OMR)</span>
-                  <span className={`font-semibold tabular-nums ${businessPulse.finance.proBillingOverdueOmr > 0 ? "text-red-700" : ""}`}>
-                    {businessPulse.finance.proBillingOverdueOmr.toLocaleString("en-OM", { minimumFractionDigits: 3, maximumFractionDigits: 3 })}
-                  </span>
-                </div>
-                <div className="flex justify-between gap-2 text-xs">
-                  <span className="text-muted-foreground">PRO invoices pending</span>
-                  <span>{businessPulse.finance.proBillingPendingCount}</span>
-                </div>
-                <div className="flex justify-between gap-2">
-                  <span className="text-muted-foreground">Platform subscription overdue</span>
-                  <span className={`font-semibold tabular-nums ${businessPulse.finance.subscriptionOverdueOmr > 0 ? "text-red-700" : ""}`}>
-                    {businessPulse.finance.subscriptionOverdueOmr.toLocaleString("en-OM", { minimumFractionDigits: 3, maximumFractionDigits: 3 })}
-                  </span>
-                </div>
-                <div className="flex justify-between gap-2 text-xs">
-                  <span className="text-muted-foreground">Subscription issued (unpaid)</span>
-                  <span>{businessPulse.finance.subscriptionIssuedUnpaidCount}</span>
-                </div>
-                <p className="text-[10px] text-muted-foreground pt-1 border-t border-border/60">
-                  Officer billing: use client portal or billing (operator). Subscription: company billing settings.
-                </p>
-              </CardContent>
-            </Card>
-            <Card className="border-border/80">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm flex items-center gap-2">
-                  <Truck size={14} className="text-blue-600" />
-                  Delivery load
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2 text-sm">
-                <Link href="/pro" className="flex justify-between gap-2 hover:opacity-80">
-                  <span className="text-muted-foreground">Open PRO requests</span>
-                  <span className="font-semibold">{businessPulse.delivery.openProServices}</span>
-                </Link>
-                <Link href="/workforce/cases" className="flex justify-between gap-2 hover:opacity-80">
-                  <span className="text-muted-foreground">Government cases</span>
-                  <span className="font-semibold">{businessPulse.delivery.openGovernmentCases}</span>
-                </Link>
-                <Link href="/marketplace" className="flex justify-between gap-2 hover:opacity-80">
-                  <span className="text-muted-foreground">Active marketplace bookings</span>
-                  <span className="font-semibold">{businessPulse.delivery.activeBookings}</span>
-                </Link>
-                <Link href="/hr/tasks" className="flex justify-between gap-2 hover:opacity-80 text-xs">
-                  <span className="text-muted-foreground">Internal tasks overdue</span>
-                  <span className={`font-semibold ${businessPulse.delivery.employeeTasksOverdue > 0 ? "text-amber-800" : ""}`}>
-                    {businessPulse.delivery.employeeTasksOverdue}
-                  </span>
-                </Link>
-                <Link href="/hr/tasks" className="flex justify-between gap-2 hover:opacity-80 text-xs">
-                  <span className="text-muted-foreground">Internal tasks blocked</span>
-                  <span className={`font-semibold ${businessPulse.delivery.employeeTasksBlocked > 0 ? "text-amber-800" : ""}`}>
-                    {businessPulse.delivery.employeeTasksBlocked}
-                  </span>
-                </Link>
-              </CardContent>
-            </Card>
-          </div>
+              </div>
+              {pipelineCashDeliveryGrid}
+            </>
+          )}
 
           {businessPulse.ownerResolution &&
             (businessPulse.ownerResolution.rankedAccountsForReview.length > 0 ||

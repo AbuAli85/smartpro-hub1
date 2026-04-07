@@ -57,6 +57,13 @@
       "when": 1744200000000,
       "tag": "0023_employee_accountability",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "5",
+      "when": 1744300000000,
+      "tag": "0024_performance_interventions",
+      "breakpoints": true
     }
   ]
 }

@@ -1,6 +1,8 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
+import type { ReactNode } from "react";
 import type { RouterOutputs } from "@/lib/trpc";
 import {
   ArrowUpRight,
@@ -28,6 +30,23 @@ type Props = {
 
 function fmtOmr(n: number) {
   return n.toLocaleString("en-OM", { minimumFractionDigits: 3, maximumFractionDigits: 3 });
+}
+
+function OwnerWorkspaceSection({
+  title,
+  children,
+  className,
+}: {
+  title: string;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <section className={cn("space-y-2", className)} aria-label={title}>
+      <h3 className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">{title}</h3>
+      {children}
+    </section>
+  );
 }
 
 const BUCKET_LABEL: Record<string, string> = {
@@ -86,11 +105,11 @@ export function ExecutiveControlTower({ tower, showHref, execution, companyId, m
         : "border-emerald-200/80 bg-emerald-50/40 dark:bg-emerald-950/15";
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
         <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
           <Building2 size={13} className="text-[var(--smartpro-orange)]" />
-          Executive control tower
+          Owner workspace
         </h2>
         <div className="flex flex-wrap gap-1 justify-end">
           {showHref("/crm") && (
@@ -113,37 +132,144 @@ export function ExecutiveControlTower({ tower, showHref, execution, companyId, m
         </div>
       </div>
 
-      <div className={`rounded-xl border p-4 ${severityClass}`}>
-        <div className="flex items-start gap-3">
-          <div className="mt-0.5 p-2 rounded-lg bg-background/80 border border-border/60">
-            <Sparkles size={16} className="text-[var(--smartpro-orange)]" />
-          </div>
-          <div className="min-w-0 flex-1 space-y-2">
-            <p className="text-sm font-semibold text-foreground leading-snug">{insightSummary.headline}</p>
-            <ul className="text-[11px] text-muted-foreground space-y-1 list-disc list-inside">
-              {insightSummary.bullets.map((b, i) => (
-                <li key={i}>{b}</li>
-              ))}
-            </ul>
+      <OwnerWorkspaceSection title="Business health">
+        <div className={`rounded-xl border p-4 ${severityClass}`}>
+          <div className="flex items-start gap-3">
+            <div className="mt-0.5 p-2 rounded-lg bg-background/80 border border-border/60">
+              <Sparkles size={16} className="text-[var(--smartpro-orange)]" />
+            </div>
+            <div className="min-w-0 flex-1 space-y-2">
+              <p className="text-sm font-semibold text-foreground leading-snug">{insightSummary.headline}</p>
+              <ul className="text-[11px] text-muted-foreground space-y-1 list-disc list-inside">
+                {insightSummary.bullets.map((b, i) => (
+                  <li key={i}>{b}</li>
+                ))}
+              </ul>
+            </div>
           </div>
         </div>
-      </div>
+        {roleExecution && <RoleExecutionBanner view={roleExecution} />}
+      </OwnerWorkspaceSection>
 
-      {roleExecution && <RoleExecutionBanner view={roleExecution} />}
-
-      {execution && (
+      <OwnerWorkspaceSection title="Weak areas">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <DecisionExecutionPanel execution={execution} companyId={companyId} readOnly={readOnly} />
-          <CollectionsExecutionPanel
-            execution={execution}
-            companyId={companyId}
-            canActOnCollections={canActOnCollections}
-            readOnly={readOnly}
-          />
-        </div>
-      )}
+          <Card className="border-border/80">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <FileWarning size={14} className="text-amber-700" />
+                Contract, renewal & compliance
+              </CardTitle>
+              <p className="text-[10px] text-muted-foreground font-normal">{riskCompliance.basis}</p>
+            </CardHeader>
+            <CardContent className="grid grid-cols-2 gap-x-3 gap-y-2 text-[11px]">
+              <div className="flex justify-between gap-2">
+                <span className="text-muted-foreground">SLA breaches</span>
+                <span className={riskCompliance.slaOpenBreaches > 0 ? "font-bold text-red-700" : "font-medium"}>
+                  {riskCompliance.slaOpenBreaches}
+                </span>
+              </div>
+              <div className="flex justify-between gap-2">
+                <span className="text-muted-foreground">Contracts (sign)</span>
+                <span className="font-medium">{riskCompliance.contractsPendingSignature}</span>
+              </div>
+              <div className="flex justify-between gap-2">
+                <span className="text-muted-foreground">Contracts (30d end)</span>
+                <span className="font-medium">{riskCompliance.contractsExpiringNext30Days}</span>
+              </div>
+              <div className="flex justify-between gap-2">
+                <span className="text-muted-foreground">Renewal failed</span>
+                <span className={riskCompliance.renewalWorkflowsFailed > 0 ? "font-bold text-red-700" : "font-medium"}>
+                  {riskCompliance.renewalWorkflowsFailed}
+                </span>
+              </div>
+              <div className="flex justify-between gap-2">
+                <span className="text-muted-foreground">Renewal stuck (pending)</span>
+                <span className="font-medium">{riskCompliance.renewalWorkflowsStuckPending}</span>
+              </div>
+              <div className="flex justify-between gap-2">
+                <span className="text-muted-foreground">Emp. docs (7d)</span>
+                <span className="font-medium">{riskCompliance.employeeDocsExpiring7Days}</span>
+              </div>
+              <div className="flex justify-between gap-2">
+                <span className="text-muted-foreground">Company docs (30d)</span>
+                <span className="font-medium">{riskCompliance.companyDocsExpiring30Days}</span>
+              </div>
+              <div className="flex justify-between gap-2">
+                <span className="text-muted-foreground">Permits (7d)</span>
+                <span className="font-medium">{riskCompliance.workPermitsExpiring7Days}</span>
+              </div>
+              <div className="col-span-2 flex flex-wrap gap-1 pt-1">
+                {showHref("/contracts") && (
+                  <Button variant="ghost" size="sm" className="text-[10px] h-7" asChild>
+                    <Link href="/contracts">Contracts</Link>
+                  </Button>
+                )}
+                {showHref("/compliance") && (
+                  <Button variant="ghost" size="sm" className="text-[10px] h-7" asChild>
+                    <Link href="/compliance">Compliance</Link>
+                  </Button>
+                )}
+                {showHref("/hr/employee-requests") && (
+                  <Button variant="ghost" size="sm" className="text-[10px] h-7" asChild>
+                    <Link href="/hr/employee-requests">Requests</Link>
+                  </Button>
+                )}
+              </div>
+            </CardContent>
+          </Card>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <Card className="border-border/80">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <Users size={14} className="text-[var(--smartpro-orange)]" />
+                Client revenue & health (priority)
+              </CardTitle>
+              <p className="text-[10px] text-muted-foreground font-normal">
+                Top CRM accounts from the leadership review queue (same ranking as Resolution queue).
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {clientHealthTop.length === 0 ? (
+                <p className="text-xs text-muted-foreground">No ranked accounts — CRM data is healthy or empty.</p>
+              ) : (
+                <ul className="space-y-2">
+                  {clientHealthTop.map((row) => (
+                    <li key={row.contactId} className="rounded-lg border border-border/60 p-2 space-y-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Link href={row.primaryHref} className="text-xs font-semibold hover:underline">
+                          {row.displayName}
+                        </Link>
+                        {row.companyLabel && (
+                          <span className="text-[10px] text-muted-foreground">· {row.companyLabel}</span>
+                        )}
+                        <Badge variant="outline" className="text-[9px]">
+                          {row.tier.replace("_", " ")}
+                        </Badge>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground line-clamp-2">{row.rankReason}</p>
+                      <div className="flex flex-wrap gap-2 items-center">
+                        <span className="text-[10px] text-muted-foreground">Score {row.priorityScore}</span>
+                        <Button variant="secondary" size="sm" className="h-7 text-[10px]" asChild>
+                          <Link href={row.primaryHref}>{row.nextActionLabel}</Link>
+                        </Button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {showHref("/crm") && (
+                <Button variant="outline" size="sm" className="w-full text-xs h-8 mt-1" asChild>
+                  <Link href="/crm" className="gap-1">
+                    Full CRM <ArrowUpRight size={12} />
+                  </Link>
+                </Button>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </OwnerWorkspaceSection>
+
+      <OwnerWorkspaceSection title="Cash & risk">
         <Card className="border-border/80">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2">
@@ -192,7 +318,9 @@ export function ExecutiveControlTower({ tower, showHref, execution, companyId, m
             )}
           </CardContent>
         </Card>
+      </OwnerWorkspaceSection>
 
+      <OwnerWorkspaceSection title="Decisions needed">
         <Card className="border-border/80">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2">
@@ -235,121 +363,21 @@ export function ExecutiveControlTower({ tower, showHref, execution, companyId, m
             </p>
           </CardContent>
         </Card>
+      </OwnerWorkspaceSection>
 
-        <Card className="border-border/80">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm flex items-center gap-2">
-              <FileWarning size={14} className="text-amber-700" />
-              Contract, renewal & compliance
-            </CardTitle>
-            <p className="text-[10px] text-muted-foreground font-normal">{riskCompliance.basis}</p>
-          </CardHeader>
-          <CardContent className="grid grid-cols-2 gap-x-3 gap-y-2 text-[11px]">
-            <div className="flex justify-between gap-2">
-              <span className="text-muted-foreground">SLA breaches</span>
-              <span className={riskCompliance.slaOpenBreaches > 0 ? "font-bold text-red-700" : "font-medium"}>
-                {riskCompliance.slaOpenBreaches}
-              </span>
-            </div>
-            <div className="flex justify-between gap-2">
-              <span className="text-muted-foreground">Contracts (sign)</span>
-              <span className="font-medium">{riskCompliance.contractsPendingSignature}</span>
-            </div>
-            <div className="flex justify-between gap-2">
-              <span className="text-muted-foreground">Contracts (30d end)</span>
-              <span className="font-medium">{riskCompliance.contractsExpiringNext30Days}</span>
-            </div>
-            <div className="flex justify-between gap-2">
-              <span className="text-muted-foreground">Renewal failed</span>
-              <span className={riskCompliance.renewalWorkflowsFailed > 0 ? "font-bold text-red-700" : "font-medium"}>
-                {riskCompliance.renewalWorkflowsFailed}
-              </span>
-            </div>
-            <div className="flex justify-between gap-2">
-              <span className="text-muted-foreground">Renewal stuck (pending)</span>
-              <span className="font-medium">{riskCompliance.renewalWorkflowsStuckPending}</span>
-            </div>
-            <div className="flex justify-between gap-2">
-              <span className="text-muted-foreground">Emp. docs (7d)</span>
-              <span className="font-medium">{riskCompliance.employeeDocsExpiring7Days}</span>
-            </div>
-            <div className="flex justify-between gap-2">
-              <span className="text-muted-foreground">Company docs (30d)</span>
-              <span className="font-medium">{riskCompliance.companyDocsExpiring30Days}</span>
-            </div>
-            <div className="flex justify-between gap-2">
-              <span className="text-muted-foreground">Permits (7d)</span>
-              <span className="font-medium">{riskCompliance.workPermitsExpiring7Days}</span>
-            </div>
-            <div className="col-span-2 flex flex-wrap gap-1 pt-1">
-              {showHref("/contracts") && (
-                <Button variant="ghost" size="sm" className="text-[10px] h-7" asChild>
-                  <Link href="/contracts">Contracts</Link>
-                </Button>
-              )}
-              {showHref("/compliance") && (
-                <Button variant="ghost" size="sm" className="text-[10px] h-7" asChild>
-                  <Link href="/compliance">Compliance</Link>
-                </Button>
-              )}
-              {showHref("/hr/employee-requests") && (
-                <Button variant="ghost" size="sm" className="text-[10px] h-7" asChild>
-                  <Link href="/hr/employee-requests">Requests</Link>
-                </Button>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-border/80">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm flex items-center gap-2">
-              <Users size={14} className="text-[var(--smartpro-orange)]" />
-              Client revenue & health (priority)
-            </CardTitle>
-            <p className="text-[10px] text-muted-foreground font-normal">
-              Top CRM accounts from the leadership review queue (same ranking as Resolution queue).
-            </p>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {clientHealthTop.length === 0 ? (
-              <p className="text-xs text-muted-foreground">No ranked accounts — CRM data is healthy or empty.</p>
-            ) : (
-              <ul className="space-y-2">
-                {clientHealthTop.map((row) => (
-                  <li key={row.contactId} className="rounded-lg border border-border/60 p-2 space-y-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Link href={row.primaryHref} className="text-xs font-semibold hover:underline">
-                        {row.displayName}
-                      </Link>
-                      {row.companyLabel && (
-                        <span className="text-[10px] text-muted-foreground">· {row.companyLabel}</span>
-                      )}
-                      <Badge variant="outline" className="text-[9px]">
-                        {row.tier.replace("_", " ")}
-                      </Badge>
-                    </div>
-                    <p className="text-[10px] text-muted-foreground line-clamp-2">{row.rankReason}</p>
-                    <div className="flex flex-wrap gap-2 items-center">
-                      <span className="text-[10px] text-muted-foreground">Score {row.priorityScore}</span>
-                      <Button variant="secondary" size="sm" className="h-7 text-[10px]" asChild>
-                        <Link href={row.primaryHref}>{row.nextActionLabel}</Link>
-                      </Button>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-            {showHref("/crm") && (
-              <Button variant="outline" size="sm" className="w-full text-xs h-8 mt-1" asChild>
-                <Link href="/crm" className="gap-1">
-                  Full CRM <ArrowUpRight size={12} />
-                </Link>
-              </Button>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+      {execution && (
+        <OwnerWorkspaceSection title="Action plan">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <DecisionExecutionPanel execution={execution} companyId={companyId} readOnly={readOnly} />
+            <CollectionsExecutionPanel
+              execution={execution}
+              companyId={companyId}
+              canActOnCollections={canActOnCollections}
+              readOnly={readOnly}
+            />
+          </div>
+        </OwnerWorkspaceSection>
+      )}
     </div>
   );
 }

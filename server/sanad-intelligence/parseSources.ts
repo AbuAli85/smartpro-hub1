@@ -264,29 +264,50 @@ export type DirectoryXlsxRow = {
 
 const HEADER_ALIASES: Record<string, keyof DirectoryXlsxRow | "skip"> = {
   "center name": "centerName",
+  "sanad center name": "centerName",
   "اسم المركز": "centerName",
+  "مركز سند": "centerName",
   "name": "centerName",
   responsible: "responsiblePerson",
   "responsible person": "responsiblePerson",
+  "contact person": "responsiblePerson",
   "الاسم": "responsiblePerson",
   "مسؤول": "responsiblePerson",
+  "الموظف المسؤول": "responsiblePerson",
   phone: "contactNumber",
   mobile: "contactNumber",
   "contact": "contactNumber",
+  "contact number": "contactNumber",
   "رقم الهاتف": "contactNumber",
   "الهاتف": "contactNumber",
+  "رقم الاتصال": "contactNumber",
   governorate: "governorateLabel",
   "المحافظة": "governorateLabel",
+  "محافظة": "governorateLabel",
   wilayat: "wilayat",
+  willayat: "wilayat",
   "الولاية": "wilayat",
+  "ولاية": "wilayat",
   village: "village",
   "القرية": "village",
+  "قرية": "village",
 };
 
 export function mapDirectoryHeaders(headers: string[]): (keyof DirectoryXlsxRow | "skip" | null)[] {
   return headers.map((h) => {
-    const k = collapse(h).toLowerCase();
-    return (HEADER_ALIASES[k] as keyof DirectoryXlsxRow | "skip" | undefined) ?? null;
+    const full = collapse(h).toLowerCase();
+    // Try full header first
+    const direct = HEADER_ALIASES[full] as keyof DirectoryXlsxRow | "skip" | undefined;
+    if (direct !== undefined) return direct;
+    // Handle compound headers like "Governorate/'محافظة" or "Contact Number/رقم الاتصال"
+    // Split on / and try each part (stripping quotes and whitespace)
+    const parts = full.split(/[/\\]/).map((p) => p.replace(/['"`]/g, "").trim());
+    for (const part of parts) {
+      if (!part) continue;
+      const alias = HEADER_ALIASES[part] as keyof DirectoryXlsxRow | "skip" | undefined;
+      if (alias !== undefined) return alias;
+    }
+    return null;
   });
 }
 

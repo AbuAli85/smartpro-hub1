@@ -1,2782 +1,451 @@
-
- {
-  "Governorate": "Muscat",
-  "محافظة": " مسقط",
-  "Willayat": "Al-Seeb",
-  "ولاية": "السيب",
-  "Village": "Helt Al Qlah - Al Seeb Al Jadidah",
-  "قرية": "حلة القلعة",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "Muscat",
-  "محافظة": " مسقط",
-  "Willayat": "Al-Seeb",
-  "ولاية": "السيب",
-  "Village": "Al Gashibah",
-  "قرية": "الغشيبة",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "Muscat",
-  "محافظة": " مسقط",
-  "Willayat": "Al-Seeb",
-  "ولاية": "السيب",
-  "Village": "Al Mortafah",
-  "قرية": "المرتفعه",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "Muscat",
-  "محافظة": " مسقط",
-  "Willayat": "Al-Seeb",
-  "ولاية": "السيب",
-  "Village": "Al Javnin",
-  "قرية": "الجفنين",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "Muscat",
-  "محافظة": " مسقط",
-  "Willayat": "Al-Seeb",
-  "ولاية": "السيب",
-  "Village": "North Al Hayl",
-  "قرية": "الحيل الشمالية",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 9
- },
- {
-  "Governorate": "Muscat",
-  "محافظة": " مسقط",
-  "Willayat": "Al-Seeb",
-  "ولاية": "السيب",
-  "Village": "South Al Hayl",
-  "قرية": "الحيل الجنوبية",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 9
- },
- {
-  "Governorate": "Muscat",
-  "محافظة": " مسقط",
-  "Willayat": "Al-Seeb",
-  "ولاية": "السيب",
-  "Village": "South Al Moolah",
-  "قرية": "الموالح الجنوبيه",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 10
- },
- {
-  "Governorate": "Muscat",
-  "محافظة": " مسقط",
-  "Willayat": "Al-Seeb",
-  "ولاية": "السيب",
-  "Village": "Al Rasyal Wa Masaken Al Raseal",
-  "قرية": "الرسيل ومساكن الرسيل",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "Muscat",
-  "محافظة": " مسقط",
-  "Willayat": "Al-Seeb",
-  "ولاية": "السيب",
-  "Village": "Al Mabelah",
-  "قرية": "المعبيلة",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 13
- },
- {
-  "Governorate": "Muscat",
-  "محافظة": " مسقط",
-  "Willayat": "Al-Seeb",
-  "ولاية": "السيب",
-  "Village": "Murtafaat Al Matar",
-  "قرية": "مرتفعات المطار",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 4
- },
- {
-  "Governorate": "Muscat",
-  "محافظة": " مسقط",
-  "Willayat": "Al-Seeb",
-  "ولاية": "السيب",
-  "Village": "Al Amabilah Al Snaiya",
-  "قرية": "المعبيلة الصناعية",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 14
- },
- {
-  "Governorate": "Muscat",
-  "محافظة": " مسقط",
-  "Willayat": "Al-Seeb",
-  "ولاية": "السيب",
-  "Village": "Hayl Al Soaq",
-  "قرية": "حلة السوق",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 2
- },
- {
-  "Governorate": "Muscat",
-  "محافظة": " مسقط",
-  "Willayat": "Al-Seeb",
-  "ولاية": "السيب",
-  "Village": "Almawaleh",
-  "قرية": "الموالح",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 4
- },
- {
-  "Governorate": "Muscat",
-  "محافظة": " مسقط",
-  "Willayat": "Al-Seeb",
-  "ولاية": "السيب",
-  "Village": "Hayl Alawamer",
-  "قرية": "حيل العوامر",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "Muscat",
-  "محافظة": " مسقط",
-  "Willayat": "Al-Seeb",
-  "ولاية": "السيب",
-  "Village": "Al Chraadi",
-  "قرية": "الشرادي",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 4
- },
- {
-  "Governorate": "Muscat",
-  "محافظة": " مسقط",
-  "Willayat": "Al-Seeb",
-  "ولاية": "السيب",
-  "Village": "South Al Amabilah",
-  "قرية": "المعبيله الجنوبيه",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 12
- },
- {
-  "Governorate": "Muscat",
-  "محافظة": " مسقط",
-  "Willayat": "Al-Seeb",
-  "ولاية": "السيب",
-  "Village": "Al Khawd",
-  "قرية": "الخوض",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 23
- },
- {
-  "Governorate": "Muscat",
-  "محافظة": " مسقط",
-  "Willayat": "Al-Seeb",
-  "ولاية": "السيب",
-  "Village": "As Seeb",
-  "قرية": "السيب",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 3
- },
- {
-  "Governorate": "Muscat",
-  "محافظة": " مسقط",
-  "Willayat": "Al-Seeb",
-  "ولاية": "السيب",
-  "Village": "Al Matar",
-  "قرية": "المطار",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "Muscat",
-  "محافظة": " مسقط",
-  "Willayat": "Al-Seeb",
-  "ولاية": "السيب",
-  "Village": "Al Rusayl",
-  "قرية": "الرسيل",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "Muscat",
-  "محافظة": " مسقط",
-  "Willayat": "Muttrah",
-  "ولاية": "مــطــرح",
-  "Village": "Mutrah",
-  "قرية": "مطرح",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 7
- },
- {
-  "Governorate": "Muscat",
-  "محافظة": " مسقط",
-  "Willayat": "Muttrah",
-  "ولاية": "مــطــرح",
-  "Village": "Ruwi",
-  "قرية": "روي",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 23
- },
- {
-  "Governorate": "Muscat",
-  "محافظة": " مسقط",
-  "Willayat": "Muttrah",
-  "ولاية": "مــطــرح",
-  "Village": "Al-Quram",
-  "قرية": "القرم",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 2
- },
- {
-  "Governorate": "Muscat",
-  "محافظة": " مسقط",
-  "Willayat": "Muttrah",
-  "ولاية": "مــطــرح",
-  "Village": "Wadi Kabir",
-  "قرية": "الوادي الكبير",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 4
- },
- {
-  "Governorate": "Muscat",
-  "محافظة": " مسقط",
-  "Willayat": "Muttrah",
-  "ولاية": "مــطــرح",
-  "Village": "Alhamrya",
-  "قرية": "الحمرية",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 4
- },
- {
-  "Governorate": "Muscat",
-  "محافظة": " مسقط",
-  "Willayat": "Muttrah",
-  "ولاية": "مــطــرح",
-  "Village": "Bit Alfalj",
-  "قرية": "بيت الفلج",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 2
- },
- {
-  "Governorate": "Muscat",
-  "محافظة": " مسقط",
-  "Willayat": "Muttrah",
-  "ولاية": "مــطــرح",
-  "Village": "Al Shagyahya",
-  "قرية": "الشجيعيه",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "Muscat",
-  "محافظة": " مسقط",
-  "Willayat": "Muttrah",
-  "ولاية": "مــطــرح",
-  "Village": "Al Walygah",
-  "قرية": "الولجه",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "Muscat",
-  "محافظة": " مسقط",
-  "Willayat": "Muttrah",
-  "ولاية": "مــطــرح",
-  "Village": "Halt Al Asad",
-  "قرية": "حلة السد",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 2
- },
- {
-  "Governorate": "Muscat",
-  "محافظة": " مسقط",
-  "Willayat": "Bousher",
-  "ولاية": "بــوشــر",
-  "Village": "Alkhawuir",
-  "قرية": "الخوير",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 17
- },
- {
-  "Governorate": "Muscat",
-  "محافظة": " مسقط",
-  "Willayat": "Bousher",
-  "ولاية": "بــوشــر",
-  "Village": "North Alghubra",
-  "قرية": "الغبرة الشمالية",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 17
- },
- {
-  "Governorate": "Muscat",
-  "محافظة": " مسقط",
-  "Willayat": "Bousher",
-  "ولاية": "بــوشــر",
-  "Village": "South Alghubra",
-  "قرية": "الغبرة الجنوبية",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 5
- },
- {
-  "Governorate": "Muscat",
-  "محافظة": " مسقط",
-  "Willayat": "Bousher",
-  "ولاية": "بــوشــر",
-  "Village": "Aloziba",
-  "قرية": "العذيبة",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 5
- },
- {
-  "Governorate": "Muscat",
-  "محافظة": " مسقط",
-  "Willayat": "Bousher",
-  "ولاية": "بــوشــر",
-  "Village": "Bawshar",
-  "قرية": "بوشر",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 8
- },
- {
-  "Governorate": "Muscat",
-  "محافظة": " مسقط",
-  "Willayat": "Bousher",
-  "ولاية": "بــوشــر",
-  "Village": "Al Qurm",
-  "قرية": "القرم",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "Muscat",
-  "محافظة": " مسقط",
-  "Willayat": "Bousher",
-  "ولاية": "بــوشــر",
-  "Village": "South Alkhuwair",
-  "قرية": "الخوير الجنوبية",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 4
- },
- {
-  "Governorate": "Muscat",
-  "محافظة": " مسقط",
-  "Willayat": "Bousher",
-  "ولاية": "بــوشــر",
-  "Village": "Al Ghoubrah",
-  "قرية": "الغبرة",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 4
- },
- {
-  "Governorate": "Muscat",
-  "محافظة": " مسقط",
-  "Willayat": "Bousher",
-  "ولاية": "بــوشــر",
-  "Village": "Mortafat Boashar",
-  "قرية": "مرتفعات بوشر",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 2
- },
- {
-  "Governorate": "Muscat",
-  "محافظة": " مسقط",
-  "Willayat": "Bousher",
-  "ولاية": "بــوشــر",
-  "Village": "North  Aludhaybah",
-  "قرية": "العذيبة الشماليه",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 3
- },
- {
-  "Governorate": "Muscat",
-  "محافظة": " مسقط",
-  "Willayat": "Bousher",
-  "ولاية": "بــوشــر",
-  "Village": "Misfah Al Alwiyah ( Al Gharbiyah)",
-  "قرية": "مسفاة العلوية",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "Muscat",
-  "محافظة": " مسقط",
-  "Willayat": "Bousher",
-  "ولاية": "بــوشــر",
-  "Village": "North Alkhuwair",
-  "قرية": "الخوير الشمالية",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "Muscat",
-  "محافظة": " مسقط",
-  "Willayat": "Bousher",
-  "ولاية": "بــوشــر",
-  "Village": "Ghala Al Sanaiah",
-  "قرية": "غلا الصناعية",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 4
- },
- {
-  "Governorate": "Muscat",
-  "محافظة": " مسقط",
-  "Willayat": "Bousher",
-  "ولاية": "بــوشــر",
-  "Village": "Ghala",
-  "قرية": "غلاء",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 10
- },
- {
-  "Governorate": "Muscat",
-  "محافظة": " مسقط",
-  "Willayat": "Bousher",
-  "ولاية": "بــوشــر",
-  "Village": "Alnsab",
-  "قرية": "الانصب",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 2
- },
- {
-  "Governorate": "Muscat",
-  "محافظة": " مسقط",
-  "Willayat": "Al Amarat",
-  "ولاية": "العامرات",
-  "Village": "Al Amrat",
-  "قرية": "العامرات",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 10
- },
- {
-  "Governorate": "Muscat",
-  "محافظة": " مسقط",
-  "Willayat": "Al Amarat",
-  "ولاية": "العامرات",
-  "Village": "Madinat Al Nahathah",
-  "قرية": "مدينة النهضة",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "Muscat",
-  "محافظة": " مسقط",
-  "Willayat": "Al Amarat",
-  "ولاية": "العامرات",
-  "Village": "East Siah Al Mahag",
-  "قرية": "سيح الظبي",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 3
- },
- {
-  "Governorate": "Muscat",
-  "محافظة": " مسقط",
-  "Willayat": "Al Amarat",
-  "ولاية": "العامرات",
-  "Village": "East Al Mahag",
-  "قرية": "المحج",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 2
- },
- {
-  "Governorate": "Muscat",
-  "محافظة": " مسقط",
-  "Willayat": "Quriyat",
-  "ولاية": "قريات",
-  "Village": "Al Soq",
-  "قرية": "السوق",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 2
- },
- {
-  "Governorate": "Muscat",
-  "محافظة": " مسقط",
-  "Willayat": "Quriyat",
-  "ولاية": "قريات",
-  "Village": "Qurayyat",
-  "قرية": "قريات",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "South Al Batinah",
-  "محافظة": " جنوب الباطنة ",
-  "Willayat": "Al-Awabi",
-  "ولاية": "الـعــوابـي",
-  "Village": "Al Awabi",
-  "قرية": "العوابي",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "South Al Batinah",
-  "محافظة": " جنوب الباطنة ",
-  "Willayat": "Al-Awabi",
-  "ولاية": "الـعــوابـي",
-  "Village": "Al Jarb",
-  "قرية": "الغرب",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "South Al Batinah",
-  "محافظة": " جنوب الباطنة ",
-  "Willayat": "Al-Musanna",
-  "ولاية": "المصنعة",
-  "Village": "Al Musanaah",
-  "قرية": "المصنعة",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 3
- },
- {
-  "Governorate": "South Al Batinah",
-  "محافظة": " جنوب الباطنة ",
-  "Willayat": "Al-Musanna",
-  "ولاية": "المصنعة",
-  "Village": "At Turayf",
-  "قرية": "الطريف",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 2
- },
- {
-  "Governorate": "South Al Batinah",
-  "محافظة": " جنوب الباطنة ",
-  "Willayat": "Al-Musanna",
-  "ولاية": "المصنعة",
-  "Village": "Al Muladdah",
-  "قرية": "الملدة",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 2
- },
- {
-  "Governorate": "South Al Batinah",
-  "محافظة": " جنوب الباطنة ",
-  "Willayat": "Al-Musanna",
-  "ولاية": "المصنعة",
-  "Village": "Wudam Al Ghaf",
-  "قرية": "ودام الغاف",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "South Al Batinah",
-  "محافظة": " جنوب الباطنة ",
-  "Willayat": "Al-Musanna",
-  "ولاية": "المصنعة",
-  "Village": "Al Qarat",
-  "قرية": "القرط",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 2
- },
- {
-  "Governorate": "South Al Batinah",
-  "محافظة": " جنوب الباطنة ",
-  "Willayat": "Al-Musanna",
-  "ولاية": "المصنعة",
-  "Village": "Al Quryhat",
-  "قرية": "القريحات",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "South Al Batinah",
-  "محافظة": " جنوب الباطنة ",
-  "Willayat": "Al-Musanna",
-  "ولاية": "المصنعة",
-  "Village": "Shuaybah",
-  "قرية": "شعيبة",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "South Al Batinah",
-  "محافظة": " جنوب الباطنة ",
-  "Willayat": "Al-Musanna",
-  "ولاية": "المصنعة",
-  "Village": "Bou Ebaly",
-  "قرية": "بوعبالي",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "South Al Batinah",
-  "محافظة": " جنوب الباطنة ",
-  "Willayat": "Al-Musanna",
-  "ولاية": "المصنعة",
-  "Village": "Al Mghsar Al Janub",
-  "قرية": "المغسر الجنوب",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "South Al Batinah",
-  "محافظة": " جنوب الباطنة ",
-  "Willayat": "Al-Musanna",
-  "ولاية": "المصنعة",
-  "Village": "Al Bidi",
-  "قرية": "البدي",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "South Al Batinah",
-  "محافظة": " جنوب الباطنة ",
-  "Willayat": "Al-Musanna",
-  "ولاية": "المصنعة",
-  "Village": "Al Shabeah",
-  "قرية": "الشعيبه",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 3
- },
- {
-  "Governorate": "South Al Batinah",
-  "محافظة": " جنوب الباطنة ",
-  "Willayat": "Barka",
-  "ولاية": "بـــركـــاء",
-  "Village": "Al Jihaylah",
-  "قرية": "الجحيلة",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "South Al Batinah",
-  "محافظة": " جنوب الباطنة ",
-  "Willayat": "Barka",
-  "ولاية": "بـــركـــاء",
-  "Village": "Al Basit",
-  "قرية": "الباسط",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "South Al Batinah",
-  "محافظة": " جنوب الباطنة ",
-  "Willayat": "Barka",
-  "ولاية": "بـــركـــاء",
-  "Village": "As Sawmhan",
-  "قرية": "الصومحان",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 16
- },
- {
-  "Governorate": "South Al Batinah",
-  "محافظة": " جنوب الباطنة ",
-  "Willayat": "Barka",
-  "ولاية": "بـــركـــاء",
-  "Village": "Al Harm",
-  "قرية": "الهرم",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "South Al Batinah",
-  "محافظة": " جنوب الباطنة ",
-  "Willayat": "Barka",
-  "ولاية": "بـــركـــاء",
-  "Village": "As Sallahah",
-  "قرية": "السلاحة",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "South Al Batinah",
-  "محافظة": " جنوب الباطنة ",
-  "Willayat": "Barka",
-  "ولاية": "بـــركـــاء",
-  "Village": "Hayy Asim",
-  "قرية": "حي عاصم",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "South Al Batinah",
-  "محافظة": " جنوب الباطنة ",
-  "Willayat": "Barka",
-  "ولاية": "بـــركـــاء",
-  "Village": "Ar Rumays",
-  "قرية": "الرميس",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 2
- },
- {
-  "Governorate": "South Al Batinah",
-  "محافظة": " جنوب الباطنة ",
-  "Willayat": "Barka",
-  "ولاية": "بـــركـــاء",
-  "Village": "Ash Shakhakhit",
-  "قرية": "الشخاخيط",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "South Al Batinah",
-  "محافظة": " جنوب الباطنة ",
-  "Willayat": "Barka",
-  "ولاية": "بـــركـــاء",
-  "Village": "As Saqsuq",
-  "قرية": "السقسوق",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "South Al Batinah",
-  "محافظة": " جنوب الباطنة ",
-  "Willayat": "Barka",
-  "ولاية": "بـــركـــاء",
-  "Village": "Al Uqdah",
-  "قرية": "العقدة",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "South Al Batinah",
-  "محافظة": " جنوب الباطنة ",
-  "Willayat": "Barka",
-  "ولاية": "بـــركـــاء",
-  "Village": "Al Hadib",
-  "قرية": "الحضيب",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "South Al Batinah",
-  "محافظة": " جنوب الباطنة ",
-  "Willayat": "Barka",
-  "ولاية": "بـــركـــاء",
-  "Village": "Barka",
-  "قرية": "بركاء",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 6
- },
- {
-  "Governorate": "South Al Batinah",
-  "محافظة": " جنوب الباطنة ",
-  "Willayat": "Barka",
-  "ولاية": "بـــركـــاء",
-  "Village": "Al Sawadi",
-  "قرية": "السوادي",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 2
- },
- {
-  "Governorate": "South Al Batinah",
-  "محافظة": " جنوب الباطنة ",
-  "Willayat": "Barka",
-  "ولاية": "بـــركـــاء",
-  "Village": "Al Haradi",
-  "قرية": "الحرادي",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "South Al Batinah",
-  "محافظة": " جنوب الباطنة ",
-  "Willayat": "Al-Rustaq",
-  "ولاية": "الرستاق",
-  "Village": "Al Hazm",
-  "قرية": "الحزم",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 2
- },
- {
-  "Governorate": "South Al Batinah",
-  "محافظة": " جنوب الباطنة ",
-  "Willayat": "Al-Rustaq",
-  "ولاية": "الرستاق",
-  "Village": "Al Hawqayn",
-  "قرية": "الحوقين",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "South Al Batinah",
-  "محافظة": " جنوب الباطنة ",
-  "Willayat": "Al-Rustaq",
-  "ولاية": "الرستاق",
-  "Village": "Al Shabayah",
-  "قرية": "الشعبية",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "South Al Batinah",
-  "محافظة": " جنوب الباطنة ",
-  "Willayat": "Al-Rustaq",
-  "ولاية": "الرستاق",
-  "Village": "Al Marba",
-  "قرية": "المرباء",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 3
- },
- {
-  "Governorate": "South Al Batinah",
-  "محافظة": " جنوب الباطنة ",
-  "Willayat": "Al-Rustaq",
-  "ولاية": "الرستاق",
-  "Village": "Al Eraqy",
-  "قرية": "العراقي",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "South Al Batinah",
-  "محافظة": " جنوب الباطنة ",
-  "Willayat": "Al-Rustaq",
-  "ولاية": "الرستاق",
-  "Village": "Al Romanyah",
-  "قرية": "الرمانية",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "South Al Batinah",
-  "محافظة": " جنوب الباطنة ",
-  "Willayat": "Al-Rustaq",
-  "ولاية": "الرستاق",
-  "Village": "Al Mrba Al Jarbyah",
-  "قرية": "المرباء الغربيه",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "South Al Batinah",
-  "محافظة": " جنوب الباطنة ",
-  "Willayat": "Al-Rustaq",
-  "ولاية": "الرستاق",
-  "Village": "Borg Alredah",
-  "قرية": "برج الرده",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "South Al Batinah",
-  "محافظة": " جنوب الباطنة ",
-  "Willayat": "Al-Rustaq",
-  "ولاية": "الرستاق",
-  "Village": "Ar Rukhah",
-  "قرية": "الرخة",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "South Al Batinah",
-  "محافظة": " جنوب الباطنة ",
-  "Willayat": "Al-Rustaq",
-  "ولاية": "الرستاق",
-  "Village": "Hayy As Sarah",
-  "قرية": "حي السرح",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "South Al Batinah",
-  "محافظة": " جنوب الباطنة ",
-  "Willayat": "Al-Rustaq",
-  "ولاية": "الرستاق",
-  "Village": "Ar Rustaq",
-  "قرية": "الرستاق",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 5
- },
- {
-  "Governorate": "South Al Batinah",
-  "محافظة": " جنوب الباطنة ",
-  "Willayat": "Al-Rustaq",
-  "ولاية": "الرستاق",
-  "Village": "Falaj Ash Shurah",
-  "قرية": "فلج الشراه",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 2
- },
- {
-  "Governorate": "South Al Batinah",
-  "محافظة": " جنوب الباطنة ",
-  "Willayat": "Nakhal",
-  "ولاية": "نـــخــل",
-  "Village": "Nakhal",
-  "قرية": "نخل",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "South Al Batinah",
-  "محافظة": " جنوب الباطنة ",
-  "Willayat": "Nakhal",
-  "ولاية": "نـــخــل",
-  "Village": "Halban",
-  "قرية": "حلبان",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "South Al Batinah",
-  "محافظة": " جنوب الباطنة ",
-  "Willayat": "Nakhal",
-  "ولاية": "نـــخــل",
-  "Village": "Moslmat",
-  "قرية": "مسلمات",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "South Al Batinah",
-  "محافظة": " جنوب الباطنة ",
-  "Willayat": "Nakhal",
-  "ولاية": "نـــخــل",
-  "Village": "Bab Alzphoar",
-  "قرية": "باب الظفور",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 2
- },
- {
-  "Governorate": "South Al Batinah",
-  "محافظة": " جنوب الباطنة ",
-  "Willayat": "Wadi Maawil",
-  "ولاية": "وادي المـعـاول",
-  "Village": "Wadi Al Mawel",
-  "قرية": "وادي المعاول",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "South Al Batinah",
-  "محافظة": " جنوب الباطنة ",
-  "Willayat": "Wadi Maawil",
-  "ولاية": "وادي المـعـاول",
-  "Village": "Musilmat",
-  "قرية": "مسلمات",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "North Ash Sharqiyah",
-  "محافظة": " شمال الشرقية",
-  "Willayat": "Wadi Bani Khalid",
-  "ولاية": "وادى بنى خـالـد",
-  "Village": "Sayh Al Hayl",
-  "قرية": "سيح الحيل",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "North Ash Sharqiyah",
-  "محافظة": " شمال الشرقية",
-  "Willayat": "Wadi Bani Khalid",
-  "ولاية": "وادى بنى خـالـد",
-  "Village": "Mizayra",
-  "قرية": "مزيرع",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "North Ash Sharqiyah",
-  "محافظة": " شمال الشرقية",
-  "Willayat": "Wadi Bani Khalid",
-  "ولاية": "وادى بنى خـالـد",
-  "Village": "Wadi Bany Khaled",
-  "قرية": "وادي بني خالد",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "North Ash Sharqiyah",
-  "محافظة": " شمال الشرقية",
-  "Willayat": "Sinaw",
-  "ولاية": "سناو",
-  "Village": "Sinaw",
-  "قرية": "سناو",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 13
- },
- {
-  "Governorate": "North Ash Sharqiyah",
-  "محافظة": " شمال الشرقية",
-  "Willayat": "Sinaw",
-  "ولاية": "سناو",
-  "Village": "Al Handali",
-  "قرية": "الحنضلي",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "North Ash Sharqiyah",
-  "محافظة": " شمال الشرقية",
-  "Willayat": "Ibra",
-  "ولاية": "ابراء",
-  "Village": "Al Aqbah",
-  "قرية": "العقبة",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "North Ash Sharqiyah",
-  "محافظة": " شمال الشرقية",
-  "Willayat": "Ibra",
-  "ولاية": "ابراء",
-  "Village": "Ibra",
-  "قرية": "ابراء",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 7
- },
- {
-  "Governorate": "North Ash Sharqiyah",
-  "محافظة": " شمال الشرقية",
-  "Willayat": "Ibra",
-  "ولاية": "ابراء",
-  "Village": "Ath Thabti",
-  "قرية": "الثابتى",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 4
- },
- {
-  "Governorate": "North Ash Sharqiyah",
-  "محافظة": " شمال الشرقية",
-  "Willayat": "Ibra",
-  "ولاية": "ابراء",
-  "Village": "Al Yahmadi",
-  "قرية": "اليحمدى",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "North Ash Sharqiyah",
-  "محافظة": " شمال الشرقية",
-  "Willayat": "Ibra",
-  "ولاية": "ابراء",
-  "Village": "Al Filayj",
-  "قرية": "الفليج",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "North Ash Sharqiyah",
-  "محافظة": " شمال الشرقية",
-  "Willayat": "Ibra",
-  "ولاية": "ابراء",
-  "Village": "Al Alyah",
-  "قرية": "العلاية",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 3
- },
- {
-  "Governorate": "North Ash Sharqiyah",
-  "محافظة": " شمال الشرقية",
-  "Willayat": "Ibra",
-  "ولاية": "ابراء",
-  "Village": "Al Dakeak",
-  "قرية": "الدكيك",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 3
- },
- {
-  "Governorate": "North Ash Sharqiyah",
-  "محافظة": " شمال الشرقية",
-  "Willayat": "Bidiya",
-  "ولاية": "بـــديــة",
-  "Village": "Bdyah",
-  "قرية": "بديه",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 2
- },
- {
-  "Governorate": "North Ash Sharqiyah",
-  "محافظة": " شمال الشرقية",
-  "Willayat": "Bidiya",
-  "ولاية": "بـــديــة",
-  "Village": "Al Mintarib",
-  "قرية": "المنترب",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 3
- },
- {
-  "Governorate": "North Ash Sharqiyah",
-  "محافظة": " شمال الشرقية",
-  "Willayat": "Bidiya",
-  "ولاية": "بـــديــة",
-  "Village": "Al Ghaby",
-  "قرية": "الغبى",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 5
- },
- {
-  "Governorate": "North Ash Sharqiyah",
-  "محافظة": " شمال الشرقية",
-  "Willayat": "Bidiya",
-  "ولاية": "بـــديــة",
-  "Village": "Adh Dhahir",
-  "قرية": "الظاهر",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "North Ash Sharqiyah",
-  "محافظة": " شمال الشرقية",
-  "Willayat": "Bidiya",
-  "ولاية": "بـــديــة",
-  "Village": "Al Sharq",
-  "قرية": "الشارق",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "North Ash Sharqiyah",
-  "محافظة": " شمال الشرقية",
-  "Willayat": "Al-Qabil",
-  "ولاية": "القابل",
-  "Village": "Ad Diriz",
-  "قرية": "الدريز",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "North Ash Sharqiyah",
-  "محافظة": " شمال الشرقية",
-  "Willayat": "Al-Qabil",
-  "ولاية": "القابل",
-  "Village": "Al Mudhayrib",
-  "قرية": "المضيرب",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "North Ash Sharqiyah",
-  "محافظة": " شمال الشرقية",
-  "Willayat": "Al-Mudhaibi",
-  "ولاية": "المضيبي",
-  "Village": "Al Mudaybi",
-  "قرية": "المضيبى",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 7
- },
- {
-  "Governorate": "North Ash Sharqiyah",
-  "محافظة": " شمال الشرقية",
-  "Willayat": "Al-Mudhaibi",
-  "ولاية": "المضيبي",
-  "Village": "Al Anyean",
-  "قرية": "العينين",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "North Ash Sharqiyah",
-  "محافظة": " شمال الشرقية",
-  "Willayat": "Al-Mudhaibi",
-  "ولاية": "المضيبي",
-  "Village": "Al Aflaj",
-  "قرية": "الافلاج",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "North Ash Sharqiyah",
-  "محافظة": " شمال الشرقية",
-  "Willayat": "Al-Mudhaibi",
-  "ولاية": "المضيبي",
-  "Village": "Samad Ash Shan",
-  "قرية": "سمد الشان",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 2
- },
- {
-  "Governorate": "North Ash Sharqiyah",
-  "محافظة": " شمال الشرقية",
-  "Willayat": "Al-Mudhaibi",
-  "ولاية": "المضيبي",
-  "Village": "Al Akhdar",
-  "قرية": "الاخضر",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "North Ash Sharqiyah",
-  "محافظة": " شمال الشرقية",
-  "Willayat": "Al-Mudhaibi",
-  "ولاية": "المضيبي",
-  "Village": "Ar Rawdah",
-  "قرية": "الروضه",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 2
- },
- {
-  "Governorate": "North Ash Sharqiyah",
-  "محافظة": " شمال الشرقية",
-  "Willayat": "Al-Mudhaibi",
-  "ولاية": "المضيبي",
-  "Village": "Khadra Bani Daffa",
-  "قرية": "خضراء بني دفاع",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 2
- },
- {
-  "Governorate": "North Ash Sharqiyah",
-  "محافظة": " شمال الشرقية",
-  "Willayat": "Al-Mudhaibi",
-  "ولاية": "المضيبي",
-  "Village": "Al Jarda",
-  "قرية": "الجرداء",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "North Ash Sharqiyah",
-  "محافظة": " شمال الشرقية",
-  "Willayat": "Al-Mudhaibi",
-  "ولاية": "المضيبي",
-  "Village": "Ad Dili",
-  "قرية": "الضلع",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "North Ash Sharqiyah",
-  "محافظة": " شمال الشرقية",
-  "Willayat": "Dima And Tayin",
-  "ولاية": "دمـاء والطائييـن",
-  "Village": "Mihlah",
-  "قرية": "محلاح",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 2
- },
- {
-  "Governorate": "North Ash Sharqiyah",
-  "محافظة": " شمال الشرقية",
-  "Willayat": "Dima And Tayin",
-  "ولاية": "دمـاء والطائييـن",
-  "Village": "Mahlahi",
-  "قرية": "محلاحي",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "North Al Batinah",
-  "محافظة": " شمال الباطنة ",
-  "Willayat": "Sohar",
-  "ولاية": "صــحـــار",
-  "Village": "Sohar",
-  "قرية": "صحار",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 16
- },
- {
-  "Governorate": "North Al Batinah",
-  "محافظة": " شمال الباطنة ",
-  "Willayat": "Sohar",
-  "ولاية": "صــحـــار",
-  "Village": "Al Waqybah",
-  "قرية": "الوقيبة ",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "North Al Batinah",
-  "محافظة": " شمال الباطنة ",
-  "Willayat": "Sohar",
-  "ولاية": "صــحـــار",
-  "Village": "Al Anbar",
-  "قرية": "العنبر",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "North Al Batinah",
-  "محافظة": " شمال الباطنة ",
-  "Willayat": "Sohar",
-  "ولاية": "صــحـــار",
-  "Village": "Falag AlQabael",
-  "قرية": "فلج القبائل",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 8
- },
- {
-  "Governorate": "North Al Batinah",
-  "محافظة": " شمال الباطنة ",
-  "Willayat": "Sohar",
-  "ولاية": "صــحـــار",
-  "Village": "Sohar As Sinaiyah",
-  "قرية": "صحار الصناعية",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "North Al Batinah",
-  "محافظة": " شمال الباطنة ",
-  "Willayat": "Sohar",
-  "ولاية": "صــحـــار",
-  "Village": "Al Hombar",
-  "قرية": "الهمبار",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 20
- },
- {
-  "Governorate": "North Al Batinah",
-  "محافظة": " شمال الباطنة ",
-  "Willayat": "Sohar",
-  "ولاية": "صــحـــار",
-  "Village": "Al Uwaynat",
-  "قرية": "العوينات",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "North Al Batinah",
-  "محافظة": " شمال الباطنة ",
-  "Willayat": "Sohar",
-  "ولاية": "صــحـــار",
-  "Village": "Muwaylah",
-  "قرية": "مويلح",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 3
- },
- {
-  "Governorate": "North Al Batinah",
-  "محافظة": " شمال الباطنة ",
-  "Willayat": "Shinas",
-  "ولاية": "شناص",
-  "Village": "Shinas",
-  "قرية": "شناص",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 4
- },
- {
-  "Governorate": "North Al Batinah",
-  "محافظة": " شمال الباطنة ",
-  "Willayat": "Shinas",
-  "ولاية": "شناص",
-  "Village": "Sur Al Mazari",
-  "قرية": "سور المزاريع",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "North Al Batinah",
-  "محافظة": " شمال الباطنة ",
-  "Willayat": "Shinas",
-  "ولاية": "شناص",
-  "Village": "Al Aqur",
-  "قرية": "العقر",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "North Al Batinah",
-  "محافظة": " شمال الباطنة ",
-  "Willayat": "Shinas",
-  "ولاية": "شناص",
-  "Village": "Al ghorifa",
-  "قرية": "الغريفة",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 3
- },
- {
-  "Governorate": "North Al Batinah",
-  "محافظة": " شمال الباطنة ",
-  "Willayat": "Shinas",
-  "ولاية": "شناص",
-  "Village": "Halt Al Souq",
-  "قرية": "حلة السوق",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "North Al Batinah",
-  "محافظة": " شمال الباطنة ",
-  "Willayat": "Liwa",
-  "ولاية": "لـــوى",
-  "Village": "Az Zahyah",
-  "قرية": "الزاهية",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 2
- },
- {
-  "Governorate": "North Al Batinah",
-  "محافظة": " شمال الباطنة ",
-  "Willayat": "Liwa",
-  "ولاية": "لـــوى",
-  "Village": "Fazah",
-  "قرية": "فزح",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "North Al Batinah",
-  "محافظة": " شمال الباطنة ",
-  "Willayat": "Liwa",
-  "ولاية": "لـــوى",
-  "Village": "Lwy Al Gadedah",
-  "قرية": "لوى الجديدة",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 4
- },
- {
-  "Governorate": "North Al Batinah",
-  "محافظة": " شمال الباطنة ",
-  "Willayat": "Liwa",
-  "ولاية": "لـــوى",
-  "Village": "Liwa",
-  "قرية": "لوى",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 3
- },
- {
-  "Governorate": "North Al Batinah",
-  "محافظة": " شمال الباطنة ",
-  "Willayat": "Saham",
-  "ولاية": "صحم",
-  "Village": "Saham",
-  "قرية": "صحم",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "North Al Batinah",
-  "محافظة": " شمال الباطنة ",
-  "Willayat": "Saham",
-  "ولاية": "صحم",
-  "Village": "Mikhaylif",
-  "قرية": "مخيليف",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "North Al Batinah",
-  "محافظة": " شمال الباطنة ",
-  "Willayat": "Saham",
-  "ولاية": "صحم",
-  "Village": "Ar Raddah",
-  "قرية": "الردة",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "North Al Batinah",
-  "محافظة": " شمال الباطنة ",
-  "Willayat": "Saham",
-  "ولاية": "صحم",
-  "Village": "Dil Al Burayk",
-  "قرية": "ديل ال بريك",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "North Al Batinah",
-  "محافظة": " شمال الباطنة ",
-  "Willayat": "Saham",
-  "ولاية": "صحم",
-  "Village": "Hafit",
-  "قرية": "حفيت",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 3
- },
- {
-  "Governorate": "North Al Batinah",
-  "محافظة": " شمال الباطنة ",
-  "Willayat": "Saham",
-  "ولاية": "صحم",
-  "Village": "Hillat Al Burj",
-  "قرية": "حله البرج",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 2
- },
- {
-  "Governorate": "North Al Batinah",
-  "محافظة": " شمال الباطنة ",
-  "Willayat": "Saham",
-  "ولاية": "صحم",
-  "Village": "Al Fulayj",
-  "قرية": "الفليج",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "North Al Batinah",
-  "محافظة": " شمال الباطنة ",
-  "Willayat": "Saham",
-  "ولاية": "صحم",
-  "Village": "Al Huwayl",
-  "قرية": "الحويل",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 11
- },
- {
-  "Governorate": "North Al Batinah",
-  "محافظة": " شمال الباطنة ",
-  "Willayat": "Saham",
-  "ولاية": "صحم",
-  "Village": "Rawylah Al Zaab",
-  "قرية": "رويلة الزعاب",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "North Al Batinah",
-  "محافظة": " شمال الباطنة ",
-  "Willayat": "Saham",
-  "ولاية": "صحم",
-  "Village": "Al sahmy",
-  "قرية": "الصحمى",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "North Al Batinah",
-  "محافظة": " شمال الباطنة ",
-  "Willayat": "Saham",
-  "ولاية": "صحم",
-  "Village": "Al Hawyal Al Gadydah",
-  "قرية": "الحويل الجديده",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "North Al Batinah",
-  "محافظة": " شمال الباطنة ",
-  "Willayat": "Saham",
-  "ولاية": "صحم",
-  "Village": "Al Howayal Al Qadymah",
-  "قرية": "الحويل القديمه",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 2
- },
- {
-  "Governorate": "North Al Batinah",
-  "محافظة": " شمال الباطنة ",
-  "Willayat": "Al-Khabura",
-  "ولاية": "الــخــابـورة",
-  "Village": "Al Khaburah",
-  "قرية": "الخابورة",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 5
- },
- {
-  "Governorate": "North Al Batinah",
-  "محافظة": " شمال الباطنة ",
-  "Willayat": "Al-Khabura",
-  "ولاية": "الــخــابـورة",
-  "Village": "Al Sarhat",
-  "قرية": "السرحات",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 3
- },
- {
-  "Governorate": "North Al Batinah",
-  "محافظة": " شمال الباطنة ",
-  "Willayat": "Al-Khabura",
-  "ولاية": "الــخــابـورة",
-  "Village": "Al Mosylah",
-  "قرية": "المسيلة",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "North Al Batinah",
-  "محافظة": " شمال الباطنة ",
-  "Willayat": "Al-Suwaiq",
-  "ولاية": "الـسـويـــق",
-  "Village": "Hart Al Soaq",
-  "قرية": "حارة السوق",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 2
- },
- {
-  "Governorate": "North Al Batinah",
-  "محافظة": " شمال الباطنة ",
-  "Willayat": "Al-Suwaiq",
-  "ولاية": "الـسـويـــق",
-  "Village": "Alhogayrah",
-  "قرية": "الحجيره",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "North Al Batinah",
-  "محافظة": " شمال الباطنة ",
-  "Willayat": "Al-Suwaiq",
-  "ولاية": "الـسـويـــق",
-  "Village": "Al Afrad",
-  "قرية": "الافراض",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "North Al Batinah",
-  "محافظة": " شمال الباطنة ",
-  "Willayat": "Al-Suwaiq",
-  "ولاية": "الـسـويـــق",
-  "Village": "Al Fao",
-  "قرية": "الفاو",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "North Al Batinah",
-  "محافظة": " شمال الباطنة ",
-  "Willayat": "Al-Suwaiq",
-  "ولاية": "الـسـويـــق",
-  "Village": "Ath Tharmad",
-  "قرية": "الثرمد",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 3
- },
- {
-  "Governorate": "North Al Batinah",
-  "محافظة": " شمال الباطنة ",
-  "Willayat": "Al-Suwaiq",
-  "ولاية": "الـسـويـــق",
-  "Village": "Dyan Al Jahawar",
-  "قرية": "ضيان الجهاور",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "North Al Batinah",
-  "محافظة": " شمال الباطنة ",
-  "Willayat": "Al-Suwaiq",
-  "ولاية": "الـسـويـــق",
-  "Village": "Diyan Al Bawarih",
-  "قرية": "ضيان البوارح",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "North Al Batinah",
-  "محافظة": " شمال الباطنة ",
-  "Willayat": "Al-Suwaiq",
-  "ولاية": "الـسـويـــق",
-  "Village": "Al Bidayah",
-  "قرية": "البداية",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 6
- },
- {
-  "Governorate": "North Al Batinah",
-  "محافظة": " شمال الباطنة ",
-  "Willayat": "Al-Suwaiq",
-  "ولاية": "الـسـويـــق",
-  "Village": "Batha Al Helal",
-  "قرية": "بطحاء آل هلال",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "North Al Batinah",
-  "محافظة": " شمال الباطنة ",
-  "Willayat": "Al-Suwaiq",
-  "ولاية": "الـسـويـــق",
-  "Village": "Khadra Al Saad",
-  "قرية": "خضراء آل سعد",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "North Al Batinah",
-  "محافظة": " شمال الباطنة ",
-  "Willayat": "Al-Suwaiq",
-  "ولاية": "الـسـويـــق",
-  "Village": "As Suwayq",
-  "قرية": "السويق",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 8
- },
- {
-  "Governorate": "North Al Batinah",
-  "محافظة": " شمال الباطنة ",
-  "Willayat": "Al-Suwaiq",
-  "ولاية": "الـسـويـــق",
-  "Village": "Al Batha Al Gadedah",
-  "قرية": "البطحاء الجديدة",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 2
- },
- {
-  "Governorate": "North Al Batinah",
-  "محافظة": " شمال الباطنة ",
-  "Willayat": "Al-Suwaiq",
-  "ولاية": "الـسـويـــق",
-  "Village": "Al ghadra",
-  "قرية": "الخضراء",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "North Al Batinah",
-  "محافظة": " شمال الباطنة ",
-  "Willayat": "Al-Suwaiq",
-  "ولاية": "الـسـويـــق",
-  "Village": "Al Wastah",
-  "قرية": "الوسطى",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "North Al Batinah",
-  "محافظة": " شمال الباطنة ",
-  "Willayat": "Al-Suwaiq",
-  "ولاية": "الـسـويـــق",
-  "Village": "Al Batha",
-  "قرية": "البطحاء",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 4
- },
- {
-  "Governorate": "North Al Batinah",
-  "محافظة": " شمال الباطنة ",
-  "Willayat": "Al-Suwaiq",
-  "ولاية": "الـسـويـــق",
-  "Village": "Khabah Alkhameas",
-  "قرية": "خبة أل خميس",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "North Al Batinah",
-  "محافظة": " شمال الباطنة ",
-  "Willayat": "Al-Suwaiq",
-  "ولاية": "الـسـويـــق",
-  "Village": "Khadra Al Rashead",
-  "قرية": "خضراء ال رشيد",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 2
- },
- {
-  "Governorate": "North Al Batinah",
-  "محافظة": " شمال الباطنة ",
-  "Willayat": "Al-Suwaiq",
-  "ولاية": "الـسـويـــق",
-  "Village": "Sayh Ar Rahamat",
-  "قرية": "سيح الرحمات",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "Musandam",
-  "محافظة": " مسندم",
-  "Willayat": "Khasab",
-  "ولاية": "خصب",
-  "Village": "Khasab",
-  "قرية": "خصب",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 5
- },
- {
-  "Governorate": "Musandam",
-  "محافظة": " مسندم",
-  "Willayat": "Bukha",
-  "ولاية": "بــخــــا",
-  "Village": "Bukha",
-  "قرية": "بخا",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "Musandam",
-  "محافظة": " مسندم",
-  "Willayat": "Daba Al-Biya",
-  "ولاية": "دبـــــا البـيـعـة",
-  "Village": "Seah Al Dear",
-  "قرية": "سيح الدير",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "Musandam",
-  "محافظة": " مسندم",
-  "Willayat": "Daba Al-Biya",
-  "ولاية": "دبـــــا البـيـعـة",
-  "Village": "Daba Albayah",
-  "قرية": "دبا البيعة",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 3
- },
- {
-  "Governorate": "Musandam",
-  "محافظة": " مسندم",
-  "Willayat": "Madha",
-  "ولاية": "مدحا",
-  "Village": "Madha",
-  "قرية": "مدحاء الجديدة",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 2
- },
- {
-  "Governorate": "Ad Dhahirah",
-  "محافظة": " الظاهـرة",
-  "Willayat": "Ibri",
-  "ولاية": "عــبــري",
-  "Village": "Al Aboar",
-  "قرية": "العبور",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "Ad Dhahirah",
-  "محافظة": " الظاهـرة",
-  "Willayat": "Ibri",
-  "ولاية": "عــبــري",
-  "Village": "Maqniyat",
-  "قرية": "مقنيات",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 2
- },
- {
-  "Governorate": "Ad Dhahirah",
-  "محافظة": " الظاهـرة",
-  "Willayat": "Ibri",
-  "ولاية": "عــبــري",
-  "Village": "Al Mortafa",
-  "قرية": "المرتفع",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 3
- },
- {
-  "Governorate": "Ad Dhahirah",
-  "محافظة": " الظاهـرة",
-  "Willayat": "Ibri",
-  "ولاية": "عــبــري",
-  "Village": "Hamra Al Droa",
-  "قرية": "حمراء الدروع",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 2
- },
- {
-  "Governorate": "Ad Dhahirah",
-  "محافظة": " الظاهـرة",
-  "Willayat": "Ibri",
-  "ولاية": "عــبــري",
-  "Village": "Al khadra",
-  "قرية": "الخضراء",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "Ad Dhahirah",
-  "محافظة": " الظاهـرة",
-  "Willayat": "Ibri",
-  "ولاية": "عــبــري",
-  "Village": "Ibri",
-  "قرية": "عبرى",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 11
- },
- {
-  "Governorate": "Ad Dhahirah",
-  "محافظة": " الظاهـرة",
-  "Willayat": "Ibri",
-  "ولاية": "عــبــري",
-  "Village": "Al Akhdar",
-  "قرية": "الاخضر",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "Ad Dhahirah",
-  "محافظة": " الظاهـرة",
-  "Willayat": "Ibri",
-  "ولاية": "عــبــري",
-  "Village": "Al Aynayn",
-  "قرية": "العينين",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 2
- },
- {
-  "Governorate": "Ad Dhahirah",
-  "محافظة": " الظاهـرة",
-  "Willayat": "Ibri",
-  "ولاية": "عــبــري",
-  "Village": "Amla",
-  "قرية": "عملا",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "Ad Dhahirah",
-  "محافظة": " الظاهـرة",
-  "Willayat": "Ibri",
-  "ولاية": "عــبــري",
-  "Village": "Al Zahrah",
-  "قرية": "الظاهرة",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "Ad Dhahirah",
-  "محافظة": " الظاهـرة",
-  "Willayat": "Ibri",
-  "ولاية": "عــبــري",
-  "Village": "Hijayrmat",
-  "قرية": "هجيرمات",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "Ad Dhahirah",
-  "محافظة": " الظاهـرة",
-  "Willayat": "Yanqul",
-  "ولاية": "يـنــقــل",
-  "Village": "Al Soader",
-  "قرية": "الصوادر",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 2
- },
- {
-  "Governorate": "Ad Dhahirah",
-  "محافظة": " الظاهـرة",
-  "Willayat": "Yanqul",
-  "ولاية": "يـنــقــل",
-  "Village": "Al Souq",
-  "قرية": "السوق",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "Ad Dhahirah",
-  "محافظة": " الظاهـرة",
-  "Willayat": "Dhank",
-  "ولاية": "ضنك",
-  "Village": "Dank",
-  "قرية": " ضنك",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 2
- },
- {
-  "Governorate": "Ad Dhahirah",
-  "محافظة": " الظاهـرة",
-  "Willayat": "Dhank",
-  "ولاية": "ضنك",
-  "Village": "Al Mukhudrani",
-  "قرية": "المحضراني",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "Ad Dakhiliyah",
-  "محافظة": " الداخلية",
-  "Willayat": "Nizwa",
-  "ولاية": "نــــزوى",
-  "Village": "Nizwa",
-  "قرية": "نزوى",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 10
- },
- {
-  "Governorate": "Ad Dakhiliyah",
-  "محافظة": " الداخلية",
-  "Willayat": "Nizwa",
-  "ولاية": "نــــزوى",
-  "Village": "Karsha",
-  "قرية": "كرشا",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "Ad Dakhiliyah",
-  "محافظة": " الداخلية",
-  "Willayat": "Nizwa",
-  "ولاية": "نــــزوى",
-  "Village": "Hayy At Turath Al Janubi",
-  "قرية": "حي التراث الجنوبي",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "Ad Dakhiliyah",
-  "محافظة": " الداخلية",
-  "Willayat": "Nizwa",
-  "ولاية": "نــــزوى",
-  "Village": "Birkat Al Mawz",
-  "قرية": "بركة الموز",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "Ad Dakhiliyah",
-  "محافظة": " الداخلية",
-  "Willayat": "Nizwa",
-  "ولاية": "نــــزوى",
-  "Village": "Taymsa",
-  "قرية": "طيمسا",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "Ad Dakhiliyah",
-  "محافظة": " الداخلية",
-  "Willayat": "Nizwa",
-  "ولاية": "نــــزوى",
-  "Village": "Brkah Al Moaz",
-  "قرية": "بركة الموز",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "Ad Dakhiliyah",
-  "محافظة": " الداخلية",
-  "Willayat": "Nizwa",
-  "ولاية": "نــــزوى",
-  "Village": "Al Ghantaq",
-  "قرية": "الغنتق",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "Ad Dakhiliyah",
-  "محافظة": " الداخلية",
-  "Willayat": "Nizwa",
-  "ولاية": "نــــزوى",
-  "Village": "Al Madah",
-  "قرية": "المده",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 2
- },
- {
-  "Governorate": "Ad Dakhiliyah",
-  "محافظة": " الداخلية",
-  "Willayat": "Nizwa",
-  "ولاية": "نــــزوى",
-  "Village": "Farq",
-  "قرية": "فرق",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 5
- },
- {
-  "Governorate": "Ad Dakhiliyah",
-  "محافظة": " الداخلية",
-  "Willayat": "Nizwa",
-  "ولاية": "نــــزوى",
-  "Village": "Al Khadra",
-  "قرية": "الخضراء",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "Ad Dakhiliyah",
-  "محافظة": " الداخلية",
-  "Willayat": "Sumail",
-  "ولاية": "سمائل",
-  "Village": "Samail",
-  "قرية": "سمائل",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 5
- },
- {
-  "Governorate": "Ad Dakhiliyah",
-  "محافظة": " الداخلية",
-  "Willayat": "Sumail",
-  "ولاية": "سمائل",
-  "Village": "Al Modrah",
-  "قرية": "المدرة",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 4
- },
- {
-  "Governorate": "Ad Dakhiliyah",
-  "محافظة": " الداخلية",
-  "Willayat": "Sumail",
-  "ولاية": "سمائل",
-  "Village": "Al Khubar",
-  "قرية": "الخوبار",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "Ad Dakhiliyah",
-  "محافظة": " الداخلية",
-  "Willayat": "Sumail",
-  "ولاية": "سمائل",
-  "Village": "Lizugh",
-  "قرية": "لزغ",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 2
- },
- {
-  "Governorate": "Ad Dakhiliyah",
-  "محافظة": " الداخلية",
-  "Willayat": "Bahla",
-  "ولاية": "بــهـــلاء",
-  "Village": "Bahla",
-  "قرية": "بهلاء",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 4
- },
- {
-  "Governorate": "Ad Dakhiliyah",
-  "محافظة": " الداخلية",
-  "Willayat": "Bahla",
-  "ولاية": "بــهـــلاء",
-  "Village": "Al Ghafat",
-  "قرية": "الغافات",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "Ad Dakhiliyah",
-  "محافظة": " الداخلية",
-  "Willayat": "Bahla",
-  "ولاية": "بــهـــلاء",
-  "Village": "Bisya",
-  "قرية": "بسياء",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "Ad Dakhiliyah",
-  "محافظة": " الداخلية",
-  "Willayat": "Bahla",
-  "ولاية": "بــهـــلاء",
-  "Village": "Jabrin",
-  "قرية": "جبرين",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "Ad Dakhiliyah",
-  "محافظة": " الداخلية",
-  "Willayat": "Bahla",
-  "ولاية": "بــهـــلاء",
-  "Village": "Al Mamorah",
-  "قرية": "المعمورة",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 2
- },
- {
-  "Governorate": "Ad Dakhiliyah",
-  "محافظة": " الداخلية",
-  "Willayat": "Bahla",
-  "ولاية": "بــهـــلاء",
-  "Village": "Al Habbi",
-  "قرية": "الحبي",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "Ad Dakhiliyah",
-  "محافظة": " الداخلية",
-  "Willayat": "Bahla",
-  "ولاية": "بــهـــلاء",
-  "Village": "Hayy As Saad",
-  "قرية": "حي السعد",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "Ad Dakhiliyah",
-  "محافظة": " الداخلية",
-  "Willayat": "Bahla",
-  "ولاية": "بــهـــلاء",
-  "Village": "As Suwayh",
-  "قرية": "السويح",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "Ad Dakhiliyah",
-  "محافظة": " الداخلية",
-  "Willayat": "Adam",
-  "ولاية": "ادم",
-  "Village": "Adam",
-  "قرية": "ادم",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 2
- },
- {
-  "Governorate": "Ad Dakhiliyah",
-  "محافظة": " الداخلية",
-  "Willayat": "Adam",
-  "ولاية": "ادم",
-  "Village": "Al Faleeg",
-  "قرية": "الفليج",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "Ad Dakhiliyah",
-  "محافظة": " الداخلية",
-  "Willayat": "Adam",
-  "ولاية": "ادم",
-  "Village": "Al Qalah",
-  "قرية": "القلعه",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "Ad Dakhiliyah",
-  "محافظة": " الداخلية",
-  "Willayat": "Al-Hamra",
-  "ولاية": "الحمراء",
-  "Village": "Al Hamra",
-  "قرية": "الحمراء",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 2
- },
- {
-  "Governorate": "Ad Dakhiliyah",
-  "محافظة": " الداخلية",
-  "Willayat": "Al-Hamra",
-  "ولاية": "الحمراء",
-  "Village": "Wadi Ghoal",
-  "قرية": "وادي غول",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 2
- },
- {
-  "Governorate": "Ad Dakhiliyah",
-  "محافظة": " الداخلية",
-  "Willayat": "Manah",
-  "ولاية": "منح",
-  "Village": "Manah",
-  "قرية": "منح",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 2
- },
- {
-  "Governorate": "Ad Dakhiliyah",
-  "محافظة": " الداخلية",
-  "Willayat": "Manah",
-  "ولاية": "منح",
-  "Village": "Al Fykean",
-  "قرية": "الفيقين",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "Ad Dakhiliyah",
-  "محافظة": " الداخلية",
-  "Willayat": "Izki",
-  "ولاية": "ازكي",
-  "Village": "Sada",
-  "قرية": "سدى",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 3
- },
- {
-  "Governorate": "Ad Dakhiliyah",
-  "محافظة": " الداخلية",
-  "Willayat": "Izki",
-  "ولاية": "ازكي",
-  "Village": "Qalat Al Awamir",
-  "قرية": "قلعة العوامر",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 2
- },
- {
-  "Governorate": "Ad Dakhiliyah",
-  "محافظة": " الداخلية",
-  "Willayat": "Izki",
-  "ولاية": "ازكي",
-  "Village": "Izki",
-  "قرية": "إزكي",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 3
- },
- {
-  "Governorate": "Ad Dakhiliyah",
-  "محافظة": " الداخلية",
-  "Willayat": "Izki",
-  "ولاية": "ازكي",
-  "Village": "Al Ghalyal",
-  "قرية": "الغليل",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "Ad Dakhiliyah",
-  "محافظة": " الداخلية",
-  "Willayat": "Izki",
-  "ولاية": "ازكي",
-  "Village": "Al Tawoq",
-  "قرية": "الطوق",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "Ad Dakhiliyah",
-  "محافظة": " الداخلية",
-  "Willayat": "Bid Bid",
-  "ولاية": "بدبد",
-  "Village": "Bidbid",
-  "قرية": "بدبد",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "Ad Dakhiliyah",
-  "محافظة": " الداخلية",
-  "Willayat": "Bid Bid",
-  "ولاية": "بدبد",
-  "Village": "Fanja",
-  "قرية": "فنجاء",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 3
- },
- {
-  "Governorate": "Ad Dakhiliyah",
-  "محافظة": " الداخلية",
-  "Willayat": "Bid Bid",
-  "ولاية": "بدبد",
-  "Village": "Seah Al Maydean",
-  "قرية": "سيح المعيدن",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 2
- },
- {
-  "Governorate": "Ad Dakhiliyah",
-  "محافظة": " الداخلية",
-  "Willayat": "Aljabal Alakhdhar",
-  "ولاية": "الجبل الأخضر",
-  "Village": "Aljabal Alakhdhar",
-  "قرية": "الجبل الأخضر",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 2
- },
- {
-  "Governorate": "South Ash Sharqiyah",
-  "محافظة": " جنوب الشرقية",
-  "Willayat": "Sur",
-  "ولاية": "صور",
-  "Village": "Sur",
-  "قرية": "صور",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 12
- },
- {
-  "Governorate": "South Ash Sharqiyah",
-  "محافظة": " جنوب الشرقية",
-  "Willayat": "Sur",
-  "ولاية": "صور",
-  "Village": "Al Qurha",
-  "قرية": "القرحة",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "South Ash Sharqiyah",
-  "محافظة": " جنوب الشرقية",
-  "Willayat": "Sur",
-  "ولاية": "صور",
-  "Village": "As Sinaya",
-  "قرية": "الصناعية",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "South Ash Sharqiyah",
-  "محافظة": " جنوب الشرقية",
-  "Willayat": "Sur",
-  "ولاية": "صور",
-  "Village": "Snisila",
-  "قرية": "  سنيسله",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "South Ash Sharqiyah",
-  "محافظة": " جنوب الشرقية",
-  "Willayat": "Sur",
-  "ولاية": "صور",
-  "Village": "Tiwi",
-  "قرية": "طيوى",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "South Ash Sharqiyah",
-  "محافظة": " جنوب الشرقية",
-  "Willayat": "Sur",
-  "ولاية": "صور",
-  "Village": "Seah Al Matar",
-  "قرية": "سيح المطار",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "South Ash Sharqiyah",
-  "محافظة": " جنوب الشرقية",
-  "Willayat": "Sur",
-  "ولاية": "صور",
-  "Village": "Al Sheryah",
-  "قرية": "الشرية",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 8
- },
- {
-  "Governorate": "South Ash Sharqiyah",
-  "محافظة": " جنوب الشرقية",
-  "Willayat": "Sur",
-  "ولاية": "صور",
-  "Village": "Al Sahil",
-  "قرية": "الساحل",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "South Ash Sharqiyah",
-  "محافظة": " جنوب الشرقية",
-  "Willayat": "Sur",
-  "ولاية": "صور",
-  "Village": "Al Bar",
-  "قرية": "البر",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "South Ash Sharqiyah",
-  "محافظة": " جنوب الشرقية",
-  "Willayat": "Sur",
-  "ولاية": "صور",
-  "Village": "Ras Al Hadd",
-  "قرية": "رأس الحد",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "South Ash Sharqiyah",
-  "محافظة": " جنوب الشرقية",
-  "Willayat": "Masirah",
-  "ولاية": "مصيرة",
-  "Village": "Hilf",
-  "قرية": " حلف",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 5
- },
- {
-  "Governorate": "South Ash Sharqiyah",
-  "محافظة": " جنوب الشرقية",
-  "Willayat": "Masirah",
-  "ولاية": "مصيرة",
-  "Village": "Mousira",
-  "قرية": "مصيره",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "South Ash Sharqiyah",
-  "محافظة": " جنوب الشرقية",
-  "Willayat": "Al-Kamil And Al-Wafi",
-  "ولاية": "الكـامل والـوافـي",
-  "Village": "Al Kamil Wa Al Wafi",
-  "قرية": "الكامل والوافي",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 2
- },
- {
-  "Governorate": "South Ash Sharqiyah",
-  "محافظة": " جنوب الشرقية",
-  "Willayat": "Al-Kamil And Al-Wafi",
-  "ولاية": "الكـامل والـوافـي",
-  "Village": "Al Kamel",
-  "قرية": "الكامل",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 3
- },
- {
-  "Governorate": "South Ash Sharqiyah",
-  "محافظة": " جنوب الشرقية",
-  "Willayat": "Al-Kamil And Al-Wafi",
-  "ولاية": "الكـامل والـوافـي",
-  "Village": "Al Wafy",
-  "قرية": "الوافى",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 3
- },
- {
-  "Governorate": "South Ash Sharqiyah",
-  "محافظة": " جنوب الشرقية",
-  "Willayat": "Al-Kamil And Al-Wafi",
-  "ولاية": "الكـامل والـوافـي",
-  "Village": "Sayq",
-  "قرية": "سيق",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "South Ash Sharqiyah",
-  "محافظة": " جنوب الشرقية",
-  "Willayat": "Al-Kamil And Al-Wafi",
-  "ولاية": "الكـامل والـوافـي",
-  "Village": "Tahwah",
-  "قرية": "طهوه",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "South Ash Sharqiyah",
-  "محافظة": " جنوب الشرقية",
-  "Willayat": "Jalan Bani Bu Ali",
-  "ولاية": "جـعـلان بنى بـوعـلى",
-  "Village": "Jaalan Bani Bu Ali",
-  "قرية": "جعلان بنى بو على",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 4
- },
- {
-  "Governorate": "South Ash Sharqiyah",
-  "محافظة": " جنوب الشرقية",
-  "Willayat": "Jalan Bani Bu Ali",
-  "ولاية": "جـعـلان بنى بـوعـلى",
-  "Village": "Al Ashkhara",
-  "قرية": "الاشخرة",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 4
- },
- {
-  "Governorate": "South Ash Sharqiyah",
-  "محافظة": " جنوب الشرقية",
-  "Willayat": "Jalan Bani Bu Ali",
-  "ولاية": "جـعـلان بنى بـوعـلى",
-  "Village": "Sayh Sndh",
-  "قرية": "سيح السندة",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "South Ash Sharqiyah",
-  "محافظة": " جنوب الشرقية",
-  "Willayat": "Jalan Bani Bu Ali",
-  "ولاية": "جـعـلان بنى بـوعـلى",
-  "Village": "Seah Al Sader",
-  "قرية": "سيح الصادر",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "South Ash Sharqiyah",
-  "محافظة": " جنوب الشرقية",
-  "Willayat": "Jalan Bani Bu Ali",
-  "ولاية": "جـعـلان بنى بـوعـلى",
-  "Village": "Sayh Qriha",
-  "قرية": "سيح قريحة",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 5
- },
- {
-  "Governorate": "South Ash Sharqiyah",
-  "محافظة": " جنوب الشرقية",
-  "Willayat": "Jalan Bani Bu Ali",
-  "ولاية": "جـعـلان بنى بـوعـلى",
-  "Village": "Seah Al Sandah",
-  "قرية": "سيح السنده",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "South Ash Sharqiyah",
-  "محافظة": " جنوب الشرقية",
-  "Willayat": "Jalan Bani Bu Ali",
-  "ولاية": "جـعـلان بنى بـوعـلى",
-  "Village": "Balad Bany Bou Ali",
-  "قرية": "بلد بني بو علي",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "South Ash Sharqiyah",
-  "محافظة": " جنوب الشرقية",
-  "Willayat": "Jalan Bani Bu Hassan",
-  "ولاية": "جعـلان بنى بوحسـن",
-  "Village": "Jaalan Bani Bu Hasan",
-  "قرية": "جعلان بنى بو حسن",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "South Ash Sharqiyah",
-  "محافظة": " جنوب الشرقية",
-  "Willayat": "Jalan Bani Bu Hassan",
-  "ولاية": "جعـلان بنى بوحسـن",
-  "Village": "Falaj Al Mashayikh",
-  "قرية": "فلج المشايخ",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 2
- },
- {
-  "Governorate": "South Ash Sharqiyah",
-  "محافظة": " جنوب الشرقية",
-  "Willayat": "Jalan Bani Bu Hassan",
-  "ولاية": "جعـلان بنى بوحسـن",
-  "Village": "Al Saqtah",
-  "قرية": "الساقطه",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 2
- },
- {
-  "Governorate": "South Ash Sharqiyah",
-  "محافظة": " جنوب الشرقية",
-  "Willayat": "Jalan Bani Bu Hassan",
-  "ولاية": "جعـلان بنى بوحسـن",
-  "Village": "Agnimyah",
-  "قرية": "الغنيمية",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 2
- },
- {
-  "Governorate": "South Ash Sharqiyah",
-  "محافظة": " جنوب الشرقية",
-  "Willayat": "Jalan Bani Bu Hassan",
-  "ولاية": "جعـلان بنى بوحسـن",
-  "Village": "Al Mosylah",
-  "قرية": "المسيله",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "Al Wusta",
-  "محافظة": " الوسطى",
-  "Willayat": "Haima",
-  "ولاية": "هـيـمــاء",
-  "Village": "Hayma",
-  "قرية": "هيما",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 4
- },
- {
-  "Governorate": "Al Wusta",
-  "محافظة": " الوسطى",
-  "Willayat": "Mahoot",
-  "ولاية": "مـحــوت",
-  "Village": "Hijj",
-  "قرية": "حج",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 5
- },
- {
-  "Governorate": "Al Wusta",
-  "محافظة": " الوسطى",
-  "Willayat": "Mahoot",
-  "ولاية": "مـحــوت",
-  "Village": "Al Juwayh",
-  "قرية": "الجوية",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "Al Wusta",
-  "محافظة": " الوسطى",
-  "Willayat": "Al-Duqm",
-  "ولاية": "الـدقــم",
-  "Village": "Al Dqum",
-  "قرية": "الدقم",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 2
- },
- {
-  "Governorate": "Al Wusta",
-  "محافظة": " الوسطى",
-  "Willayat": "Al-Duqm",
-  "ولاية": "الـدقــم",
-  "Village": "Hitam",
-  "قرية": "هيتام",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "Al Wusta",
-  "محافظة": " الوسطى",
-  "Willayat": "Al-Duqm",
-  "ولاية": "الـدقــم",
-  "Village": "Say",
-  "قرية": "صاى",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 5
- },
- {
-  "Governorate": "Al Wusta",
-  "محافظة": " الوسطى",
-  "Willayat": "Al-Duqm",
-  "ولاية": "الـدقــم",
-  "Village": "Wadi Say",
-  "قرية": "وادي صاي",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "Al Wusta",
-  "محافظة": " الوسطى",
-  "Willayat": "Al_jazer",
-  "ولاية": "الجـازر",
-  "Village": "Al Jazer",
-  "قرية": "الجازر",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "Al Wusta",
-  "محافظة": " الوسطى",
-  "Willayat": "Al_jazer",
-  "ولاية": "الجـازر",
-  "Village": "Al Lakbi",
-  "قرية": "اللكبى",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "Al Wusta",
-  "محافظة": " الوسطى",
-  "Willayat": "Al_jazer",
-  "ولاية": "الجـازر",
-  "Village": "Nimr",
-  "قرية": "نمر",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "Al Wusta",
-  "محافظة": " الوسطى",
-  "Willayat": "Al_jazer",
-  "ولاية": "الجـازر",
-  "Village": "Al Kahil (2)",
-  "قرية": "الكحل(2)",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "Dhofar",
-  "محافظة": " ظفـار",
-  "Willayat": "Salalah",
-  "ولاية": "صــلالـــة",
-  "Village": "Salalah",
-  "قرية": "صلاله",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 35
- },
- {
-  "Governorate": "Dhofar",
-  "محافظة": " ظفـار",
-  "Willayat": "Salalah",
-  "ولاية": "صــلالـــة",
-  "Village": "Al Hasila",
-  "قرية": "الحصيلة",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 3
- },
- {
-  "Governorate": "Dhofar",
-  "محافظة": " ظفـار",
-  "Willayat": "Salalah",
-  "ولاية": "صــلالـــة",
-  "Village": "South Al Dahriz",
-  "قرية": "الدهاريز الجنوبيه",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 2
- },
- {
-  "Governorate": "Dhofar",
-  "محافظة": " ظفـار",
-  "Willayat": "Salalah",
-  "ولاية": "صــلالـــة",
-  "Village": "Al Sadah Aljanobyah",
-  "قرية": "السعادة الجنوبيه",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 5
- },
- {
-  "Governorate": "Dhofar",
-  "محافظة": " ظفـار",
-  "Willayat": "Salalah",
-  "ولاية": "صــلالـــة",
-  "Village": "Awqad Al Shamalyah",
-  "قرية": "عوقد الشماليه",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "Dhofar",
-  "محافظة": " ظفـار",
-  "Willayat": "Salalah",
-  "ولاية": "صــلالـــة",
-  "Village": "Shlyeam",
-  "قرية": "شليم",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "Dhofar",
-  "محافظة": " ظفـار",
-  "Willayat": "Salalah",
-  "ولاية": "صــلالـــة",
-  "Village": "As Sinayat Al Qadima",
-  "قرية": "الصناعيات القديمة",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 2
- },
- {
-  "Governorate": "Dhofar",
-  "محافظة": " ظفـار",
-  "Willayat": "Salalah",
-  "ولاية": "صــلالـــة",
-  "Village": "As Sinayat Al Jadidah",
-  "قرية": "الصناعيات الجديدة",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 18
- },
- {
-  "Governorate": "Dhofar",
-  "محافظة": " ظفـار",
-  "Willayat": "Salalah",
-  "ولاية": "صــلالـــة",
-  "Village": "Aghdayt",
-  "قرية": "اغديت",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "Dhofar",
-  "محافظة": " ظفـار",
-  "Willayat": "Salalah",
-  "ولاية": "صــلالـــة",
-  "Village": "Risot",
-  "قرية": "ريسوت",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "Dhofar",
-  "محافظة": " ظفـار",
-  "Willayat": "Salalah",
-  "ولاية": "صــلالـــة",
-  "Village": "Al Dahreaz",
-  "قرية": "الدهاريز",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "Dhofar",
-  "محافظة": " ظفـار",
-  "Willayat": "Salalah",
-  "ولاية": "صــلالـــة",
-  "Village": "Al Sadah",
-  "قرية": "السعادة",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 3
- },
- {
-  "Governorate": "Dhofar",
-  "محافظة": " ظفـار",
-  "Willayat": "Salalah",
-  "ولاية": "صــلالـــة",
-  "Village": "Al Wadi",
-  "قرية": "الوادي",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 2
- },
- {
-  "Governorate": "Dhofar",
-  "محافظة": " ظفـار",
-  "Willayat": "Salalah",
-  "ولاية": "صــلالـــة",
-  "Village": "North Al Awqdian",
-  "قرية": "شمال العوقدين",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "Dhofar",
-  "محافظة": " ظفـار",
-  "Willayat": "Salalah",
-  "ولاية": "صــلالـــة",
-  "Village": "Salalah Algadidah",
-  "قرية": "صلالة الجديدة",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 3
- },
- {
-  "Governorate": "Dhofar",
-  "محافظة": " ظفـار",
-  "Willayat": "Salalah",
-  "ولاية": "صــلالـــة",
-  "Village": "Salalah Al Wasta",
-  "قرية": "صلالة الوسطى",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 9
- },
- {
-  "Governorate": "Dhofar",
-  "محافظة": " ظفـار",
-  "Willayat": "Salalah",
-  "ولاية": "صــلالـــة",
-  "Village": "Salalah Algarbyah",
-  "قرية": "صلالة الغربية",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 4
- },
- {
-  "Governorate": "Dhofar",
-  "محافظة": " ظفـار",
-  "Willayat": "Salalah",
-  "ولاية": "صــلالـــة",
-  "Village": "Al Moatzah",
-  "قرية": "المعتزة",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 2
- },
- {
-  "Governorate": "Dhofar",
-  "محافظة": " ظفـار",
-  "Willayat": "Salalah",
-  "ولاية": "صــلالـــة",
-  "Village": "Salalah Alsharqyah",
-  "قرية": "صلالة الشرقية",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 3
- },
- {
-  "Governorate": "Dhofar",
-  "محافظة": " ظفـار",
-  "Willayat": "AL-MAZYONA",
-  "ولاية": "المزيونة",
-  "Village": "Al Mazyonah",
-  "قرية": "المزيونة",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 4
- },
- {
-  "Governorate": "Dhofar",
-  "محافظة": " ظفـار",
-  "Willayat": "Thumarait",
-  "ولاية": "ثـمـريــت",
-  "Village": "Thumrayt",
-  "قرية": "ثمريت",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 5
- },
- {
-  "Governorate": "Dhofar",
-  "محافظة": " ظفـار",
-  "Willayat": "Taqah",
-  "ولاية": "طــاقـــة",
-  "Village": "Taqah",
-  "قرية": "طاقة",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 4
- },
- {
-  "Governorate": "Dhofar",
-  "محافظة": " ظفـار",
-  "Willayat": "Mirbat",
-  "ولاية": "مرباط",
-  "Village": "Mirbat",
-  "قرية": "مرباط",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 4
- },
- {
-  "Governorate": "Dhofar",
-  "محافظة": " ظفـار",
-  "Willayat": "Mirbat",
-  "ولاية": "مرباط",
-  "Village": "Tawi Atayr",
-  "قرية": "نيابة طوي اعتير",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "Dhofar",
-  "محافظة": " ظفـار",
-  "Willayat": "Sudh",
-  "ولاية": "ســـــدح",
-  "Village": "Sadah",
-  "قرية": "سدح",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "Dhofar",
-  "محافظة": " ظفـار",
-  "Willayat": "Rakhyut",
-  "ولاية": "رخــيــوت",
-  "Village": "Rakhyut",
-  "قرية": "رخيوت",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "Dhofar",
-  "محافظة": " ظفـار",
-  "Willayat": " Shalimealhallaniyahislnd",
-  "ولاية": "شليم وجزر الحلانيات",
-  "Village": "Shalim",
-  "قرية": "شليم",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "Dhofar",
-  "محافظة": " ظفـار",
-  "Willayat": " Shalimealhallaniyahislnd",
-  "ولاية": "شليم وجزر الحلانيات",
-  "Village": "Ash Shuwaymiyah",
-  "قرية": "الشويميه",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "Al Buraimi",
-  "محافظة": " البريمي",
-  "Willayat": "Al-Buraimi",
-  "ولاية": "الـبـريـمـي",
-  "Village": "Mantqah Azan",
-  "قرية": "منطقة عزان",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "Al Buraimi",
-  "محافظة": " البريمي",
-  "Willayat": "Al-Buraimi",
-  "ولاية": "الـبـريـمـي",
-  "Village": "Al Buraymi",
-  "قرية": "البريمى",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 12
- },
- {
-  "Governorate": "Al Buraimi",
-  "محافظة": " البريمي",
-  "Willayat": "Al-Buraimi",
-  "ولاية": "الـبـريـمـي",
-  "Village": "Sara Al Jadudah",
-  "قرية": "صعراء الجديده",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 4
- },
- {
-  "Governorate": "Al Buraimi",
-  "محافظة": " البريمي",
-  "Willayat": "Al-Buraimi",
-  "ولاية": "الـبـريـمـي",
-  "Village": "Al Shareah",
-  "قرية": "الشريعة",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "Al Buraimi",
-  "محافظة": " البريمي",
-  "Willayat": "Al-Buraimi",
-  "ولاية": "الـبـريـمـي",
-  "Village": "Sara",
-  "قرية": "صعراء",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 7
- },
- {
-  "Governorate": "Al Buraimi",
-  "محافظة": " البريمي",
-  "Willayat": "Mahadha",
-  "ولاية": "محضة",
-  "Village": "Al Khadra",
-  "قرية": "الخضراء",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "Al Buraimi",
-  "محافظة": " البريمي",
-  "Willayat": "Mahadha",
-  "ولاية": "محضة",
-  "Village": "Al Rawdah",
-  "قرية": "الروضه",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- },
- {
-  "Governorate": "Al Buraimi",
-  "محافظة": " البريمي",
-  "Willayat": "Mahadha",
-  "ولاية": "محضة",
-  "Village": "Mahadah",
-  "قرية": "محضه",
-  "Total SANAD Centers\n\/'مجموع مراكز سند": 1
- }
+{
+  "Muscat": {
+    "Al-Seeb": {
+      "Helt Al Qlah - Al Seeb Al Jadidah": 1,
+      "Al Gashibah": 1,
+      "Al Mortafah": 1,
+      "Al Javnin": 1,
+      "North Al Hayl": 9,
+      "South Al Hayl": 9,
+      "South Al Moolah": 10,
+      "Al Rasyal Wa Masaken Al Raseal": 1,
+      "Al Mabelah": 13,
+      "Murtafaat Al Matar": 4,
+      "Al Amabilah Al Snaiya": 14,
+      "Hayl Al Soaq": 2,
+      "Almawaleh": 4,
+      "Hayl Alawamer": 1,
+      "Al Chraadi": 4,
+      "South Al Amabilah": 12,
+      "Al Khawd": 23,
+      "As Seeb": 3,
+      "Al Matar": 1,
+      "Al Rusayl": 1
+    },
+    "Muttrah": {
+      "Mutrah": 7,
+      "Ruwi": 23,
+      "Al-Quram": 2,
+      "Wadi Kabir": 4,
+      "Alhamrya": 4,
+      "Bit Alfalj": 2,
+      "Al Shagyahya": 1,
+      "Al Walygah": 1,
+      "Halt Al Asad": 2
+    },
+    "Bousher": {
+      "Alkhawuir": 17,
+      "North Alghubra": 17,
+      "South Alghubra": 5,
+      "Aloziba": 5,
+      "Bawshar": 8,
+      "Al Qurm": 1,
+      "South Alkhuwair": 4,
+      "Al Ghoubrah": 4,
+      "Mortafat Boashar": 2,
+      "North  Aludhaybah": 3,
+      "Misfah Al Alwiyah ( Al Gharbiyah)": 1,
+      "North Alkhuwair": 1,
+      "Ghala Al Sanaiah": 4,
+      "Ghala": 10,
+      "Alnsab": 2
+    },
+    "Al Amarat": {
+      "Al Amrat": 10,
+      "Madinat Al Nahathah": 1,
+      "East Siah Al Mahag": 3,
+      "East Al Mahag": 2
+    },
+    "Quriyat": {
+      "Al Soq": 2,
+      "Qurayyat": 1
+    }
+  },
+  "South Al Batinah": {
+    "Al-Awabi": {
+      "Al Awabi": 1,
+      "Al Jarb": 1
+    },
+    "Al-Musanna": {
+      "Al Musanaah": 3,
+      "At Turayf": 2,
+      "Al Muladdah": 2,
+      "Wudam Al Ghaf": 1,
+      "Al Qarat": 2,
+      "Al Quryhat": 1,
+      "Shuaybah": 1,
+      "Bou Ebaly": 1,
+      "Al Mghsar Al Janub": 1,
+      "Al Bidi": 1,
+      "Al Shabeah": 3
+    },
+    "Barka": {
+      "Al Jihaylah": 1,
+      "Al Basit": 1,
+      "As Sawmhan": 16,
+      "Al Harm": 1,
+      "As Sallahah": 1,
+      "Hayy Asim": 1,
+      "Ar Rumays": 2,
+      "Ash Shakhakhit": 1,
+      "As Saqsuq": 1,
+      "Al Uqdah": 1,
+      "Al Hadib": 1,
+      "Barka": 6,
+      "Al Sawadi": 2,
+      "Al Haradi": 1
+    },
+    "Al-Rustaq": {
+      "Al Hazm": 2,
+      "Al Hawqayn": 1,
+      "Al Shabayah": 1,
+      "Al Marba": 3,
+      "Al Eraqy": 1,
+      "Al Romanyah": 1,
+      "Al Mrba Al Jarbyah": 1,
+      "Borg Alredah": 1,
+      "Ar Rukhah": 1,
+      "Hayy As Sarah": 1,
+      "Ar Rustaq": 5,
+      "Falaj Ash Shurah": 2
+    },
+    "Nakhal": {
+      "Nakhal": 1,
+      "Halban": 1,
+      "Moslmat": 1,
+      "Bab Alzphoar": 2
+    },
+    "Wadi Maawil": {
+      "Wadi Al Mawel": 1,
+      "Musilmat": 1
+    }
+  },
+  "North Ash Sharqiyah": {
+    "Wadi Bani Khalid": {
+      "Sayh Al Hayl": 1,
+      "Mizayra": 1,
+      "Wadi Bany Khaled": 1
+    },
+    "Sinaw": {
+      "Sinaw": 13,
+      "Al Handali": 1
+    },
+    "Ibra": {
+      "Al Aqbah": 1,
+      "Ibra": 7,
+      "Ath Thabti": 4,
+      "Al Yahmadi": 1,
+      "Al Filayj": 1,
+      "Al Alyah": 3,
+      "Al Dakeak": 3
+    },
+    "Bidiya": {
+      "Bdyah": 2,
+      "Al Mintarib": 3,
+      "Al Ghaby": 5,
+      "Adh Dhahir": 1,
+      "Al Sharq": 1
+    },
+    "Al-Qabil": {
+      "Ad Diriz": 1,
+      "Al Mudhayrib": 1
+    },
+    "Al-Mudhaibi": {
+      "Al Mudaybi": 7,
+      "Al Anyean": 1,
+      "Al Aflaj": 1,
+      "Samad Ash Shan": 2,
+      "Al Akhdar": 1,
+      "Ar Rawdah": 2,
+      "Khadra Bani Daffa": 2,
+      "Al Jarda": 1,
+      "Ad Dili": 1
+    },
+    "Dima And Tayin": {
+      "Mihlah": 2,
+      "Mahlahi": 1
+    }
+  },
+  "North Al Batinah": {
+    "Sohar": {
+      "Sohar": 16,
+      "Al Waqybah": 1,
+      "Al Anbar": 1,
+      "Falag AlQabael": 8,
+      "Sohar As Sinaiyah": 1,
+      "Al Hombar": 20,
+      "Al Uwaynat": 1,
+      "Muwaylah": 3
+    },
+    "Shinas": {
+      "Shinas": 4,
+      "Sur Al Mazari": 1,
+      "Al Aqur": 1,
+      "Al ghorifa": 3,
+      "Halt Al Souq": 1
+    },
+    "Liwa": {
+      "Az Zahyah": 2,
+      "Fazah": 1,
+      "Lwy Al Gadedah": 4,
+      "Liwa": 3
+    },
+    "Saham": {
+      "Saham": 1,
+      "Mikhaylif": 1,
+      "Ar Raddah": 1,
+      "Dil Al Burayk": 1,
+      "Hafit": 3,
+      "Hillat Al Burj": 2,
+      "Al Fulayj": 1,
+      "Al Huwayl": 11,
+      "Rawylah Al Zaab": 1,
+      "Al sahmy": 1,
+      "Al Hawyal Al Gadydah": 1,
+      "Al Howayal Al Qadymah": 2
+    },
+    "Al-Khabura": {
+      "Al Khaburah": 5,
+      "Al Sarhat": 3,
+      "Al Mosylah": 1
+    },
+    "Al-Suwaiq": {
+      "Hart Al Soaq": 2,
+      "Alhogayrah": 1,
+      "Al Afrad": 1,
+      "Al Fao": 1,
+      "Ath Tharmad": 3,
+      "Dyan Al Jahawar": 1,
+      "Diyan Al Bawarih": 1,
+      "Al Bidayah": 6,
+      "Batha Al Helal": 1,
+      "Khadra Al Saad": 1,
+      "As Suwayq": 8,
+      "Al Batha Al Gadedah": 2,
+      "Al ghadra": 1,
+      "Al Wastah": 1,
+      "Al Batha": 4,
+      "Khabah Alkhameas": 1,
+      "Khadra Al Rashead": 2,
+      "Sayh Ar Rahamat": 1
+    }
+  },
+  "Musandam": {
+    "Khasab": {
+      "Khasab": 5
+    },
+    "Bukha": {
+      "Bukha": 1
+    },
+    "Daba Al-Biya": {
+      "Seah Al Dear": 1,
+      "Daba Albayah": 3
+    },
+    "Madha": {
+      "Madha": 2
+    }
+  },
+  "Ad Dhahirah": {
+    "Ibri": {
+      "Al Aboar": 1,
+      "Maqniyat": 2,
+      "Al Mortafa": 3,
+      "Hamra Al Droa": 2,
+      "Al khadra": 1,
+      "Ibri": 11,
+      "Al Akhdar": 1,
+      "Al Aynayn": 2,
+      "Amla": 1,
+      "Al Zahrah": 1,
+      "Hijayrmat": 1
+    },
+    "Yanqul": {
+      "Al Soader": 2,
+      "Al Souq": 1
+    },
+    "Dhank": {
+      "Dank": 2,
+      "Al Mukhudrani": 1
+    }
+  },
+  "Ad Dakhiliyah": {
+    "Nizwa": {
+      "Nizwa": 10,
+      "Karsha": 1,
+      "Hayy At Turath Al Janubi": 1,
+      "Birkat Al Mawz": 1,
+      "Taymsa": 1,
+      "Brkah Al Moaz": 1,
+      "Al Ghantaq": 1,
+      "Al Madah": 2,
+      "Farq": 5,
+      "Al Khadra": 1
+    },
+    "Sumail": {
+      "Samail": 5,
+      "Al Modrah": 4,
+      "Al Khubar": 1,
+      "Lizugh": 2
+    },
+    "Bahla": {
+      "Bahla": 4,
+      "Al Ghafat": 1,
+      "Bisya": 1,
+      "Jabrin": 1,
+      "Al Mamorah": 2,
+      "Al Habbi": 1,
+      "Hayy As Saad": 1,
+      "As Suwayh": 1
+    },
+    "Adam": {
+      "Adam": 2,
+      "Al Faleeg": 1,
+      "Al Qalah": 1
+    },
+    "Al-Hamra": {
+      "Al Hamra": 2,
+      "Wadi Ghoal": 2
+    },
+    "Manah": {
+      "Manah": 2,
+      "Al Fykean": 1
+    },
+    "Izki": {
+      "Sada": 3,
+      "Qalat Al Awamir": 2,
+      "Izki": 3,
+      "Al Ghalyal": 1,
+      "Al Tawoq": 1
+    },
+    "Bid Bid": {
+      "Bidbid": 1,
+      "Fanja": 3,
+      "Seah Al Maydean": 2
+    },
+    "Aljabal Alakhdhar": {
+      "Aljabal Alakhdhar": 2
+    }
+  },
+  "South Ash Sharqiyah": {
+    "Sur": {
+      "Sur": 12,
+      "Al Qurha": 1,
+      "As Sinaya": 1,
+      "Snisila": 1,
+      "Tiwi": 1,
+      "Seah Al Matar": 1,
+      "Al Sheryah": 8,
+      "Al Sahil": 1,
+      "Al Bar": 1,
+      "Ras Al Hadd": 1
+    },
+    "Masirah": {
+      "Hilf": 5,
+      "Mousira": 1
+    },
+    "Al-Kamil And Al-Wafi": {
+      "Al Kamil Wa Al Wafi": 2,
+      "Al Kamel": 3,
+      "Al Wafy": 3,
+      "Sayq": 1,
+      "Tahwah": 1
+    },
+    "Jalan Bani Bu Ali": {
+      "Jaalan Bani Bu Ali": 4,
+      "Al Ashkhara": 4,
+      "Sayh Sndh": 1,
+      "Seah Al Sader": 1,
+      "Sayh Qriha": 5,
+      "Seah Al Sandah": 1,
+      "Balad Bany Bou Ali": 1
+    },
+    "Jalan Bani Bu Hassan": {
+      "Jaalan Bani Bu Hasan": 1,
+      "Falaj Al Mashayikh": 2,
+      "Al Saqtah": 2,
+      "Agnimyah": 2,
+      "Al Mosylah": 1
+    }
+  },
+  "Al Wusta": {
+    "Haima": {
+      "Hayma": 4
+    },
+    "Mahoot": {
+      "Hijj": 5,
+      "Al Juwayh": 1
+    },
+    "Al-Duqm": {
+      "Al Dqum": 2,
+      "Hitam": 1,
+      "Say": 5,
+      "Wadi Say": 1
+    },
+    "Al_jazer": {
+      "Al Jazer": 1,
+      "Al Lakbi": 1,
+      "Nimr": 1,
+      "Al Kahil (2)": 1
+    }
+  },
+  "Dhofar": {
+    "Salalah": {
+      "Salalah": 35,
+      "Al Hasila": 3,
+      "South Al Dahriz": 2,
+      "Al Sadah Aljanobyah": 5,
+      "Awqad Al Shamalyah": 1,
+      "Shlyeam": 1,
+      "As Sinayat Al Qadima": 2,
+      "As Sinayat Al Jadidah": 18,
+      "Aghdayt": 1,
+      "Risot": 1,
+      "Al Dahreaz": 1,
+      "Al Sadah": 3,
+      "Al Wadi": 2,
+      "North Al Awqdian": 1,
+      "Salalah Algadidah": 3,
+      "Salalah Al Wasta": 9,
+      "Salalah Algarbyah": 4,
+      "Al Moatzah": 2,
+      "Salalah Alsharqyah": 3
+    },
+    "AL-MAZYONA": {
+      "Al Mazyonah": 4
+    },
+    "Thumarait": {
+      "Thumrayt": 5
+    },
+    "Taqah": {
+      "Taqah": 4
+    },
+    "Mirbat": {
+      "Mirbat": 4,
+      "Tawi Atayr": 1
+    },
+    "Sudh": {
+      "Sadah": 1
+    },
+    "Rakhyut": {
+      "Rakhyut": 1
+    },
+    "Shalimealhallaniyahislnd": {
+      "Shalim": 1,
+      "Ash Shuwaymiyah": 1
+    }
+  },
+  "Al Buraimi": {
+    "Al-Buraimi": {
+      "Mantqah Azan": 1,
+      "Al Buraymi": 12,
+      "Sara Al Jadudah": 4,
+      "Al Shareah": 1,
+      "Sara": 7
+    },
+    "Mahadha": {
+      "Al Khadra": 1,
+      "Al Rawdah": 1,
+      "Mahadah": 1
+    }
+  }
+}

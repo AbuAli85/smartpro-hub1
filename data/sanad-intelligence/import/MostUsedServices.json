@@ -1,717 +1,822 @@
-
- {
-  "Most used ten Services  \/  العشر خدمات الأكثر استخداماً ": "Year\/عام",
-  "Column2": "Entities\/جهات",
-  "Column4": "Services \/خدمات",
-  "Column6": "Count\/عد"
- },
- {
-  "Most used ten Services  \/  العشر خدمات الأكثر استخداماً ": 2025,
-  "Column2": "Ministry of Health",
-  "Column3": "وزارة الصحة ",
-  "Column4": "Renew - Labour, & Resident Card (Workers)",
-  "Column5": "تجديد بطاقة مقيم وعمل (عامل)",
-  "Column6": 166597
- },
- {
-  "Column2": "Ministry of Health",
-  "Column3": "وزارة الصحة ",
-  "Column4": "New - Labour, & Resident Card (Workers)",
-  "Column5": " اصدار بطاقة مقيم وعمل جديد (عامل)",
-  "Column6": 101424
- },
- {
-  "Column2": "Ministry of Health",
-  "Column3": "وزارة الصحة ",
-  "Column4": "Sponsor Change - Labour, & Resident Card (Workers)",
-  "Column5": " تغيير الكفيل- بطاقة مقيم وعمل (عامل)",
-  "Column6": 78845
- },
- {
-  "Column2": "Oman Chamber of Commerce and Industry",
-  "Column3": "غرفة عمان للتجارة والصناعة",
-  "Column4": "Membership Renewal",
-  "Column5": "تجديد العضوية",
-  "Column6": 78377
- },
- {
-  "Column2": "Ministry of Health",
-  "Column3": "وزارة الصحة ",
-  "Column4": "Pre-Arrival Medical eReport - GAMCA\/WAFID",
-  "Column5": "خدمة التصديق على التقرير الطبي للعمال قبل الوصول",
-  "Column6": 35605
- },
- {
-  "Column2": "Ministry of Labor",
-  "Column3": "وزارة العمل",
-  "Column4": "Employee Contract",
-  "Column5": "عقد عمل",
-  "Column6": 28491
- },
- {
-  "Column2": "Ministry of Labor",
-  "Column3": "وزارة العمل",
-  "Column4": "Domestic Worker Contract",
-  "Column5": "عقد عمال المنازل",
-  "Column6": 21912
- },
- {
-  "Column2": "Oman Chamber of Commerce and Industry",
-  "Column3": "غرفة عمان للتجارة والصناعة",
-  "Column4": "New Membership Registration",
-  "Column5": "تسجيل عضوية جديدة",
-  "Column6": 17950
- },
- {
-  "Column2": "Ministry of Health",
-  "Column3": "وزارة الصحة ",
-  "Column4": "Renew - Labour, Resident, & Municipality Health Card",
-  "Column5": "تجديد بطاقة مقيم وعمل وبطاقة صحية",
-  "Column6": 15839
- },
- {
-  "Column2": "Mazoon Electricity",
-  "Column3": "كهرباء مزون",
-  "Column4": "New Connection Request",
-  "Column5": "طلب توصيل جديد",
-  "Column6": 14000
- },
- {
-  "Most used ten Services  \/  العشر خدمات الأكثر استخداماً ": 2024,
-  "Column2": "Ministry of Health",
-  "Column3": "وزارة الصحة ",
-  "Column4": "Renew - Labour, & Resident Card (Workers)",
-  "Column5": "تجديد بطاقة مقيم وعمل (عامل)",
-  "Column6": 257793
- },
- {
-  "Column2": "Ministry of Health",
-  "Column3": "وزارة الصحة ",
-  "Column4": "New - Labour, & Resident Card (Workers)",
-  "Column5": " اصدار بطاقة مقيم وعمل جديد (عامل)",
-  "Column6": 188624
- },
- {
-  "Column2": "Ministry of Health",
-  "Column3": "وزارة الصحة ",
-  "Column4": "Sponsor Change - Labour, & Resident Card (Workers)",
-  "Column5": " تغيير الكفيل- بطاقة مقيم وعمل (عامل)",
-  "Column6": 79929
- },
- {
-  "Column2": "Oman Chamber of Commerce and Industry",
-  "Column3": "غرفة عمان للتجارة والصناعة",
-  "Column4": "Membership Renewal",
-  "Column5": "تجديد العضوية",
-  "Column6": 77126
- },
- {
-  "Column2": "Ministry of Health",
-  "Column3": "وزارة الصحة ",
-  "Column4": "Pre-Arrival Medical Report Attestation eService",
-  "Column5": "خدمة التصديق على التقرير الطبي للعمال قبل الوصول",
-  "Column6": 74336
- },
- {
-  "Column2": "Ministry of Labor",
-  "Column3": "وزارة العمل",
-  "Column4": "Employee Contract",
-  "Column5": "عقد عمل",
-  "Column6": 36238
- },
- {
-  "Column2": "Oman Chamber of Commerce and Industry",
-  "Column3": "غرفة عمان للتجارة والصناعة",
-  "Column4": "New Membership Registration",
-  "Column5": "تسجيل عضوية جديدة",
-  "Column6": 30388
- },
- {
-  "Column2": "Ministry of Health",
-  "Column3": "وزارة الصحة ",
-  "Column4": "Renew - Labour, Resident, & Municipality Health Card",
-  "Column5": "تجديد بطاقة مقيم وعمل وبطاقة صحية",
-  "Column6": 22198
- },
- {
-  "Column2": "Ministry of Labor",
-  "Column3": "وزارة العمل",
-  "Column4": "Domestic Worker Contract",
-  "Column5": "عقد عمال المنازل",
-  "Column6": 21861
- },
- {
-  "Column2": "Mazoon Electricity",
-  "Column3": "كهرباء مزون",
-  "Column4": "New Connection Request",
-  "Column5": "طلب توصيل جديد",
-  "Column6": 15660
- },
- {
-  "Most used ten Services  \/  العشر خدمات الأكثر استخداماً ": 2023,
-  "Column2": "Ministry of Health",
-  "Column3": "وزارة الصحة ",
-  "Column4": "Medical Examination Form ",
-  "Column5": "استمارة الفحص الطبي",
-  "Column6": 837715
- },
- {
-  "Column2": "Oman Chamber of Commerce and Industry",
-  "Column3": "غرفة عمان للتجارة والصناعة",
-  "Column4": "Membership Renewal",
-  "Column5": "تجديد العضوية",
-  "Column6": 75053
- },
- {
-  "Column2": "D.G. of Civil Status",
-  "Column3": "الإدارة العامة للأحوال المدنية",
-  "Column4": "Registration of Residents",
-  "Column5": "بطاقة المقيم",
-  "Column6": 55125
- },
- {
-  "Column2": "Ministry of Labor",
-  "Column3": "وزارة العمل",
-  "Column4": "Domestic Worker Contract",
-  "Column5": "عقد عمال المنازل",
-  "Column6": 36496
- },
- {
-  "Column2": "Oman Chamber of Commerce and Industry",
-  "Column3": "غرفة عمان للتجارة والصناعة",
-  "Column4": "New Membership Registration",
-  "Column5": "تسجيل عضوية جديدة",
-  "Column6": 31469
- },
- {
-  "Column2": "Mazoon Electricity",
-  "Column3": "كهرباء مزون",
-  "Column4": "New Connection Request",
-  "Column5": "طلب توصيل جديد",
-  "Column6": 15556
- },
- {
-  "Column2": "Mazoon Electricity",
-  "Column3": "كهرباء مزون",
-  "Column4": "Initial Connection Request",
-  "Column5": "استمارة البيانات الأولية لتوصيل التيار الكهربائي",
-  "Column6": 5312
- },
- {
-  "Column2": "Ministry of Regional Municipalities and Water Resources",
-  "Column3": "وزارة البلديات الاقليمية و موارد المياة",
-  "Column4": "Main Board (New \/ Renew \/ Update \/ Cancel)",
-  "Column5": "اللوحة الرئيسية (جديد\/تجديد\/تحديث\/إلغاء)",
-  "Column6": 5050
- },
- {
-  "Column2": "Oman Chamber of Commerce and Industry",
-  "Column3": "غرفة عمان للتجارة والصناعة",
-  "Column4": "Replacement of Lost Certificate",
-  "Column5": "بدل فاقد",
-  "Column6": 3875
- },
- {
-  "Column2": "Muscat Muncipality",
-  "Column3": "بلدية مسقط",
-  "Column4": "Renew Rent Contract",
-  "Column5": "تجديد عقد الإيجار",
-  "Column6": 2489
- },
- {
-  "Most used ten Services  \/  العشر خدمات الأكثر استخداماً ": 2022,
-  "Column2": "Ministry of Health",
-  "Column3": "وزارة الصحة ",
-  "Column4": "Medical Examination Form ",
-  "Column5": "استمارة الفحص الطبي",
-  "Column6": 1006035
- },
- {
-  "Column2": "D.G. of Civil Status",
-  "Column3": "الإدارة العامة للأحوال المدنية",
-  "Column4": "Registration of Residents",
-  "Column5": "بطاقة المقيم",
-  "Column6": 324321
- },
- {
-  "Column2": "Ministry of Labor",
-  "Column3": "وزارة العمل",
-  "Column4": "Employee Contract",
-  "Column5": "عقل عمل",
-  "Column6": 163133
- },
- {
-  "Column2": "Oman Chamber of Commerce and Industry",
-  "Column3": "غرفة عمان للتجارة والصناعة",
-  "Column4": "OOCI Membership Renewal",
-  "Column5": "تجديد العضوية",
-  "Column6": 74217
- },
- {
-  "Column2": "Ministry of Labor",
-  "Column3": "وزارة العمل",
-  "Column4": "Domestic Worker Contract",
-  "Column5": "عقد عمال المنازل",
-  "Column6": 54101
- },
- {
-  "Column2": "Oman Chamber of Commerce and Industry",
-  "Column3": "غرفة عمان للتجارة والصناعة",
-  "Column4": "New Membership Registration",
-  "Column5": "تسجيل عضوية جديدة",
-  "Column6": 38343
- },
- {
-  "Column2": "Ministry of Regional Municipalities and Water Resources",
-  "Column3": "وزارة البلديات الاقليمية و موارد المياة",
-  "Column4": "Main Board (New\/Renew\/Update\/Cancel)",
-  "Column5": "اللوحة الرئيسية (جديد\/تجديد\/تحديث\/إلغاء)",
-  "Column6": 17182
- },
- {
-  "Column2": "Mazoon Electricity",
-  "Column3": "كهرباء مزون",
-  "Column4": "New Electricity Connection Request",
-  "Column5": "طلب توصيل جديد",
-  "Column6": 14495
- },
- {
-  "Column2": "Ministry of Regional Municipalities and Water Resources",
-  "Column3": "وزارة البلديات الاقليمية و موارد المياة",
-  "Column4": "Health Card (New \/ Renew)",
-  "Column5": "بطاقة صحية (جديد\/تجديد)",
-  "Column6": 9768
- },
- {
-  "Column2": "Mazoon Electricity",
-  "Column3": "كهرباء مزون",
-  "Column4": "Initial Connection Request",
-  "Column5": "استمارة البيانات الأولية لتوصيل التيار الكهربائي",
-  "Column6": 5085
- },
- {
-  "Most used ten Services  \/  العشر خدمات الأكثر استخداماً ": 2021,
-  "Column2": "D.G. of Civil Status",
-  "Column3": "الإدارة العامة للأحوال المدنية",
-  "Column4": "Registration of Residents",
-  "Column5": "بطاقة المقيم",
-  "Column6": 634419
- },
- {
-  "Column2": "Ministry of Health",
-  "Column3": "وزارة الصحة ",
-  "Column4": "Medical Examination Form ",
-  "Column5": "استمارة الفحص الطبي",
-  "Column6": 333737
- },
- {
-  "Column2": "Oman Chamber of Commerce and Industry",
-  "Column3": "غرفة عمان للتجارة والصناعة",
-  "Column4": "OOCI Membership Renewal",
-  "Column5": "تجديد العضوية",
-  "Column6": 65585
- },
- {
-  "Column2": "Ministry of Labor",
-  "Column3": "وزارة العمل",
-  "Column4": "Employee Contract",
-  "Column5": "عقل عمل",
-  "Column6": 61244
- },
- {
-  "Column2": "Ministry of Labor",
-  "Column3": "وزارة العمل",
-  "Column4": "Domestic Worker Contract",
-  "Column5": "عقد عمال المنازل",
-  "Column6": 43815
- },
- {
-  "Column2": "Ministry of Regional Municipalities and Water Resources",
-  "Column3": "وزارة البلديات الاقليمية و موارد المياة",
-  "Column4": "Main Board (New\/Renew\/Update\/Cancel)",
-  "Column5": "اللوحة الرئيسية (جديد\/تجديد\/تحديث\/إلغاء)",
-  "Column6": 16731
- },
- {
-  "Column2": "Oman Chamber of Commerce and Industry",
-  "Column3": "غرفة عمان للتجارة والصناعة",
-  "Column4": "New Membership Registration",
-  "Column5": "تسجيل عضوية جديدة",
-  "Column6": 15044
- },
- {
-  "Column2": "Mazoon Electricity",
-  "Column3": "كهرباء مزون",
-  "Column4": "New Electricity Connection Request",
-  "Column5": "طلب توصيل جديد",
-  "Column6": 13745
- },
- {
-  "Column2": "Ministry of Agriculture, Fisheries and Water Resources",
-  "Column3": "زارة الثروة الزراعية و السمكية وموارد المياه",
-  "Column4": "Animal Registration",
-  "Column5": "تسجيل حيوان ",
-  "Column6": 7226
- },
- {
-  "Column2": "D.G. of Civil Status",
-  "Column3": "الإدارة العامة للأحوال المدنية",
-  "Column4": "Omani Registration",
-  "Column5": "العماني بطاقة الهوية",
-  "Column6": 4937
- },
- {
-  "Most used ten Services  \/  العشر خدمات الأكثر استخداماً ": 2020,
-  "Column2": "D.G. of Civil Status",
-  "Column3": "الإدارة العامة للأحوال المدنية",
-  "Column4": "Registration of Residents",
-  "Column5": "بطاقة المقيم",
-  "Column6": 809476
- },
- {
-  "Column2": "Ministry of Health",
-  "Column3": "وزارة الصحة ",
-  "Column4": "Medical Examination Form ",
-  "Column5": "استمارة الفحص الطبي",
-  "Column6": 203838
- },
- {
-  "Column2": "Oman Chamber of Commerce and Industry",
-  "Column3": "غرفة عمان للتجارة والصناعة",
-  "Column4": "OOCI Membership Renewal",
-  "Column5": "تجديد العضوية",
-  "Column6": 26505
- },
- {
-  "Column2": "Ministry of Labor",
-  "Column3": "وزارة العمل",
-  "Column4": "Employee Contract",
-  "Column5": "عقل عمل",
-  "Column6": 21761
- },
- {
-  "Column2": "Ministry of Labor",
-  "Column3": "وزارة العمل",
-  "Column4": "Domestic Worker Contract",
-  "Column5": "عقد عمال المنازل",
-  "Column6": 17234
- },
- {
-  "Column2": "Mazoon Electricity",
-  "Column3": "كهرباء مزون",
-  "Column4": "New Electricity Connection Request",
-  "Column5": "طلب توصيل جديد",
-  "Column6": 12608
- },
- {
-  "Column2": "Ministry of Labor",
-  "Column3": "وزارة العمل",
-  "Column4": "Laborcard",
-  "Column5": "بطاقة العمل",
-  "Column6": 9453
- },
- {
-  "Column2": "Ministry of Regional Municipalities and Water Resources",
-  "Column3": "وزارة البلديات الاقليمية و موارد المياة",
-  "Column4": "Main Board (New\/Renew\/Update\/Cancel)",
-  "Column5": "اللوحة الرئيسية (جديد\/تجديد\/تحديث\/إلغاء)",
-  "Column6": 7078
- },
- {
-  "Column2": "D.G. of Civil Status",
-  "Column3": "الإدارة العامة للأحوال المدنية",
-  "Column4": "Omani Registration",
-  "Column5": "العماني بطاقة الهوية",
-  "Column6": 6782
- },
- {
-  "Column2": "Social Protection Fund",
-  "Column3": "صندوق الحماية الإجتماعية",
-  "Column4": "PASI Reports",
-  "Column5": "التقرير ",
-  "Column6": 6594
- },
- {
-  "Most used ten Services  \/  العشر خدمات الأكثر استخداماً ": 2019,
-  "Column2": "D.G. of Civil Status",
-  "Column3": "الإدارة العامة للأحوال المدنية",
-  "Column4": "Registration of Residents",
-  "Column5": "بطاقة المقيم",
-  "Column6": 1047704
- },
- {
-  "Column2": "Ministry of Health",
-  "Column3": "وزارة الصحة ",
-  "Column4": "Medical Examination Form ",
-  "Column5": "استمارة الفحص الطبي",
-  "Column6": 880987
- },
- {
-  "Column2": "Ministry of Labor",
-  "Column3": "وزارة العمل",
-  "Column4": "Laborcard Renewal",
-  "Column5": "تجديد بطاقة العمل",
-  "Column6": 171758
- },
- {
-  "Column2": "Ministry of Labor",
-  "Column3": "وزارة العمل",
-  "Column4": "Employee Application Form",
-  "Column5": "إستمارة بيانات عامل-جديد",
-  "Column6": 111894
- },
- {
-  "Column2": "Ministry of Labor",
-  "Column3": "وزارة العمل",
-  "Column4": "Employee Contract",
-  "Column5": "عقل عمل",
-  "Column6": 63219
- },
- {
-  "Column2": "Ministry of Labor",
-  "Column3": "وزارة العمل",
-  "Column4": "Laborcard",
-  "Column5": "بطاقة العمل",
-  "Column6": 53903
- },
- {
-  "Column2": "Ministry of Labor",
-  "Column3": "وزارة العمل",
-  "Column4": "Departure",
-  "Column5": "استمارة مغادرة",
-  "Column6": 47877
- },
- {
-  "Column2": "D.G. of Civil Status",
-  "Column3": "الإدارة العامة للأحوال المدنية",
-  "Column4": "Omani Registration",
-  "Column5": "العماني بطاقة الهوية",
-  "Column6": 47333
- },
- {
-  "Column2": "Ministry of Labor",
-  "Column3": "وزارة العمل",
-  "Column4": "Domestic Worker Contract",
-  "Column5": "عقد عمال المنازل",
-  "Column6": 43004
- },
- {
-  "Column2": "Mazoon Electricity",
-  "Column3": "كهرباء مزون",
-  "Column4": "New Electricity Connection Request",
-  "Column5": "طلب توصيل جديد",
-  "Column6": 14801
- },
- {
-  "Most used ten Services  \/  العشر خدمات الأكثر استخداماً ": 2018,
-  "Column2": "D.G. of Civil Status",
-  "Column3": "الإدارة العامة للأحوال المدنية",
-  "Column4": "Registration of Residents",
-  "Column5": "بطاقة المقيم",
-  "Column6": 1095407
- },
- {
-  "Column2": "Ministry of Health",
-  "Column3": "وزارة الصحة ",
-  "Column4": "Medical Examination Form ",
-  "Column5": "استمارة الفحص الطبي",
-  "Column6": 967878
- },
- {
-  "Column2": "Ministry of Labor",
-  "Column3": "وزارة العمل",
-  "Column4": "Laborcard Renewal",
-  "Column5": "تجديد بطاقة العمل",
-  "Column6": 496595
- },
- {
-  "Column2": "Ministry of Labor",
-  "Column3": "وزارة العمل",
-  "Column4": "Employee Application Form",
-  "Column5": "إستمارة بيانات عامل-جديد",
-  "Column6": 288677
- },
- {
-  "Column2": "Ministry of Labor",
-  "Column3": "وزارة العمل",
-  "Column4": "Departure",
-  "Column5": "استمارة مغادرة",
-  "Column6": 144231
- },
- {
-  "Column2": "Ministry of Labor",
-  "Column3": "وزارة العمل",
-  "Column4": "Laborcard",
-  "Column5": "بطاقة العمل",
-  "Column6": 96433
- },
- {
-  "Column2": "Ministry of Labor",
-  "Column3": "وزارة العمل",
-  "Column4": "Employee Contract",
-  "Column5": "عقل عمل",
-  "Column6": 70900
- },
- {
-  "Column2": "Ministry of Labor",
-  "Column3": "وزارة العمل",
-  "Column4": "Domestic Worker Contract",
-  "Column5": "عقد عمال المنازل",
-  "Column6": 42271
- },
- {
-  "Column2": "D.G. of Civil Status",
-  "Column3": "الإدارة العامة للأحوال المدنية",
-  "Column4": "Omani Registration",
-  "Column5": "العماني بطاقة الهوية",
-  "Column6": 42258
- },
- {
-  "Column2": "Mazoon Electricity",
-  "Column3": "كهرباء مزون",
-  "Column4": "New Electricity Connection Request",
-  "Column5": "طلب توصيل جديد",
-  "Column6": 16271
- },
- {
-  "Most used ten Services  \/  العشر خدمات الأكثر استخداماً ": 2017,
-  "Column2": "D.G. of Civil Status",
-  "Column3": "الإدارة العامة للأحوال المدنية",
-  "Column4": "Registration of Residents",
-  "Column5": "بطاقة المقيم",
-  "Column6": 1109269
- },
- {
-  "Column2": "Ministry of Health",
-  "Column3": "وزارة الصحة ",
-  "Column4": "Medical Examination Form ",
-  "Column5": "استمارة الفحص الطبي",
-  "Column6": 984988
- },
- {
-  "Column2": "Ministry of Labor",
-  "Column3": "وزارة العمل",
-  "Column4": "Laborcard Renewal",
-  "Column5": "تجديد بطاقة العمل",
-  "Column6": 454843
- },
- {
-  "Column2": "Ministry of Labor",
-  "Column3": "وزارة العمل",
-  "Column4": "Employee Application Form",
-  "Column5": "إستمارة بيانات عامل-جديد",
-  "Column6": 360129
- },
- {
-  "Column2": "Ministry of Labor",
-  "Column3": "وزارة العمل",
-  "Column4": "Laborcard",
-  "Column5": "بطاقة العمل",
-  "Column6": 180422
- },
- {
-  "Column2": "Ministry of Labor",
-  "Column3": "وزارة العمل",
-  "Column4": "Departure",
-  "Column5": "استمارة مغادرة",
-  "Column6": 172540
- },
- {
-  "Column2": "Ministry of Labor",
-  "Column3": "وزارة العمل",
-  "Column4": "To Whom It May Concern",
-  "Column5": "الى من يهمه الأمر",
-  "Column6": 75431
- },
- {
-  "Column2": "Ministry of Labor",
-  "Column3": "وزارة العمل",
-  "Column4": "Sponsorship Transfer",
-  "Column5": "نقل خدمات",
-  "Column6": 60898
- },
- {
-  "Column2": "Ministry of Labor",
-  "Column3": "وزارة العمل",
-  "Column4": "Employee Contract",
-  "Column5": "عقل عمل",
-  "Column6": 51772
- },
- {
-  "Column2": "D.G. of Civil Status",
-  "Column3": "الإدارة العامة للأحوال المدنية",
-  "Column4": "Omani Registration",
-  "Column5": "العماني بطاقة الهوية",
-  "Column6": 37730
- },
- {
-  "Most used ten Services  \/  العشر خدمات الأكثر استخداماً ": 2016,
-  "Column2": "D.G. of Civil Status",
-  "Column3": "الإدارة العامة للأحوال المدنية",
-  "Column4": "Registration of Residents",
-  "Column5": "بطاقة المقيم",
-  "Column6": 1187004
- },
- {
-  "Column2": "Ministry of Health",
-  "Column3": "وزارة الصحة ",
-  "Column4": "Medical Examination Form ",
-  "Column5": "استمارة الفحص الطبي",
-  "Column6": 1081092
- },
- {
-  "Column2": "Ministry of Labor",
-  "Column3": "وزارة العمل",
-  "Column4": "Laborcard Renewal",
-  "Column5": "تجديد بطاقة العمل",
-  "Column6": 519242
- },
- {
-  "Column2": "Ministry of Labor",
-  "Column3": "وزارة العمل",
-  "Column4": "Employee Application Form",
-  "Column5": "إستمارة بيانات عامل-جديد",
-  "Column6": 458808
- },
- {
-  "Column2": "Ministry of Labor",
-  "Column3": "وزارة العمل",
-  "Column4": "Laborcard",
-  "Column5": "بطاقة العمل",
-  "Column6": 234849
- },
- {
-  "Column2": "Ministry of Labor",
-  "Column3": "وزارة العمل",
-  "Column4": "Departure",
-  "Column5": "استمارة مغادرة",
-  "Column6": 211714
- },
- {
-  "Column2": "Ministry of Labor",
-  "Column3": "وزارة العمل",
-  "Column4": "To Whom It May Concern",
-  "Column5": "الى من يهمه الأمر",
-  "Column6": 69047
- },
- {
-  "Column2": "Ministry of Labor",
-  "Column3": "وزارة العمل",
-  "Column4": "Sponsorship Transfer",
-  "Column5": "نقل خدمات",
-  "Column6": 58262
- },
- {
-  "Column2": "Ministry of Labor",
-  "Column3": "وزارة العمل",
-  "Column4": "Special Service",
-  "Column5": "طلب عمال خدمات خاصة",
-  "Column6": 55618
- },
- {
-  "Column2": "Ministry of Labor",
-  "Column3": "وزارة العمل",
-  "Column4": "Employee Contract ",
-  "Column5": "عقد عمل فردي استرشادي",
-  "Column6": 54124
- }
+{
+  "2016": [
+    {
+      "rank": 1,
+      "serviceNameEn": "Registration of Residents",
+      "serviceNameAr": "بطاقة المقيم",
+      "authorityNameEn": "D.G. of Civil Status",
+      "authorityNameAr": "الإدارة العامة للأحوال المدنية",
+      "demandVolume": 1187004
+    },
+    {
+      "rank": 2,
+      "serviceNameEn": "Medical Examination Form",
+      "serviceNameAr": "استمارة الفحص الطبي",
+      "authorityNameEn": "Ministry of Health",
+      "authorityNameAr": "وزارة الصحة",
+      "demandVolume": 1081092
+    },
+    {
+      "rank": 3,
+      "serviceNameEn": "Laborcard Renewal",
+      "serviceNameAr": "تجديد بطاقة العمل",
+      "authorityNameEn": "Ministry of Labor",
+      "authorityNameAr": "وزارة العمل",
+      "demandVolume": 519242
+    },
+    {
+      "rank": 4,
+      "serviceNameEn": "Employee Application Form",
+      "serviceNameAr": "إستمارة بيانات عامل-جديد",
+      "authorityNameEn": "Ministry of Labor",
+      "authorityNameAr": "وزارة العمل",
+      "demandVolume": 458808
+    },
+    {
+      "rank": 5,
+      "serviceNameEn": "Laborcard",
+      "serviceNameAr": "بطاقة العمل",
+      "authorityNameEn": "Ministry of Labor",
+      "authorityNameAr": "وزارة العمل",
+      "demandVolume": 234849
+    },
+    {
+      "rank": 6,
+      "serviceNameEn": "Departure",
+      "serviceNameAr": "استمارة مغادرة",
+      "authorityNameEn": "Ministry of Labor",
+      "authorityNameAr": "وزارة العمل",
+      "demandVolume": 211714
+    },
+    {
+      "rank": 7,
+      "serviceNameEn": "To Whom It May Concern",
+      "serviceNameAr": "الى من يهمه الأمر",
+      "authorityNameEn": "Ministry of Labor",
+      "authorityNameAr": "وزارة العمل",
+      "demandVolume": 69047
+    },
+    {
+      "rank": 8,
+      "serviceNameEn": "Sponsorship Transfer",
+      "serviceNameAr": "نقل خدمات",
+      "authorityNameEn": "Ministry of Labor",
+      "authorityNameAr": "وزارة العمل",
+      "demandVolume": 58262
+    },
+    {
+      "rank": 9,
+      "serviceNameEn": "Special Service",
+      "serviceNameAr": "طلب عمال خدمات خاصة",
+      "authorityNameEn": "Ministry of Labor",
+      "authorityNameAr": "وزارة العمل",
+      "demandVolume": 55618
+    },
+    {
+      "rank": 10,
+      "serviceNameEn": "Employee Contract",
+      "serviceNameAr": "عقد عمل فردي استرشادي",
+      "authorityNameEn": "Ministry of Labor",
+      "authorityNameAr": "وزارة العمل",
+      "demandVolume": 54124
+    }
+  ],
+  "2017": [
+    {
+      "rank": 1,
+      "serviceNameEn": "Registration of Residents",
+      "serviceNameAr": "بطاقة المقيم",
+      "authorityNameEn": "D.G. of Civil Status",
+      "authorityNameAr": "الإدارة العامة للأحوال المدنية",
+      "demandVolume": 1109269
+    },
+    {
+      "rank": 2,
+      "serviceNameEn": "Medical Examination Form",
+      "serviceNameAr": "استمارة الفحص الطبي",
+      "authorityNameEn": "Ministry of Health",
+      "authorityNameAr": "وزارة الصحة",
+      "demandVolume": 984988
+    },
+    {
+      "rank": 3,
+      "serviceNameEn": "Laborcard Renewal",
+      "serviceNameAr": "تجديد بطاقة العمل",
+      "authorityNameEn": "Ministry of Labor",
+      "authorityNameAr": "وزارة العمل",
+      "demandVolume": 454843
+    },
+    {
+      "rank": 4,
+      "serviceNameEn": "Employee Application Form",
+      "serviceNameAr": "إستمارة بيانات عامل-جديد",
+      "authorityNameEn": "Ministry of Labor",
+      "authorityNameAr": "وزارة العمل",
+      "demandVolume": 360129
+    },
+    {
+      "rank": 5,
+      "serviceNameEn": "Laborcard",
+      "serviceNameAr": "بطاقة العمل",
+      "authorityNameEn": "Ministry of Labor",
+      "authorityNameAr": "وزارة العمل",
+      "demandVolume": 180422
+    },
+    {
+      "rank": 6,
+      "serviceNameEn": "Departure",
+      "serviceNameAr": "استمارة مغادرة",
+      "authorityNameEn": "Ministry of Labor",
+      "authorityNameAr": "وزارة العمل",
+      "demandVolume": 172540
+    },
+    {
+      "rank": 7,
+      "serviceNameEn": "To Whom It May Concern",
+      "serviceNameAr": "الى من يهمه الأمر",
+      "authorityNameEn": "Ministry of Labor",
+      "authorityNameAr": "وزارة العمل",
+      "demandVolume": 75431
+    },
+    {
+      "rank": 8,
+      "serviceNameEn": "Sponsorship Transfer",
+      "serviceNameAr": "نقل خدمات",
+      "authorityNameEn": "Ministry of Labor",
+      "authorityNameAr": "وزارة العمل",
+      "demandVolume": 60898
+    },
+    {
+      "rank": 9,
+      "serviceNameEn": "Employee Contract",
+      "serviceNameAr": "عقل عمل",
+      "authorityNameEn": "Ministry of Labor",
+      "authorityNameAr": "وزارة العمل",
+      "demandVolume": 51772
+    },
+    {
+      "rank": 10,
+      "serviceNameEn": "Omani Registration",
+      "serviceNameAr": "العماني بطاقة الهوية",
+      "authorityNameEn": "D.G. of Civil Status",
+      "authorityNameAr": "الإدارة العامة للأحوال المدنية",
+      "demandVolume": 37730
+    }
+  ],
+  "2018": [
+    {
+      "rank": 1,
+      "serviceNameEn": "Registration of Residents",
+      "serviceNameAr": "بطاقة المقيم",
+      "authorityNameEn": "D.G. of Civil Status",
+      "authorityNameAr": "الإدارة العامة للأحوال المدنية",
+      "demandVolume": 1095407
+    },
+    {
+      "rank": 2,
+      "serviceNameEn": "Medical Examination Form",
+      "serviceNameAr": "استمارة الفحص الطبي",
+      "authorityNameEn": "Ministry of Health",
+      "authorityNameAr": "وزارة الصحة",
+      "demandVolume": 967878
+    },
+    {
+      "rank": 3,
+      "serviceNameEn": "Laborcard Renewal",
+      "serviceNameAr": "تجديد بطاقة العمل",
+      "authorityNameEn": "Ministry of Labor",
+      "authorityNameAr": "وزارة العمل",
+      "demandVolume": 496595
+    },
+    {
+      "rank": 4,
+      "serviceNameEn": "Employee Application Form",
+      "serviceNameAr": "إستمارة بيانات عامل-جديد",
+      "authorityNameEn": "Ministry of Labor",
+      "authorityNameAr": "وزارة العمل",
+      "demandVolume": 288677
+    },
+    {
+      "rank": 5,
+      "serviceNameEn": "Departure",
+      "serviceNameAr": "استمارة مغادرة",
+      "authorityNameEn": "Ministry of Labor",
+      "authorityNameAr": "وزارة العمل",
+      "demandVolume": 144231
+    },
+    {
+      "rank": 6,
+      "serviceNameEn": "Laborcard",
+      "serviceNameAr": "بطاقة العمل",
+      "authorityNameEn": "Ministry of Labor",
+      "authorityNameAr": "وزارة العمل",
+      "demandVolume": 96433
+    },
+    {
+      "rank": 7,
+      "serviceNameEn": "Employee Contract",
+      "serviceNameAr": "عقل عمل",
+      "authorityNameEn": "Ministry of Labor",
+      "authorityNameAr": "وزارة العمل",
+      "demandVolume": 70900
+    },
+    {
+      "rank": 8,
+      "serviceNameEn": "Domestic Worker Contract",
+      "serviceNameAr": "عقد عمال المنازل",
+      "authorityNameEn": "Ministry of Labor",
+      "authorityNameAr": "وزارة العمل",
+      "demandVolume": 42271
+    },
+    {
+      "rank": 9,
+      "serviceNameEn": "Omani Registration",
+      "serviceNameAr": "العماني بطاقة الهوية",
+      "authorityNameEn": "D.G. of Civil Status",
+      "authorityNameAr": "الإدارة العامة للأحوال المدنية",
+      "demandVolume": 42258
+    },
+    {
+      "rank": 10,
+      "serviceNameEn": "New Electricity Connection Request",
+      "serviceNameAr": "طلب توصيل جديد",
+      "authorityNameEn": "Mazoon Electricity",
+      "authorityNameAr": "كهرباء مزون",
+      "demandVolume": 16271
+    }
+  ],
+  "2019": [
+    {
+      "rank": 1,
+      "serviceNameEn": "Registration of Residents",
+      "serviceNameAr": "بطاقة المقيم",
+      "authorityNameEn": "D.G. of Civil Status",
+      "authorityNameAr": "الإدارة العامة للأحوال المدنية",
+      "demandVolume": 1047704
+    },
+    {
+      "rank": 2,
+      "serviceNameEn": "Medical Examination Form",
+      "serviceNameAr": "استمارة الفحص الطبي",
+      "authorityNameEn": "Ministry of Health",
+      "authorityNameAr": "وزارة الصحة",
+      "demandVolume": 880987
+    },
+    {
+      "rank": 3,
+      "serviceNameEn": "Laborcard Renewal",
+      "serviceNameAr": "تجديد بطاقة العمل",
+      "authorityNameEn": "Ministry of Labor",
+      "authorityNameAr": "وزارة العمل",
+      "demandVolume": 171758
+    },
+    {
+      "rank": 4,
+      "serviceNameEn": "Employee Application Form",
+      "serviceNameAr": "إستمارة بيانات عامل-جديد",
+      "authorityNameEn": "Ministry of Labor",
+      "authorityNameAr": "وزارة العمل",
+      "demandVolume": 111894
+    },
+    {
+      "rank": 5,
+      "serviceNameEn": "Employee Contract",
+      "serviceNameAr": "عقل عمل",
+      "authorityNameEn": "Ministry of Labor",
+      "authorityNameAr": "وزارة العمل",
+      "demandVolume": 63219
+    },
+    {
+      "rank": 6,
+      "serviceNameEn": "Laborcard",
+      "serviceNameAr": "بطاقة العمل",
+      "authorityNameEn": "Ministry of Labor",
+      "authorityNameAr": "وزارة العمل",
+      "demandVolume": 53903
+    },
+    {
+      "rank": 7,
+      "serviceNameEn": "Departure",
+      "serviceNameAr": "استمارة مغادرة",
+      "authorityNameEn": "Ministry of Labor",
+      "authorityNameAr": "وزارة العمل",
+      "demandVolume": 47877
+    },
+    {
+      "rank": 8,
+      "serviceNameEn": "Omani Registration",
+      "serviceNameAr": "العماني بطاقة الهوية",
+      "authorityNameEn": "D.G. of Civil Status",
+      "authorityNameAr": "الإدارة العامة للأحوال المدنية",
+      "demandVolume": 47333
+    },
+    {
+      "rank": 9,
+      "serviceNameEn": "Domestic Worker Contract",
+      "serviceNameAr": "عقد عمال المنازل",
+      "authorityNameEn": "Ministry of Labor",
+      "authorityNameAr": "وزارة العمل",
+      "demandVolume": 43004
+    },
+    {
+      "rank": 10,
+      "serviceNameEn": "New Electricity Connection Request",
+      "serviceNameAr": "طلب توصيل جديد",
+      "authorityNameEn": "Mazoon Electricity",
+      "authorityNameAr": "كهرباء مزون",
+      "demandVolume": 14801
+    }
+  ],
+  "2020": [
+    {
+      "rank": 1,
+      "serviceNameEn": "Registration of Residents",
+      "serviceNameAr": "بطاقة المقيم",
+      "authorityNameEn": "D.G. of Civil Status",
+      "authorityNameAr": "الإدارة العامة للأحوال المدنية",
+      "demandVolume": 809476
+    },
+    {
+      "rank": 2,
+      "serviceNameEn": "Medical Examination Form",
+      "serviceNameAr": "استمارة الفحص الطبي",
+      "authorityNameEn": "Ministry of Health",
+      "authorityNameAr": "وزارة الصحة",
+      "demandVolume": 203838
+    },
+    {
+      "rank": 3,
+      "serviceNameEn": "OOCI Membership Renewal",
+      "serviceNameAr": "تجديد العضوية",
+      "authorityNameEn": "Oman Chamber of Commerce and Industry",
+      "authorityNameAr": "غرفة عمان للتجارة والصناعة",
+      "demandVolume": 26505
+    },
+    {
+      "rank": 4,
+      "serviceNameEn": "Employee Contract",
+      "serviceNameAr": "عقل عمل",
+      "authorityNameEn": "Ministry of Labor",
+      "authorityNameAr": "وزارة العمل",
+      "demandVolume": 21761
+    },
+    {
+      "rank": 5,
+      "serviceNameEn": "Domestic Worker Contract",
+      "serviceNameAr": "عقد عمال المنازل",
+      "authorityNameEn": "Ministry of Labor",
+      "authorityNameAr": "وزارة العمل",
+      "demandVolume": 17234
+    },
+    {
+      "rank": 6,
+      "serviceNameEn": "New Electricity Connection Request",
+      "serviceNameAr": "طلب توصيل جديد",
+      "authorityNameEn": "Mazoon Electricity",
+      "authorityNameAr": "كهرباء مزون",
+      "demandVolume": 12608
+    },
+    {
+      "rank": 7,
+      "serviceNameEn": "Laborcard",
+      "serviceNameAr": "بطاقة العمل",
+      "authorityNameEn": "Ministry of Labor",
+      "authorityNameAr": "وزارة العمل",
+      "demandVolume": 9453
+    },
+    {
+      "rank": 8,
+      "serviceNameEn": "Main Board (New/Renew/Update/Cancel)",
+      "serviceNameAr": "اللوحة الرئيسية (جديد/تجديد/تحديث/إلغاء)",
+      "authorityNameEn": "Ministry of Regional Municipalities and Water Resources",
+      "authorityNameAr": "وزارة البلديات الاقليمية و موارد المياة",
+      "demandVolume": 7078
+    },
+    {
+      "rank": 9,
+      "serviceNameEn": "Omani Registration",
+      "serviceNameAr": "العماني بطاقة الهوية",
+      "authorityNameEn": "D.G. of Civil Status",
+      "authorityNameAr": "الإدارة العامة للأحوال المدنية",
+      "demandVolume": 6782
+    },
+    {
+      "rank": 10,
+      "serviceNameEn": "PASI Reports",
+      "serviceNameAr": "التقرير",
+      "authorityNameEn": "Social Protection Fund",
+      "authorityNameAr": "صندوق الحماية الإجتماعية",
+      "demandVolume": 6594
+    }
+  ],
+  "2021": [
+    {
+      "rank": 1,
+      "serviceNameEn": "Registration of Residents",
+      "serviceNameAr": "بطاقة المقيم",
+      "authorityNameEn": "D.G. of Civil Status",
+      "authorityNameAr": "الإدارة العامة للأحوال المدنية",
+      "demandVolume": 634419
+    },
+    {
+      "rank": 2,
+      "serviceNameEn": "Medical Examination Form",
+      "serviceNameAr": "استمارة الفحص الطبي",
+      "authorityNameEn": "Ministry of Health",
+      "authorityNameAr": "وزارة الصحة",
+      "demandVolume": 333737
+    },
+    {
+      "rank": 3,
+      "serviceNameEn": "OOCI Membership Renewal",
+      "serviceNameAr": "تجديد العضوية",
+      "authorityNameEn": "Oman Chamber of Commerce and Industry",
+      "authorityNameAr": "غرفة عمان للتجارة والصناعة",
+      "demandVolume": 65585
+    },
+    {
+      "rank": 4,
+      "serviceNameEn": "Employee Contract",
+      "serviceNameAr": "عقل عمل",
+      "authorityNameEn": "Ministry of Labor",
+      "authorityNameAr": "وزارة العمل",
+      "demandVolume": 61244
+    },
+    {
+      "rank": 5,
+      "serviceNameEn": "Domestic Worker Contract",
+      "serviceNameAr": "عقد عمال المنازل",
+      "authorityNameEn": "Ministry of Labor",
+      "authorityNameAr": "وزارة العمل",
+      "demandVolume": 43815
+    },
+    {
+      "rank": 6,
+      "serviceNameEn": "Main Board (New/Renew/Update/Cancel)",
+      "serviceNameAr": "اللوحة الرئيسية (جديد/تجديد/تحديث/إلغاء)",
+      "authorityNameEn": "Ministry of Regional Municipalities and Water Resources",
+      "authorityNameAr": "وزارة البلديات الاقليمية و موارد المياة",
+      "demandVolume": 16731
+    },
+    {
+      "rank": 7,
+      "serviceNameEn": "New Membership Registration",
+      "serviceNameAr": "تسجيل عضوية جديدة",
+      "authorityNameEn": "Oman Chamber of Commerce and Industry",
+      "authorityNameAr": "غرفة عمان للتجارة والصناعة",
+      "demandVolume": 15044
+    },
+    {
+      "rank": 8,
+      "serviceNameEn": "New Electricity Connection Request",
+      "serviceNameAr": "طلب توصيل جديد",
+      "authorityNameEn": "Mazoon Electricity",
+      "authorityNameAr": "كهرباء مزون",
+      "demandVolume": 13745
+    },
+    {
+      "rank": 9,
+      "serviceNameEn": "Animal Registration",
+      "serviceNameAr": "تسجيل حيوان",
+      "authorityNameEn": "Ministry of Agriculture, Fisheries and Water Resources",
+      "authorityNameAr": "زارة الثروة الزراعية و السمكية وموارد المياه",
+      "demandVolume": 7226
+    },
+    {
+      "rank": 10,
+      "serviceNameEn": "Omani Registration",
+      "serviceNameAr": "العماني بطاقة الهوية",
+      "authorityNameEn": "D.G. of Civil Status",
+      "authorityNameAr": "الإدارة العامة للأحوال المدنية",
+      "demandVolume": 4937
+    }
+  ],
+  "2022": [
+    {
+      "rank": 1,
+      "serviceNameEn": "Medical Examination Form",
+      "serviceNameAr": "استمارة الفحص الطبي",
+      "authorityNameEn": "Ministry of Health",
+      "authorityNameAr": "وزارة الصحة",
+      "demandVolume": 1006035
+    },
+    {
+      "rank": 2,
+      "serviceNameEn": "Registration of Residents",
+      "serviceNameAr": "بطاقة المقيم",
+      "authorityNameEn": "D.G. of Civil Status",
+      "authorityNameAr": "الإدارة العامة للأحوال المدنية",
+      "demandVolume": 324321
+    },
+    {
+      "rank": 3,
+      "serviceNameEn": "Employee Contract",
+      "serviceNameAr": "عقل عمل",
+      "authorityNameEn": "Ministry of Labor",
+      "authorityNameAr": "وزارة العمل",
+      "demandVolume": 163133
+    },
+    {
+      "rank": 4,
+      "serviceNameEn": "OOCI Membership Renewal",
+      "serviceNameAr": "تجديد العضوية",
+      "authorityNameEn": "Oman Chamber of Commerce and Industry",
+      "authorityNameAr": "غرفة عمان للتجارة والصناعة",
+      "demandVolume": 74217
+    },
+    {
+      "rank": 5,
+      "serviceNameEn": "Domestic Worker Contract",
+      "serviceNameAr": "عقد عمال المنازل",
+      "authorityNameEn": "Ministry of Labor",
+      "authorityNameAr": "وزارة العمل",
+      "demandVolume": 54101
+    },
+    {
+      "rank": 6,
+      "serviceNameEn": "New Membership Registration",
+      "serviceNameAr": "تسجيل عضوية جديدة",
+      "authorityNameEn": "Oman Chamber of Commerce and Industry",
+      "authorityNameAr": "غرفة عمان للتجارة والصناعة",
+      "demandVolume": 38343
+    },
+    {
+      "rank": 7,
+      "serviceNameEn": "Main Board (New/Renew/Update/Cancel)",
+      "serviceNameAr": "اللوحة الرئيسية (جديد/تجديد/تحديث/إلغاء)",
+      "authorityNameEn": "Ministry of Regional Municipalities and Water Resources",
+      "authorityNameAr": "وزارة البلديات الاقليمية و موارد المياة",
+      "demandVolume": 17182
+    },
+    {
+      "rank": 8,
+      "serviceNameEn": "New Electricity Connection Request",
+      "serviceNameAr": "طلب توصيل جديد",
+      "authorityNameEn": "Mazoon Electricity",
+      "authorityNameAr": "كهرباء مزون",
+      "demandVolume": 14495
+    },
+    {
+      "rank": 9,
+      "serviceNameEn": "Health Card (New / Renew)",
+      "serviceNameAr": "بطاقة صحية (جديد/تجديد)",
+      "authorityNameEn": "Ministry of Regional Municipalities and Water Resources",
+      "authorityNameAr": "وزارة البلديات الاقليمية و موارد المياة",
+      "demandVolume": 9768
+    },
+    {
+      "rank": 10,
+      "serviceNameEn": "Initial Connection Request",
+      "serviceNameAr": "استمارة البيانات الأولية لتوصيل التيار الكهربائي",
+      "authorityNameEn": "Mazoon Electricity",
+      "authorityNameAr": "كهرباء مزون",
+      "demandVolume": 5085
+    }
+  ],
+  "2023": [
+    {
+      "rank": 1,
+      "serviceNameEn": "Medical Examination Form",
+      "serviceNameAr": "استمارة الفحص الطبي",
+      "authorityNameEn": "Ministry of Health",
+      "authorityNameAr": "وزارة الصحة",
+      "demandVolume": 837715
+    },
+    {
+      "rank": 2,
+      "serviceNameEn": "Membership Renewal",
+      "serviceNameAr": "تجديد العضوية",
+      "authorityNameEn": "Oman Chamber of Commerce and Industry",
+      "authorityNameAr": "غرفة عمان للتجارة والصناعة",
+      "demandVolume": 75053
+    },
+    {
+      "rank": 3,
+      "serviceNameEn": "Registration of Residents",
+      "serviceNameAr": "بطاقة المقيم",
+      "authorityNameEn": "D.G. of Civil Status",
+      "authorityNameAr": "الإدارة العامة للأحوال المدنية",
+      "demandVolume": 55125
+    },
+    {
+      "rank": 4,
+      "serviceNameEn": "Domestic Worker Contract",
+      "serviceNameAr": "عقد عمال المنازل",
+      "authorityNameEn": "Ministry of Labor",
+      "authorityNameAr": "وزارة العمل",
+      "demandVolume": 36496
+    },
+    {
+      "rank": 5,
+      "serviceNameEn": "New Membership Registration",
+      "serviceNameAr": "تسجيل عضوية جديدة",
+      "authorityNameEn": "Oman Chamber of Commerce and Industry",
+      "authorityNameAr": "غرفة عمان للتجارة والصناعة",
+      "demandVolume": 31469
+    },
+    {
+      "rank": 6,
+      "serviceNameEn": "New Connection Request",
+      "serviceNameAr": "طلب توصيل جديد",
+      "authorityNameEn": "Mazoon Electricity",
+      "authorityNameAr": "كهرباء مزون",
+      "demandVolume": 15556
+    },
+    {
+      "rank": 7,
+      "serviceNameEn": "Initial Connection Request",
+      "serviceNameAr": "استمارة البيانات الأولية لتوصيل التيار الكهربائي",
+      "authorityNameEn": "Mazoon Electricity",
+      "authorityNameAr": "كهرباء مزون",
+      "demandVolume": 5312
+    },
+    {
+      "rank": 8,
+      "serviceNameEn": "Main Board (New / Renew / Update / Cancel)",
+      "serviceNameAr": "اللوحة الرئيسية (جديد/تجديد/تحديث/إلغاء)",
+      "authorityNameEn": "Ministry of Regional Municipalities and Water Resources",
+      "authorityNameAr": "وزارة البلديات الاقليمية و موارد المياة",
+      "demandVolume": 5050
+    },
+    {
+      "rank": 9,
+      "serviceNameEn": "Replacement of Lost Certificate",
+      "serviceNameAr": "بدل فاقد",
+      "authorityNameEn": "Oman Chamber of Commerce and Industry",
+      "authorityNameAr": "غرفة عمان للتجارة والصناعة",
+      "demandVolume": 3875
+    },
+    {
+      "rank": 10,
+      "serviceNameEn": "Renew Rent Contract",
+      "serviceNameAr": "تجديد عقد الإيجار",
+      "authorityNameEn": "Muscat Muncipality",
+      "authorityNameAr": "بلدية مسقط",
+      "demandVolume": 2489
+    }
+  ],
+  "2024": [
+    {
+      "rank": 1,
+      "serviceNameEn": "Renew - Labour, & Resident Card (Workers)",
+      "serviceNameAr": "تجديد بطاقة مقيم وعمل (عامل)",
+      "authorityNameEn": "Ministry of Health",
+      "authorityNameAr": "وزارة الصحة",
+      "demandVolume": 257793
+    },
+    {
+      "rank": 2,
+      "serviceNameEn": "New - Labour, & Resident Card (Workers)",
+      "serviceNameAr": "اصدار بطاقة مقيم وعمل جديد (عامل)",
+      "authorityNameEn": "Ministry of Health",
+      "authorityNameAr": "وزارة الصحة",
+      "demandVolume": 188624
+    },
+    {
+      "rank": 3,
+      "serviceNameEn": "Sponsor Change - Labour, & Resident Card (Workers)",
+      "serviceNameAr": "تغيير الكفيل- بطاقة مقيم وعمل (عامل)",
+      "authorityNameEn": "Ministry of Health",
+      "authorityNameAr": "وزارة الصحة",
+      "demandVolume": 79929
+    },
+    {
+      "rank": 4,
+      "serviceNameEn": "Membership Renewal",
+      "serviceNameAr": "تجديد العضوية",
+      "authorityNameEn": "Oman Chamber of Commerce and Industry",
+      "authorityNameAr": "غرفة عمان للتجارة والصناعة",
+      "demandVolume": 77126
+    },
+    {
+      "rank": 5,
+      "serviceNameEn": "Pre-Arrival Medical Report Attestation eService",
+      "serviceNameAr": "خدمة التصديق على التقرير الطبي للعمال قبل الوصول",
+      "authorityNameEn": "Ministry of Health",
+      "authorityNameAr": "وزارة الصحة",
+      "demandVolume": 74336
+    },
+    {
+      "rank": 6,
+      "serviceNameEn": "Employee Contract",
+      "serviceNameAr": "عقد عمل",
+      "authorityNameEn": "Ministry of Labor",
+      "authorityNameAr": "وزارة العمل",
+      "demandVolume": 36238
+    },
+    {
+      "rank": 7,
+      "serviceNameEn": "New Membership Registration",
+      "serviceNameAr": "تسجيل عضوية جديدة",
+      "authorityNameEn": "Oman Chamber of Commerce and Industry",
+      "authorityNameAr": "غرفة عمان للتجارة والصناعة",
+      "demandVolume": 30388
+    },
+    {
+      "rank": 8,
+      "serviceNameEn": "Renew - Labour, Resident, & Municipality Health Card",
+      "serviceNameAr": "تجديد بطاقة مقيم وعمل وبطاقة صحية",
+      "authorityNameEn": "Ministry of Health",
+      "authorityNameAr": "وزارة الصحة",
+      "demandVolume": 22198
+    },
+    {
+      "rank": 9,
+      "serviceNameEn": "Domestic Worker Contract",
+      "serviceNameAr": "عقد عمال المنازل",
+      "authorityNameEn": "Ministry of Labor",
+      "authorityNameAr": "وزارة العمل",
+      "demandVolume": 21861
+    },
+    {
+      "rank": 10,
+      "serviceNameEn": "New Connection Request",
+      "serviceNameAr": "طلب توصيل جديد",
+      "authorityNameEn": "Mazoon Electricity",
+      "authorityNameAr": "كهرباء مزون",
+      "demandVolume": 15660
+    }
+  ],
+  "2025": [
+    {
+      "rank": 1,
+      "serviceNameEn": "Renew - Labour, & Resident Card (Workers)",
+      "serviceNameAr": "تجديد بطاقة مقيم وعمل (عامل)",
+      "authorityNameEn": "Ministry of Health",
+      "authorityNameAr": "وزارة الصحة",
+      "demandVolume": 166597
+    },
+    {
+      "rank": 2,
+      "serviceNameEn": "New - Labour, & Resident Card (Workers)",
+      "serviceNameAr": "اصدار بطاقة مقيم وعمل جديد (عامل)",
+      "authorityNameEn": "Ministry of Health",
+      "authorityNameAr": "وزارة الصحة",
+      "demandVolume": 101424
+    },
+    {
+      "rank": 3,
+      "serviceNameEn": "Sponsor Change - Labour, & Resident Card (Workers)",
+      "serviceNameAr": "تغيير الكفيل- بطاقة مقيم وعمل (عامل)",
+      "authorityNameEn": "Ministry of Health",
+      "authorityNameAr": "وزارة الصحة",
+      "demandVolume": 78845
+    },
+    {
+      "rank": 4,
+      "serviceNameEn": "Membership Renewal",
+      "serviceNameAr": "تجديد العضوية",
+      "authorityNameEn": "Oman Chamber of Commerce and Industry",
+      "authorityNameAr": "غرفة عمان للتجارة والصناعة",
+      "demandVolume": 78377
+    },
+    {
+      "rank": 5,
+      "serviceNameEn": "Pre-Arrival Medical eReport - GAMCA/WAFID",
+      "serviceNameAr": "خدمة التصديق على التقرير الطبي للعمال قبل الوصول",
+      "authorityNameEn": "Ministry of Health",
+      "authorityNameAr": "وزارة الصحة",
+      "demandVolume": 35605
+    },
+    {
+      "rank": 6,
+      "serviceNameEn": "Employee Contract",
+      "serviceNameAr": "عقد عمل",
+      "authorityNameEn": "Ministry of Labor",
+      "authorityNameAr": "وزارة العمل",
+      "demandVolume": 28491
+    },
+    {
+      "rank": 7,
+      "serviceNameEn": "Domestic Worker Contract",
+      "serviceNameAr": "عقد عمال المنازل",
+      "authorityNameEn": "Ministry of Labor",
+      "authorityNameAr": "وزارة العمل",
+      "demandVolume": 21912
+    },
+    {
+      "rank": 8,
+      "serviceNameEn": "New Membership Registration",
+      "serviceNameAr": "تسجيل عضوية جديدة",
+      "authorityNameEn": "Oman Chamber of Commerce and Industry",
+      "authorityNameAr": "غرفة عمان للتجارة والصناعة",
+      "demandVolume": 17950
+    },
+    {
+      "rank": 9,
+      "serviceNameEn": "Renew - Labour, Resident, & Municipality Health Card",
+      "serviceNameAr": "تجديد بطاقة مقيم وعمل وبطاقة صحية",
+      "authorityNameEn": "Ministry of Health",
+      "authorityNameAr": "وزارة الصحة",
+      "demandVolume": 15839
+    },
+    {
+      "rank": 10,
+      "serviceNameEn": "New Connection Request",
+      "serviceNameAr": "طلب توصيل جديد",
+      "authorityNameEn": "Mazoon Electricity",
+      "authorityNameAr": "كهرباء مزون",
+      "demandVolume": 14000
+    }
+  ]
+}

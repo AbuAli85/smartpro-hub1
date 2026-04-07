@@ -93,7 +93,7 @@ function SectionNav() {
 }
 
 function OverviewSurface() {
-  const { data, isLoading, error } = trpc.sanadIntelligence.overviewSummary.useQuery();
+  const { data, isLoading, error } = trpc.sanad.intelligence.overviewSummary.useQuery();
 
   if (isLoading)
     return (
@@ -263,8 +263,8 @@ function DirectorySurface() {
   const [partner, setPartner] = useState<string>("");
   const [drawerId, setDrawerId] = useState<number | null>(null);
 
-  const { data: filters } = trpc.sanadIntelligence.filterOptions.useQuery();
-  const { data: wilayatList } = trpc.sanadIntelligence.wilayatForGovernorate.useQuery(
+  const { data: filters } = trpc.sanad.intelligence.filterOptions.useQuery();
+  const { data: wilayatList } = trpc.sanad.intelligence.wilayatForGovernorate.useQuery(
     { governorateKey: gov },
     { enabled: Boolean(gov) },
   );
@@ -272,7 +272,7 @@ function DirectorySurface() {
   const partnerFilter =
     partner === "" ? undefined : (partner as "unknown" | "prospect" | "active" | "suspended" | "churned");
 
-  const listQuery = trpc.sanadIntelligence.listCenters.useQuery({
+  const listQuery = trpc.sanad.intelligence.listCenters.useQuery({
     search: search || undefined,
     governorateKey: gov || undefined,
     wilayat: wil || undefined,
@@ -281,12 +281,12 @@ function DirectorySurface() {
     offset: 0,
   });
 
-  const detail = trpc.sanadIntelligence.getCenter.useQuery(
+  const detail = trpc.sanad.intelligence.getCenter.useQuery(
     { id: drawerId ?? 0 },
     { enabled: drawerId != null },
   );
 
-  const updateOps = trpc.sanadIntelligence.updateCenterOperations.useMutation({
+  const updateOps = trpc.sanad.intelligence.updateCenterOperations.useMutation({
     onSuccess: () => {
       toast.success("Partner record updated");
       listQuery.refetch();
@@ -543,12 +543,12 @@ function DirectorySurface() {
 }
 
 function DemandSurface() {
-  const { data: y0 } = trpc.sanadIntelligence.latestMetricYear.useQuery();
+  const { data: y0 } = trpc.sanad.intelligence.latestMetricYear.useQuery();
   const year = y0?.year ?? new Date().getFullYear();
   const [sel, setSel] = useState<number | null>(null);
   const activeYear = sel ?? year ?? new Date().getFullYear();
 
-  const { data, isLoading, error } = trpc.sanadIntelligence.serviceDemandInsights.useQuery(
+  const { data, isLoading, error } = trpc.sanad.intelligence.serviceDemandInsights.useQuery(
     { year: activeYear },
     { enabled: activeYear > 0 },
   );
@@ -656,11 +656,11 @@ function DemandSurface() {
 }
 
 function OpportunitySurface() {
-  const { data: y0 } = trpc.sanadIntelligence.latestMetricYear.useQuery();
+  const { data: y0 } = trpc.sanad.intelligence.latestMetricYear.useQuery();
   const [year, setYear] = useState<number | null>(null);
   const active = year ?? y0?.year ?? new Date().getFullYear();
 
-  const { data, isLoading, error } = trpc.sanadIntelligence.regionalOpportunity.useQuery(
+  const { data, isLoading, error } = trpc.sanad.intelligence.regionalOpportunity.useQuery(
     { year: active },
     { enabled: active > 0 },
   );
@@ -730,14 +730,14 @@ function ComplianceSurface() {
   const [centerId, setCenterId] = useState<string>("");
   const cid = parseInt(centerId, 10);
 
-  const { data: reqs } = trpc.sanadIntelligence.listLicenseRequirements.useQuery();
-  const { data: centers } = trpc.sanadIntelligence.listCenters.useQuery({ limit: 500, offset: 0 });
-  const { data: items, refetch } = trpc.sanadIntelligence.listCenterCompliance.useQuery(
+  const { data: reqs } = trpc.sanad.intelligence.listLicenseRequirements.useQuery();
+  const { data: centers } = trpc.sanad.intelligence.listCenters.useQuery({ limit: 500, offset: 0 });
+  const { data: items, refetch } = trpc.sanad.intelligence.listCenterCompliance.useQuery(
     { centerId: cid },
     { enabled: cid > 0 },
   );
 
-  const seed = trpc.sanadIntelligence.seedComplianceForCenter.useMutation({
+  const seed = trpc.sanad.intelligence.seedComplianceForCenter.useMutation({
     onSuccess: (r) => {
       toast.success(`Seeded ${r.created} checklist rows`);
       refetch();
@@ -745,7 +745,7 @@ function ComplianceSurface() {
     onError: (e) => toast.error(e.message),
   });
 
-  const upsert = trpc.sanadIntelligence.upsertCenterComplianceItem.useMutation({
+  const upsert = trpc.sanad.intelligence.upsertCenterComplianceItem.useMutation({
     onSuccess: () => refetch(),
     onError: (e) => toast.error(e.message),
   });

@@ -20,8 +20,8 @@ import { fileURLToPath } from "node:url";
 import { eq, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import * as XLSX from "xlsx";
-import * as schema from "../drizzle/schema.js";
-import { fingerprintCenterRow, governorateKeyFromLabel } from "../server/sanad-intelligence/normalize.js";
+import * as schema from "../drizzle/schema";
+import { fingerprintCenterRow, governorateKeyFromLabel } from "../server/sanad-intelligence/normalize";
 import {
   directoryRowFromArray,
   mapDirectoryHeaders,
@@ -30,8 +30,8 @@ import {
   parseWorkforceByGovernorate,
   parseYearGovernorateCounts,
   parseYearGovernorateIncome,
-} from "../server/sanad-intelligence/parseSources.js";
-import { ensureLicenseRequirementCodes } from "../server/sanad-intelligence/licenseSeed.js";
+} from "../server/sanad-intelligence/parseSources";
+import { ensureLicenseRequirementCodes } from "../server/sanad-intelligence/licenseSeed";
 import { nanoid } from "nanoid";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));

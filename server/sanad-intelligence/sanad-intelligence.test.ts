@@ -4,9 +4,9 @@ import {
   governorateKeyFromLabel,
   normalizeYearKey,
   parseIntSafe,
-} from "./normalize.js";
-import { computeGovernorateOpportunityRows } from "./opportunityScore.js";
-import { parseGeographyCenterCounts, parseYearGovernorateCounts, parseYearGovernorateIncome } from "./parseSources.js";
+} from "./normalize";
+import { computeGovernorateOpportunityRows } from "./opportunityScore";
+import { parseGeographyCenterCounts, parseYearGovernorateCounts, parseYearGovernorateIncome } from "./parseSources";
 
 describe("normalizeYearKey", () => {
   it("normalizes malformed year keys", () => {

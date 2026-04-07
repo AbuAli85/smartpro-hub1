@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
-import { sanadIntelLicenseRequirements } from "../../drizzle/schema.js";
+import { sanadIntelLicenseRequirements } from "../../drizzle/schema";
 
 /** Structured checklist aligned with SANAD service centre licensing themes (maintain in-code; refine against official PDF). */
 export const SANAD_LICENSE_REQUIREMENT_SEED = [

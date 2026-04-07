@@ -6,8 +6,8 @@ import {
   sanadIntelCenterOperations,
   sanadIntelCenters,
   sanadIntelLicenseRequirements,
-} from "../../drizzle/schema.js";
-import { getDb } from "../db.js";
+} from "../../drizzle/schema";
+import { getDb } from "../db";
 import {
   getCenterDetail,
   getLatestMetricYear,
@@ -18,8 +18,8 @@ import {
   listCenters,
   listGovernorateKeysFromCenters,
   listWilayatForGovernorate,
-} from "../sanad-intelligence/queries.js";
-import { adminProcedure, router } from "../_core/trpc.js";
+} from "../sanad-intelligence/queries";
+import { adminProcedure, router } from "../_core/trpc";
 
 const partnerStatusZ = z.enum(["unknown", "prospect", "active", "suspended", "churned"]);
 const onboardingZ = z.enum([

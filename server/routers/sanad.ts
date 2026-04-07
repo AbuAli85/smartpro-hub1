@@ -27,6 +27,7 @@ import {
 import { getActiveCompanyMembership } from "../_core/membership";
 import { assertRowBelongsToActiveCompany, requireActiveCompanyId } from "../_core/tenant";
 import { protectedProcedure, publicProcedure, router } from "../_core/trpc";
+import { sanadIntelligenceRouter } from "./sanadIntelligence";
 
 export const PROVIDER_TYPES = [
   "pro_office",
@@ -1067,4 +1068,7 @@ export const sanadRouter = router({
       if (!m) return [];
       return getSanadApplications(m.companyId, input ?? {});
     }),
+
+  /** Network intelligence (KPIs, directory, opportunity) — also mounted at root `sanadIntelligence` for tRPC path parity */
+  intelligence: sanadIntelligenceRouter,
 });

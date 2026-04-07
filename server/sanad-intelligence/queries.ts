@@ -1,8 +1,8 @@
 import { and, asc, desc, eq, inArray, like, or, sql } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
-import * as schema from "../../drizzle/schema.js";
-import { computeGovernorateOpportunityRows } from "./opportunityScore.js";
-import { governorateKeyFromLabel } from "./normalize.js";
+import * as schema from "../../drizzle/schema";
+import { computeGovernorateOpportunityRows } from "./opportunityScore";
+import { governorateKeyFromLabel } from "./normalize";
 
 type DB = MySql2Database<typeof schema>;
 

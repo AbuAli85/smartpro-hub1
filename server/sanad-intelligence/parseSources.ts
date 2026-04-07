@@ -1,5 +1,5 @@
-import type { GovKeyRow } from "./types.js";
-import { governorateKeyFromLabel, normalizeYearKey, parseIntSafe, parseNumeric } from "./normalize.js";
+import type { GovKeyRow } from "./types";
+import { governorateKeyFromLabel, normalizeYearKey, parseIntSafe, parseNumeric } from "./normalize";
 
 export type ParsedYearGovernorateValue = { year: number; governorateLabel: string; value: number }[];
 

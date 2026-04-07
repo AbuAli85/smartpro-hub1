@@ -64,6 +64,13 @@
       "when": 1744300000000,
       "tag": "0024_performance_interventions",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "5",
+      "when": 1744400000000,
+      "tag": "0025_sanad_network_intelligence",
+      "breakpoints": true
     }
   ]
 }

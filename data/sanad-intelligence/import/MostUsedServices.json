@@ -1,0 +1,49 @@
+{
+  "2024": [
+    {
+      "rank": 1,
+      "serviceNameEn": "Work permit issuance",
+      "serviceNameAr": "إصدار تصريح عمل",
+      "authorityNameEn": "Ministry of Labour",
+      "authorityNameAr": "وزارة العمل",
+      "demandVolume": 54000
+    },
+    {
+      "rank": 2,
+      "serviceNameEn": "Residence visa renewal",
+      "serviceNameAr": "تجديد إقامة",
+      "authorityNameEn": "ROP",
+      "demandVolume": 48000
+    },
+    {
+      "rank": 3,
+      "serviceNameEn": "Document typing",
+      "serviceNameAr": "خدمات كتابة",
+      "authorityNameEn": "Various",
+      "demandVolume": 41000
+    }
+  ],
+  "2025": [
+    {
+      "rank": 1,
+      "serviceNameEn": "Residence visa renewal",
+      "serviceNameAr": "تجديد إقامة",
+      "authorityNameEn": "ROP",
+      "demandVolume": 51000
+    },
+    {
+      "rank": 2,
+      "serviceNameEn": "Work permit issuance",
+      "serviceNameAr": "إصدار تصريح عمل",
+      "authorityNameEn": "Ministry of Labour",
+      "demandVolume": 49500
+    },
+    {
+      "rank": 3,
+      "serviceNameEn": "Commercial registration services",
+      "serviceNameAr": "خدمات السجل التجاري",
+      "authorityNameEn": "MOCIIP",
+      "demandVolume": 36000
+    }
+  ]
+}

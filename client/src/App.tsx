@@ -21,6 +21,7 @@ import CRMPage from "./pages/CRMPage";
 import AnalyticsPage from "./pages/AnalyticsPage";
 import SubscriptionsPage from "./pages/SubscriptionsPage";
 import AdminPage from "./pages/AdminPage";
+import AdminSanadIntelligencePage from "./pages/AdminSanadIntelligencePage";
 import HRAttendancePage from "./pages/HRAttendancePage";
 import ClientPortalPage from "./pages/ClientPortalPage";
 import OnboardingPage from "./pages/OnboardingPage";
@@ -143,6 +144,11 @@ function AppRoutes() {
         <Route path="/crm" component={CRMPage} />
         <Route path="/analytics" component={AnalyticsPage} />
         <Route path="/subscriptions" component={SubscriptionsPage} />
+        <Route path="/admin/sanad/compliance" component={AdminSanadIntelligencePage} />
+        <Route path="/admin/sanad/opportunity" component={AdminSanadIntelligencePage} />
+        <Route path="/admin/sanad/demand" component={AdminSanadIntelligencePage} />
+        <Route path="/admin/sanad/directory" component={AdminSanadIntelligencePage} />
+        <Route path="/admin/sanad" component={AdminSanadIntelligencePage} />
         <Route path="/admin" component={AdminPage} />
         {/* Workforce Hub — specific routes MUST come before parameterized ones */}
         <Route path="/workforce" component={WorkforceDashboard} />

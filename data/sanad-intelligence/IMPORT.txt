@@ -1,0 +1,18 @@
+SANAD Network Intelligence — data import
+
+1. Copy official exports into: data/sanad-intelligence/import/
+   - TransactionStatistics.json
+   - SanadCenterIncome.json (malformed year keys like "2024.000" are normalized)
+   - SanadCenterEmployeesStatistics.json
+   - SanadCenterStatistics.json (nested governorate → wilayat → village → count)
+   - MostUsedServices.json
+   - SanadCenterDirectory.xlsx (first sheet; headers like Center Name, Governorate, Wilayat, Village, Contact)
+
+2. Apply DB migration 0025_sanad_network_intelligence.sql (via your usual drizzle migrate process).
+
+3. Run: pnpm sanad-intel:import
+   Requires DATABASE_URL. Optional: SANAD_INTEL_IMPORT_DIR=/absolute/path/to/folder
+
+4. Idempotence: governorate-year metrics for touched years are replaced; workforce & geography tables are cleared and reloaded; directory rows upsert by fingerprint; licence requirement seed is additive by code.
+
+5. Licensing PDF: place at client/public/docs/SanadServicesCenterlicense-Ar.pdf for the compliance page link.

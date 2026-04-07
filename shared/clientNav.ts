@@ -1,6 +1,9 @@
 import { canAccessGlobalAdminProcedures } from "./rbac";
 
 /** SmartPRO operator / provider tools — not shown to typical business tenants */
+/** Platform sidebar links restricted to global admins (not regional_manager / client_services). */
+export const GLOBAL_ADMIN_PLATFORM_HREFS = new Set<string>(["/admin/sanad"]);
+
 export const PLATFORM_ONLY_HREFS = new Set<string>([
   "/sanad/office-dashboard",
   "/sanad/catalogue-admin",
@@ -156,6 +159,7 @@ export const AUDITOR_BLOCKED_HREFS = new Set<string>([
   "/sanad/catalogue-admin",
   "/sanad/ratings-moderation",
   "/admin",
+  "/admin/sanad",
   "/user-roles",
   "/omani-officers",
   "/officer-assignments",
@@ -304,6 +308,10 @@ export function clientNavItemVisible(
     return false;
   }
 
+  if (GLOBAL_ADMIN_PLATFORM_HREFS.has(href)) {
+    return canAccessGlobalAdminProcedures(user ?? { role: null, platformRole: null });
+  }
+
   if (shouldUsePortalOnlyShell(user, options)) {
     return PORTAL_CLIENT_HREFS.has(href);
   }
@@ -418,6 +426,12 @@ export function clientRouteAccessible(
 
   if (shouldUsePortalOnlyShell(user, options)) {
     return portalShellPathAllowed(path);
+  }
+
+  for (const href of Array.from(GLOBAL_ADMIN_PLATFORM_HREFS)) {
+    if (pathMatchesRestrictedPrefix(path, href)) {
+      if (!user || !canAccessGlobalAdminProcedures(user)) return false;
+    }
   }
 
   for (const href of Array.from(PLATFORM_ONLY_HREFS)) {

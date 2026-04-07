@@ -221,6 +221,7 @@ const navGroups = [
       { label: "Audit Log", href: "/audit-log", icon: <Shield size={18} /> },
       { label: "User Roles & Access", href: "/user-roles", icon: <ShieldCheck size={18} /> },
       { label: "Admin Panel", href: "/admin", icon: <Settings size={18} /> },
+      { label: "SANAD Intelligence", href: "/admin/sanad", icon: <Network size={18} /> },
     ],
   },
 ];

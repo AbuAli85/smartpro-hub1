@@ -11,6 +11,7 @@ import { hrRouter } from "./routers/hr";
 import { marketplaceRouter } from "./routers/marketplace";
 import { proRouter } from "./routers/pro";
 import { sanadRouter } from "./routers/sanad";
+import { sanadIntelligenceRouter } from "./routers/sanadIntelligence";
 import { workforceRouter } from "./routers/workforce";
 import { officersRouter } from "./routers/officers";
 import { billingRouter } from "./routers/billing";
@@ -62,6 +63,7 @@ export const appRouter = router({
 
   companies: companiesRouter,
   sanad: sanadRouter,
+  sanadIntelligence: sanadIntelligenceRouter,
   pro: proRouter,
   marketplace: marketplaceRouter,
   contracts: contractsRouter,

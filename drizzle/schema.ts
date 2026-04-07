@@ -3002,3 +3002,243 @@ export const outsourcingContractEvents = mysqlTable(
 );
 export type OutsourcingContractEvent = typeof outsourcingContractEvents.$inferSelect;
 export type InsertOutsourcingContractEvent = typeof outsourcingContractEvents.$inferInsert;
+
+// ─── SANAD NETWORK INTELLIGENCE (government partner analytics) ────────────────
+
+export const sanadIntelImportBatches = mysqlTable(
+  "sanad_intel_import_batches",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    batchKey: varchar("batch_key", { length: 64 }).notNull().unique(),
+    sourceFiles: json("source_files").$type<string[]>().notNull().default([]),
+    rowCounts: json("row_counts").$type<Record<string, number>>().notNull().default({}),
+    notes: text("notes"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [index("idx_sanad_intel_batch_created").on(t.createdAt)],
+);
+export type SanadIntelImportBatch = typeof sanadIntelImportBatches.$inferSelect;
+
+/** Yearly transactions / income per governorate (normalized from official SANAD exports). */
+export const sanadIntelGovernorateYearMetrics = mysqlTable(
+  "sanad_intel_governorate_year_metrics",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    importBatchId: int("import_batch_id").references(() => sanadIntelImportBatches.id),
+    year: int("year").notNull(),
+    governorateKey: varchar("governorate_key", { length: 128 }).notNull(),
+    governorateLabel: varchar("governorate_label", { length: 255 }).notNull(),
+    transactionCount: int("transaction_count").notNull().default(0),
+    incomeAmount: decimal("income_amount", { precision: 18, scale: 2 }).notNull().default("0"),
+    sourceRef: varchar("source_ref", { length: 128 }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    unique("uq_sanad_intel_gov_year").on(t.year, t.governorateKey),
+    index("idx_sanad_intel_gov_year_y").on(t.year),
+    index("idx_sanad_intel_gov_year_k").on(t.governorateKey),
+  ],
+);
+export type SanadIntelGovernorateYearMetric = typeof sanadIntelGovernorateYearMetrics.$inferSelect;
+
+/** Latest workforce snapshot per governorate (owners / staff / total). */
+export const sanadIntelWorkforceGovernorate = mysqlTable(
+  "sanad_intel_workforce_governorate",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    importBatchId: int("import_batch_id").references(() => sanadIntelImportBatches.id),
+    governorateKey: varchar("governorate_key", { length: 128 }).notNull(),
+    governorateLabel: varchar("governorate_label", { length: 255 }).notNull(),
+    ownerCount: int("owner_count").notNull().default(0),
+    staffCount: int("staff_count").notNull().default(0),
+    totalWorkforce: int("total_workforce").notNull().default(0),
+    asOfYear: int("as_of_year"),
+    sourceRef: varchar("source_ref", { length: 128 }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [unique("uq_sanad_intel_workforce_gov").on(t.governorateKey), index("idx_sanad_intel_wf_k").on(t.governorateKey)],
+);
+export type SanadIntelWorkforceGovernorate = typeof sanadIntelWorkforceGovernorate.$inferSelect;
+
+/** Coverage density: center counts by governorate / wilayat / village. */
+export const sanadIntelGeographyStats = mysqlTable(
+  "sanad_intel_geography_stats",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    importBatchId: int("import_batch_id").references(() => sanadIntelImportBatches.id),
+    governorateKey: varchar("governorate_key", { length: 128 }).notNull(),
+    governorateLabel: varchar("governorate_label", { length: 255 }).notNull(),
+    wilayat: varchar("wilayat", { length: 255 }),
+    village: varchar("village", { length: 255 }),
+    centerCount: int("center_count").notNull().default(0),
+    sourceRef: varchar("source_ref", { length: 128 }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    unique("uq_sanad_intel_geo").on(t.governorateKey, t.wilayat, t.village),
+    index("idx_sanad_intel_geo_gov").on(t.governorateKey),
+  ],
+);
+export type SanadIntelGeographyStat = typeof sanadIntelGeographyStats.$inferSelect;
+
+/** Service demand rankings from MostUsedServices-style exports. */
+export const sanadIntelServiceUsageYear = mysqlTable(
+  "sanad_intel_service_usage_year",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    importBatchId: int("import_batch_id").references(() => sanadIntelImportBatches.id),
+    year: int("year").notNull(),
+    rankOrder: int("rank_order").notNull(),
+    serviceNameAr: text("service_name_ar"),
+    serviceNameEn: varchar("service_name_en", { length: 512 }),
+    authorityNameAr: text("authority_name_ar"),
+    authorityNameEn: varchar("authority_name_en", { length: 512 }),
+    demandVolume: int("demand_volume").notNull().default(0),
+    sourceRef: varchar("source_ref", { length: 128 }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    unique("uq_sanad_intel_svc_year_rank").on(t.year, t.rankOrder),
+    index("idx_sanad_intel_svc_year").on(t.year),
+  ],
+);
+export type SanadIntelServiceUsageYear = typeof sanadIntelServiceUsageYear.$inferSelect;
+
+/** Partner directory master (SanadCenterDirectory.xlsx + dedup fingerprint). */
+export const sanadIntelCenters = mysqlTable(
+  "sanad_intel_centers",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    importBatchId: int("import_batch_id").references(() => sanadIntelImportBatches.id),
+    sourceFingerprint: varchar("source_fingerprint", { length: 64 }).notNull().unique(),
+    centerName: varchar("center_name", { length: 512 }).notNull(),
+    responsiblePerson: varchar("responsible_person", { length: 255 }),
+    contactNumber: varchar("contact_number", { length: 64 }),
+    governorateKey: varchar("governorate_key", { length: 128 }).notNull(),
+    governorateLabelRaw: varchar("governorate_label_raw", { length: 255 }).notNull(),
+    wilayat: varchar("wilayat", { length: 255 }),
+    village: varchar("village", { length: 255 }),
+    rawRow: json("raw_row").$type<Record<string, unknown>>(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  },
+  (t) => [
+    index("idx_sanad_intel_centers_gov").on(t.governorateKey),
+    index("idx_sanad_intel_centers_name").on(t.centerName),
+  ],
+);
+export type SanadIntelCenter = typeof sanadIntelCenters.$inferSelect;
+
+/** Operational CRM / partner fields (1:1 with sanad_intel_centers). */
+export const sanadIntelCenterOperations = mysqlTable(
+  "sanad_intel_center_operations",
+  {
+    centerId: int("center_id")
+      .notNull()
+      .primaryKey()
+      .references(() => sanadIntelCenters.id, { onDelete: "cascade" }),
+    partnerStatus: mysqlEnum("partner_status", ["unknown", "prospect", "active", "suspended", "churned"])
+      .default("unknown")
+      .notNull(),
+    onboardingStatus: mysqlEnum("onboarding_status", [
+      "not_started",
+      "intake",
+      "documentation",
+      "licensing_review",
+      "licensed",
+      "blocked",
+    ])
+      .default("not_started")
+      .notNull(),
+    complianceOverall: mysqlEnum("compliance_overall", ["not_assessed", "partial", "complete", "at_risk"]).default(
+      "not_assessed",
+    ).notNull(),
+    internalTags: json("internal_tags").$type<string[]>().notNull().default([]),
+    notes: text("notes"),
+    internalReviewNotes: text("internal_review_notes"),
+    assignedManagerUserId: int("assigned_manager_user_id").references(() => users.id),
+    latitude: decimal("latitude", { precision: 10, scale: 7 }),
+    longitude: decimal("longitude", { precision: 10, scale: 7 }),
+    coverageRadiusKm: int("coverage_radius_km"),
+    targetSlaHours: int("target_sla_hours"),
+    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  },
+  (t) => [index("idx_sanad_intel_ops_partner").on(t.partnerStatus), index("idx_sanad_intel_ops_onb").on(t.onboardingStatus)],
+);
+export type SanadIntelCenterOperations = typeof sanadIntelCenterOperations.$inferSelect;
+
+/** Structured licensing checklist (seeded; aligns with SANAD centre licensing reference). */
+export const sanadIntelLicenseRequirements = mysqlTable(
+  "sanad_intel_license_requirements",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    code: varchar("code", { length: 64 }).notNull().unique(),
+    category: varchar("category", { length: 64 }).notNull(),
+    onboardingStage: mysqlEnum("onboarding_stage", [
+      "intake",
+      "documentation",
+      "premises",
+      "staffing",
+      "licensing_review",
+      "go_live",
+    ]).notNull(),
+    titleAr: varchar("title_ar", { length: 512 }),
+    titleEn: varchar("title_en", { length: 512 }).notNull(),
+    description: text("description"),
+    sortOrder: int("sort_order").notNull().default(0),
+    requiredDocumentCodes: json("required_document_codes").$type<string[]>().default([]),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [index("idx_sanad_intel_lic_cat").on(t.category), index("idx_sanad_intel_lic_stage").on(t.onboardingStage)],
+);
+export type SanadIntelLicenseRequirement = typeof sanadIntelLicenseRequirements.$inferSelect;
+
+/** Per-center compliance line items. */
+export const sanadIntelCenterComplianceItems = mysqlTable(
+  "sanad_intel_center_compliance_items",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    centerId: int("center_id")
+      .notNull()
+      .references(() => sanadIntelCenters.id, { onDelete: "cascade" }),
+    requirementId: int("requirement_id")
+      .notNull()
+      .references(() => sanadIntelLicenseRequirements.id, { onDelete: "cascade" }),
+    status: mysqlEnum("compliance_item_status", [
+      "pending",
+      "submitted",
+      "verified",
+      "rejected",
+      "waived",
+      "not_applicable",
+    ])
+      .default("pending")
+      .notNull(),
+    evidenceNote: text("evidence_note"),
+    reviewedByUserId: int("reviewed_by_user_id").references(() => users.id),
+    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  },
+  (t) => [
+    unique("uq_sanad_intel_cc_center_req").on(t.centerId, t.requirementId),
+    index("idx_sanad_intel_cc_center").on(t.centerId),
+  ],
+);
+export type SanadIntelCenterComplianceItem = typeof sanadIntelCenterComplianceItems.$inferSelect;
+
+/** Optional per-center yearly metrics (future enrichment). */
+export const sanadIntelCenterMetricsYearly = mysqlTable(
+  "sanad_intel_center_metrics_yearly",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    centerId: int("center_id")
+      .notNull()
+      .references(() => sanadIntelCenters.id, { onDelete: "cascade" }),
+    year: int("year").notNull(),
+    transactionCount: int("transaction_count"),
+    incomeAmount: decimal("income_amount", { precision: 18, scale: 2 }),
+    sourceRef: varchar("source_ref", { length: 128 }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [unique("uq_sanad_intel_cm_center_year").on(t.centerId, t.year)],
+);
+export type SanadIntelCenterMetricsYearly = typeof sanadIntelCenterMetricsYearly.$inferSelect;

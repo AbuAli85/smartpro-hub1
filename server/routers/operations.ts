@@ -27,6 +27,37 @@ import {
 } from "../hrPerformanceAuditReadPolicy";
 import type { PayrollRun, User } from "../../drizzle/schema";
 
+/** Locks `payroll.thisMonthStatus` for tRPC client inference (`not_run` is not a DB enum value). */
+const getSmartDashboardOutputSchema = z.object({
+  headcount: z.object({
+    total: z.number(),
+    active: z.number(),
+    onLeave: z.number(),
+  }),
+  omanisation: z.object({
+    rate: z.number(),
+    omani: z.number(),
+    expat: z.number(),
+  }),
+  payroll: z.object({
+    monthlyTotal: z.number(),
+    thisMonthStatus: z.enum(["draft", "processing", "approved", "paid", "cancelled", "not_run"]),
+    thisMonthNet: z.number(),
+  }),
+  leave: z.object({ pending: z.number() }),
+  permits: z.object({ expiring30d: z.number(), expired: z.number() }),
+  documents: z.object({ expiring30d: z.number(), expired: z.number() }),
+  actions: z.array(
+    z.object({
+      priority: z.string(),
+      title: z.string(),
+      description: z.string(),
+      url: z.string(),
+      count: z.number(),
+    }),
+  ),
+});
+
 export const operationsRouter = router({
   // ── Daily Snapshot ──────────────────────────────────────────────────────────
   getDailySnapshot: protectedProcedure
@@ -453,6 +484,7 @@ export const operationsRouter = router({
   // ── Smart Dashboard (aggregated intelligence) ──────────────────────────────────────────────────────
   getSmartDashboard: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }).optional())
+    .output(getSmartDashboardOutputSchema.nullable())
     .query(async ({ ctx, input }) => {
     const db = await getDb();
     if (!db) return null;

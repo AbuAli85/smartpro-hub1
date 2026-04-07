@@ -295,6 +295,10 @@ function DirectorySurface() {
     onError: (e) => toast.error(e.message),
   });
 
+  /** Radix Select rejects `value=""` on SelectItem; skip empty keys from API data. */
+  const governorateOptions = (filters?.governorates ?? []).filter((g) => g.key.length > 0);
+  const wilayatOptions = (wilayatList ?? []).filter((w) => w.length > 0);
+
   return (
     <div className="space-y-4">
       <div className="flex flex-col lg:flex-row gap-3 lg:items-end">
@@ -318,7 +322,7 @@ function DirectorySurface() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="__all">All</SelectItem>
-              {(filters?.governorates ?? []).map((g) => (
+              {governorateOptions.map((g) => (
                 <SelectItem key={g.key} value={g.key}>
                   {g.label}
                 </SelectItem>
@@ -334,7 +338,7 @@ function DirectorySurface() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="__all">All</SelectItem>
-              {(wilayatList ?? []).map((w) => (
+              {wilayatOptions.map((w) => (
                 <SelectItem key={w} value={w}>
                   {w}
                 </SelectItem>

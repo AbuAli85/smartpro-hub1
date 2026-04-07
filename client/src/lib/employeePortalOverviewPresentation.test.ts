@@ -34,7 +34,7 @@ describe("getOverviewShiftCardPresentation", () => {
     });
     expect(r.operational).toBeNull();
     expect(r.phase).toBeNull();
-    expect(r.primaryCtaLabel).toBe("Open attendance");
+    expect(r.primaryCtaLabel).toBe("Go to attendance");
     expect(r.showMissedActiveWarning).toBe(false);
     expect(r.showMissedEndedWarning).toBe(false);
   });
@@ -47,7 +47,7 @@ describe("getOverviewShiftCardPresentation", () => {
       attendanceLoading: false,
     });
     expect(r.phase).toBe("upcoming");
-    expect(r.primaryCtaLabel).toBe("Prepare");
+    expect(r.primaryCtaLabel).toBe("Review shift");
     expect(r.showSecondaryLogWork).toBe(false);
   });
 
@@ -101,7 +101,7 @@ describe("getOverviewShiftCardPresentation", () => {
       checkOut: null,
       pendingCorrectionCount: 0,
     });
-    expect(r.primaryCtaLabel).toBe("Request correction");
+    expect(r.primaryCtaLabel).toBe("Fix attendance");
     expect(r.showMissedEndedWarning).toBe(true);
     expect(r.warningTone).toBe("red");
   });
@@ -116,8 +116,8 @@ describe("getOverviewShiftCardPresentation", () => {
       checkOut: null,
       pendingCorrectionCount: 1,
     });
-    expect(r.primaryCtaLabel).toBe("Open attendance");
-    expect(r.correctionPendingNote).toContain("pending correction");
+    expect(r.primaryCtaLabel).toBe("Go to attendance");
+    expect(r.correctionPendingNote).toContain("Correction pending");
   });
 
   it("8. Overnight shift approximation (evening in window)", () => {
@@ -141,7 +141,7 @@ describe("getOverviewShiftCardPresentation", () => {
     expect(r.phase).toBe("active");
     expect(r.showMissedActiveWarning).toBe(false);
     expect(r.showMissedEndedWarning).toBe(false);
-    expect(r.primaryCtaLabel).toBe("Open attendance");
+    expect(r.primaryCtaLabel).toBe("Go to attendance");
   });
 
   it("10. Inconsistent record (check-out without check-in)", () => {
@@ -154,11 +154,11 @@ describe("getOverviewShiftCardPresentation", () => {
       checkOut: fixed(2026, 4, 5, 17),
     });
     expect(r.attendanceInconsistent).toBe(true);
-    expect(r.primaryCtaLabel).toBe("Open attendance");
+    expect(r.primaryCtaLabel).toBe("Go to attendance");
     expect(r.warningTone).toBe("red");
   });
 
-  it("Ended, fully checked out → Open attendance", () => {
+  it("Ended, fully checked out → Go to attendance", () => {
     const r = getOverviewShiftCardPresentation({
       startTime: "09:00",
       endTime: "17:00",
@@ -167,7 +167,7 @@ describe("getOverviewShiftCardPresentation", () => {
       checkIn: fixed(2026, 4, 5, 9),
       checkOut: fixed(2026, 4, 5, 17),
     });
-    expect(r.primaryCtaLabel).toBe("Open attendance");
+    expect(r.primaryCtaLabel).toBe("Go to attendance");
     expect(r.showMissedEndedWarning).toBe(false);
   });
 
@@ -180,10 +180,10 @@ describe("getOverviewShiftCardPresentation", () => {
       serverHintsReady: true,
       serverHints: elHints({ canCheckIn: false, canCheckOut: false, canRequestCorrection: true }),
     });
-    expect(r.primaryCtaLabel).toBe("Open attendance");
+    expect(r.primaryCtaLabel).toBe("Go to attendance");
   });
 
-  it("server hints: canRequestCorrection false overrides Request correction", () => {
+  it("server hints: canRequestCorrection false overrides Fix attendance CTA", () => {
     const r = getOverviewShiftCardPresentation({
       startTime: "09:00",
       endTime: "17:00",
@@ -195,7 +195,7 @@ describe("getOverviewShiftCardPresentation", () => {
       serverHintsReady: true,
       serverHints: elHints({ canCheckIn: false, canCheckOut: false, canRequestCorrection: false }),
     });
-    expect(r.primaryCtaLabel).toBe("Open attendance");
+    expect(r.primaryCtaLabel).toBe("Go to attendance");
   });
 
   it("server hints: canCheckOut true forces Check out now when checked in", () => {
@@ -240,7 +240,7 @@ describe("getOverviewShiftCardPresentation", () => {
     expect(r.primaryCtaLabel).toBe("Check in now");
   });
 
-  it("attendance loading keeps Open attendance even if server would allow check-in", () => {
+  it("attendance loading keeps Go to attendance even if server would allow check-in", () => {
     const r = getOverviewShiftCardPresentation({
       startTime: "09:00",
       endTime: "17:00",
@@ -249,7 +249,7 @@ describe("getOverviewShiftCardPresentation", () => {
       serverHintsReady: true,
       serverHints: elHints({ canCheckIn: true, canCheckOut: false, canRequestCorrection: true }),
     });
-    expect(r.primaryCtaLabel).toBe("Open attendance");
+    expect(r.primaryCtaLabel).toBe("Go to attendance");
   });
 });
 

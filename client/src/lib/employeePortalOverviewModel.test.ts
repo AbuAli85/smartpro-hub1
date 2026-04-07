@@ -11,7 +11,7 @@ import { computeProductivityScore } from "./employeePortalUtils";
 const baseShiftPresentation = (): OverviewShiftCardPresentation => ({
   operational: null,
   phase: null,
-  primaryCtaLabel: "Open attendance",
+  primaryCtaLabel: "Go to attendance",
   showSecondaryLogWork: false,
   showMissedActiveWarning: false,
   showMissedEndedWarning: false,

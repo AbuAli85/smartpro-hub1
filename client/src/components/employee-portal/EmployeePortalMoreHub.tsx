@@ -90,7 +90,7 @@ export function EmployeePortalMoreHub({
       <Card className="border-border/60">
         <CardHeader className="pb-1.5 pt-3">
           <CardTitle className="text-sm font-semibold">Tools</CardTitle>
-          <p className="text-[11px] font-normal text-muted-foreground">Quick links — same pages as desktop.</p>
+          <p className="text-[11px] font-normal text-muted-foreground">Same pages as desktop.</p>
         </CardHeader>
         <CardContent className="space-y-4 pb-3 pt-0">
           <HubSection title="Work" items={work} setActiveTab={setActiveTab} />

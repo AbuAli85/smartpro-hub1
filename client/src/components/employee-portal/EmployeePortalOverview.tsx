@@ -344,7 +344,7 @@ export function EmployeePortalOverview(props: EmployeePortalOverviewProps) {
                 </p>
               ) : (
                 <p className="text-muted-foreground">
-                  {shiftOverview.phase === "upcoming" ? "Not checked in yet." : "No check-in recorded."}
+                  {shiftOverview.phase === "upcoming" ? "Not checked in." : "No check-in yet."}
                 </p>
               )}
               {model.shiftTiming?.lateDetail && model.hero?.stateLabel !== "Late" && (
@@ -354,7 +354,7 @@ export function EmployeePortalOverview(props: EmployeePortalOverviewProps) {
                 </p>
               )}
               {shiftOverview.attendanceInconsistent && (
-                <p className="text-xs text-red-700 dark:text-red-300">Record error — use Correction in Attendance.</p>
+                <p className="text-xs text-red-700 dark:text-red-300">Time error — fix in Attendance.</p>
               )}
             </div>
           )}
@@ -365,7 +365,7 @@ export function EmployeePortalOverview(props: EmployeePortalOverviewProps) {
                 primaryCtaDominant ? "min-h-[3.25rem] text-base font-semibold shadow-md sm:min-h-12" : "min-h-11"
               }`}
               onClick={() => go("attendance")}
-              aria-label={`${shiftOverview.primaryCtaLabel} — Attendance`}
+              aria-label={`${shiftOverview.primaryCtaLabel}, attendance tab`}
             >
               <UserCheck className="h-5 w-5 shrink-0" aria-hidden />
               {shiftOverview.primaryCtaLabel}
@@ -404,7 +404,7 @@ export function EmployeePortalOverview(props: EmployeePortalOverviewProps) {
       {/* 2 — Pay & files only (leave / requests: hero secondary or Requests tab — avoids duplicating Leave) */}
       <div className="rounded-xl border border-border/60 bg-muted/10 px-3 py-2.5">
         <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-0.5">Pay &amp; files</p>
-        <p className="text-[10px] text-muted-foreground/90 mb-2">Payslips · uploads · leave lives under Requests.</p>
+        <p className="text-[10px] text-muted-foreground/90 mb-2">Payslips · docs · leave → Requests.</p>
         <div className="flex flex-wrap gap-2">
           <Button type="button" variant="secondary" size="sm" className="min-h-10 flex-1 sm:flex-none sm:min-w-[6rem]" onClick={() => go("payroll")}>
             <DollarSign className="mr-1.5 h-4 w-4 shrink-0" />
@@ -493,9 +493,9 @@ export function EmployeePortalOverview(props: EmployeePortalOverviewProps) {
             <Skeleton className="h-14" />
           ) : model.taskStats.openCount === 0 ? (
             <div className="space-y-2 py-0.5">
-              <p className="text-sm text-muted-foreground">No open tasks right now.</p>
+              <p className="text-sm text-muted-foreground">Nothing open.</p>
               <Button variant="outline" size="sm" className="min-h-10 w-full sm:w-auto" onClick={() => go("tasks")}>
-                View tasks tab
+                Open Tasks
               </Button>
             </div>
           ) : (
@@ -674,7 +674,7 @@ export function EmployeePortalOverview(props: EmployeePortalOverviewProps) {
               </div>
             </div>
           ) : (
-            <p className="text-xs text-muted-foreground">No HR marks yet this month. Your check-ins are on the Attendance tab.</p>
+            <p className="text-xs text-muted-foreground">No HR marks yet. Check-ins: Attendance tab.</p>
           )}
         </CardContent>
       </Card>

@@ -61,9 +61,9 @@ function applyServerEligibilityToOverviewCta(params: {
     } else if (sh.canCheckOut && params.hasIn && !params.hasOut && !params.attendancePending) {
       label = "Check out now";
     } else {
-      if (!sh.canCheckIn && label === "Check in now") label = "Open attendance";
-      if (!sh.canCheckOut && (label === "Check out" || label === "Check out now")) label = "Open attendance";
-      if (!sh.canRequestCorrection && label === "Request correction") label = "Open attendance";
+      if (!sh.canCheckIn && label === "Check in now") label = "Go to attendance";
+      if (!sh.canCheckOut && (label === "Check out" || label === "Check out now")) label = "Go to attendance";
+      if (!sh.canRequestCorrection && label === "Fix attendance") label = "Go to attendance";
     }
   }
   return label;
@@ -101,24 +101,24 @@ export function getOverviewShiftCardPresentation(input: {
   if (!attendancePending && phase === "active" && !hasIn) showMissedActive = true;
   if (!attendancePending && phase === "ended" && !hasIn) showMissedEnded = true;
 
-  let primaryCtaLabel = "Open attendance";
+  let primaryCtaLabel = "Go to attendance";
   if (attendancePending) {
-    if (phase === "upcoming") primaryCtaLabel = "Prepare";
-    else primaryCtaLabel = "Open attendance";
+    if (phase === "upcoming") primaryCtaLabel = "Review shift";
+    else primaryCtaLabel = "Go to attendance";
   } else if (phase === "upcoming") {
-    primaryCtaLabel = "Prepare";
+    primaryCtaLabel = "Review shift";
   } else if (phase === "active") {
     if (!hasIn) primaryCtaLabel = "Check in now";
     else if (!hasOut) primaryCtaLabel = "Check out now";
-    else primaryCtaLabel = "Open attendance";
+    else primaryCtaLabel = "Go to attendance";
   } else if (phase === "ended") {
     if (hasIn && !hasOut) primaryCtaLabel = "Check out now";
-    else if (hasIn) primaryCtaLabel = "Open attendance";
-    else if (pendingCorrectionCount > 0) primaryCtaLabel = "Open attendance";
-    else primaryCtaLabel = "Request correction";
+    else if (hasIn) primaryCtaLabel = "Go to attendance";
+    else if (pendingCorrectionCount > 0) primaryCtaLabel = "Go to attendance";
+    else primaryCtaLabel = "Fix attendance";
   }
 
-  if (attendanceInconsistent) primaryCtaLabel = "Open attendance";
+  if (attendanceInconsistent) primaryCtaLabel = "Go to attendance";
 
   primaryCtaLabel = applyServerEligibilityToOverviewCta({
     heuristicLabel: primaryCtaLabel,
@@ -132,7 +132,7 @@ export function getOverviewShiftCardPresentation(input: {
 
   const correctionPendingNote =
     !attendancePending && phase === "ended" && !hasIn && pendingCorrectionCount > 0
-      ? "You have a pending correction request for today — HR will review it."
+      ? "Correction pending — HR is reviewing."
       : null;
 
   let warningTone: WarningTone = "none";

@@ -37,6 +37,7 @@ import { buildOwnerAttentionQueue } from "../ownerAttentionQueue";
 import { getActiveCompanyMembership } from "../_core/membership";
 import { getPostSaleSignals } from "../postSaleSignals";
 import { getCompanyAccountPortfolioSnapshot } from "../accountHealth";
+import { buildRevenueRealizationSnapshot, selectRenewalMonetizationRiskRows } from "../revenueRealization";
 
 type DbClient = NonNullable<Awaited<ReturnType<typeof getDb>>>;
 
@@ -899,6 +900,14 @@ export const operationsRouter = router({
         postSale.proBillingOverdueCount > 0,
       );
 
+      const revenueRealization = await buildRevenueRealizationSnapshot(
+        db,
+        companyId,
+        postSale,
+        Number(proPending?.cnt ?? 0),
+      );
+      const renewalMonetizationRisk = selectRenewalMonetizationRiskRows(accountPortfolio, revenueRealization);
+
       return {
         commercial: {
           contactsLeads: Number(contactsLeads?.cnt ?? 0),
@@ -955,6 +964,8 @@ export const operationsRouter = router({
           },
         },
         accountPortfolio,
+        revenueRealization,
+        renewalMonetizationRisk,
       };
     }),
 });

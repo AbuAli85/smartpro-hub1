@@ -11,8 +11,9 @@ import {
   countCommercialFrictionForContact,
   getContactLastActivityAt,
 } from "../accountHealth";
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
-import { contracts, crmDeals, serviceQuotations } from "../../drizzle/schema";
+import { and, count, desc, eq, inArray, sql } from "drizzle-orm";
+import { contracts, crmDeals, proBillingCycles, serviceQuotations } from "../../drizzle/schema";
+import { buildContactRevenueRealizationHints, buildRevenueRealizationSnapshot } from "../revenueRealization";
 import {
   createCrmCommunication,
   createCrmContact,
@@ -341,6 +342,25 @@ export const crmRouter = router({
         workspacePostSale.proBillingOverdueCount > 0,
       );
 
+      const [proPendingRow] = await db
+        .select({ cnt: count() })
+        .from(proBillingCycles)
+        .where(and(eq(proBillingCycles.companyId, companyId), eq(proBillingCycles.status, "pending")));
+
+      const revenueWorkspace = await buildRevenueRealizationSnapshot(
+        db,
+        companyId,
+        workspacePostSale,
+        Number(proPendingRow?.cnt ?? 0),
+      );
+
+      const revenueRealization = buildContactRevenueRealizationHints(revenueWorkspace, {
+        accountTier: accountHealth.tier,
+        stalledContractsCount: accountHealth.signals.stalledServiceContractsCount,
+        expiringContractsNext30dCount: accountHealth.signals.expiringContractsNext30dCount,
+        commercialFrictionCount: accountHealth.signals.commercialFrictionCount,
+      });
+
       return {
         contact,
         deals,
@@ -374,6 +394,7 @@ export const crmRouter = router({
           completedProWithFeesLast90dCount: workspacePostSale.completedProWithFeesLast90dCount,
           caveat: workspacePostSale.completedWorkBillingCaveat,
         },
+        revenueRealization,
       };
     }),
 

@@ -267,6 +267,43 @@ function ContactDetailPanel({ contactId, onClose, companyId }: { contactId: numb
               </p>
             </div>
           )}
+          {contact360.revenueRealization && (
+            <div className="rounded-lg border border-emerald-200/70 bg-emerald-50/30 dark:bg-emerald-950/15 px-2.5 py-2 space-y-1.5">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1">
+                <DollarSign size={12} /> Revenue realization
+              </p>
+              <div className="text-[10px] text-muted-foreground space-y-0.5">
+                <p>
+                  Workspace: {contact360.revenueRealization.workspaceSnapshot.completedProWithFeesLast90dCount} PRO completions + fees (90d, company-wide) ·{" "}
+                  {contact360.revenueRealization.workspaceSnapshot.proBillingPendingCount} billing cycles pending ·{" "}
+                  {contact360.revenueRealization.workspaceSnapshot.proBillingOverdueCount} overdue (OMR{" "}
+                  {contact360.revenueRealization.workspaceSnapshot.proBillingOverdueOmr.toLocaleString("en-OM", { minimumFractionDigits: 3, maximumFractionDigits: 3 })})
+                </p>
+                {contact360.revenueRealization.workspaceSnapshot.billingFollowThroughPressure && (
+                  <p className="text-amber-900 dark:text-amber-200 font-medium">
+                    Billing follow-through pressure — fee-bearing completions while cycles are unsettled (derived).
+                  </p>
+                )}
+                {contact360.revenueRealization.accountMonetizationHint && (
+                  <p className="text-foreground">{contact360.revenueRealization.accountMonetizationHint}</p>
+                )}
+              </div>
+              {contact360.revenueRealization.nextRecommendedActions.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 pt-0.5">
+                  {contact360.revenueRealization.nextRecommendedActions.map((a) => (
+                    <Button key={a.href + a.label} variant="outline" size="sm" className="h-6 text-[10px] px-2" asChild>
+                      <Link href={a.href} title={a.basis}>
+                        {a.label}
+                      </Link>
+                    </Button>
+                  ))}
+                </div>
+              )}
+              <p className="text-[9px] text-muted-foreground leading-snug border-t border-border/60 pt-1.5">
+                {contact360.revenueRealization.caveat}
+              </p>
+            </div>
+          )}
           <div className="flex items-center justify-between gap-2">
             <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Commercial lifecycle</p>
             <Button variant="outline" size="sm" className="h-7 text-[10px] shrink-0" asChild>

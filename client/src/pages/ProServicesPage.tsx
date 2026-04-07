@@ -1,5 +1,6 @@
 import { trpc } from "@/lib/trpc";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useSearch } from "wouter";
 import {
   Shield, Plus, Search, AlertTriangle, CheckCircle2, RefreshCw,
   CheckSquare, Square, Zap, ChevronRight, X, FileText, User, Calendar,
@@ -449,7 +450,14 @@ function CaseDetailPanel({ serviceId, onClose, onUpdate }: { serviceId: number; 
 
 export default function ProServicesPage() {
   const { activeCompanyId } = useActiveCompany();
+  const urlSearch = useSearch();
   const [search, setSearch] = useState("");
+  useEffect(() => {
+    const raw = urlSearch.startsWith("?") ? urlSearch.slice(1) : urlSearch;
+    const params = new URLSearchParams(raw);
+    const q = params.get("q");
+    if (q) setSearch(decodeURIComponent(q));
+  }, [urlSearch]);
   const [statusFilter, setStatusFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
   const [selectedIds, setSelectedIds] = useState<number[]>([]);

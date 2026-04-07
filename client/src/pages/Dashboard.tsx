@@ -821,6 +821,133 @@ export default function Dashboard() {
               </CardContent>
             </Card>
           )}
+
+          {businessPulse.revenueRealization &&
+            (businessPulse.revenueRealization.billingFollowThroughPressure ||
+              businessPulse.revenueRealization.recentCompletedProForBillingReview.length > 0 ||
+              businessPulse.revenueRealization.marketplaceCompletedWithAmountLast90d.count > 0 ||
+              (businessPulse.renewalMonetizationRisk?.length ?? 0) > 0) && (
+            <Card className="border-emerald-200/60 bg-emerald-50/20 dark:bg-emerald-950/15">
+              <CardHeader className="pb-2">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                  <CardTitle className="text-sm flex items-center gap-2" title={businessPulse.revenueRealization.basis}>
+                    <Banknote size={14} className="text-emerald-700" />
+                    Revenue protection
+                  </CardTitle>
+                  <div className="flex flex-wrap gap-1">
+                    <Button variant="ghost" size="sm" className="text-xs h-7" asChild>
+                      <Link href="/pro">PRO</Link>
+                    </Button>
+                    <Button variant="ghost" size="sm" className="text-xs h-7" asChild>
+                      <Link href="/client-portal?tab=invoices">Collections</Link>
+                    </Button>
+                    <Button variant="ghost" size="sm" className="text-xs h-7" asChild>
+                      <Link href="/marketplace">Marketplace</Link>
+                    </Button>
+                  </div>
+                </div>
+                <p className="text-[10px] text-muted-foreground font-normal pt-1">{businessPulse.revenueRealization.caveat}</p>
+              </CardHeader>
+              <CardContent className="space-y-3 text-xs">
+                {businessPulse.revenueRealization.billingFollowThroughPressure && (
+                  <p className="font-medium text-amber-900 dark:text-amber-200">
+                    Billing follow-through pressure: fee-bearing PRO completions in the lookback while officer billing cycles are pending or overdue (workspace-level, not per job).
+                  </p>
+                )}
+                <div className="flex flex-wrap gap-4 text-[11px] text-muted-foreground">
+                  <span>
+                    PRO + fees (90d):{" "}
+                    <span className="font-semibold text-foreground tabular-nums">
+                      {businessPulse.revenueRealization.completedProWithFeesLast90dCount}
+                    </span>
+                  </span>
+                  <span>
+                    Cycles pending:{" "}
+                    <span className="font-semibold text-foreground tabular-nums">{businessPulse.revenueRealization.proBillingPendingCount}</span>
+                  </span>
+                  <span>
+                    Overdue:{" "}
+                    <span className="font-semibold text-red-800 tabular-nums">
+                      {businessPulse.revenueRealization.proBillingOverdueCount} · OMR{" "}
+                      {businessPulse.revenueRealization.proBillingOverdueOmr.toLocaleString("en-OM", {
+                        minimumFractionDigits: 3,
+                        maximumFractionDigits: 3,
+                      })}
+                    </span>
+                  </span>
+                </div>
+                {(businessPulse.renewalMonetizationRisk ?? []).length > 0 && (
+                  <div className="space-y-1.5">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      Renewal + monetization stress
+                    </p>
+                    <ul className="space-y-1.5">
+                      {(businessPulse.renewalMonetizationRisk ?? []).map((row) => (
+                        <li key={`rm-${row.contactId}`} className="rounded-md border border-border/60 p-2 flex flex-wrap items-center justify-between gap-2">
+                          <div>
+                            <Link href={row.primaryHref} className="font-medium hover:underline">
+                              {row.displayName}
+                            </Link>
+                            {row.nearestExpiryEndDate && (
+                              <span className="text-[10px] text-muted-foreground ml-1">· ends {row.nearestExpiryEndDate}</span>
+                            )}
+                          </div>
+                          <div className="flex gap-2 shrink-0">
+                            {row.sampleContractHref && (
+                              <Link href={row.sampleContractHref} className="text-[10px] text-[var(--smartpro-orange)] hover:underline">
+                                Contract
+                              </Link>
+                            )}
+                            <Link href="/client-portal?tab=invoices" className="text-[10px] text-muted-foreground hover:underline">
+                              Billing →
+                            </Link>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {businessPulse.revenueRealization.recentCompletedProForBillingReview.length > 0 && (
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Recent completed PRO (billing review)</p>
+                    <ul className="space-y-1">
+                      {businessPulse.revenueRealization.recentCompletedProForBillingReview.map((s) => (
+                        <li key={s.id} className="flex flex-wrap justify-between gap-2 text-[11px]">
+                          <Link href={s.proListHref} className="font-medium text-foreground hover:underline">
+                            {s.serviceNumber}
+                          </Link>
+                          <span className="text-muted-foreground tabular-nums">
+                            OMR {s.feesOmr.toLocaleString("en-OM", { minimumFractionDigits: 3, maximumFractionDigits: 3 })}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {businessPulse.revenueRealization.marketplaceCompletedWithAmountLast90d.count > 0 && (
+                  <p className="text-[10px] text-muted-foreground">
+                    Marketplace: {businessPulse.revenueRealization.marketplaceCompletedWithAmountLast90d.count} completed with amount (90d), OMR{" "}
+                    {businessPulse.revenueRealization.marketplaceCompletedWithAmountLast90d.totalAmountOmr.toLocaleString("en-OM", {
+                      minimumFractionDigits: 3,
+                      maximumFractionDigits: 3,
+                    })}{" "}
+                    — no invoice linkage in schema.
+                  </p>
+                )}
+                {businessPulse.revenueRealization.nextRecommendedActions.length > 0 && (
+                  <div className="flex flex-wrap gap-2 pt-1 border-t border-border/60">
+                    {businessPulse.revenueRealization.nextRecommendedActions.slice(0, 4).map((a) => (
+                      <Button key={a.label + a.href} variant="outline" size="sm" className="h-7 text-[10px]" asChild>
+                        <Link href={a.href} title={a.basis}>
+                          {a.label}
+                        </Link>
+                      </Button>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
         </div>
       )}
 

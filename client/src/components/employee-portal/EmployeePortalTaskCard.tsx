@@ -132,7 +132,7 @@ export function EmployeePortalTaskCard({
           </button>
           {task.status !== "completed" && task.status !== "cancelled" && (
             <div
-              className="flex shrink-0 flex-col items-stretch justify-center gap-2 border-l bg-muted/20 p-3"
+              className={`flex shrink-0 flex-col items-stretch justify-center gap-2 border-l bg-muted/20 p-3 ${startPending || completePending ? "opacity-55" : ""}`}
               onClick={(e) => e.stopPropagation()}
               onKeyDown={(e) => e.stopPropagation()}
             >

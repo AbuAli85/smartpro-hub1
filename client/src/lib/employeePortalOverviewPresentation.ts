@@ -18,6 +18,9 @@ export type ServerEligibilityHints = Pick<
   | "eligibilityDetail"
   | "shiftStatusLabel"
   | "shiftDetailLine"
+  | "checkInDenialCode"
+  | "hasPendingCorrection"
+  | "checkInOpensAt"
 >;
 
 export type WarningTone = "none" | "amber" | "red";

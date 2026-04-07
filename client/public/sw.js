@@ -1,4 +1,12 @@
-/* Minimal offline shell for employee portal — network-first, fallback to cache */
+/**
+ * Employee portal — minimal service worker (shell cache).
+ *
+ * Next phase (recommended, not implemented here):
+ * - Bump CACHE name on each production deploy + precache hashed assets (e.g. vite-plugin-pwa / Workbox).
+ * - skipWaiting + clients.claim with an in-app “Update available” toast.
+ * - Offline: network-first for navigations, cache fallback for static; never cache /api or /trpc responses as “truth”.
+ * - Maskable PNG icons (192/512) in manifest for install quality.
+ */
 const CACHE = "employee-portal-shell-v1";
 
 self.addEventListener("install", (event) => {
@@ -24,7 +32,6 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
 
-  // API: always try network
   if (url.pathname.startsWith("/api") || url.pathname.startsWith("/trpc")) {
     event.respondWith(fetch(request).catch(() => new Response(null, { status: 503 })));
     return;
@@ -39,8 +46,6 @@ self.addEventListener("fetch", (event) => {
         }
         return res;
       })
-      .catch(() =>
-        caches.match(request).then((cached) => cached || caches.match("/index.html")),
-      ),
+      .catch(() => caches.match(request).then((cached) => cached || caches.match("/index.html"))),
   );
 });

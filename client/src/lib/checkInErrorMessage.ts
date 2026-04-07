@@ -4,3 +4,8 @@ import { parseCheckInRejectionMessage } from "@shared/attendanceCheckInEligibili
 export function humanCheckInErrorMessage(raw: string): string {
   return parseCheckInRejectionMessage(raw).humanMessage;
 }
+
+/** Same wire format as check-in; check-out mutations may reuse coded errors. */
+export function humanAttendanceMutationError(raw: string): string {
+  return humanCheckInErrorMessage(raw);
+}

@@ -17,6 +17,9 @@ function elHints(
     eligibilityDetail: "Within the check-in window.",
     shiftStatusLabel: "Active now",
     shiftDetailLine: null,
+    checkInDenialCode: null,
+    hasPendingCorrection: false,
+    checkInOpensAt: null,
     ...x,
   };
 }

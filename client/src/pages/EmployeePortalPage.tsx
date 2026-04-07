@@ -44,7 +44,8 @@ import {
 import { RequestsCalendar } from "@/components/RequestsCalendar";
 import { DateInput } from "@/components/ui/date-input";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
-import { humanCheckInErrorMessage } from "@/lib/checkInErrorMessage";
+import { humanAttendanceMutationError, humanCheckInErrorMessage } from "@/lib/checkInErrorMessage";
+import { attendanceDenialNextStep } from "@/lib/attendanceDenialHints";
 import {
   computeProductivityScore,
   titleCaseFirstName,
@@ -208,7 +209,7 @@ function AttendanceTodayCard({
   // Direct check-in / check-out mutations
   const doCheckIn = trpc.attendance.checkIn.useMutation({
     onSuccess: () => {
-      toast.success("Checked in successfully!");
+      toast.success("Checked in", { description: "Time recorded for today." });
       refetchToday();
       utils.employeePortal.getMyAttendanceRecords.invalidate();
       utils.employeePortal.getMyAttendanceSummary.invalidate();
@@ -219,14 +220,14 @@ function AttendanceTodayCard({
   });
   const doCheckOut = trpc.attendance.checkOut.useMutation({
     onSuccess: () => {
-      toast.success("Checked out successfully!");
+      toast.success("Checked out", { description: "Your time is saved for today." });
       refetchToday();
       utils.employeePortal.getMyAttendanceRecords.invalidate();
       utils.employeePortal.getMyAttendanceSummary.invalidate();
       utils.employeePortal.getMyOperationalHints.invalidate();
       void utils.attendance.listAttendanceAudit.invalidate();
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => toast.error(humanAttendanceMutationError(e.message)),
   });
 
   const todayStr = new Date().toISOString().split("T")[0];
@@ -263,15 +264,34 @@ function AttendanceTodayCard({
     serverHints: operationalHintsReady ? operationalHints ?? null : undefined,
   });
 
+  const attendanceMutating = doCheckIn.isPending || doCheckOut.isPending;
+
   function handleCheckIn() {
+    if (attendanceMutating) return;
     if (!siteToken) {
-      toast.error("No attendance site assigned to your schedule. Please contact HR.");
+      toast.error("No site on your schedule — contact HR.");
       return;
     }
     if (site?.enforceGeofence) {
+      if (!navigator.geolocation) {
+        toast.warning("This device can’t share location.");
+        doCheckIn.mutate({ siteToken: siteToken! });
+        return;
+      }
       navigator.geolocation.getCurrentPosition(
-        (pos) => doCheckIn.mutate({ siteToken: siteToken!, lat: pos.coords.latitude, lng: pos.coords.longitude }),
-        () => doCheckIn.mutate({ siteToken: siteToken! })
+        (pos) =>
+          doCheckIn.mutate({
+            siteToken: siteToken!,
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+          }),
+        () => {
+          toast.message("Location not shared", {
+            description: "Trying without GPS. Enable Location if check-in fails.",
+          });
+          doCheckIn.mutate({ siteToken: siteToken! });
+        },
+        { enableHighAccuracy: true, maximumAge: 60_000, timeout: 12_000 },
       );
     } else {
       doCheckIn.mutate({ siteToken: siteToken! });
@@ -279,7 +299,13 @@ function AttendanceTodayCard({
   }
 
   function handleCheckOut() {
+    if (attendanceMutating) return;
     if (site?.enforceGeofence) {
+      if (!navigator.geolocation) {
+        toast.warning("This device can’t share location.");
+        doCheckOut.mutate({ companyId: companyId ?? undefined, siteToken: siteToken ?? undefined });
+        return;
+      }
       navigator.geolocation.getCurrentPosition(
         (pos) =>
           doCheckOut.mutate({
@@ -288,12 +314,23 @@ function AttendanceTodayCard({
             lat: pos.coords.latitude,
             lng: pos.coords.longitude,
           }),
-        () => doCheckOut.mutate({ companyId: companyId ?? undefined, siteToken: siteToken ?? undefined })
+        () => {
+          toast.message("Location not shared", {
+            description: "Trying without GPS. Enable Location if check-out fails.",
+          });
+          doCheckOut.mutate({ companyId: companyId ?? undefined, siteToken: siteToken ?? undefined });
+        },
+        { enableHighAccuracy: true, maximumAge: 60_000, timeout: 12_000 },
       );
     } else {
       doCheckOut.mutate({ companyId: companyId ?? undefined, siteToken: siteToken ?? undefined });
     }
   }
+
+  const denialNext =
+    operationalHintsReady && operationalHints?.checkInDenialCode
+      ? attendanceDenialNextStep(operationalHints.checkInDenialCode)
+      : null;
 
   return (
     <div className="space-y-3">
@@ -306,7 +343,7 @@ function AttendanceTodayCard({
             </div>
             <div>
               <p className="font-semibold text-purple-700 dark:text-purple-300">{todaySchedule?.holiday?.name ?? "Public Holiday"}</p>
-              <p className="text-xs text-purple-600 dark:text-purple-400">Today is a holiday — no attendance required</p>
+              <p className="text-xs text-purple-600 dark:text-purple-400">No attendance required today.</p>
             </div>
           </CardContent>
         </Card>
@@ -358,115 +395,155 @@ function AttendanceTodayCard({
         <Card className="border-muted">
           <CardContent className="p-4 flex items-center gap-3">
             <Info className="w-5 h-5 text-muted-foreground shrink-0" />
-            <p className="text-sm text-muted-foreground">No shift assigned yet. Contact HR to get your schedule.</p>
+            <p className="text-sm text-muted-foreground">No shift assigned — contact HR.</p>
           </CardContent>
         </Card>
       ) : null}
 
+      {operationalHintsReady && operationalHints?.hasPendingCorrection && (
+        <div
+          className="rounded-lg border border-amber-200/80 bg-amber-50/80 px-3 py-2 text-xs text-amber-900 dark:border-amber-800/60 dark:bg-amber-950/30 dark:text-amber-100"
+          role="status"
+        >
+          Correction request pending — HR will update your record.
+        </div>
+      )}
+
       {/* Today's check-in/out status card */}
-      <Card className={attStrip.usePositiveCardStyle ? "border-green-200 bg-green-50/50 dark:bg-green-950/10" : "border-amber-200 bg-amber-50/50 dark:bg-amber-950/10"}>
-        <CardContent className="p-4">
-          <div className="flex items-start justify-between gap-3 flex-wrap">
-            <div className="flex items-start gap-3">
-              <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${attStrip.usePositiveCardStyle ? "bg-green-100 dark:bg-green-900/30" : "bg-amber-100 dark:bg-amber-900/30"}`}>
-                <UserCheck className={`w-5 h-5 ${attStrip.usePositiveCardStyle ? "text-green-600" : "text-amber-600"}`} />
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground mb-1">
-                  {new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}
-                </p>
-                {checkIn ? (
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-4 flex-wrap">
-                      <div>
-                        <p className="text-xs text-muted-foreground">Checked In</p>
-                        <p className="font-bold text-green-700 dark:text-green-400">{checkIn.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</p>
+      {todayRecLoading ? (
+        <Card className="border-border/80">
+          <CardContent className="space-y-3 p-4">
+            <Skeleton className="h-16 w-full rounded-lg" />
+            <Skeleton className="h-12 w-full rounded-lg" />
+          </CardContent>
+        </Card>
+      ) : (
+        <Card
+          className={
+            attStrip.usePositiveCardStyle
+              ? "border-green-200 bg-green-50/50 dark:bg-green-950/10"
+              : "border-amber-200 bg-amber-50/50 dark:bg-amber-950/10"
+          }
+        >
+          <CardContent className="p-4">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div className="flex min-w-0 flex-1 items-start gap-3">
+                <div
+                  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${attStrip.usePositiveCardStyle ? "bg-green-100 dark:bg-green-900/30" : "bg-amber-100 dark:bg-amber-900/30"}`}
+                >
+                  <UserCheck className={`h-5 w-5 ${attStrip.usePositiveCardStyle ? "text-green-600" : "text-amber-600"}`} />
+                </div>
+                <div className="min-w-0">
+                  <p className="mb-1 text-xs text-muted-foreground">
+                    {new Date().toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}
+                  </p>
+                  {checkIn ? (
+                    <div className="space-y-1">
+                      <div className="flex flex-wrap items-center gap-4">
+                        <div>
+                          <p className="text-xs text-muted-foreground">In</p>
+                          <p className="font-bold text-green-700 dark:text-green-400">
+                            {checkIn.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                          </p>
+                        </div>
+                        {checkOut ? (
+                          <div>
+                            <p className="text-xs text-muted-foreground">Out</p>
+                            <p className="font-bold text-muted-foreground">
+                              {checkOut.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                            </p>
+                          </div>
+                        ) : (
+                          <Badge variant="outline" className="border-green-300 bg-green-50 text-green-700 dark:bg-green-900/20">
+                            On shift
+                          </Badge>
+                        )}
+                        {hoursToday && (
+                          <div>
+                            <p className="text-xs text-muted-foreground">Time</p>
+                            <p className="text-sm font-semibold">
+                              {hoursToday}
+                              {typeof hoursToday === "string" && hoursToday !== "In progress" ? "h" : ""}
+                            </p>
+                          </div>
+                        )}
                       </div>
-                      {checkOut ? (
-                        <div>
-                          <p className="text-xs text-muted-foreground">Checked Out</p>
-                          <p className="font-bold text-muted-foreground">{checkOut.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</p>
-                        </div>
-                      ) : (
-                        <Badge variant="outline" className="border-green-300 text-green-700 bg-green-50 dark:bg-green-900/20">
-                          Currently In
-                        </Badge>
-                      )}
-                      {hoursToday && (
-                        <div>
-                          <p className="text-xs text-muted-foreground">Hours</p>
-                          <p className="font-semibold text-sm">{hoursToday}{typeof hoursToday === "string" && hoursToday !== "In progress" ? "h" : ""}</p>
-                        </div>
+                      {todayRec?.siteName && (
+                        <p className="flex items-center gap-1 text-xs text-muted-foreground">
+                          <MapPin className="h-3 w-3 shrink-0" /> {todayRec.siteName}
+                        </p>
                       )}
                     </div>
-                    {todayRec?.siteName && (
-                      <p className="text-xs text-muted-foreground flex items-center gap-1">
-                        <MapPin className="w-3 h-3" /> {todayRec.siteName}
+                  ) : (
+                    <div className="space-y-1.5">
+                      <p
+                        className={`text-sm font-semibold leading-snug ${
+                          attStrip.attendanceInconsistent
+                            ? "text-red-700 dark:text-red-400"
+                            : !isWorkingDay && hasSchedule
+                              ? "text-muted-foreground"
+                              : "text-amber-800 dark:text-amber-200"
+                        }`}
+                      >
+                        {attStrip.attendanceInconsistent ? attStrip.inconsistentHeadline : attStrip.notCheckedInHeadline}
                       </p>
+                      <p className="text-xs leading-relaxed text-muted-foreground">
+                        {attStrip.attendanceInconsistent ? attStrip.inconsistentSubline : attStrip.notCheckedInSubline}
+                      </p>
+                      {denialNext && !attStrip.showCheckIn && (
+                        <p className="text-xs font-medium text-foreground">{denialNext}</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="flex w-full shrink-0 flex-col gap-2 sm:w-auto sm:min-w-[11rem]">
+                {attStrip.showCheckIn && (
+                  <Button
+                    className="min-h-12 gap-2 bg-green-600 px-6 text-base font-semibold text-white hover:bg-green-700 touch-manipulation disabled:opacity-60"
+                    disabled={attendanceMutating}
+                    onClick={handleCheckIn}
+                  >
+                    <UserCheck className="h-5 w-5 shrink-0" />
+                    {doCheckIn.isPending ? "Checking in…" : "Check in now"}
+                  </Button>
+                )}
+                {attStrip.showCheckOut && (
+                  <Button
+                    variant="outline"
+                    className="min-h-12 gap-2 border-red-300 px-6 text-base font-semibold text-red-700 hover:bg-red-50 touch-manipulation disabled:opacity-60 dark:hover:bg-red-950/30"
+                    disabled={attendanceMutating}
+                    onClick={handleCheckOut}
+                  >
+                    <LogIn className="h-5 w-5 shrink-0 rotate-180" />
+                    {doCheckOut.isPending ? "Checking out…" : "Check out now"}
+                  </Button>
+                )}
+                {attStrip.showCorrectionButton && (
+                  <Button
+                    variant="outline"
+                    className="min-h-12 gap-2 touch-manipulation disabled:opacity-60"
+                    disabled={attendanceMutating}
+                    onClick={() => setShowCorrForm(true)}
+                  >
+                    <AlertCircle className="h-4 w-4 shrink-0" /> Correction
+                    {pendingCorr > 0 && (
+                      <span className="ml-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-bold text-white">
+                        {pendingCorr}
+                      </span>
                     )}
-                  </div>
-                ) : (
-                  <div className="space-y-1">
-                    <p
-                      className={`font-medium ${
-                        attStrip.attendanceInconsistent
-                          ? "text-red-700 dark:text-red-400"
-                          : !isWorkingDay && hasSchedule
-                            ? "text-gray-600 dark:text-gray-400"
-                            : "text-amber-700 dark:text-amber-400"
-                      }`}
-                    >
-                      Status:{" "}
-                      {attStrip.attendanceInconsistent ? attStrip.inconsistentHeadline : attStrip.notCheckedInHeadline}
-                    </p>
-                    <p className="text-xs text-muted-foreground leading-relaxed">
-                      Reason:{" "}
-                      {attStrip.attendanceInconsistent ? attStrip.inconsistentSubline : attStrip.notCheckedInSubline}
-                    </p>
-                  </div>
+                  </Button>
                 )}
               </div>
             </div>
-            {/* Action buttons */}
-            <div className="flex w-full flex-col gap-2 shrink-0 sm:w-auto">
-              {attStrip.showCheckIn && (
-                <Button
-                  className="min-h-11 gap-2 bg-green-600 px-6 text-base font-semibold text-white hover:bg-green-700 touch-manipulation"
-                  disabled={doCheckIn.isPending}
-                  onClick={handleCheckIn}
-                >
-                  <UserCheck className="h-5 w-5" />
-                  {doCheckIn.isPending ? "Checking in…" : "Check In"}
-                </Button>
-              )}
-              {attStrip.showCheckOut && (
-                <Button
-                  variant="outline"
-                  className="min-h-11 gap-2 border-red-300 px-6 text-base font-semibold text-red-700 hover:bg-red-50 touch-manipulation"
-                  disabled={doCheckOut.isPending}
-                  onClick={handleCheckOut}
-                >
-                  <LogIn className="h-5 w-5 rotate-180" />
-                  {doCheckOut.isPending ? "Checking out…" : "Check Out"}
-                </Button>
-              )}
-              {attStrip.showCorrectionButton && (
-                <Button variant="outline" className="min-h-11 gap-2 touch-manipulation" onClick={() => setShowCorrForm(true)}>
-                  <AlertCircle className="h-3.5 w-3.5" /> Correction
-                  {pendingCorr > 0 && (
-                    <span className="ml-1 h-4 w-4 rounded-full bg-amber-500 text-white text-[10px] flex items-center justify-center">{pendingCorr}</span>
-                  )}
-                </Button>
-              )}
-            </div>
-          </div>
-          {operationalHintsReady && (
-            <p className="text-[10px] text-muted-foreground border-t border-border/60 pt-2 mt-3 leading-snug">
-              Eligibility is evaluated on the server from your schedule and the current time.
-            </p>
-          )}
-        </CardContent>
-      </Card>
+            {operationalHintsReady && (
+              <p className="mt-3 border-t border-border/60 pt-2 text-[10px] leading-snug text-muted-foreground">
+                Times follow your schedule and employer rules.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Correction requests history */}
       {(myCorrList ?? []).length > 0 && (
@@ -503,9 +580,7 @@ function AttendanceTodayCard({
           <DialogHeader><DialogTitle>Request Attendance Correction</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              If your check-in or check-out time is wrong or missing, submit a correction request. HR will review and approve it.
-              {" "}
-              Turnaround time depends on your company; you can track status in the list below after you submit.
+              Wrong or missing times? HR reviews corrections — track status in the list below after you send this.
             </p>
             <div className="space-y-1.5">
               <Label htmlFor="corrDate">Date</Label>
@@ -822,7 +897,7 @@ export default function EmployeePortalPage() {
   // ── Mutations ─────────────────────────────────────────────────────────────
   const submitLeave = trpc.employeePortal.submitLeaveRequest.useMutation({
     onSuccess: () => {
-      toast.success("Leave request submitted — HR will review and notify you.");
+      toast.success("Leave sent", { description: "HR will review and notify you." });
       setShowLeaveDialog(false);
       setLeaveType("annual");
       setLeaveStart("");
@@ -2057,26 +2132,29 @@ export default function EmployeePortalPage() {
               </div>
             )}
 
-            <AlertDialog open={completeTaskId !== null} onOpenChange={(o) => !o && setCompleteTaskId(null)}>
+            <AlertDialog open={completeTaskId !== null} onOpenChange={(o) => !completeTask.isPending && !o && setCompleteTaskId(null)}>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>Mark this task complete?</AlertDialogTitle>
+                  <AlertDialogTitle>Mark complete?</AlertDialogTitle>
                   <AlertDialogDescription>
-                    Confirm you have finished the work. HR will see it as completed in Task Manager.
+                    Only if the work is done — HR sees this in Task Manager.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogCancel disabled={completeTask.isPending}>Cancel</AlertDialogCancel>
                   <AlertDialogAction
-                    onClick={() => {
-                      if (completeTaskId == null) return;
+                    disabled={completeTask.isPending}
+                    className="min-h-11 touch-manipulation disabled:opacity-60"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      if (completeTaskId == null || completeTask.isPending) return;
                       completeTask.mutate({
                         taskId: completeTaskId,
                         companyId: activeCompanyId ?? undefined,
                       });
                     }}
                   >
-                    {completeTask.isPending ? "Saving…" : "Yes, mark complete"}
+                    {completeTask.isPending ? "Saving…" : "Mark complete"}
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
@@ -3107,7 +3185,7 @@ export default function EmployeePortalPage() {
         requestBadge={pendingShiftRequestsCount}
       />
 
-      <div className="fixed bottom-[calc(5.75rem+env(safe-area-inset-bottom,0px))] right-4 z-40 md:bottom-8 md:right-8">
+      <div className="fixed bottom-[calc(6.25rem+env(safe-area-inset-bottom,0px))] right-4 z-40 md:bottom-8 md:right-8">
         <Popover>
           <PopoverTrigger asChild>
             <Button
@@ -3229,9 +3307,13 @@ export default function EmployeePortalPage() {
                 onChange={(e) => setLeaveReason(e.target.value)} rows={3} />
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowLeaveDialog(false)}>Cancel</Button>
-            <Button disabled={!leaveStart || !leaveEnd || submitLeave.isPending}
+          <DialogFooter className="flex-col gap-2 sm:flex-row">
+            <Button variant="outline" className="min-h-11 w-full touch-manipulation sm:w-auto" onClick={() => setShowLeaveDialog(false)}>
+              Cancel
+            </Button>
+            <Button
+              className="min-h-11 w-full touch-manipulation sm:w-auto disabled:opacity-60"
+              disabled={!leaveStart || !leaveEnd || submitLeave.isPending}
               onClick={() =>
                 activeCompanyId != null &&
                 submitLeave.mutate({
@@ -3240,8 +3322,10 @@ export default function EmployeePortalPage() {
                   startDate: leaveStart,
                   endDate: leaveEnd,
                   reason: leaveReason || undefined,
-                })}>
-              {submitLeave.isPending ? "Submitting..." : "Submit Request"}
+                })
+              }
+            >
+              {submitLeave.isPending ? "Sending…" : "Send leave request"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -3298,9 +3382,10 @@ export default function EmployeePortalPage() {
       <Dialog open={showShiftRequestDialog} onOpenChange={setShowShiftRequestDialog}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <ArrowLeftRight className="w-4 h-4 text-primary" /> Shift Change / Time Off Request
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <ArrowLeftRight className="h-4 w-4 text-primary" /> Request to HR
             </DialogTitle>
+            <p className="text-xs text-muted-foreground">One form — pick type, date, short reason. HR is notified.</p>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div>
@@ -3399,20 +3484,25 @@ export default function EmployeePortalPage() {
               </div>
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowShiftRequestDialog(false)}>Cancel</Button>
+          <DialogFooter className="flex-col gap-2 sm:flex-row">
+            <Button variant="outline" className="min-h-11 w-full touch-manipulation sm:w-auto" onClick={() => setShowShiftRequestDialog(false)}>
+              Cancel
+            </Button>
             <Button
+              className="min-h-11 w-full touch-manipulation sm:w-auto disabled:opacity-60"
               disabled={!shiftReqDate || shiftReqReason.trim().length < 5 || submitShiftRequest.isPending || uploadingAttachment}
-              onClick={() => submitShiftRequest.mutate({
-                requestType: shiftReqType as any,
-                requestedDate: shiftReqDate,
-                requestedEndDate: shiftReqEndDate || undefined,
-                requestedTime: shiftReqTime || undefined,
-                reason: shiftReqReason,
-                attachmentUrl: shiftReqAttachmentUrl || undefined,
-              })}
+              onClick={() =>
+                submitShiftRequest.mutate({
+                  requestType: shiftReqType as any,
+                  requestedDate: shiftReqDate,
+                  requestedEndDate: shiftReqEndDate || undefined,
+                  requestedTime: shiftReqTime || undefined,
+                  reason: shiftReqReason,
+                  attachmentUrl: shiftReqAttachmentUrl || undefined,
+                })
+              }
             >
-              {submitShiftRequest.isPending ? "Submitting..." : "Submit Request"}
+              {submitShiftRequest.isPending ? "Sending…" : "Send request"}
             </Button>
           </DialogFooter>
         </DialogContent>

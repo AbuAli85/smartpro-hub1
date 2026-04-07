@@ -316,8 +316,13 @@ function ContactDetailPanel({ contactId, onClose, companyId }: { contactId: numb
                     </p>
                   )}
                   <div className="flex flex-wrap gap-1.5 pt-0.5">
+                    <Button variant="default" size="sm" className="h-6 text-[10px] px-2" asChild>
+                      <Link href={contact360.resolution.workflow.followUpCreateHref} title="Prefill title, tag, due date, assignee">
+                        Create tagged task
+                      </Link>
+                    </Button>
                     <Button variant="outline" size="sm" className="h-6 text-[10px] px-2" asChild>
-                      <Link href="/hr/tasks">HR tasks</Link>
+                      <Link href={contact360.resolution.workflow.tasksHref}>Task list</Link>
                     </Button>
                     <span className="font-mono text-[8px] text-muted-foreground break-all self-center max-w-full">
                       {contact360.resolution.workflow.taskTagConvention}

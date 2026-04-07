@@ -629,6 +629,22 @@ export default function Dashboard() {
                       {businessPulse.ownerResolution.exportRows.length} flat export row
                       {businessPulse.ownerResolution.exportRows.length === 1 ? "" : "s"} (CSV / leadership packs).
                     </p>
+                    {businessPulse.ownerResolution.reviewSummary && (
+                      <div className="flex flex-wrap gap-1.5 mt-2 text-[9px]">
+                        <Badge variant="secondary" className="font-normal">
+                          No tagged task: {businessPulse.ownerResolution.reviewSummary.noTaggedTaskCount}
+                        </Badge>
+                        <Badge variant="secondary" className="font-normal">
+                          Gap: {businessPulse.ownerResolution.reviewSummary.withAccountabilityGapCount}
+                        </Badge>
+                        <Badge variant="secondary" className="font-normal">
+                          Task overdue: {businessPulse.ownerResolution.reviewSummary.taskDueOverdueCount}
+                        </Badge>
+                        <Badge variant="secondary" className="font-normal">
+                          Intervention ≤7d: {businessPulse.ownerResolution.reviewSummary.interventionDueWithin7DaysCount}
+                        </Badge>
+                      </div>
+                    )}
                   </div>
                   <div className="flex flex-wrap gap-1">
                     <Button variant="ghost" size="sm" className="text-xs h-7" asChild>
@@ -639,6 +655,9 @@ export default function Dashboard() {
                     </Button>
                     <Button variant="ghost" size="sm" className="text-xs h-7" asChild>
                       <Link href="/client-portal?tab=invoices">Collections</Link>
+                    </Button>
+                    <Button variant="default" size="sm" className="text-xs h-7" asChild>
+                      <Link href="/hr/tasks">Task Manager</Link>
                     </Button>
                   </div>
                 </div>
@@ -702,9 +721,16 @@ export default function Dashboard() {
                               </Link>
                             )}
                             {row.workflow && (
-                              <Link href={row.workflow.tasksHref} className="text-[10px] text-muted-foreground hover:underline">
-                                Tasks
-                              </Link>
+                              <>
+                                <Link href={row.workflow.tasksHref} className="text-[10px] text-muted-foreground hover:underline">
+                                  Tasks
+                                </Link>
+                                <Button variant="secondary" size="sm" className="h-7 text-[10px] px-2" asChild>
+                                  <Link href={row.workflow.followUpCreateHref} title="Open Task Manager with prefilled tagged task">
+                                    Create task
+                                  </Link>
+                                </Button>
+                              </>
                             )}
                           </div>
                         </li>
@@ -756,9 +782,16 @@ export default function Dashboard() {
                                 </Link>
                               </Button>
                               {r.workflow && (
-                                <Button variant="ghost" size="sm" className="h-7 text-[10px] px-2" asChild>
-                                  <Link href={r.workflow.tasksHref}>HR tasks</Link>
-                                </Button>
+                                <>
+                                  <Button variant="ghost" size="sm" className="h-7 text-[10px] px-2" asChild>
+                                    <Link href={r.workflow.tasksHref}>HR tasks</Link>
+                                  </Button>
+                                  <Button variant="secondary" size="sm" className="h-7 text-[10px] px-2" asChild>
+                                    <Link href={r.workflow.followUpCreateHref} title="Prefill tagged HR task">
+                                      Create task
+                                    </Link>
+                                  </Button>
+                                </>
                               )}
                             </div>
                           </li>
@@ -797,9 +830,16 @@ export default function Dashboard() {
                                 <Link href={c.nextAction.href}>{c.nextAction.label}</Link>
                               </Button>
                               {c.workflow && (
-                                <Button variant="ghost" size="sm" className="h-7 text-[10px] px-2" asChild>
-                                  <Link href={c.workflow.tasksHref}>HR tasks</Link>
-                                </Button>
+                                <>
+                                  <Button variant="ghost" size="sm" className="h-7 text-[10px] px-2" asChild>
+                                    <Link href={c.workflow.tasksHref}>HR tasks</Link>
+                                  </Button>
+                                  <Button variant="secondary" size="sm" className="h-7 text-[10px] px-2" asChild>
+                                    <Link href={c.workflow.followUpCreateHref} title="Prefill tagged collections task">
+                                      Create task
+                                    </Link>
+                                  </Button>
+                                </>
                               )}
                               {c.overlapNote && (
                                 <span className="text-[9px] text-amber-800 self-center">{c.overlapNote}</span>

@@ -17,7 +17,7 @@ import {
 
 export type DbClient = NonNullable<Awaited<ReturnType<typeof getDb>>>;
 
-export const OWNER_RESOLUTION_SCHEMA_VERSION = 2 as const;
+export const OWNER_RESOLUTION_SCHEMA_VERSION = 3 as const;
 
 export const OWNER_RESOLUTION_BASIS = `Resolution rows rank CRM-linked accounts using existing health tiers, renewal dates, delivery stall counts, and workspace billing stress. Collections rows are factual billing-cycle rows for this tenant — they are not allocated to customers until invoice linkage exists. Next actions are rule-ordered (contract/renewal → delivery → cash → commercial).`;
 
@@ -104,6 +104,23 @@ export type OwnerResolutionExportRow = {
   taskDueOverdue: boolean;
 };
 
+/** Weekly leadership review — deterministic counts from workflow rows. */
+export type OwnerResolutionReviewSummary = {
+  rankedCount: number;
+  renewalCount: number;
+  collectionsCount: number;
+  /** Rows with no open tagged HR task (CRM + ranked + renewal + collections). */
+  noTaggedTaskCount: number;
+  /** Any accountability gap (missing owner and/or task where rules apply). */
+  withAccountabilityGapCount: number;
+  missingOwnerCount: number;
+  missingTaskCount: number;
+  /** Tagged open task past due date. */
+  taskDueOverdueCount: number;
+  /** CRM-linked rows with renewal intervention date in the next 7 days (inclusive). */
+  interventionDueWithin7DaysCount: number;
+};
+
 export type OwnerResolutionSnapshot = {
   exportMeta: {
     generatedAt: string;
@@ -118,6 +135,8 @@ export type OwnerResolutionSnapshot = {
   collectionsWorkspaceNote: string;
   /** Pre-flattened for CSV / scheduled exports — same tenant scope as exportMeta. */
   exportRows: OwnerResolutionExportRow[];
+  /** Portfolio review roll-up for dashboards and exports. */
+  reviewSummary: OwnerResolutionReviewSummary;
 };
 
 const MAX_RENEWAL = 8;
@@ -199,6 +218,46 @@ function buildOwnerResolutionExportRows(input: {
   }
 
   return rows;
+}
+
+function buildOwnerResolutionReviewSummary(
+  renewalReadiness: RenewalReadinessRow[],
+  rankedAccountsForReview: RankedAccountRow[],
+  collectionsFollowUp: CollectionsCycleRow[],
+): OwnerResolutionReviewSummary {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const in7 = new Date(today.getTime() + 7 * 86400000);
+
+  const contactWorkflows = [
+    ...renewalReadiness.map((r) => r.workflow),
+    ...rankedAccountsForReview.map((r) => r.workflow),
+  ];
+  const billingWorkflows = collectionsFollowUp.map((c) => c.workflow);
+  const all = [...contactWorkflows, ...billingWorkflows];
+
+  let interventionDueWithin7DaysCount = 0;
+  for (const w of contactWorkflows) {
+    if (!w.renewalInterventionDueAt) continue;
+    const d = new Date(w.renewalInterventionDueAt + "T12:00:00");
+    if (d >= today && d <= in7) interventionDueWithin7DaysCount++;
+  }
+
+  return {
+    rankedCount: rankedAccountsForReview.length,
+    renewalCount: renewalReadiness.length,
+    collectionsCount: collectionsFollowUp.length,
+    noTaggedTaskCount: all.filter((w) => !w.hasOpenEmployeeTask).length,
+    withAccountabilityGapCount: all.filter((w) => w.accountabilityGap !== "none").length,
+    missingOwnerCount: all.filter(
+      (w) => w.accountabilityGap === "missing_owner" || w.accountabilityGap === "both",
+    ).length,
+    missingTaskCount: all.filter(
+      (w) => w.accountabilityGap === "missing_task" || w.accountabilityGap === "both",
+    ).length,
+    taskDueOverdueCount: all.filter((w) => w.isTaskDueOverdue).length,
+    interventionDueWithin7DaysCount,
+  };
 }
 
 function daysUntil(dateIso: string | null, now: Date): number | null {
@@ -523,6 +582,12 @@ export async function getOwnerResolutionSnapshot(
     collectionsFollowUp,
   });
 
+  const reviewSummary = buildOwnerResolutionReviewSummary(
+    renewalReadiness,
+    rankedAccountsForReview,
+    collectionsFollowUp,
+  );
+
   return {
     exportMeta: {
       generatedAt: now.toISOString(),
@@ -536,5 +601,6 @@ export async function getOwnerResolutionSnapshot(
     collectionsWorkspaceNote:
       "Billing cycle rows are tenant-scoped; customer allocation requires future invoice↔account linkage.",
     exportRows,
+    reviewSummary,
   };
 }

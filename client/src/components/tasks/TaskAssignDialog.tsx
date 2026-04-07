@@ -316,6 +316,7 @@ export function TaskAssignDialog({
       utils.tasks.listTasks.invalidate();
       utils.tasks.getTaskStats.invalidate();
       utils.employeePortal.getMyTasks.invalidate();
+      utils.operations.getOwnerBusinessPulse.invalidate();
       toast.success("Task assigned");
       onClose();
     },

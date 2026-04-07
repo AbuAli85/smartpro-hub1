@@ -8,6 +8,9 @@
  */
 
 import { and, eq, inArray, like, or } from "drizzle-orm";
+import { RESOLUTION_TASK_TAG } from "@shared/resolutionWorkflow";
+
+export { RESOLUTION_TASK_TAG };
 import type { getDb } from "./db";
 import { crmContacts, employeeTasks, users } from "../drizzle/schema";
 import type { AccountHealthTier } from "./accountHealth";
@@ -19,12 +22,7 @@ type CollectionsIn = Omit<CollectionsCycleRow, "workflow">;
 
 export type DbClient = NonNullable<Awaited<ReturnType<typeof getDb>>>;
 
-export const RESOLUTION_TASK_TAG = {
-  crmContact: (contactId: number) => `[RESOLUTION:crm:contact:${contactId}]`,
-  billingCycle: (cycleId: number) => `[RESOLUTION:billing:cycle:${cycleId}]`,
-} as const;
-
-export const RESOLUTION_WORKFLOW_BASIS = `Follow-through uses open HR tasks (pending / in progress / blocked) whose title or description contains a resolution tag. Add ${RESOLUTION_TASK_TAG.crmContact(0).replace(":0]", ":<contactId>]")} to link a task to a CRM contact, or ${RESOLUTION_TASK_TAG.billingCycle(0).replace(":0]", ":<cycleId>]")} for a billing cycle. CRM contact ownerId maps to a user when set.`;
+export const RESOLUTION_WORKFLOW_BASIS = `Follow-through uses open HR tasks (pending / in progress / blocked) whose title or description contains a resolution tag. Add ${RESOLUTION_TASK_TAG.crmContact(0).replace(":0]", ":<contactId>]")} to link a task to a CRM contact, or ${RESOLUTION_TASK_TAG.billingCycle(0).replace(":0]", ":<cycleId>]")} for a billing cycle. CRM contact ownerId maps to a user when set. Use “Create follow-up” on the dashboard or CRM to prefill a task with the tag and recommended action.`;
 
 export type AccountabilityGap = "none" | "missing_owner" | "missing_task" | "both";
 
@@ -33,6 +31,8 @@ export type ResolutionWorkflowTracking = {
   hasOpenEmployeeTask: boolean;
   matchingTaskIds: number[];
   tasksHref: string;
+  /** Open Task Manager with server-backed prefill query params. */
+  followUpCreateHref: string;
   accountableOwnerLabel: string | null;
   accountableOwnerId: number | null;
   accountabilityGap: AccountabilityGap;
@@ -189,6 +189,7 @@ function buildWorkflowForContactRow(
     hasOpenEmployeeTask: hasTask,
     matchingTaskIds: matched.map((m) => m.id),
     tasksHref: "/hr/tasks",
+    followUpCreateHref: `/hr/tasks?resolution=crm&contactId=${contactId}`,
     accountableOwnerLabel: hasOwner ? ownerLabel : null,
     accountableOwnerId: ownerId,
     accountabilityGap: gapForContact(tier, hasOwner, hasTask, needsFollowThrough, renewalImminent),
@@ -204,6 +205,7 @@ function buildWorkflowForBillingRow(cycleId: number, tasks: OpenResolutionTask[]
     hasOpenEmployeeTask: matched.length > 0,
     matchingTaskIds: matched.map((m) => m.id),
     tasksHref: "/hr/tasks",
+    followUpCreateHref: `/hr/tasks?resolution=billing&billingCycleId=${cycleId}`,
     accountableOwnerLabel: null,
     accountableOwnerId: null,
     accountabilityGap: matched.length === 0 ? "missing_task" : "none",

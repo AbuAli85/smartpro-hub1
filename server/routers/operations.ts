@@ -39,6 +39,10 @@ import { getPostSaleSignals } from "../postSaleSignals";
 import { getCompanyAccountPortfolioSnapshot } from "../accountHealth";
 import { buildRevenueRealizationSnapshot, selectRenewalMonetizationRiskRows } from "../revenueRealization";
 import { getOwnerResolutionSnapshot } from "../ownerResolution";
+import {
+  buildBillingResolutionFollowUpPrefill,
+  buildCrmResolutionFollowUpPrefill,
+} from "../resolutionFollowUpPrefill";
 
 type DbClient = NonNullable<Awaited<ReturnType<typeof getDb>>>;
 
@@ -978,5 +982,33 @@ export const operationsRouter = router({
         renewalMonetizationRisk,
         ownerResolution,
       };
+    }),
+
+  /** Prefill for Task Manager when opening /hr/tasks?resolution=crm|billing&… — tenant-scoped. */
+  getResolutionFollowUpPrefill: protectedProcedure
+    .input(
+      z.union([
+        z.object({ kind: z.literal("crm"), contactId: z.number(), companyId: z.number().optional() }),
+        z.object({ kind: z.literal("billing"), billingCycleId: z.number(), companyId: z.number().optional() }),
+      ]),
+    )
+    .query(async ({ input, ctx }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      const companyId = await resolvePlatformOrCompanyScope(ctx.user as User, input.companyId);
+      if (companyId === null) throw new TRPCError({ code: "BAD_REQUEST", message: "Company required" });
+      const membership = await getActiveCompanyMembership(ctx.user.id, companyId);
+      if (!membership) throw new TRPCError({ code: "FORBIDDEN", message: "No company membership" });
+      if (membership.role === "company_member" || membership.role === "client") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Insufficient access" });
+      }
+      if (input.kind === "crm") {
+        const p = await buildCrmResolutionFollowUpPrefill(db, companyId, input.contactId);
+        if (!p) throw new TRPCError({ code: "NOT_FOUND", message: "Contact not found" });
+        return p;
+      }
+      const p = await buildBillingResolutionFollowUpPrefill(db, companyId, input.billingCycleId);
+      if (!p) throw new TRPCError({ code: "NOT_FOUND", message: "Billing cycle not found" });
+      return p;
     }),
 });

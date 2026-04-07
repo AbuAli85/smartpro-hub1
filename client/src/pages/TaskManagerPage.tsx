@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useLocation, useSearch } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { Button } from "@/components/ui/button";
@@ -54,12 +55,68 @@ function rowUrgencyClass(task: any): string {
 export default function TaskManagerPage() {
   const utils = trpc.useUtils();
   const { activeCompanyId } = useActiveCompany();
+  const [, setLocation] = useLocation();
+  const urlSearch = useSearch();
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [filterPriority, setFilterPriority] = useState<string>("all");
   const [search, setSearch] = useState("");
   const [taskDialog, setTaskDialog] = useState<{ open: boolean; item?: any }>({ open: false });
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
   const [detailTask, setDetailTask] = useState<any | null>(null);
+  const appliedResolutionPrefillKey = useRef<string>("");
+
+  const searchParams = useMemo(() => {
+    const raw = urlSearch.startsWith("?") ? urlSearch.slice(1) : urlSearch;
+    return new URLSearchParams(raw);
+  }, [urlSearch]);
+  const resolutionKind = searchParams.get("resolution");
+  const contactIdStr = searchParams.get("contactId");
+  const billingCycleIdStr = searchParams.get("billingCycleId");
+  const prefillKey = `${resolutionKind ?? ""}-${contactIdStr ?? ""}-${billingCycleIdStr ?? ""}`;
+
+  const crmPrefillEnabled =
+    activeCompanyId != null &&
+    resolutionKind === "crm" &&
+    contactIdStr != null &&
+    /^\d+$/.test(contactIdStr);
+
+  const billingPrefillEnabled =
+    activeCompanyId != null &&
+    resolutionKind === "billing" &&
+    billingCycleIdStr != null &&
+    /^\d+$/.test(billingCycleIdStr);
+
+  const { data: crmPrefill } = trpc.operations.getResolutionFollowUpPrefill.useQuery(
+    { kind: "crm", contactId: Number(contactIdStr), companyId: activeCompanyId ?? undefined },
+    { enabled: crmPrefillEnabled },
+  );
+
+  const { data: billingPrefill } = trpc.operations.getResolutionFollowUpPrefill.useQuery(
+    { kind: "billing", billingCycleId: Number(billingCycleIdStr), companyId: activeCompanyId ?? undefined },
+    { enabled: billingPrefillEnabled },
+  );
+
+  useEffect(() => {
+    if (!resolutionKind) appliedResolutionPrefillKey.current = "";
+  }, [resolutionKind]);
+
+  useEffect(() => {
+    const prefill = crmPrefill ?? billingPrefill;
+    if (!prefill || !prefillKey || prefillKey === "--") return;
+    if (appliedResolutionPrefillKey.current === prefillKey) return;
+    appliedResolutionPrefillKey.current = prefillKey;
+    setTaskDialog({
+      open: true,
+      item: {
+        title: prefill.title,
+        description: prefill.description,
+        dueDate: prefill.dueDate,
+        priority: prefill.priority,
+        assignedToEmployeeId: prefill.suggestedAssigneeEmployeeId ?? undefined,
+      },
+    });
+    setLocation("/hr/tasks");
+  }, [crmPrefill, billingPrefill, prefillKey, setLocation]);
 
   const { data: tasks = [], isLoading } = trpc.tasks.listTasks.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
   const { data: stats } = trpc.tasks.getTaskStats.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });

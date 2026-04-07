@@ -352,3 +352,4 @@ export function isDirectoryTemplateOrHeaderRow(row: DirectoryXlsxRow): boolean {
 
   return false;
 }
+

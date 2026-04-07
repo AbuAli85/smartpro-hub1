@@ -27,6 +27,11 @@ export type OwnerAttentionInput = {
   overdueInvoiceTotalOmr: number;
   renewalWorkflowsFailed: number;
   draftQuotations: number;
+  /** Accepted quotations not yet converted to a contract */
+  acceptedQuotationsUnconverted?: number;
+  /** SaaS subscription invoices overdue (SmartPRO plan billing) */
+  saasSubscriptionOverdueCount?: number;
+  saasSubscriptionOverdueOmr?: number;
 };
 
 /** Stable ordering: critical first, then high, then medium. */
@@ -46,6 +51,9 @@ export function buildOwnerAttentionQueue(input: OwnerAttentionInput): OwnerAtten
     overdueInvoiceTotalOmr,
     renewalWorkflowsFailed,
     draftQuotations,
+    acceptedQuotationsUnconverted = 0,
+    saasSubscriptionOverdueCount = 0,
+    saasSubscriptionOverdueOmr = 0,
   } = input;
 
   const slaHref = isPlatformOperator ? "/sla-management" : "/operations";
@@ -148,6 +156,24 @@ export function buildOwnerAttentionQueue(input: OwnerAttentionInput): OwnerAtten
       detail: "Send or convert proposals to keep the sales pipeline moving.",
       severity: "medium",
       href: "/quotations",
+    });
+  }
+  if (acceptedQuotationsUnconverted > 0) {
+    q.push({
+      key: "quotes_no_contract",
+      title: `${acceptedQuotationsUnconverted} accepted quotation${acceptedQuotationsUnconverted > 1 ? "s" : ""} not linked to a contract`,
+      detail: "Create the agreement or convert the quote so delivery and billing stay aligned.",
+      severity: "high",
+      href: "/quotations",
+    });
+  }
+  if (saasSubscriptionOverdueCount > 0) {
+    q.push({
+      key: "saas_overdue",
+      title: `SmartPRO subscription: OMR ${saasSubscriptionOverdueOmr.toFixed(3)} overdue (${saasSubscriptionOverdueCount} invoice${saasSubscriptionOverdueCount > 1 ? "s" : ""})`,
+      detail: "Your platform subscription is past due — settle to avoid service interruption.",
+      severity: "high",
+      href: "/subscriptions",
     });
   }
 

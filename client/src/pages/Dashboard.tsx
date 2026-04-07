@@ -9,7 +9,7 @@ import {
   Briefcase, Building2, CheckCircle2, Clock, FileText,
   Shield, ShoppingBag, TrendingUp, Users, Banknote,
   Globe, Zap, RefreshCw, Award, MapPin, Calendar,
-  ChevronRight, Activity, Bell,
+  ChevronRight, Activity, Bell, Target, CircleDollarSign, Truck,
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -156,6 +156,10 @@ export default function Dashboard() {
   const { data: auditFeed } = trpc.analytics.auditLogs.useQuery(
     { limit: 8, companyId: activeCompanyId ?? undefined },
     { enabled: activeCompanyId != null },
+  );
+  const { data: businessPulse } = trpc.operations.getOwnerBusinessPulse.useQuery(
+    { companyId: activeCompanyId ?? undefined },
+    { enabled: activeCompanyId != null && !seesPlatformOperatorNav(user), staleTime: 60_000 },
   );
 
   const quickAccessModules = useMemo(() => {
@@ -424,6 +428,141 @@ export default function Dashboard() {
               </CardContent>
             </Card>
           )}
+        </div>
+      )}
+
+      {/* ── Commercial → contract → cash → delivery (one glance) ── */}
+      {!showPlatformOverview && activeCompanyId && businessPulse && (
+        <div className="space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
+              <Target size={13} /> Pipeline, cash & delivery
+            </h2>
+            <div className="flex flex-wrap gap-1 justify-end">
+              {showHref("/crm") && (
+                <Button variant="ghost" size="sm" className="text-xs h-7" asChild>
+                  <Link href="/crm">CRM pipeline</Link>
+                </Button>
+              )}
+              {showHref("/quotations") && (
+                <Button variant="ghost" size="sm" className="text-xs h-7" asChild>
+                  <Link href="/quotations">Quotations</Link>
+                </Button>
+              )}
+              {showHref("/contracts") && (
+                <Button variant="ghost" size="sm" className="text-xs h-7" asChild>
+                  <Link href="/contracts">Contracts</Link>
+                </Button>
+              )}
+              {showHref("/finance/overview") && (
+                <Button variant="ghost" size="sm" className="text-xs h-7" asChild>
+                  <Link href="/finance/overview">Finance</Link>
+                </Button>
+              )}
+              {showHref("/subscriptions") && (
+                <Button variant="ghost" size="sm" className="text-xs h-7" asChild>
+                  <Link href="/subscriptions">Subscriptions</Link>
+                </Button>
+              )}
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Card className="border-border/80">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <BarChart3 size={14} className="text-[var(--smartpro-orange)]" />
+                  Commercial
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2 text-sm">
+                <div className="flex justify-between gap-2">
+                  <span className="text-muted-foreground">Open pipeline (OMR)</span>
+                  <span className="font-semibold tabular-nums">
+                    {businessPulse.commercial.pipelineValueOmr.toLocaleString("en-OM", { minimumFractionDigits: 3, maximumFractionDigits: 3 })}
+                  </span>
+                </div>
+                <div className="flex justify-between gap-2 text-xs">
+                  <span className="text-muted-foreground">Leads / prospects</span>
+                  <span>{businessPulse.commercial.contactsLeads} / {businessPulse.commercial.contactsProspects}</span>
+                </div>
+                <div className="flex justify-between gap-2 text-xs">
+                  <span className="text-muted-foreground">Open deals</span>
+                  <span className="font-medium">{businessPulse.commercial.dealsOpen}</span>
+                </div>
+                <div className="flex justify-between gap-2 text-xs">
+                  <span className="text-muted-foreground">Quotes draft / sent</span>
+                  <span>{businessPulse.commercial.quotationsDraft} / {businessPulse.commercial.quotationsSent}</span>
+                </div>
+                <div className="flex justify-between gap-2 text-xs">
+                  <span className="text-muted-foreground">Accepted → no contract</span>
+                  <span className={businessPulse.commercial.quotationsAcceptedUnconverted > 0 ? "text-amber-700 font-semibold" : ""}>
+                    {businessPulse.commercial.quotationsAcceptedUnconverted}
+                  </span>
+                </div>
+                <div className="flex justify-between gap-2 text-xs">
+                  <span className="text-muted-foreground">Contracts awaiting signature</span>
+                  <span className={businessPulse.commercial.contractsPendingSignature > 0 ? "text-amber-700 font-semibold" : ""}>
+                    {businessPulse.commercial.contractsPendingSignature}
+                  </span>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="border-border/80">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <CircleDollarSign size={14} className="text-emerald-600" />
+                  Collections & subscriptions
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2 text-sm">
+                <div className="flex justify-between gap-2">
+                  <span className="text-muted-foreground">PRO/officer overdue (OMR)</span>
+                  <span className={`font-semibold tabular-nums ${businessPulse.finance.proBillingOverdueOmr > 0 ? "text-red-700" : ""}`}>
+                    {businessPulse.finance.proBillingOverdueOmr.toLocaleString("en-OM", { minimumFractionDigits: 3, maximumFractionDigits: 3 })}
+                  </span>
+                </div>
+                <div className="flex justify-between gap-2 text-xs">
+                  <span className="text-muted-foreground">PRO invoices pending</span>
+                  <span>{businessPulse.finance.proBillingPendingCount}</span>
+                </div>
+                <div className="flex justify-between gap-2">
+                  <span className="text-muted-foreground">Platform subscription overdue</span>
+                  <span className={`font-semibold tabular-nums ${businessPulse.finance.subscriptionOverdueOmr > 0 ? "text-red-700" : ""}`}>
+                    {businessPulse.finance.subscriptionOverdueOmr.toLocaleString("en-OM", { minimumFractionDigits: 3, maximumFractionDigits: 3 })}
+                  </span>
+                </div>
+                <div className="flex justify-between gap-2 text-xs">
+                  <span className="text-muted-foreground">Subscription issued (unpaid)</span>
+                  <span>{businessPulse.finance.subscriptionIssuedUnpaidCount}</span>
+                </div>
+                <p className="text-[10px] text-muted-foreground pt-1 border-t border-border/60">
+                  Officer billing: use client portal or billing (operator). Subscription: company billing settings.
+                </p>
+              </CardContent>
+            </Card>
+            <Card className="border-border/80">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Truck size={14} className="text-blue-600" />
+                  Delivery load
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2 text-sm">
+                <Link href="/pro" className="flex justify-between gap-2 hover:opacity-80">
+                  <span className="text-muted-foreground">Open PRO requests</span>
+                  <span className="font-semibold">{businessPulse.delivery.openProServices}</span>
+                </Link>
+                <Link href="/workforce/cases" className="flex justify-between gap-2 hover:opacity-80">
+                  <span className="text-muted-foreground">Government cases</span>
+                  <span className="font-semibold">{businessPulse.delivery.openGovernmentCases}</span>
+                </Link>
+                <Link href="/marketplace" className="flex justify-between gap-2 hover:opacity-80">
+                  <span className="text-muted-foreground">Active marketplace bookings</span>
+                  <span className="font-semibold">{businessPulse.delivery.activeBookings}</span>
+                </Link>
+              </CardContent>
+            </Card>
+          </div>
         </div>
       )}
 

@@ -18,8 +18,13 @@ import {
   employees,
   employeeDocuments,
   companyDocuments,
+  subscriptionInvoices,
+  crmContacts,
+  crmDeals,
+  marketplaceBookings,
+  proServices,
 } from "../../drizzle/schema";
-import { and, eq, gte, lte, lt, count, sum, desc, isNull, isNotNull, ne, notInArray } from "drizzle-orm";
+import { and, eq, gte, lte, lt, count, sum, desc, isNull, isNotNull, ne, notInArray, inArray } from "drizzle-orm";
 import { resolvePlatformOrCompanyScope } from "../_core/tenant";
 import {
   canReadHrPerformanceAuditSensitiveRows,
@@ -28,6 +33,7 @@ import {
 import type { PayrollRun, User } from "../../drizzle/schema";
 import { canAccessGlobalAdminProcedures } from "@shared/rbac";
 import { buildOwnerAttentionQueue } from "../ownerAttentionQueue";
+import { getActiveCompanyMembership } from "../_core/membership";
 
 /** Locks `payroll.thisMonthStatus` for tRPC client inference (`not_run` is not a DB enum value). */
 const getSmartDashboardOutputSchema = z.object({
@@ -323,6 +329,25 @@ export const operationsRouter = router({
         ),
       );
 
+    const acceptedQuoteUnconvertedWhere = and(
+      eq(serviceQuotations.status, "accepted"),
+      isNull(serviceQuotations.convertedToContractId),
+      ...(companyId ? [eq(serviceQuotations.companyId, companyId)] : []),
+    );
+    const [acceptedUnconvertedRow] = await db
+      .select({ cnt: count() })
+      .from(serviceQuotations)
+      .where(acceptedQuoteUnconvertedWhere);
+
+    const saasSubOverdueWhere = and(
+      eq(subscriptionInvoices.status, "overdue"),
+      ...(companyId ? [eq(subscriptionInvoices.companyId, companyId)] : []),
+    );
+    const [saasSubOverdueRow] = await db
+      .select({ cnt: count(), total: sum(subscriptionInvoices.amount) })
+      .from(subscriptionInvoices)
+      .where(saasSubOverdueWhere);
+
     const attentionQueue = buildOwnerAttentionQueue({
       isPlatformOperator,
       slaBreaches: slaBreaches.length,
@@ -337,6 +362,9 @@ export const operationsRouter = router({
       overdueInvoiceTotalOmr: Number(overdueInvoicesRow[0]?.total ?? 0),
       renewalWorkflowsFailed: Number(failedRenewalsRow[0]?.cnt ?? 0),
       draftQuotations: Number(draftQuotations[0]?.cnt ?? 0),
+      acceptedQuotationsUnconverted: Number(acceptedUnconvertedRow?.cnt ?? 0),
+      saasSubscriptionOverdueCount: Number(saasSubOverdueRow?.cnt ?? 0),
+      saasSubscriptionOverdueOmr: Number(saasSubOverdueRow?.total ?? 0),
     });
 
     return {
@@ -647,4 +675,158 @@ export const operationsRouter = router({
       totalTasks: casesDue.length + pendingLeaveApprovals.length + pendingPayrollApprovals.length,
     };
   }),
+
+  /**
+   * Owner command center — commercial, finance, and delivery signals in one tenant-scoped payload.
+   * Returns null for platform-wide scope (no single company workspace).
+   */
+  getOwnerBusinessPulse: protectedProcedure
+    .input(z.object({ companyId: z.number().optional() }).optional())
+    .query(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) return null;
+      const companyId = await resolvePlatformOrCompanyScope(ctx.user as User, input?.companyId);
+      if (companyId === null) return null;
+
+      const membership = await getActiveCompanyMembership(ctx.user.id, companyId);
+      if (!membership) return null;
+      if (membership.role === "company_member" || membership.role === "client") return null;
+
+      const openStages = ["lead", "qualified", "proposal", "negotiation"] as const;
+
+      const [contactsLeads] = await db
+        .select({ cnt: count() })
+        .from(crmContacts)
+        .where(and(eq(crmContacts.companyId, companyId), eq(crmContacts.status, "lead")));
+      const [contactsProspects] = await db
+        .select({ cnt: count() })
+        .from(crmContacts)
+        .where(and(eq(crmContacts.companyId, companyId), eq(crmContacts.status, "prospect")));
+
+      const [dealsOpen] = await db
+        .select({ cnt: count() })
+        .from(crmDeals)
+        .where(and(eq(crmDeals.companyId, companyId), inArray(crmDeals.stage, [...openStages])));
+
+      const [pipelineSum] = await db
+        .select({ total: sum(crmDeals.value) })
+        .from(crmDeals)
+        .where(and(eq(crmDeals.companyId, companyId), inArray(crmDeals.stage, [...openStages])));
+
+      const dealStageRows = await db
+        .select({ stage: crmDeals.stage, cnt: count() })
+        .from(crmDeals)
+        .where(eq(crmDeals.companyId, companyId))
+        .groupBy(crmDeals.stage);
+      const stageMap = Object.fromEntries(
+        dealStageRows.map((r) => [r.stage, Number(r.cnt)]),
+      ) as Record<string, number>;
+
+      const [qDraft] = await db
+        .select({ cnt: count() })
+        .from(serviceQuotations)
+        .where(and(eq(serviceQuotations.companyId, companyId), eq(serviceQuotations.status, "draft")));
+      const [qSent] = await db
+        .select({ cnt: count() })
+        .from(serviceQuotations)
+        .where(and(eq(serviceQuotations.companyId, companyId), eq(serviceQuotations.status, "sent")));
+      const [qAcceptedNoContract] = await db
+        .select({ cnt: count() })
+        .from(serviceQuotations)
+        .where(
+          and(
+            eq(serviceQuotations.companyId, companyId),
+            eq(serviceQuotations.status, "accepted"),
+            isNull(serviceQuotations.convertedToContractId),
+          ),
+        );
+
+      const [pendingSig] = await db
+        .select({ cnt: count() })
+        .from(contracts)
+        .where(and(eq(contracts.companyId, companyId), eq(contracts.status, "pending_signature")));
+
+      const [proOverdue] = await db
+        .select({ cnt: count(), total: sum(proBillingCycles.amountOmr) })
+        .from(proBillingCycles)
+        .where(and(eq(proBillingCycles.companyId, companyId), eq(proBillingCycles.status, "overdue")));
+      const [proPending] = await db
+        .select({ cnt: count() })
+        .from(proBillingCycles)
+        .where(and(eq(proBillingCycles.companyId, companyId), eq(proBillingCycles.status, "pending")));
+
+      const [subOverdue] = await db
+        .select({ cnt: count(), total: sum(subscriptionInvoices.amount) })
+        .from(subscriptionInvoices)
+        .where(and(eq(subscriptionInvoices.companyId, companyId), eq(subscriptionInvoices.status, "overdue")));
+      const [subIssued] = await db
+        .select({ cnt: count() })
+        .from(subscriptionInvoices)
+        .where(and(eq(subscriptionInvoices.companyId, companyId), eq(subscriptionInvoices.status, "issued")));
+
+      const [openPro] = await db
+        .select({ cnt: count() })
+        .from(proServices)
+        .where(
+          and(
+            eq(proServices.companyId, companyId),
+            notInArray(proServices.status, ["completed", "cancelled", "rejected"]),
+          ),
+        );
+
+      const [bookings] = await db
+        .select({ cnt: count() })
+        .from(marketplaceBookings)
+        .where(
+          and(
+            eq(marketplaceBookings.companyId, companyId),
+            inArray(marketplaceBookings.status, ["pending", "confirmed", "in_progress"]),
+          ),
+        );
+
+      const [govCases] = await db
+        .select({ cnt: count() })
+        .from(governmentServiceCases)
+        .where(
+          and(
+            eq(governmentServiceCases.companyId, companyId),
+            ne(governmentServiceCases.caseStatus, "completed"),
+            ne(governmentServiceCases.caseStatus, "cancelled"),
+          ),
+        );
+
+      return {
+        commercial: {
+          contactsLeads: Number(contactsLeads?.cnt ?? 0),
+          contactsProspects: Number(contactsProspects?.cnt ?? 0),
+          dealsOpen: Number(dealsOpen?.cnt ?? 0),
+          pipelineValueOmr: Number(pipelineSum?.total ?? 0),
+          dealsByStage: {
+            lead: stageMap.lead ?? 0,
+            qualified: stageMap.qualified ?? 0,
+            proposal: stageMap.proposal ?? 0,
+            negotiation: stageMap.negotiation ?? 0,
+            closedWon: stageMap["closed_won"] ?? 0,
+            closedLost: stageMap["closed_lost"] ?? 0,
+          },
+          quotationsDraft: Number(qDraft?.cnt ?? 0),
+          quotationsSent: Number(qSent?.cnt ?? 0),
+          quotationsAcceptedUnconverted: Number(qAcceptedNoContract?.cnt ?? 0),
+          contractsPendingSignature: Number(pendingSig?.cnt ?? 0),
+        },
+        finance: {
+          proBillingOverdueCount: Number(proOverdue?.cnt ?? 0),
+          proBillingOverdueOmr: Number(proOverdue?.total ?? 0),
+          proBillingPendingCount: Number(proPending?.cnt ?? 0),
+          subscriptionOverdueCount: Number(subOverdue?.cnt ?? 0),
+          subscriptionOverdueOmr: Number(subOverdue?.total ?? 0),
+          subscriptionIssuedUnpaidCount: Number(subIssued?.cnt ?? 0),
+        },
+        delivery: {
+          openProServices: Number(openPro?.cnt ?? 0),
+          activeBookings: Number(bookings?.cnt ?? 0),
+          openGovernmentCases: Number(govCases?.cnt ?? 0),
+        },
+      };
+    }),
 });

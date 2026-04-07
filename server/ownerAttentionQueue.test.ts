@@ -79,4 +79,27 @@ describe("buildOwnerAttentionQueue", () => {
       }),
     ).toEqual([]);
   });
+
+  it("surfaces accepted quotes not converted and SaaS subscription overdue", () => {
+    const q = buildOwnerAttentionQueue({
+      isPlatformOperator: false,
+      slaBreaches: 0,
+      casesActionRequired: 0,
+      pendingLeaveRequests: 0,
+      payrollDraftThisMonth: 0,
+      pendingPayrollApprovedAwaitingPayment: 0,
+      expiringPermits7Days: 0,
+      employeeDocsExpiring7Days: 0,
+      pendingContracts: 0,
+      overdueInvoiceCount: 0,
+      overdueInvoiceTotalOmr: 0,
+      renewalWorkflowsFailed: 0,
+      draftQuotations: 0,
+      acceptedQuotationsUnconverted: 2,
+      saasSubscriptionOverdueCount: 1,
+      saasSubscriptionOverdueOmr: 99.5,
+    });
+    expect(q.some((i) => i.key === "quotes_no_contract")).toBe(true);
+    expect(q.some((i) => i.key === "saas_overdue" && i.href === "/subscriptions")).toBe(true);
+  });
 });

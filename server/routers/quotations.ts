@@ -2,7 +2,7 @@ import { z } from "zod";
 import { protectedProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
 import { TRPCError } from "@trpc/server";
-import { serviceQuotations, quotationLineItems } from "../../drizzle/schema";
+import { serviceQuotations, quotationLineItems, crmDeals } from "../../drizzle/schema";
 import { eq, and, desc, sql, or, isNull } from "drizzle-orm";
 import { invokeLLM } from "../_core/llm";
 import { storagePut } from "../storage";
@@ -44,6 +44,8 @@ export const quotationsRouter = router({
             discountPct: z.number().min(0).max(100).default(0),
           }),
         ).min(1),
+        /** Optional CRM deal — ties the quote to pipeline reporting. */
+        crmDealId: z.number().int().positive().optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -53,6 +55,18 @@ export const quotationsRouter = router({
       const companyId = canAccessGlobalAdminProcedures(ctx.user)
         ? input.companyId ?? null
         : await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
+
+      if (input.crmDealId != null) {
+        const [deal] = await db
+          .select({ id: crmDeals.id, companyId: crmDeals.companyId })
+          .from(crmDeals)
+          .where(eq(crmDeals.id, input.crmDealId))
+          .limit(1);
+        if (!deal) throw new TRPCError({ code: "NOT_FOUND", message: "Deal not found" });
+        if (companyId != null && deal.companyId !== companyId) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Deal not found" });
+        }
+      }
 
       const lines = calcLineTotals(input.lineItems);
       const subtotal = lines.reduce((s, l) => s + l.lineTotal, 0);
@@ -76,6 +90,7 @@ export const quotationsRouter = router({
           notes: input.notes ?? null,
           terms: input.terms ?? null,
           status: "draft",
+          crmDealId: input.crmDealId ?? null,
           createdBy: ctx.user.id,
         })
         .$returningId();

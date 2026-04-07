@@ -160,11 +160,16 @@ export function ExecutiveControlTower({ tower, showHref, execution, companyId, m
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <Card className="border-border/80">
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm flex items-center gap-2">
+              <CardTitle
+                className="text-sm flex items-center gap-2"
+                title={riskCompliance.basis}
+              >
                 <FileWarning size={14} className="text-amber-700" />
-                Contract, renewal & compliance
+                Contracts, renewals & compliance
               </CardTitle>
-              <p className="text-[10px] text-muted-foreground font-normal">{riskCompliance.basis}</p>
+              <p className="text-[10px] text-muted-foreground font-normal">
+                Open items across contracts, renewals, HR docs, permits, and SLAs.
+              </p>
             </CardHeader>
             <CardContent className="grid grid-cols-2 gap-x-3 gap-y-2 text-[11px]">
               <div className="flex justify-between gap-2">
@@ -227,48 +232,55 @@ export function ExecutiveControlTower({ tower, showHref, execution, companyId, m
             <CardHeader className="pb-2">
               <CardTitle className="text-sm flex items-center gap-2">
                 <Users size={14} className="text-[var(--smartpro-orange)]" />
-                Client revenue & health (priority)
+                Accounts needing attention
               </CardTitle>
               <p className="text-[10px] text-muted-foreground font-normal">
-                Top CRM accounts from the leadership review queue (same ranking as Resolution queue).
+                Same priority list as your resolution queue — start here, then open CRM for detail.
               </p>
             </CardHeader>
             <CardContent className="space-y-2">
               {clientHealthTop.length === 0 ? (
-                <p className="text-xs text-muted-foreground">No ranked accounts — CRM data is healthy or empty.</p>
+                <p className="text-xs text-muted-foreground">No accounts flagged — CRM looks clear or empty.</p>
               ) : (
                 <ul className="space-y-2">
                   {clientHealthTop.map((row) => (
-                    <li key={row.contactId} className="rounded-lg border border-border/60 p-2 space-y-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Link href={row.primaryHref} className="text-xs font-semibold hover:underline">
+                    <li key={row.contactId} className="rounded-lg border border-border/60 p-2.5 space-y-1.5">
+                      <div className="flex flex-wrap items-baseline justify-between gap-2">
+                        <Link href={row.primaryHref} className="text-sm font-semibold leading-snug hover:underline min-w-0">
                           {row.displayName}
                         </Link>
-                        {row.companyLabel && (
-                          <span className="text-[10px] text-muted-foreground">· {row.companyLabel}</span>
-                        )}
-                        <Badge variant="outline" className="text-[9px]">
+                        <Badge variant="outline" className="text-[9px] shrink-0">
                           {row.tier.replace("_", " ")}
                         </Badge>
                       </div>
-                      <p className="text-[10px] text-muted-foreground line-clamp-2">{row.rankReason}</p>
-                      <div className="flex flex-wrap gap-2 items-center">
-                        <span className="text-[10px] text-muted-foreground">Score {row.priorityScore}</span>
-                        <Button variant="secondary" size="sm" className="h-7 text-[10px]" asChild>
-                          <Link href={row.primaryHref}>{row.nextActionLabel}</Link>
-                        </Button>
-                      </div>
+                      {row.companyLabel && (
+                        <p className="text-[10px] text-muted-foreground truncate">{row.companyLabel}</p>
+                      )}
+                      <p className="text-[11px] text-muted-foreground leading-snug line-clamp-2">{row.rankReason}</p>
+                      <Button variant="secondary" size="sm" className="h-7 text-[10px] w-full sm:w-auto" asChild>
+                        <Link href={row.primaryHref}>{row.nextActionLabel}</Link>
+                      </Button>
                     </li>
                   ))}
                 </ul>
               )}
-              {showHref("/crm") && (
-                <Button variant="outline" size="sm" className="w-full text-xs h-8 mt-1" asChild>
-                  <Link href="/crm" className="gap-1">
-                    Full CRM <ArrowUpRight size={12} />
-                  </Link>
-                </Button>
-              )}
+              <div className="flex flex-col gap-1.5 pt-1">
+                {showHref("/crm") && (
+                  <Button variant="outline" size="sm" className="w-full text-xs h-8" asChild>
+                    <Link href="/crm" className="gap-1">
+                      Open CRM <ArrowUpRight size={12} />
+                    </Link>
+                  </Button>
+                )}
+                {showHref("/workspace") && (
+                  <p className="text-[10px] text-muted-foreground text-center">
+                    <Link href="/workspace" className="text-[var(--smartpro-orange)] hover:underline font-medium">
+                      Team workspace
+                    </Link>{" "}
+                    — people, follow-ups, and performance
+                  </p>
+                )}
+              </div>
             </CardContent>
           </Card>
         </div>

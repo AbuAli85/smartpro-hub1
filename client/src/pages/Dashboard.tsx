@@ -25,6 +25,29 @@ import { ExecutiveControlTower } from "@/components/dashboard/ExecutiveControlTo
 import { ManagementCadencePanel } from "@/components/dashboard/ManagementCadencePanel";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
+/** One-line roll-up for owner resolution (non-zero counts only). */
+function compactResolutionSummary(rs: {
+  stalledFollowUpCount: number;
+  inFollowUpCount: number;
+  needsAssignmentCount: number;
+  interventionDueWithin7DaysCount: number;
+  taskDueOverdueCount: number;
+  needsTaggedTaskCount: number;
+  missingOwnerCount: number;
+  monitorNoTagCount: number;
+}): string {
+  const parts: string[] = [];
+  if (rs.stalledFollowUpCount) parts.push(`${rs.stalledFollowUpCount} stalled`);
+  if (rs.inFollowUpCount) parts.push(`${rs.inFollowUpCount} in follow-up`);
+  if (rs.needsAssignmentCount) parts.push(`${rs.needsAssignmentCount} need owner`);
+  if (rs.interventionDueWithin7DaysCount) parts.push(`${rs.interventionDueWithin7DaysCount} due ≤7d`);
+  if (rs.taskDueOverdueCount) parts.push(`${rs.taskDueOverdueCount} task overdue`);
+  if (rs.needsTaggedTaskCount) parts.push(`${rs.needsTaggedTaskCount} need HR task`);
+  if (rs.missingOwnerCount) parts.push(`${rs.missingOwnerCount} no CRM owner`);
+  if (rs.monitorNoTagCount) parts.push(`${rs.monitorNoTagCount} monitor`);
+  return parts.slice(0, 6).join(" · ");
+}
+
 /* ── KPI Stat Card ─────────────────────────────────────────────────────── */
 function StatCard({
   title, value, icon, gradient, change, sub,
@@ -791,36 +814,17 @@ export default function Dashboard() {
                       <ClipboardList size={14} className="text-primary" />
                       Resolution queue
                     </CardTitle>
-                    <p className="text-[10px] text-muted-foreground font-normal mt-1">
-                      Snapshot v{businessPulse.ownerResolution.exportMeta.schemaVersion} ·{" "}
-                      {fmtDateTimeShort(new Date(businessPulse.ownerResolution.exportMeta.generatedAt))} ·{" "}
-                      {businessPulse.ownerResolution.exportRows.length} flat export row
-                      {businessPulse.ownerResolution.exportRows.length === 1 ? "" : "s"} (CSV / leadership packs).
+                    <p
+                      className="text-[10px] text-muted-foreground font-normal mt-1"
+                      title={`Export v${businessPulse.ownerResolution.exportMeta.schemaVersion} · ${businessPulse.ownerResolution.exportRows.length} row(s)`}
+                    >
+                      Updated {fmtDateTimeShort(new Date(businessPulse.ownerResolution.exportMeta.generatedAt))} · CSV/JSON
+                      packs available
                     </p>
                     {businessPulse.ownerResolution.reviewSummary && (
-                      <div className="flex flex-wrap gap-1.5 mt-2 text-[9px]">
-                        <Badge variant="outline" className="font-normal border-red-200 text-red-900 bg-red-50/50 dark:bg-red-950/30">
-                          Stalled: {businessPulse.ownerResolution.reviewSummary.stalledFollowUpCount}
-                        </Badge>
-                        <Badge variant="outline" className="font-normal border-emerald-200 text-emerald-900 bg-emerald-50/40 dark:bg-emerald-950/25">
-                          In follow-up: {businessPulse.ownerResolution.reviewSummary.inFollowUpCount}
-                        </Badge>
-                        <Badge variant="outline" className="font-normal border-amber-200 text-amber-900 bg-amber-50/50 dark:bg-amber-950/25">
-                          Needs assignment: {businessPulse.ownerResolution.reviewSummary.needsAssignmentCount}
-                        </Badge>
-                        <Badge variant="outline" className="font-normal border-slate-200 text-slate-800">
-                          Monitor: {businessPulse.ownerResolution.reviewSummary.monitorNoTagCount}
-                        </Badge>
-                        <Badge variant="secondary" className="font-normal">
-                          No tag: {businessPulse.ownerResolution.reviewSummary.noTaggedTaskCount}
-                        </Badge>
-                        <Badge variant="secondary" className="font-normal">
-                          Needs tag: {businessPulse.ownerResolution.reviewSummary.needsTaggedTaskCount}
-                        </Badge>
-                        <Badge variant="secondary" className="font-normal">
-                          Intervention ≤7d: {businessPulse.ownerResolution.reviewSummary.interventionDueWithin7DaysCount}
-                        </Badge>
-                      </div>
+                      <p className="text-[10px] text-muted-foreground mt-2 leading-relaxed">
+                        {compactResolutionSummary(businessPulse.ownerResolution.reviewSummary) || "No roll-up alerts."}
+                      </p>
                     )}
                   </div>
                   <div className="flex flex-wrap gap-1">
@@ -849,6 +853,11 @@ export default function Dashboard() {
                     <Button variant="ghost" size="sm" className="text-xs h-7" asChild>
                       <Link href="/crm">CRM</Link>
                     </Button>
+                    {showHref("/workspace") && (
+                      <Button variant="ghost" size="sm" className="text-xs h-7" asChild>
+                        <Link href="/workspace">Team workspace</Link>
+                      </Button>
+                    )}
                     <Button variant="ghost" size="sm" className="text-xs h-7" asChild>
                       <Link href="/contracts">Contracts</Link>
                     </Button>
@@ -856,7 +865,7 @@ export default function Dashboard() {
                       <Link href="/client-portal?tab=invoices">Collections</Link>
                     </Button>
                     <Button variant="default" size="sm" className="text-xs h-7" asChild>
-                      <Link href="/hr/tasks">Task Manager</Link>
+                      <Link href="/hr/tasks">Tasks</Link>
                     </Button>
                   </div>
                 </div>

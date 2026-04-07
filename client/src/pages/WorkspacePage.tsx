@@ -27,6 +27,15 @@ import {
 } from "@/components/ui/select";
 import { LayoutGrid, ChevronRight, Users, ClipboardList } from "lucide-react";
 import { toast } from "sonner";
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 function statusTone(s: string): string {
   const map: Record<string, string> = {
@@ -73,6 +82,14 @@ function urgencyLabel(u: string): string | null {
   return null;
 }
 
+function interventionFollowUpLine(followUpAt: string | null): string | null {
+  if (!followUpAt) return null;
+  const today = new Date().toISOString().slice(0, 10);
+  if (followUpAt < today) return `Overdue · was ${followUpAt}`;
+  if (followUpAt === today) return "Due today";
+  return `Due ${followUpAt}`;
+}
+
 export default function WorkspacePage() {
   const { activeCompanyId } = useActiveCompany();
   const utils = trpc.useUtils();
@@ -88,6 +105,7 @@ export default function WorkspacePage() {
   const [actFollowUp, setActFollowUp] = useState("");
   const [actTaskTitle, setActTaskTitle] = useState("");
   const [actTaskDue, setActTaskDue] = useState("");
+  const [closeInterventionTarget, setCloseInterventionTarget] = useState<{ id: number; name: string } | null>(null);
 
   const createIv = trpc.workspace.createIntervention.useMutation({
     onSuccess: async () => {
@@ -105,6 +123,7 @@ export default function WorkspacePage() {
   const closeIv = trpc.workspace.closeIntervention.useMutation({
     onSuccess: async () => {
       toast.success("Follow-up cleared");
+      setCloseInterventionTarget(null);
       await utils.workspace.getWorkspace.invalidate();
     },
     onError: (e) => toast.error(e.message),
@@ -168,7 +187,7 @@ export default function WorkspacePage() {
           <LayoutGrid className="h-7 w-7" />
           Workspace
         </h1>
-        <p className="text-sm text-muted-foreground">Your status, priorities, and team — one place.</p>
+        <p className="text-sm text-muted-foreground">Status, priorities, and your team at a glance.</p>
       </header>
 
       {my?.mode === "no_employee" && (
@@ -188,7 +207,7 @@ export default function WorkspacePage() {
               <CardContent className="pt-6 text-sm">
                 <ul className="list-disc pl-5 space-y-1">
                   {my.focusLines.length === 0 ? (
-                    <li className="text-muted-foreground">Your role and priorities will show here when HR sets them.</li>
+                    <li className="text-muted-foreground">When HR sets your role and responsibilities, they&apos;ll show here.</li>
                   ) : (
                     my.focusLines.map((line) => <li key={line}>{line}</li>)
                   )}
@@ -317,35 +336,28 @@ export default function WorkspacePage() {
                 <p>{my.review.summary}</p>
                 {my.review.interventions.length > 0 && (
                   <ul className="space-y-2 border-t border-border/60 pt-3">
-                    {my.review.interventions.map((iv) => (
-                      <li key={iv.id} className="text-xs text-muted-foreground">
-                        <span className="flex flex-wrap items-center gap-1.5">
-                          <span className="font-medium text-foreground">{KIND_LABEL[iv.kind] ?? iv.kind}</span>
-                          {iv.status === "escalated" ? (
-                            <Badge variant="destructive" className="text-[9px] px-1 py-0 h-5">
-                              Escalated
-                            </Badge>
-                          ) : (
-                            <Badge variant="secondary" className="text-[9px] px-1 py-0 h-5">
-                              Open
-                            </Badge>
-                          )}
-                        </span>
-                        {iv.followUpAt && (
-                          <span className="block text-foreground/90 mt-0.5">
-                            Follow-up due {iv.followUpAt}
-                            {iv.followUpAt < new Date().toISOString().slice(0, 10) ? " (overdue)" : ""}
-                          </span>
-                        )}
-                        {iv.note && <span className="block mt-0.5">Note: {iv.note}</span>}
-                        <span className="block text-[10px] mt-0.5">From {iv.managerLabel}</span>
-                      </li>
-                    ))}
+                    {my.review.interventions.map((iv) => {
+                      const followLine = interventionFollowUpLine(iv.followUpAt);
+                      return (
+                        <li key={iv.id} className="rounded-md border border-border/50 bg-muted/20 px-2.5 py-2 space-y-0.5">
+                          <p className="text-sm font-medium text-foreground leading-snug">
+                            {KIND_LABEL[iv.kind] ?? iv.kind}
+                            <span className="font-normal text-muted-foreground">
+                              {" "}
+                              · {iv.status === "escalated" ? "Escalated" : "Active"}
+                            </span>
+                          </p>
+                          {followLine && <p className="text-[11px] text-muted-foreground">{followLine}</p>}
+                          {iv.note && <p className="text-xs text-muted-foreground">{iv.note}</p>}
+                          <p className="text-[10px] text-muted-foreground">Manager: {iv.managerLabel}</p>
+                        </li>
+                      );
+                    })}
                   </ul>
                 )}
                 <Button variant="link" className="px-0 h-auto text-xs" asChild>
                   <Link href="/hr/performance">
-                    Full performance &amp; growth <ChevronRight className="h-3 w-3 inline" />
+                    Performance &amp; goals <ChevronRight className="h-3 w-3 inline" />
                   </Link>
                 </Button>
               </CardContent>
@@ -361,6 +373,7 @@ export default function WorkspacePage() {
             Team
           </h2>
           <p className="text-sm text-muted-foreground leading-snug">{team.progressSummary}</p>
+          <p className="text-[11px] text-muted-foreground">Managers: open a person&apos;s profile for ownership and tasks.</p>
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-sm">
             <Card>
@@ -398,61 +411,61 @@ export default function WorkspacePage() {
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-base">Who needs attention</CardTitle>
-              <CardDescription>Top priorities first — open the person for full detail.</CardDescription>
+              <CardDescription>Highest priority first. Names link to the employee profile.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3 text-sm">
               {team.attention.length === 0 ? (
-                <p className="text-muted-foreground text-sm">No one off-track in this snapshot.</p>
+                <p className="text-muted-foreground text-sm">Everyone looks on track in this snapshot.</p>
               ) : (
                 <ul className="space-y-3">
                   {team.attention.map((r) => (
-                    <li key={r.employeeId} className="rounded-lg border border-border/60 p-3 space-y-1.5">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <Link
-                          href={`/business/employee/${r.employeeId}`}
-                          className="font-medium text-primary hover:underline"
-                        >
-                          {r.name}
-                        </Link>
-                        <div className="flex items-center gap-1 shrink-0 flex-wrap justify-end">
-                          <Badge className={statusTone(r.status)} variant="secondary">
+                    <li key={r.employeeId} className="rounded-lg border border-border/60 p-3 space-y-2">
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1 space-y-0.5">
+                          <Link
+                            href={`/business/employee/${r.employeeId}`}
+                            className="font-medium text-primary hover:underline block truncate"
+                          >
+                            {r.name}
+                          </Link>
+                          <p className="text-[11px] text-muted-foreground leading-snug">
                             {PERFORMANCE_STATUS_LABEL[r.status] ?? r.status.replace(/_/g, " ")}
-                          </Badge>
-                          {r.openFollowUpCount > 0 && (
-                            <Badge variant="outline" className="text-[9px]">
-                              {r.followUpOverdue
-                                ? "Follow-up overdue"
-                                : r.nextFollowUpAt
-                                  ? `Follow-up ${r.nextFollowUpAt}`
-                                  : `${r.openFollowUpCount} open`}
-                            </Badge>
-                          )}
+                            {r.openFollowUpCount > 0 && (
+                              <>
+                                {" "}
+                                ·{" "}
+                                {r.followUpOverdue
+                                  ? "Follow-up overdue"
+                                  : r.nextFollowUpAt
+                                    ? `Next ${r.nextFollowUpAt}`
+                                    : `${r.openFollowUpCount} open`}
+                              </>
+                            )}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
                           {r.myInterventionId != null && (
                             <Button
                               type="button"
-                              variant="ghost"
+                              variant="outline"
                               size="sm"
                               className="h-7 text-[10px] px-2"
                               disabled={closeIv.isPending}
-                              onClick={() => {
-                                if (!confirm("Clear your follow-up on this person?")) return;
-                                closeIv.mutate({ id: r.myInterventionId!, companyId: activeCompanyId ?? undefined });
-                              }}
+                              onClick={() =>
+                                setCloseInterventionTarget({ id: r.myInterventionId!, name: r.name })
+                              }
                             >
                               Clear
                             </Button>
                           )}
-                          <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={() => openAct(r)}>
+                          <Button type="button" size="sm" className="h-7 text-xs" onClick={() => openAct(r)}>
                             Act
                           </Button>
                         </div>
                       </div>
+                      <p className="text-sm text-foreground/90 leading-snug">{r.primaryWhy}</p>
                       <p className="text-xs text-muted-foreground">
-                        <span className="font-medium text-foreground/90">Why: </span>
-                        {r.primaryWhy}
-                      </p>
-                      <p className="text-xs">
-                        <span className="font-medium text-muted-foreground">Next: </span>
+                        <span className="font-medium text-foreground/80">Next: </span>
                         {r.suggestedAction}
                       </p>
                     </li>
@@ -500,6 +513,40 @@ export default function WorkspacePage() {
           </div>
         </section>
       )}
+
+      <AlertDialog
+        open={closeInterventionTarget != null}
+        onOpenChange={(open) => {
+          if (!open) setCloseInterventionTarget(null);
+        }}
+      >
+        <AlertDialogContent className="sm:max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Clear follow-up?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This closes your open follow-up
+              {closeInterventionTarget ? ` for ${closeInterventionTarget.name}` : ""}. They can still receive a new follow-up
+              later.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <Button
+              type="button"
+              disabled={closeIv.isPending}
+              onClick={() => {
+                if (closeInterventionTarget == null || activeCompanyId == null) return;
+                closeIv.mutate({
+                  id: closeInterventionTarget.id,
+                  companyId: activeCompanyId,
+                });
+              }}
+            >
+              {closeIv.isPending ? "Clearing…" : "Clear follow-up"}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Dialog open={actOpen} onOpenChange={setActOpen}>
         <DialogContent className="sm:max-w-md">

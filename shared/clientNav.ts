@@ -119,7 +119,6 @@ export const PORTAL_CLIENT_HREFS = new Set<string>([
   "/company/workspace",
   "/my-team",
   "/my-team/import",
-  "/business/dashboard",
   "/company/operations",
   "/company/documents",
   "/company/profile",
@@ -254,13 +253,13 @@ export function getMemberRoleColor(memberRole?: string | null): string {
  */
 export function getRoleDefaultRoute(memberRole?: string | null): string {
   switch (memberRole) {
-    case "company_admin": return "/business/dashboard";
+    case "company_admin": return "/dashboard";
     case "hr_admin": return "/hr/employees";
     case "finance_admin": return "/payroll";
     case "company_member": return "/my-portal";
-    case "reviewer": return "/business/dashboard";
-    case "external_auditor": return "/business/dashboard";
-    default: return "/business/dashboard";
+    case "reviewer": return "/dashboard";
+    case "external_auditor": return "/dashboard";
+    default: return "/dashboard";
   }
 }
 

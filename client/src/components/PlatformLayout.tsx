@@ -99,7 +99,7 @@ const navGroups = [
   {
     label: "Overview",
     items: [
-      { label: "Dashboard", href: "/dashboard", icon: <LayoutDashboard size={18} /> },
+      { label: "Command Center", href: "/dashboard", icon: <LayoutDashboard size={18} /> },
       { label: "Operations Centre", href: "/operations", icon: <Activity size={18} /> },
       { label: "Analytics", href: "/analytics", icon: <BarChart3 size={18} /> },
       { label: "Compliance", href: "/compliance", icon: <CheckCircle2 size={18} /> },
@@ -137,7 +137,6 @@ const navGroups = [
     label: "Business",
     items: [
       { label: "Company Hub", href: "/company/hub", icon: <Building2 size={18} /> },
-      { label: "Business Dashboard", href: "/business/dashboard", icon: <BarChart2 size={18} /> },
       { label: "Quotations", href: "/quotations", icon: <Target size={18} /> },
       { label: "Contracts", href: "/contracts", icon: <FileText size={18} /> },
       { label: "Marketplace", href: "/marketplace", icon: <ShoppingBag size={18} /> },

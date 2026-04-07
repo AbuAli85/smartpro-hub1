@@ -1,5 +1,7 @@
 import { trpc } from "@/lib/trpc";
+import { useAuth } from "@/_core/hooks/useAuth";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
+import { seesPlatformOperatorNav } from "@shared/clientNav";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -48,6 +50,8 @@ function KpiCard({ label, value, sub, icon: Icon, color }: { label: string; valu
 }
 
 export default function OperationsDashboardPage() {
+  const { user } = useAuth();
+  const isPlatform = seesPlatformOperatorNav(user);
   const { activeCompanyId } = useActiveCompany();
   const { data: snapshot, isLoading, refetch } = trpc.operations.getDailySnapshot.useQuery(
     { companyId: activeCompanyId ?? undefined },
@@ -126,12 +130,12 @@ export default function OperationsDashboardPage() {
           </div>
           <div className="flex flex-wrap gap-2">
             {(snapshot?.slaBreaches ?? 0) > 0 && (
-              <Link href="/sla-management">
+              <Link href={isPlatform ? "/sla-management" : "/operations"}>
                 <Button size="sm" className="h-8 text-xs bg-orange-600 hover:bg-orange-700 text-white">SLA</Button>
               </Link>
             )}
             {((snapshot?.casesActionRequired ?? 0) > 0 || (tasks?.casesDue?.length ?? 0) > 0) && (
-              <Link href="/pro-services">
+              <Link href="/workforce/cases">
                 <Button size="sm" variant="secondary" className="h-8 text-xs">Cases</Button>
               </Link>
             )}
@@ -156,7 +160,7 @@ export default function OperationsDashboardPage() {
               </Link>
             )}
             {(snapshot?.overdueInvoices?.count ?? 0) > 0 && (
-              <Link href="/billing">
+              <Link href={isPlatform ? "/billing" : "/client-portal?tab=invoices"}>
                 <Button size="sm" variant="secondary" className="h-8 text-xs">Overdue AR</Button>
               </Link>
             )}
@@ -416,7 +420,7 @@ export default function OperationsDashboardPage() {
                             <Badge variant={c.priority === "urgent" ? "destructive" : "secondary"} className="text-xs">
                               {c.priority}
                             </Badge>
-                            <Link href="/pro-services">
+                            <Link href="/workforce/cases">
                               <ChevronRight className="w-4 h-4 text-muted-foreground" />
                             </Link>
                           </div>
@@ -502,9 +506,9 @@ export default function OperationsDashboardPage() {
                 <CardContent className="space-y-2">
                   {[
                     { label: "New Quotation", href: "/quotations", icon: FileText },
-                    { label: "New PRO Case", href: "/pro-services", icon: Briefcase },
+                    { label: "New PRO request", href: "/pro", icon: Briefcase },
                     { label: "Run Payroll", href: "/payroll", icon: BarChart3 },
-                    { label: "SLA Breaches", href: "/sla-management", icon: Shield },
+                    { label: isPlatform ? "SLA Breaches" : "Operations overview", href: isPlatform ? "/sla-management" : "/operations", icon: Shield },
                     { label: "Compliance Check", href: "/compliance", icon: CheckCircle2 },
                   ].map((action) => (
                     <Link key={action.href} href={action.href}>

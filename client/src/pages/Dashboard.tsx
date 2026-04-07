@@ -20,6 +20,7 @@ import { Progress } from "@/components/ui/progress";
 import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
 import { WorkforceHealthWidget } from "@/components/WorkforceHealthWidget";
 import { ContractKpiWidget } from "@/components/contracts/ContractKpiWidget";
+import { OwnerSetupChecklist } from "@/components/OwnerSetupChecklist";
 
 /* ── KPI Stat Card ─────────────────────────────────────────────────────── */
 function StatCard({
@@ -79,24 +80,6 @@ function ModuleCard({
         </CardContent>
       </Card>
     </Link>
-  );
-}
-
-/* ── Compliance Status Row ─────────────────────────────────────────────── */
-function ComplianceRow({ label, status, pct }: { label: string; status: "ok" | "warn" | "critical"; pct: number }) {
-  const colors = { ok: "bg-emerald-500", warn: "bg-amber-500", critical: "bg-red-500" };
-  const labels = { ok: "Compliant", warn: "Review Needed", critical: "Action Required" };
-  const textColors = { ok: "text-emerald-700 bg-emerald-50", warn: "text-amber-700 bg-amber-50", critical: "text-red-700 bg-red-50" };
-  return (
-    <div className="flex items-center gap-3 py-2">
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center justify-between mb-1">
-          <span className="text-xs font-medium text-foreground">{label}</span>
-          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${textColors[status]}`}>{labels[status]}</span>
-        </div>
-        <Progress value={pct} className="h-1.5" />
-      </div>
-    </div>
   );
 }
 
@@ -161,6 +144,14 @@ export default function Dashboard() {
     { enabled: activeCompanyId != null },
   );
   const { data: aiInsights } = trpc.operations.getAiInsights.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
+  const { data: opsSnapshot } = trpc.operations.getDailySnapshot.useQuery(
+    { companyId: activeCompanyId ?? undefined },
+    { enabled: activeCompanyId != null && !seesPlatformOperatorNav(user), staleTime: 60_000 },
+  );
+  const { data: omanisation } = trpc.compliance.getOmanisationStats.useQuery(
+    { companyId: activeCompanyId ?? undefined },
+    { enabled: activeCompanyId != null && !seesPlatformOperatorNav(user) },
+  );
   const { data: todaysTasks } = trpc.operations.getTodaysTasks.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
   const { data: auditFeed } = trpc.analytics.auditLogs.useQuery(
     { limit: 8, companyId: activeCompanyId ?? undefined },
@@ -319,6 +310,55 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {!showPlatformOverview && activeCompanyId && (
+        <>
+          <OwnerSetupChecklist />
+          {opsSnapshot && (opsSnapshot.attentionQueue?.length ?? 0) > 0 && (
+            <Card className="border-orange-200 bg-orange-50/90 dark:bg-orange-950/25 dark:border-orange-900/50">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4 text-orange-600" />
+                  Needs your attention
+                  <Badge variant="secondary" className="ml-auto text-xs">
+                    {opsSnapshot.attentionQueue.length}
+                  </Badge>
+                </CardTitle>
+                <p className="text-xs text-muted-foreground font-normal">
+                  Action items for this workspace — open a row to resolve or delegate.
+                </p>
+              </CardHeader>
+              <CardContent className="pt-0 space-y-2">
+                {opsSnapshot.attentionQueue.slice(0, 8).map((item) => (
+                  <Link key={item.key} href={item.href}>
+                    <div className="flex items-start gap-2 rounded-lg border border-orange-100 bg-background/80 px-3 py-2 hover:bg-background transition-colors">
+                      <span
+                        className={`mt-0.5 h-2 w-2 shrink-0 rounded-full ${
+                          item.severity === "critical"
+                            ? "bg-red-500"
+                            : item.severity === "high"
+                              ? "bg-amber-500"
+                              : "bg-blue-400"
+                        }`}
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-semibold text-foreground">{item.title}</p>
+                        <p className="text-[11px] text-muted-foreground leading-snug">{item.detail}</p>
+                      </div>
+                      <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    </div>
+                  </Link>
+                ))}
+                {showHref("/operations") && (
+                  <Button asChild variant="outline" size="sm" className="w-full text-xs mt-1">
+                    <Link href="/operations">Open full operations detail</Link>
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
+          )}
+        </>
+      )}
+
       {/* ── Admin Platform Stats ── */}
       {showPlatformOverview && platformStats && (
         <div>
@@ -346,20 +386,13 @@ export default function Dashboard() {
         <div>
           <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
             <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
-              <BarChart3 size={13} /> Your Company Overview
+              <BarChart3 size={13} /> Command center — your business at a glance
             </h2>
             <div className="flex items-center gap-1 flex-wrap justify-end">
-              {showHref("/business/dashboard") && (
-                <Link href="/business/dashboard">
-                  <Button variant="ghost" size="sm" className="text-xs gap-1 h-7">
-                    Command centre <ArrowUpRight size={11} />
-                  </Button>
-                </Link>
-              )}
               {showHref("/operations") && (
                 <Link href="/operations">
                   <Button variant="ghost" size="sm" className="text-xs gap-1 h-7">
-                    Operations <ArrowUpRight size={11} />
+                    Operations detail <ArrowUpRight size={11} />
                   </Button>
                 </Link>
               )}
@@ -498,31 +531,43 @@ export default function Dashboard() {
         <div className="space-y-4">
           {/* Workforce Health Widget */}
           {showHref("/hr/employees") && <WorkforceHealthWidget />}
-          {/* Compliance Status */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm flex items-center gap-2">
-                <Award size={15} className="text-[var(--smartpro-orange)]" />
-                Compliance Status
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <ComplianceRow label="PASI Contributions" status="ok" pct={98} />
-              <ComplianceRow label="Work Permit Renewals" status={expiringDocs && expiringDocs.length > 3 ? "warn" : "ok"} pct={expiringDocs ? Math.max(40, 100 - expiringDocs.length * 8) : 92} />
-              <ComplianceRow label="Omanisation Quota" status="ok" pct={85} />
-              <ComplianceRow label="WPS Salary Transfers" status="ok" pct={100} />
-              <ComplianceRow label="Labour Law Filings" status="ok" pct={94} />
-              {showHref("/reports") && (
-                <div className="mt-3 pt-3 border-t border-border">
-                  <Link href="/reports">
-                    <Button variant="outline" size="sm" className="w-full text-xs gap-1">
-                      View Compliance Report <ArrowRight size={11} />
-                    </Button>
-                  </Link>
+          {/* Omanisation — server metrics only (no placeholder scores) */}
+          {omanisation && (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Award size={15} className="text-[var(--smartpro-orange)]" />
+                  Omanisation & compliance
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-0 space-y-3">
+                <div>
+                  <div className="flex items-center justify-between text-xs mb-1">
+                    <span className="text-muted-foreground">Current rate vs target</span>
+                    <span className="font-semibold">
+                      {omanisation.pct}% / {omanisation.targetPct}%
+                    </span>
+                  </div>
+                  <Progress value={Math.min(100, omanisation.pct)} className="h-2" />
+                  <p className="text-[11px] text-muted-foreground mt-1.5">
+                    Gap to target: {omanisation.gap} pts · {omanisation.omani} Omani of {omanisation.total} active employees
+                  </p>
                 </div>
-              )}
-            </CardContent>
-          </Card>
+                {showHref("/compliance") && (
+                  <Button asChild variant="outline" size="sm" className="w-full text-xs gap-1">
+                    <Link href="/compliance">
+                      Open compliance dashboard <ArrowRight size={11} />
+                    </Link>
+                  </Button>
+                )}
+                {showHref("/reports") && (
+                  <Button asChild variant="ghost" size="sm" className="w-full text-xs gap-1 h-8">
+                    <Link href="/reports">PDF compliance report</Link>
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           {/* Expiring Documents */}
           {showHref("/pro") && expiringDocs && expiringDocs.length > 0 && (

@@ -363,7 +363,7 @@ export default function CompanyWorkspacePage() {
                     </Link>
                   )}
                   {(opsDeliveryRisk || contractsPending) && (
-                    <Link href="/pro-services">
+                    <Link href="/pro">
                       <Button size="sm" variant="secondary" className="h-8 text-xs">Cases</Button>
                     </Link>
                   )}

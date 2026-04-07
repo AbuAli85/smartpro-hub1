@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import {
@@ -321,8 +321,18 @@ function UpcomingRenewalsTab() {
 
 export default function ClientPortalPage() {
   const { user } = useAuth();
-  const [, navigate] = useLocation();
+  const [location, navigate] = useLocation();
   const [activeTab, setActiveTab] = useState("dashboard");
+
+  useEffect(() => {
+    const q = new URLSearchParams(location.split("?")[1] ?? "");
+    const tab = q.get("tab");
+    const allowed = new Set([
+      "dashboard", "contracts", "invoices", "pro-services", "gov-cases", "bookings",
+      "alerts", "messages", "service-request", "my-documents", "renewals",
+    ]);
+    if (tab && allowed.has(tab)) setActiveTab(tab);
+  }, [location]);
   const [msgSubject, setMsgSubject] = useState("");
   const [msgBody, setMsgBody] = useState("");
   const [msgCategory, setMsgCategory] = useState<"general" | "billing" | "contract" | "pro_service" | "government_case" | "technical">("general");

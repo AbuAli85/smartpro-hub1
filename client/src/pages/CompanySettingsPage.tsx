@@ -188,7 +188,7 @@ export default function CompanySettingsPage() {
       label: "Company Admin",
       color: "bg-violet-100 text-violet-700 border-violet-200",
       routes: [
-        { value: "/business/dashboard", label: "Business Dashboard" },
+        { value: "/dashboard", label: "Command center" },
         { value: "/dashboard", label: "Overview Dashboard" },
         { value: "/operations", label: "Operations Centre" },
         { value: "/hr/employees", label: "HR — Employees" },
@@ -209,7 +209,7 @@ export default function CompanySettingsPage() {
         { value: "/hr/announcements", label: "HR — Announcements" },
         { value: "/hr/expiry-dashboard", label: "HR — Expiry Dashboard" },
         { value: "/my-team", label: "My Team" },
-        { value: "/business/dashboard", label: "Business Dashboard" },
+        { value: "/dashboard", label: "Command center" },
       ],
     },
     finance_admin: {
@@ -219,7 +219,7 @@ export default function CompanySettingsPage() {
         { value: "/payroll", label: "Payroll Engine" },
         { value: "/payroll/process", label: "Payroll Process" },
         { value: "/reports", label: "PDF Reports" },
-        { value: "/business/dashboard", label: "Business Dashboard" },
+        { value: "/dashboard", label: "Command center" },
       ],
     },
     company_member: {
@@ -234,7 +234,7 @@ export default function CompanySettingsPage() {
       label: "Reviewer",
       color: "bg-amber-100 text-amber-700 border-amber-200",
       routes: [
-        { value: "/business/dashboard", label: "Business Dashboard" },
+        { value: "/dashboard", label: "Command center" },
         { value: "/dashboard", label: "Overview Dashboard" },
         { value: "/company/hub", label: "Company Hub" },
       ],
@@ -243,7 +243,7 @@ export default function CompanySettingsPage() {
       label: "External Auditor",
       color: "bg-orange-100 text-orange-700 border-orange-200",
       routes: [
-        { value: "/business/dashboard", label: "Business Dashboard" },
+        { value: "/dashboard", label: "Command center" },
         { value: "/dashboard", label: "Overview Dashboard" },
       ],
     },

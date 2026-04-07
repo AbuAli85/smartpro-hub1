@@ -26,6 +26,8 @@ import {
   HR_AUDIT_SENSITIVE_ENTITY_TYPES,
 } from "../hrPerformanceAuditReadPolicy";
 import type { PayrollRun, User } from "../../drizzle/schema";
+import { canAccessGlobalAdminProcedures } from "@shared/rbac";
+import { buildOwnerAttentionQueue } from "../ownerAttentionQueue";
 
 /** Locks `payroll.thisMonthStatus` for tRPC client inference (`not_run` is not a DB enum value). */
 const getSmartDashboardOutputSchema = z.object({
@@ -262,6 +264,8 @@ export const operationsRouter = router({
 
     const totalOpenCases = openCases.reduce((s, r) => s + Number(r.cnt), 0);
 
+    const isPlatformOperator = canAccessGlobalAdminProcedures(ctx.user as User);
+
     const casesActionRequiredQuery = db
       .select({ cnt: count() })
       .from(governmentServiceCases)
@@ -319,6 +323,22 @@ export const operationsRouter = router({
         ),
       );
 
+    const attentionQueue = buildOwnerAttentionQueue({
+      isPlatformOperator,
+      slaBreaches: slaBreaches.length,
+      casesActionRequired: Number(casesActionRequiredRow?.cnt ?? 0),
+      pendingLeaveRequests: Number(pendingLeave[0]?.cnt ?? 0),
+      payrollDraftThisMonth: Number(payrollDraftThisMonthRow[0]?.cnt ?? 0),
+      pendingPayrollApprovedAwaitingPayment: pendingPayroll.length,
+      expiringPermits7Days: expiringDocs.length,
+      employeeDocsExpiring7Days: Number(employeeDocsExpiring7dRow[0]?.cnt ?? 0),
+      pendingContracts: Number(pendingContracts[0]?.cnt ?? 0),
+      overdueInvoiceCount: Number(overdueInvoicesRow[0]?.cnt ?? 0),
+      overdueInvoiceTotalOmr: Number(overdueInvoicesRow[0]?.total ?? 0),
+      renewalWorkflowsFailed: Number(failedRenewalsRow[0]?.cnt ?? 0),
+      draftQuotations: Number(draftQuotations[0]?.cnt ?? 0),
+    });
+
     return {
       openCases: {
         total: totalOpenCases,
@@ -346,6 +366,7 @@ export const operationsRouter = router({
       activeWorkflows: Number(activeWorkflows[0]?.cnt ?? 0),
       draftQuotations: Number(draftQuotations[0]?.cnt ?? 0),
       recentActivity,
+      attentionQueue,
     };
   }),
 
@@ -356,6 +377,7 @@ export const operationsRouter = router({
     const db = await getDb();
     if (!db) return [];
     const companyId = await resolvePlatformOrCompanyScope(ctx.user as User, input?.companyId);
+    const isPlatform = canAccessGlobalAdminProcedures(ctx.user as User);
     const now = new Date();
     const in14Days = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
 
@@ -424,8 +446,8 @@ export const operationsRouter = router({
         title: `${permitsCount} work permit${permitsCount > 1 ? "s" : ""} expiring in 14 days`,
         description:
           "Start renewal process now to avoid fines and employee disruption. MOL processing takes 3–5 business days.",
-        actionUrl: "/renewal-workflows",
-        actionLabel: "Trigger Renewals",
+        actionUrl: isPlatform ? "/renewal-workflows" : "/workforce/permits",
+        actionLabel: isPlatform ? "Renewal workflows" : "View permits",
       });
     }
 
@@ -437,8 +459,8 @@ export const operationsRouter = router({
         title: `${breachCount} case${breachCount > 1 ? "s" : ""} breaching SLA`,
         description:
           "These cases have exceeded their target resolution time. Immediate attention required to maintain client satisfaction.",
-        actionUrl: "/sla-management",
-        actionLabel: "View Breaches",
+        actionUrl: isPlatform ? "/sla-management" : "/operations",
+        actionLabel: isPlatform ? "View breaches" : "Operations centre",
       });
     }
 
@@ -450,8 +472,8 @@ export const operationsRouter = router({
         severity: "high",
         title: `OMR ${overdueTotal.toFixed(3)} overdue from ${overdueCount} invoice${overdueCount > 1 ? "s" : ""}`,
         description: "Follow up with clients on overdue payments to maintain healthy cash flow.",
-        actionUrl: "/billing",
-        actionLabel: "View Overdue",
+        actionUrl: isPlatform ? "/billing" : "/client-portal?tab=invoices",
+        actionLabel: isPlatform ? "Billing engine" : "View invoices",
       });
     }
 

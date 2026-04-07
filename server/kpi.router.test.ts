@@ -64,10 +64,12 @@ function mergeMockDb(queue: { table: object; rows: unknown[] }[], overrides: Rec
 
 describe("kpi router (PR-5 targets)", () => {
   beforeEach(() => {
-    vi.spyOn(db, "getUserCompany").mockResolvedValue({
+    const singleMembership = {
       company: { id: 1, name: "Co", slug: "co", country: "OM", status: "active" } as never,
       member: { role: "company_member", permissions: [] } as never,
-    });
+    };
+    vi.spyOn(db, "getUserCompany").mockResolvedValue(singleMembership);
+    vi.spyOn(db, "getUserCompanies").mockResolvedValue([singleMembership]);
   });
 
   afterEach(() => {

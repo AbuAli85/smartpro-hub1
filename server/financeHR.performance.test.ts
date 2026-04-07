@@ -64,10 +64,12 @@ function mergeMockDb(queue: { table: object; rows: unknown[] }[], overrides: Rec
 
 describe("financeHR performance admin procedures (PR-1 / PR-2)", () => {
   beforeEach(() => {
-    vi.spyOn(db, "getUserCompany").mockResolvedValue({
+    const singleMembership = {
       company: { id: 1, name: "Co", slug: "co", country: "OM", status: "active" } as never,
       member: { role: "company_member", permissions: [] } as never,
-    });
+    };
+    vi.spyOn(db, "getUserCompany").mockResolvedValue(singleMembership);
+    vi.spyOn(db, "getUserCompanies").mockResolvedValue([singleMembership]);
   });
 
   afterEach(() => {
@@ -380,10 +382,12 @@ describe("financeHR performance admin procedures (PR-1 / PR-2)", () => {
 
 describe("financeHR performance overview read models (PR-4)", () => {
   beforeEach(() => {
-    vi.spyOn(db, "getUserCompany").mockResolvedValue({
+    const singleMembership = {
       company: { id: 1, name: "Co", slug: "co", country: "OM", status: "active" } as never,
       member: { role: "company_member", permissions: [] } as never,
-    });
+    };
+    vi.spyOn(db, "getUserCompany").mockResolvedValue(singleMembership);
+    vi.spyOn(db, "getUserCompanies").mockResolvedValue([singleMembership]);
   });
 
   afterEach(() => {

@@ -49,6 +49,7 @@ vi.mock("./db", () => ({
   getUserByOpenId: vi.fn(),
   getUserCompany: vi.fn().mockResolvedValue(null),
   getUserCompanyById: vi.fn().mockResolvedValue(null),
+  getUserCompanies: vi.fn().mockResolvedValue([]),
   getCompanyStats: vi.fn().mockResolvedValue({ employees: 0, contracts: 0, proServices: 0, sanadApplications: 0, contacts: 0, deals: 0, pendingLeave: 0 }),
   getPlatformStats: vi.fn().mockResolvedValue({ companies: 5, users: 42, contracts: 18, proServices: 7, sanadApplications: 3, marketplaceProviders: 12, contacts: 88 }),
   getCompanies: vi.fn().mockResolvedValue([]),
@@ -299,10 +300,9 @@ describe("contracts", () => {
     expect(Array.isArray(result)).toBe(true);
   });
 
-  it("templates returns empty array when no company", async () => {
+  it("templates rejects without company membership", async () => {
     const caller = appRouter.createCaller(makeCtx());
-    const result = await caller.contracts.templates();
-    expect(Array.isArray(result)).toBe(true);
+    await expect(caller.contracts.templates()).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 });
 
@@ -349,9 +349,14 @@ describe("crm", () => {
   });
 
   it("updateContact returns NOT_FOUND when contact belongs to another company", async () => {
-    const { getCrmContactById, getUserCompany } = await import("./db");
+    const { getCrmContactById, getUserCompanies } = await import("./db");
     vi.mocked(getCrmContactById).mockResolvedValueOnce({ id: 1, companyId: 2 } as any);
-    vi.mocked(getUserCompany).mockResolvedValueOnce({ company: { id: 1 }, member: {} } as any);
+    vi.mocked(getUserCompanies).mockResolvedValueOnce([
+      {
+        company: { id: 1, name: "Co", slug: "co", country: "OM", status: "active" },
+        member: { role: "company_member" },
+      } as any,
+    ]);
     const caller = appRouter.createCaller(
       makeCtx({ role: "user", platformRole: "company_member" }),
     );
@@ -393,7 +398,9 @@ describe("reports.generateOfficerPayoutReport", () => {
 
 describe("reports company-scoped PDF exports", () => {
   it("generateBillingSummary returns FORBIDDEN without active company membership", async () => {
-    vi.mocked(db.getUserCompany).mockResolvedValueOnce(null);
+    vi.mocked(db.getUserCompany).mockReset();
+    vi.mocked(db.getUserCompany).mockResolvedValue(null);
+    vi.mocked(db.getUserCompanies).mockResolvedValueOnce([]);
     const caller = appRouter.createCaller(
       makeCtx({ role: "user", platformRole: "company_member" }),
     );
@@ -404,6 +411,11 @@ describe("reports company-scoped PDF exports", () => {
 });
 
 describe("officers.listCertificates", () => {
+  beforeEach(() => {
+    vi.mocked(db.getUserCompany).mockReset();
+    vi.mocked(db.getUserCompany).mockResolvedValue(null);
+  });
+
   it("returns empty when DB is unavailable", async () => {
     vi.mocked(db.getUserCompany).mockResolvedValueOnce({
       company: { id: 1 },
@@ -463,7 +475,7 @@ describe("subscriptions", () => {
   });
 
   it("subscribe throws FORBIDDEN without active company membership", async () => {
-    vi.mocked(db.getUserCompany).mockResolvedValueOnce(null);
+    vi.mocked(db.getUserCompanies).mockResolvedValueOnce([]);
     const caller = appRouter.createCaller(
       makeCtx({ role: "user", platformRole: "company_member" }),
     );
@@ -473,7 +485,7 @@ describe("subscriptions", () => {
   });
 
   it("generateInvoice throws FORBIDDEN without active company membership", async () => {
-    vi.mocked(db.getUserCompany).mockResolvedValueOnce(null);
+    vi.mocked(db.getUserCompanies).mockResolvedValueOnce([]);
     const caller = appRouter.createCaller(
       makeCtx({ role: "user", platformRole: "company_member" }),
     );
@@ -513,7 +525,7 @@ describe("hr.attendance", () => {
   });
 
   it("createAttendance succeeds when membership and employee match company", async () => {
-    const { getUserCompany, getUserCompanyById, getEmployeeById, getDb } = await import("./db");
+    const { getUserCompany, getUserCompanyById, getUserCompanies, getEmployeeById, getDb } = await import("./db");
     const valuesFn = vi.fn().mockResolvedValue([{ insertId: 42 }]);
     const mockTx = {
       insert: vi.fn(() => ({ values: valuesFn })),
@@ -523,14 +535,13 @@ describe("hr.attendance", () => {
         await fn(mockTx);
       },
     } as any);
-    (getUserCompany as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+    const m = {
       company: { id: 1 },
       member: { role: "company_admin" },
-    } as any);
-    (getUserCompanyById as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
-      company: { id: 1 },
-      member: { role: "company_admin" },
-    } as any);
+    } as any;
+    (getUserCompanies as ReturnType<typeof vi.fn>).mockResolvedValueOnce([m]);
+    (getUserCompany as ReturnType<typeof vi.fn>).mockResolvedValueOnce(m);
+    (getUserCompanyById as ReturnType<typeof vi.fn>).mockResolvedValueOnce(m);
     (getEmployeeById as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ id: 1, companyId: 1 } as any);
     const caller = appRouter.createCaller(makeCtx({ role: "user", platformRole: "company_admin" }));
     const result = await caller.hr.createAttendance({
@@ -987,10 +998,13 @@ describe("sanad.addCatalogueItem", () => {
 
 describe("officers.generateCertificate tenant guard", () => {
   beforeEach(() => {
-    vi.mocked(db.getUserCompany).mockResolvedValue({ company: { id: 5 }, member: {} } as any);
+    const m = { company: { id: 5 }, member: {} } as any;
+    vi.mocked(db.getUserCompany).mockResolvedValue(m);
+    vi.mocked(db.getUserCompanies).mockResolvedValue([m]);
   });
   afterEach(() => {
     vi.mocked(db.getUserCompany).mockResolvedValue(null);
+    vi.mocked(db.getUserCompanies).mockResolvedValue([]);
   });
 
   it("returns NOT_FOUND when company user targets another company", async () => {

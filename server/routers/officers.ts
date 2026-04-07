@@ -423,7 +423,7 @@ export const officersRouter = router({
     .input(z.object({ companyId: z.number(), month: z.number().min(1).max(12), year: z.number().min(2024) }))
     .mutation(async ({ input, ctx }) => {
       if (!canAccessGlobalAdminProcedures(ctx.user)) {
-        await assertRowBelongsToActiveCompany(ctx.user as User, input.companyId, "Company", input.companyId);
+        await assertRowBelongsToActiveCompany(ctx.user as User, input.companyId, "Company");
       }
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });

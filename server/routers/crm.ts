@@ -91,7 +91,7 @@ export const crmRouter = router({
     .mutation(async ({ input, ctx }) => {
       const row = await getCrmContactById(input.id);
       if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Contact not found" });
-      await assertRowBelongsToActiveCompany(ctx.user, row.companyId, "Contact", input.companyId ?? row.companyId);
+      await assertRowBelongsToActiveCompany(ctx.user, row.companyId, "Contact", input.companyId);
       const { id, companyId: _c, ...data } = input;
       await updateCrmContact(id, data);
       return { success: true };

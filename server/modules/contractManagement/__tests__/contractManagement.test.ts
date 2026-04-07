@@ -525,8 +525,11 @@ import type { OutsourcingContractRow } from "../contractManagement.types";
 
 // ── Fixture helpers ────────────────────────────────────────────────────────────
 
+/** Fixed anchor so date offsets match `aggregateKpisFromRows(..., { now: NOW })` (avoids flaky `Date.now()` vs frozen `NOW`). */
+const KPI_DATE_ANCHOR = new Date("2026-04-06T12:00:00.000Z");
+
 function isoDay(offset: number): string {
-  return new Date(Date.now() + offset * 86_400_000).toISOString().slice(0, 10);
+  return new Date(KPI_DATE_ANCHOR.getTime() + offset * 86_400_000).toISOString().slice(0, 10);
 }
 
 function makeRow(

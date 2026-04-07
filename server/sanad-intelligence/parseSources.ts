@@ -332,3 +332,23 @@ export function directoryRowFromArray(
     raw: Object.fromEntries(Object.entries(acc).map(([k, v]) => [k, v])),
   };
 }
+
+/**
+ * Detects XLSX rows that repeat column titles / bilingual template labels (common when a sample
+ * row ships under the header). These must not be imported as real centres.
+ */
+export function isDirectoryTemplateOrHeaderRow(row: DirectoryXlsxRow): boolean {
+  const name = collapse(row.centerName).toLowerCase();
+  const resp = collapse(row.responsiblePerson).toLowerCase();
+  const gov = collapse(row.governorateLabel).toLowerCase();
+
+  if (name === "center name" || name === "sanad center name") return true;
+  if (/sanad\s*center\s*name/.test(name) && (/مركز/.test(row.centerName) || /سند/.test(row.centerName))) return true;
+  if (name.includes("مركز سند") && /sanad|center\s*name/i.test(row.centerName)) return true;
+
+  if (resp === "contact person" || resp === "responsible person") return true;
+
+  if (gov === "governorate" || gov === "محافظة" || name === "governorate" || name === "محافظة") return true;
+
+  return false;
+}

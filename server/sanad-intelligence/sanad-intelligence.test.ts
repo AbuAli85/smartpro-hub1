@@ -6,7 +6,12 @@ import {
   parseIntSafe,
 } from "./normalize";
 import { computeGovernorateOpportunityRows } from "./opportunityScore";
-import { parseGeographyCenterCounts, parseYearGovernorateCounts, parseYearGovernorateIncome } from "./parseSources";
+import {
+  isDirectoryTemplateOrHeaderRow,
+  parseGeographyCenterCounts,
+  parseYearGovernorateCounts,
+  parseYearGovernorateIncome,
+} from "./parseSources";
 
 describe("normalizeYearKey", () => {
   it("normalizes malformed year keys", () => {
@@ -62,6 +67,36 @@ describe("parseYearGovernorateIncome", () => {
     });
     expect(rows[0]?.year).toBe(2024);
     expect(rows[0]?.value).toBeCloseTo(1_500_000.25);
+  });
+});
+
+describe("isDirectoryTemplateOrHeaderRow", () => {
+  it("flags bilingual SANAD template / header rows from sample XLSX", () => {
+    expect(
+      isDirectoryTemplateOrHeaderRow({
+        centerName: "SANAD Center Name / مركز سند",
+        responsiblePerson: "Contact Person",
+        contactNumber: "",
+        governorateLabel: "Governorate",
+        wilayat: "",
+        village: "",
+        raw: {},
+      }),
+    ).toBe(true);
+  });
+
+  it("does not flag real directory rows", () => {
+    expect(
+      isDirectoryTemplateOrHeaderRow({
+        centerName: "الوصايف المتحدة للتجارة",
+        responsiblePerson: "محمد العبدلي",
+        contactNumber: "96890123456",
+        governorateLabel: "شمال الباطنة",
+        wilayat: "شناص",
+        village: "",
+        raw: {},
+      }),
+    ).toBe(false);
   });
 });
 

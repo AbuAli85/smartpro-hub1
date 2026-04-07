@@ -43,6 +43,26 @@ import {
 
 type Section = "overview" | "directory" | "demand" | "opportunity" | "compliance";
 
+function directoryPartnerBadge(partnerStatus: string | undefined) {
+  const s = partnerStatus ?? "unknown";
+  if (s === "unknown") {
+    return (
+      <Badge
+        variant="outline"
+        className="font-normal text-muted-foreground"
+        title="Not classified yet — open Details to set partner status"
+      >
+        Unknown
+      </Badge>
+    );
+  }
+  if (s === "active") return <Badge className="font-normal">Active</Badge>;
+  if (s === "prospect") return <Badge variant="secondary" className="font-normal">Prospect</Badge>;
+  if (s === "suspended") return <Badge variant="destructive" className="font-normal">Suspended</Badge>;
+  if (s === "churned") return <Badge variant="outline" className="font-normal">Churned</Badge>;
+  return <Badge variant="secondary" className="font-normal">{s}</Badge>;
+}
+
 function useSection(): Section {
   const [loc] = useLocation();
   if (loc.startsWith("/admin/sanad/directory")) return "directory";
@@ -301,66 +321,69 @@ function DirectorySurface() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col lg:flex-row gap-3 lg:items-end">
-        <div className="flex-1 space-y-1.5">
-          <Label>Search</Label>
-          <div className="relative">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              className="pl-9"
-              placeholder="Centre name, contact, village, manager…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
+      <div className="rounded-xl border bg-card/80 p-4 shadow-sm">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-12 xl:items-end">
+          <div className="space-y-1 sm:col-span-2 xl:col-span-5">
+            <Label className="text-xs text-muted-foreground">Search</Label>
+            <div className="relative">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
+              <Input
+                className="pl-9 h-9 text-sm"
+                placeholder="Centre name, contact, village, manager…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                aria-label="Search directory"
+              />
+            </div>
           </div>
-        </div>
-        <div className="w-full lg:w-48 space-y-1.5">
-          <Label>Governorate</Label>
-          <Select value={gov || "__all"} onValueChange={(v) => { setGov(v === "__all" ? "" : v); setWil(""); }}>
-            <SelectTrigger>
-              <SelectValue placeholder="All" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__all">All</SelectItem>
-              {governorateOptions.map((g) => (
-                <SelectItem key={g.key} value={g.key}>
-                  {g.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="w-full lg:w-48 space-y-1.5">
-          <Label>Wilayat</Label>
-          <Select value={wil || "__all"} onValueChange={(v) => setWil(v === "__all" ? "" : v)} disabled={!gov}>
-            <SelectTrigger>
-              <SelectValue placeholder="All" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__all">All</SelectItem>
-              {wilayatOptions.map((w) => (
-                <SelectItem key={w} value={w}>
-                  {w}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="w-full lg:w-48 space-y-1.5">
-          <Label>Partner status</Label>
-          <Select value={partner || "__all"} onValueChange={(v) => setPartner(v === "__all" ? "" : v)}>
-            <SelectTrigger>
-              <SelectValue placeholder="All" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__all">All</SelectItem>
-              <SelectItem value="unknown">Unknown</SelectItem>
-              <SelectItem value="prospect">Prospect</SelectItem>
-              <SelectItem value="active">Active</SelectItem>
-              <SelectItem value="suspended">Suspended</SelectItem>
-              <SelectItem value="churned">Churned</SelectItem>
-            </SelectContent>
-          </Select>
+          <div className="space-y-1 xl:col-span-2">
+            <Label className="text-xs text-muted-foreground">Governorate</Label>
+            <Select value={gov || "__all"} onValueChange={(v) => { setGov(v === "__all" ? "" : v); setWil(""); }}>
+              <SelectTrigger className="h-9 text-sm">
+                <SelectValue placeholder="All" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all">All</SelectItem>
+                {governorateOptions.map((g) => (
+                  <SelectItem key={g.key} value={g.key}>
+                    {g.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1 xl:col-span-2">
+            <Label className="text-xs text-muted-foreground">Wilayat</Label>
+            <Select value={wil || "__all"} onValueChange={(v) => setWil(v === "__all" ? "" : v)} disabled={!gov}>
+              <SelectTrigger className="h-9 text-sm">
+                <SelectValue placeholder="All" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all">All</SelectItem>
+                {wilayatOptions.map((w) => (
+                  <SelectItem key={w} value={w}>
+                    {w}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1 xl:col-span-3">
+            <Label className="text-xs text-muted-foreground">Partner status</Label>
+            <Select value={partner || "__all"} onValueChange={(v) => setPartner(v === "__all" ? "" : v)}>
+              <SelectTrigger className="h-9 text-sm">
+                <SelectValue placeholder="All" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all">All</SelectItem>
+                <SelectItem value="unknown">Unknown</SelectItem>
+                <SelectItem value="prospect">Prospect</SelectItem>
+                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="suspended">Suspended</SelectItem>
+                <SelectItem value="churned">Churned</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </div>
 
@@ -378,35 +401,37 @@ function DirectorySurface() {
               after placing source files under <code className="text-xs bg-muted px-1 rounded">data/sanad-intelligence/import</code>.
             </div>
           ) : (
-            <ScrollArea className="h-[min(60vh,520px)]">
-              <Table>
+            <ScrollArea className="h-[min(65vh,560px)]">
+              <Table className="text-sm">
                 <TableHeader>
-                  <TableRow>
-                    <TableHead>Centre</TableHead>
-                    <TableHead>Responsible</TableHead>
-                    <TableHead>Phone</TableHead>
-                    <TableHead>Location</TableHead>
-                    <TableHead>Partner</TableHead>
-                    <TableHead />
+                  <TableRow className="hover:bg-transparent border-b">
+                    <TableHead className="h-9 py-2 w-[28%]">Centre</TableHead>
+                    <TableHead className="h-9 py-2">Responsible</TableHead>
+                    <TableHead className="h-9 py-2 whitespace-nowrap">Phone</TableHead>
+                    <TableHead className="h-9 py-2">Location</TableHead>
+                    <TableHead className="h-9 py-2 whitespace-nowrap">Partner</TableHead>
+                    <TableHead className="h-9 py-2 w-[1%] text-right"> </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {listQuery.data.rows.map(({ center, ops }) => (
-                    <TableRow key={center.id}>
-                      <TableCell className="font-medium max-w-[200px]">{center.centerName}</TableCell>
-                      <TableCell>{center.responsiblePerson ?? "—"}</TableCell>
-                      <TableCell className="tabular-nums">{center.contactNumber ?? "—"}</TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
+                    <TableRow key={center.id} className="border-b hover:bg-muted/30">
+                      <TableCell dir="auto" className="py-2 align-middle font-medium max-w-[min(280px,32vw)] leading-snug">
+                        {center.centerName}
+                      </TableCell>
+                      <TableCell dir="auto" className="py-2 align-middle max-w-[140px] leading-snug">
+                        {center.responsiblePerson ?? "—"}
+                      </TableCell>
+                      <TableCell className="py-2 align-middle tabular-nums whitespace-nowrap">{center.contactNumber ?? "—"}</TableCell>
+                      <TableCell dir="auto" className="py-2 align-middle text-muted-foreground leading-snug max-w-[min(240px,28vw)]">
                         {center.governorateLabelRaw}
                         {center.wilayat ? ` · ${center.wilayat}` : ""}
                       </TableCell>
-                      <TableCell>
-                        <Badge variant="secondary">{ops?.partnerStatus ?? "unknown"}</Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button variant="ghost" size="sm" onClick={() => setDrawerId(center.id)}>
-                          Open
-                          <ArrowRight className="ml-1 h-3.5 w-3.5" />
+                      <TableCell className="py-2 align-middle">{directoryPartnerBadge(ops?.partnerStatus)}</TableCell>
+                      <TableCell className="py-2 align-middle text-right whitespace-nowrap">
+                        <Button variant="outline" size="sm" className="h-8 gap-1" onClick={() => setDrawerId(center.id)}>
+                          Details
+                          <ArrowRight className="h-3.5 w-3.5 shrink-0" />
                         </Button>
                       </TableCell>
                     </TableRow>

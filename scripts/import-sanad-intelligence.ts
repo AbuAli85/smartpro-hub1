@@ -24,6 +24,7 @@ import * as schema from "../drizzle/schema";
 import { fingerprintCenterRow, governorateKeyFromLabel } from "../server/sanad-intelligence/normalize";
 import {
   directoryRowFromArray,
+  isDirectoryTemplateOrHeaderRow,
   mapDirectoryHeaders,
   parseGeographyCenterCounts,
   parseMostUsedServices,
@@ -233,6 +234,7 @@ async function main() {
       if (!Array.isArray(line)) continue;
       const rec = directoryRowFromArray(line as unknown[], colMap);
       if (!rec || !rec.centerName) continue;
+      if (isDirectoryTemplateOrHeaderRow(rec)) continue;
       const { key, label } = governorateKeyFromLabel(rec.governorateLabel || "Unknown");
       const fp = fingerprintCenterRow({
         centerName: rec.centerName,

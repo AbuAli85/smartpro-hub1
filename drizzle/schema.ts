@@ -3204,7 +3204,7 @@ export const sanadIntelCenterComplianceItems = mysqlTable(
     requirementId: int("requirement_id")
       .notNull()
       .references(() => sanadIntelLicenseRequirements.id, { onDelete: "cascade" }),
-    status: mysqlEnum("compliance_item_status", [
+    status: mysqlEnum("status", [
       "pending",
       "submitted",
       "verified",

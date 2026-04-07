@@ -1,0 +1,19 @@
+{
+  "name": "SmartPRO Employee Portal",
+  "short_name": "Employee",
+  "description": "Check in, tasks, and requests — optimized for mobile.",
+  "start_url": "/my-portal",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#fafafa",
+  "theme_color": "#0f172a",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/pwa-logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

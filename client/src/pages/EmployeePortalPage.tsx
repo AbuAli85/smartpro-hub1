@@ -4,7 +4,7 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
@@ -17,17 +17,17 @@ import { Link } from "wouter";
 import { getLoginUrl } from "@/const";
 import {
   User, Calendar, FileText, CheckSquare, Bell, BellRing,
-  Clock, TrendingUp, AlertCircle, ChevronRight, Megaphone,
+  Clock, AlertCircle, ChevronRight, Megaphone,
   DollarSign, LogIn, Plus, Check, X, Building2, Briefcase,
   Phone, Mail, MapPin, Shield, ChevronLeft, ChevronRight as ChevronRightIcon,
-  Home, CreditCard, UserCheck, Edit2, Save, Download, QrCode,
+  CreditCard, UserCheck, Edit2, Save, Download, QrCode,
   AlertTriangle, Info, Wallet, Timer, BarChart2, CalendarCheck,
   FileCheck, FilePlus, ExternalLink, RefreshCw, Star, ArrowLeftRight, Repeat,
   Target, Activity, Award, Zap, PieChart, TrendingDown, Flame, Trophy,
-  Play, Ban, Menu,
+  Play,
 } from "lucide-react";
 import { fmtDateLong, fmtDateTime } from "@/lib/dateUtils";
-import { getDueUrgency, slaLabel, actionRequiredOverdueLabel, dueTimingPhrase } from "@/lib/taskSla";
+import { getDueUrgency } from "@/lib/taskSla";
 import { TaskDetailSheet } from "@/components/tasks/TaskDetailSheet";
 import { SignInCallbackErrorBanner } from "@/components/SignInCallbackErrorBanner";
 import { SignInTroubleshootingNote } from "@/components/SignInTroubleshootingNote";
@@ -67,6 +67,8 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { EmployeePortalOverview } from "@/components/employee-portal/EmployeePortalOverview";
 import { EmployeePortalMoreHub } from "@/components/employee-portal/EmployeePortalMoreHub";
+import { EmployeePortalBottomNav } from "@/components/employee-portal/EmployeePortalBottomNav";
+import { EmployeePortalTaskCard } from "@/components/employee-portal/EmployeePortalTaskCard";
 
 type QuickActionIcon = React.ComponentType<{ className?: string }>;
 
@@ -77,33 +79,6 @@ const EMPLOYEE_PORTAL_QUICK_ACTION_UI: Record<
   request_leave: { label: "Request leave", Icon: Calendar },
   log_work: { label: "Log work", Icon: Timer },
   open_documents: { label: "Upload document", Icon: FilePlus },
-};
-
-// ── Types ──────────────────────────────────────────────────────────────────
-type TaskStatus = "pending" | "in_progress" | "completed" | "cancelled" | "blocked";
-type Priority = "low" | "medium" | "high" | "urgent";
-
-const TASK_STATUS_ICON: Record<TaskStatus, React.ReactElement> = {
-  pending: <Clock className="w-4 h-4 text-amber-500" />,
-  in_progress: <TrendingUp className="w-4 h-4 text-blue-500" />,
-  blocked: <Ban className="w-4 h-4 text-orange-600" />,
-  completed: <Check className="w-4 h-4 text-green-500" />,
-  cancelled: <X className="w-4 h-4 text-muted-foreground" />,
-};
-
-const TASK_STATUS_LABEL: Record<TaskStatus, string> = {
-  pending: "Pending",
-  in_progress: "In Progress",
-  blocked: "Blocked",
-  completed: "Completed",
-  cancelled: "Cancelled",
-};
-
-const PRIORITY_COLOR: Record<Priority, string> = {
-  low: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
-  medium: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
-  high: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400",
-  urgent: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
 };
 
 const LEAVE_TYPE_LABEL: Record<string, string> = {
@@ -208,7 +183,11 @@ function AttendanceTodayCard({
   const [corrReason, setCorrReason] = useState("");
   const { data: todayRec, isLoading: todayRecLoading, refetch: refetchToday } = trpc.attendance.myToday.useQuery(
     { companyId: companyId ?? undefined },
-    { enabled: !!employeeId && companyId != null },
+    {
+      enabled: !!employeeId && companyId != null,
+      refetchInterval: 60_000,
+      refetchOnWindowFocus: true,
+    },
   );
   const { data: myCorrList, refetch: refetchCorr } = trpc.attendance.myCorrections.useQuery(
     { companyId: companyId ?? undefined },
@@ -449,32 +428,30 @@ function AttendanceTodayCard({
               </div>
             </div>
             {/* Action buttons */}
-            <div className="flex flex-col gap-2 shrink-0">
+            <div className="flex w-full flex-col gap-2 shrink-0 sm:w-auto">
               {attStrip.showCheckIn && (
                 <Button
-                  size="sm"
-                  className="gap-1.5 bg-green-600 hover:bg-green-700 text-white"
+                  className="min-h-11 gap-2 bg-green-600 px-6 text-base font-semibold text-white hover:bg-green-700 touch-manipulation"
                   disabled={doCheckIn.isPending}
                   onClick={handleCheckIn}
                 >
-                  <UserCheck className="w-3.5 h-3.5" />
+                  <UserCheck className="h-5 w-5" />
                   {doCheckIn.isPending ? "Checking in…" : "Check In"}
                 </Button>
               )}
               {attStrip.showCheckOut && (
                 <Button
-                  size="sm"
                   variant="outline"
-                  className="gap-1.5 border-red-300 text-red-700 hover:bg-red-50"
+                  className="min-h-11 gap-2 border-red-300 px-6 text-base font-semibold text-red-700 hover:bg-red-50 touch-manipulation"
                   disabled={doCheckOut.isPending}
                   onClick={handleCheckOut}
                 >
-                  <LogIn className="w-3.5 h-3.5 rotate-180" />
+                  <LogIn className="h-5 w-5 rotate-180" />
                   {doCheckOut.isPending ? "Checking out…" : "Check Out"}
                 </Button>
               )}
               {attStrip.showCorrectionButton && (
-                <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setShowCorrForm(true)}>
+                <Button variant="outline" className="min-h-11 gap-2 touch-manipulation" onClick={() => setShowCorrForm(true)}>
                   <AlertCircle className="h-3.5 w-3.5" /> Correction
                   {pendingCorr > 0 && (
                     <span className="ml-1 h-4 w-4 rounded-full bg-amber-500 text-white text-[10px] flex items-center justify-center">{pendingCorr}</span>
@@ -576,6 +553,10 @@ export default function EmployeePortalPage() {
   const { user, isAuthenticated } = useAuth();
   const loginUrl = getLoginUrl();
   const [activeTab, setActiveTab] = useState("overview");
+
+  useEffect(() => {
+    if (activeTab === "more") setActiveTab("profile");
+  }, [activeTab]);
   // KPI state
   const [kpiMonth, setKpiMonth] = useState(() => new Date().getMonth() + 1);
   const [kpiYear, setKpiYear] = useState(() => new Date().getFullYear());
@@ -620,8 +601,6 @@ export default function EmployeePortalPage() {
   // Leave filter
   const [leaveFilter, setLeaveFilter] = useState<string>("all");
 
-  // Task filter
-  const [taskFilter, setTaskFilter] = useState<string>("active");
   const [empTaskDetail, setEmpTaskDetail] = useState<any | null>(null);
   const [completeTaskId, setCompleteTaskId] = useState<number | null>(null);
   // Shift request dialog
@@ -680,7 +659,12 @@ export default function EmployeePortalPage() {
   );
   const { data: tasks, isLoading: tasksLoading } = trpc.employeePortal.getMyTasks.useQuery(
     { companyId: activeCompanyId ?? undefined },
-    { enabled: isAuthenticated && activeCompanyId != null, refetchOnWindowFocus: true }
+    {
+      enabled: isAuthenticated && activeCompanyId != null,
+      refetchOnWindowFocus: true,
+      refetchInterval: 120_000,
+      refetchIntervalInBackground: false,
+    },
   );
   const { data: announcements } = trpc.employeePortal.getMyAnnouncements.useQuery(
     { companyId: activeCompanyId ?? undefined },
@@ -692,11 +676,15 @@ export default function EmployeePortalPage() {
   );
   const { data: myActiveSchedule } = trpc.scheduling.getMyActiveSchedule.useQuery(
     { companyId: activeCompanyId ?? undefined },
-    { enabled: isAuthenticated }
+    { enabled: isAuthenticated, refetchOnWindowFocus: true, refetchInterval: 120_000, refetchIntervalInBackground: false },
   );
   const { data: todayAttendanceRecord, isLoading: todayAttendanceLoading } = trpc.attendance.myToday.useQuery(
     { companyId: activeCompanyId ?? undefined },
-    { enabled: isAuthenticated && activeCompanyId != null },
+    {
+      enabled: isAuthenticated && activeCompanyId != null,
+      refetchInterval: 60_000,
+      refetchOnWindowFocus: true,
+    },
   );
   const { data: operationalHints, isSuccess: operationalHintsSuccess } =
     trpc.employeePortal.getMyOperationalHints.useQuery(
@@ -1057,13 +1045,63 @@ export default function EmployeePortalPage() {
     return leave.filter((l: any) => l.status === leaveFilter);
   }, [leave, leaveFilter]);
 
-  // Filtered tasks
-  const filteredTasks = useMemo(() => {
-    const all = tasks as any[] ?? [];
-    if (taskFilter === "active") return all.filter((t: any) => t.status !== "completed" && t.status !== "cancelled");
-    if (taskFilter === "completed") return all.filter((t: any) => t.status === "completed");
-    return all;
-  }, [tasks, taskFilter]);
+  /** Mobile-first grouping: today (due/overdue), upcoming, completed */
+  const groupedPortalTasks = useMemo(() => {
+    const all = (tasks as any[]) ?? [];
+    const completed = all.filter((t: any) => t.status === "completed" || t.status === "cancelled");
+    const open = all.filter((t: any) => t.status !== "completed" && t.status !== "cancelled");
+    const today: any[] = [];
+    const upcoming: any[] = [];
+    for (const t of open) {
+      const u = getDueUrgency(t.dueDate, t.status);
+      if (u === "overdue" || u === "due_today") today.push(t);
+      else upcoming.push(t);
+    }
+    today.sort((a, b) => (getDueUrgency(a.dueDate, a.status) === "overdue" ? 0 : 1) - (getDueUrgency(b.dueDate, b.status) === "overdue" ? 0 : 1));
+    return { today, upcoming, completed };
+  }, [tasks]);
+
+  /** One gentle nudge per session when Home shows actionable state (real data only) */
+  useEffect(() => {
+    if (activeTab !== "overview") return;
+    const storageKey = "emp-portal-session-toasts";
+    const getSeen = (): Record<string, boolean> => {
+      try {
+        return JSON.parse(sessionStorage.getItem(storageKey) ?? "{}") as Record<string, boolean>;
+      } catch {
+        return {};
+      }
+    };
+    const mark = (id: string) => {
+      try {
+        const s = getSeen();
+        s[id] = true;
+        sessionStorage.setItem(storageKey, JSON.stringify(s));
+      } catch {
+        /* ignore */
+      }
+    };
+
+    if (!getSeen().checkin && shiftOverview.showMissedActiveWarning && !todayAttendanceRecord?.checkIn) {
+      mark("checkin");
+      toast.message("Check in for your shift", {
+        description: "Open Attendance to record time.",
+        action: { label: "Open", onClick: () => setActiveTab("attendance") },
+      });
+    }
+    const overdueN = groupedPortalTasks.today.filter((t: any) => getDueUrgency(t.dueDate, t.status) === "overdue").length;
+    if (!getSeen().overdue && overdueN > 0) {
+      mark("overdue");
+      toast.message(`${overdueN} overdue task${overdueN === 1 ? "" : "s"}`, {
+        action: { label: "View", onClick: () => setActiveTab("tasks") },
+      });
+    }
+  }, [
+    activeTab,
+    shiftOverview.showMissedActiveWarning,
+    todayAttendanceRecord?.checkIn,
+    groupedPortalTasks.today,
+  ]);
 
   // Docs with expiry alerts
   const expiringDocs = useMemo(() => {
@@ -1073,9 +1111,6 @@ export default function EmployeePortalPage() {
       return days !== null && days <= 90;
     });
   }, [docs]);
-
-  const moreTabBadgeCount =
-    pendingLeave + expiringDocs.length + trainingAttentionCount + pendingExpensesCount;
 
   // ── Not authenticated ─────────────────────────────────────────────────────
   if (!isAuthenticated) {
@@ -1271,7 +1306,7 @@ export default function EmployeePortalPage() {
         </div>
       </div>
 
-      <div className="max-w-5xl mx-auto px-4 py-4 sm:py-6 space-y-4 sm:space-y-5">
+      <div className="max-w-5xl mx-auto space-y-4 px-4 py-4 pb-[calc(5.5rem+env(safe-area-inset-bottom,0px))] sm:space-y-5 sm:py-6 sm:pb-10">
         {myCompanies.length > 1 && (
           <Card className="border-dashed border-primary/25 bg-muted/20 ring-1 ring-primary/10">
             <CardContent className="p-4 flex flex-wrap items-center justify-between gap-3">
@@ -1292,43 +1327,10 @@ export default function EmployeePortalPage() {
           </Card>
         )}
 
-        {/* ── Main Tabs — sticky below header for long pages ── */}
+        {/* ── Main sections — bottom nav (mobile-first PWA) ── */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="gap-0" activationMode="automatic">
-          <div className="sticky top-16 z-[15] -mx-4 px-3 sm:px-4 py-2 bg-background/95 backdrop-blur-md border-b border-border/60 supports-[backdrop-filter]:bg-background/85">
-            <TabsList
-              aria-label="Employee portal main sections"
-              className="grid h-auto w-full max-w-5xl mx-auto grid-cols-6 gap-1 rounded-xl border border-border/60 bg-muted/50 p-1 shadow-sm"
-            >
-              {[
-                { value: "overview", icon: Home, label: "Home" },
-                { value: "attendance", icon: UserCheck, label: "Attendance", short: "In/Out" },
-                { value: "tasks", icon: CheckSquare, label: "Tasks", badge: pendingTasks },
-                { value: "requests", icon: ArrowLeftRight, label: "Requests", short: "Req", badge: pendingShiftRequestsCount },
-                { value: "profile", icon: User, label: "Profile", short: "Me" },
-                { value: "more", icon: Menu, label: "More", badge: moreTabBadgeCount },
-              ].map(({ value, icon: Icon, label, short, badge }) => (
-                <TabsTrigger
-                  key={value}
-                  value={value}
-                  className="relative flex min-h-[3.25rem] sm:min-h-11 flex-col items-center justify-center gap-0.5 rounded-lg border-0 px-1 py-1.5 text-[10px] sm:text-xs font-medium shadow-none ring-0 transition-colors focus-visible:ring-2 focus-visible:ring-primary/30 data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-sm data-[state=active]:ring-1 data-[state=active]:ring-primary/20"
-                >
-                  <Icon className="h-[18px] w-[18px] sm:h-5 sm:w-5 shrink-0" aria-hidden />
-                  <span className="leading-none text-center">
-                    <span className="sm:hidden">{short ?? label}</span>
-                    <span className="hidden sm:inline">{label}</span>
-                  </span>
-                  {badge != null && badge > 0 && (
-                    <span className="absolute right-0 top-0 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-0.5 text-[9px] font-bold text-primary-foreground">
-                      {badge > 9 ? "9+" : badge}
-                    </span>
-                  )}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-          </div>
-
           {/* ══ OVERVIEW TAB ══════════════════════════════════════════════════ */}
-          <TabsContent value="overview" className="mt-4 space-y-4">
+          <TabsContent value="overview" className="mt-0 space-y-4 focus-visible:outline-none">
             <EmployeePortalOverview
               setActiveTab={setActiveTab}
               setShowLeaveDialog={setShowLeaveDialog}
@@ -1370,19 +1372,8 @@ export default function EmployeePortalPage() {
             />
           </TabsContent>
 
-          <TabsContent value="more" className="mt-4">
-            <EmployeePortalMoreHub
-              setActiveTab={setActiveTab}
-              pendingLeave={pendingLeave}
-              expiringDocsCount={expiringDocs.length}
-              trainingAttentionCount={trainingAttentionCount}
-              pendingExpenses={pendingExpensesCount}
-              pendingShiftRequests={pendingShiftRequestsCount}
-            />
-          </TabsContent>
-
           {/* ══ ATTENDANCE TAB ════════════════════════════════════════════════ */}
-          <TabsContent value="attendance" className="mt-4 space-y-4">
+          <TabsContent value="attendance" className="mt-0 space-y-4 focus-visible:outline-none">
             {/* Today's Status + Correction Request */}
             <AttendanceTodayCard
               employeeId={emp.id}
@@ -1950,189 +1941,119 @@ export default function EmployeePortalPage() {
             )}
           </TabsContent>
 
-          {/* ══ TASKS TAB ════════════════════════════════════════════════════ */}
-          <TabsContent id="portal-tasks" value="tasks" className="mt-4 space-y-4 scroll-mt-24">
-            {/* Task stats */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {/* ══ TASKS TAB — grouped: Today / Upcoming / Completed ═══════════════ */}
+          <TabsContent id="portal-tasks" value="tasks" className="mt-0 space-y-4 scroll-mt-24 focus-visible:outline-none">
+            <div className="grid grid-cols-3 gap-2">
               {[
-                { label: "Pending", count: (tasks as any[] ?? []).filter((t: any) => t.status === "pending").length, color: "text-amber-600", bg: "bg-amber-50 dark:bg-amber-950/20" },
-                { label: "In progress", count: (tasks as any[] ?? []).filter((t: any) => t.status === "in_progress").length, color: "text-blue-600", bg: "bg-blue-50 dark:bg-blue-950/20" },
-                { label: "Blocked", count: (tasks as any[] ?? []).filter((t: any) => t.status === "blocked").length, color: "text-orange-600", bg: "bg-orange-50 dark:bg-orange-950/20" },
-                { label: "Completed", count: (tasks as any[] ?? []).filter((t: any) => t.status === "completed").length, color: "text-green-600", bg: "bg-green-50 dark:bg-green-950/20" },
-              ].map(({ label, count, color, bg }) => (
-                <Card key={label} className={`${bg} border-0`}>
+                {
+                  label: "Today",
+                  count: groupedPortalTasks.today.length,
+                  bg: "bg-amber-50 dark:bg-amber-950/25",
+                  color: "text-amber-800 dark:text-amber-200",
+                },
+                {
+                  label: "Upcoming",
+                  count: groupedPortalTasks.upcoming.length,
+                  bg: "bg-blue-50 dark:bg-blue-950/20",
+                  color: "text-blue-800 dark:text-blue-200",
+                },
+                {
+                  label: "Done",
+                  count: groupedPortalTasks.completed.length,
+                  bg: "bg-green-50 dark:bg-green-950/20",
+                  color: "text-green-800 dark:text-green-200",
+                },
+              ].map((x) => (
+                <Card key={x.label} className={`${x.bg} border-0`}>
                   <CardContent className="p-3 text-center">
-                    <p className={`text-2xl font-bold ${color}`}>{count}</p>
-                    <p className="text-xs text-muted-foreground">{label}</p>
+                    <p className={`text-xl font-bold tabular-nums ${x.color}`}>{x.count}</p>
+                    <p className="text-[10px] font-medium text-muted-foreground">{x.label}</p>
                   </CardContent>
                 </Card>
               ))}
             </div>
 
-            {/* Filter */}
-            <div className="flex items-center gap-2">
-              {["active", "all", "completed"].map((f) => (
-                <Button key={f} size="sm" variant={taskFilter === f ? "default" : "outline"}
-                  className="h-7 text-xs capitalize" onClick={() => setTaskFilter(f)}>
-                  {f === "active" ? "Active" : f === "all" ? "All" : "Completed"}
-                </Button>
-              ))}
-            </div>
-
             {tasksLoading ? (
               <div className="space-y-2">{[1, 2, 3].map((i) => <Skeleton key={i} className="h-20" />)}</div>
-            ) : filteredTasks.length === 0 ? (
-              <div className="text-center py-16 text-muted-foreground">
-                <CheckSquare className="w-10 h-10 mx-auto mb-2 opacity-30" />
-                <p className="font-medium">
-                  {taskFilter === "active"
-                    ? "No active tasks"
-                    : taskFilter === "completed"
-                      ? "No completed tasks yet"
-                      : "No tasks assigned to you yet"}
-                </p>
-                <p className="text-sm mt-1 max-w-sm mx-auto">
-                  {taskFilter === "active"
-                    ? "When HR assigns work, it appears here. Switch to All or Completed to see other items."
-                    : taskFilter === "completed"
-                      ? "Completed tasks will show here once you mark them done."
-                      : "Your manager assigns tasks from HR → Task Manager."}
-                </p>
+            ) : (tasks as any[] | undefined)?.length === 0 ? (
+              <div className="py-12 text-center text-muted-foreground">
+                <CheckSquare className="mx-auto mb-2 h-10 w-10 opacity-30" />
+                <p className="font-medium">No tasks assigned yet</p>
+                <p className="mx-auto mt-1 max-w-sm text-sm">When HR assigns work, it appears here.</p>
               </div>
             ) : (
-              <div className="space-y-3">
-                {filteredTasks.map((task: any) => {
-                  const urgency = getDueUrgency(task.dueDate, task.status);
-                  const sla = slaLabel(task.dueDate, task.status);
-                  const actionOverdue = actionRequiredOverdueLabel(task.dueDate, task.status);
-                  const duePhrase = dueTimingPhrase(task.dueDate, task.status);
-                  const st = task.status as TaskStatus;
-                  const statusIcon = TASK_STATUS_ICON[st] ?? TASK_STATUS_ICON.pending;
-                  const cardTone =
-                    urgency === "overdue"
-                      ? "border-red-400 bg-red-50/90 dark:bg-red-950/35 ring-2 ring-red-200 dark:ring-red-900/60 shadow-sm"
-                      : urgency === "due_today"
-                        ? "border-amber-400 bg-amber-50/70 dark:bg-amber-950/25 ring-1 ring-amber-200"
-                        : "";
-                  return (
-                    <Card key={task.id} className={`overflow-hidden transition-shadow ${cardTone}`}>
-                      <CardContent className="p-0">
-                        <div className="flex items-stretch">
-                          <button
-                            type="button"
-                            className="flex flex-1 min-w-0 text-left gap-3 p-4 hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-l-xl"
-                            onClick={() => setEmpTaskDetail(task)}
-                          >
-                            <div className="mt-0.5 shrink-0">{statusIcon}</div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-start justify-between gap-2">
-                                <p className={`font-semibold text-sm leading-snug ${task.status === "completed" ? "line-through text-muted-foreground" : ""}`}>
-                                  {task.title}
-                                </p>
-                                <span className={`text-[10px] uppercase font-bold tracking-wide px-2 py-0.5 rounded-full shrink-0 ${PRIORITY_COLOR[task.priority as Priority]}`}>
-                                  {task.priority}
-                                </span>
-                              </div>
-                              {task.description?.trim() && (
-                                <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{task.description}</p>
-                              )}
-                              {task.status === "blocked" && task.blockedReason?.trim() && (
-                                <p className="text-xs text-orange-800 dark:text-orange-300 mt-1 line-clamp-2 font-medium">
-                                  Blocked: {task.blockedReason}
-                                </p>
-                              )}
-                              {(() => {
-                                const cl = Array.isArray(task.checklist) ? task.checklist.length : 0;
-                                const est = task.estimatedDurationMinutes as number | undefined;
-                                const al = Array.isArray(task.attachmentLinks) ? task.attachmentLinks.length : 0;
-                                if (!cl && !est && !al) return null;
-                                return (
-                                  <p className="text-[11px] text-muted-foreground mt-1 flex flex-wrap gap-x-2 gap-y-0.5">
-                                    {est ? <span>~{est} min estimated effort</span> : null}
-                                    {cl > 0 ? (
-                                      <span>
-                                        {cl} checklist step{cl !== 1 ? "s" : ""}
-                                      </span>
-                                    ) : null}
-                                    {al > 0 ? (
-                                      <span>
-                                        {al} reference link{al !== 1 ? "s" : ""}
-                                      </span>
-                                    ) : null}
-                                  </p>
-                                );
-                              })()}
-                              <div className="flex flex-wrap items-center gap-2 mt-2 text-xs">
-                                <span className="inline-flex items-center rounded-full border bg-background/80 px-2 py-0.5 capitalize text-muted-foreground">
-                                  {TASK_STATUS_LABEL[st] ?? task.status}
-                                </span>
-                                {task.dueDate && (
-                                  <span
-                                    className={
-                                      urgency === "overdue"
-                                        ? "inline-flex items-center gap-1 font-bold text-red-700 dark:text-red-400"
-                                        : urgency === "due_today"
-                                          ? "inline-flex items-center gap-1 font-semibold text-amber-800 dark:text-amber-400"
-                                          : "inline-flex items-center gap-1 text-muted-foreground"
-                                    }
-                                  >
-                                    <Clock className="w-3 h-3 shrink-0" />
-                                    <span>{formatDate(task.dueDate)}</span>
-                                    {duePhrase && (
-                                      <span className="ml-1 opacity-90 font-medium">· {duePhrase}</span>
-                                    )}
-                                    {!duePhrase && sla && (
-                                      <span className="ml-1 opacity-90">· {sla}</span>
-                                    )}
-                                  </span>
-                                )}
-                                {urgency === "overdue" && actionOverdue && (
-                                  <Badge variant="destructive" className="text-[10px] h-auto min-h-5 px-1.5 py-0.5 leading-tight max-w-[14rem] whitespace-normal text-left">
-                                    {actionOverdue}
-                                  </Badge>
-                                )}
-                              </div>
-                              <p className="text-[11px] text-muted-foreground mt-2">Tap for details & timeline</p>
-                            </div>
-                          </button>
-                          {task.status !== "completed" && task.status !== "cancelled" && (
-                            <div
-                              className="flex flex-col items-stretch justify-center gap-1 p-3 border-l bg-muted/20 shrink-0"
-                              onClick={(e) => e.stopPropagation()}
-                              onKeyDown={(e) => e.stopPropagation()}
-                            >
-                              {(task.status === "pending" || task.status === "blocked") && (
-                                <Button
-                                  size="sm"
-                                  variant="secondary"
-                                  className="h-8 text-xs whitespace-nowrap"
-                                  disabled={startTask.isPending || completeTask.isPending}
-                                  onClick={() =>
-                                    startTask.mutate({
-                                      taskId: task.id,
-                                      companyId: activeCompanyId ?? undefined,
-                                    })
-                                  }
-                                >
-                                  <Play className="w-3 h-3 mr-1" /> Start
-                                </Button>
-                              )}
-                              <Button
-                                size="sm"
-                                variant={urgency === "overdue" ? "default" : "outline"}
-                                className="h-8 text-xs whitespace-nowrap"
-                                disabled={completeTask.isPending || startTask.isPending}
-                                onClick={() => setCompleteTaskId(task.id)}
-                              >
-                                <Check className="w-3 h-3 mr-1" /> Done
-                              </Button>
-                            </div>
-                          )}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  );
-                })}
+              <div className="space-y-6">
+                <section className="space-y-2">
+                  <h2 className="px-0.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Today</h2>
+                  {groupedPortalTasks.today.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">Nothing due or overdue today.</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {groupedPortalTasks.today.map((task: any) => (
+                        <EmployeePortalTaskCard
+                          key={task.id}
+                          task={task}
+                          onOpenDetail={setEmpTaskDetail}
+                          onMarkDone={(id) => setCompleteTaskId(id)}
+                          onStart={(taskId) =>
+                            startTask.mutate({ taskId, companyId: activeCompanyId ?? undefined })
+                          }
+                          startPending={startTask.isPending}
+                          completePending={completeTask.isPending}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </section>
+
+                <section className="space-y-2">
+                  <h2 className="px-0.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Upcoming</h2>
+                  {groupedPortalTasks.upcoming.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No later-dated open tasks.</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {groupedPortalTasks.upcoming.map((task: any) => (
+                        <EmployeePortalTaskCard
+                          key={task.id}
+                          task={task}
+                          onOpenDetail={setEmpTaskDetail}
+                          onMarkDone={(id) => setCompleteTaskId(id)}
+                          onStart={(taskId) =>
+                            startTask.mutate({ taskId, companyId: activeCompanyId ?? undefined })
+                          }
+                          startPending={startTask.isPending}
+                          completePending={completeTask.isPending}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </section>
+
+                <details className="group rounded-xl border border-border/70 bg-card open:shadow-sm">
+                  <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 px-4 py-3 text-sm font-semibold touch-manipulation [&::-webkit-details-marker]:hidden">
+                    Completed
+                    <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                      {groupedPortalTasks.completed.length}
+                    </span>
+                  </summary>
+                  <div className="space-y-3 border-t border-border/50 px-4 py-3">
+                    {groupedPortalTasks.completed.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">No completed tasks yet.</p>
+                    ) : (
+                      groupedPortalTasks.completed.map((task: any) => (
+                        <EmployeePortalTaskCard
+                          key={task.id}
+                          task={task}
+                          onOpenDetail={setEmpTaskDetail}
+                          onMarkDone={() => undefined}
+                          onStart={() => undefined}
+                          startPending={false}
+                          completePending={false}
+                        />
+                      ))
+                    )}
+                  </div>
+                </details>
               </div>
             )}
 
@@ -2264,7 +2185,7 @@ export default function EmployeePortalPage() {
           </TabsContent>
 
           {/* ══ PROFILE TAB ══════════════════════════════════════════════════ */}
-          <TabsContent value="profile" className="mt-4 space-y-4">
+          <TabsContent value="profile" className="mt-0 space-y-4 focus-visible:outline-none">
             {/* Profile header */}
             <Card>
               <CardContent className="p-4">
@@ -2490,41 +2411,74 @@ export default function EmployeePortalPage() {
                 </CardContent>
               </Card>
             )}
+
+            <EmployeePortalMoreHub
+              setActiveTab={setActiveTab}
+              pendingLeave={pendingLeave}
+              expiringDocsCount={expiringDocs.length}
+              trainingAttentionCount={trainingAttentionCount}
+              pendingExpenses={pendingExpensesCount}
+              pendingShiftRequests={pendingShiftRequestsCount}
+            />
           </TabsContent>
 
           {/* ══ REQUESTS TAB ══════════════════════════════════════════════════ */}
-          <TabsContent value="requests" className="mt-4 space-y-4">
-            {/* Header */}
-            <div className="flex items-center justify-between flex-wrap gap-2">
+          <TabsContent value="requests" className="mt-0 space-y-4 focus-visible:outline-none">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <Button
+                className="flex h-auto min-h-12 w-full touch-manipulation items-center justify-start gap-3 py-3 text-left"
+                onClick={() => setShowLeaveDialog(true)}
+              >
+                <Calendar className="h-6 w-6 shrink-0" />
+                <span>
+                  <span className="block font-semibold">Request leave</span>
+                  <span className="block text-xs font-normal text-muted-foreground">Annual, sick, or emergency</span>
+                </span>
+              </Button>
+              <Button
+                variant="secondary"
+                className="flex h-auto min-h-12 w-full touch-manipulation items-center justify-start gap-3 py-3 text-left"
+                onClick={() => setShowShiftRequestDialog(true)}
+              >
+                <ArrowLeftRight className="h-6 w-6 shrink-0" />
+                <span>
+                  <span className="block font-semibold">Shift change</span>
+                  <span className="block text-xs font-normal text-muted-foreground">Swap, time off, or adjustment</span>
+                </span>
+              </Button>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
-                <h2 className="text-base font-semibold flex items-center gap-2">
-                  <ArrowLeftRight className="w-4 h-4 text-primary" />
-                  My Shift & Time Off Requests
+                <h2 className="flex items-center gap-2 text-base font-semibold">
+                  <ArrowLeftRight className="h-4 w-4 text-primary" />
+                  My requests
                 </h2>
-                <p className="text-xs text-muted-foreground mt-0.5">Track all your shift change and time off requests</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">Calendar or list</p>
               </div>
               <div className="flex items-center gap-2">
-                {/* View toggle */}
-                <div className="flex rounded-md border overflow-hidden">
+                <div className="flex overflow-hidden rounded-md border">
                   <button
+                    type="button"
                     onClick={() => setCalView("calendar")}
-                    className={`px-3 py-1.5 text-xs flex items-center gap-1.5 transition-colors ${
+                    className={`flex min-h-11 items-center gap-1.5 px-3 py-2 text-xs transition-colors touch-manipulation ${
                       calView === "calendar" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted"
                     }`}
                   >
-                    <Calendar className="w-3 h-3" /> Calendar
+                    <Calendar className="h-3.5 w-3.5" /> Calendar
                   </button>
                   <button
+                    type="button"
                     onClick={() => setCalView("list")}
-                    className={`px-3 py-1.5 text-xs flex items-center gap-1.5 transition-colors ${
+                    className={`flex min-h-11 items-center gap-1.5 px-3 py-2 text-xs transition-colors touch-manipulation ${
                       calView === "list" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted"
                     }`}
                   >
-                    <FileText className="w-3 h-3" /> List
+                    <FileText className="h-3.5 w-3.5" /> List
                   </button>
                 </div>
-                <Button size="sm" className="gap-1.5 h-8 text-xs" onClick={() => setShowShiftRequestDialog(true)}>
-                  <Plus className="w-3.5 h-3.5" /> New Request
+                <Button size="sm" className="min-h-11 gap-1.5 text-xs" onClick={() => setShowShiftRequestDialog(true)}>
+                  <Plus className="h-3.5 w-3.5" /> New
                 </Button>
               </div>
             </div>
@@ -3146,7 +3100,14 @@ export default function EmployeePortalPage() {
         </Tabs>
       </div>
 
-      <div className="fixed bottom-5 right-5 z-40 md:bottom-8 md:right-8 max-sm:bottom-20">
+      <EmployeePortalBottomNav
+        activeTab={activeTab}
+        onNavigate={setActiveTab}
+        taskBadge={pendingTasks}
+        requestBadge={pendingShiftRequestsCount}
+      />
+
+      <div className="fixed bottom-[calc(5.75rem+env(safe-area-inset-bottom,0px))] right-4 z-40 md:bottom-8 md:right-8">
         <Popover>
           <PopoverTrigger asChild>
             <Button
@@ -3412,7 +3373,11 @@ export default function EmployeePortalPage() {
                     <span className="text-xs text-muted-foreground">
                       {uploadingAttachment ? "Uploading..." : "Click to attach a document (PDF, image, max 5MB)"}
                     </span>
-                    <input type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                    <input
+                      type="file"
+                      className="hidden"
+                      accept="image/*,.pdf,.jpg,.jpeg,.png,.doc,.docx"
+                      capture="environment"
                       disabled={uploadingAttachment}
                       onChange={async (e) => {
                         const file = e.target.files?.[0];

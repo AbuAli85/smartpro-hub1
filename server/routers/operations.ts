@@ -38,6 +38,7 @@ import { getActiveCompanyMembership } from "../_core/membership";
 import { getPostSaleSignals } from "../postSaleSignals";
 import { getCompanyAccountPortfolioSnapshot } from "../accountHealth";
 import { buildRevenueRealizationSnapshot, selectRenewalMonetizationRiskRows } from "../revenueRealization";
+import { getOwnerResolutionSnapshot } from "../ownerResolution";
 
 type DbClient = NonNullable<Awaited<ReturnType<typeof getDb>>>;
 
@@ -908,6 +909,15 @@ export const operationsRouter = router({
       );
       const renewalMonetizationRisk = selectRenewalMonetizationRiskRows(accountPortfolio, revenueRealization);
 
+      const ownerResolution = await getOwnerResolutionSnapshot(
+        db,
+        companyId,
+        accountPortfolio,
+        revenueRealization,
+        renewalMonetizationRisk,
+        postSale,
+      );
+
       return {
         commercial: {
           contactsLeads: Number(contactsLeads?.cnt ?? 0),
@@ -966,6 +976,7 @@ export const operationsRouter = router({
         accountPortfolio,
         revenueRealization,
         renewalMonetizationRisk,
+        ownerResolution,
       };
     }),
 });

@@ -9,7 +9,7 @@ import {
   Briefcase, Building2, CheckCircle2, Clock, FileText,
   Shield, ShoppingBag, TrendingUp, Users, Banknote,
   Globe, Zap, RefreshCw, Award, MapPin, Calendar,
-  ChevronRight, Activity, Bell, Target, CircleDollarSign, Truck,
+  ChevronRight, Activity, Bell, Target, CircleDollarSign, Truck, ClipboardList,
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -594,6 +594,143 @@ export default function Dashboard() {
             </Card>
           </div>
 
+          {businessPulse.ownerResolution &&
+            (businessPulse.ownerResolution.rankedAccountsForReview.length > 0 ||
+              businessPulse.ownerResolution.renewalReadiness.length > 0 ||
+              businessPulse.ownerResolution.collectionsFollowUp.length > 0) && (
+            <Card className="border-primary/25 bg-primary/[0.03]">
+              <CardHeader className="pb-2">
+                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+                  <div>
+                    <CardTitle
+                      className="text-sm flex items-center gap-2"
+                      title={businessPulse.ownerResolution.basis}
+                    >
+                      <ClipboardList size={14} className="text-primary" />
+                      Resolution queue
+                    </CardTitle>
+                    <p className="text-[10px] text-muted-foreground font-normal mt-1">
+                      Snapshot v{businessPulse.ownerResolution.exportMeta.schemaVersion} ·{" "}
+                      {fmtDateTimeShort(new Date(businessPulse.ownerResolution.exportMeta.generatedAt))} — structured for future CSV/PDF export.
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    <Button variant="ghost" size="sm" className="text-xs h-7" asChild>
+                      <Link href="/crm">CRM</Link>
+                    </Button>
+                    <Button variant="ghost" size="sm" className="text-xs h-7" asChild>
+                      <Link href="/contracts">Contracts</Link>
+                    </Button>
+                    <Button variant="ghost" size="sm" className="text-xs h-7" asChild>
+                      <Link href="/client-portal?tab=invoices">Collections</Link>
+                    </Button>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4 text-xs">
+                {businessPulse.ownerResolution.rankedAccountsForReview.length > 0 && (
+                  <div className="space-y-1.5">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      Leadership review (priority)
+                    </p>
+                    <ul className="space-y-2">
+                      {businessPulse.ownerResolution.rankedAccountsForReview.slice(0, 6).map((row) => (
+                        <li
+                          key={`rank-${row.contactId}`}
+                          className="rounded-md border border-border/70 p-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2"
+                        >
+                          <div>
+                            <Link href={row.primaryHref} className="font-medium hover:underline">
+                              {row.displayName}
+                            </Link>
+                            <span className="text-[10px] text-muted-foreground ml-1">
+                              · score {row.priorityScore} — {row.rankReason}
+                            </span>
+                          </div>
+                          <div className="flex flex-wrap gap-2 items-center">
+                            <Badge variant="outline" className="text-[9px]">
+                              {row.tier.replace("_", " ")}
+                            </Badge>
+                            <Button variant="default" size="sm" className="h-7 text-[10px]" asChild>
+                              <Link href={row.nextAction.href} title={row.nextAction.basis}>
+                                {row.nextAction.label}
+                              </Link>
+                            </Button>
+                            {row.contractHref && (
+                              <Link href={row.contractHref} className="text-[10px] text-[var(--smartpro-orange)] hover:underline">
+                                Contract
+                              </Link>
+                            )}
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                <div className="grid md:grid-cols-2 gap-4">
+                  {businessPulse.ownerResolution.renewalReadiness.length > 0 && (
+                    <div className="space-y-1.5">
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Renewal readiness</p>
+                      <ul className="space-y-1.5">
+                        {businessPulse.ownerResolution.renewalReadiness.slice(0, 4).map((r) => (
+                          <li key={`rr-${r.contactId}`} className="rounded-md border border-border/60 p-2 space-y-1">
+                            <div className="flex justify-between gap-2 flex-wrap">
+                              <Link href={r.primaryHref} className="font-medium hover:underline">
+                                {r.displayName}
+                              </Link>
+                              {r.daysUntilEnd != null && (
+                                <span className="text-[10px] text-muted-foreground">{r.daysUntilEnd}d to end</span>
+                              )}
+                            </div>
+                            {r.postureSummary && (
+                              <p className="text-[9px] text-muted-foreground">{r.postureSummary}</p>
+                            )}
+                            <Button variant="outline" size="sm" className="h-7 text-[10px] w-full sm:w-auto" asChild>
+                              <Link href={r.nextAction.href} title={r.nextAction.basis}>
+                                {r.nextAction.label}
+                              </Link>
+                            </Button>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {businessPulse.ownerResolution.collectionsFollowUp.length > 0 && (
+                    <div className="space-y-1.5">
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                        Overdue officer billing (workspace)
+                      </p>
+                      <p className="text-[9px] text-muted-foreground">{businessPulse.ownerResolution.collectionsWorkspaceNote}</p>
+                      <ul className="space-y-1.5">
+                        {businessPulse.ownerResolution.collectionsFollowUp.map((c) => (
+                          <li key={c.id} className="rounded-md border border-red-200/60 bg-red-50/30 dark:bg-red-950/20 p-2 flex flex-wrap justify-between gap-2">
+                            <div>
+                              <span className="font-mono text-[10px]">{c.invoiceNumber}</span>
+                              <span className="text-[10px] text-muted-foreground ml-2">
+                                {c.billingMonth}/{c.billingYear}
+                              </span>
+                            </div>
+                            <span className="font-semibold text-red-800 tabular-nums">
+                              OMR {c.amountOmr.toLocaleString("en-OM", { minimumFractionDigits: 3, maximumFractionDigits: 3 })}
+                            </span>
+                            <div className="w-full flex flex-wrap gap-2">
+                              <Button variant="outline" size="sm" className="h-7 text-[10px]" asChild>
+                                <Link href={c.nextAction.href}>{c.nextAction.label}</Link>
+                              </Button>
+                              {c.overlapNote && (
+                                <span className="text-[9px] text-amber-800 self-center">{c.overlapNote}</span>
+                              )}
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {(businessPulse.postSale.serviceContractsStalledNoDeliveryCount > 0 ||
             businessPulse.finance.proBillingOverdueCount > 0 ||
             businessPulse.commercial.contractsExpiringNext30Days > 0 ||
@@ -825,8 +962,7 @@ export default function Dashboard() {
           {businessPulse.revenueRealization &&
             (businessPulse.revenueRealization.billingFollowThroughPressure ||
               businessPulse.revenueRealization.recentCompletedProForBillingReview.length > 0 ||
-              businessPulse.revenueRealization.marketplaceCompletedWithAmountLast90d.count > 0 ||
-              (businessPulse.renewalMonetizationRisk?.length ?? 0) > 0) && (
+              businessPulse.revenueRealization.marketplaceCompletedWithAmountLast90d.count > 0) && (
             <Card className="border-emerald-200/60 bg-emerald-50/20 dark:bg-emerald-950/15">
               <CardHeader className="pb-2">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
@@ -876,37 +1012,6 @@ export default function Dashboard() {
                     </span>
                   </span>
                 </div>
-                {(businessPulse.renewalMonetizationRisk ?? []).length > 0 && (
-                  <div className="space-y-1.5">
-                    <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                      Renewal + monetization stress
-                    </p>
-                    <ul className="space-y-1.5">
-                      {(businessPulse.renewalMonetizationRisk ?? []).map((row) => (
-                        <li key={`rm-${row.contactId}`} className="rounded-md border border-border/60 p-2 flex flex-wrap items-center justify-between gap-2">
-                          <div>
-                            <Link href={row.primaryHref} className="font-medium hover:underline">
-                              {row.displayName}
-                            </Link>
-                            {row.nearestExpiryEndDate && (
-                              <span className="text-[10px] text-muted-foreground ml-1">· ends {row.nearestExpiryEndDate}</span>
-                            )}
-                          </div>
-                          <div className="flex gap-2 shrink-0">
-                            {row.sampleContractHref && (
-                              <Link href={row.sampleContractHref} className="text-[10px] text-[var(--smartpro-orange)] hover:underline">
-                                Contract
-                              </Link>
-                            )}
-                            <Link href="/client-portal?tab=invoices" className="text-[10px] text-muted-foreground hover:underline">
-                              Billing →
-                            </Link>
-                          </div>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
                 {businessPulse.revenueRealization.recentCompletedProForBillingReview.length > 0 && (
                   <div className="space-y-1">
                     <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Recent completed PRO (billing review)</p>

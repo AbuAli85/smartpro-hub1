@@ -4,7 +4,7 @@ import { Link } from "wouter";
 import {
   Users, Plus, Search, Phone, Mail, Building2, TrendingUp, DollarSign,
   ChevronRight, X, MessageSquare, Calendar, Target, Star,
-  CheckCircle2, Handshake, Send, FileText, AlertTriangle, Truck,
+  CheckCircle2, Handshake, Send, FileText, AlertTriangle, Truck, ListChecks,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -265,6 +265,31 @@ function ContactDetailPanel({ contactId, onClose, companyId }: { contactId: numb
                 )}
                 Deterministic rule-based tiers — not a predictive score.
               </p>
+            </div>
+          )}
+          {contact360.resolution && (
+            <div className="rounded-lg border-2 border-[var(--smartpro-orange)]/40 bg-[var(--smartpro-orange)]/5 px-2.5 py-2 space-y-2">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1">
+                <ListChecks size={12} /> Next action
+              </p>
+              <Button size="sm" className="w-full h-8 text-xs bg-[var(--smartpro-orange)] hover:bg-orange-600 text-white" asChild>
+                <Link href={contact360.resolution.primary.href} title={contact360.resolution.primary.basis}>
+                  {contact360.resolution.primary.label}
+                </Link>
+              </Button>
+              <p className="text-[10px] text-muted-foreground leading-snug">{contact360.resolution.primary.basis}</p>
+              {contact360.resolution.alternatives.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {contact360.resolution.alternatives.map((a) => (
+                    <Button key={a.label + a.href} variant="outline" size="sm" className="h-6 text-[10px] px-2" asChild>
+                      <Link href={a.href} title={a.basis}>
+                        {a.label}
+                      </Link>
+                    </Button>
+                  ))}
+                </div>
+              )}
+              <p className="text-[9px] text-muted-foreground border-t border-border/60 pt-1.5">{contact360.resolution.basis}</p>
             </div>
           )}
           {contact360.revenueRealization && (

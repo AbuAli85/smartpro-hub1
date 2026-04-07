@@ -68,13 +68,6 @@ const TREND_LABEL: Record<string, string> = {
   declining: "Declining",
 };
 
-/** When to show a second chip alongside the main status */
-const REVIEW_STATE_LABEL: Record<string, string> = {
-  under_review: "Under review",
-  recovery_active: "Recovery active",
-  escalated: "Follow-up urgent",
-};
-
 function urgencyLabel(u: string): string | null {
   if (u === "blocked") return "Blocked";
   if (u === "overdue") return "Overdue";
@@ -187,7 +180,9 @@ export default function WorkspacePage() {
           <LayoutGrid className="h-7 w-7" />
           Workspace
         </h1>
-        <p className="text-sm text-muted-foreground">Status, priorities, and your team at a glance.</p>
+        <p className="text-sm text-muted-foreground">
+          What matters now, your next moves, and manager follow-ups — in one view.
+        </p>
       </header>
 
       {my?.mode === "no_employee" && (
@@ -198,52 +193,36 @@ export default function WorkspacePage() {
       )}
 
       {my?.mode === "ok" && (
-        <div className="space-y-6">
-          <section aria-labelledby="ws-focus">
-            <h2 id="ws-focus" className="text-sm font-medium text-muted-foreground mb-2">
-              My focus
-            </h2>
-            <Card>
-              <CardContent className="pt-6 text-sm">
-                <ul className="list-disc pl-5 space-y-1">
-                  {my.focusLines.length === 0 ? (
-                    <li className="text-muted-foreground">When HR sets your role and responsibilities, they&apos;ll show here.</li>
-                  ) : (
-                    my.focusLines.map((line) => <li key={line}>{line}</li>)
-                  )}
-                </ul>
-              </CardContent>
-            </Card>
-          </section>
-
+        <div className="space-y-5">
           <section aria-labelledby="ws-score" className="space-y-2">
             <h2 id="ws-score" className="text-sm font-medium text-muted-foreground">
-              My score
+              Performance
             </h2>
+            <p className="text-[11px] text-muted-foreground -mt-1 mb-1">Your status, trend, and what to do next.</p>
             <Card>
               <CardHeader className="pb-2">
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
                   <Badge className={statusTone(my.signal.status)}>{my.signal.statusLabel}</Badge>
-                  <Badge variant="outline">{TREND_LABEL[my.signal.trend] ?? my.signal.trend}</Badge>
-                  <Badge variant="secondary" title="Snapshot score">
-                    {my.signal.compositeScore}/100
-                  </Badge>
-                  {my.signal.reviewState === "recovery_active" && (
-                    <Badge variant="outline">Recovery active</Badge>
-                  )}
-                  {my.signal.reviewState === "under_review" && (
-                    <Badge variant="outline">{REVIEW_STATE_LABEL.under_review}</Badge>
-                  )}
-                  {my.signal.reviewState === "escalated" && (
-                    <Badge variant="outline">{REVIEW_STATE_LABEL.escalated}</Badge>
-                  )}
+                  <span className="text-xs text-muted-foreground">
+                    {TREND_LABEL[my.signal.trend] ?? my.signal.trend} · {my.signal.compositeScore}/100
+                  </span>
                 </div>
-                {my.signal.interventionFollowUpAt && (
-                  <p className="text-xs text-muted-foreground pt-1">
-                    Follow-up due: <span className="font-medium text-foreground">{my.signal.interventionFollowUpAt}</span>
+                {(my.signal.reviewState === "recovery_active" ||
+                  my.signal.reviewState === "under_review" ||
+                  my.signal.reviewState === "escalated") && (
+                  <p className="text-xs text-foreground/90 pt-1.5 leading-snug">
+                    {my.signal.reviewState === "recovery_active" && "Recovery in progress — stay aligned with your manager."}
+                    {my.signal.reviewState === "under_review" && "Your review is with your manager."}
+                    {my.signal.reviewState === "escalated" && "Please reach your manager today."}
                   </p>
                 )}
-                <CardDescription className="text-xs pt-1">Based on tasks, goals, and attendance this period.</CardDescription>
+                {my.signal.interventionFollowUpAt && (
+                  <p className="text-xs text-muted-foreground pt-1">
+                    Manager follow-up:{" "}
+                    <span className="font-medium text-foreground">{my.signal.interventionFollowUpAt}</span>
+                  </p>
+                )}
+                <CardDescription className="text-xs pt-1">From tasks, goals, and attendance this period.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3 text-sm">
                 {my.signal.keyReasons.length > 0 && (
@@ -272,12 +251,13 @@ export default function WorkspacePage() {
 
           <section aria-labelledby="ws-work">
             <h2 id="ws-work" className="text-sm font-medium text-muted-foreground mb-2">
-              My work
+              Tasks
             </h2>
+            <p className="text-[11px] text-muted-foreground -mt-1 mb-2">Open work assigned to you — most urgent first.</p>
             <Card>
               <CardContent className="pt-6">
                 {my.work.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No open tasks — you&apos;re clear for now.</p>
+                  <p className="text-sm text-muted-foreground">Nothing open — you&apos;re clear on tasks.</p>
                 ) : (
                   <ul className="space-y-2">
                     {my.work.map((t) => (
@@ -301,7 +281,7 @@ export default function WorkspacePage() {
                 )}
                 <Button variant="link" className="px-0 mt-2 h-auto text-xs" asChild>
                   <Link href="/hr/tasks">
-                    All tasks <ChevronRight className="h-3 w-3 inline" />
+                    Open full task list <ChevronRight className="h-3 w-3 inline" />
                   </Link>
                 </Button>
               </CardContent>
@@ -310,12 +290,12 @@ export default function WorkspacePage() {
 
           <section aria-labelledby="ws-issues">
             <h2 id="ws-issues" className="text-sm font-medium text-muted-foreground mb-2">
-              My issues
+              Blockers
             </h2>
             <Card>
               <CardContent className="pt-6 text-sm">
                 {my.issues.length === 0 ? (
-                  <p className="text-muted-foreground">No blockers flagged right now.</p>
+                  <p className="text-muted-foreground">No blockers showing right now.</p>
                 ) : (
                   <ul className="list-disc pl-5 space-y-1">
                     {my.issues.map((x) => (
@@ -329,27 +309,25 @@ export default function WorkspacePage() {
 
           <section aria-labelledby="ws-review">
             <h2 id="ws-review" className="text-sm font-medium text-muted-foreground mb-2">
-              My review
+              Manager follow-up
             </h2>
+            <p className="text-[11px] text-muted-foreground -mt-1 mb-1">Updates from your manager on this workspace.</p>
             <Card>
               <CardContent className="pt-6 text-sm space-y-3">
-                <p>{my.review.summary}</p>
+                <p className="leading-relaxed">{my.review.summary}</p>
                 {my.review.interventions.length > 0 && (
                   <ul className="space-y-2 border-t border-border/60 pt-3">
                     {my.review.interventions.map((iv) => {
                       const followLine = interventionFollowUpLine(iv.followUpAt);
                       return (
-                        <li key={iv.id} className="rounded-md border border-border/50 bg-muted/20 px-2.5 py-2 space-y-0.5">
+                        <li key={iv.id} className="rounded-md border border-border/50 bg-muted/20 px-2.5 py-2 space-y-1">
                           <p className="text-sm font-medium text-foreground leading-snug">
                             {KIND_LABEL[iv.kind] ?? iv.kind}
-                            <span className="font-normal text-muted-foreground">
-                              {" "}
-                              · {iv.status === "escalated" ? "Escalated" : "Active"}
-                            </span>
+                            {iv.status === "escalated" ? " · Escalated" : ""}
                           </p>
                           {followLine && <p className="text-[11px] text-muted-foreground">{followLine}</p>}
                           {iv.note && <p className="text-xs text-muted-foreground">{iv.note}</p>}
-                          <p className="text-[10px] text-muted-foreground">Manager: {iv.managerLabel}</p>
+                          <p className="text-[10px] text-muted-foreground">{iv.managerLabel}</p>
                         </li>
                       );
                     })}
@@ -357,9 +335,27 @@ export default function WorkspacePage() {
                 )}
                 <Button variant="link" className="px-0 h-auto text-xs" asChild>
                   <Link href="/hr/performance">
-                    Performance &amp; goals <ChevronRight className="h-3 w-3 inline" />
+                    Goals &amp; reviews <ChevronRight className="h-3 w-3 inline" />
                   </Link>
                 </Button>
+              </CardContent>
+            </Card>
+          </section>
+
+          <section aria-labelledby="ws-focus">
+            <h2 id="ws-focus" className="text-sm font-medium text-muted-foreground mb-2">
+              Role &amp; context
+            </h2>
+            <p className="text-[11px] text-muted-foreground -mt-1 mb-1">Where you sit in the org — reference only.</p>
+            <Card>
+              <CardContent className="pt-6 text-sm">
+                <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
+                  {my.focusLines.length === 0 ? (
+                    <li>HR can add your role and responsibilities here.</li>
+                  ) : (
+                    my.focusLines.map((line) => <li key={line} className="text-foreground">{line}</li>)
+                  )}
+                </ul>
               </CardContent>
             </Card>
           </section>
@@ -373,7 +369,6 @@ export default function WorkspacePage() {
             Team
           </h2>
           <p className="text-sm text-muted-foreground leading-snug">{team.progressSummary}</p>
-          <p className="text-[11px] text-muted-foreground">Managers: open a person&apos;s profile for ownership and tasks.</p>
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-sm">
             <Card>
@@ -411,7 +406,9 @@ export default function WorkspacePage() {
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-base">Who needs attention</CardTitle>
-              <CardDescription>Highest priority first. Names link to the employee profile.</CardDescription>
+              <CardDescription>
+                Priority order. Click a name for their profile — tasks, owner, and HR context.
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3 text-sm">
               {team.attention.length === 0 ? (
@@ -459,13 +456,12 @@ export default function WorkspacePage() {
                             </Button>
                           )}
                           <Button type="button" size="sm" className="h-7 text-xs" onClick={() => openAct(r)}>
-                            Act
+                            Follow up
                           </Button>
                         </div>
                       </div>
-                      <p className="text-sm text-foreground/90 leading-snug">{r.primaryWhy}</p>
-                      <p className="text-xs text-muted-foreground">
-                        <span className="font-medium text-foreground/80">Next: </span>
+                      <p className="text-sm text-foreground leading-snug">{r.primaryWhy}</p>
+                      <p className="text-xs text-muted-foreground leading-snug border-l-2 border-border pl-2">
                         {r.suggestedAction}
                       </p>
                     </li>
@@ -608,10 +604,11 @@ export default function WorkspacePage() {
       </Dialog>
 
       <p className="text-xs text-muted-foreground">
+        More:{" "}
         <Link href="/hr/performance" className="underline underline-offset-2">
-          Performance &amp; goals
-        </Link>{" "}
-        ·{" "}
+          Goals
+        </Link>
+        {" · "}
         <Link href="/hr/accountability" className="underline underline-offset-2">
           Accountability
         </Link>

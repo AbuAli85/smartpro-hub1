@@ -171,44 +171,46 @@ export function ExecutiveControlTower({ tower, showHref, execution, companyId, m
                 Open items across contracts, renewals, HR docs, permits, and SLAs.
               </p>
             </CardHeader>
-            <CardContent className="grid grid-cols-2 gap-x-3 gap-y-2 text-[11px]">
-              <div className="flex justify-between gap-2">
-                <span className="text-muted-foreground">SLA breaches</span>
-                <span className={riskCompliance.slaOpenBreaches > 0 ? "font-bold text-red-700" : "font-medium"}>
-                  {riskCompliance.slaOpenBreaches}
-                </span>
-              </div>
-              <div className="flex justify-between gap-2">
-                <span className="text-muted-foreground">Contracts (sign)</span>
-                <span className="font-medium">{riskCompliance.contractsPendingSignature}</span>
-              </div>
-              <div className="flex justify-between gap-2">
-                <span className="text-muted-foreground">Contracts (30d end)</span>
-                <span className="font-medium">{riskCompliance.contractsExpiringNext30Days}</span>
-              </div>
-              <div className="flex justify-between gap-2">
-                <span className="text-muted-foreground">Renewal failed</span>
-                <span className={riskCompliance.renewalWorkflowsFailed > 0 ? "font-bold text-red-700" : "font-medium"}>
-                  {riskCompliance.renewalWorkflowsFailed}
-                </span>
-              </div>
-              <div className="flex justify-between gap-2">
-                <span className="text-muted-foreground">Renewal stuck (pending)</span>
-                <span className="font-medium">{riskCompliance.renewalWorkflowsStuckPending}</span>
-              </div>
-              <div className="flex justify-between gap-2">
-                <span className="text-muted-foreground">Emp. docs (7d)</span>
-                <span className="font-medium">{riskCompliance.employeeDocsExpiring7Days}</span>
-              </div>
-              <div className="flex justify-between gap-2">
-                <span className="text-muted-foreground">Company docs (30d)</span>
-                <span className="font-medium">{riskCompliance.companyDocsExpiring30Days}</span>
-              </div>
-              <div className="flex justify-between gap-2">
-                <span className="text-muted-foreground">Permits (7d)</span>
-                <span className="font-medium">{riskCompliance.workPermitsExpiring7Days}</span>
-              </div>
-              <div className="col-span-2 flex flex-wrap gap-1 pt-1">
+            <CardContent className="space-y-2 text-[11px]">
+              {(() => {
+                const rows: { label: string; value: number; hot?: boolean }[] = [
+                  { label: "SLA breaches (gov cases)", value: riskCompliance.slaOpenBreaches, hot: true },
+                  { label: "Contracts waiting for signature", value: riskCompliance.contractsPendingSignature },
+                  { label: "Contracts ending in 30 days", value: riskCompliance.contractsExpiringNext30Days },
+                  { label: "Renewal runs failed", value: riskCompliance.renewalWorkflowsFailed, hot: true },
+                  { label: "Renewal runs stuck", value: riskCompliance.renewalWorkflowsStuckPending },
+                  { label: "Employee docs expiring (7d)", value: riskCompliance.employeeDocsExpiring7Days },
+                  { label: "Company docs expiring (30d)", value: riskCompliance.companyDocsExpiring30Days },
+                  { label: "Work permits expiring (7d)", value: riskCompliance.workPermitsExpiring7Days },
+                ];
+                const open = rows.filter((r) => r.value > 0);
+                if (open.length === 0) {
+                  return (
+                    <p className="text-xs text-muted-foreground py-1">
+                      Nothing open in these queues — good.
+                    </p>
+                  );
+                }
+                return (
+                  <ul className="space-y-1.5">
+                    {open.map((r) => (
+                      <li key={r.label} className="flex justify-between gap-3">
+                        <span className="text-muted-foreground min-w-0">{r.label}</span>
+                        <span
+                          className={
+                            r.hot && r.value > 0
+                              ? "font-semibold text-red-700 dark:text-red-300 tabular-nums shrink-0"
+                              : "font-medium tabular-nums text-foreground shrink-0"
+                          }
+                        >
+                          {r.value}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                );
+              })()}
+              <div className="flex flex-wrap gap-1 pt-1 border-t border-border/40">
                 {showHref("/contracts") && (
                   <Button variant="ghost" size="sm" className="text-[10px] h-7" asChild>
                     <Link href="/contracts">Contracts</Link>
@@ -234,19 +236,22 @@ export function ExecutiveControlTower({ tower, showHref, execution, companyId, m
                 <Users size={14} className="text-[var(--smartpro-orange)]" />
                 Accounts needing attention
               </CardTitle>
-              <p className="text-[10px] text-muted-foreground font-normal">
-                Same priority list as your resolution queue — start here, then open CRM for detail.
+              <p className="text-[10px] text-muted-foreground font-normal leading-snug">
+                Same order as your resolution queue below. Each row: what&apos;s wrong, who it&apos;s for, what to do next.
               </p>
             </CardHeader>
             <CardContent className="space-y-2">
               {clientHealthTop.length === 0 ? (
-                <p className="text-xs text-muted-foreground">No accounts flagged — CRM looks clear or empty.</p>
+                <p className="text-xs text-muted-foreground">No accounts need action in CRM right now.</p>
               ) : (
-                <ul className="space-y-2">
+                <ul className="space-y-3">
                   {clientHealthTop.map((row) => (
-                    <li key={row.contactId} className="rounded-lg border border-border/60 p-2.5 space-y-1.5">
-                      <div className="flex flex-wrap items-baseline justify-between gap-2">
-                        <Link href={row.primaryHref} className="text-sm font-semibold leading-snug hover:underline min-w-0">
+                    <li key={row.contactId} className="rounded-lg border border-border/60 p-3 space-y-2">
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <Link
+                          href={row.primaryHref}
+                          className="text-sm font-semibold leading-snug hover:underline text-primary min-w-0"
+                        >
                           {row.displayName}
                         </Link>
                         <Badge variant="outline" className="text-[9px] shrink-0">
@@ -254,10 +259,10 @@ export function ExecutiveControlTower({ tower, showHref, execution, companyId, m
                         </Badge>
                       </div>
                       {row.companyLabel && (
-                        <p className="text-[10px] text-muted-foreground truncate">{row.companyLabel}</p>
+                        <p className="text-xs text-muted-foreground">{row.companyLabel}</p>
                       )}
-                      <p className="text-[11px] text-muted-foreground leading-snug line-clamp-2">{row.rankReason}</p>
-                      <Button variant="secondary" size="sm" className="h-7 text-[10px] w-full sm:w-auto" asChild>
+                      <p className="text-xs text-foreground leading-relaxed">{row.rankReason}</p>
+                      <Button variant="default" size="sm" className="h-8 text-xs w-full" asChild>
                         <Link href={row.primaryHref}>{row.nextActionLabel}</Link>
                       </Button>
                     </li>
@@ -289,11 +294,13 @@ export function ExecutiveControlTower({ tower, showHref, execution, companyId, m
       <OwnerWorkspaceSection title="Cash & risk">
         <Card className="border-border/80">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm flex items-center gap-2">
+            <CardTitle className="text-sm flex items-center gap-2" title={agedReceivables.basis}>
               <Wallet size={14} className="text-red-700" />
-              Aged receivables & collections risk
+              Cash at risk
             </CardTitle>
-            <p className="text-[10px] text-muted-foreground font-normal">{agedReceivables.basis}</p>
+            <p className="text-[10px] text-muted-foreground font-normal">
+              Overdue PRO billing and unpaid subscriptions — open collections to chase.
+            </p>
           </CardHeader>
           <CardContent className="space-y-3 text-xs">
             <div className="flex justify-between items-baseline gap-2">
@@ -340,11 +347,13 @@ export function ExecutiveControlTower({ tower, showHref, execution, companyId, m
       <OwnerWorkspaceSection title="Decisions needed">
         <Card className="border-border/80">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm flex items-center gap-2">
+            <CardTitle className="text-sm flex items-center gap-2" title={decisionsQueue.basis}>
               <ClipboardCheck size={14} className="text-blue-700" />
-              Decisions & approvals
+              Approvals waiting on you
             </CardTitle>
-            <p className="text-[10px] text-muted-foreground font-normal">{decisionsQueue.basis}</p>
+            <p className="text-[10px] text-muted-foreground font-normal">
+              Queues across HR, finance, and contracts — tap a row to decide.
+            </p>
           </CardHeader>
           <CardContent className="space-y-2">
             {decisionsQueue.items.length === 0 ? (

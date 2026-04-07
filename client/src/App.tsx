@@ -79,6 +79,7 @@ import DocumentExpiryDashboard from "./pages/DocumentExpiryDashboard";
 import HRLettersPage from "./pages/HRLettersPage";
 import HRKpiPage from "./pages/HRKpiPage";
 import HRPerformancePage from "./pages/HRPerformancePage";
+import HRAccountabilityPage from "./pages/HRAccountabilityPage";
 import FinanceOverviewPage from "./pages/FinanceOverviewPage";
 import LeaveBalancePage from "./pages/LeaveBalancePage";
 import EmployeeCompletenessPage from "./pages/EmployeeCompletenessPage";
@@ -196,6 +197,7 @@ function AppRoutes() {
         <Route path="/hr/promoter-assignments/:id" component={ContractDetailPage} />
         <Route path="/hr/kpi" component={HRKpiPage} />
         <Route path="/hr/performance" component={HRPerformancePage} />
+        <Route path="/hr/accountability" component={HRAccountabilityPage} />
         <Route path="/hr/leave-balance" component={LeaveBalancePage} />
         <Route path="/hr/completeness" component={EmployeeCompletenessPage} />
         <Route path="/hr/org-structure" component={OrgStructurePage} />

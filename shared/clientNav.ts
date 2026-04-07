@@ -81,6 +81,7 @@ export const HR_ADMIN_HREFS = new Set<string>([
   "/hr/leave-balance",
   "/hr/completeness",
   "/hr/org-structure",
+  "/hr/accountability",
   "/hr/tasks",
   "/hr/announcements",
   "/hr/documents-dashboard",

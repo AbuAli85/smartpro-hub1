@@ -2440,6 +2440,37 @@ export const employeeSelfReviews = mysqlTable("employee_self_reviews", {
 export type EmployeeSelfReview = typeof employeeSelfReviews.$inferSelect;
 export type InsertEmployeeSelfReview = typeof employeeSelfReviews.$inferInsert;
 
+// ─── ACCOUNTABILITY (person → ownership, KPI focus, cadence) ─────────────────
+/** Formal accountability overlay for an employee; merges with employees.managerId / department / position. */
+export const employeeAccountability = mysqlTable(
+  "employee_accountability",
+  {
+    id: int("id").primaryKey().autoincrement(),
+    companyId: int("company_id").notNull(),
+    employeeId: int("employee_id").notNull(),
+    departmentId: int("department_id"),
+    /** Optional stable key for operating-model hooks, e.g. marketing_manager, ops_lead */
+    businessRoleKey: varchar("business_role_key", { length: 64 }),
+    responsibilities: json("responsibilities").$type<string[]>().default([]),
+    kpiCategoryKeys: json("kpi_category_keys").$type<string[]>().default([]),
+    reviewCadence: mysqlEnum("review_cadence", ["daily", "weekly", "biweekly", "monthly"])
+      .notNull()
+      .default("weekly"),
+    /** Overrides employees.managerId for escalation when set */
+    escalationEmployeeId: int("escalation_employee_id"),
+    notes: text("notes"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  },
+  (t) => [
+    unique("uniq_emp_accountability_company_employee").on(t.companyId, t.employeeId),
+    index("idx_ea_company").on(t.companyId),
+    index("idx_ea_employee").on(t.employeeId),
+  ]
+);
+export type EmployeeAccountability = typeof employeeAccountability.$inferSelect;
+export type InsertEmployeeAccountability = typeof employeeAccountability.$inferInsert;
+
 // ─── KPI Targets ───────────────────────────────────────────────────────────────
 export const kpiTargets = mysqlTable("kpi_targets", {
   id: int("id").primaryKey().autoincrement(),

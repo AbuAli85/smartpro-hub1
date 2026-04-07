@@ -54,6 +54,7 @@ import {
   TrendingDown,
   Network,
   Sparkles,
+  Award,
   UserSquare2,
 } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
@@ -179,6 +180,7 @@ const navGroups = [
       { label: "Task Manager", href: "/hr/tasks", icon: <ListTodo size={18} /> },
       { label: "Announcements", href: "/hr/announcements", icon: <Megaphone size={18} /> },
       { label: "Performance & Growth", href: "/hr/performance", icon: <Sparkles size={18} /> },
+      { label: "Accountability & Scorecards", href: "/hr/accountability", icon: <Award size={18} /> },
       { label: "KPI & Performance", href: "/hr/kpi", icon: <Target size={18} /> },
     ],
   },

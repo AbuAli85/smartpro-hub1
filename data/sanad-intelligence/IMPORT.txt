@@ -6,7 +6,7 @@ SANAD Network Intelligence — data import
    - SanadCenterEmployeesStatistics.json
    - SanadCenterStatistics.json (nested governorate → wilayat → village → count)
    - MostUsedServices.json
-   - SanadCenterDirectory.xlsx (first sheet; headers like Center Name, Governorate, Wilayat, Village, Contact)
+   - SanadCenterDirectory.csv (UTF-8; preferred if present) or SanadCenterDirectory.xlsx (first sheet; same bilingual headers)
 
 2. Apply DB migration 0025_sanad_network_intelligence.sql (via your usual drizzle migrate process).
 

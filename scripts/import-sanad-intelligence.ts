@@ -7,6 +7,7 @@
  * - SanadCenterEmployeesStatistics.json
  * - SanadCenterStatistics.json
  * - MostUsedServices.json
+ * - SanadCenterDirectory.csv (preferred if present)
  * - SanadCenterDirectory.xlsx
  *
  * Run: pnpm sanad-intel:import
@@ -18,6 +19,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { eq, inArray } from "drizzle-orm";
+import type { MySql2Database } from "drizzle-orm/mysql2";
 import { drizzle } from "drizzle-orm/mysql2";
 import * as XLSX from "xlsx";
 import * as schema from "../drizzle/schema";
@@ -48,6 +50,132 @@ async function readJsonIfExists(file: string): Promise<unknown | null> {
     if (err.code === "ENOENT") return null;
     throw e;
   }
+}
+
+/** RFC 4180-style single line (handles quoted fields and commas inside quotes). */
+function parseCsvLine(line: string): string[] {
+  const out: string[] = [];
+  let i = 0;
+  let cur = "";
+  let inQuotes = false;
+  while (i < line.length) {
+    const c = line[i]!;
+    if (inQuotes) {
+      if (c === '"') {
+        if (line[i + 1] === '"') {
+          cur += '"';
+          i += 2;
+          continue;
+        }
+        inQuotes = false;
+        i++;
+        continue;
+      }
+      cur += c;
+      i++;
+    } else if (c === '"') {
+      inQuotes = true;
+      i++;
+    } else if (c === ",") {
+      out.push(cur);
+      cur = "";
+      i++;
+    } else {
+      cur += c;
+      i++;
+    }
+  }
+  out.push(cur);
+  return out.map((s) => s.replace(/\s+/g, " ").trim());
+}
+
+function csvTextToAoa(raw: string): unknown[][] {
+  const text = raw.replace(/^\uFEFF/, "");
+  return text
+    .split(/\r?\n/)
+    .filter((l) => l.trim().length > 0)
+    .map((l) => parseCsvLine(l));
+}
+
+type SanadIntelDb = MySql2Database<typeof schema>;
+
+async function importDirectoryFromAoa(db: SanadIntelDb, batchId: number, aoa: unknown[][]): Promise<number> {
+  if (aoa.length < 2) return 0;
+  const headerRow = (aoa[0] ?? []).map((c) => String(c ?? ""));
+  const colMap = mapDirectoryHeaders(headerRow);
+  let n = 0;
+  for (let i = 1; i < aoa.length; i++) {
+    const line = aoa[i];
+    if (!Array.isArray(line)) continue;
+    const rec = directoryRowFromArray(line as unknown[], colMap);
+    if (!rec || !rec.centerName) continue;
+    if (isDirectoryTemplateOrHeaderRow(rec)) continue;
+    const { key, label } = governorateKeyFromLabel(rec.governorateLabel || "Unknown");
+    const fp = fingerprintCenterRow({
+      centerName: rec.centerName,
+      governorateKey: key,
+      wilayat: rec.wilayat,
+      village: rec.village,
+      contactNumber: rec.contactNumber,
+    });
+    const [existingCenter] = await db
+      .select({ id: schema.sanadIntelCenters.id })
+      .from(schema.sanadIntelCenters)
+      .where(eq(schema.sanadIntelCenters.sourceFingerprint, fp))
+      .limit(1);
+
+    let centerId: number;
+    if (existingCenter?.id) {
+      centerId = existingCenter.id;
+      await db
+        .update(schema.sanadIntelCenters)
+        .set({
+          importBatchId: batchId,
+          centerName: rec.centerName,
+          responsiblePerson: rec.responsiblePerson || null,
+          contactNumber: rec.contactNumber || null,
+          governorateKey: key,
+          governorateLabelRaw: rec.governorateLabel || label,
+          wilayat: rec.wilayat || null,
+          village: rec.village || null,
+          rawRow: rec.raw,
+        })
+        .where(eq(schema.sanadIntelCenters.id, centerId));
+    } else {
+      const ins = await db.insert(schema.sanadIntelCenters).values({
+        importBatchId: batchId,
+        sourceFingerprint: fp,
+        centerName: rec.centerName,
+        responsiblePerson: rec.responsiblePerson || null,
+        contactNumber: rec.contactNumber || null,
+        governorateKey: key,
+        governorateLabelRaw: rec.governorateLabel || label,
+        wilayat: rec.wilayat || null,
+        village: rec.village || null,
+        rawRow: rec.raw,
+      });
+      centerId = Number((ins as unknown as [{ insertId?: number }])[0]?.insertId ?? 0);
+      if (!centerId) {
+        const [again] = await db
+          .select({ id: schema.sanadIntelCenters.id })
+          .from(schema.sanadIntelCenters)
+          .where(eq(schema.sanadIntelCenters.sourceFingerprint, fp))
+          .limit(1);
+        centerId = again?.id ?? 0;
+      }
+    }
+
+    if (centerId) {
+      const [hasOps] = await db
+        .select({ c: schema.sanadIntelCenterOperations.centerId })
+        .from(schema.sanadIntelCenterOperations)
+        .where(eq(schema.sanadIntelCenterOperations.centerId, centerId))
+        .limit(1);
+      if (!hasOps) await db.insert(schema.sanadIntelCenterOperations).values({ centerId });
+    }
+    n++;
+  }
+  return n;
 }
 
 async function main() {
@@ -215,96 +343,47 @@ async function main() {
     }
   }
 
-  const xlsxPath = path.join(dir, "SanadCenterDirectory.xlsx");
+  const csvPath = path.join(dir, "SanadCenterDirectory.csv");
+  let directoryLoaded = false;
   try {
-    const buf = await fs.readFile(xlsxPath);
-    sourceFiles.push("SanadCenterDirectory.xlsx");
-    const wb = XLSX.read(buf, { type: "buffer" });
-    const sheetName = wb.SheetNames[0];
-    if (!sheetName) throw new Error("No sheet in workbook");
-    const sheet = wb.Sheets[sheetName];
-    if (!sheet) throw new Error("Missing sheet");
-    const aoa = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1 }) as unknown[][];
-    if (aoa.length < 2) throw new Error("Sheet has no rows");
-    const headerRow = (aoa[0] ?? []).map((c) => String(c ?? ""));
-    const colMap = mapDirectoryHeaders(headerRow);
-    let n = 0;
-    for (let i = 1; i < aoa.length; i++) {
-      const line = aoa[i];
-      if (!Array.isArray(line)) continue;
-      const rec = directoryRowFromArray(line as unknown[], colMap);
-      if (!rec || !rec.centerName) continue;
-      if (isDirectoryTemplateOrHeaderRow(rec)) continue;
-      const { key, label } = governorateKeyFromLabel(rec.governorateLabel || "Unknown");
-      const fp = fingerprintCenterRow({
-        centerName: rec.centerName,
-        governorateKey: key,
-        wilayat: rec.wilayat,
-        village: rec.village,
-        contactNumber: rec.contactNumber,
-      });
-      const [existingCenter] = await db
-        .select({ id: schema.sanadIntelCenters.id })
-        .from(schema.sanadIntelCenters)
-        .where(eq(schema.sanadIntelCenters.sourceFingerprint, fp))
-        .limit(1);
-
-      let centerId: number;
-      if (existingCenter?.id) {
-        centerId = existingCenter.id;
-        await db
-          .update(schema.sanadIntelCenters)
-          .set({
-            importBatchId: batchId,
-            centerName: rec.centerName,
-            responsiblePerson: rec.responsiblePerson || null,
-            contactNumber: rec.contactNumber || null,
-            governorateKey: key,
-            governorateLabelRaw: rec.governorateLabel || label,
-            wilayat: rec.wilayat || null,
-            village: rec.village || null,
-            rawRow: rec.raw,
-          })
-          .where(eq(schema.sanadIntelCenters.id, centerId));
-      } else {
-        const ins = await db.insert(schema.sanadIntelCenters).values({
-          importBatchId: batchId,
-          sourceFingerprint: fp,
-          centerName: rec.centerName,
-          responsiblePerson: rec.responsiblePerson || null,
-          contactNumber: rec.contactNumber || null,
-          governorateKey: key,
-          governorateLabelRaw: rec.governorateLabel || label,
-          wilayat: rec.wilayat || null,
-          village: rec.village || null,
-          rawRow: rec.raw,
-        });
-        centerId = Number((ins as unknown as [{ insertId?: number }])[0]?.insertId ?? 0);
-        if (!centerId) {
-          const [again] = await db
-            .select({ id: schema.sanadIntelCenters.id })
-            .from(schema.sanadIntelCenters)
-            .where(eq(schema.sanadIntelCenters.sourceFingerprint, fp))
-            .limit(1);
-          centerId = again?.id ?? 0;
-        }
-      }
-
-      if (centerId) {
-        const [hasOps] = await db
-          .select({ c: schema.sanadIntelCenterOperations.centerId })
-          .from(schema.sanadIntelCenterOperations)
-          .where(eq(schema.sanadIntelCenterOperations.centerId, centerId))
-          .limit(1);
-        if (!hasOps) await db.insert(schema.sanadIntelCenterOperations).values({ centerId });
-      }
-      n++;
+    const csvRaw = await fs.readFile(csvPath, "utf8");
+    const aoa = csvTextToAoa(csvRaw);
+    if (aoa.length >= 2) {
+      sourceFiles.push("SanadCenterDirectory.csv");
+      rowCounts.directoryRows = await importDirectoryFromAoa(db, batchId, aoa);
+      directoryLoaded = true;
+      console.log(
+        "[sanad-intel] Directory: SanadCenterDirectory.csv → %s centre row(s)",
+        rowCounts.directoryRows,
+      );
     }
-    rowCounts.directoryRows = n;
   } catch (e: unknown) {
     const err = e as NodeJS.ErrnoException;
-    if (err.code !== "ENOENT") console.warn("[sanad-intel] Directory XLSX:", err);
-    else console.warn("[sanad-intel] Missing SanadCenterDirectory.xlsx (optional)");
+    if (err.code !== "ENOENT") console.warn("[sanad-intel] Directory CSV:", err);
+  }
+
+  if (!directoryLoaded) {
+    const xlsxPath = path.join(dir, "SanadCenterDirectory.xlsx");
+    try {
+      const buf = await fs.readFile(xlsxPath);
+      sourceFiles.push("SanadCenterDirectory.xlsx");
+      const wb = XLSX.read(buf, { type: "buffer" });
+      const sheetName = wb.SheetNames[0];
+      if (!sheetName) throw new Error("No sheet in workbook");
+      const sheet = wb.Sheets[sheetName];
+      if (!sheet) throw new Error("Missing sheet");
+      const aoa = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1 }) as unknown[][];
+      if (aoa.length < 2) throw new Error("Sheet has no rows");
+      rowCounts.directoryRows = await importDirectoryFromAoa(db, batchId, aoa);
+      console.log(
+        "[sanad-intel] Directory: SanadCenterDirectory.xlsx → %s centre row(s)",
+        rowCounts.directoryRows,
+      );
+    } catch (e: unknown) {
+      const err = e as NodeJS.ErrnoException;
+      if (err.code !== "ENOENT") console.warn("[sanad-intel] Directory XLSX:", err);
+      else if (!directoryLoaded) console.warn("[sanad-intel] Missing SanadCenterDirectory.csv / .xlsx (optional)");
+    }
   }
 
   await ensureLicenseRequirementCodes(db);

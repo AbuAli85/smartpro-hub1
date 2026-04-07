@@ -19,7 +19,18 @@ import {
   listGovernorateKeysFromCenters,
   listWilayatForGovernorate,
 } from "../sanad-intelligence/queries";
-import { adminProcedure, router } from "../_core/trpc";
+import { adminProcedure, router, t } from "../_core/trpc";
+import { throwIfSanadIntelSchemaMissing } from "../sanad-intelligence/dbErrors";
+
+const adminSanadIntelProcedure = adminProcedure.use(
+  t.middleware(async ({ next }) => {
+    try {
+      return await next();
+    } catch (e) {
+      throwIfSanadIntelSchemaMissing(e);
+    }
+  }),
+);
 
 const partnerStatusZ = z.enum(["unknown", "prospect", "active", "suspended", "churned"]);
 const onboardingZ = z.enum([
@@ -34,27 +45,27 @@ const complianceOverallZ = z.enum(["not_assessed", "partial", "complete", "at_ri
 const complianceItemZ = z.enum(["pending", "submitted", "verified", "rejected", "waived", "not_applicable"]);
 
 export const sanadIntelligenceRouter = router({
-  overviewSummary: adminProcedure.query(async () => {
+  overviewSummary: adminSanadIntelProcedure.query(async () => {
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
     return getOverviewSummary(db as never);
   }),
 
-  transactionsTrend: adminProcedure.query(async () => {
+  transactionsTrend: adminSanadIntelProcedure.query(async () => {
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
     const o = await getOverviewSummary(db as never);
     return o.trends.transactions;
   }),
 
-  incomeTrend: adminProcedure.query(async () => {
+  incomeTrend: adminSanadIntelProcedure.query(async () => {
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
     const o = await getOverviewSummary(db as never);
     return o.trends.income;
   }),
 
-  listCenters: adminProcedure
+  listCenters: adminSanadIntelProcedure
     .input(
       z
         .object({
@@ -80,7 +91,7 @@ export const sanadIntelligenceRouter = router({
       });
     }),
 
-  getCenter: adminProcedure.input(z.object({ id: z.number() })).query(async ({ input }) => {
+  getCenter: adminSanadIntelProcedure.input(z.object({ id: z.number() })).query(async ({ input }) => {
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
     const row = await getCenterDetail(db as never, input.id);
@@ -88,14 +99,14 @@ export const sanadIntelligenceRouter = router({
     return row;
   }),
 
-  filterOptions: adminProcedure.query(async () => {
+  filterOptions: adminSanadIntelProcedure.query(async () => {
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
     const governorates = await listGovernorateKeysFromCenters(db as never);
     return { governorates };
   }),
 
-  wilayatForGovernorate: adminProcedure
+  wilayatForGovernorate: adminSanadIntelProcedure
     .input(z.object({ governorateKey: z.string() }))
     .query(async ({ input }) => {
       const db = await getDb();
@@ -104,7 +115,7 @@ export const sanadIntelligenceRouter = router({
       return rows.map((r) => r.wilayat).filter(Boolean) as string[];
     }),
 
-  updateCenterOperations: adminProcedure
+  updateCenterOperations: adminSanadIntelProcedure
     .input(
       z.object({
         centerId: z.number(),
@@ -156,7 +167,7 @@ export const sanadIntelligenceRouter = router({
       return { success: true as const };
     }),
 
-  regionalOpportunity: adminProcedure
+  regionalOpportunity: adminSanadIntelProcedure
     .input(z.object({ year: z.number().min(2000).max(2100).optional() }))
     .query(async ({ input }) => {
       const db = await getDb();
@@ -166,7 +177,7 @@ export const sanadIntelligenceRouter = router({
       return getRegionalOpportunity(db as never, y);
     }),
 
-  topServicesByYear: adminProcedure
+  topServicesByYear: adminSanadIntelProcedure
     .input(z.object({ year: z.number().min(2000).max(2100) }))
     .query(async ({ input }) => {
       const db = await getDb();
@@ -174,7 +185,7 @@ export const sanadIntelligenceRouter = router({
       return getTopServices(db as never, input.year);
     }),
 
-  serviceDemandInsights: adminProcedure
+  serviceDemandInsights: adminSanadIntelProcedure
     .input(z.object({ year: z.number().min(2000).max(2100) }))
     .query(async ({ input }) => {
       const db = await getDb();
@@ -223,13 +234,13 @@ export const sanadIntelligenceRouter = router({
       };
     }),
 
-  workforceByGovernorate: adminProcedure.query(async () => {
+  workforceByGovernorate: adminSanadIntelProcedure.query(async () => {
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
     return getWorkforce(db as never);
   }),
 
-  listLicenseRequirements: adminProcedure.query(async () => {
+  listLicenseRequirements: adminSanadIntelProcedure.query(async () => {
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
     return db
@@ -238,7 +249,7 @@ export const sanadIntelligenceRouter = router({
       .orderBy(asc(sanadIntelLicenseRequirements.sortOrder), asc(sanadIntelLicenseRequirements.id));
   }),
 
-  listCenterCompliance: adminProcedure.input(z.object({ centerId: z.number() })).query(async ({ input }) => {
+  listCenterCompliance: adminSanadIntelProcedure.input(z.object({ centerId: z.number() })).query(async ({ input }) => {
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
     return db
@@ -255,7 +266,7 @@ export const sanadIntelligenceRouter = router({
       .orderBy(asc(sanadIntelLicenseRequirements.sortOrder));
   }),
 
-  upsertCenterComplianceItem: adminProcedure
+  upsertCenterComplianceItem: adminSanadIntelProcedure
     .input(
       z.object({
         centerId: z.number(),
@@ -302,7 +313,7 @@ export const sanadIntelligenceRouter = router({
       return { success: true as const };
     }),
 
-  seedComplianceForCenter: adminProcedure.input(z.object({ centerId: z.number() })).mutation(async ({ input }) => {
+  seedComplianceForCenter: adminSanadIntelProcedure.input(z.object({ centerId: z.number() })).mutation(async ({ input }) => {
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
     const [c] = await db.select({ id: sanadIntelCenters.id }).from(sanadIntelCenters).where(eq(sanadIntelCenters.id, input.centerId)).limit(1);
@@ -333,7 +344,7 @@ export const sanadIntelligenceRouter = router({
     return { success: true as const, created: n };
   }),
 
-  latestMetricYear: adminProcedure.query(async () => {
+  latestMetricYear: adminSanadIntelProcedure.query(async () => {
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
     return { year: await getLatestMetricYear(db as never) };

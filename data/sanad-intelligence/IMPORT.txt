@@ -16,3 +16,10 @@ SANAD Network Intelligence — data import
 4. Idempotence: governorate-year metrics for touched years are replaced; workforce & geography tables are cleared and reloaded; directory rows upsert by fingerprint; licence requirement seed is additive by code.
 
 5. Licensing PDF: place at client/public/docs/SanadServicesCenterlicense-Ar.pdf for the compliance page link.
+
+6. Preview / deploy (tRPC 404 "No procedure found"):
+   - After git pull, rebuild the client (pnpm build) and redeploy static assets; restart the API process so server/routers.ts is loaded.
+   - In DevTools Network, tRPC GET URLs should use procedure paths like "sanad.intelligence.overviewSummary" (nested under sanad). If you still see "sanadIntelligence.overviewSummary", the browser is loading an old bundle — hard refresh (Ctrl+Shift+R) or clear site cache.
+
+7. tRPC 500 / console "Failed query: … sanad_intel_…":
+   - The API is reaching MySQL but the SANAD intelligence tables are not there (or the DB user cannot read them). Apply step 2 (migration 0025) on the same database as DATABASE_URL used by the server, then run step 3. After migration, empty tables are OK — overview KPIs may show zeros until import runs.

@@ -365,7 +365,7 @@ export function EmployeePortalOverview(props: EmployeePortalOverviewProps) {
                 primaryCtaDominant ? "min-h-[3.25rem] text-base font-semibold shadow-md sm:min-h-12" : "min-h-11"
               }`}
               onClick={() => go("attendance")}
-              aria-label={`${shiftOverview.primaryCtaLabel} — open Attendance`}
+              aria-label={`${shiftOverview.primaryCtaLabel} — Attendance`}
             >
               <UserCheck className="h-5 w-5 shrink-0" aria-hidden />
               {shiftOverview.primaryCtaLabel}
@@ -404,7 +404,7 @@ export function EmployeePortalOverview(props: EmployeePortalOverviewProps) {
       {/* 2 — Pay & files only (leave / requests: hero secondary or Requests tab — avoids duplicating Leave) */}
       <div className="rounded-xl border border-border/60 bg-muted/10 px-3 py-2.5">
         <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-0.5">Pay &amp; files</p>
-        <p className="text-[10px] text-muted-foreground/90 mb-2">Payslips and uploads — use Requests for leave.</p>
+        <p className="text-[10px] text-muted-foreground/90 mb-2">Payslips · uploads · leave lives under Requests.</p>
         <div className="flex flex-wrap gap-2">
           <Button type="button" variant="secondary" size="sm" className="min-h-10 flex-1 sm:flex-none sm:min-w-[6rem]" onClick={() => go("payroll")}>
             <DollarSign className="mr-1.5 h-4 w-4 shrink-0" />
@@ -421,7 +421,7 @@ export function EmployeePortalOverview(props: EmployeePortalOverviewProps) {
       {focusItems.length > 0 && (
         <div className="space-y-2">
           <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground px-0.5">
-            {primaryCtaDominant ? "Also check" : "Do this next"}
+            {primaryCtaDominant ? "If you have time" : "Do this next"}
           </p>
           <div className="space-y-2">
             {focusItems.map((a) => (
@@ -429,7 +429,7 @@ export function EmployeePortalOverview(props: EmployeePortalOverviewProps) {
                 key={a.key}
                 type="button"
                 onClick={() => handleActionClick(a)}
-                className={`flex w-full flex-col items-stretch rounded-xl border p-3.5 text-left transition-colors active:bg-muted/50 min-h-[4.5rem] touch-manipulation ${
+                className={`flex w-full flex-col items-stretch rounded-xl border p-3 text-left transition-colors active:bg-muted/50 min-h-[4rem] touch-manipulation ${
                   a.severity === "critical"
                     ? "border-red-300 bg-red-50/70 dark:border-red-900/55 dark:bg-red-950/25"
                     : a.severity === "warning"
@@ -454,12 +454,12 @@ export function EmployeePortalOverview(props: EmployeePortalOverviewProps) {
                     {a.severity === "critical" ? "Critical" : a.severity === "warning" ? "Warning" : "Info"}
                   </Badge>
                 </div>
-                <span className="mt-1.5 text-sm font-semibold leading-snug">{a.headline}</span>
-                <p className="mt-1 text-[11px] font-medium text-foreground/90">
-                  Next: <span className="text-primary">{a.nextStep}</span>
+                <span className="mt-1 text-sm font-semibold leading-snug">{a.headline}</span>
+                <p className="mt-0.5 text-[11px] text-muted-foreground line-clamp-2">
+                  <span className="font-medium text-foreground/85">{a.nextStep}</span>
+                  {a.detail ? ` · ${a.detail}` : ""}
                 </p>
-                {a.detail && <span className="mt-1 text-xs text-muted-foreground line-clamp-2">{a.detail}</span>}
-                <span className="mt-2 text-sm font-semibold text-primary">{a.ctaLabel} →</span>
+                <span className="mt-2 text-xs font-semibold uppercase tracking-wide text-primary">{a.ctaLabel} →</span>
               </button>
             ))}
           </div>
@@ -469,7 +469,7 @@ export function EmployeePortalOverview(props: EmployeePortalOverviewProps) {
       {/* 4 — Needs attention (scroll on narrow screens) */}
       {model.attentionItems.length > 0 && (
         <div className="flex items-center gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          <span className="shrink-0 text-[10px] font-semibold uppercase text-muted-foreground">Flags</span>
+          <span className="shrink-0 text-[10px] font-semibold uppercase text-muted-foreground">Heads-up</span>
           {model.attentionItems.map((x) => (
             <Badge key={x.key} variant="outline" className={`shrink-0 whitespace-nowrap ${attentionStateClasses(x.state)}`}>
               {x.label}
@@ -479,23 +479,23 @@ export function EmployeePortalOverview(props: EmployeePortalOverviewProps) {
       )}
 
       {/* 5 — My work today */}
-      <Card className="border-border/70">
-        <CardHeader className="pb-2 pt-3 px-4">
+      <Card className="border-border/60 bg-card/80">
+        <CardHeader className="px-4 pb-1.5 pt-3">
           <div className="flex items-center justify-between gap-2">
             <CardTitle className="text-sm font-semibold">My work today</CardTitle>
-            <Button variant="ghost" size="sm" className="h-8 text-xs shrink-0" onClick={() => go("tasks")}>
-              All <ChevronRight className="h-3 w-3 ml-0.5" />
+            <Button variant="ghost" size="sm" className="h-8 shrink-0 text-xs" onClick={() => go("tasks")}>
+              Tasks <ChevronRight className="ml-0.5 h-3 w-3" />
             </Button>
           </div>
         </CardHeader>
-        <CardContent className="space-y-3 px-4 pb-4">
+        <CardContent className="space-y-3 px-4 pb-3">
           {tasksLoading ? (
             <Skeleton className="h-14" />
           ) : model.taskStats.openCount === 0 ? (
-            <div className="space-y-2 py-1">
-              <p className="text-sm text-muted-foreground">You&apos;re clear — no open tasks.</p>
+            <div className="space-y-2 py-0.5">
+              <p className="text-sm text-muted-foreground">No open tasks right now.</p>
               <Button variant="outline" size="sm" className="min-h-10 w-full sm:w-auto" onClick={() => go("tasks")}>
-                Open Tasks
+                View tasks tab
               </Button>
             </div>
           ) : (
@@ -567,11 +567,11 @@ export function EmployeePortalOverview(props: EmployeePortalOverviewProps) {
       </Card>
 
       {/* 6 — Requests & leave */}
-      <Card className="border-border/70">
-        <CardHeader className="pb-2 pt-3 px-4">
-          <CardTitle className="text-sm font-semibold">Requests &amp; leave</CardTitle>
+      <Card className="border-border/60 bg-card/80">
+        <CardHeader className="px-4 pb-1.5 pt-3">
+          <CardTitle className="text-sm font-semibold">Leave &amp; HR requests</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-3 px-4 pb-4">
+        <CardContent className="space-y-2.5 px-4 pb-3">
           {pendingShiftRequests > 0 && (
             <button
               type="button"
@@ -593,10 +593,10 @@ export function EmployeePortalOverview(props: EmployeePortalOverviewProps) {
               {leaveTypeLabel(model.leaveSignals.lastRequest.type)} · {formatDate(model.leaveSignals.lastRequest.startDate)}
             </p>
           )}
-          <p className="text-xs text-muted-foreground">
-            Balances ({leaveYear}):{" "}
+          <p className="text-[11px] text-muted-foreground">
+            {leaveYear} balances:{" "}
             <span className="font-medium text-foreground">
-              A {balance.annual}d · S {balance.sick}d · E {balance.emergency}d
+              Annual {balance.annual}d · Sick {balance.sick}d · Emergency {balance.emergency}d
             </span>
           </p>
           {model.leaveSignals.warnings.length > 0 && (
@@ -635,20 +635,20 @@ export function EmployeePortalOverview(props: EmployeePortalOverviewProps) {
 
       {/* 7 — Recent activity */}
       {model.recentTimeline.length > 0 && (
-        <Card className="border-border/70">
-          <CardHeader className="pb-2 pt-3 px-4">
-            <CardTitle className="text-sm font-semibold">Recent activity</CardTitle>
+        <Card className="border-border/50 bg-muted/5">
+          <CardHeader className="px-4 pb-1 pt-3">
+            <CardTitle className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Recent activity</CardTitle>
           </CardHeader>
           <CardContent className="px-4 pb-3">
-            <ul className="space-y-2">
+            <ul className="space-y-1.5">
               {model.recentTimeline.map((row) => (
-                <li key={row.id} className="flex gap-2 text-sm border-b border-border/30 last:border-0 pb-2 last:pb-0">
-                  <span className="w-14 shrink-0 text-[10px] text-muted-foreground leading-tight">
+                <li key={row.id} className="flex gap-2 border-b border-border/25 pb-1.5 text-sm last:border-0 last:pb-0">
+                  <span className="w-14 shrink-0 text-[10px] leading-tight text-muted-foreground">
                     {row.at.toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
                   </span>
                   <div className="min-w-0">
-                    <p className="font-medium leading-tight">{row.title}</p>
-                    {row.subtitle && <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">{row.subtitle}</p>}
+                    <p className="leading-tight font-medium">{row.title}</p>
+                    {row.subtitle && <p className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">{row.subtitle}</p>}
                   </div>
                 </li>
               ))}
@@ -658,31 +658,31 @@ export function EmployeePortalOverview(props: EmployeePortalOverviewProps) {
       )}
 
       {/* 8 — HR month snapshot (compact) */}
-      <Card className="border-border/60">
-        <CardHeader className="pb-1 pt-3 px-4">
-          <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">This month (HR)</CardTitle>
+      <Card className="border-border/50 bg-muted/5">
+        <CardHeader className="px-4 pb-1 pt-3">
+          <CardTitle className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">HR attendance (month)</CardTitle>
         </CardHeader>
         <CardContent className="px-4 pb-3">
           {attendanceRate !== null ? (
             <div className="flex items-center gap-3">
-              <p className="text-2xl font-bold text-green-600 tabular-nums">{attendanceRate}%</p>
-              <div className="flex-1 min-w-0">
+              <p className="text-xl font-bold tabular-nums text-green-600 sm:text-2xl">{attendanceRate}%</p>
+              <div className="min-w-0 flex-1">
                 <Progress value={attendanceRate} className="h-1.5" />
-                <p className="text-[10px] text-muted-foreground mt-1">
-                  {attSummary.present + attSummary.late}/{attSummary.total} days marked
+                <p className="mt-1 text-[10px] text-muted-foreground">
+                  {attSummary.present + attSummary.late}/{attSummary.total} days HR-marked
                 </p>
               </div>
             </div>
           ) : (
-            <p className="text-xs text-muted-foreground">No HR-marked days this month yet. Your own check-ins still appear under Attendance.</p>
+            <p className="text-xs text-muted-foreground">No HR marks yet this month. Your check-ins are on the Attendance tab.</p>
           )}
         </CardContent>
       </Card>
 
       {/* 9 — Secondary insights (collapsed by default) */}
       <details className="group rounded-xl border border-border/70 bg-card open:shadow-sm">
-        <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-4 py-3 text-sm font-semibold [&::-webkit-details-marker]:hidden">
-          More insights
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-4 py-2.5 text-sm font-medium text-muted-foreground [&::-webkit-details-marker]:hidden">
+          More (score &amp; compliance)
           <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
         </summary>
         <div className="space-y-3 border-t border-border/50 px-4 py-3 text-xs">

@@ -376,7 +376,7 @@ function AttendanceTodayCard({
                   : null;
 
   return (
-    <div className="space-y-3">
+    <div id="portal-attendance-today" className="scroll-mt-24 space-y-3">
       {/* Shift / Schedule Banner */}
       {isHoliday ? (
         <Card className="border-purple-200 bg-purple-50/60 dark:bg-purple-950/10">
@@ -615,22 +615,30 @@ function AttendanceTodayCard({
                   </Button>
                 )}
                 {attStrip.showCorrectionButton && (
-                  <Button
-                    variant={correctionEmphasis ? "default" : "outline"}
-                    className={cn(
-                      "min-h-12 gap-2 touch-manipulation disabled:opacity-60",
-                      correctionEmphasis && "ring-2 ring-primary/25",
+                  <div className="flex w-full flex-col gap-1">
+                    <Button
+                      variant={correctionEmphasis ? "default" : "outline"}
+                      className={cn(
+                        "min-h-11 gap-2 touch-manipulation disabled:opacity-60 sm:min-h-12",
+                        correctionEmphasis && "ring-2 ring-primary/25",
+                        !correctionEmphasis && attStrip.showCheckIn && "border-dashed",
+                      )}
+                      disabled={attendanceMutating}
+                      onClick={() => setShowCorrForm(true)}
+                    >
+                      <AlertCircle className="h-4 w-4 shrink-0" /> Request correction
+                      {pendingCorr > 0 && (
+                        <span className="ml-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-bold text-white">
+                          {pendingCorr}
+                        </span>
+                      )}
+                    </Button>
+                    {(attStrip.showCheckIn || attStrip.showCheckOut) && !correctionEmphasis && (
+                      <p className="text-center text-[10px] text-muted-foreground sm:text-left">
+                        Use if your times are wrong — HR reviews.
+                      </p>
                     )}
-                    disabled={attendanceMutating}
-                    onClick={() => setShowCorrForm(true)}
-                  >
-                    <AlertCircle className="h-4 w-4 shrink-0" /> Correction
-                    {pendingCorr > 0 && (
-                      <span className="ml-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-bold text-white">
-                        {pendingCorr}
-                      </span>
-                    )}
-                  </Button>
+                  </div>
                 )}
               </div>
             </div>
@@ -1299,6 +1307,9 @@ export default function EmployeePortalPage() {
     return { today, upcoming, completed };
   }, [tasks]);
 
+  const portalTasksHasActiveWork =
+    groupedPortalTasks.today.length > 0 || groupedPortalTasks.upcoming.length > 0;
+
   /** One gentle nudge per session when Home shows actionable state (real data only) */
   useEffect(() => {
     if (activeTab !== "overview") return;
@@ -1752,9 +1763,20 @@ export default function EmployeePortalPage() {
                         </Button>
                       </div>
                       {scanRecs.length === 0 && !hrRec ? (
-                        <p className="text-xs text-muted-foreground leading-relaxed">
-                          No attendance logged for this date. Check-ins and HR marks will appear here when recorded.
-                        </p>
+                        <div className="space-y-2">
+                          <p className="text-xs text-muted-foreground leading-relaxed">
+                            Nothing logged for this day yet.
+                          </p>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-9 w-full touch-manipulation sm:w-auto"
+                            onClick={() => document.getElementById("portal-attendance-today")?.scrollIntoView({ behavior: "smooth", block: "start" })}
+                          >
+                            Check in / view today
+                          </Button>
+                        </div>
                       ) : (
                         <div className="space-y-2 text-xs">
                           {scanRecs.map((r: any) => {
@@ -1820,13 +1842,22 @@ export default function EmployeePortalPage() {
                     {Array(5).fill(0).map((_, i) => <Skeleton key={i} className="h-12" />)}
                   </div>
                 ) : realAttRecords.length === 0 && attRecords.length === 0 ? (
-                  <div className="text-center py-10 text-muted-foreground">
-                    <UserCheck className="w-10 h-10 mx-auto mb-2 opacity-30" />
-                    <p className="text-sm font-medium text-foreground">No records yet</p>
-                    <p className="text-xs mt-2 max-w-sm mx-auto leading-relaxed">
-                      Your first attendance will appear after you check in, or when HR posts a mark for this month.
-                    </p>
-                    <p className="text-xs mt-2">Use Check In above when you arrive at work.</p>
+                  <div className="space-y-3 py-8 text-center text-muted-foreground">
+                    <UserCheck className="mx-auto h-10 w-10 opacity-30" />
+                    <div className="space-y-1 px-2">
+                      <p className="text-sm font-medium text-foreground">No records this month</p>
+                      <p className="mx-auto max-w-sm text-xs leading-relaxed">
+                        Check in from the card above when you&apos;re on site. HR marks show here too.
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      className="min-h-11 touch-manipulation"
+                      onClick={() => document.getElementById("portal-attendance-today")?.scrollIntoView({ behavior: "smooth", block: "start" })}
+                    >
+                      Go to today&apos;s attendance
+                    </Button>
                   </div>
                 ) : (
                   <div className="space-y-1">
@@ -1892,14 +1923,17 @@ export default function EmployeePortalPage() {
             {/* ══ SHIFT CHANGE & TIME OFF REQUESTS ══════════════════════ */}
             <Card>
               <CardHeader className="pb-2">
-                <div className="flex items-center justify-between flex-wrap gap-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <CardTitle className="text-sm flex items-center gap-2">
-                    <ArrowLeftRight className="w-4 h-4 text-primary" /> Shift Change & Time Off Requests
+                    <ArrowLeftRight className="h-4 w-4 text-primary" /> HR requests
                   </CardTitle>
-                  <Button size="sm" className="gap-1.5" onClick={() => setShowShiftRequestDialog(true)}>
-                    <Plus className="w-3.5 h-3.5" /> New Request
+                  <Button size="sm" className="min-h-9 gap-1.5 touch-manipulation" onClick={() => setShowShiftRequestDialog(true)}>
+                    <Plus className="h-3.5 w-3.5" /> New request
                   </Button>
                 </div>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Shift changes, time off, swaps — same form as the Requests tab.
+                </p>
                 {/* Filter */}
                 <div className="flex gap-1.5 mt-2 flex-wrap">
                   {(["all", "pending", "approved", "rejected", "cancelled"] as const).map(f => (
@@ -1917,10 +1951,13 @@ export default function EmployeePortalPage() {
                   const allReqs = (myShiftRequests ?? []) as any[];
                   const filtered = shiftReqFilter === "all" ? allReqs : allReqs.filter((r: any) => r.request?.status === shiftReqFilter);
                   if (filtered.length === 0) return (
-                    <div className="text-center py-8 text-muted-foreground">
-                      <Repeat className="w-8 h-8 mx-auto mb-2 opacity-30" />
-                      <p className="text-sm">No requests yet</p>
-                      <p className="text-xs mt-1">Use the button above to submit a shift change or time off request</p>
+                    <div className="space-y-3 py-8 text-center text-muted-foreground">
+                      <Repeat className="mx-auto mb-1 h-8 w-8 opacity-30" />
+                      <p className="text-sm font-medium text-foreground">No requests in this filter</p>
+                      <p className="mx-auto max-w-xs text-xs leading-relaxed">Submit one to HR — approvals appear here.</p>
+                      <Button type="button" size="sm" className="min-h-10 touch-manipulation" onClick={() => setShowShiftRequestDialog(true)}>
+                        Submit HR request
+                      </Button>
                     </div>
                   );
                   return (
@@ -2203,23 +2240,29 @@ export default function EmployeePortalPage() {
               <div className="rounded-xl border border-dashed border-border/80 py-10 text-center text-muted-foreground">
                 <CheckSquare className="mx-auto mb-2 h-10 w-10 opacity-30" />
                 <p className="font-medium text-foreground">No tasks yet</p>
-                <p className="mx-auto mt-1 max-w-sm px-4 text-sm">Assigned work will appear here. Home shows what to do first.</p>
+                <p className="mx-auto mt-1 max-w-sm px-4 text-sm">Your manager assigns tasks here. Home shows priorities and attendance.</p>
                 <Button className="mt-5 min-h-11" onClick={() => setActiveTab("overview")}>
                   Back to Home
                 </Button>
               </div>
             ) : (
               <div className="space-y-6">
+                {!portalTasksHasActiveWork && groupedPortalTasks.completed.length > 0 && (
+                  <p className="rounded-lg border border-dashed border-border/60 bg-muted/15 px-3 py-2 text-center text-xs text-muted-foreground">
+                    All open work is done. Completed is below — expand only if you need it.
+                  </p>
+                )}
                 <section className="space-y-2">
                   <h2 className="px-0.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                     Today &amp; overdue
                   </h2>
                   {groupedPortalTasks.today.length === 0 ? (
                     <div className="rounded-lg border border-border/60 bg-muted/20 px-3 py-3 text-sm text-muted-foreground">
-                      <p>Nothing due or overdue today.</p>
+                      <p className="font-medium text-foreground/90">You&apos;re clear for today.</p>
+                      <p className="mt-1 text-xs">No overdue or due-today items.</p>
                       {groupedPortalTasks.upcoming.length > 0 && (
-                        <Button variant="link" className="mt-1 h-auto min-h-0 px-0 text-sm font-medium text-primary" onClick={() => document.getElementById("portal-upcoming-tasks")?.scrollIntoView({ behavior: "smooth" })}>
-                          Jump to upcoming
+                        <Button variant="link" className="mt-2 h-auto min-h-0 px-0 text-sm font-medium text-primary" onClick={() => document.getElementById("portal-upcoming-tasks")?.scrollIntoView({ behavior: "smooth" })}>
+                          See upcoming
                         </Button>
                       )}
                     </div>
@@ -2246,7 +2289,9 @@ export default function EmployeePortalPage() {
                 <section id="portal-upcoming-tasks" className="scroll-mt-28 space-y-2">
                   <h2 className="px-0.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Upcoming</h2>
                   {groupedPortalTasks.upcoming.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">No upcoming dated tasks — you&apos;re set for now.</p>
+                    <p className="text-sm text-muted-foreground">
+                      No future-dated tasks. If something new is assigned, it will show here.
+                    </p>
                   ) : (
                     <div className="space-y-3">
                       {groupedPortalTasks.upcoming.map((task: any) => (
@@ -2266,16 +2311,28 @@ export default function EmployeePortalPage() {
                   )}
                 </section>
 
-                <details className="group rounded-xl border border-border/70 bg-card open:shadow-sm">
-                  <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 px-4 py-3 text-sm font-medium text-muted-foreground touch-manipulation [&::-webkit-details-marker]:hidden">
+                <details
+                  className={`group rounded-xl border open:shadow-sm ${
+                    portalTasksHasActiveWork
+                      ? "border-border/70 bg-card"
+                      : "border-border/50 border-dashed bg-muted/10"
+                  }`}
+                >
+                  <summary
+                    className={`flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-2.5 touch-manipulation [&::-webkit-details-marker]:hidden sm:px-4 sm:py-3 ${
+                      portalTasksHasActiveWork
+                        ? "min-h-11 text-sm font-medium text-muted-foreground"
+                        : "min-h-10 text-xs font-medium text-muted-foreground/90"
+                    }`}
+                  >
                     <span>Completed</span>
-                    <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                    <span className="rounded-full bg-muted/80 px-2 py-0.5 text-[10px] font-medium text-muted-foreground sm:text-xs">
                       {groupedPortalTasks.completed.length}
                     </span>
                   </summary>
-                  <div className="space-y-3 border-t border-border/50 px-4 py-3">
+                  <div className="space-y-3 border-t border-border/50 px-3 py-3 sm:px-4">
                     {groupedPortalTasks.completed.length === 0 ? (
-                      <p className="text-sm text-muted-foreground">No completed tasks yet.</p>
+                      <p className="text-sm text-muted-foreground">Nothing completed yet — finished tasks land here.</p>
                     ) : (
                       groupedPortalTasks.completed.map((task: any) => (
                         <EmployeePortalTaskCard
@@ -2662,8 +2719,8 @@ export default function EmployeePortalPage() {
 
           {/* ══ REQUESTS TAB ══════════════════════════════════════════════════ */}
           <TabsContent value="requests" className="mt-0 space-y-4 focus-visible:outline-none">
-            <div className="space-y-2">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground px-0.5">New request</p>
+            <div className="space-y-3">
+              <p className="px-0.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Start here</p>
               <Button
                 className="flex h-auto min-h-14 w-full touch-manipulation items-center justify-start gap-3 py-3.5 text-left text-base shadow-sm"
                 onClick={() => setShowLeaveDialog(true)}
@@ -2671,7 +2728,7 @@ export default function EmployeePortalPage() {
                 <Calendar className="h-6 w-6 shrink-0" />
                 <span>
                   <span className="block font-semibold">Request leave</span>
-                  <span className="block text-xs font-normal opacity-90">Annual, sick, emergency, unpaid…</span>
+                  <span className="block text-xs font-normal opacity-90">Paid time off — annual, sick, emergency…</span>
                 </span>
               </Button>
               <Button
@@ -2681,48 +2738,43 @@ export default function EmployeePortalPage() {
               >
                 <ArrowLeftRight className="h-5 w-5 shrink-0 text-primary" />
                 <span>
-                  <span className="block font-semibold">Shift or HR request</span>
-                  <span className="block text-xs font-normal text-muted-foreground">Time off, swap, early leave…</span>
+                  <span className="block font-semibold">Everything else to HR</span>
+                  <span className="block text-xs font-normal text-muted-foreground">Shift change, time off block, swap, early leave…</span>
                 </span>
               </Button>
             </div>
 
-            <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
               <div>
                 <h2 className="flex items-center gap-2 text-base font-semibold">
                   <ArrowLeftRight className="h-4 w-4 text-primary" />
                   My requests
                 </h2>
-                <p className="mt-0.5 text-xs text-muted-foreground">Switch view — calendar shows dates; list shows detail.</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">Calendar: month view · List: full detail</p>
               </div>
-              <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
-                <div className="flex overflow-hidden rounded-md border" role="tablist" aria-label="Request view">
-                  <button
-                    type="button"
-                    role="tab"
-                    aria-selected={calView === "calendar" ? "true" : "false"}
-                    onClick={() => setCalView("calendar")}
-                    className={`flex min-h-11 flex-1 items-center justify-center gap-1.5 px-3 py-2 text-xs transition-colors touch-manipulation sm:flex-initial ${
-                      calView === "calendar" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted"
-                    }`}
-                  >
-                    <Calendar className="h-3.5 w-3.5" /> Calendar
-                  </button>
-                  <button
-                    type="button"
-                    role="tab"
-                    aria-selected={calView === "list" ? "true" : "false"}
-                    onClick={() => setCalView("list")}
-                    className={`flex min-h-11 flex-1 items-center justify-center gap-1.5 px-3 py-2 text-xs transition-colors touch-manipulation sm:flex-initial ${
-                      calView === "list" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted"
-                    }`}
-                  >
-                    <FileText className="h-3.5 w-3.5" /> List
-                  </button>
-                </div>
-                <Button className="min-h-11 w-full gap-1.5 text-xs sm:w-auto" onClick={() => setShowShiftRequestDialog(true)}>
-                  <Plus className="h-3.5 w-3.5" /> New HR request
-                </Button>
+              <div className="flex w-full overflow-hidden rounded-md border sm:w-auto" role="tablist" aria-label="Request view">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={calView === "calendar" ? "true" : "false"}
+                  onClick={() => setCalView("calendar")}
+                  className={`flex min-h-11 flex-1 items-center justify-center gap-1.5 px-3 py-2 text-xs transition-colors touch-manipulation sm:min-w-[6.5rem] ${
+                    calView === "calendar" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted"
+                  }`}
+                >
+                  <Calendar className="h-3.5 w-3.5" /> Calendar
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={calView === "list" ? "true" : "false"}
+                  onClick={() => setCalView("list")}
+                  className={`flex min-h-11 flex-1 items-center justify-center gap-1.5 px-3 py-2 text-xs transition-colors touch-manipulation sm:min-w-[6.5rem] ${
+                    calView === "list" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted"
+                  }`}
+                >
+                  <FileText className="h-3.5 w-3.5" /> List
+                </button>
               </div>
             </div>
 
@@ -2762,11 +2814,12 @@ export default function EmployeePortalPage() {
                   };
                   if (allReqs.length === 0) return (
                     <Card className="border-dashed">
-                      <CardContent className="flex flex-col items-center justify-center py-12 gap-3 text-muted-foreground">
-                        <ArrowLeftRight className="w-10 h-10 opacity-20" />
-                        <p className="font-medium">No requests yet</p>
-                        <Button size="sm" variant="outline" onClick={() => setShowShiftRequestDialog(true)} className="gap-1.5">
-                          <Plus className="w-3.5 h-3.5" /> Submit First Request
+                      <CardContent className="flex flex-col items-center justify-center gap-3 py-10 text-muted-foreground">
+                        <ArrowLeftRight className="h-10 w-10 opacity-20" />
+                        <p className="text-center text-sm font-medium text-foreground">No HR requests yet</p>
+                        <p className="max-w-xs text-center text-xs">Leave uses the green button above. Shift changes and other HR items use the form.</p>
+                        <Button size="sm" className="min-h-10 touch-manipulation" onClick={() => setShowShiftRequestDialog(true)}>
+                          Open HR request form
                         </Button>
                       </CardContent>
                     </Card>

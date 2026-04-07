@@ -55,15 +55,16 @@ function applyServerEligibilityToOverviewCta(params: {
   const sh = params.serverHintsReady && params.serverHints != null ? params.serverHints : null;
   let label = params.heuristicLabel;
   if (sh) {
-    if (sh.canCheckOut && params.hasIn && !params.hasOut && !params.attendancePending) {
-      label = "Check out";
-    }
-    if (sh.canCheckIn && params.phase === "active" && !params.hasIn && !params.attendancePending) {
+    // Prefer direct actions whenever the server says they are allowed (e.g. late check-in after shift end).
+    if (sh.canCheckIn && !params.hasIn && !params.attendancePending) {
       label = "Check in now";
+    } else if (sh.canCheckOut && params.hasIn && !params.hasOut && !params.attendancePending) {
+      label = "Check out now";
+    } else {
+      if (!sh.canCheckIn && label === "Check in now") label = "Open attendance";
+      if (!sh.canCheckOut && (label === "Check out" || label === "Check out now")) label = "Open attendance";
+      if (!sh.canRequestCorrection && label === "Request correction") label = "Open attendance";
     }
-    if (!sh.canCheckIn && label === "Check in now") label = "Open attendance";
-    if (!sh.canCheckOut && label === "Check out") label = "Open attendance";
-    if (!sh.canRequestCorrection && label === "Request correction") label = "Open attendance";
   }
   return label;
 }
@@ -108,10 +109,10 @@ export function getOverviewShiftCardPresentation(input: {
     primaryCtaLabel = "Prepare";
   } else if (phase === "active") {
     if (!hasIn) primaryCtaLabel = "Check in now";
-    else if (!hasOut) primaryCtaLabel = "Check out";
+    else if (!hasOut) primaryCtaLabel = "Check out now";
     else primaryCtaLabel = "Open attendance";
   } else if (phase === "ended") {
-    if (hasIn && !hasOut) primaryCtaLabel = "Check out";
+    if (hasIn && !hasOut) primaryCtaLabel = "Check out now";
     else if (hasIn) primaryCtaLabel = "Open attendance";
     else if (pendingCorrectionCount > 0) primaryCtaLabel = "Open attendance";
     else primaryCtaLabel = "Request correction";

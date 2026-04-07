@@ -73,7 +73,7 @@ describe("getOverviewShiftCardPresentation", () => {
       checkIn: fixed(2026, 4, 5, 9, 5),
       checkOut: null,
     });
-    expect(r.primaryCtaLabel).toBe("Check out");
+    expect(r.primaryCtaLabel).toBe("Check out now");
     expect(r.showMissedActiveWarning).toBe(false);
   });
 
@@ -87,7 +87,7 @@ describe("getOverviewShiftCardPresentation", () => {
       checkOut: null,
     });
     expect(r.phase).toBe("ended");
-    expect(r.primaryCtaLabel).toBe("Check out");
+    expect(r.primaryCtaLabel).toBe("Check out now");
     expect(r.showSecondaryLogWork).toBe(true);
   });
 
@@ -198,7 +198,7 @@ describe("getOverviewShiftCardPresentation", () => {
     expect(r.primaryCtaLabel).toBe("Open attendance");
   });
 
-  it("server hints: canCheckOut true forces Check out when checked in", () => {
+  it("server hints: canCheckOut true forces Check out now when checked in", () => {
     const t = fixed(2026, 4, 5, 12);
     const r = getOverviewShiftCardPresentation({
       startTime: "09:00",
@@ -210,7 +210,22 @@ describe("getOverviewShiftCardPresentation", () => {
       serverHintsReady: true,
       serverHints: elHints({ canCheckIn: false, canCheckOut: true, canRequestCorrection: true }),
     });
-    expect(r.primaryCtaLabel).toBe("Check out");
+    expect(r.primaryCtaLabel).toBe("Check out now");
+  });
+
+  it("server hints: canCheckIn true after shift end still shows Check in now", () => {
+    const r = getOverviewShiftCardPresentation({
+      startTime: "09:00",
+      endTime: "17:00",
+      now: fixed(2026, 4, 5, 18),
+      attendanceLoading: false,
+      checkIn: null,
+      checkOut: null,
+      pendingCorrectionCount: 0,
+      serverHintsReady: true,
+      serverHints: elHints({ canCheckIn: true, canCheckOut: false, canRequestCorrection: true }),
+    });
+    expect(r.primaryCtaLabel).toBe("Check in now");
   });
 
   it("server hints ignored when not ready (client heuristic only)", () => {

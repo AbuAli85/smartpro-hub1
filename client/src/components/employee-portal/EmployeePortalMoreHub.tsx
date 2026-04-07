@@ -35,13 +35,13 @@ function HubSection({ title, items, setActiveTab }: { title: string; items: HubI
   if (items.length === 0) return null;
   return (
     <div className="space-y-2">
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground px-0.5">{title}</p>
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+      <p className="px-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{title}</p>
+      <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2 sm:gap-2">
         {items.map(({ tab, label, Icon, badge }) => (
           <Button
             key={tab}
             variant="outline"
-            className="relative h-auto min-h-[3.5rem] flex flex-row items-center justify-start gap-3 px-3 py-3 text-left font-normal touch-manipulation"
+            className="relative flex h-auto min-h-[3.25rem] flex-row items-center justify-start gap-2.5 px-3 py-2.5 text-left text-sm font-normal touch-manipulation"
             onClick={() => setActiveTab(tab)}
           >
             <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
@@ -86,18 +86,18 @@ export function EmployeePortalMoreHub({
   ];
 
   return (
-    <div className="mt-4 space-y-4">
+    <div className="mt-3 space-y-3">
       <Card className="border-border/60">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base">Tools</CardTitle>
-          <p className="text-xs font-normal text-muted-foreground">Leave, payslips, documents, KPIs — same destinations as desktop.</p>
+        <CardHeader className="pb-1.5 pt-3">
+          <CardTitle className="text-sm font-semibold">Tools</CardTitle>
+          <p className="text-[11px] font-normal text-muted-foreground">Quick links — same pages as desktop.</p>
         </CardHeader>
-        <CardContent className="space-y-5">
+        <CardContent className="space-y-4 pb-3 pt-0">
           <HubSection title="Work" items={work} setActiveTab={setActiveTab} />
-          <div className="border-t border-border/50 pt-4">
+          <div className="border-t border-border/50 pt-3">
             <HubSection title="HR & pay" items={hr} setActiveTab={setActiveTab} />
           </div>
-          <div className="border-t border-border/50 pt-4">
+          <div className="border-t border-border/50 pt-3">
             <HubSection title="Growth" items={performance} setActiveTab={setActiveTab} />
           </div>
         </CardContent>

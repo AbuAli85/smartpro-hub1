@@ -15,8 +15,8 @@ describe("universalPerformanceSignal", () => {
       recommendedManagerActions: ["p1", "p2", "p3", "p4", "p5"],
     };
     const u = buildUniversalPerformanceSignal(assessment, 72, "flat", null, null);
-    expect(u.keyReasons.length).toBeLessThanOrEqual(4);
-    expect(u.topPriorities.length).toBeLessThanOrEqual(4);
+    expect(u.keyReasons.length).toBeLessThanOrEqual(3);
+    expect(u.topPriorities.length).toBeLessThanOrEqual(3);
     expect(u.trend).toBe("stable");
     expect(u.interventionFollowUpAt).toBeNull();
   });

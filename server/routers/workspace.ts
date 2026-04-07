@@ -52,7 +52,7 @@ export const workspaceRouter = router({
 
       let team = null;
       if (includeTeam && (await canReadTeamWorkspace(ctx.user, companyId))) {
-        team = await loadTeamWorkspace(db, companyId, year, month);
+        team = await loadTeamWorkspace(db, companyId, year, month, ctx.user.id);
       }
 
       return { year, month, my, team };
@@ -121,7 +121,7 @@ export const workspaceRouter = router({
           companyId: m.companyId,
           type: "intervention",
           title: "Manager follow-up",
-          message: "Your manager logged a performance follow-up. Open Workspace to see details.",
+          message: "Your manager sent a follow-up. Open Workspace to see it.",
           link: "/workspace",
         });
       }

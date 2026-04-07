@@ -112,6 +112,11 @@ export function ExecutiveControlTower({ tower, showHref, execution, companyId, m
           Owner workspace
         </h2>
         <div className="flex flex-wrap gap-1 justify-end">
+          {showHref("/workspace") && (
+            <Button variant="ghost" size="sm" className="text-xs h-7" asChild>
+              <Link href="/workspace">Team workspace</Link>
+            </Button>
+          )}
           {showHref("/crm") && (
             <Button variant="ghost" size="sm" className="text-xs h-7" asChild>
               <Link href="/crm">

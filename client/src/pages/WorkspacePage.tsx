@@ -39,11 +39,31 @@ function statusTone(s: string): string {
 }
 
 const KIND_LABEL: Record<string, string> = {
-  request_update: "Update requested",
+  request_update: "Request update",
   corrective_task: "Corrective task",
-  follow_up: "Follow-up",
+  follow_up: "Follow-up set",
   under_review: "Under review",
   escalate: "Escalated",
+};
+
+const PERFORMANCE_STATUS_LABEL: Record<string, string> = {
+  on_track: "On track",
+  watch: "Watch",
+  at_risk: "At risk",
+  critical: "Critical",
+};
+
+const TREND_LABEL: Record<string, string> = {
+  improving: "Improving",
+  stable: "Stable",
+  declining: "Declining",
+};
+
+/** When to show a second chip alongside the main status */
+const REVIEW_STATE_LABEL: Record<string, string> = {
+  under_review: "Under review",
+  recovery_active: "Recovery active",
+  escalated: "Follow-up urgent",
 };
 
 function urgencyLabel(u: string): string | null {
@@ -71,12 +91,20 @@ export default function WorkspacePage() {
 
   const createIv = trpc.workspace.createIntervention.useMutation({
     onSuccess: async () => {
-      toast.success("Follow-up logged");
+      toast.success("Follow-up sent");
       setActOpen(false);
       setActNote("");
       setActFollowUp("");
       setActTaskTitle("");
       setActTaskDue("");
+      await utils.workspace.getWorkspace.invalidate();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const closeIv = trpc.workspace.closeIntervention.useMutation({
+    onSuccess: async () => {
+      toast.success("Follow-up cleared");
       await utils.workspace.getWorkspace.invalidate();
     },
     onError: (e) => toast.error(e.message),
@@ -140,9 +168,7 @@ export default function WorkspacePage() {
           <LayoutGrid className="h-7 w-7" />
           Workspace
         </h1>
-        <p className="text-sm text-muted-foreground">
-          What matters today — status, work, and team health in one calm view.
-        </p>
+        <p className="text-sm text-muted-foreground">Your status, priorities, and team — one place.</p>
       </header>
 
       {my?.mode === "no_employee" && (
@@ -179,18 +205,26 @@ export default function WorkspacePage() {
               <CardHeader className="pb-2">
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge className={statusTone(my.signal.status)}>{my.signal.statusLabel}</Badge>
-                  <Badge variant="outline">Trend: {my.signal.trend}</Badge>
-                  <Badge variant="secondary">{my.signal.compositeScore}/100</Badge>
-                  {my.signal.reviewState !== "none" && (
-                    <Badge variant="outline">Review: {my.signal.reviewState.replace(/_/g, " ")}</Badge>
+                  <Badge variant="outline">{TREND_LABEL[my.signal.trend] ?? my.signal.trend}</Badge>
+                  <Badge variant="secondary" title="Snapshot score">
+                    {my.signal.compositeScore}/100
+                  </Badge>
+                  {my.signal.reviewState === "recovery_active" && (
+                    <Badge variant="outline">Recovery active</Badge>
+                  )}
+                  {my.signal.reviewState === "under_review" && (
+                    <Badge variant="outline">{REVIEW_STATE_LABEL.under_review}</Badge>
+                  )}
+                  {my.signal.reviewState === "escalated" && (
+                    <Badge variant="outline">{REVIEW_STATE_LABEL.escalated}</Badge>
                   )}
                 </div>
                 {my.signal.interventionFollowUpAt && (
                   <p className="text-xs text-muted-foreground pt-1">
-                    Next check-in: <span className="font-medium text-foreground">{my.signal.interventionFollowUpAt}</span>
+                    Follow-up due: <span className="font-medium text-foreground">{my.signal.interventionFollowUpAt}</span>
                   </p>
                 )}
-                <CardDescription className="text-xs pt-1">Combined from tasks, KPI, attendance, and follow-ups.</CardDescription>
+                <CardDescription className="text-xs pt-1">Based on tasks, goals, and attendance this period.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3 text-sm">
                 {my.signal.keyReasons.length > 0 && (
@@ -205,7 +239,7 @@ export default function WorkspacePage() {
                 )}
                 {my.signal.topPriorities.length > 0 && (
                   <div>
-                    <p className="text-xs font-medium text-muted-foreground mb-1">Next steps</p>
+                    <p className="text-xs font-medium text-muted-foreground mb-1">Next</p>
                     <ul className="list-disc pl-5 space-y-0.5">
                       {my.signal.topPriorities.map((r) => (
                         <li key={r}>{r}</li>
@@ -239,7 +273,7 @@ export default function WorkspacePage() {
                               {urgencyLabel(t.urgency)}
                             </Badge>
                           )}
-                          {t.priority} · {t.status}
+                          {t.priority} · {t.status === "in_progress" ? "In progress" : t.status.replace(/_/g, " ")}
                           {t.dueDate ? ` · ${t.dueDate}` : ""}
                         </span>
                       </li>
@@ -285,9 +319,25 @@ export default function WorkspacePage() {
                   <ul className="space-y-2 border-t border-border/60 pt-3">
                     {my.review.interventions.map((iv) => (
                       <li key={iv.id} className="text-xs text-muted-foreground">
-                        <span className="font-medium text-foreground">{KIND_LABEL[iv.kind] ?? iv.kind}</span>
-                        {iv.followUpAt && ` · follow-up ${iv.followUpAt}`}
-                        {iv.note && ` — ${iv.note}`}
+                        <span className="flex flex-wrap items-center gap-1.5">
+                          <span className="font-medium text-foreground">{KIND_LABEL[iv.kind] ?? iv.kind}</span>
+                          {iv.status === "escalated" ? (
+                            <Badge variant="destructive" className="text-[9px] px-1 py-0 h-5">
+                              Escalated
+                            </Badge>
+                          ) : (
+                            <Badge variant="secondary" className="text-[9px] px-1 py-0 h-5">
+                              Open
+                            </Badge>
+                          )}
+                        </span>
+                        {iv.followUpAt && (
+                          <span className="block text-foreground/90 mt-0.5">
+                            Follow-up due {iv.followUpAt}
+                            {iv.followUpAt < new Date().toISOString().slice(0, 10) ? " (overdue)" : ""}
+                          </span>
+                        )}
+                        {iv.note && <span className="block mt-0.5">Note: {iv.note}</span>}
                         <span className="block text-[10px] mt-0.5">From {iv.managerLabel}</span>
                       </li>
                     ))}
@@ -310,7 +360,7 @@ export default function WorkspacePage() {
             <Users className="h-5 w-5" />
             Team
           </h2>
-          <p className="text-sm text-muted-foreground">{team.progressSummary}</p>
+          <p className="text-sm text-muted-foreground leading-snug">{team.progressSummary}</p>
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-sm">
             <Card>
@@ -348,7 +398,7 @@ export default function WorkspacePage() {
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-base">Who needs attention</CardTitle>
-              <CardDescription>Why, what to do, then open the person if you need detail.</CardDescription>
+              <CardDescription>Top priorities first — open the person for full detail.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3 text-sm">
               {team.attention.length === 0 ? (
@@ -356,7 +406,7 @@ export default function WorkspacePage() {
               ) : (
                 <ul className="space-y-3">
                   {team.attention.map((r) => (
-                    <li key={r.employeeId} className="rounded-lg border border-border/60 p-3 space-y-1">
+                    <li key={r.employeeId} className="rounded-lg border border-border/60 p-3 space-y-1.5">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <Link
                           href={`/business/employee/${r.employeeId}`}
@@ -364,10 +414,34 @@ export default function WorkspacePage() {
                         >
                           {r.name}
                         </Link>
-                        <div className="flex items-center gap-2 shrink-0">
+                        <div className="flex items-center gap-1 shrink-0 flex-wrap justify-end">
                           <Badge className={statusTone(r.status)} variant="secondary">
-                            {r.status.replace(/_/g, " ")}
+                            {PERFORMANCE_STATUS_LABEL[r.status] ?? r.status.replace(/_/g, " ")}
                           </Badge>
+                          {r.openFollowUpCount > 0 && (
+                            <Badge variant="outline" className="text-[9px]">
+                              {r.followUpOverdue
+                                ? "Follow-up overdue"
+                                : r.nextFollowUpAt
+                                  ? `Follow-up ${r.nextFollowUpAt}`
+                                  : `${r.openFollowUpCount} open`}
+                            </Badge>
+                          )}
+                          {r.myInterventionId != null && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 text-[10px] px-2"
+                              disabled={closeIv.isPending}
+                              onClick={() => {
+                                if (!confirm("Clear your follow-up on this person?")) return;
+                                closeIv.mutate({ id: r.myInterventionId!, companyId: activeCompanyId ?? undefined });
+                              }}
+                            >
+                              Clear
+                            </Button>
+                          )}
                           <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={() => openAct(r)}>
                             Act
                           </Button>
@@ -378,7 +452,7 @@ export default function WorkspacePage() {
                         {r.primaryWhy}
                       </p>
                       <p className="text-xs">
-                        <span className="font-medium text-muted-foreground">Do: </span>
+                        <span className="font-medium text-muted-foreground">Next: </span>
                         {r.suggestedAction}
                       </p>
                     </li>
@@ -388,29 +462,33 @@ export default function WorkspacePage() {
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base flex items-center gap-2">
-                <ClipboardList className="h-4 w-4" />
-                Decisions
-              </CardTitle>
-              <CardDescription>Queues needing a decision elsewhere.</CardDescription>
-            </CardHeader>
-            <CardContent className="text-sm flex flex-wrap gap-x-8 gap-y-2">
-              <div>
-                <span className="text-2xl font-semibold tabular-nums">
-                  {team.decisions.pendingEmployeeRequests}
-                </span>
-                <span className="text-muted-foreground ml-2">employee requests</span>
-              </div>
-              <div>
-                <span className="text-2xl font-semibold tabular-nums">
-                  {team.decisions.pendingLeaveRequests}
-                </span>
-                <span className="text-muted-foreground ml-2">leave requests</span>
-              </div>
-            </CardContent>
-          </Card>
+          {team.decisions.pendingEmployeeRequests + team.decisions.pendingLeaveRequests > 0 ? (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <ClipboardList className="h-4 w-4" />
+                  Approvals
+                </CardTitle>
+                <CardDescription>Pending in HR queues.</CardDescription>
+              </CardHeader>
+              <CardContent className="text-sm flex flex-wrap gap-x-8 gap-y-2">
+                <div>
+                  <span className="text-2xl font-semibold tabular-nums">
+                    {team.decisions.pendingEmployeeRequests}
+                  </span>
+                  <span className="text-muted-foreground ml-2">requests</span>
+                </div>
+                <div>
+                  <span className="text-2xl font-semibold tabular-nums">
+                    {team.decisions.pendingLeaveRequests}
+                  </span>
+                  <span className="text-muted-foreground ml-2">leave</span>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <p className="text-xs text-muted-foreground">No pending employee or leave approvals in queue.</p>
+          )}
 
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" size="sm" asChild>
@@ -426,8 +504,8 @@ export default function WorkspacePage() {
       <Dialog open={actOpen} onOpenChange={setActOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Log follow-up{actTarget ? ` — ${actTarget.name}` : ""}</DialogTitle>
-            <DialogDescription>Short, practical — the person gets a notification.</DialogDescription>
+            <DialogTitle>Follow-up{actTarget ? ` — ${actTarget.name}` : ""}</DialogTitle>
+            <DialogDescription>They get a short notification. Optional note and date.</DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-2">
             <div className="space-y-1">
@@ -438,15 +516,15 @@ export default function WorkspacePage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="request_update">Request update</SelectItem>
-                  <SelectItem value="follow_up">Schedule follow-up</SelectItem>
-                  <SelectItem value="under_review">Mark under review</SelectItem>
+                  <SelectItem value="follow_up">Set follow-up date</SelectItem>
+                  <SelectItem value="under_review">Under review</SelectItem>
                   <SelectItem value="corrective_task">Assign corrective task</SelectItem>
                   <SelectItem value="escalate">Escalate</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-1">
-              <Label htmlFor="fu">Follow-up date (optional)</Label>
+              <Label htmlFor="fu">Remind me on (optional)</Label>
               <Input
                 id="fu"
                 type="date"
@@ -476,7 +554,7 @@ export default function WorkspacePage() {
               Cancel
             </Button>
             <Button type="button" onClick={submitAct} disabled={createIv.isPending}>
-              {createIv.isPending ? "Saving…" : "Save"}
+              {createIv.isPending ? "Sending…" : "Send"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -484,11 +562,11 @@ export default function WorkspacePage() {
 
       <p className="text-xs text-muted-foreground">
         <Link href="/hr/performance" className="underline underline-offset-2">
-          Deeper performance tools
+          Performance &amp; goals
         </Link>{" "}
         ·{" "}
         <Link href="/hr/accountability" className="underline underline-offset-2">
-          Accountability detail
+          Accountability
         </Link>
       </p>
     </div>

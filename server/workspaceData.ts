@@ -30,10 +30,28 @@ export type MyWorkspaceTask = {
 export type MyWorkspaceIntervention = {
   id: number;
   kind: string;
+  /** Open or escalated — closed rows are not returned */
+  status: "open" | "escalated";
   followUpAt: string | null;
   note: string | null;
   managerLabel: string;
 };
+
+/** Exported for tests — strongest follow-ups first (escalated, overdue date, earliest date). */
+export function sortInterventionsForDisplay(rows: MyWorkspaceIntervention[]): MyWorkspaceIntervention[] {
+  const today = new Date().toISOString().slice(0, 10);
+  return [...rows].sort((a, b) => {
+    const tier = (s: string) => (s === "escalated" ? 0 : 1);
+    if (tier(a.status) !== tier(b.status)) return tier(a.status) - tier(b.status);
+    const aOver = a.followUpAt != null && a.followUpAt < today;
+    const bOver = b.followUpAt != null && b.followUpAt < today;
+    if (aOver !== bOver) return aOver ? -1 : 1;
+    if (a.followUpAt && b.followUpAt) return a.followUpAt.localeCompare(b.followUpAt);
+    if (a.followUpAt) return -1;
+    if (b.followUpAt) return 1;
+    return b.id - a.id;
+  });
+}
 
 export type MyWorkspacePayload = {
   mode: "ok";
@@ -94,7 +112,7 @@ function dedupeIssueLines(lines: string[]): string[] {
     if (!x || seen.has(x)) continue;
     seen.add(x);
     out.push(x);
-    if (out.length >= 5) break;
+    if (out.length >= 4) break;
   }
   return out;
 }
@@ -136,6 +154,7 @@ async function loadInterventionsForReview(
     .select({
       id: performanceInterventions.id,
       kind: performanceInterventions.kind,
+      status: performanceInterventions.status,
       followUpAt: performanceInterventions.followUpAt,
       note: performanceInterventions.note,
       managerName: users.name,
@@ -150,15 +169,18 @@ async function loadInterventionsForReview(
       )
     )
     .orderBy(desc(performanceInterventions.createdAt))
-    .limit(4);
+    .limit(12);
 
-  return rows.map((r) => ({
+  const mapped: MyWorkspaceIntervention[] = rows.map((r) => ({
     id: r.id,
     kind: r.kind,
+    status: r.status === "escalated" ? "escalated" : "open",
     followUpAt: r.followUpAt ? r.followUpAt.toISOString().slice(0, 10) : null,
     note: r.note,
     managerLabel: r.managerName ?? "Manager",
   }));
+
+  return sortInterventionsForDisplay(mapped).slice(0, 4);
 }
 
 export async function loadMyWorkspace(
@@ -267,32 +289,31 @@ export async function loadMyWorkspace(
     };
   });
 
-  const issueCandidates: string[] = [];
+  const blockedLines: string[] = [];
+  const reasonLines: string[] = [];
   for (const r of signal.keyReasons) {
-    issueCandidates.push(r);
+    reasonLines.push(r);
   }
   for (const t of taskRows) {
     if (t.status === "blocked" && t.blockedReason) {
-      issueCandidates.push(`Blocked — ${t.title.slice(0, 70)}${t.title.length > 70 ? "…" : ""}`);
+      blockedLines.push(`Blocked — ${t.title.slice(0, 70)}${t.title.length > 70 ? "…" : ""}`);
     }
   }
-  const issues = dedupeIssueLines(issueCandidates);
+  const issues = dedupeIssueLines([...blockedLines, ...reasonLines]);
 
   const interventions = await loadInterventionsForReview(db, companyId, emp.id);
 
-  let reviewSummary = "No active follow-up from your manager right now.";
+  let reviewSummary = "No manager follow-up right now.";
   if (interventions.length > 0) {
     const next = signal.interventionFollowUpAt;
-    reviewSummary = next
-      ? `Manager follow-up scheduled (${next}). See details below.`
-      : "Your manager has an open follow-up with you — see below.";
+    reviewSummary = next ? `Follow-up due ${next}. Details below.` : "Open follow-up — details below.";
   }
   if (signal.reviewState === "under_review") {
-    reviewSummary = "Your self-review is waiting for manager input.";
+    reviewSummary = "Under review — your manager is looking at your self-review.";
   } else if (signal.reviewState === "recovery_active" && interventions.length === 0) {
-    reviewSummary = "Performance needs attention — sync with your manager on the next steps above.";
+    reviewSummary = "Recovery active — align with your manager on next steps above.";
   } else if (signal.reviewState === "escalated") {
-    reviewSummary = "This needs immediate attention — reach your manager today.";
+    reviewSummary = "Needs attention now — contact your manager today.";
   }
 
   return {
@@ -318,6 +339,13 @@ export type TeamAttentionRow = {
   primaryWhy: string;
   suggestedAction: string;
   attentionScore: number;
+  /** Active follow-up rows (any manager) */
+  openFollowUpCount: number;
+  /** Earliest scheduled follow-up (YYYY-MM-DD), if any */
+  nextFollowUpAt: string | null;
+  followUpOverdue: boolean;
+  /** Latest open intervention created by the viewing manager — close without extra navigation */
+  myInterventionId: number | null;
 };
 
 export type TeamWorkspacePayload = {
@@ -345,11 +373,56 @@ function severityN(status: string): number {
   return 1;
 }
 
+type InterventionAgg = {
+  count: number;
+  earliestFollowUp: string | null;
+  hasEscalated: boolean;
+  followUpOverdue: boolean;
+  myLatestOpenId: number | null;
+};
+
+function buildInterventionAggByEmployee(
+  intRows: (typeof performanceInterventions.$inferSelect)[],
+  managerUserId: number,
+  todayStr: string
+): Map<number, InterventionAgg> {
+  const m = new Map<number, InterventionAgg>();
+  for (const ir of intRows) {
+    let agg = m.get(ir.employeeId);
+    if (!agg) {
+      agg = {
+        count: 0,
+        earliestFollowUp: null,
+        hasEscalated: false,
+        followUpOverdue: false,
+        myLatestOpenId: null,
+      };
+      m.set(ir.employeeId, agg);
+    }
+    agg.count += 1;
+    if (ir.status === "escalated" || ir.kind === "escalate") agg.hasEscalated = true;
+    const fu = ir.followUpAt ? ir.followUpAt.toISOString().slice(0, 10) : null;
+    if (fu) {
+      if (!agg.earliestFollowUp || fu < agg.earliestFollowUp) agg.earliestFollowUp = fu;
+    }
+    if (ir.managerUserId === managerUserId) {
+      if (agg.myLatestOpenId == null || ir.id > agg.myLatestOpenId) {
+        agg.myLatestOpenId = ir.id;
+      }
+    }
+  }
+  for (const agg of m.values()) {
+    if (agg.earliestFollowUp && agg.earliestFollowUp < todayStr) agg.followUpOverdue = true;
+  }
+  return m;
+}
+
 export async function loadTeamWorkspace(
   db: PerformanceDb,
   companyId: number,
   year: number,
-  month: number
+  month: number,
+  managerUserId: number
 ): Promise<TeamWorkspacePayload> {
   const rows = await listTeamScorecardSummaries(db, companyId, {}, year, month);
 
@@ -374,10 +447,8 @@ export async function loadTeamWorkspace(
         inArray(performanceInterventions.status, ["open", "escalated"])
       )
     );
-  const intCountByEmp = new Map<number, number>();
-  for (const ir of intRows) {
-    intCountByEmp.set(ir.employeeId, (intCountByEmp.get(ir.employeeId) ?? 0) + 1);
-  }
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const intAgg = buildInterventionAggByEmployee(intRows, managerUserId, todayStr);
 
   const attentionRows: TeamAttentionRow[] = rows
     .filter((r) => r.assessment.status !== "on_track")
@@ -387,9 +458,13 @@ export async function loadTeamWorkspace(
         (r.assessment.status === "watch" ? "Performance needs a light touch this week." : "Needs attention.");
       const act =
         r.assessment.recommendedManagerActions[0] ?? "Check in and remove blockers.";
-      const ic = intCountByEmp.get(r.employeeId) ?? 0;
-      const attentionScore =
+      const ia = intAgg.get(r.employeeId);
+      const ic = ia?.count ?? 0;
+      let attentionScore =
         severityN(r.assessment.status) * 1000 - r.compositeScore + ic * 25 + (r.trend === "declining" ? 15 : 0);
+      if (ia?.followUpOverdue) attentionScore += 220;
+      if (ia?.hasEscalated) attentionScore += 160;
+      if (ic > 0 && !ia?.earliestFollowUp) attentionScore += 35;
       return {
         employeeId: r.employeeId,
         name: r.name,
@@ -397,6 +472,10 @@ export async function loadTeamWorkspace(
         primaryWhy: why,
         suggestedAction: act,
         attentionScore,
+        openFollowUpCount: ic,
+        nextFollowUpAt: ia?.earliestFollowUp ?? null,
+        followUpOverdue: ia?.followUpOverdue ?? false,
+        myInterventionId: ia?.myLatestOpenId ?? null,
       };
     });
 

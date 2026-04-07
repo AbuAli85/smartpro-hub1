@@ -88,8 +88,8 @@ export function buildUniversalPerformanceSignal(
   lastSelfReviewStatus: string | null,
   intervention?: InterventionSignalContext | null
 ): UniversalPerformanceSignal {
-  const keyReasons = cap(assessment.reasons, 4);
-  const topPriorities = cap(assessment.recommendedManagerActions, 4);
+  const keyReasons = cap(assessment.reasons, 3);
+  const topPriorities = cap(assessment.recommendedManagerActions, 3);
   let reviewState = deriveReviewState(assessment, lastSelfReviewStatus);
   reviewState = mergeReviewWithInterventions(reviewState, intervention ?? null);
   return {

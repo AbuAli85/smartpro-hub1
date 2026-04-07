@@ -7,6 +7,7 @@ import {
   employees,
   leaveRequests,
   performanceInterventions,
+  type User,
   users,
 } from "../drizzle/schema";
 import { buildEffectiveAccountability } from "./accountabilityEngine";
@@ -17,6 +18,7 @@ import {
   type InterventionSignalContext,
   type UniversalPerformanceSignal,
 } from "./universalPerformanceSignal";
+import { canAccessGlobalAdminProcedures } from "@shared/rbac";
 
 export type MyWorkspaceTask = {
   id: number;
@@ -73,7 +75,45 @@ export type MyWorkspacePayload = {
 } | {
   mode: "no_employee";
   message: string;
+  /** True when the user is a company operator (admin/HR/finance) or platform admin — personal roster row is missing */
+  isAdminUnlinked: boolean;
 };
+
+function isWorkspaceOperatorContext(
+  companyMemberRole: string | null | undefined,
+  user: Pick<User, "role" | "platformRole"> | null | undefined
+): boolean {
+  if (
+    companyMemberRole === "company_admin" ||
+    companyMemberRole === "hr_admin" ||
+    companyMemberRole === "finance_admin"
+  ) {
+    return true;
+  }
+  if (!user) return false;
+  if (user.platformRole === "company_admin") return true;
+  return canAccessGlobalAdminProcedures(user);
+}
+
+function noEmployeePayload(
+  companyMemberRole: string | null | undefined,
+  user: Pick<User, "role" | "platformRole"> | null | undefined
+): Extract<MyWorkspacePayload, { mode: "no_employee" }> {
+  if (isWorkspaceOperatorContext(companyMemberRole, user)) {
+    return {
+      mode: "no_employee",
+      message:
+        "You are not linked to an employee record in this company's roster. The team summary below still works. In People, add yourself or link your user to an employee profile to see your personal performance and tasks here.",
+      isAdminUnlinked: true,
+    };
+  }
+  return {
+    mode: "no_employee",
+    message:
+      "Your user is not linked to an employee profile in this company. Ask HR to connect your account.",
+    isAdminUnlinked: false,
+  };
+}
 
 function priorityOrder(p: string): number {
   const m: Record<string, number> = { urgent: 0, high: 1, medium: 2, low: 3 };
@@ -188,7 +228,11 @@ export async function loadMyWorkspace(
   companyId: number,
   userId: number,
   year: number,
-  month: number
+  month: number,
+  rosterCtx?: {
+    companyMemberRole?: string | null;
+    user?: Pick<User, "role" | "platformRole"> | null;
+  }
 ): Promise<MyWorkspacePayload> {
   const [emp] = await db
     .select()
@@ -197,10 +241,7 @@ export async function loadMyWorkspace(
     .limit(1);
 
   if (!emp) {
-    return {
-      mode: "no_employee",
-      message: "Your user is not linked to an employee profile in this company. Ask HR to connect your account.",
-    };
+    return noEmployeePayload(rosterCtx?.companyMemberRole, rosterCtx?.user ?? null);
   }
 
   const bundle = await getSinglePersonPerformanceBundle(db, companyId, emp.id, year, month);
@@ -208,6 +249,7 @@ export async function loadMyWorkspace(
     return {
       mode: "no_employee",
       message: "Employee record could not be loaded.",
+      isAdminUnlinked: isWorkspaceOperatorContext(rosterCtx?.companyMemberRole, rosterCtx?.user ?? null),
     };
   }
 

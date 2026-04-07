@@ -206,9 +206,21 @@ export default function WorkspacePage() {
       </header>
 
       {my?.mode === "no_employee" && (
-        <Alert>
-          <AlertTitle>Employee profile</AlertTitle>
-          <AlertDescription>{my.message}</AlertDescription>
+        <Alert variant={my.isAdminUnlinked ? "default" : "destructive"}>
+          <AlertTitle>
+            {my.isAdminUnlinked ? "No personal employee profile" : "Employee profile"}
+          </AlertTitle>
+          <AlertDescription className="space-y-2">
+            <p>{my.message}</p>
+            {my.isAdminUnlinked ? (
+              <p className="text-sm">
+                <Link href="/hr/employees" className="underline font-medium text-foreground">
+                  Open People (employees)
+                </Link>{" "}
+                to add or link your record.
+              </p>
+            ) : null}
+          </AlertDescription>
         </Alert>
       )}
 

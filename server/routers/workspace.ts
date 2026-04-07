@@ -2,7 +2,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { and, eq } from "drizzle-orm";
 import { router, protectedProcedure } from "../_core/trpc";
-import { getDb } from "../db";
+import { getDb, getUserCompanyById } from "../db";
 import { requireActiveCompanyId } from "../_core/tenant";
 import { requireNotAuditor, requireWorkspaceMembership } from "../_core/membership";
 import { canReadTeamWorkspace } from "../personPerformanceAccess";
@@ -43,12 +43,16 @@ export const workspaceRouter = router({
     .query(async ({ ctx, input }) => {
       const db = await requireDb();
       const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      const membership = await getUserCompanyById(ctx.user.id, companyId);
       const now = new Date();
       const year = input.year ?? now.getFullYear();
       const month = input.month ?? now.getMonth() + 1;
       const includeTeam = input.includeTeam !== false;
 
-      const my = await loadMyWorkspace(db, companyId, ctx.user.id, year, month);
+      const my = await loadMyWorkspace(db, companyId, ctx.user.id, year, month, {
+        companyMemberRole: membership?.member?.role ?? null,
+        user: ctx.user,
+      });
 
       let team = null;
       if (includeTeam && (await canReadTeamWorkspace(ctx.user, companyId))) {

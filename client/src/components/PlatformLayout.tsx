@@ -154,7 +154,7 @@ const navGroups = [
       { label: "Departments", href: "/hr/departments", icon: <Building2 size={18} /> },
       { label: "Org Chart", href: "/hr/org-chart", icon: <Network size={18} /> },
       { label: "Workforce Intelligence", href: "/hr/workforce-intelligence", icon: <Activity size={18} /> },
-      { label: "Executive Dashboard", href: "/hr/executive-dashboard", icon: <Globe size={18} /> },
+      { label: "HR performance & automation", href: "/hr/executive-dashboard", icon: <Globe size={18} /> },
       { label: "Org Structure", href: "/hr/org-structure", icon: <LayoutGrid size={18} /> },
       { label: "Profile Completeness", href: "/hr/completeness", icon: <UserCheck size={18} /> },
       // Pay & Leave

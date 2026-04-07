@@ -52,6 +52,9 @@ import {
 } from "../controlTower";
 import { listDecisionWorkItems } from "../decisionWorkItems";
 import { listCollectionsExecutionQueue, upsertCollectionWorkItem } from "../collectionsExecution";
+import { filterDecisionWorkItemsForRole } from "../executionCapabilities";
+import { buildManagementCadenceBundle } from "../managementCadence";
+import { buildRoleExecutionView } from "../roleExecutionSummary";
 
 type DbClient = NonNullable<Awaited<ReturnType<typeof getDb>>>;
 
@@ -949,18 +952,56 @@ export const operationsRouter = router({
         rankedAccountsCount: ownerResolution.rankedAccountsForReview.length,
       });
 
-      const [decisionWorkItems, collectionExecutionQueue] = await Promise.all([
+      const [decisionWorkItemsRaw, collectionExecutionQueue] = await Promise.all([
         listDecisionWorkItems(db, companyId),
         listCollectionsExecutionQueue(db, companyId, 20),
       ]);
+      const decisionWorkItems = filterDecisionWorkItemsForRole(decisionWorkItemsRaw, membership.role);
+      const pendingLeaveCount = decisionWorkItemsRaw.filter((i) => i.entityType === "leave_request").length;
+      const pendingExpenseCount = decisionWorkItemsRaw.filter((i) => i.entityType === "expense_claim").length;
+
+      const managementCadence = buildManagementCadenceBundle({
+        revenue: revenueSnapshot,
+        agedReceivables: controlTowerCore.agedReceivables,
+        decisionsQueue: controlTowerCore.decisionsQueue,
+        riskCompliance: controlTowerCore.riskCompliance,
+        insightSummary,
+        clientHealthTop,
+        delivery: {
+          employeeTasksOverdue: lifecycle.employeeTasksOverdue,
+          employeeTasksBlocked: lifecycle.employeeTasksBlocked,
+        },
+        overdueArInvoiceCount,
+      });
+
+      const roleExecution = buildRoleExecutionView({
+        memberRole: membership.role,
+        decisionsOpen: controlTowerCore.decisionsQueue.totalOpenCount,
+        collectionQueueCount: collectionExecutionQueue.length,
+        agedReceivablesOmr: controlTowerCore.agedReceivables.combinedAtRiskOmr,
+        contractsPendingSignature: controlTowerCore.riskCompliance.contractsPendingSignature,
+        renewalWorkflowsFailed: controlTowerCore.riskCompliance.renewalWorkflowsFailed,
+        slaBreaches: controlTowerCore.riskCompliance.slaOpenBreaches,
+        openProServices: Number(openPro?.cnt ?? 0),
+        proOverdueCount: Number(proOverdue?.cnt ?? 0),
+        subscriptionOverdueCount: Number(subOverdue?.cnt ?? 0),
+        employeeTasksOverdue: lifecycle.employeeTasksOverdue,
+        employeeTasksBlocked: lifecycle.employeeTasksBlocked,
+        pendingLeaveCount,
+        pendingExpenseCount,
+      });
 
       return {
         revenue: revenueSnapshot,
+        managementCadence,
+        roleExecution,
         execution: {
           basis:
-            "Execution layer: decision rows expose action keys mapped client-side to existing mutations (hr.updateLeave, financeHR.reviewExpense, employeeRequests.updateStatus, quotations.send, payroll.approveRun, payroll.markPaid). Collection workflow persists per receivable in collection_work_items (finance/company admin).",
+            "Execution layer: actions are filtered server-side by membership role (see executionCapabilities). Decision rows map to hr.updateLeave, financeHR.reviewExpense, employeeRequests.updateStatus, quotations.send, payroll (company_admin only), etc. Collections persist in collection_work_items (company_admin | finance_admin).",
           decisionWorkItems,
           collectionQueue: collectionExecutionQueue,
+          viewerRole: membership.role,
+          readOnlyExecution: membership.role === "external_auditor",
         },
         controlTower: {
           agedReceivables: controlTowerCore.agedReceivables,

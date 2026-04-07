@@ -22,6 +22,7 @@ import { WorkforceHealthWidget } from "@/components/WorkforceHealthWidget";
 import { ContractKpiWidget } from "@/components/contracts/ContractKpiWidget";
 import { OwnerSetupChecklist } from "@/components/OwnerSetupChecklist";
 import { ExecutiveControlTower } from "@/components/dashboard/ExecutiveControlTower";
+import { ManagementCadencePanel } from "@/components/dashboard/ManagementCadencePanel";
 
 /* ── KPI Stat Card ─────────────────────────────────────────────────────── */
 function StatCard({
@@ -536,6 +537,10 @@ export default function Dashboard() {
         </div>
       )}
 
+      {!showPlatformOverview && activeCompanyId && businessPulse?.managementCadence && (
+        <ManagementCadencePanel bundle={businessPulse.managementCadence} />
+      )}
+
       {!showPlatformOverview && activeCompanyId && businessPulse?.controlTower && (
         <ExecutiveControlTower
           tower={businessPulse.controlTower}
@@ -543,6 +548,7 @@ export default function Dashboard() {
           execution={businessPulse.execution}
           companyId={activeCompanyId!}
           memberRole={activeCompany?.role ?? null}
+          roleExecution={businessPulse.roleExecution}
         />
       )}
 

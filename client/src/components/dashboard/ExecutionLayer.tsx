@@ -31,9 +31,11 @@ const COLLECTION_STATUSES = [
 type ExecProps = {
   execution: Execution;
   companyId: number;
+  /** External auditor / read-only workspace — hide all mutation controls */
+  readOnly?: boolean;
 };
 
-export function DecisionExecutionPanel({ execution, companyId }: ExecProps) {
+export function DecisionExecutionPanel({ execution, companyId, readOnly }: ExecProps) {
   const utils = trpc.useUtils();
   const invalidate = useCallback(() => {
     void utils.operations.getOwnerBusinessPulse.invalidate();
@@ -108,9 +110,14 @@ export function DecisionExecutionPanel({ execution, companyId }: ExecProps) {
       <CardHeader className="pb-2">
         <CardTitle className="text-sm flex items-center gap-2">
           <Gavel size={14} className="text-[var(--smartpro-orange)]" />
-          Approvals & decisions — act here
+          {readOnly ? "Approvals & decisions (read-only)" : "Approvals & decisions — act here"}
         </CardTitle>
         <p className="text-[10px] text-muted-foreground font-normal">{execution.basis}</p>
+        {readOnly && (
+          <p className="text-[10px] text-amber-800 dark:text-amber-200 font-medium">
+            Your role cannot execute approvals — use Open to view context.
+          </p>
+        )}
       </CardHeader>
       <CardContent className="space-y-3 max-h-[420px] overflow-y-auto pr-1">
         {execution.decisionWorkItems.map((item) => (
@@ -131,25 +138,31 @@ export function DecisionExecutionPanel({ execution, companyId }: ExecProps) {
                 Open
               </Link>
             </div>
-            <div className="flex flex-wrap gap-1.5">
-              {item.actions.map((a) => (
-                <Button
-                  key={a.actionKey}
-                  type="button"
-                  size="sm"
-                  variant={a.tone === "destructive" ? "destructive" : a.tone === "secondary" ? "secondary" : "default"}
-                  className="h-8 text-[11px]"
-                  disabled={busyKey !== null}
-                  onClick={() => runAction(item, a.actionKey)}
-                >
-                  {busyKey === `${item.workItemKey}:${a.actionKey}` ? (
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                  ) : (
-                    a.label
-                  )}
-                </Button>
-              ))}
-            </div>
+            {!readOnly && (
+              <div className="flex flex-wrap gap-1.5">
+                {item.actions.length === 0 ? (
+                  <p className="text-[10px] text-muted-foreground italic">No actions for your role — use Open.</p>
+                ) : (
+                  item.actions.map((a) => (
+                    <Button
+                      key={a.actionKey}
+                      type="button"
+                      size="sm"
+                      variant={a.tone === "destructive" ? "destructive" : a.tone === "secondary" ? "secondary" : "default"}
+                      className="h-8 text-[11px]"
+                      disabled={busyKey !== null}
+                      onClick={() => runAction(item, a.actionKey)}
+                    >
+                      {busyKey === `${item.workItemKey}:${a.actionKey}` ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        a.label
+                      )}
+                    </Button>
+                  ))
+                )}
+              </div>
+            )}
           </div>
         ))}
       </CardContent>
@@ -157,9 +170,9 @@ export function DecisionExecutionPanel({ execution, companyId }: ExecProps) {
   );
 }
 
-type CollectionProps = ExecProps & { canFinance: boolean };
+type CollectionProps = ExecProps & { canActOnCollections: boolean };
 
-export function CollectionsExecutionPanel({ execution, companyId, canFinance }: CollectionProps) {
+export function CollectionsExecutionPanel({ execution, companyId, canActOnCollections, readOnly }: CollectionProps) {
   const utils = trpc.useUtils();
   const upsert = trpc.operations.upsertCollectionWorkItem.useMutation({
     onSuccess: () => {
@@ -171,19 +184,25 @@ export function CollectionsExecutionPanel({ execution, companyId, canFinance }: 
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [pendingStatus, setPendingStatus] = useState<Record<string, string>>({});
 
-  if (!canFinance || execution.collectionQueue.length === 0) {
+  if (execution.collectionQueue.length === 0) {
     return null;
   }
+
+  const showControls = canActOnCollections && !readOnly;
 
   return (
     <Card className="border-border/80 border-l-4 border-l-red-300/80">
       <CardHeader className="pb-2">
         <CardTitle className="text-sm flex items-center gap-2">
           <PhoneCall size={14} className="text-red-700" />
-          Collections execution queue
+          Collections queue{showControls ? "" : " (read-only)"}
         </CardTitle>
         <p className="text-[10px] text-muted-foreground font-normal">
-          Prioritised overdue receivables — set workflow status (persisted). Requires finance or company admin.
+          {showControls
+            ? "Prioritised overdue receivables — set workflow status (persisted). Company admin or finance admin."
+            : readOnly
+              ? "View-only — your role cannot update collection workflow."
+              : "Prioritised overdue receivables — only company admin or finance admin can update status."}
         </p>
       </CardHeader>
       <CardContent className="space-y-3 max-h-[380px] overflow-y-auto">
@@ -199,48 +218,55 @@ export function CollectionsExecutionPanel({ execution, companyId, canFinance }: 
                 {row.sourceType.replace(/_/g, " ")} · {row.daysPastDue}d past due · {row.agingBucket.replace("_", "–")}
               </p>
               <p className="text-[10px]">{row.recommendedAction}</p>
-              <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-end">
-                <div className="flex-1 space-y-1">
-                  <Select
-                    value={pendingStatus[key] ?? row.workflowStatus}
-                    onValueChange={(v) => setPendingStatus((s) => ({ ...s, [key]: v }))}
+              {showControls ? (
+                <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-end">
+                  <div className="flex-1 space-y-1">
+                    <Select
+                      value={pendingStatus[key] ?? row.workflowStatus}
+                      onValueChange={(v) => setPendingStatus((s) => ({ ...s, [key]: v }))}
+                    >
+                      <SelectTrigger className="h-8 text-[11px]">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {COLLECTION_STATUSES.map((s) => (
+                          <SelectItem key={s} value={s} className="text-xs">
+                            {s.replace(/_/g, " ")}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Textarea
+                      placeholder="Note (optional)"
+                      className="min-h-[52px] text-[11px]"
+                      value={notes[key] ?? row.note ?? ""}
+                      onChange={(e) => setNotes((n) => ({ ...n, [key]: e.target.value }))}
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="h-9 shrink-0"
+                    disabled={upsert.isPending}
+                    onClick={() =>
+                      upsert.mutate({
+                        companyId,
+                        sourceType: row.sourceType,
+                        sourceId: row.sourceId,
+                        workflowStatus: (pendingStatus[key] ?? row.workflowStatus) as (typeof COLLECTION_STATUSES)[number],
+                        note: notes[key] ?? row.note ?? undefined,
+                      })
+                    }
                   >
-                    <SelectTrigger className="h-8 text-[11px]">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {COLLECTION_STATUSES.map((s) => (
-                        <SelectItem key={s} value={s} className="text-xs">
-                          {s.replace(/_/g, " ")}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Textarea
-                    placeholder="Note (optional)"
-                    className="min-h-[52px] text-[11px]"
-                    value={notes[key] ?? row.note ?? ""}
-                    onChange={(e) => setNotes((n) => ({ ...n, [key]: e.target.value }))}
-                  />
+                    {upsert.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
+                  </Button>
                 </div>
-                <Button
-                  type="button"
-                  size="sm"
-                  className="h-9 shrink-0"
-                  disabled={upsert.isPending}
-                  onClick={() =>
-                    upsert.mutate({
-                      companyId,
-                      sourceType: row.sourceType,
-                      sourceId: row.sourceId,
-                      workflowStatus: (pendingStatus[key] ?? row.workflowStatus) as (typeof COLLECTION_STATUSES)[number],
-                      note: notes[key] ?? row.note ?? undefined,
-                    })
-                  }
-                >
-                  {upsert.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
-                </Button>
-              </div>
+              ) : (
+                <p className="text-[10px] text-muted-foreground">
+                  Status: <span className="font-medium text-foreground">{row.workflowStatus.replace(/_/g, " ")}</span>
+                  {row.note ? ` · ${row.note}` : ""}
+                </p>
+              )}
               <Link href={row.deepLink} className="text-[10px] text-[var(--smartpro-orange)] inline-block">
                 Open billing context →
               </Link>

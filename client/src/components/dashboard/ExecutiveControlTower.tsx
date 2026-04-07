@@ -23,6 +23,7 @@ type Props = {
   execution?: NonNullable<Pulse["execution"]>;
   companyId: number;
   memberRole?: string | null;
+  roleExecution?: NonNullable<Pulse["roleExecution"]>;
 };
 
 function fmtOmr(n: number) {
@@ -35,9 +36,48 @@ const BUCKET_LABEL: Record<string, string> = {
   "61_plus": "61d+",
 };
 
-export function ExecutiveControlTower({ tower, showHref, execution, companyId, memberRole }: Props) {
+function RoleExecutionBanner({ view }: { view: NonNullable<Pulse["roleExecution"]> }) {
+  return (
+    <div className="rounded-lg border border-dashed border-[var(--smartpro-orange)]/35 bg-muted/15 p-3 space-y-2">
+      <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{view.label}</p>
+      <p className="text-sm font-medium text-foreground">{view.headline}</p>
+      <ul className="text-[11px] text-muted-foreground space-y-0.5 list-disc list-inside">
+        {view.focusBullets.map((b, i) => (
+          <li key={i}>{b}</li>
+        ))}
+      </ul>
+      <div className="flex flex-wrap gap-x-3 gap-y-1 pt-1">
+        {view.quickMetrics.map((m, i) => {
+          const emphasisCls =
+            m.emphasis === "critical"
+              ? "text-red-800 dark:text-red-200"
+              : m.emphasis === "warning"
+                ? "text-amber-800 dark:text-amber-200"
+                : "text-foreground";
+          const content = (
+            <>
+              {m.label}: <span className={`font-semibold tabular-nums ${emphasisCls}`}>{m.value}</span>
+            </>
+          );
+          return m.href ? (
+            <Link key={i} href={m.href} className="text-[10px] text-[var(--smartpro-orange)] hover:underline">
+              {content}
+            </Link>
+          ) : (
+            <span key={i} className="text-[10px] text-muted-foreground">
+              {content}
+            </span>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+export function ExecutiveControlTower({ tower, showHref, execution, companyId, memberRole, roleExecution }: Props) {
   const { agedReceivables, decisionsQueue, riskCompliance, clientHealthTop, insightSummary } = tower;
-  const canFinance = memberRole === "company_admin" || memberRole === "finance_admin";
+  const canActOnCollections = memberRole === "company_admin" || memberRole === "finance_admin";
+  const readOnly = execution?.readOnlyExecution ?? false;
   const severityClass =
     insightSummary.severity === "critical"
       ? "border-red-200 bg-red-50/80 dark:bg-red-950/40"
@@ -89,13 +129,16 @@ export function ExecutiveControlTower({ tower, showHref, execution, companyId, m
         </div>
       </div>
 
+      {roleExecution && <RoleExecutionBanner view={roleExecution} />}
+
       {execution && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <DecisionExecutionPanel execution={execution} companyId={companyId} />
+          <DecisionExecutionPanel execution={execution} companyId={companyId} readOnly={readOnly} />
           <CollectionsExecutionPanel
             execution={execution}
             companyId={companyId}
-            canFinance={canFinance}
+            canActOnCollections={canActOnCollections}
+            readOnly={readOnly}
           />
         </div>
       )}

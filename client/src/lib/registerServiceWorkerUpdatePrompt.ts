@@ -6,12 +6,12 @@ const SKIP_WAITING = "SKIP_WAITING";
  * Production-only: register SW, prompt when a new worker is waiting, reload after skipWaiting.
  * Does not implement offline mutation queueing.
  */
+let reloadAfterUserAcceptedUpdate = false;
+
 export function registerServiceWorkerWithUpdatePrompt(): void {
   if (!import.meta.env.PROD || typeof navigator === "undefined" || !("serviceWorker" in navigator)) {
     return;
   }
-
-  let reloadAfterUserAcceptedUpdate = false;
 
   navigator.serviceWorker.addEventListener("controllerchange", () => {
     if (!reloadAfterUserAcceptedUpdate) return;

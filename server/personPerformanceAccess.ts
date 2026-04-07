@@ -66,3 +66,16 @@ export function kpiIdentityKeys(emp: { id: number; userId: number | null }): num
   if (emp.userId != null) return [emp.userId, emp.id];
   return [emp.id];
 }
+
+/** Non-throwing check for team-level workspace (same rules as list team scorecards). */
+export async function canReadTeamWorkspace(
+  user: Pick<User, "id" | "role" | "platformRole">,
+  companyId: number
+): Promise<boolean> {
+  try {
+    await assertCanReadPersonPerformance(user, companyId);
+    return true;
+  } catch {
+    return false;
+  }
+}

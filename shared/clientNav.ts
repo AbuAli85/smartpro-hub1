@@ -81,7 +81,7 @@ export const HR_ADMIN_HREFS = new Set<string>([
   "/hr/leave-balance",
   "/hr/completeness",
   "/hr/org-structure",
-  "/hr/accountability",
+  "/workspace",
   "/hr/tasks",
   "/hr/announcements",
   "/hr/documents-dashboard",
@@ -102,6 +102,7 @@ export const FINANCE_ADMIN_HREFS = new Set<string>([
 
 /** Field employee / basic staff — only My Portal + their own data */
 export const FIELD_EMPLOYEE_HREFS = new Set<string>([
+  "/workspace",
   "/my-portal",
   "/preferences",
   "/dashboard",
@@ -382,6 +383,7 @@ function portalShellPathAllowed(path: string): boolean {
   if (path.startsWith("/hr/leave-balance")) return true;
   if (path.startsWith("/hr/completeness")) return true;
   if (path.startsWith("/hr/org-structure")) return true;
+  if (path.startsWith("/workspace")) return true;
   if (path.startsWith("/hr/tasks")) return true;
   if (path.startsWith("/hr/announcements")) return true;
   if (path.startsWith("/my-portal")) return true;

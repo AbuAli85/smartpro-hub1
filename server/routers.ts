@@ -46,6 +46,7 @@ import { documentGenerationRouter } from "./routers/documentGeneration";
 import { promoterAssignmentsRouter } from "./routers/promoterAssignments";
 import { contractManagementRouter } from "./routers/contractManagement";
 import { accountabilityPerformanceRouter } from "./routers/accountabilityPerformance";
+import { workspaceRouter } from "./routers/workspace";
 
 export const appRouter = router({
   system: systemRouter,
@@ -103,6 +104,7 @@ export const appRouter = router({
   promoterAssignments: promoterAssignmentsRouter,
   contractManagement: contractManagementRouter,
   accountabilityPerformance: accountabilityPerformanceRouter,
+  workspace: workspaceRouter,
 });
 
 export type AppRouter = typeof appRouter;

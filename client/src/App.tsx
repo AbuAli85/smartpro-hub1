@@ -80,6 +80,7 @@ import HRLettersPage from "./pages/HRLettersPage";
 import HRKpiPage from "./pages/HRKpiPage";
 import HRPerformancePage from "./pages/HRPerformancePage";
 import HRAccountabilityPage from "./pages/HRAccountabilityPage";
+import WorkspacePage from "./pages/WorkspacePage";
 import FinanceOverviewPage from "./pages/FinanceOverviewPage";
 import LeaveBalancePage from "./pages/LeaveBalancePage";
 import EmployeeCompletenessPage from "./pages/EmployeeCompletenessPage";
@@ -207,6 +208,7 @@ function AppRoutes() {
         <Route path="/hr/executive-dashboard" component={ExecutiveDashboardPage} />
         <Route path="/hr/tasks" component={TaskManagerPage} />
         <Route path="/hr/announcements" component={AnnouncementsPage} />
+        <Route path="/workspace" component={WorkspacePage} />
         <Route path="/my-portal" component={EmployeePortalPage} />
         <Route path="/company/team-access" component={TeamAccessPage} />
         <Route path="/company/multi-company-roles" component={MultiCompanyRolesPage} />

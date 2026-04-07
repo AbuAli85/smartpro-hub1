@@ -27,18 +27,28 @@ export type PortalNavTab =
 
 export type ActionSeverity = "critical" | "warning" | "info";
 
+/** Action center row category for scanability */
+export type ActionCenterCategory = "attendance" | "task" | "hr";
+
 export interface ActionCenterItem {
   key: string;
   severity: ActionSeverity;
+  /** attendance | task | HR/compliance */
+  actionType: ActionCenterCategory;
+  /** Imperative next step (short) */
+  nextStep: string;
   headline: string;
   detail: string | null;
   ctaLabel: string;
   tab: PortalNavTab;
 }
 
+/** Aligns with portal status system: critical → needs action → due today → on track */
+export type AttentionState = "critical" | "needs_action" | "due_today" | "on_track";
+
 export interface AttentionItem {
   key: string;
-  tone: "destructive" | "warning" | "muted";
+  state: AttentionState;
   label: string;
 }
 
@@ -81,6 +91,16 @@ export interface ShiftTimingExtras {
   nextStepLine: string;
 }
 
+export type HeroSeverity = "critical" | "warning" | "normal";
+
+export interface HeroPresentation {
+  /** Primary status chip: Late, On shift, Checked in, Upcoming, etc. */
+  stateLabel: string;
+  severity: HeroSeverity;
+  /** One-line proactive hint (missed check-in, docs, etc.) */
+  proactiveHint: string | null;
+}
+
 export interface OverviewDashboardModel {
   actionCenter: ActionCenterItem[];
   attentionItems: AttentionItem[];
@@ -90,6 +110,9 @@ export interface OverviewDashboardModel {
   performanceBlock: PerformanceBlock;
   shiftTiming: ShiftTimingExtras | null;
   profileReminder: string | null;
+  hero: HeroPresentation | null;
+  /** Max 3 short hints for strip under hero */
+  proactiveHints: string[];
 }
 
 type TaskLike = {
@@ -364,6 +387,87 @@ export function profileCompletenessReminder(emp: {
   return `Complete your profile: add ${missing.join(", ")}.`;
 }
 
+/**
+ * Single hero chip + severity for mobile-first status (no fake data).
+ */
+export function buildHeroPresentation(input: {
+  todayAttendanceLoading: boolean;
+  myActiveSchedule: {
+    isHoliday?: boolean;
+    schedule?: unknown;
+    shift?: unknown;
+    hasSchedule?: boolean;
+    isWorkingDay?: boolean;
+  } | null | undefined;
+  shiftOverview: OverviewShiftCardPresentation;
+  shiftTiming: ShiftTimingExtras | null;
+  checkIn: Date | null;
+  checkOut: Date | null;
+}): HeroPresentation | null {
+  if (input.todayAttendanceLoading) return null;
+  const s = input.myActiveSchedule;
+  if (s?.isHoliday) {
+    return { stateLabel: "Holiday", severity: "normal", proactiveHint: null };
+  }
+  if (s != null && s.hasSchedule === false) {
+    return {
+      stateLabel: "No schedule",
+      severity: "warning",
+      proactiveHint: "Ask HR to assign your shift.",
+    };
+  }
+  const hasShift = !!(s?.schedule && (s as { shift?: unknown }).shift);
+  if (hasShift && s?.isWorkingDay === false) {
+    return { stateLabel: "Off today", severity: "normal", proactiveHint: null };
+  }
+
+  if (input.shiftOverview.attendanceInconsistent) {
+    return {
+      stateLabel: "Action needed",
+      severity: "critical",
+      proactiveHint: "Attendance record is inconsistent — use Correction.",
+    };
+  }
+  if (input.shiftOverview.showMissedEndedWarning) {
+    return {
+      stateLabel: "Missed attendance",
+      severity: "critical",
+      proactiveHint: "No record for this shift — request correction if you worked.",
+    };
+  }
+
+  if (input.checkIn && !input.checkOut) {
+    return { stateLabel: "Checked in", severity: "normal", proactiveHint: null };
+  }
+  if (input.checkIn && input.checkOut) {
+    return { stateLabel: "Checked out", severity: "normal", proactiveHint: null };
+  }
+
+  if (input.shiftTiming?.isLateNoCheckIn) {
+    return {
+      stateLabel: "Late",
+      severity: "critical",
+      proactiveHint: input.shiftTiming.lateDetail,
+    };
+  }
+
+  const phase = input.shiftOverview.phase;
+  if (phase === "active") {
+    return {
+      stateLabel: "On shift",
+      severity: "warning",
+      proactiveHint: "Check in now to record attendance.",
+    };
+  }
+  if (phase === "upcoming") {
+    return { stateLabel: "Upcoming", severity: "normal", proactiveHint: null };
+  }
+  if (phase === "ended") {
+    return { stateLabel: "Shift ended", severity: "normal", proactiveHint: null };
+  }
+  return { stateLabel: "Today", severity: "normal", proactiveHint: null };
+}
+
 export function buildOverviewDashboardModel(input: {
   shiftOverview: OverviewShiftCardPresentation;
   myActiveSchedule: {
@@ -371,6 +475,8 @@ export function buildOverviewDashboardModel(input: {
     schedule?: unknown;
     shift?: { startTime?: string | null; endTime?: string | null; gracePeriodMinutes?: number | null } | null;
     site?: { name?: string | null } | null;
+    hasSchedule?: boolean;
+    isWorkingDay?: boolean;
   } | null | undefined;
   todayAttendanceRecord: { checkIn?: string | Date | null; checkOut?: string | Date | null; siteName?: string | null } | null | undefined;
   workStatusSummary: EmployeeWorkStatusSummary | null | undefined;
@@ -386,6 +492,8 @@ export function buildOverviewDashboardModel(input: {
   mySelfReviews?: { reviewStatus?: string | null }[] | null;
   emp?: { phone?: string | null; emergencyContact?: string | null; emergencyPhone?: string | null } | null;
   now?: Date;
+  /** When true, hero is omitted (loading); proactive hints stay conservative */
+  todayAttendanceLoading?: boolean;
 }): OverviewDashboardModel {
   const now = input.now ?? new Date();
   const checkIn = input.todayAttendanceRecord?.checkIn ? new Date(input.todayAttendanceRecord.checkIn) : null;
@@ -451,8 +559,10 @@ export function buildOverviewDashboardModel(input: {
       item: {
         key: "att-inconsistent",
         severity: "critical",
+        actionType: "attendance",
+        nextStep: "Open Attendance → Correction",
         headline: "Attendance needs review",
-        detail: "A check-out exists without a check-in. HR should correct the record.",
+        detail: "Check-out without check-in — HR must correct the record.",
         ctaLabel: "Open attendance",
         tab: "attendance",
       },
@@ -465,6 +575,8 @@ export function buildOverviewDashboardModel(input: {
       item: {
         key: "missed-ended",
         severity: "critical",
+        actionType: "attendance",
+        nextStep: "Submit a correction for today",
         headline: "No attendance for today’s shift",
         detail: input.shiftOverview.correctionPendingNote ?? "Request a correction if you worked today.",
         ctaLabel: "Request correction",
@@ -481,7 +593,9 @@ export function buildOverviewDashboardModel(input: {
         item: {
           key: "work-urgent",
           severity: "critical",
-          headline: "Work status: urgent",
+          actionType: "hr",
+          nextStep: "Resolve permit or documents",
+          headline: "HR: urgent items",
           detail: [input.workStatusSummary.permit.label, input.workStatusSummary.documents.label].join(" · "),
           ctaLabel: pa.label,
           tab: (pa.tab as PortalNavTab) ?? "documents",
@@ -496,8 +610,10 @@ export function buildOverviewDashboardModel(input: {
       item: {
         key: "docs-expired",
         severity: "critical",
-        headline: "Expired documents on file",
-        detail: `${expiredDocs.length} document${expiredDocs.length === 1 ? "" : "s"} past expiry — update soon.`,
+        actionType: "hr",
+        nextStep: "Renew or upload in Documents",
+        headline: "Expired documents",
+        detail: `${expiredDocs.length} past expiry — update now.`,
         ctaLabel: "Open documents",
         tab: "documents",
       },
@@ -506,12 +622,14 @@ export function buildOverviewDashboardModel(input: {
 
   if (taskStats.overdueCount > 0) {
     candidates.push({
-      score: 82,
+      score: 84,
       item: {
         key: "tasks-overdue",
         severity: "warning",
+        actionType: "task",
+        nextStep: "Finish the oldest overdue task first",
         headline: `${taskStats.overdueCount} overdue task${taskStats.overdueCount === 1 ? "" : "s"}`,
-        detail: taskStats.topTask ? `Start with: ${taskStats.topTask.title}` : null,
+        detail: taskStats.topTask ? `Start: ${taskStats.topTask.title}` : null,
         ctaLabel: taskStats.topTask ? "Open top task" : "Open tasks",
         tab: "tasks",
       },
@@ -520,56 +638,64 @@ export function buildOverviewDashboardModel(input: {
 
   if (input.shiftOverview.showMissedActiveWarning || (shiftTiming?.isLateNoCheckIn && !input.shiftOverview.attendancePending)) {
     candidates.push({
-      score: 78,
+      score: 80,
       item: {
         key: "check-in",
         severity: "warning",
+        actionType: "attendance",
+        nextStep: "Check in at your assigned site",
         headline: shiftTiming?.isLateNoCheckIn ? "Late — check in now" : "Check in for your shift",
-        detail: shiftTiming?.lateDetail ?? "Your shift is active and no check-in is recorded.",
+        detail: shiftTiming?.lateDetail ?? "Shift is active — no check-in yet.",
         ctaLabel: primaryCta.includes("Check") ? primaryCta : "Check in now",
         tab: "attendance",
       },
     });
   }
 
-  if (trainingDue > 0) {
+  if (taskStats.dueTodayCount > 0 && taskStats.overdueCount === 0) {
     candidates.push({
-      score: 62,
+      score: 58,
       item: {
-        key: "training",
+        key: "tasks-today",
         severity: "info",
-        headline: "Training waiting",
-        detail: `${trainingDue} assigned or overdue module${trainingDue === 1 ? "" : "s"}.`,
-        ctaLabel: "Open training",
-        tab: "training",
+        actionType: "task",
+        nextStep: "Complete tasks due today",
+        headline: `${taskStats.dueTodayCount} due today`,
+        detail: taskStats.topTask?.title ?? null,
+        ctaLabel: "Open tasks",
+        tab: "tasks",
       },
     });
   }
 
   if (soonDocs.length > 0 && expiredDocs.length === 0) {
     candidates.push({
-      score: 58,
+      score: 56,
       item: {
         key: "docs-soon",
         severity: "warning",
+        actionType: "hr",
+        nextStep: "Review expiring files",
         headline: "Documents expiring soon",
-        detail: `${soonDocs.length} need renewal within two weeks.`,
+        detail: `${soonDocs.length} renew within 2 weeks.`,
         ctaLabel: "Review documents",
         tab: "documents",
       },
     });
   }
 
-  if (taskStats.dueTodayCount > 0 && taskStats.overdueCount === 0) {
+  if (trainingDue > 0) {
     candidates.push({
-      score: 55,
+      score: 54,
       item: {
-        key: "tasks-today",
+        key: "training",
         severity: "info",
-        headline: `${taskStats.dueTodayCount} task${taskStats.dueTodayCount === 1 ? "" : "s"} due today`,
-        detail: taskStats.topTask?.title ?? null,
-        ctaLabel: "View tasks",
-        tab: "tasks",
+        actionType: "hr",
+        nextStep: "Complete assigned modules",
+        headline: "Training waiting",
+        detail: `${trainingDue} module${trainingDue === 1 ? "" : "s"} assigned or overdue.`,
+        ctaLabel: "Open training",
+        tab: "training",
       },
     });
   }
@@ -582,6 +708,8 @@ export function buildOverviewDashboardModel(input: {
         item: {
           key: "work-attn",
           severity: "warning",
+          actionType: "hr",
+          nextStep: "Clear permit / docs / tasks",
           headline: "Work status needs attention",
           detail: input.workStatusSummary.tasks.label,
           ctaLabel: pa.label,
@@ -597,6 +725,8 @@ export function buildOverviewDashboardModel(input: {
       item: {
         key: "leave-pending",
         severity: "info",
+        actionType: "hr",
+        nextStep: "Track approval in Leave",
         headline: "Leave awaiting approval",
         detail: `${leaveSignals.pendingCount} open request${leaveSignals.pendingCount === 1 ? "" : "s"}.`,
         ctaLabel: "View leave",
@@ -607,10 +737,12 @@ export function buildOverviewDashboardModel(input: {
 
   if (profileReminder) {
     candidates.push({
-      score: 30,
+      score: 32,
       item: {
         key: "profile",
         severity: "info",
+        actionType: "hr",
+        nextStep: "Add missing profile fields",
         headline: "Profile incomplete",
         detail: profileReminder,
         ctaLabel: "Edit profile",
@@ -625,8 +757,10 @@ export function buildOverviewDashboardModel(input: {
       item: {
         key: "all-clear",
         severity: "info",
-        headline: "You’re in good shape",
-        detail: "Review tasks and attendance periodically.",
+        actionType: "attendance",
+        nextStep: "Keep attendance and tasks current",
+        headline: "On track",
+        detail: null,
         ctaLabel: primaryCta,
         tab: "attendance",
       },
@@ -651,25 +785,32 @@ export function buildOverviewDashboardModel(input: {
   };
 
   if (input.shiftOverview.attendanceInconsistent) {
-    addAtt({ key: "a1", tone: "destructive", label: "Attendance record inconsistent" });
+    addAtt({ key: "a1", state: "critical", label: "Attendance record inconsistent" });
   }
   if (taskStats.overdueCount > 0) {
-    addAtt({ key: "a2", tone: "destructive", label: `${taskStats.overdueCount} overdue tasks` });
+    addAtt({ key: "a2", state: "critical", label: `${taskStats.overdueCount} overdue tasks` });
   }
   if (taskStats.blockedCount > 0) {
-    addAtt({ key: "a2b", tone: "warning", label: `${taskStats.blockedCount} blocked` });
+    addAtt({ key: "a2b", state: "needs_action", label: `${taskStats.blockedCount} blocked` });
+  }
+  if (taskStats.dueTodayCount > 0 && taskStats.overdueCount === 0) {
+    addAtt({
+      key: "a2c",
+      state: "due_today",
+      label: `${taskStats.dueTodayCount} task${taskStats.dueTodayCount === 1 ? "" : "s"} due today`,
+    });
   }
   if (expiredDocs.length > 0) {
-    addAtt({ key: "a3", tone: "destructive", label: "Expired documents" });
+    addAtt({ key: "a3", state: "critical", label: "Expired documents" });
   }
   if (input.shiftOverview.showMissedActiveWarning || shiftTiming?.isLateNoCheckIn) {
-    addAtt({ key: "a4", tone: "warning", label: "Check-in required" });
+    addAtt({ key: "a4", state: "needs_action", label: "Check-in required" });
   }
   if (trainingDue > 0) {
-    addAtt({ key: "a5", tone: "warning", label: "Training due" });
+    addAtt({ key: "a5", state: "needs_action", label: "Training due" });
   }
   if (pendingReviews > 0) {
-    addAtt({ key: "a6", tone: "muted", label: "Self-review pending" });
+    addAtt({ key: "a6", state: "needs_action", label: "Self-review pending" });
   }
 
   const recentTimeline = buildRecentTimeline({
@@ -685,6 +826,50 @@ export function buildOverviewDashboardModel(input: {
     })),
   });
 
+  const todayAttendanceLoading = input.todayAttendanceLoading ?? false;
+  const hero = todayAttendanceLoading
+    ? null
+    : buildHeroPresentation({
+        todayAttendanceLoading: false,
+        myActiveSchedule: input.myActiveSchedule,
+        shiftOverview: input.shiftOverview,
+        shiftTiming,
+        checkIn,
+        checkOut,
+      });
+
+  const proactiveHints: string[] = [];
+  const pushHint = (msg: string) => {
+    if (proactiveHints.length >= 3) return;
+    if (proactiveHints.includes(msg)) return;
+    if (hero?.proactiveHint && msg === hero.proactiveHint) return;
+    proactiveHints.push(msg);
+  };
+
+  if (!todayAttendanceLoading) {
+    if (taskStats.overdueCount > 0) {
+      pushHint(
+        taskStats.overdueCount === 1
+          ? "1 task is overdue — open Tasks."
+          : `${taskStats.overdueCount} tasks are overdue — open Tasks.`,
+      );
+    }
+    if (profileReminder) pushHint(profileReminder);
+    if (expiredDocs.length > 0) {
+      pushHint(
+        expiredDocs.length === 1
+          ? "1 expired document — update in Documents."
+          : `${expiredDocs.length} expired documents — update in Documents.`,
+      );
+    }
+    if (soonDocs.length > 0 && expiredDocs.length === 0) {
+      pushHint(`${soonDocs.length} document(s) expiring within 2 weeks.`);
+    }
+    if (input.shiftOverview.showMissedActiveWarning && !checkIn) {
+      pushHint("No check-in yet for your active shift.");
+    }
+  }
+
   return {
     actionCenter,
     attentionItems,
@@ -694,5 +879,7 @@ export function buildOverviewDashboardModel(input: {
     performanceBlock,
     shiftTiming,
     profileReminder,
+    hero,
+    proactiveHints,
   };
 }

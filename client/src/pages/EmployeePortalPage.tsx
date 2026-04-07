@@ -1377,6 +1377,7 @@ export default function EmployeePortalPage() {
               expiringDocsCount={expiringDocs.length}
               trainingAttentionCount={trainingAttentionCount}
               pendingExpenses={pendingExpensesCount}
+              pendingShiftRequests={pendingShiftRequestsCount}
             />
           </TabsContent>
 

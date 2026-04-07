@@ -76,6 +76,10 @@ describe("buildOverviewDashboardModel", () => {
       notifications: [],
     });
     expect(m.actionCenter[0]?.key).toBe("att-inconsistent");
+    expect(m.actionCenter[0]?.actionType).toBe("attendance");
+    expect(m.actionCenter[0]?.nextStep).toBeTruthy();
+    expect(m.hero?.stateLabel).toBeTruthy();
+    expect(Array.isArray(m.proactiveHints)).toBe(true);
   });
 
   it("falls back to all-clear when no signals", () => {

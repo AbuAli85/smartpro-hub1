@@ -5,10 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { employeePortalConfig } from "@/config/employeePortalConfig";
 import type { OverviewShiftCardPresentation, ServerEligibilityHints } from "@/lib/employeePortalOverviewPresentation";
-import type { PortalNavTab } from "@/lib/employeePortalOverviewModel";
+import type { ActionCenterCategory, AttentionState, PortalNavTab } from "@/lib/employeePortalOverviewModel";
 import { buildOverviewDashboardModel } from "@/lib/employeePortalOverviewModel";
 import type { ProductivitySnapshot } from "@/lib/employeePortalUtils";
-import { getDueUrgency } from "@/lib/taskSla";
+import { getDueUrgency, slaLabel } from "@/lib/taskSla";
 import type { EmployeeWorkStatusSummary } from "@shared/employeePortalWorkStatusSummary";
 import {
   Calendar,
@@ -43,6 +43,25 @@ const PRIORITY_COLOR: Record<Priority, string> = {
   high: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400",
   urgent: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400 font-semibold",
 };
+
+const ACTION_TYPE_LABEL: Record<ActionCenterCategory, string> = {
+  attendance: "Attendance",
+  task: "Task",
+  hr: "HR",
+};
+
+function attentionStateClasses(s: AttentionState): string {
+  if (s === "critical") return "border-red-300 bg-red-50/90 text-red-900 dark:bg-red-950/35 dark:text-red-100";
+  if (s === "needs_action") return "border-amber-300 bg-amber-50/90 text-amber-900 dark:bg-amber-950/25 dark:text-amber-100";
+  if (s === "due_today") return "border-sky-300 bg-sky-50/90 text-sky-900 dark:bg-sky-950/30 dark:text-sky-100";
+  return "border-emerald-200 bg-emerald-50/70 text-emerald-900 dark:bg-emerald-950/25 dark:text-emerald-100";
+}
+
+function taskNextActionLabel(status: string): string {
+  if (status === "blocked") return "Unblock or escalate";
+  if (status === "in_progress") return "Continue";
+  return "Open";
+}
 
 function Skeleton({ className = "" }: { className?: string }) {
   return <div className={`bg-muted animate-pulse rounded-lg ${className}`} />;
@@ -178,6 +197,7 @@ export function EmployeePortalOverview(props: EmployeePortalOverviewProps) {
         shiftOverview,
         myActiveSchedule,
         todayAttendanceRecord,
+        todayAttendanceLoading,
         workStatusSummary: workStatusSummary ?? undefined,
         expiringDocs,
         tasks,
@@ -196,6 +216,7 @@ export function EmployeePortalOverview(props: EmployeePortalOverviewProps) {
       shiftOverview,
       myActiveSchedule,
       todayAttendanceRecord,
+      todayAttendanceLoading,
       workStatusSummary,
       expiringDocs,
       tasks,
@@ -216,6 +237,15 @@ export function EmployeePortalOverview(props: EmployeePortalOverviewProps) {
 
   const focusItems = model.actionCenter.slice(0, 3);
 
+  const tabToQuickKey: Partial<Record<PortalNavTab, string>> = {
+    attendance: "att",
+    tasks: "tsk",
+    leave: "lev",
+    requests: "req",
+    payroll: "pay",
+  };
+  const emphasizedQuickKey = focusItems[0] ? tabToQuickKey[focusItems[0].tab] ?? null : null;
+
   const openTasksList = (tasks as any[]).filter((t: any) => t.status !== "completed" && t.status !== "cancelled");
 
   const handleActionClick = (a: (typeof focusItems)[0]) => {
@@ -225,21 +255,34 @@ export function EmployeePortalOverview(props: EmployeePortalOverviewProps) {
     }
   };
 
+  const heroCardTone =
+    model.hero?.severity === "critical"
+      ? "border-red-400/90 bg-red-50/50 dark:bg-red-950/25 dark:border-red-800/70"
+      : model.hero?.severity === "warning"
+        ? "border-amber-400/90 bg-amber-50/40 dark:bg-amber-950/20 dark:border-amber-800/60"
+        : shiftOverview.warningTone === "red"
+          ? "border-red-200/80 bg-red-50/30 dark:bg-red-950/15"
+          : shiftOverview.warningTone === "amber"
+            ? "border-amber-200/80 bg-amber-50/25 dark:bg-amber-950/10"
+            : "border-primary/25 bg-gradient-to-b from-primary/[0.08] to-card";
+
+  const heroStateBadgeClass =
+    model.hero?.severity === "critical"
+      ? "bg-red-600 text-white border-0 shadow-sm"
+      : model.hero?.severity === "warning"
+        ? "bg-amber-600 text-white border-0 shadow-sm"
+        : "bg-primary/12 text-primary border border-primary/25";
+
+  const primaryCtaDominant =
+    model.hero?.severity === "critical" || model.hero?.severity === "warning";
+
   return (
     <div className="space-y-3 pb-2">
       {/* 1 — Hero: shift + attendance + primary CTAs */}
-      <Card
-        className={`overflow-hidden border-2 ${
-          shiftOverview.warningTone === "red"
-            ? "border-red-200/80 bg-red-50/30 dark:bg-red-950/15"
-            : shiftOverview.warningTone === "amber"
-              ? "border-amber-200/80 bg-amber-50/25 dark:bg-amber-950/10"
-              : "border-primary/20 bg-gradient-to-b from-primary/[0.07] to-card"
-        }`}
-      >
+      <Card className={`overflow-hidden border-2 shadow-sm ${heroCardTone}`}>
         <CardContent className="p-4 space-y-3">
           <div className="flex items-start justify-between gap-2">
-            <div>
+            <div className="min-w-0 flex-1">
               <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
                 {new Date().toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}
               </p>
@@ -254,14 +297,37 @@ export function EmployeePortalOverview(props: EmployeePortalOverviewProps) {
               ) : (
                 <p className="text-lg font-semibold leading-tight mt-0.5">Shift</p>
               )}
+              {!todayAttendanceLoading && model.hero && (
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <Badge className={`text-[11px] font-semibold px-2.5 py-0.5 ${heroStateBadgeClass}`}>{model.hero.stateLabel}</Badge>
+                </div>
+              )}
             </div>
-            {shiftOverview.operational && (
-              <Badge variant="secondary" className="shrink-0 text-[10px] px-2 py-0.5 gap-1">
-                <span className={`h-1.5 w-1.5 rounded-full ${shiftOverview.operational.statusDotClass}`} />
-                {shiftOverview.operational.statusLabel}
-              </Badge>
-            )}
+            <div className="flex shrink-0 flex-col items-end gap-1.5">
+              {shiftOverview.operational && (
+                <Badge variant="secondary" className="text-[10px] px-2 py-0.5 gap-1">
+                  <span className={`h-1.5 w-1.5 rounded-full ${shiftOverview.operational.statusDotClass}`} />
+                  {shiftOverview.operational.statusLabel}
+                </Badge>
+              )}
+            </div>
           </div>
+
+          {!todayAttendanceLoading && model.hero?.proactiveHint && (
+            <p className="text-sm font-medium text-foreground/95 leading-snug">{model.hero.proactiveHint}</p>
+          )}
+          {model.proactiveHints.length > 0 && (
+            <ul className="space-y-1 rounded-lg border border-border/60 bg-muted/25 px-3 py-2 text-[11px] text-muted-foreground leading-snug">
+              {model.proactiveHints.map((h, i) => (
+                <li key={i} className="flex gap-2">
+                  <span className="text-primary font-bold shrink-0" aria-hidden>
+                    ·
+                  </span>
+                  <span>{h}</span>
+                </li>
+              ))}
+            </ul>
+          )}
 
           {!myActiveSchedule?.isHoliday && myActiveSchedule?.shift && (
             <p className="text-sm text-muted-foreground">
@@ -291,7 +357,7 @@ export function EmployeePortalOverview(props: EmployeePortalOverviewProps) {
                   {shiftOverview.phase === "upcoming" ? "Not checked in yet." : "No check-in recorded."}
                 </p>
               )}
-              {model.shiftTiming?.lateDetail && (
+              {model.shiftTiming?.lateDetail && model.hero?.stateLabel !== "Late" && (
                 <p className="text-amber-800 dark:text-amber-200 text-xs font-medium">{model.shiftTiming.lateDetail}</p>
               )}
               {shiftOverview.attendanceInconsistent && (
@@ -302,10 +368,12 @@ export function EmployeePortalOverview(props: EmployeePortalOverviewProps) {
 
           <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
             <Button
-              className="min-h-11 w-full sm:w-auto sm:min-w-[140px] gap-2"
+              className={`w-full gap-2 sm:w-auto sm:min-w-[160px] ${
+                primaryCtaDominant ? "min-h-12 text-base font-semibold shadow-md" : "min-h-11"
+              }`}
               onClick={() => go("attendance")}
             >
-              <UserCheck className="h-4 w-4 shrink-0" />
+              <UserCheck className="h-5 w-5 shrink-0" />
               {shiftOverview.primaryCtaLabel}
             </Button>
             {shiftOverview.showSecondaryLogWork ? (
@@ -354,7 +422,9 @@ export function EmployeePortalOverview(props: EmployeePortalOverviewProps) {
               badge?: number;
               openLeaveDialog?: boolean;
             }[]
-          ).map(({ key, tab, label, Icon, badge, openLeaveDialog }) => (
+          ).map(({ key, tab, label, Icon, badge, openLeaveDialog }) => {
+            const emphasized = emphasizedQuickKey === key;
+            return (
             <button
               key={key}
               type="button"
@@ -363,7 +433,11 @@ export function EmployeePortalOverview(props: EmployeePortalOverviewProps) {
                 if (openLeaveDialog) setShowLeaveDialog(true);
                 else if (tab) go(tab);
               }}
-              className="flex min-h-[4.25rem] flex-col items-center justify-center gap-1 rounded-xl border border-border/80 bg-card px-1 py-2 text-center shadow-sm transition-colors active:bg-muted/80 hover:bg-muted/40"
+              className={`flex min-h-[4.5rem] flex-col items-center justify-center gap-1 rounded-xl border bg-card px-1 py-2.5 text-center shadow-sm transition-colors active:bg-muted/80 hover:bg-muted/40 touch-manipulation ${
+                emphasized
+                  ? "border-primary ring-2 ring-primary/35 ring-offset-2 ring-offset-background"
+                  : "border-border/80"
+              }`}
             >
               <span className="relative">
                 <Icon className="h-5 w-5 text-primary" />
@@ -375,7 +449,8 @@ export function EmployeePortalOverview(props: EmployeePortalOverviewProps) {
               </span>
               <span className="text-[10px] font-medium leading-tight text-foreground">{label}</span>
             </button>
-          ))}
+            );
+          })}
         </div>
       </div>
 
@@ -389,17 +464,37 @@ export function EmployeePortalOverview(props: EmployeePortalOverviewProps) {
                 key={a.key}
                 type="button"
                 onClick={() => handleActionClick(a)}
-                className={`flex w-full flex-col items-stretch rounded-xl border p-3 text-left transition-colors active:bg-muted/50 ${
+                className={`flex w-full flex-col items-stretch rounded-xl border p-3.5 text-left transition-colors active:bg-muted/50 min-h-[4.5rem] touch-manipulation ${
                   a.severity === "critical"
-                    ? "border-red-200 bg-red-50/60 dark:border-red-900/50 dark:bg-red-950/20"
+                    ? "border-red-300 bg-red-50/70 dark:border-red-900/55 dark:bg-red-950/25"
                     : a.severity === "warning"
-                      ? "border-amber-200 bg-amber-50/50 dark:border-amber-900/40 dark:bg-amber-950/15"
+                      ? "border-amber-300 bg-amber-50/55 dark:border-amber-900/45 dark:bg-amber-950/18"
                       : "border-border/70 bg-card"
                 }`}
               >
-                <span className="text-sm font-semibold leading-snug">{a.headline}</span>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant="outline" className="text-[9px] font-semibold uppercase tracking-wide px-1.5 py-0">
+                    {ACTION_TYPE_LABEL[a.actionType]}
+                  </Badge>
+                  <Badge
+                    variant="secondary"
+                    className={`text-[9px] px-1.5 py-0 font-medium ${
+                      a.severity === "critical"
+                        ? "bg-red-100 text-red-900 dark:bg-red-950/50 dark:text-red-200"
+                        : a.severity === "warning"
+                          ? "bg-amber-100 text-amber-900 dark:bg-amber-950/40 dark:text-amber-200"
+                          : ""
+                    }`}
+                  >
+                    {a.severity === "critical" ? "Critical" : a.severity === "warning" ? "Warning" : "Info"}
+                  </Badge>
+                </div>
+                <span className="mt-1.5 text-sm font-semibold leading-snug">{a.headline}</span>
+                <p className="mt-1 text-[11px] font-medium text-foreground/90">
+                  Next: <span className="text-primary">{a.nextStep}</span>
+                </p>
                 {a.detail && <span className="mt-1 text-xs text-muted-foreground line-clamp-2">{a.detail}</span>}
-                <span className="mt-2 text-xs font-semibold text-primary">{a.ctaLabel} →</span>
+                <span className="mt-2 text-sm font-semibold text-primary">{a.ctaLabel} →</span>
               </button>
             ))}
           </div>
@@ -411,17 +506,7 @@ export function EmployeePortalOverview(props: EmployeePortalOverviewProps) {
         <div className="flex items-center gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <span className="shrink-0 text-[10px] font-semibold uppercase text-muted-foreground">Flags</span>
           {model.attentionItems.map((x) => (
-            <Badge
-              key={x.key}
-              variant="outline"
-              className={`shrink-0 whitespace-nowrap ${
-                x.tone === "destructive"
-                  ? "border-red-300 bg-red-50/80 text-red-900 dark:bg-red-950/30"
-                  : x.tone === "warning"
-                    ? "border-amber-300 bg-amber-50/80 text-amber-900 dark:bg-amber-950/25"
-                    : ""
-              }`}
-            >
+            <Badge key={x.key} variant="outline" className={`shrink-0 whitespace-nowrap ${attentionStateClasses(x.state)}`}>
               {x.label}
             </Badge>
           ))}
@@ -474,17 +559,34 @@ export function EmployeePortalOverview(props: EmployeePortalOverviewProps) {
               <div className="space-y-1">
                 {openTasksList.slice(0, 4).map((t: any) => {
                   const overdue = getDueUrgency(t.dueDate, t.status) === "overdue";
+                  const dueToday = getDueUrgency(t.dueDate, t.status) === "due_today";
                   const pr = (t.priority ?? "medium") as Priority;
+                  const dueLine = slaLabel(t.dueDate, t.status);
+                  const nextAct = taskNextActionLabel(t.status);
                   return (
                     <button
                       key={t.id}
                       type="button"
                       onClick={() => onOpenTaskById(t.id)}
-                      className="flex min-h-11 w-full items-center gap-2 rounded-lg border border-transparent px-2 py-1.5 text-left text-sm hover:bg-muted/60"
+                      className="flex min-h-[3.25rem] w-full flex-col gap-1 rounded-lg border border-border/50 bg-card/50 px-3 py-2 text-left text-sm hover:bg-muted/60 active:bg-muted/80 touch-manipulation"
                     >
-                      {TASK_STATUS_ICON[t.status as TaskStatus] ?? TASK_STATUS_ICON.pending}
-                      <span className={`flex-1 truncate ${overdue ? "font-medium text-red-600" : ""}`}>{t.title}</span>
-                      <span className={`text-[10px] px-1.5 py-0.5 rounded shrink-0 ${PRIORITY_COLOR[pr]}`}>{pr}</span>
+                      <div className="flex w-full items-start gap-2">
+                        {TASK_STATUS_ICON[t.status as TaskStatus] ?? TASK_STATUS_ICON.pending}
+                        <span className={`min-w-0 flex-1 font-medium leading-snug ${overdue ? "text-red-600 dark:text-red-400" : dueToday ? "text-sky-800 dark:text-sky-300" : ""}`}>
+                          {t.title}
+                        </span>
+                        <span className={`shrink-0 text-[10px] px-1.5 py-0.5 rounded ${PRIORITY_COLOR[pr]}`}>{pr}</span>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 pl-6 text-[10px] text-muted-foreground">
+                        {dueLine && (
+                          <span className={overdue ? "font-semibold text-red-600 dark:text-red-400" : dueToday ? "font-medium text-sky-700 dark:text-sky-400" : ""}>
+                            {dueLine}
+                          </span>
+                        )}
+                        <span className="text-foreground/80">
+                          {nextAct} <span className="text-primary font-medium">→</span>
+                        </span>
+                      </div>
                     </button>
                   );
                 })}
@@ -617,62 +719,59 @@ export function EmployeePortalOverview(props: EmployeePortalOverviewProps) {
           <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
         </summary>
         <div className="space-y-3 border-t border-border/50 px-4 py-3 text-xs">
-          <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-lg font-bold tabular-nums">{productivity.score}%</span>
             <span className="text-muted-foreground">{employeePortalConfig.productivity.uiCardTitle}</span>
-            <div className="flex items-center gap-2">
-              <span className="text-lg font-bold tabular-nums">{productivity.score}%</span>
-              <Badge variant="outline" className="text-[10px]">
-                {productivity.dataConfidence === "low" ? "Low data" : productivity.dataConfidence === "medium" ? "Partial" : "OK"}
-              </Badge>
-            </div>
-          </div>
-          <p className="text-[10px] text-muted-foreground leading-snug">{productivity.disclaimer}</p>
-          <details className="rounded-md border border-border/50 bg-muted/20 px-2 py-1.5">
-            <summary className="cursor-pointer text-[11px] font-medium text-foreground [&::-webkit-details-marker]:hidden">
-              How it’s calculated
-            </summary>
-            <p className="mt-1 font-mono text-[10px] text-muted-foreground">{productivity.formulaSummary}</p>
-          </details>
-          <div className="space-y-1 text-muted-foreground">
-            {model.performanceBlock.lines.slice(0, 3).map((line) => (
-              <p key={line.label}>
-                <span className="font-medium text-foreground">{line.label}:</span> {line.value}
-              </p>
-            ))}
+            <Badge variant="outline" className="text-[10px]">
+              {productivity.dataConfidence === "low" ? "Low data" : productivity.dataConfidence === "medium" ? "Partial" : "OK"}
+            </Badge>
           </div>
 
+          <details className="rounded-md border border-border/40 bg-muted/15 px-2 py-1">
+            <summary className="cursor-pointer text-[10px] font-medium text-muted-foreground [&::-webkit-details-marker]:hidden">
+              How score is calculated
+            </summary>
+            <p className="mt-1 font-mono text-[9px] leading-relaxed text-muted-foreground">{productivity.formulaSummary}</p>
+          </details>
+
+          <ul className="space-y-0.5 text-[11px] text-muted-foreground">
+            {model.performanceBlock.lines.slice(0, 2).map((line) => (
+              <li key={line.label}>
+                <span className="font-medium text-foreground">{line.label}</span> — {line.value}
+              </li>
+            ))}
+          </ul>
+
           {workStatusLoading ? (
-            <Skeleton className="h-16" />
+            <Skeleton className="h-12" />
           ) : workStatusSummary ? (
-            <div className="rounded-lg border border-border/60 bg-muted/20 p-2 space-y-1">
+            <div className="rounded-lg border border-border/50 bg-muted/15 p-2 space-y-1.5">
               <div className="flex items-center justify-between gap-2">
-                <span className="font-medium text-foreground">Work signals</span>
-                <Badge variant="outline" className="text-[10px] capitalize">
+                <span className="font-medium text-foreground text-[11px]">Compliance</span>
+                <Badge variant="outline" className="text-[9px] capitalize">
                   {workStatusSummary.overallStatus.replace("_", " ")}
                 </Badge>
               </div>
-              <p className="line-clamp-2">{workStatusSummary.permit.label}</p>
-              <p className="line-clamp-2">{workStatusSummary.documents.label}</p>
-              <div className="flex flex-wrap gap-2 pt-1">
-                {workStatusSummary.primaryAction.type !== "none" && (
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    className="h-8 text-xs"
-                    onClick={() => {
-                      const tab = workStatusSummary.primaryAction.tab;
-                      if (tab) {
-                        go(tab);
-                        requestAnimationFrame(() => {
-                          document.getElementById(`portal-${tab}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
-                        });
-                      } else if (workStatusSummary.primaryAction.type === "contact_hr") go("profile");
-                    }}
-                  >
-                    {workStatusSummary.primaryAction.label}
-                  </Button>
-                )}
-              </div>
+              <p className="text-[10px] line-clamp-2 text-muted-foreground">{workStatusSummary.permit.label}</p>
+              <p className="text-[10px] line-clamp-2 text-muted-foreground">{workStatusSummary.documents.label}</p>
+              {workStatusSummary.primaryAction.type !== "none" && (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="h-8 text-[11px] w-full sm:w-auto"
+                  onClick={() => {
+                    const tab = workStatusSummary.primaryAction.tab;
+                    if (tab) {
+                      go(tab);
+                      requestAnimationFrame(() => {
+                        document.getElementById(`portal-${tab}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+                      });
+                    } else if (workStatusSummary.primaryAction.type === "contact_hr") go("profile");
+                  }}
+                >
+                  {workStatusSummary.primaryAction.label}
+                </Button>
+              )}
             </div>
           ) : null}
 

@@ -1001,21 +1001,24 @@ describe("sanad.addCatalogueItem", () => {
 });
 
 describe("officers.generateCertificate tenant guard", () => {
-  beforeEach(() => {
-    const m = { company: { id: 5 }, member: {} } as any;
-    vi.mocked(db.getUserCompany).mockResolvedValue(m);
-    vi.mocked(db.getUserCompanies).mockResolvedValue([m]);
-  });
-  afterEach(() => {
-    vi.mocked(db.getUserCompany).mockResolvedValue(null);
-    vi.mocked(db.getUserCompanies).mockResolvedValue([]);
-  });
-
   it("returns NOT_FOUND when company user targets another company", async () => {
-    const ctx = makeCtx({ role: "user", platformRole: "company_member" });
-    await expect(
-      appRouter.createCaller(ctx).officers.generateCertificate({ companyId: 99, month: 1, year: 2026 }),
-    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    const m = {
+      company: { id: 5, name: "Co", slug: "co", country: "OM", status: "active" },
+      member: { role: "company_member" },
+    } as any;
+    vi.mocked(db.getUserCompany).mockResolvedValue(m);
+    // `assertRowBelongsToActiveCompany` → `requireActiveCompanyId` uses `getUserCompanies` for non-admin users.
+    // Use `mockImplementation` so the stub always matches what `server/_core/tenant` imports (Vitest mock queue can be stale).
+    const companiesSpy = vi.mocked(db.getUserCompanies).mockImplementation(async () => [m]);
+    try {
+      const ctx = makeCtx({ role: "user", platformRole: "company_member" });
+      await expect(
+        appRouter.createCaller(ctx).officers.generateCertificate({ companyId: 99, month: 1, year: 2026 }),
+      ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    } finally {
+      companiesSpy.mockRestore();
+      vi.mocked(db.getUserCompany).mockResolvedValue(null);
+    }
   });
 });
 

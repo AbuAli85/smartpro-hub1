@@ -1,9 +1,10 @@
 import { trpc } from "@/lib/trpc";
 import { useState } from "react";
+import { Link } from "wouter";
 import {
   Users, Plus, Search, Phone, Mail, Building2, TrendingUp, DollarSign,
   ChevronRight, X, MessageSquare, Calendar, Target, Star,
-  CheckCircle2, Handshake, Send,
+  CheckCircle2, Handshake, Send, FileText,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -145,6 +146,10 @@ function NewDealDialog({ onSuccess, companyId }: { onSuccess: () => void; compan
 }
 
 function ContactDetailPanel({ contactId, onClose, companyId }: { contactId: number; onClose: () => void; companyId: number | null }) {
+  const { data: contact360, isLoading: loading360, refetch: refetch360 } = trpc.crm.getContact360.useQuery(
+    { contactId, companyId: companyId ?? undefined },
+    { enabled: companyId != null },
+  );
   const { data: comms, refetch: refetchComms } = trpc.crm.listCommunications.useQuery(
     { contactId, companyId: companyId ?? undefined },
     { enabled: companyId != null },
@@ -157,6 +162,7 @@ function ContactDetailPanel({ contactId, onClose, companyId }: { contactId: numb
       toast.success("Communication logged");
       setShowCommForm(false);
       setCommForm({ type: "call", subject: "", content: "", direction: "outbound" });
+      void refetch360();
       refetchComms();
     },
     onError: (e) => toast.error(e.message),
@@ -170,14 +176,118 @@ function ContactDetailPanel({ contactId, onClose, companyId }: { contactId: numb
     note: "bg-amber-100 text-amber-600",
   };
 
+  const contact = contact360?.contact;
+  const stageLabel = contact?.status ? (CONTACT_STATUS_META[contact.status]?.label ?? contact.status) : "";
+
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-between p-4 border-b">
-        <div className="flex items-center gap-2">
-          <MessageSquare size={16} className="text-[var(--smartpro-orange)]" />
-          <span className="font-semibold text-sm">Communication Log</span>
+        <div className="min-w-0 flex-1 pr-2">
+          <div className="flex items-center gap-2">
+            <Avatar className="h-9 w-9 shrink-0">
+              <AvatarFallback className="bg-[var(--smartpro-orange)]/15 text-[var(--smartpro-orange)] text-xs font-bold">
+                {getInitials(contact?.firstName, contact?.lastName)}
+              </AvatarFallback>
+            </Avatar>
+            <div className="min-w-0">
+              <p className="font-semibold text-sm truncate">
+                {loading360 ? "…" : `${contact?.firstName ?? ""} ${contact?.lastName ?? ""}`.trim() || "Contact"}
+              </p>
+              {contact?.status && (
+                <Badge variant="outline" className={"text-[10px] mt-0.5 " + (CONTACT_STATUS_META[contact.status]?.color ?? "")}>
+                  {stageLabel}
+                </Badge>
+              )}
+            </div>
+          </div>
+          {contact?.company && <p className="text-xs text-muted-foreground mt-2 truncate flex items-center gap-1"><Building2 size={12} /> {contact.company}</p>}
+          {(contact?.email || contact?.phone) && (
+            <div className="mt-2 space-y-1 text-[11px] text-muted-foreground">
+              {contact?.email && <div className="flex items-center gap-1.5 truncate"><Mail size={12} className="shrink-0" /> {contact.email}</div>}
+              {contact?.phone && <div className="flex items-center gap-1.5"><Phone size={12} className="shrink-0" /> {contact.phone}</div>}
+            </div>
+          )}
         </div>
         <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close contact panel"><X size={16} aria-hidden="true" /></Button>
+      </div>
+
+      {!loading360 && contact360 && (
+        <div className="px-4 py-3 border-b space-y-3 max-h-[42vh] overflow-y-auto">
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1 mb-1.5">
+              <TrendingUp size={12} /> Deals
+            </p>
+            {contact360.deals.length === 0 ? (
+              <p className="text-xs text-muted-foreground">No deals for this contact.</p>
+            ) : (
+              <ul className="space-y-1.5">
+                {contact360.deals.map((d) => (
+                  <li key={d.id} className="text-xs rounded-lg border bg-muted/30 px-2 py-1.5">
+                    <span className="font-medium line-clamp-2">{d.title}</span>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      <Badge variant="outline" className="text-[10px]">{d.stage?.replace("_", " ")}</Badge>
+                      {d.value != null && (
+                        <span className="text-[10px] text-muted-foreground">{d.currency ?? "OMR"} {Number(d.value).toLocaleString()}</span>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1 mb-1.5">
+              <FileText size={12} /> Quotations
+            </p>
+            {contact360.quotations.length === 0 ? (
+              <p className="text-xs text-muted-foreground">No quotations linked (by deal or email).</p>
+            ) : (
+              <ul className="space-y-1.5">
+                {contact360.quotations.map((q) => (
+                  <li key={q.id}>
+                    <Link
+                      href="/quotations"
+                      className="flex items-start justify-between gap-2 text-xs rounded-lg border bg-card px-2 py-1.5 hover:bg-muted/50"
+                    >
+                      <span className="font-mono text-[11px]">{q.referenceNumber}</span>
+                      <div className="text-right shrink-0">
+                        <Badge variant="outline" className="text-[10px] capitalize">{q.status}</Badge>
+                        <p className="text-[10px] text-muted-foreground tabular-nums mt-0.5">OMR {Number(q.totalOmr).toLocaleString()}</p>
+                      </div>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1 mb-1.5">
+              <FileText size={12} /> Contracts (from quotes)
+            </p>
+            {contact360.contractsFromQuotations.length === 0 ? (
+              <p className="text-xs text-muted-foreground">No contracts converted from quotations yet.</p>
+            ) : (
+              <ul className="space-y-1.5">
+                {contact360.contractsFromQuotations.map((c) => (
+                  <li key={c.id}>
+                    <Link href="/contracts" className="block text-xs rounded-lg border bg-card px-2 py-1.5 hover:bg-muted/50">
+                      <span className="font-medium line-clamp-2">{c.title}</span>
+                      <div className="flex gap-1 mt-1">
+                        <Badge variant="outline" className="text-[10px] capitalize">{c.status}</Badge>
+                        <span className="text-[10px] text-muted-foreground">{c.contractNumber}</span>
+                      </div>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      )}
+
+      <div className="flex items-center gap-2 px-4 py-2 border-b bg-muted/20">
+        <MessageSquare size={14} className="text-[var(--smartpro-orange)] shrink-0" />
+        <span className="font-semibold text-xs">Communication log</span>
       </div>
       <div className="p-4 border-b">
         <Button size="sm" className="w-full gap-2 bg-[var(--smartpro-orange)] hover:bg-orange-600 text-white" onClick={() => setShowCommForm(!showCommForm)}>

@@ -32,6 +32,14 @@ export type OwnerAttentionInput = {
   /** SaaS subscription invoices overdue (SmartPRO plan billing) */
   saasSubscriptionOverdueCount?: number;
   saasSubscriptionOverdueOmr?: number;
+  /** CRM deals marked closed won but no quotation is linked via crm_deal_id */
+  closedWonDealsWithoutLinkedQuote?: number;
+  /** Service contracts with end date in the next 30 days (signed/active) */
+  contractsExpiringNext30Days?: number;
+  /** Internal employee tasks past due date */
+  employeeTasksOverdue?: number;
+  /** Internal employee tasks in blocked state */
+  employeeTasksBlocked?: number;
 };
 
 /** Stable ordering: critical first, then high, then medium. */
@@ -54,6 +62,10 @@ export function buildOwnerAttentionQueue(input: OwnerAttentionInput): OwnerAtten
     acceptedQuotationsUnconverted = 0,
     saasSubscriptionOverdueCount = 0,
     saasSubscriptionOverdueOmr = 0,
+    closedWonDealsWithoutLinkedQuote = 0,
+    contractsExpiringNext30Days = 0,
+    employeeTasksOverdue = 0,
+    employeeTasksBlocked = 0,
   } = input;
 
   const slaHref = isPlatformOperator ? "/sla-management" : "/operations";
@@ -165,6 +177,42 @@ export function buildOwnerAttentionQueue(input: OwnerAttentionInput): OwnerAtten
       detail: "Create the agreement or convert the quote so delivery and billing stay aligned.",
       severity: "high",
       href: "/quotations",
+    });
+  }
+  if (closedWonDealsWithoutLinkedQuote > 0) {
+    q.push({
+      key: "won_no_quote",
+      title: `${closedWonDealsWithoutLinkedQuote} closed-won deal${closedWonDealsWithoutLinkedQuote > 1 ? "s" : ""} with no linked quotation`,
+      detail: "Link a quotation to the CRM deal or create one so the commercial record matches delivery and billing.",
+      severity: "medium",
+      href: "/crm",
+    });
+  }
+  if (contractsExpiringNext30Days > 0) {
+    q.push({
+      key: "contracts_expiring_30d",
+      title: `${contractsExpiringNext30Days} contract${contractsExpiringNext30Days > 1 ? "s" : ""} expiring within 30 days`,
+      detail: "Plan renewals or replacements before end dates to avoid service or revenue gaps.",
+      severity: "medium",
+      href: "/contracts",
+    });
+  }
+  if (employeeTasksOverdue > 0) {
+    q.push({
+      key: "tasks_overdue",
+      title: `${employeeTasksOverdue} internal task${employeeTasksOverdue > 1 ? "s" : ""} overdue`,
+      detail: "Work assigned to staff is past due — clear blockers or re-prioritise.",
+      severity: "medium",
+      href: "/hr/tasks",
+    });
+  }
+  if (employeeTasksBlocked > 0) {
+    q.push({
+      key: "tasks_blocked",
+      title: `${employeeTasksBlocked} blocked internal task${employeeTasksBlocked > 1 ? "s" : ""}`,
+      detail: "Resolve blocked reasons so delivery work can continue.",
+      severity: "medium",
+      href: "/hr/tasks",
     });
   }
   if (saasSubscriptionOverdueCount > 0) {

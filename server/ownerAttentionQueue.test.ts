@@ -80,6 +80,32 @@ describe("buildOwnerAttentionQueue", () => {
     ).toEqual([]);
   });
 
+  it("surfaces closed-won deals without quotation link and contract renewal pressure", () => {
+    const q = buildOwnerAttentionQueue({
+      isPlatformOperator: false,
+      slaBreaches: 0,
+      casesActionRequired: 0,
+      pendingLeaveRequests: 0,
+      payrollDraftThisMonth: 0,
+      pendingPayrollApprovedAwaitingPayment: 0,
+      expiringPermits7Days: 0,
+      employeeDocsExpiring7Days: 0,
+      pendingContracts: 0,
+      overdueInvoiceCount: 0,
+      overdueInvoiceTotalOmr: 0,
+      renewalWorkflowsFailed: 0,
+      draftQuotations: 0,
+      closedWonDealsWithoutLinkedQuote: 1,
+      contractsExpiringNext30Days: 2,
+      employeeTasksOverdue: 3,
+      employeeTasksBlocked: 1,
+    });
+    expect(q.some((i) => i.key === "won_no_quote" && i.href === "/crm")).toBe(true);
+    expect(q.some((i) => i.key === "contracts_expiring_30d" && i.href === "/contracts")).toBe(true);
+    expect(q.some((i) => i.key === "tasks_overdue" && i.href === "/hr/tasks")).toBe(true);
+    expect(q.some((i) => i.key === "tasks_blocked" && i.href === "/hr/tasks")).toBe(true);
+  });
+
   it("surfaces accepted quotes not converted and SaaS subscription overdue", () => {
     const q = buildOwnerAttentionQueue({
       isPlatformOperator: false,

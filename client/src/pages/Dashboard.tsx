@@ -505,6 +505,18 @@ export default function Dashboard() {
                     {businessPulse.commercial.contractsPendingSignature}
                   </span>
                 </div>
+                <div className="flex justify-between gap-2 text-xs">
+                  <span className="text-muted-foreground">Won deals → no linked quote</span>
+                  <span className={businessPulse.commercial.closedWonDealsWithoutLinkedQuote > 0 ? "text-amber-700 font-semibold" : ""}>
+                    {businessPulse.commercial.closedWonDealsWithoutLinkedQuote}
+                  </span>
+                </div>
+                <div className="flex justify-between gap-2 text-xs">
+                  <span className="text-muted-foreground">Contracts ending (30d)</span>
+                  <span className={businessPulse.commercial.contractsExpiringNext30Days > 0 ? "text-amber-700 font-semibold" : ""}>
+                    {businessPulse.commercial.contractsExpiringNext30Days}
+                  </span>
+                </div>
               </CardContent>
             </Card>
             <Card className="border-border/80">
@@ -559,6 +571,18 @@ export default function Dashboard() {
                 <Link href="/marketplace" className="flex justify-between gap-2 hover:opacity-80">
                   <span className="text-muted-foreground">Active marketplace bookings</span>
                   <span className="font-semibold">{businessPulse.delivery.activeBookings}</span>
+                </Link>
+                <Link href="/hr/tasks" className="flex justify-between gap-2 hover:opacity-80 text-xs">
+                  <span className="text-muted-foreground">Internal tasks overdue</span>
+                  <span className={`font-semibold ${businessPulse.delivery.employeeTasksOverdue > 0 ? "text-amber-800" : ""}`}>
+                    {businessPulse.delivery.employeeTasksOverdue}
+                  </span>
+                </Link>
+                <Link href="/hr/tasks" className="flex justify-between gap-2 hover:opacity-80 text-xs">
+                  <span className="text-muted-foreground">Internal tasks blocked</span>
+                  <span className={`font-semibold ${businessPulse.delivery.employeeTasksBlocked > 0 ? "text-amber-800" : ""}`}>
+                    {businessPulse.delivery.employeeTasksBlocked}
+                  </span>
                 </Link>
               </CardContent>
             </Card>

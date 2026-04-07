@@ -3,6 +3,8 @@ import { z } from "zod";
 import { canAccessGlobalAdminProcedures } from "@shared/rbac";
 import type { User } from "../../drizzle/schema";
 import { assertRowBelongsToActiveCompany, requireActiveCompanyId } from "../_core/tenant";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { contracts, crmDeals, serviceQuotations } from "../../drizzle/schema";
 import {
   createCrmCommunication,
   createCrmContact,
@@ -12,6 +14,7 @@ import {
   getCrmContacts,
   getCrmDealById,
   getCrmDeals,
+  getDb,
   updateCrmContact,
   updateCrmDeal,
 } from "../db";
@@ -180,6 +183,75 @@ export const crmRouter = router({
       } catch {
         return [];
       }
+    }),
+
+  /**
+   * Unified commercial snapshot for a contact: deals, quotations (by CRM deal link or email match),
+   * and contracts produced from those quotations. Server-authoritative; tenant-scoped.
+   */
+  getContact360: protectedProcedure
+    .input(z.object({ contactId: z.number(), companyId: z.number().optional() }))
+    .query(async ({ ctx, input }) => {
+      const companyId = await resolveCrmCompanyId(ctx, input.companyId);
+      const contact = await getCrmContactById(input.contactId);
+      if (!contact || contact.companyId !== companyId) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Contact not found" });
+      }
+      await assertRowBelongsToActiveCompany(ctx.user, contact.companyId, "Contact", input.companyId);
+
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+
+      const deals = await db
+        .select()
+        .from(crmDeals)
+        .where(and(eq(crmDeals.companyId, companyId), eq(crmDeals.contactId, input.contactId)))
+        .orderBy(desc(crmDeals.updatedAt));
+
+      const dealIds = deals.map((d) => d.id);
+      const emailNorm = (contact.email ?? "").trim().toLowerCase();
+
+      const byDeal =
+        dealIds.length > 0
+          ? await db
+              .select()
+              .from(serviceQuotations)
+              .where(and(eq(serviceQuotations.companyId, companyId), inArray(serviceQuotations.crmDealId, dealIds)))
+          : [];
+
+      const byEmail =
+        emailNorm.length > 0
+          ? await db
+              .select()
+              .from(serviceQuotations)
+              .where(
+                and(
+                  eq(serviceQuotations.companyId, companyId),
+                  sql`LOWER(TRIM(${serviceQuotations.clientEmail})) = ${emailNorm}`,
+                ),
+              )
+          : [];
+
+      const quoteMap = new Map<number, (typeof byDeal)[0]>();
+      for (const q of [...byDeal, ...byEmail]) quoteMap.set(q.id, q);
+      const quotations = Array.from(quoteMap.values()).sort(
+        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+      );
+
+      const convIds = quotations
+        .map((q) => q.convertedToContractId)
+        .filter((id): id is number => id != null);
+      const contractsFromQuotations =
+        convIds.length > 0
+          ? await db.select().from(contracts).where(inArray(contracts.id, convIds))
+          : [];
+
+      return {
+        contact,
+        deals,
+        quotations,
+        contractsFromQuotations,
+      };
     }),
 
   createCommunication: protectedProcedure

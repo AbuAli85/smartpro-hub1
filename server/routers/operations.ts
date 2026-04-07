@@ -23,8 +23,9 @@ import {
   crmDeals,
   marketplaceBookings,
   proServices,
+  employeeTasks,
 } from "../../drizzle/schema";
-import { and, eq, gte, lte, lt, count, sum, desc, isNull, isNotNull, ne, notInArray, inArray } from "drizzle-orm";
+import { and, eq, gte, lte, lt, count, sum, desc, isNull, isNotNull, ne, notInArray, inArray, sql } from "drizzle-orm";
 import { resolvePlatformOrCompanyScope } from "../_core/tenant";
 import {
   canReadHrPerformanceAuditSensitiveRows,
@@ -34,6 +35,63 @@ import type { PayrollRun, User } from "../../drizzle/schema";
 import { canAccessGlobalAdminProcedures } from "@shared/rbac";
 import { buildOwnerAttentionQueue } from "../ownerAttentionQueue";
 import { getActiveCompanyMembership } from "../_core/membership";
+
+type DbClient = NonNullable<Awaited<ReturnType<typeof getDb>>>;
+
+/** Commercial / delivery lifecycle signals reused by daily snapshot attention and owner business pulse. */
+async function getOwnerLifecycleSignals(db: DbClient, companyId: number) {
+  const now = new Date();
+  const in30 = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+
+  const wonDealRows = await db
+    .select({ id: crmDeals.id })
+    .from(crmDeals)
+    .where(and(eq(crmDeals.companyId, companyId), eq(crmDeals.stage, "closed_won")));
+
+  const quotedDealRows = await db
+    .select({ id: serviceQuotations.crmDealId })
+    .from(serviceQuotations)
+    .where(and(eq(serviceQuotations.companyId, companyId), isNotNull(serviceQuotations.crmDealId)));
+  const quotedSet = new Set(quotedDealRows.map((r) => r.id).filter((x): x is number => x != null));
+
+  const closedWonDealsWithoutLinkedQuote = wonDealRows.filter((d) => !quotedSet.has(d.id)).length;
+
+  const [expiringContractsRow] = await db
+    .select({ cnt: count() })
+    .from(contracts)
+    .where(
+      and(
+        eq(contracts.companyId, companyId),
+        inArray(contracts.status, ["signed", "active"]),
+        isNotNull(contracts.endDate),
+        gte(contracts.endDate, now),
+        lte(contracts.endDate, in30),
+      ),
+    );
+
+  const [tasksOverdue] = await db
+    .select({ cnt: count() })
+    .from(employeeTasks)
+    .where(
+      and(
+        eq(employeeTasks.companyId, companyId),
+        notInArray(employeeTasks.status, ["completed", "cancelled"]),
+        sql`(${employeeTasks.dueDate} IS NOT NULL AND ${employeeTasks.dueDate} < CURDATE())`,
+      ),
+    );
+
+  const [tasksBlocked] = await db
+    .select({ cnt: count() })
+    .from(employeeTasks)
+    .where(and(eq(employeeTasks.companyId, companyId), eq(employeeTasks.status, "blocked")));
+
+  return {
+    closedWonDealsWithoutLinkedQuote,
+    contractsExpiringNext30Days: Number(expiringContractsRow?.cnt ?? 0),
+    employeeTasksOverdue: Number(tasksOverdue?.cnt ?? 0),
+    employeeTasksBlocked: Number(tasksBlocked?.cnt ?? 0),
+  };
+}
 
 /** Locks `payroll.thisMonthStatus` for tRPC client inference (`not_run` is not a DB enum value). */
 const getSmartDashboardOutputSchema = z.object({
@@ -348,6 +406,16 @@ export const operationsRouter = router({
       .from(subscriptionInvoices)
       .where(saasSubOverdueWhere);
 
+    const lifecycleSignals =
+      companyId != null
+        ? await getOwnerLifecycleSignals(db, companyId)
+        : {
+            closedWonDealsWithoutLinkedQuote: 0,
+            contractsExpiringNext30Days: 0,
+            employeeTasksOverdue: 0,
+            employeeTasksBlocked: 0,
+          };
+
     const attentionQueue = buildOwnerAttentionQueue({
       isPlatformOperator,
       slaBreaches: slaBreaches.length,
@@ -365,6 +433,10 @@ export const operationsRouter = router({
       acceptedQuotationsUnconverted: Number(acceptedUnconvertedRow?.cnt ?? 0),
       saasSubscriptionOverdueCount: Number(saasSubOverdueRow?.cnt ?? 0),
       saasSubscriptionOverdueOmr: Number(saasSubOverdueRow?.total ?? 0),
+      closedWonDealsWithoutLinkedQuote: lifecycleSignals.closedWonDealsWithoutLinkedQuote,
+      contractsExpiringNext30Days: lifecycleSignals.contractsExpiringNext30Days,
+      employeeTasksOverdue: lifecycleSignals.employeeTasksOverdue,
+      employeeTasksBlocked: lifecycleSignals.employeeTasksBlocked,
     });
 
     return {
@@ -795,6 +867,8 @@ export const operationsRouter = router({
           ),
         );
 
+      const lifecycle = await getOwnerLifecycleSignals(db, companyId);
+
       return {
         commercial: {
           contactsLeads: Number(contactsLeads?.cnt ?? 0),
@@ -813,6 +887,8 @@ export const operationsRouter = router({
           quotationsSent: Number(qSent?.cnt ?? 0),
           quotationsAcceptedUnconverted: Number(qAcceptedNoContract?.cnt ?? 0),
           contractsPendingSignature: Number(pendingSig?.cnt ?? 0),
+          closedWonDealsWithoutLinkedQuote: lifecycle.closedWonDealsWithoutLinkedQuote,
+          contractsExpiringNext30Days: lifecycle.contractsExpiringNext30Days,
         },
         finance: {
           proBillingOverdueCount: Number(proOverdue?.cnt ?? 0),
@@ -826,6 +902,8 @@ export const operationsRouter = router({
           openProServices: Number(openPro?.cnt ?? 0),
           activeBookings: Number(bookings?.cnt ?? 0),
           openGovernmentCases: Number(govCases?.cnt ?? 0),
+          employeeTasksOverdue: lifecycle.employeeTasksOverdue,
+          employeeTasksBlocked: lifecycle.employeeTasksBlocked,
         },
       };
     }),

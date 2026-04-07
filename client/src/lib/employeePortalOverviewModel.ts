@@ -367,7 +367,7 @@ export function buildOverviewDashboardModel(input: {
     shift?: { startTime?: string | null; endTime?: string | null; gracePeriodMinutes?: number | null } | null;
     site?: { name?: string | null } | null;
   } | null | undefined;
-  todayAttendanceRecord: { checkIn?: string | null; checkOut?: string | null; siteName?: string | null } | null | undefined;
+  todayAttendanceRecord: { checkIn?: string | Date | null; checkOut?: string | Date | null; siteName?: string | null } | null | undefined;
   workStatusSummary: EmployeeWorkStatusSummary | null | undefined;
   expiringDocs: { id: number; documentType?: string; expiresAt?: string | null }[];
   tasks: TaskLike[] | null | undefined;

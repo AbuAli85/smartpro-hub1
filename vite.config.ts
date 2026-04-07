@@ -170,6 +170,13 @@ export default defineConfig({
   },
   server: {
     host: true,
+    // When the Vite dev server is run on its own (without Express), forward API calls to the app server.
+    proxy: {
+      "/api": {
+        target: "http://127.0.0.1:3000",
+        changeOrigin: true,
+      },
+    },
     hmr: {
       clientPort: 443,
       protocol: "wss",

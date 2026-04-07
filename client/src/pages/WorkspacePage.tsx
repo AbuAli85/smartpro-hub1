@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { Link } from "wouter";
+import { TRPCClientError } from "@trpc/client";
 import { trpc } from "@/lib/trpc";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -83,6 +84,21 @@ function interventionFollowUpLine(followUpAt: string | null): string | null {
   return `Due ${followUpAt}`;
 }
 
+function workspaceLoadHelpText(error: unknown): string | null {
+  const msg = error instanceof Error ? error.message : String(error);
+  const code =
+    error instanceof TRPCClientError ? (error.data as { code?: string } | undefined)?.code : undefined;
+  const looksMissingProcedure =
+    code === "NOT_FOUND" ||
+    /no procedure found on path\s+"workspace\./i.test(msg);
+  if (!looksMissingProcedure) return null;
+  return (
+    "The API you are talking to does not expose this route (or /api/trpc is not the SmartPRO server). " +
+    "Run the full stack from the repo root with pnpm dev (Express serves both the app and /api/trpc). " +
+    "If you use a static or design preview, redeploy or open the environment that runs the Node server with the same build as this client."
+  );
+}
+
 export default function WorkspacePage() {
   const { activeCompanyId } = useActiveCompany();
   const utils = trpc.useUtils();
@@ -160,11 +176,15 @@ export default function WorkspacePage() {
   }
 
   if (error) {
+    const hint = workspaceLoadHelpText(error);
     return (
       <div className="container max-w-3xl py-10">
         <Alert variant="destructive">
           <AlertTitle>Could not load workspace</AlertTitle>
-          <AlertDescription>{error.message}</AlertDescription>
+          <AlertDescription className="space-y-2">
+            <span className="block">{error.message}</span>
+            {hint ? <span className="block text-sm opacity-90">{hint}</span> : null}
+          </AlertDescription>
         </Alert>
       </div>
     );

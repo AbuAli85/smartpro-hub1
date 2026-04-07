@@ -376,7 +376,7 @@ export function EmployeePortalOverview(props: EmployeePortalOverviewProps) {
               </Button>
             ) : (
               <Button variant="outline" className="min-h-11 w-full sm:w-auto gap-2 text-muted-foreground" onClick={() => setShowLeaveDialog(true)}>
-                <Calendar className="h-4 w-4" /> Request leave
+                <Calendar className="h-4 w-4" /> Leave
               </Button>
             )}
           </div>
@@ -608,7 +608,7 @@ export function EmployeePortalOverview(props: EmployeePortalOverviewProps) {
           )}
           <div className="flex flex-col gap-2 sm:flex-row">
             <Button className="min-h-11 flex-1" variant="secondary" onClick={() => setShowLeaveDialog(true)}>
-              Request leave
+              Leave
             </Button>
             <Button variant="outline" className="min-h-11 flex-1" onClick={() => go("leave")}>
               Leave history

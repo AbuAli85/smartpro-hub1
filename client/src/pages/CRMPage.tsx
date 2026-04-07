@@ -292,7 +292,19 @@ function ContactDetailPanel({ contactId, onClose, companyId }: { contactId: numb
               <p className="text-[9px] text-muted-foreground border-t border-border/60 pt-1.5">{contact360.resolution.basis}</p>
               {contact360.resolution.workflow && (
                 <div className="rounded-md border border-border/60 bg-muted/30 px-2 py-1.5 space-y-1 text-[9px]">
-                  <p className="font-semibold text-foreground">Follow-through</p>
+                  <div className="flex flex-wrap items-center gap-1.5 justify-between">
+                    <p className="font-semibold text-foreground">Follow-through</p>
+                    {contact360.resolution.workflow.review && (
+                      <span className="text-[8px] uppercase tracking-wide text-muted-foreground text-right">
+                        {contact360.resolution.workflow.review.workflowScope === "crm_contact" ? "CRM contact" : "Workspace billing"}
+                        {" · "}
+                        <span className="capitalize text-foreground">{contact360.resolution.workflow.review.reviewBucket.replace(/_/g, " ")}</span>
+                      </span>
+                    )}
+                  </div>
+                  {contact360.resolution.workflow.review && (
+                    <p className="text-[8px] text-muted-foreground leading-snug">{contact360.resolution.workflow.review.reviewBasis}</p>
+                  )}
                   <p className="text-muted-foreground leading-snug">
                     {contact360.resolution.workflow.accountableOwnerLabel ? (
                       <>Accountable: {contact360.resolution.workflow.accountableOwnerLabel}</>

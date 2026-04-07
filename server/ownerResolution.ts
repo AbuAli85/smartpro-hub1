@@ -4,12 +4,22 @@
  * Responses include exportMeta for future CSV/PDF pipelines.
  */
 
-import { and, desc, eq } from "drizzle-orm";
+import { and, count, desc, eq } from "drizzle-orm";
 import type { getDb } from "./db";
 import { proBillingCycles } from "../drizzle/schema";
-import type { AccountHealthTier, AccountPortfolioSnapshot, PortfolioAccountRow } from "./accountHealth";
-import type { RevenueRealizationSnapshot } from "./revenueRealization";
+import {
+  getCompanyAccountPortfolioSnapshot,
+  type AccountHealthTier,
+  type AccountPortfolioSnapshot,
+  type PortfolioAccountRow,
+} from "./accountHealth";
+import {
+  buildRevenueRealizationSnapshot,
+  selectRenewalMonetizationRiskRows,
+  type RevenueRealizationSnapshot,
+} from "./revenueRealization";
 import type { PostSaleSignals } from "./postSaleSignals";
+import { getPostSaleSignals } from "./postSaleSignals";
 import {
   enrichOwnerResolutionWithWorkflow,
   type ResolutionWorkflowTracking,
@@ -17,7 +27,7 @@ import {
 
 export type DbClient = NonNullable<Awaited<ReturnType<typeof getDb>>>;
 
-export const OWNER_RESOLUTION_SCHEMA_VERSION = 3 as const;
+export const OWNER_RESOLUTION_SCHEMA_VERSION = 4 as const;
 
 export const OWNER_RESOLUTION_BASIS = `Resolution rows rank CRM-linked accounts using existing health tiers, renewal dates, delivery stall counts, and workspace billing stress. Collections rows are factual billing-cycle rows for this tenant — they are not allocated to customers until invoice linkage exists. Next actions are rule-ordered (contract/renewal → delivery → cash → commercial).`;
 
@@ -102,6 +112,11 @@ export type OwnerResolutionExportRow = {
   /** Renewal intervention date, invoice due, or task staleness signal for export filters. */
   dueOrInterventionDate: string | null;
   taskDueOverdue: boolean;
+  /** CRM vs workspace billing — export / review hygiene. */
+  workflowScope: "crm_contact" | "workspace_billing";
+  /** Derived review bucket — honest, not a claim of business closure. */
+  reviewBucket: string;
+  reviewBasis: string;
 };
 
 /** Weekly leadership review — deterministic counts from workflow rows. */
@@ -119,6 +134,11 @@ export type OwnerResolutionReviewSummary = {
   taskDueOverdueCount: number;
   /** CRM-linked rows with renewal intervention date in the next 7 days (inclusive). */
   interventionDueWithin7DaysCount: number;
+  stalledFollowUpCount: number;
+  inFollowUpCount: number;
+  needsAssignmentCount: number;
+  needsTaggedTaskCount: number;
+  monitorNoTagCount: number;
 };
 
 export type OwnerResolutionSnapshot = {
@@ -170,6 +190,9 @@ function buildOwnerResolutionExportRows(input: {
       renewalInterventionDueAt: w.renewalInterventionDueAt,
       dueOrInterventionDate: w.renewalInterventionDueAt,
       taskDueOverdue: w.isTaskDueOverdue,
+      workflowScope: w.review.workflowScope,
+      reviewBucket: w.review.reviewBucket,
+      reviewBasis: w.review.reviewBasis,
     });
   }
 
@@ -192,6 +215,9 @@ function buildOwnerResolutionExportRows(input: {
       renewalInterventionDueAt: w.renewalInterventionDueAt,
       dueOrInterventionDate: w.renewalInterventionDueAt ?? r.nearestExpiryEndDate,
       taskDueOverdue: w.isTaskDueOverdue,
+      workflowScope: w.review.workflowScope,
+      reviewBucket: w.review.reviewBucket,
+      reviewBasis: w.review.reviewBasis,
     });
   }
 
@@ -214,6 +240,9 @@ function buildOwnerResolutionExportRows(input: {
       renewalInterventionDueAt: null,
       dueOrInterventionDate: c.dueDate,
       taskDueOverdue: w.isTaskDueOverdue,
+      workflowScope: w.review.workflowScope,
+      reviewBucket: w.review.reviewBucket,
+      reviewBasis: w.review.reviewBasis,
     });
   }
 
@@ -224,6 +253,7 @@ function buildOwnerResolutionReviewSummary(
   renewalReadiness: RenewalReadinessRow[],
   rankedAccountsForReview: RankedAccountRow[],
   collectionsFollowUp: CollectionsCycleRow[],
+  exportRows: OwnerResolutionExportRow[],
 ): OwnerResolutionReviewSummary {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -243,6 +273,12 @@ function buildOwnerResolutionReviewSummary(
     if (d >= today && d <= in7) interventionDueWithin7DaysCount++;
   }
 
+  const stalledFollowUpCount = exportRows.filter((r) => r.reviewBucket === "stalled_follow_up").length;
+  const inFollowUpCount = exportRows.filter((r) => r.reviewBucket === "in_follow_up").length;
+  const needsAssignmentCount = exportRows.filter((r) => r.reviewBucket === "needs_assignment").length;
+  const needsTaggedTaskCount = exportRows.filter((r) => r.reviewBucket === "needs_tagged_task").length;
+  const monitorNoTagCount = exportRows.filter((r) => r.reviewBucket === "monitor_no_tag").length;
+
   return {
     rankedCount: rankedAccountsForReview.length,
     renewalCount: renewalReadiness.length,
@@ -257,6 +293,11 @@ function buildOwnerResolutionReviewSummary(
     ).length,
     taskDueOverdueCount: all.filter((w) => w.isTaskDueOverdue).length,
     interventionDueWithin7DaysCount,
+    stalledFollowUpCount,
+    inFollowUpCount,
+    needsAssignmentCount,
+    needsTaggedTaskCount,
+    monitorNoTagCount,
   };
 }
 
@@ -586,6 +627,7 @@ export async function getOwnerResolutionSnapshot(
     renewalReadiness,
     rankedAccountsForReview,
     collectionsFollowUp,
+    exportRows,
   );
 
   return {
@@ -603,4 +645,36 @@ export async function getOwnerResolutionSnapshot(
     exportRows,
     reviewSummary,
   };
+}
+
+/** Full owner-resolution snapshot for export / download — same inputs as business pulse resolution block. */
+export async function loadOwnerResolutionSnapshotForCompany(
+  db: DbClient,
+  companyId: number,
+): Promise<OwnerResolutionSnapshot> {
+  const postSale = await getPostSaleSignals(db, companyId);
+  const accountPortfolio = await getCompanyAccountPortfolioSnapshot(
+    db,
+    companyId,
+    postSale.proBillingOverdueCount > 0,
+  );
+  const [proPendingRow] = await db
+    .select({ cnt: count() })
+    .from(proBillingCycles)
+    .where(and(eq(proBillingCycles.companyId, companyId), eq(proBillingCycles.status, "pending")));
+  const revenueRealization = await buildRevenueRealizationSnapshot(
+    db,
+    companyId,
+    postSale,
+    Number(proPendingRow?.cnt ?? 0),
+  );
+  const renewalMonetizationRisk = selectRenewalMonetizationRiskRows(accountPortfolio, revenueRealization);
+  return getOwnerResolutionSnapshot(
+    db,
+    companyId,
+    accountPortfolio,
+    revenueRealization,
+    renewalMonetizationRisk,
+    postSale,
+  );
 }

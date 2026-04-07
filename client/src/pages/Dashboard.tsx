@@ -3,13 +3,13 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { getHiddenNavHrefs } from "@/lib/navVisibility";
 import { clientNavItemVisible, normalizeClientPath, seesPlatformOperatorNav, getRoleDefaultRoute } from "@shared/clientNav";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle, ArrowRight, ArrowUpRight, BarChart3,
   Briefcase, Building2, CheckCircle2, Clock, FileText,
   Shield, ShoppingBag, TrendingUp, Users, Banknote,
   Globe, Zap, RefreshCw, Award, MapPin, Calendar,
-  ChevronRight, Activity, Bell, Target, CircleDollarSign, Truck, ClipboardList,
+  ChevronRight, Activity, Bell, Target, CircleDollarSign, Truck, ClipboardList, Download,
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -160,6 +160,21 @@ export default function Dashboard() {
   const { data: businessPulse } = trpc.operations.getOwnerBusinessPulse.useQuery(
     { companyId: activeCompanyId ?? undefined },
     { enabled: activeCompanyId != null && !seesPlatformOperatorNav(user), staleTime: 60_000 },
+  );
+  const utils = trpc.useUtils();
+  const downloadOwnerResolutionPack = useCallback(
+    async (format: "csv" | "json") => {
+      if (activeCompanyId == null) return;
+      const pack = await utils.operations.exportOwnerResolutionPack.fetch({ format, companyId: activeCompanyId });
+      const blob = new Blob([pack.body], { type: pack.mimeType });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = pack.filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    },
+    [activeCompanyId, utils],
   );
 
   /** Hide duplicate renewal list when Resolution queue already surfaces renewal follow-through. */
@@ -631,14 +646,23 @@ export default function Dashboard() {
                     </p>
                     {businessPulse.ownerResolution.reviewSummary && (
                       <div className="flex flex-wrap gap-1.5 mt-2 text-[9px]">
-                        <Badge variant="secondary" className="font-normal">
-                          No tagged task: {businessPulse.ownerResolution.reviewSummary.noTaggedTaskCount}
+                        <Badge variant="outline" className="font-normal border-red-200 text-red-900 bg-red-50/50 dark:bg-red-950/30">
+                          Stalled: {businessPulse.ownerResolution.reviewSummary.stalledFollowUpCount}
+                        </Badge>
+                        <Badge variant="outline" className="font-normal border-emerald-200 text-emerald-900 bg-emerald-50/40 dark:bg-emerald-950/25">
+                          In follow-up: {businessPulse.ownerResolution.reviewSummary.inFollowUpCount}
+                        </Badge>
+                        <Badge variant="outline" className="font-normal border-amber-200 text-amber-900 bg-amber-50/50 dark:bg-amber-950/25">
+                          Needs assignment: {businessPulse.ownerResolution.reviewSummary.needsAssignmentCount}
+                        </Badge>
+                        <Badge variant="outline" className="font-normal border-slate-200 text-slate-800">
+                          Monitor: {businessPulse.ownerResolution.reviewSummary.monitorNoTagCount}
                         </Badge>
                         <Badge variant="secondary" className="font-normal">
-                          Gap: {businessPulse.ownerResolution.reviewSummary.withAccountabilityGapCount}
+                          No tag: {businessPulse.ownerResolution.reviewSummary.noTaggedTaskCount}
                         </Badge>
                         <Badge variant="secondary" className="font-normal">
-                          Task overdue: {businessPulse.ownerResolution.reviewSummary.taskDueOverdueCount}
+                          Needs tag: {businessPulse.ownerResolution.reviewSummary.needsTaggedTaskCount}
                         </Badge>
                         <Badge variant="secondary" className="font-normal">
                           Intervention ≤7d: {businessPulse.ownerResolution.reviewSummary.interventionDueWithin7DaysCount}
@@ -647,6 +671,28 @@ export default function Dashboard() {
                     )}
                   </div>
                   <div className="flex flex-wrap gap-1">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="text-xs h-7"
+                      onClick={() => downloadOwnerResolutionPack("csv")}
+                      title="Download CSV (exportRows + review fields)"
+                    >
+                      <Download size={12} className="mr-1" />
+                      CSV
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="text-xs h-7"
+                      onClick={() => downloadOwnerResolutionPack("json")}
+                      title="Download JSON pack for leadership / integrations"
+                    >
+                      <Download size={12} className="mr-1" />
+                      JSON
+                    </Button>
                     <Button variant="ghost" size="sm" className="text-xs h-7" asChild>
                       <Link href="/crm">CRM</Link>
                     </Button>
@@ -700,6 +746,16 @@ export default function Dashboard() {
                             <Badge variant="outline" className="text-[9px]">
                               {row.tier.replace("_", " ")}
                             </Badge>
+                            {row.workflow?.review && (
+                              <Badge
+                                variant="outline"
+                                className="text-[8px] max-w-[140px] truncate capitalize"
+                                title={row.workflow.review.reviewBasis}
+                              >
+                                {row.workflow.review.workflowScope === "crm_contact" ? "CRM" : "Billing"} ·{" "}
+                                {row.workflow.review.reviewBucket.replace(/_/g, " ")}
+                              </Badge>
+                            )}
                             {row.workflow?.accountabilityGap !== "none" && (
                               <Badge variant="outline" className="text-[8px] border-amber-300 text-amber-900">
                                 Gap: {row.workflow.accountabilityGap.replace("_", " ")}
@@ -755,6 +811,11 @@ export default function Dashboard() {
                             </div>
                             {r.postureSummary && (
                               <p className="text-[9px] text-muted-foreground">{r.postureSummary}</p>
+                            )}
+                            {r.workflow?.review && (
+                              <Badge variant="outline" className="text-[8px] w-fit font-normal" title={r.workflow.review.reviewBasis}>
+                                CRM · {r.workflow.review.reviewBucket.replace(/_/g, " ")}
+                              </Badge>
                             )}
                             {r.workflow && (
                               <div className="flex flex-wrap gap-1 items-center text-[9px]">
@@ -814,7 +875,10 @@ export default function Dashboard() {
                                 {c.billingMonth}/{c.billingYear}
                               </span>
                               {c.workflow && (
-                                <span className="block text-[9px] text-muted-foreground mt-0.5">
+                                <span className="block text-[9px] text-muted-foreground mt-0.5 space-y-0.5">
+                                  <span className="text-[8px] block">
+                                    Workspace billing · {c.workflow.review.reviewBucket.replace(/_/g, " ")}
+                                  </span>
                                   {c.workflow.hasOpenEmployeeTask ? "Tagged collections task" : "No tagged task — "}
                                   {!c.workflow.hasOpenEmployeeTask && (
                                     <span className="font-mono text-[8px] break-all">{c.workflow.taskTagConvention}</span>

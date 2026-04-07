@@ -9,12 +9,13 @@
 
 import { and, eq, inArray, like, or } from "drizzle-orm";
 import { RESOLUTION_TASK_TAG } from "@shared/resolutionWorkflow";
-
-export { RESOLUTION_TASK_TAG };
 import type { getDb } from "./db";
 import { crmContacts, employeeTasks, users } from "../drizzle/schema";
 import type { AccountHealthTier } from "./accountHealth";
 import type { CollectionsCycleRow, RankedAccountRow, RenewalReadinessRow } from "./ownerResolution";
+import { deriveResolutionReviewMeta } from "./resolutionReviewDerived";
+
+export { RESOLUTION_TASK_TAG };
 
 type RenewalIn = Omit<RenewalReadinessRow, "workflow">;
 type RankedIn = Omit<RankedAccountRow, "workflow">;
@@ -26,7 +27,8 @@ export const RESOLUTION_WORKFLOW_BASIS = `Follow-through uses open HR tasks (pen
 
 export type AccountabilityGap = "none" | "missing_owner" | "missing_task" | "both";
 
-export type ResolutionWorkflowTracking = {
+/** Workflow fields before leadership review derivation. */
+export type ResolutionWorkflowBase = {
   taskTagConvention: string;
   hasOpenEmployeeTask: boolean;
   matchingTaskIds: number[];
@@ -41,6 +43,13 @@ export type ResolutionWorkflowTracking = {
   /** Any matching task past dueDate. */
   isTaskDueOverdue: boolean;
 };
+
+export type ResolutionWorkflowTracking = ResolutionWorkflowBase & {
+  /** Deterministic review bucket + honest basis (export + UI). */
+  review: ResolutionReviewMeta;
+};
+
+export type { ResolutionReviewMeta } from "./resolutionReviewDerived";
 
 export type OpenResolutionTask = {
   id: number;
@@ -179,7 +188,7 @@ function buildWorkflowForContactRow(
   ownerLabel: string,
   needsFollowThrough: boolean,
   renewalImminent: boolean,
-): ResolutionWorkflowTracking {
+): ResolutionWorkflowBase {
   const matched = tasksForContact(tasks, contactId);
   const hasTask = matched.length > 0;
   const hasOwner = ownerId != null && ownerLabel.length > 0;
@@ -198,7 +207,7 @@ function buildWorkflowForContactRow(
   };
 }
 
-function buildWorkflowForBillingRow(cycleId: number, tasks: OpenResolutionTask[]): ResolutionWorkflowTracking {
+function buildWorkflowForBillingRow(cycleId: number, tasks: OpenResolutionTask[]): ResolutionWorkflowBase {
   const matched = tasksForBillingCycle(tasks, cycleId);
   return {
     taskTagConvention: RESOLUTION_TASK_TAG.billingCycle(cycleId),
@@ -252,18 +261,27 @@ export async function enrichOwnerResolutionWithWorkflow(
     const o = owners.get(r.contactId);
     const renewalImminent = r.daysUntilEnd != null && r.daysUntilEnd <= 14 && r.daysUntilEnd >= 0;
     const needsFollowThrough = true;
+    const base = buildWorkflowForContactRow(
+      r.contactId,
+      r.tier,
+      r.nearestExpiryEndDate,
+      tasks,
+      o?.ownerId ?? null,
+      o?.label ?? "",
+      needsFollowThrough,
+      renewalImminent,
+    );
     return {
       ...r,
-      workflow: buildWorkflowForContactRow(
-        r.contactId,
-        r.tier,
-        r.nearestExpiryEndDate,
-        tasks,
-        o?.ownerId ?? null,
-        o?.label ?? "",
-        needsFollowThrough,
-        renewalImminent,
-      ),
+      workflow: {
+        ...base,
+        review: deriveResolutionReviewMeta({
+          rowKind: "renewal",
+          w: base,
+          tier: r.tier,
+          daysUntilEnd: r.daysUntilEnd,
+        }),
+      },
     };
   });
 
@@ -271,25 +289,46 @@ export async function enrichOwnerResolutionWithWorkflow(
     const o = owners.get(r.contactId);
     const nearest = expiryByContact.get(r.contactId) ?? null;
     const { needs, renewalImminent } = contactNeedsFollowThrough(r.tier, nearest, now);
+    const daysUntilRanked = daysUntilExpiryIso(nearest, now);
+    const base = buildWorkflowForContactRow(
+      r.contactId,
+      r.tier,
+      nearest,
+      tasks,
+      o?.ownerId ?? null,
+      o?.label ?? "",
+      needs,
+      renewalImminent,
+    );
     return {
       ...r,
-      workflow: buildWorkflowForContactRow(
-        r.contactId,
-        r.tier,
-        nearest,
-        tasks,
-        o?.ownerId ?? null,
-        o?.label ?? "",
-        needs,
-        renewalImminent,
-      ),
+      workflow: {
+        ...base,
+        review: deriveResolutionReviewMeta({
+          rowKind: "ranked",
+          w: base,
+          tier: r.tier,
+          daysUntilEnd: daysUntilRanked,
+        }),
+      },
     };
   });
 
-  const enrichedCollections = collectionsFollowUp.map((c) => ({
-    ...c,
-    workflow: buildWorkflowForBillingRow(c.id, tasks),
-  }));
+  const enrichedCollections = collectionsFollowUp.map((c) => {
+    const base = buildWorkflowForBillingRow(c.id, tasks);
+    return {
+      ...c,
+      workflow: {
+        ...base,
+        review: deriveResolutionReviewMeta({
+          rowKind: "collections",
+          w: base,
+          tier: null,
+          daysUntilEnd: null,
+        }),
+      },
+    };
+  });
 
   return {
     renewalReadiness: enrichedRenewal,
@@ -310,7 +349,7 @@ export async function getWorkflowTrackingForContact(
   const o = owners.get(contactId);
   const now = new Date();
   const { needs, renewalImminent } = contactNeedsFollowThrough(tier, nearestExpiryEndDate, now);
-  return buildWorkflowForContactRow(
+  const base = buildWorkflowForContactRow(
     contactId,
     tier,
     nearestExpiryEndDate,
@@ -320,4 +359,14 @@ export async function getWorkflowTrackingForContact(
     needs,
     renewalImminent,
   );
+  const daysUntilEnd = daysUntilExpiryIso(nearestExpiryEndDate, now);
+  return {
+    ...base,
+    review: deriveResolutionReviewMeta({
+      rowKind: "renewal",
+      w: base,
+      tier,
+      daysUntilEnd,
+    }),
+  };
 }

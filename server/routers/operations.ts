@@ -38,7 +38,8 @@ import { getActiveCompanyMembership } from "../_core/membership";
 import { getPostSaleSignals } from "../postSaleSignals";
 import { getCompanyAccountPortfolioSnapshot } from "../accountHealth";
 import { buildRevenueRealizationSnapshot, selectRenewalMonetizationRiskRows } from "../revenueRealization";
-import { getOwnerResolutionSnapshot } from "../ownerResolution";
+import { getOwnerResolutionSnapshot, loadOwnerResolutionSnapshotForCompany } from "../ownerResolution";
+import { buildOwnerResolutionCsv, buildOwnerResolutionExportJson } from "../ownerResolutionCsv";
 import {
   buildBillingResolutionFollowUpPrefill,
   buildCrmResolutionFollowUpPrefill,
@@ -1010,5 +1011,39 @@ export const operationsRouter = router({
       const p = await buildBillingResolutionFollowUpPrefill(db, companyId, input.billingCycleId);
       if (!p) throw new TRPCError({ code: "NOT_FOUND", message: "Billing cycle not found" });
       return p;
+    }),
+
+  /** Downloadable owner-resolution pack (CSV or JSON) — same snapshot shape as pulse `ownerResolution`. */
+  exportOwnerResolutionPack: protectedProcedure
+    .input(
+      z.object({
+        companyId: z.number().optional(),
+        format: z.enum(["csv", "json"]),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      const companyId = await resolvePlatformOrCompanyScope(ctx.user as User, input.companyId);
+      if (companyId === null) throw new TRPCError({ code: "BAD_REQUEST", message: "Company required" });
+      const membership = await getActiveCompanyMembership(ctx.user.id, companyId);
+      if (!membership) throw new TRPCError({ code: "FORBIDDEN", message: "No company membership" });
+      if (membership.role === "company_member" || membership.role === "client") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Insufficient access" });
+      }
+      const snapshot = await loadOwnerResolutionSnapshotForCompany(db, companyId);
+      const stamp = new Date().toISOString().slice(0, 10);
+      if (input.format === "csv") {
+        return {
+          filename: `owner-resolution-${companyId}-${stamp}.csv`,
+          mimeType: "text/csv;charset=utf-8",
+          body: buildOwnerResolutionCsv(snapshot),
+        };
+      }
+      return {
+        filename: `owner-resolution-${companyId}-${stamp}.json`,
+        mimeType: "application/json;charset=utf-8",
+        body: buildOwnerResolutionExportJson(snapshot),
+      };
     }),
 });

@@ -1122,6 +1122,40 @@ export default function EmployeePortalPage() {
     onError: (err) => toast.error(err.message),
   });
 
+  const todayIsoDate = today.toISOString().split("T")[0];
+
+  /** Time off: end before start (shown inline + blocks submit, same rule as leave). */
+  const shiftRequestTimeOffRangeInvalid = useMemo(() => {
+    if (shiftReqType !== "time_off" || !shiftReqDate?.trim() || !shiftReqEndDate?.trim()) return false;
+    return new Date(`${shiftReqEndDate}T12:00:00`).getTime() < new Date(`${shiftReqDate}T12:00:00`).getTime();
+  }, [shiftReqType, shiftReqDate, shiftReqEndDate]);
+
+  const shiftRequestSubmitReady = useMemo(() => {
+    if (!shiftReqDate?.trim()) return false;
+    if (shiftReqReason.trim().length < 5) return false;
+    if (shiftReqType === "time_off") {
+      if (!shiftReqEndDate?.trim()) return false;
+      if (shiftRequestTimeOffRangeInvalid) return false;
+    }
+    if (
+      (shiftReqType === "early_leave" || shiftReqType === "late_arrival") &&
+      !shiftReqTime?.trim()
+    ) {
+      return false;
+    }
+    return true;
+  }, [
+    shiftReqDate,
+    shiftReqEndDate,
+    shiftReqTime,
+    shiftReqReason,
+    shiftReqType,
+    shiftRequestTimeOffRangeInvalid,
+  ]);
+
+  const shiftReasonTooShort =
+    shiftReqReason.trim().length > 0 && shiftReqReason.trim().length < 5;
+
   // ── Derived data ──────────────────────────────────────────────────────────
   const leave = leaveData?.requests ?? [];
   const entitlements = leaveData?.entitlements ?? { annual: 30, sick: 15, emergency: 5 };
@@ -3504,7 +3538,7 @@ export default function EmployeePortalPage() {
         </DialogContent>
       </Dialog>
 
-      {/* ── Shift Change / Time Off Request Dialog ── */}
+      {/* ── Shift Change / Time Off / HR Request Dialog (same patterns as leave) ── */}
       <Dialog
         open={showShiftRequestDialog}
         onOpenChange={(open) => {
@@ -3522,66 +3556,139 @@ export default function EmployeePortalPage() {
           }}
         >
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-base">
-              <ArrowLeftRight className="h-4 w-4 text-primary" /> Request to HR
-            </DialogTitle>
+            <DialogTitle>Submit HR request</DialogTitle>
             <DialogDescription id="employee-shift-request-dialog-desc">
-              Choose type, dates, and reason (5+ characters), then send.
+              Choose the request type, required dates or time, and a short reason — HR confirms by notification.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
-            <div>
-              <Label className="text-xs text-muted-foreground uppercase tracking-wide">Request Type</Label>
+            <div className="space-y-1.5">
+              <Label htmlFor="employee-shift-req-type">
+                Request type <span className="text-destructive">*</span>
+              </Label>
               <Select
                 value={shiftReqType}
                 onValueChange={(v) => {
                   setShiftReqType(v);
                   if (v !== "shift_change") setShiftPreferredShiftId("");
+                  if (v !== "time_off") setShiftReqEndDate("");
+                  if (v !== "early_leave" && v !== "late_arrival") setShiftReqTime("");
                 }}
               >
-                <SelectTrigger ref={shiftRequestTypeSelectRef} className="mt-1 w-full min-w-0">
-                  <SelectValue />
+                <SelectTrigger
+                  id="employee-shift-req-type"
+                  ref={shiftRequestTypeSelectRef}
+                  className="min-h-11 w-full min-w-0 touch-manipulation"
+                >
+                  <SelectValue placeholder="Select type" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="time_off">Time Off</SelectItem>
-                  <SelectItem value="shift_change">Shift Change</SelectItem>
-                  <SelectItem value="early_leave">Early Leave</SelectItem>
-                  <SelectItem value="late_arrival">Late Arrival</SelectItem>
-                  <SelectItem value="day_swap">Day Swap</SelectItem>
+                  <SelectItem value="time_off">Time off (date range)</SelectItem>
+                  <SelectItem value="shift_change">Shift change</SelectItem>
+                  <SelectItem value="early_leave">Early leave</SelectItem>
+                  <SelectItem value="late_arrival">Late arrival</SelectItem>
+                  <SelectItem value="day_swap">Day swap</SelectItem>
                 </SelectContent>
               </Select>
+              <p className="text-xs text-muted-foreground">
+                Use <span className="font-medium text-foreground/80">Time off</span> for multiple days; other types apply to a single date (and time where needed).
+              </p>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label className="text-xs text-muted-foreground uppercase tracking-wide">
-                  {shiftReqType === "time_off" ? "Start Date" : "Date"}
-                </Label>
-                <DateInput className="mt-1" value={shiftReqDate} onChange={e => setShiftReqDate(e.target.value)} />
+
+            {shiftReqType === "time_off" ? (
+              <div className="space-y-3">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="shift-req-start">
+                      Start date <span className="text-destructive">*</span>
+                    </Label>
+                    <DateInput
+                      id="shift-req-start"
+                      className="min-h-11 w-full touch-manipulation"
+                      value={shiftReqDate}
+                      min={todayIsoDate}
+                      required
+                      aria-required
+                      onChange={(e) => setShiftReqDate(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="shift-req-end">
+                      End date <span className="text-destructive">*</span>
+                    </Label>
+                    <DateInput
+                      id="shift-req-end"
+                      className="min-h-11 w-full touch-manipulation"
+                      value={shiftReqEndDate}
+                      min={shiftReqDate || todayIsoDate}
+                      required
+                      aria-required
+                      aria-invalid={shiftRequestTimeOffRangeInvalid ? "true" : "false"}
+                      aria-describedby={shiftRequestTimeOffRangeInvalid ? "shift-req-date-range-error" : undefined}
+                      onChange={(e) => setShiftReqEndDate(e.target.value)}
+                    />
+                  </div>
+                </div>
+                {shiftRequestTimeOffRangeInvalid && (
+                  <p id="shift-req-date-range-error" className="text-xs font-medium text-destructive" role="alert">
+                    End date must be on or after the start date.
+                  </p>
+                )}
+                {shiftReqDate && shiftReqEndDate && !shiftRequestTimeOffRangeInvalid && (
+                  <p className="text-xs text-muted-foreground">
+                    <Timer className="mr-1 inline-block h-3 w-3 align-middle" aria-hidden />
+                    {calcDays(shiftReqDate, shiftReqEndDate)} day{calcDays(shiftReqDate, shiftReqEndDate) !== 1 ? "s" : ""}{" "}
+                    in this request
+                  </p>
+                )}
               </div>
-              {shiftReqType === "time_off" && (
-                <div>
-                  <Label className="text-xs text-muted-foreground uppercase tracking-wide">End Date</Label>
-                  <DateInput className="mt-1" value={shiftReqEndDate} onChange={e => setShiftReqEndDate(e.target.value)} />
-                </div>
-              )}
-              {(shiftReqType === "early_leave" || shiftReqType === "late_arrival") && (
-                <div>
-                  <Label className="text-xs text-muted-foreground uppercase tracking-wide">
-                    {shiftReqType === "early_leave" ? "Leave Time" : "Arrival Time"}
+            ) : (
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="shift-req-single-date">
+                    Date <span className="text-destructive">*</span>
                   </Label>
-                  <Input type="time" className="mt-1" value={shiftReqTime} onChange={e => setShiftReqTime(e.target.value)} />
+                  <DateInput
+                    id="shift-req-single-date"
+                    className="min-h-11 w-full touch-manipulation"
+                    value={shiftReqDate}
+                    min={todayIsoDate}
+                    required
+                    aria-required
+                    onChange={(e) => setShiftReqDate(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">The calendar day this request applies to.</p>
                 </div>
-              )}
-            </div>
+                {(shiftReqType === "early_leave" || shiftReqType === "late_arrival") && (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="shift-req-time">
+                      {shiftReqType === "early_leave" ? "Time you leave" : "Time you arrive"}{" "}
+                      <span className="text-destructive">*</span>
+                    </Label>
+                    <Input
+                      id="shift-req-time"
+                      type="time"
+                      className="min-h-11 touch-manipulation"
+                      value={shiftReqTime}
+                      required
+                      aria-required
+                      onChange={(e) => setShiftReqTime(e.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground">Use the time picker — same timezone as your schedule.</p>
+                  </div>
+                )}
+              </div>
+            )}
+
             {shiftReqType === "shift_change" && (shiftTemplatesList ?? []).length > 0 && (
-              <div>
-                <Label className="text-xs text-muted-foreground uppercase tracking-wide">Preferred shift (optional)</Label>
+              <div className="space-y-1.5">
+                <Label htmlFor="shift-req-preferred">Preferred shift (optional)</Label>
                 <Select
                   value={shiftPreferredShiftId || "__none__"}
                   onValueChange={(v) => setShiftPreferredShiftId(v === "__none__" ? "" : v)}
                 >
-                  <SelectTrigger className="mt-1 w-full min-w-0">
-                    <SelectValue placeholder="No preference" />
+                  <SelectTrigger id="shift-req-preferred" className="min-h-11 w-full min-w-0 touch-manipulation">
+                    <SelectValue placeholder="No preference — HR will propose" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__none__">No preference</SelectItem>
@@ -3592,48 +3699,79 @@ export default function EmployeePortalPage() {
                     ))}
                   </SelectContent>
                 </Select>
+                <p className="text-xs text-muted-foreground">Optional — leave blank if you want HR to suggest options.</p>
               </div>
             )}
-            <div>
-              <Label className="text-xs text-muted-foreground uppercase tracking-wide">Reason *</Label>
-              <p id="shift-req-reason-hint" className="mt-1 text-xs text-muted-foreground">
-                Minimum 5 characters.
+
+            <div className="space-y-1.5">
+              <Label htmlFor="shift-req-reason">
+                Reason <span className="text-destructive">*</span>
+              </Label>
+              <p id="shift-req-reason-hint" className="text-xs text-muted-foreground">
+                At least 5 characters so HR can act on your request.
               </p>
               <Textarea
-                className="mt-1"
+                id="shift-req-reason"
+                className="min-h-[5.5rem] touch-manipulation"
                 rows={3}
-                placeholder="What do you need from HR?"
+                placeholder="e.g. Doctor appointment, family travel, need morning shift next week…"
                 value={shiftReqReason}
                 onChange={(e) => setShiftReqReason(e.target.value)}
-                aria-describedby="shift-req-reason-hint"
+                aria-describedby={
+                  shiftReasonTooShort ? "shift-req-reason-hint shift-req-reason-error" : "shift-req-reason-hint"
+                }
+                aria-invalid={shiftReasonTooShort ? "true" : "false"}
               />
+              {shiftReasonTooShort && (
+                <p id="shift-req-reason-error" className="text-xs font-medium text-destructive" role="alert">
+                  Add a few more characters (minimum 5).
+                </p>
+              )}
             </div>
-            {/* Supporting Document Upload */}
-            <div>
-              <Label className="text-xs text-muted-foreground uppercase tracking-wide">Supporting Document (optional)</Label>
-              <div className="mt-1">
+
+            <div className="space-y-1.5">
+              <Label htmlFor="shift-req-attachment-input">Supporting document (optional)</Label>
+              <p className="text-xs text-muted-foreground">PDF or image, max 5 MB — e.g. appointment letter or ticket.</p>
+              <div>
                 {shiftReqAttachmentUrl ? (
-                  <div className="flex items-center gap-2 p-2 border rounded-lg bg-green-50 dark:bg-green-950/20">
-                    <FileCheck className="w-4 h-4 text-green-600 shrink-0" />
-                    <span className="text-xs text-green-700 dark:text-green-400 truncate flex-1">{shiftReqAttachmentName}</span>
-                    <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={() => { setShiftReqAttachmentUrl(null); setShiftReqAttachmentName(null); }}>Remove</Button>
+                  <div className="flex min-h-11 items-center gap-2 rounded-lg border border-green-200 bg-green-50 p-2 dark:border-green-900/50 dark:bg-green-950/20">
+                    <FileCheck className="h-4 w-4 shrink-0 text-green-600" aria-hidden />
+                    <span className="flex-1 truncate text-xs text-green-800 dark:text-green-300">{shiftReqAttachmentName}</span>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="h-9 shrink-0 touch-manipulation px-2 text-xs"
+                      onClick={() => {
+                        setShiftReqAttachmentUrl(null);
+                        setShiftReqAttachmentName(null);
+                      }}
+                    >
+                      Remove
+                    </Button>
                   </div>
                 ) : (
-                  <label className="flex items-center gap-2 p-2 border border-dashed rounded-lg cursor-pointer hover:bg-muted/50 transition-colors">
-                    <FilePlus className="w-4 h-4 text-muted-foreground" />
+                  <label
+                    htmlFor="shift-req-attachment-input"
+                    className="flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border border-dashed p-3 transition-colors hover:bg-muted/50 touch-manipulation"
+                  >
+                    <FilePlus className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
                     <span className="text-xs text-muted-foreground">
-                      {uploadingAttachment ? "Uploading..." : "Click to attach a document (PDF, image, max 5MB)"}
+                      {uploadingAttachment ? "Uploading…" : "Tap to choose a file (PDF, image, Word)"}
                     </span>
                     <input
+                      id="shift-req-attachment-input"
                       type="file"
-                      className="hidden"
+                      className="sr-only"
                       accept="image/*,.pdf,.jpg,.jpeg,.png,.doc,.docx"
-                      capture="environment"
                       disabled={uploadingAttachment}
                       onChange={async (e) => {
                         const file = e.target.files?.[0];
                         if (!file) return;
-                        if (file.size > 5 * 1024 * 1024) { toast.error("File too large — max 5MB"); return; }
+                        if (file.size > 5 * 1024 * 1024) {
+                          toast.error("File too large", { description: "Maximum size is 5 MB." });
+                          return;
+                        }
                         setUploadingAttachment(true);
                         setShiftReqAttachmentName(file.name);
                         const reader = new FileReader();
@@ -3651,26 +3789,55 @@ export default function EmployeePortalPage() {
             </div>
           </div>
           <DialogFooter className="flex-col gap-2 sm:flex-row">
-            <Button variant="outline" className="min-h-11 w-full touch-manipulation sm:w-auto" onClick={() => setShowShiftRequestDialog(false)}>
+            <Button
+              variant="outline"
+              className="min-h-11 w-full touch-manipulation sm:w-auto"
+              onClick={() => setShowShiftRequestDialog(false)}
+            >
               Cancel
             </Button>
             <Button
-              className="min-h-11 w-full touch-manipulation sm:w-auto disabled:opacity-60"
-              disabled={!shiftReqDate || shiftReqReason.trim().length < 5 || submitShiftRequest.isPending || uploadingAttachment}
-              onClick={() =>
+              className="min-h-12 w-full touch-manipulation text-base font-semibold sm:w-auto disabled:opacity-60"
+              disabled={!shiftRequestSubmitReady || submitShiftRequest.isPending || uploadingAttachment}
+              onClick={() => {
+                if (activeCompanyId == null) {
+                  toast.error("No active workspace", { description: "Select a company and try again." });
+                  return;
+                }
+                if (!shiftRequestSubmitReady) return;
+                if (shiftReqType === "time_off" && shiftReqDate && shiftReqEndDate) {
+                  const s = new Date(`${shiftReqDate}T12:00:00`).getTime();
+                  const e = new Date(`${shiftReqEndDate}T12:00:00`).getTime();
+                  if (e < s) {
+                    toast.error("Check your dates", { description: "End date must be on or after start date." });
+                    return;
+                  }
+                }
+                if (
+                  (shiftReqType === "early_leave" || shiftReqType === "late_arrival") &&
+                  !shiftReqTime?.trim()
+                ) {
+                  toast.error("Add a time", { description: "Time is required for early leave and late arrival." });
+                  return;
+                }
+                if (shiftReqReason.trim().length < 5) {
+                  toast.error("Reason too short", { description: "Please enter at least 5 characters." });
+                  return;
+                }
                 submitShiftRequest.mutate({
+                  companyId: activeCompanyId,
                   requestType: shiftReqType as any,
                   requestedDate: shiftReqDate,
-                  requestedEndDate: shiftReqEndDate || undefined,
+                  requestedEndDate: shiftReqType === "time_off" ? shiftReqEndDate : undefined,
                   requestedTime: shiftReqTime || undefined,
                   preferredShiftId:
                     shiftReqType === "shift_change" && shiftPreferredShiftId
                       ? Number(shiftPreferredShiftId)
                       : undefined,
-                  reason: shiftReqReason,
+                  reason: shiftReqReason.trim(),
                   attachmentUrl: shiftReqAttachmentUrl || undefined,
-                })
-              }
+                });
+              }}
             >
               {submitShiftRequest.isPending ? "Sending…" : "Send request"}
             </Button>

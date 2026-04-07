@@ -15,6 +15,7 @@ import { and, count, desc, eq, inArray, sql } from "drizzle-orm";
 import { contracts, crmDeals, proBillingCycles, serviceQuotations } from "../../drizzle/schema";
 import { buildContactRevenueRealizationHints, buildRevenueRealizationSnapshot } from "../revenueRealization";
 import { resolvePrimaryAccountAction } from "../ownerResolution";
+import { getWorkflowTrackingForContact, RESOLUTION_WORKFLOW_BASIS } from "../resolutionWorkflow";
 import {
   createCrmCommunication,
   createCrmContact,
@@ -392,6 +393,26 @@ export const crmRouter = router({
         sampleContractHref,
       });
 
+      const nearestExpiryContract = contractsFromQuotations
+        .filter(
+          (c) =>
+            c.endDate &&
+            new Date(c.endDate) >= nowRef &&
+            ["signed", "active"].includes(c.status ?? ""),
+        )
+        .sort((a, b) => new Date(a.endDate!).getTime() - new Date(b.endDate!).getTime())[0];
+      const nearestExpiryEndDate = nearestExpiryContract?.endDate
+        ? new Date(nearestExpiryContract.endDate).toISOString().slice(0, 10)
+        : null;
+
+      const resolutionWorkflow = await getWorkflowTrackingForContact(
+        db,
+        companyId,
+        input.contactId,
+        accountHealth.tier,
+        nearestExpiryEndDate,
+      );
+
       return {
         contact,
         deals,
@@ -431,6 +452,8 @@ export const crmRouter = router({
           alternatives: resolution.alternatives,
           basis:
             "Deterministic next step from account tier, delivery stall, renewal window, commercial friction, and workspace billing stress — not AI.",
+          workflow: resolutionWorkflow,
+          workflowTagBasis: RESOLUTION_WORKFLOW_BASIS,
         },
       };
     }),

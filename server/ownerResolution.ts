@@ -10,10 +10,14 @@ import { proBillingCycles } from "../drizzle/schema";
 import type { AccountHealthTier, AccountPortfolioSnapshot, PortfolioAccountRow } from "./accountHealth";
 import type { RevenueRealizationSnapshot } from "./revenueRealization";
 import type { PostSaleSignals } from "./postSaleSignals";
+import {
+  enrichOwnerResolutionWithWorkflow,
+  type ResolutionWorkflowTracking,
+} from "./resolutionWorkflow";
 
 export type DbClient = NonNullable<Awaited<ReturnType<typeof getDb>>>;
 
-export const OWNER_RESOLUTION_SCHEMA_VERSION = 1 as const;
+export const OWNER_RESOLUTION_SCHEMA_VERSION = 2 as const;
 
 export const OWNER_RESOLUTION_BASIS = `Resolution rows rank CRM-linked accounts using existing health tiers, renewal dates, delivery stall counts, and workspace billing stress. Collections rows are factual billing-cycle rows for this tenant — they are not allocated to customers until invoice linkage exists. Next actions are rule-ordered (contract/renewal → delivery → cash → commercial).`;
 
@@ -40,6 +44,7 @@ export type RenewalReadinessRow = {
   contactId: number;
   displayName: string;
   companyLabel: string | null;
+  tier: AccountHealthTier;
   nearestExpiryEndDate: string | null;
   daysUntilEnd: number | null;
   postureFlags: RenewalPostureFlag[];
@@ -48,6 +53,7 @@ export type RenewalReadinessRow = {
   nextAction: ResolutionNextAction;
   primaryHref: string;
   contractHref: string | null;
+  workflow: ResolutionWorkflowTracking;
 };
 
 export type CollectionsCycleRow = {
@@ -61,6 +67,7 @@ export type CollectionsCycleRow = {
   nextAction: ResolutionNextAction;
   /** When renewal accounts exist, remind that cash work supports renewals. */
   overlapNote: string | null;
+  workflow: ResolutionWorkflowTracking;
 };
 
 export type RankedAccountRow = {
@@ -73,6 +80,28 @@ export type RankedAccountRow = {
   primaryHref: string;
   contractHref: string | null;
   nextAction: ResolutionNextAction;
+  workflow: ResolutionWorkflowTracking;
+};
+
+/** Flat rows for CSV / PDF / leadership packs — stable column names. */
+export type OwnerResolutionExportRow = {
+  rowKind: "ranked" | "renewal" | "collections";
+  contactId: number | null;
+  billingCycleId: number | null;
+  displayName: string;
+  secondaryLabel: string | null;
+  tier: string | null;
+  rankReason: string | null;
+  nextActionLabel: string;
+  nextActionHref: string;
+  accountableOwnerLabel: string | null;
+  hasOpenEmployeeTask: boolean;
+  matchingTaskIds: string;
+  accountabilityGap: string;
+  renewalInterventionDueAt: string | null;
+  /** Renewal intervention date, invoice due, or task staleness signal for export filters. */
+  dueOrInterventionDate: string | null;
+  taskDueOverdue: boolean;
 };
 
 export type OwnerResolutionSnapshot = {
@@ -87,11 +116,90 @@ export type OwnerResolutionSnapshot = {
   /** Unified leadership queue — deduped, highest priority first. */
   rankedAccountsForReview: RankedAccountRow[];
   collectionsWorkspaceNote: string;
+  /** Pre-flattened for CSV / scheduled exports — same tenant scope as exportMeta. */
+  exportRows: OwnerResolutionExportRow[];
 };
 
 const MAX_RENEWAL = 8;
 const MAX_COLLECTIONS = 8;
 const MAX_RANKED = 12;
+
+function buildOwnerResolutionExportRows(input: {
+  renewalReadiness: RenewalReadinessRow[];
+  rankedAccountsForReview: RankedAccountRow[];
+  collectionsFollowUp: CollectionsCycleRow[];
+}): OwnerResolutionExportRow[] {
+  const { renewalReadiness, rankedAccountsForReview, collectionsFollowUp } = input;
+  const rows: OwnerResolutionExportRow[] = [];
+
+  for (const r of rankedAccountsForReview) {
+    const w = r.workflow;
+    rows.push({
+      rowKind: "ranked",
+      contactId: r.contactId,
+      billingCycleId: null,
+      displayName: r.displayName,
+      secondaryLabel: r.companyLabel,
+      tier: r.tier,
+      rankReason: r.rankReason,
+      nextActionLabel: r.nextAction.label,
+      nextActionHref: r.nextAction.href,
+      accountableOwnerLabel: w.accountableOwnerLabel,
+      hasOpenEmployeeTask: w.hasOpenEmployeeTask,
+      matchingTaskIds: w.matchingTaskIds.join(";"),
+      accountabilityGap: w.accountabilityGap,
+      renewalInterventionDueAt: w.renewalInterventionDueAt,
+      dueOrInterventionDate: w.renewalInterventionDueAt,
+      taskDueOverdue: w.isTaskDueOverdue,
+    });
+  }
+
+  for (const r of renewalReadiness) {
+    const w = r.workflow;
+    rows.push({
+      rowKind: "renewal",
+      contactId: r.contactId,
+      billingCycleId: null,
+      displayName: r.displayName,
+      secondaryLabel: r.companyLabel,
+      tier: r.tier,
+      rankReason: r.postureSummary,
+      nextActionLabel: r.nextAction.label,
+      nextActionHref: r.nextAction.href,
+      accountableOwnerLabel: w.accountableOwnerLabel,
+      hasOpenEmployeeTask: w.hasOpenEmployeeTask,
+      matchingTaskIds: w.matchingTaskIds.join(";"),
+      accountabilityGap: w.accountabilityGap,
+      renewalInterventionDueAt: w.renewalInterventionDueAt,
+      dueOrInterventionDate: w.renewalInterventionDueAt ?? r.nearestExpiryEndDate,
+      taskDueOverdue: w.isTaskDueOverdue,
+    });
+  }
+
+  for (const c of collectionsFollowUp) {
+    const w = c.workflow;
+    rows.push({
+      rowKind: "collections",
+      contactId: null,
+      billingCycleId: c.id,
+      displayName: c.invoiceNumber,
+      secondaryLabel: `${c.billingMonth}/${c.billingYear}`,
+      tier: null,
+      rankReason: c.overlapNote,
+      nextActionLabel: c.nextAction.label,
+      nextActionHref: c.nextAction.href,
+      accountableOwnerLabel: null,
+      hasOpenEmployeeTask: w.hasOpenEmployeeTask,
+      matchingTaskIds: w.matchingTaskIds.join(";"),
+      accountabilityGap: w.accountabilityGap,
+      renewalInterventionDueAt: null,
+      dueOrInterventionDate: c.dueDate,
+      taskDueOverdue: w.isTaskDueOverdue,
+    });
+  }
+
+  return rows;
+}
 
 function daysUntil(dateIso: string | null, now: Date): number | null {
   if (!dateIso) return null;
@@ -104,7 +212,7 @@ function renewalRowFromPortfolio(
   now: Date,
   revenue: RevenueRealizationSnapshot,
   tenantOverdue: boolean,
-): RenewalReadinessRow {
+): Omit<RenewalReadinessRow, "workflow"> {
   const days = daysUntil(row.nearestExpiryEndDate, now);
   const postureFlags: RenewalPostureFlag[] = [];
   if (row.renewalWeakFollowUp) postureFlags.push("weak_crm_activity");
@@ -149,6 +257,7 @@ function renewalRowFromPortfolio(
     contactId: row.contactId,
     displayName: row.displayName,
     companyLabel: row.companyLabel,
+    tier: row.tier,
     nearestExpiryEndDate: row.nearestExpiryEndDate,
     daysUntilEnd: days,
     postureFlags,
@@ -163,7 +272,7 @@ export async function loadCollectionsFollowUpRows(
   db: DbClient,
   companyId: number,
   hasRenewalAccounts: boolean,
-): Promise<CollectionsCycleRow[]> {
+): Promise<Omit<CollectionsCycleRow, "workflow">[]> {
   const rows = await db
     .select()
     .from(proBillingCycles)
@@ -207,8 +316,8 @@ function buildRankedAccounts(
   portfolio: AccountPortfolioSnapshot,
   renewalMonetization: PortfolioAccountRow[],
   now: Date,
-): RankedAccountRow[] {
-  const byId = new Map<number, RankedAccountRow>();
+): Omit<RankedAccountRow, "workflow">[] {
+  const byId = new Map<number, Omit<RankedAccountRow, "workflow">>();
 
   const bump = (row: PortfolioAccountRow, reason: string, extra: number) => {
     const base = tierScore(row.tier) + extra;
@@ -247,7 +356,7 @@ function buildRankedAccounts(
     bump(r, "Delivery stall (linked account)", 6);
   }
 
-  return [...byId.values()]
+  return Array.from(byId.values())
     .sort((a, b) => b.priorityScore - a.priorityScore)
     .slice(0, MAX_RANKED);
 }
@@ -396,14 +505,23 @@ export async function getOwnerResolutionSnapshot(
   const now = new Date();
   const tenantOverdue = postSale.proBillingOverdueCount > 0;
 
-  const renewalReadiness = portfolio.renewalRisk
+  const renewalDraft = portfolio.renewalRisk
     .map((r) => renewalRowFromPortfolio(r, now, revenue, tenantOverdue))
     .slice(0, MAX_RENEWAL);
 
   const hasRenewal = portfolio.renewalRisk.length > 0;
-  const collectionsFollowUp = await loadCollectionsFollowUpRows(db, companyId, hasRenewal);
+  const collectionsDraft = await loadCollectionsFollowUpRows(db, companyId, hasRenewal);
 
-  const rankedAccountsForReview = buildRankedAccounts(portfolio, renewalMonetizationRisk, now);
+  const rankedDraft = buildRankedAccounts(portfolio, renewalMonetizationRisk, now);
+
+  const { renewalReadiness, rankedAccountsForReview, collectionsFollowUp } =
+    await enrichOwnerResolutionWithWorkflow(db, companyId, renewalDraft, rankedDraft, collectionsDraft);
+
+  const exportRows = buildOwnerResolutionExportRows({
+    renewalReadiness,
+    rankedAccountsForReview,
+    collectionsFollowUp,
+  });
 
   return {
     exportMeta: {
@@ -417,5 +535,6 @@ export async function getOwnerResolutionSnapshot(
     rankedAccountsForReview,
     collectionsWorkspaceNote:
       "Billing cycle rows are tenant-scoped; customer allocation requires future invoice↔account linkage.",
+    exportRows,
   };
 }

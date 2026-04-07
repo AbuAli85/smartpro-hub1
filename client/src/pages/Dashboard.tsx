@@ -162,6 +162,20 @@ export default function Dashboard() {
     { enabled: activeCompanyId != null && !seesPlatformOperatorNav(user), staleTime: 60_000 },
   );
 
+  /** Hide duplicate renewal list when Resolution queue already surfaces renewal follow-through. */
+  const accountControlCardVisible = useMemo(() => {
+    if (!businessPulse?.accountPortfolio) return false;
+    const ap = businessPulse.accountPortfolio;
+    const hideRenewalDup = (businessPulse.ownerResolution?.renewalReadiness.length ?? 0) > 0;
+    const showRenewal = ap.renewalRisk.length > 0 && !hideRenewalDup;
+    return (
+      showRenewal ||
+      ap.stalledDelivery.length > 0 ||
+      ap.combinedRisk.length > 0 ||
+      ap.executiveFollowUp.length > 0
+    );
+  }, [businessPulse]);
+
   const quickAccessModules = useMemo(() => {
     const items = [
       {
@@ -611,7 +625,9 @@ export default function Dashboard() {
                     </CardTitle>
                     <p className="text-[10px] text-muted-foreground font-normal mt-1">
                       Snapshot v{businessPulse.ownerResolution.exportMeta.schemaVersion} ·{" "}
-                      {fmtDateTimeShort(new Date(businessPulse.ownerResolution.exportMeta.generatedAt))} — structured for future CSV/PDF export.
+                      {fmtDateTimeShort(new Date(businessPulse.ownerResolution.exportMeta.generatedAt))} ·{" "}
+                      {businessPulse.ownerResolution.exportRows.length} flat export row
+                      {businessPulse.ownerResolution.exportRows.length === 1 ? "" : "s"} (CSV / leadership packs).
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-1">
@@ -639,18 +655,42 @@ export default function Dashboard() {
                           key={`rank-${row.contactId}`}
                           className="rounded-md border border-border/70 p-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2"
                         >
-                          <div>
+                          <div className="min-w-0">
                             <Link href={row.primaryHref} className="font-medium hover:underline">
                               {row.displayName}
                             </Link>
                             <span className="text-[10px] text-muted-foreground ml-1">
                               · score {row.priorityScore} — {row.rankReason}
                             </span>
+                            {row.workflow && (
+                              <p className="text-[9px] text-muted-foreground mt-0.5">
+                                {row.workflow.accountableOwnerLabel ? (
+                                  <span>Accountable: {row.workflow.accountableOwnerLabel}</span>
+                                ) : (
+                                  <span className="text-amber-800 dark:text-amber-200">No CRM owner</span>
+                                )}
+                                {row.workflow.hasOpenEmployeeTask ? (
+                                  <span className="ml-1">· Tagged task open</span>
+                                ) : (
+                                  <span className="ml-1">· No tagged HR task</span>
+                                )}
+                              </p>
+                            )}
                           </div>
                           <div className="flex flex-wrap gap-2 items-center">
                             <Badge variant="outline" className="text-[9px]">
                               {row.tier.replace("_", " ")}
                             </Badge>
+                            {row.workflow?.accountabilityGap !== "none" && (
+                              <Badge variant="outline" className="text-[8px] border-amber-300 text-amber-900">
+                                Gap: {row.workflow.accountabilityGap.replace("_", " ")}
+                              </Badge>
+                            )}
+                            {row.workflow?.isTaskDueOverdue && (
+                              <Badge variant="outline" className="text-[8px] border-red-200 text-red-800">
+                                Task overdue
+                              </Badge>
+                            )}
                             <Button variant="default" size="sm" className="h-7 text-[10px]" asChild>
                               <Link href={row.nextAction.href} title={row.nextAction.basis}>
                                 {row.nextAction.label}
@@ -659,6 +699,11 @@ export default function Dashboard() {
                             {row.contractHref && (
                               <Link href={row.contractHref} className="text-[10px] text-[var(--smartpro-orange)] hover:underline">
                                 Contract
+                              </Link>
+                            )}
+                            {row.workflow && (
+                              <Link href={row.workflow.tasksHref} className="text-[10px] text-muted-foreground hover:underline">
+                                Tasks
                               </Link>
                             )}
                           </div>
@@ -685,11 +730,37 @@ export default function Dashboard() {
                             {r.postureSummary && (
                               <p className="text-[9px] text-muted-foreground">{r.postureSummary}</p>
                             )}
-                            <Button variant="outline" size="sm" className="h-7 text-[10px] w-full sm:w-auto" asChild>
-                              <Link href={r.nextAction.href} title={r.nextAction.basis}>
-                                {r.nextAction.label}
-                              </Link>
-                            </Button>
+                            {r.workflow && (
+                              <div className="flex flex-wrap gap-1 items-center text-[9px]">
+                                {r.workflow.renewalInterventionDueAt && (
+                                  <span className="text-muted-foreground">
+                                    Intervention by {r.workflow.renewalInterventionDueAt}
+                                  </span>
+                                )}
+                                {r.workflow.accountabilityGap !== "none" && (
+                                  <Badge variant="outline" className="text-[8px] h-5 border-amber-300 text-amber-900">
+                                    {r.workflow.accountabilityGap.replace("_", " ")}
+                                  </Badge>
+                                )}
+                                {r.workflow.hasOpenEmployeeTask ? (
+                                  <span className="text-emerald-800 dark:text-emerald-200">Tagged task</span>
+                                ) : (
+                                  <span className="text-muted-foreground">No tagged task</span>
+                                )}
+                              </div>
+                            )}
+                            <div className="flex flex-wrap gap-2">
+                              <Button variant="outline" size="sm" className="h-7 text-[10px] w-full sm:w-auto" asChild>
+                                <Link href={r.nextAction.href} title={r.nextAction.basis}>
+                                  {r.nextAction.label}
+                                </Link>
+                              </Button>
+                              {r.workflow && (
+                                <Button variant="ghost" size="sm" className="h-7 text-[10px] px-2" asChild>
+                                  <Link href={r.workflow.tasksHref}>HR tasks</Link>
+                                </Button>
+                              )}
+                            </div>
                           </li>
                         ))}
                       </ul>
@@ -709,6 +780,14 @@ export default function Dashboard() {
                               <span className="text-[10px] text-muted-foreground ml-2">
                                 {c.billingMonth}/{c.billingYear}
                               </span>
+                              {c.workflow && (
+                                <span className="block text-[9px] text-muted-foreground mt-0.5">
+                                  {c.workflow.hasOpenEmployeeTask ? "Tagged collections task" : "No tagged task — "}
+                                  {!c.workflow.hasOpenEmployeeTask && (
+                                    <span className="font-mono text-[8px] break-all">{c.workflow.taskTagConvention}</span>
+                                  )}
+                                </span>
+                              )}
                             </div>
                             <span className="font-semibold text-red-800 tabular-nums">
                               OMR {c.amountOmr.toLocaleString("en-OM", { minimumFractionDigits: 3, maximumFractionDigits: 3 })}
@@ -717,6 +796,11 @@ export default function Dashboard() {
                               <Button variant="outline" size="sm" className="h-7 text-[10px]" asChild>
                                 <Link href={c.nextAction.href}>{c.nextAction.label}</Link>
                               </Button>
+                              {c.workflow && (
+                                <Button variant="ghost" size="sm" className="h-7 text-[10px] px-2" asChild>
+                                  <Link href={c.workflow.tasksHref}>HR tasks</Link>
+                                </Button>
+                              )}
                               {c.overlapNote && (
                                 <span className="text-[9px] text-amber-800 self-center">{c.overlapNote}</span>
                               )}
@@ -793,12 +877,7 @@ export default function Dashboard() {
             </Card>
           )}
 
-          {businessPulse.accountPortfolio &&
-            (businessPulse.accountPortfolio.renewalRisk.length +
-              businessPulse.accountPortfolio.stalledDelivery.length +
-              businessPulse.accountPortfolio.combinedRisk.length +
-              businessPulse.accountPortfolio.executiveFollowUp.length) >
-              0 && (
+          {accountControlCardVisible && businessPulse.accountPortfolio && (
             <Card className="border-border/80">
               <CardHeader className="pb-2">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
@@ -826,10 +905,16 @@ export default function Dashboard() {
                 </div>
                 <p className="text-[10px] text-muted-foreground font-normal pt-1">
                   {businessPulse.accountPortfolio.tenantCollectionsScopeNote} Rule-based tiers; hover the section title for the full derivation basis.
+                  {businessPulse.ownerResolution && businessPulse.ownerResolution.renewalReadiness.length > 0 && (
+                    <span className="block mt-1">
+                      Renewal follow-through is summarized in <span className="font-medium">Resolution queue</span> above — this block focuses on delivery and combined risk signals.
+                    </span>
+                  )}
                 </p>
               </CardHeader>
               <CardContent className="grid md:grid-cols-2 gap-4 text-xs">
-                {businessPulse.accountPortfolio.renewalRisk.length > 0 && (
+                {businessPulse.accountPortfolio.renewalRisk.length > 0 &&
+                  !(businessPulse.ownerResolution && businessPulse.ownerResolution.renewalReadiness.length > 0) && (
                   <div className="space-y-1.5">
                     <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Renewal risk</p>
                     <ul className="space-y-2">

@@ -290,6 +290,46 @@ function ContactDetailPanel({ contactId, onClose, companyId }: { contactId: numb
                 </div>
               )}
               <p className="text-[9px] text-muted-foreground border-t border-border/60 pt-1.5">{contact360.resolution.basis}</p>
+              {contact360.resolution.workflow && (
+                <div className="rounded-md border border-border/60 bg-muted/30 px-2 py-1.5 space-y-1 text-[9px]">
+                  <p className="font-semibold text-foreground">Follow-through</p>
+                  <p className="text-muted-foreground leading-snug">
+                    {contact360.resolution.workflow.accountableOwnerLabel ? (
+                      <>Accountable: {contact360.resolution.workflow.accountableOwnerLabel}</>
+                    ) : (
+                      <span className="text-amber-800 dark:text-amber-200">No CRM owner on contact</span>
+                    )}
+                    {" · "}
+                    {contact360.resolution.workflow.hasOpenEmployeeTask
+                      ? `Open tagged HR task (${contact360.resolution.workflow.matchingTaskIds.length})`
+                      : "No open HR task with resolution tag"}
+                    {contact360.resolution.workflow.renewalInterventionDueAt && (
+                      <>
+                        {" · "}
+                        Suggested intervention window ends {contact360.resolution.workflow.renewalInterventionDueAt}
+                      </>
+                    )}
+                  </p>
+                  {contact360.resolution.workflow.accountabilityGap !== "none" && (
+                    <p className="text-amber-900 dark:text-amber-200 font-medium">
+                      Gap: {contact360.resolution.workflow.accountabilityGap.replace("_", " ")}
+                    </p>
+                  )}
+                  <div className="flex flex-wrap gap-1.5 pt-0.5">
+                    <Button variant="outline" size="sm" className="h-6 text-[10px] px-2" asChild>
+                      <Link href="/hr/tasks">HR tasks</Link>
+                    </Button>
+                    <span className="font-mono text-[8px] text-muted-foreground break-all self-center max-w-full">
+                      {contact360.resolution.workflow.taskTagConvention}
+                    </span>
+                  </div>
+                  {contact360.resolution.workflowTagBasis && (
+                    <p className="text-[8px] text-muted-foreground leading-snug border-t border-border/50 pt-1">
+                      {contact360.resolution.workflowTagBasis}
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
           )}
           {contact360.revenueRealization && (

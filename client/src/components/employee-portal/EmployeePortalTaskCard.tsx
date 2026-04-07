@@ -44,6 +44,8 @@ export interface EmployeePortalTaskCardProps {
   onStart: (taskId: number) => void;
   startPending: boolean;
   completePending: boolean;
+  /** First actionable task in Today — subtle focus without a duplicate “do this first” strip */
+  priorityFocus?: boolean;
 }
 
 export function EmployeePortalTaskCard({
@@ -53,6 +55,7 @@ export function EmployeePortalTaskCard({
   onStart,
   startPending,
   completePending,
+  priorityFocus,
 }: EmployeePortalTaskCardProps) {
   const urgency = getDueUrgency(task.dueDate, task.status);
   const sla = slaLabel(task.dueDate, task.status);
@@ -67,8 +70,11 @@ export function EmployeePortalTaskCard({
         ? "border-amber-400 bg-amber-50/70 dark:bg-amber-950/25 ring-1 ring-amber-200"
         : "";
 
+  const focusRing =
+    priorityFocus && !cardTone ? "ring-2 ring-primary/35 border-primary/25 shadow-sm" : "";
+
   return (
-    <Card className={`overflow-hidden transition-shadow ${cardTone}`}>
+    <Card className={`overflow-hidden transition-shadow ${cardTone} ${focusRing}`}>
       <CardContent className="p-0">
         <div className="flex min-h-[3.25rem] items-stretch">
           <button

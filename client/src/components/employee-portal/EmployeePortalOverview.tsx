@@ -1,4 +1,5 @@
 import React, { useMemo } from "react";
+import { actionCenterAfterHeroDedupe } from "@/lib/employeePortalPrimaryAction";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -17,6 +18,7 @@ import {
   ChevronRight,
   Clock,
   DollarSign,
+  FileText,
   Landmark,
   Megaphone,
   AlertTriangle,
@@ -233,17 +235,6 @@ export function EmployeePortalOverview(props: EmployeePortalOverviewProps) {
 
   const go = (tab: PortalNavTab) => setActiveTab(tab);
 
-  const focusItems = model.actionCenter.slice(0, 3);
-
-  const tabToQuickKey: Partial<Record<PortalNavTab, string>> = {
-    attendance: "att",
-    tasks: "tsk",
-    leave: "lev",
-    requests: "req",
-    payroll: "pay",
-  };
-  const emphasizedQuickKey = focusItems[0] ? tabToQuickKey[focusItems[0].tab] ?? null : null;
-
   const openTasksList = (tasks as any[]).filter((t: any) => t.status !== "completed" && t.status !== "cancelled");
 
   const handleActionClick = (a: (typeof focusItems)[0]) => {
@@ -273,6 +264,11 @@ export function EmployeePortalOverview(props: EmployeePortalOverviewProps) {
 
   const primaryCtaDominant =
     model.hero?.severity === "critical" || model.hero?.severity === "warning";
+
+  const focusItems = useMemo(
+    () => actionCenterAfterHeroDedupe(model.actionCenter, primaryCtaDominant, 3),
+    [model.actionCenter, primaryCtaDominant],
+  );
 
   return (
     <div className="space-y-3 pb-2">
@@ -317,23 +313,6 @@ export function EmployeePortalOverview(props: EmployeePortalOverviewProps) {
 
           {!todayAttendanceLoading && model.hero?.proactiveHint && (
             <p className="text-sm font-medium leading-snug text-foreground/95">{model.hero.proactiveHint}</p>
-          )}
-          {model.proactiveHints.length > 0 && (
-            <details className="rounded-lg border border-border/60 bg-muted/20 text-[11px] text-muted-foreground">
-              <summary className="cursor-pointer select-none px-3 py-2 font-medium text-foreground/90">
-                Reminders ({model.proactiveHints.length})
-              </summary>
-              <ul className="space-y-1 border-t border-border/50 px-3 py-2 leading-snug">
-                {model.proactiveHints.map((h, i) => (
-                  <li key={i} className="flex gap-2">
-                    <span className="text-primary font-bold shrink-0" aria-hidden>
-                      ·
-                    </span>
-                    <span>{h}</span>
-                  </li>
-                ))}
-              </ul>
-            </details>
           )}
 
           {!myActiveSchedule?.isHoliday && myActiveSchedule?.shift && (
@@ -383,7 +362,7 @@ export function EmployeePortalOverview(props: EmployeePortalOverviewProps) {
           <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
             <Button
               className={`w-full gap-2 sm:w-auto sm:min-w-[160px] ${
-                primaryCtaDominant ? "min-h-12 text-base font-semibold shadow-md" : "min-h-11"
+                primaryCtaDominant ? "min-h-[3.25rem] text-base font-semibold shadow-md sm:min-h-12" : "min-h-11"
               }`}
               onClick={() => go("attendance")}
               aria-label={`${shiftOverview.primaryCtaLabel} — open Attendance`}
@@ -392,80 +371,58 @@ export function EmployeePortalOverview(props: EmployeePortalOverviewProps) {
               {shiftOverview.primaryCtaLabel}
             </Button>
             {shiftOverview.showSecondaryLogWork ? (
-              <Button variant="outline" className="min-h-11 w-full sm:w-auto gap-2" onClick={() => go("worklog")}>
+              <Button variant="outline" className="min-h-11 w-full sm:w-auto gap-2 text-muted-foreground" onClick={() => go("worklog")}>
                 <Timer className="h-4 w-4" /> Log work
               </Button>
             ) : (
-              <Button variant="outline" className="min-h-11 w-full sm:w-auto gap-2" onClick={() => setShowLeaveDialog(true)}>
+              <Button variant="outline" className="min-h-11 w-full sm:w-auto gap-2 text-muted-foreground" onClick={() => setShowLeaveDialog(true)}>
                 <Calendar className="h-4 w-4" /> Request leave
               </Button>
             )}
           </div>
+
+          {model.proactiveHints.length > 0 && (
+            <details className="rounded-lg border border-border/60 bg-muted/20 text-[11px] text-muted-foreground">
+              <summary className="cursor-pointer select-none px-3 py-2 font-medium text-foreground/90">
+                Reminders ({model.proactiveHints.length})
+              </summary>
+              <ul className="space-y-1 border-t border-border/50 px-3 py-2 leading-snug">
+                {model.proactiveHints.map((h, i) => (
+                  <li key={i} className="flex gap-2">
+                    <span className="text-primary font-bold shrink-0" aria-hidden>
+                      ·
+                    </span>
+                    <span>{h}</span>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
         </CardContent>
       </Card>
 
-      {/* 2 — Quick actions (touch-first row) */}
-      <div>
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-2 px-0.5">Quick actions</p>
-        <div className="grid grid-cols-5 gap-2">
-          {(
-            [
-              { key: "att", tab: "attendance" as PortalNavTab, label: "Attendance", Icon: UserCheck },
-              { key: "tsk", tab: "tasks" as PortalNavTab, label: "Tasks", Icon: CheckSquare, badge: pendingTasksCount },
-              {
-                key: "lev",
-                tab: null,
-                label: "Leave",
-                Icon: Calendar,
-                badge: model.leaveSignals.pendingCount,
-                openLeaveDialog: true,
-              },
-              { key: "req", tab: "requests" as PortalNavTab, label: "Requests", Icon: ArrowLeftRight, badge: pendingShiftRequests },
-              { key: "pay", tab: "payroll" as PortalNavTab, label: "Payslip", Icon: DollarSign },
-            ] satisfies {
-              key: string;
-              tab: PortalNavTab | null;
-              label: string;
-              Icon: React.ComponentType<{ className?: string }>;
-              badge?: number;
-              openLeaveDialog?: boolean;
-            }[]
-          ).map(({ key, tab, label, Icon, badge, openLeaveDialog }) => {
-            const emphasized = emphasizedQuickKey === key;
-            return (
-            <button
-              key={key}
-              type="button"
-              aria-label={openLeaveDialog ? "Request leave" : label}
-              onClick={() => {
-                if (openLeaveDialog) setShowLeaveDialog(true);
-                else if (tab) go(tab);
-              }}
-              className={`flex min-h-[4.5rem] flex-col items-center justify-center gap-1 rounded-xl border bg-card px-1 py-2.5 text-center shadow-sm transition-colors active:bg-muted/80 hover:bg-muted/40 touch-manipulation ${
-                emphasized
-                  ? "border-primary ring-2 ring-primary/35 ring-offset-2 ring-offset-background"
-                  : "border-border/80"
-              }`}
-            >
-              <span className="relative">
-                <Icon className="h-5 w-5 text-primary" />
-                {badge != null && badge > 0 && (
-                  <span className="absolute -right-1.5 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-0.5 text-[9px] font-bold text-primary-foreground">
-                    {badge > 9 ? "9+" : badge}
-                  </span>
-                )}
-              </span>
-              <span className="text-[10px] font-medium leading-tight text-foreground">{label}</span>
-            </button>
-            );
-          })}
+      {/* 2 — Pay & files only (leave / requests: hero secondary or Requests tab — avoids duplicating Leave) */}
+      <div className="rounded-xl border border-border/60 bg-muted/10 px-3 py-2.5">
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-0.5">Pay &amp; files</p>
+        <p className="text-[10px] text-muted-foreground/90 mb-2">Payslips and uploads — use Requests for leave.</p>
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" variant="secondary" size="sm" className="min-h-10 flex-1 sm:flex-none sm:min-w-[6rem]" onClick={() => go("payroll")}>
+            <DollarSign className="mr-1.5 h-4 w-4 shrink-0" />
+            Payslip
+          </Button>
+          <Button type="button" variant="secondary" size="sm" className="min-h-10 flex-1 sm:flex-none sm:min-w-[6rem]" onClick={() => go("documents")}>
+            <FileText className="mr-1.5 h-4 w-4 shrink-0" />
+            Docs
+          </Button>
         </div>
       </div>
 
-      {/* 3 — Today focus: max 3 */}
+      {/* 3 — Follow-ups (non-duplicative of hero when urgent) */}
       {focusItems.length > 0 && (
         <div className="space-y-2">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground px-0.5">Do this next</p>
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground px-0.5">
+            {primaryCtaDominant ? "Also check" : "Do this next"}
+          </p>
           <div className="space-y-2">
             {focusItems.map((a) => (
               <button
@@ -535,7 +492,12 @@ export function EmployeePortalOverview(props: EmployeePortalOverviewProps) {
           {tasksLoading ? (
             <Skeleton className="h-14" />
           ) : model.taskStats.openCount === 0 ? (
-            <p className="text-sm text-muted-foreground py-2">No open tasks.</p>
+            <div className="space-y-2 py-1">
+              <p className="text-sm text-muted-foreground">You&apos;re clear — no open tasks.</p>
+              <Button variant="outline" size="sm" className="min-h-10 w-full sm:w-auto" onClick={() => go("tasks")}>
+                Open Tasks
+              </Button>
+            </div>
           ) : (
             <>
               <div className="flex flex-wrap gap-2 text-center text-[11px]">
@@ -712,11 +674,8 @@ export function EmployeePortalOverview(props: EmployeePortalOverviewProps) {
               </div>
             </div>
           ) : (
-            <p className="text-xs text-muted-foreground">No HR rows yet — check-ins still count in Attendance.</p>
+            <p className="text-xs text-muted-foreground">No HR-marked days this month yet. Your own check-ins still appear under Attendance.</p>
           )}
-          <Button variant="link" className="h-auto min-h-10 px-0 text-xs" onClick={() => go("attendance")}>
-            Open attendance
-          </Button>
         </CardContent>
       </Card>
 

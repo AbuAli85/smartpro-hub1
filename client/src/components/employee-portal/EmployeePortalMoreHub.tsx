@@ -86,13 +86,13 @@ export function EmployeePortalMoreHub({
   ];
 
   return (
-    <div className="mt-6 space-y-4">
+    <div className="mt-4 space-y-4">
       <Card className="border-border/60">
         <CardHeader className="pb-2">
           <CardTitle className="text-base">Tools</CardTitle>
-          <p className="text-xs font-normal text-muted-foreground">Shortcuts — same tabs as desktop, grouped for quick jumps.</p>
+          <p className="text-xs font-normal text-muted-foreground">Leave, payslips, documents, KPIs — same destinations as desktop.</p>
         </CardHeader>
-        <CardContent className="space-y-6">
+        <CardContent className="space-y-5">
           <HubSection title="Work" items={work} setActiveTab={setActiveTab} />
           <div className="border-t border-border/50 pt-4">
             <HubSection title="HR & pay" items={hr} setActiveTab={setActiveTab} />

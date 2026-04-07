@@ -59,8 +59,6 @@ import {
 import {
   getAttendanceTodayStripPresentation,
   getOverviewShiftCardPresentation,
-  getQuickActionsPresentation,
-  type QuickActionId,
   type ServerEligibilityHints,
 } from "@/lib/employeePortalOverviewPresentation";
 import {
@@ -71,23 +69,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { EmployeePortalOverview } from "@/components/employee-portal/EmployeePortalOverview";
 import { EmployeePortalMoreHub } from "@/components/employee-portal/EmployeePortalMoreHub";
 import { EmployeePortalBottomNav } from "@/components/employee-portal/EmployeePortalBottomNav";
 import { EmployeePortalTaskCard } from "@/components/employee-portal/EmployeePortalTaskCard";
 import { CheckInEligibilityReasonCode } from "@shared/attendanceCheckInEligibility";
-
-type QuickActionIcon = React.ComponentType<{ className?: string }>;
-
-const EMPLOYEE_PORTAL_QUICK_ACTION_UI: Record<
-  QuickActionId,
-  { label: string; Icon: QuickActionIcon }
-> = {
-  request_leave: { label: "Request leave", Icon: Calendar },
-  log_work: { label: "Log work", Icon: Timer },
-  open_documents: { label: "Upload document", Icon: FilePlus },
-};
 
 const LEAVE_TYPE_LABEL: Record<string, string> = {
   annual: "Annual Leave",
@@ -365,6 +351,30 @@ function AttendanceTodayCard({
     (operationalHintsReady &&
       operationalHints?.checkInDenialCode === CheckInEligibilityReasonCode.ATTENDANCE_DATA_INCONSISTENT);
 
+  const tooEarlyBlock =
+    !attStrip.showCheckIn &&
+    !checkIn &&
+    operationalHintsReady &&
+    operationalHints?.checkInDenialCode === CheckInEligibilityReasonCode.CHECK_IN_TOO_EARLY &&
+    !!operationalHints.checkInOpensAt;
+
+  const attendanceNextStepCaption =
+    todayRecLoading || isHoliday
+      ? null
+      : checkIn && checkOut
+        ? "Done for today — you’re checked in and out."
+        : attStrip.showCheckIn
+          ? "Next step: check in to record your start time."
+          : attStrip.showCheckOut
+            ? "Next step: check out when you finish for the day."
+            : tooEarlyBlock
+              ? "Next step: check in opens at the time below — wait until then."
+              : denialPresentation
+                ? `Next step: ${denialPresentation.nextStep}`
+                : checkIn && !checkOut
+                  ? "You’re on the clock — check out when your shift ends."
+                  : null;
+
   return (
     <div className="space-y-3">
       {/* Shift / Schedule Banner */}
@@ -460,6 +470,11 @@ function AttendanceTodayCard({
           )}
         >
           <CardContent className="p-4">
+            {attendanceNextStepCaption && (
+              <p className="mb-3 text-sm font-semibold leading-snug text-foreground" role="status">
+                {attendanceNextStepCaption}
+              </p>
+            )}
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div className="flex min-w-0 flex-1 items-start gap-3">
                 <div
@@ -568,14 +583,34 @@ function AttendanceTodayCard({
                     {doCheckIn.isPending ? "Checking in…" : "Check in now"}
                   </Button>
                 )}
+                {!attStrip.showCheckIn &&
+                  !checkIn &&
+                  operationalHintsReady &&
+                  operationalHints?.checkInDenialCode === CheckInEligibilityReasonCode.CHECK_IN_TOO_EARLY &&
+                  operationalHints.checkInOpensAt && (
+                    <div className="flex w-full flex-col gap-1">
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        disabled
+                        className="min-h-12 w-full cursor-default touch-manipulation border-dashed opacity-95"
+                        aria-describedby="att-too-early-hint"
+                      >
+                        <Clock className="h-5 w-5 shrink-0" />
+                        Opens {operationalHints.checkInOpensAt}
+                      </Button>
+                      <p id="att-too-early-hint" className="text-center text-[10px] text-muted-foreground sm:text-left">
+                        Server time — check in from then.
+                      </p>
+                    </div>
+                  )}
                 {attStrip.showCheckOut && (
                   <Button
-                    variant="outline"
-                    className="min-h-12 gap-2 border-red-300 px-6 text-base font-semibold text-red-700 hover:bg-red-50 touch-manipulation disabled:opacity-60 dark:hover:bg-red-950/30"
+                    className="min-h-12 gap-2 bg-red-600 px-6 text-base font-semibold text-white shadow-sm hover:bg-red-700 touch-manipulation disabled:opacity-60 dark:bg-red-700 dark:hover:bg-red-600"
                     disabled={attendanceMutating}
                     onClick={handleCheckOut}
                   >
-                    <LogIn className="h-5 w-5 shrink-0 rotate-180" />
+                    <LogIn className="h-5 w-5 shrink-0 rotate-180" aria-hidden />
                     {doCheckOut.isPending ? "Checking out…" : "Check out now"}
                   </Button>
                 )}
@@ -976,24 +1011,6 @@ export default function EmployeePortalPage() {
     const id = window.setInterval(() => setPortalClock((c) => c + 1), 30000);
     return () => clearInterval(id);
   }, []);
-
-  function handleEmployeeQuickAction(id: QuickActionId) {
-    switch (id) {
-      case "request_leave":
-        setShowLeaveDialog(true);
-        break;
-      case "log_work":
-        setShowWorkLogDialog(true);
-        break;
-      case "open_documents":
-        setActiveTab("documents");
-        break;
-      default: {
-        const _exhaustive: never = id;
-        void _exhaustive;
-      }
-    }
-  }
 
   // ── Mutations ─────────────────────────────────────────────────────────────
   const submitLeave = trpc.employeePortal.submitLeaveRequest.useMutation({
@@ -1572,15 +1589,15 @@ export default function EmployeePortalPage() {
 
             {/* Real-time attendance stats (always visible; avoids “false empty” when month is new) */}
             <div className="space-y-2">
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-3 gap-2 sm:gap-3">
                 <Card className="bg-green-50 dark:bg-green-950/20 border-0">
-                  <CardContent className="p-3 text-center">
+                  <CardContent className="p-2.5 text-center sm:p-3">
                     <p className="text-2xl font-bold text-green-700">{realAttSummary.total}</p>
                     <p className="text-xs text-muted-foreground">Check-ins</p>
                   </CardContent>
                 </Card>
                 <Card className="bg-blue-50 dark:bg-blue-950/20 border-0">
-                  <CardContent className="p-3 text-center">
+                  <CardContent className="p-2.5 text-center sm:p-3">
                     <p className="text-2xl font-bold text-blue-700">
                       {realAttSummary.total > 0 ? `${realAttSummary.hoursWorked}h` : "—"}
                     </p>
@@ -1588,7 +1605,7 @@ export default function EmployeePortalPage() {
                   </CardContent>
                 </Card>
                 <Card className="bg-purple-50 dark:bg-purple-950/20 border-0">
-                  <CardContent className="p-3 text-center">
+                  <CardContent className="p-2.5 text-center sm:p-3">
                     <p className="text-2xl font-bold text-purple-700">
                       {realAttSummary.total > 0
                         ? `${Math.round((realAttSummary.hoursWorked / realAttSummary.total) * 10) / 10}h`
@@ -1606,8 +1623,8 @@ export default function EmployeePortalPage() {
             </div>
 
             {/* Month nav + calendar */}
-            <Card>
-              <CardHeader className="pb-2">
+            <Card className="overflow-hidden">
+              <CardHeader className="px-3 pb-2 pt-3 sm:px-6">
                 <CardTitle className="text-sm flex items-center justify-between">
                   <Button variant="ghost" size="icon" className="h-7 w-7" onClick={prevMonth}>
                     <ChevronLeft className="w-4 h-4" />
@@ -1620,7 +1637,7 @@ export default function EmployeePortalPage() {
                   </Button>
                 </CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="px-3 pb-4 sm:px-6">
                 {/* Summary pills (HR-marked attendance table — separate from self check-ins) */}
                 {attSummary.total === 0 && !attLoading && (
                   <p className="text-[11px] text-muted-foreground mb-2 leading-relaxed">
@@ -2130,56 +2147,55 @@ export default function EmployeePortalPage() {
 
           {/* ══ TASKS TAB — grouped: Today / Upcoming / Completed ═══════════════ */}
           <TabsContent id="portal-tasks" value="tasks" className="mt-0 space-y-4 scroll-mt-24 focus-visible:outline-none">
-            <div className="grid grid-cols-3 gap-2">
+            <div
+              className="flex items-stretch justify-between gap-2 rounded-xl border border-border/70 bg-muted/15 px-3 py-2.5 text-center sm:px-4"
+              aria-label="Task counts"
+            >
               {[
-                {
-                  label: "Today",
-                  count: groupedPortalTasks.today.length,
-                  bg: "bg-amber-50 dark:bg-amber-950/25",
-                  color: "text-amber-800 dark:text-amber-200",
-                },
-                {
-                  label: "Upcoming",
-                  count: groupedPortalTasks.upcoming.length,
-                  bg: "bg-blue-50 dark:bg-blue-950/20",
-                  color: "text-blue-800 dark:text-blue-200",
-                },
-                {
-                  label: "Done",
-                  count: groupedPortalTasks.completed.length,
-                  bg: "bg-green-50 dark:bg-green-950/20",
-                  color: "text-green-800 dark:text-green-200",
-                },
-              ].map((x) => (
-                <Card key={x.label} className={`${x.bg} border-0`}>
-                  <CardContent className="p-3 text-center">
-                    <p className={`text-xl font-bold tabular-nums ${x.color}`}>{x.count}</p>
-                    <p className="text-[10px] font-medium text-muted-foreground">{x.label}</p>
-                  </CardContent>
-                </Card>
+                { label: "Today", count: groupedPortalTasks.today.length, color: "text-amber-800 dark:text-amber-200" },
+                { label: "Upcoming", count: groupedPortalTasks.upcoming.length, color: "text-blue-800 dark:text-blue-200" },
+                { label: "Done", count: groupedPortalTasks.completed.length, color: "text-green-800 dark:text-green-200" },
+              ].map((x, i) => (
+                <div key={x.label} className={`min-w-0 flex-1 ${i > 0 ? "border-l border-border/50 pl-2 sm:pl-3" : ""}`}>
+                  <p className={`text-lg font-bold tabular-nums leading-tight ${x.color}`}>{x.count}</p>
+                  <p className="text-[10px] font-medium text-muted-foreground">{x.label}</p>
+                </div>
               ))}
             </div>
 
             {tasksLoading ? (
               <div className="space-y-2">{[1, 2, 3].map((i) => <Skeleton key={i} className="h-20" />)}</div>
             ) : (tasks as any[] | undefined)?.length === 0 ? (
-              <div className="py-12 text-center text-muted-foreground">
+              <div className="rounded-xl border border-dashed border-border/80 py-10 text-center text-muted-foreground">
                 <CheckSquare className="mx-auto mb-2 h-10 w-10 opacity-30" />
-                <p className="font-medium">No tasks assigned yet</p>
-                <p className="mx-auto mt-1 max-w-sm text-sm">When HR assigns work, it appears here.</p>
+                <p className="font-medium text-foreground">No tasks yet</p>
+                <p className="mx-auto mt-1 max-w-sm px-4 text-sm">Assigned work will appear here. Home shows what to do first.</p>
+                <Button className="mt-5 min-h-11" onClick={() => setActiveTab("overview")}>
+                  Back to Home
+                </Button>
               </div>
             ) : (
               <div className="space-y-6">
                 <section className="space-y-2">
-                  <h2 className="px-0.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Today</h2>
+                  <h2 className="px-0.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    Today &amp; overdue
+                  </h2>
                   {groupedPortalTasks.today.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">Nothing due or overdue today.</p>
+                    <div className="rounded-lg border border-border/60 bg-muted/20 px-3 py-3 text-sm text-muted-foreground">
+                      <p>Nothing due or overdue today.</p>
+                      {groupedPortalTasks.upcoming.length > 0 && (
+                        <Button variant="link" className="mt-1 h-auto min-h-0 px-0 text-sm font-medium text-primary" onClick={() => document.getElementById("portal-upcoming-tasks")?.scrollIntoView({ behavior: "smooth" })}>
+                          Jump to upcoming
+                        </Button>
+                      )}
+                    </div>
                   ) : (
                     <div className="space-y-3">
-                      {groupedPortalTasks.today.map((task: any) => (
+                      {groupedPortalTasks.today.map((task: any, idx: number) => (
                         <EmployeePortalTaskCard
                           key={task.id}
                           task={task}
+                          priorityFocus={idx === 0}
                           onOpenDetail={setEmpTaskDetail}
                           onMarkDone={(id) => setCompleteTaskId(id)}
                           onStart={(taskId) =>
@@ -2193,10 +2209,10 @@ export default function EmployeePortalPage() {
                   )}
                 </section>
 
-                <section className="space-y-2">
+                <section id="portal-upcoming-tasks" className="scroll-mt-28 space-y-2">
                   <h2 className="px-0.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Upcoming</h2>
                   {groupedPortalTasks.upcoming.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">No later-dated open tasks.</p>
+                    <p className="text-sm text-muted-foreground">No upcoming dated tasks — you&apos;re set for now.</p>
                   ) : (
                     <div className="space-y-3">
                       {groupedPortalTasks.upcoming.map((task: any) => (
@@ -2217,8 +2233,8 @@ export default function EmployeePortalPage() {
                 </section>
 
                 <details className="group rounded-xl border border-border/70 bg-card open:shadow-sm">
-                  <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 px-4 py-3 text-sm font-semibold touch-manipulation [&::-webkit-details-marker]:hidden">
-                    Completed
+                  <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 px-4 py-3 text-sm font-medium text-muted-foreground touch-manipulation [&::-webkit-details-marker]:hidden">
+                    <span>Completed</span>
                     <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
                       {groupedPortalTasks.completed.length}
                     </span>
@@ -2458,34 +2474,64 @@ export default function EmployeePortalPage() {
                     </div>
                   </div>
                 ) : (
-                  <div className="grid sm:grid-cols-2 gap-3">
-                    {[
-                      { label: "Email", value: emp.email, icon: Mail },
-                      { label: "Phone", value: emp.phone, icon: Phone },
-                      { label: "Nationality", value: emp.nationality, icon: MapPin },
-                      { label: "Date of Birth", value: emp.dateOfBirth ? formatDate(emp.dateOfBirth) : null, icon: Calendar },
-                    ].filter((f) => f.value).map(({ label, value, icon: Icon }) => (
-                      <div key={label}>
-                        <p className="text-xs text-muted-foreground">{label}</p>
-                        <p className="text-sm font-medium flex items-center gap-1.5 mt-0.5">
-                          <Icon className="w-3.5 h-3.5 text-muted-foreground" /> {value}
-                        </p>
-                      </div>
-                    ))}
+                  <div className="space-y-4">
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {[
+                        { label: "Email", value: emp.email, icon: Mail },
+                        { label: "Phone", value: emp.phone, icon: Phone },
+                        { label: "Nationality", value: emp.nationality, icon: MapPin },
+                        { label: "Date of Birth", value: emp.dateOfBirth ? formatDate(emp.dateOfBirth) : null, icon: Calendar },
+                      ].filter((f) => f.value).map(({ label, value, icon: Icon }) => (
+                        <div key={label}>
+                          <p className="text-xs text-muted-foreground">{label}</p>
+                          <p className="text-sm font-medium flex items-center gap-1.5 mt-0.5">
+                            <Icon className="w-3.5 h-3.5 text-muted-foreground" /> {value}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                    {(emp.emergencyContactName || emp.emergencyContactPhone) && (
+                      <>
+                        <Separator />
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Emergency contact</p>
+                          <div className="mt-2 grid gap-3 sm:grid-cols-2">
+                            {emp.emergencyContactName && (
+                              <div>
+                                <p className="text-xs text-muted-foreground">Name</p>
+                                <p className="mt-0.5 text-sm font-medium">{emp.emergencyContactName}</p>
+                              </div>
+                            )}
+                            {emp.emergencyContactPhone && (
+                              <div>
+                                <p className="text-xs text-muted-foreground">Phone</p>
+                                <p className="mt-0.5 text-sm font-medium">
+                                  <a href={`tel:${emp.emergencyContactPhone}`} className="inline-flex items-center gap-1.5 hover:underline">
+                                    <Phone className="h-3.5 w-3.5 text-muted-foreground" />
+                                    {emp.emergencyContactPhone}
+                                  </a>
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </>
+                    )}
                   </div>
                 )}
               </CardContent>
             </Card>
 
-            {/* Work Information */}
+            {/* Work + bank (single card on mobile for less scroll) */}
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm flex items-center gap-2">
-                  <Briefcase className="w-4 h-4" /> Work Information
+                  <Briefcase className="w-4 h-4" /> Work &amp; payroll
                 </CardTitle>
+                <p className="text-xs font-normal text-muted-foreground">Job details and bank info HR uses for pay.</p>
               </CardHeader>
-              <CardContent>
-                <div className="grid sm:grid-cols-2 gap-4">
+              <CardContent className="space-y-4">
+                <div className="grid gap-3 sm:grid-cols-2 sm:gap-4">
                   {[
                     { label: "Company", value: companyInfo?.name, icon: Building2 },
                     { label: "Department", value: emp.department, icon: Briefcase },
@@ -2496,26 +2542,51 @@ export default function EmployeePortalPage() {
                   ].filter((f) => f.value).map(({ label, value, icon: Icon }) => (
                     <div key={label}>
                       <p className="text-xs text-muted-foreground">{label}</p>
-                      <p className="text-sm font-medium flex items-center gap-1.5 mt-0.5 capitalize">
-                        {Icon && <Icon className="w-3.5 h-3.5 text-muted-foreground" />}
+                      <p className="mt-0.5 flex items-center gap-1.5 text-sm font-medium capitalize">
+                        {Icon && <Icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
                         {value}
                       </p>
                     </div>
                   ))}
                 </div>
+                {(emp.bankName || emp.bankAccountNumber) && (
+                  <>
+                    <Separator />
+                    <div>
+                      <p className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        <CreditCard className="h-3.5 w-3.5" /> Bank
+                      </p>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        {emp.bankName && (
+                          <div>
+                            <p className="text-xs text-muted-foreground">Bank name</p>
+                            <p className="mt-0.5 text-sm font-medium">{emp.bankName}</p>
+                          </div>
+                        )}
+                        {emp.bankAccountNumber && (
+                          <div>
+                            <p className="text-xs text-muted-foreground">Account number</p>
+                            <p className="mt-0.5 text-sm font-medium">{emp.bankAccountNumber}</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
               </CardContent>
             </Card>
 
-            {/* Documents & Visa */}
+            {/* Documents & visa — collapsed by default to save profile scroll */}
             {(emp.passportNumber || emp.visaNumber || emp.workPermitNumber || emp.nationalId || emp.pasiNumber) && (
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm flex items-center gap-2">
-                    <Shield className="w-4 h-4" /> Documents & Visa
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid sm:grid-cols-2 gap-4">
+              <details className="group rounded-xl border border-border/80 bg-card shadow-sm open:shadow-md">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-2 p-4 text-sm font-semibold [&::-webkit-details-marker]:hidden">
+                  <span className="flex items-center gap-2">
+                    <Shield className="h-4 w-4 text-muted-foreground" /> Documents &amp; visa
+                  </span>
+                  <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-90" aria-hidden />
+                </summary>
+                <div className="border-t border-border/60 px-4 pb-4 pt-3">
+                  <div className="grid gap-4 sm:grid-cols-2">
                     {[
                       { label: "Passport Number", value: emp.passportNumber, icon: Shield },
                       { label: "National ID", value: emp.nationalId },
@@ -2531,75 +2602,18 @@ export default function EmployeePortalPage() {
                       return (
                         <div key={label}>
                           <p className="text-xs text-muted-foreground">{label}</p>
-                          <p className={`text-sm font-medium flex items-center gap-1.5 mt-0.5 ${isExpired ? "text-red-600" : isExpiring ? "text-amber-600" : ""}`}>
-                            {Icon && <Icon className="w-3.5 h-3.5 text-muted-foreground" />}
+                          <p className={`mt-0.5 flex items-center gap-1.5 text-sm font-medium ${isExpired ? "text-red-600" : isExpiring ? "text-amber-600" : ""}`}>
+                            {Icon && <Icon className="h-3.5 w-3.5 text-muted-foreground" />}
                             {value}
-                            {isExpired && <Badge variant="destructive" className="text-xs ml-1">Expired</Badge>}
-                            {isExpiring && !isExpired && <Badge className="text-xs ml-1 bg-amber-500 hover:bg-amber-600">{days}d</Badge>}
+                            {isExpired && <Badge variant="destructive" className="ml-1 text-xs">Expired</Badge>}
+                            {isExpiring && !isExpired && <Badge className="ml-1 bg-amber-500 text-xs hover:bg-amber-600">{days}d</Badge>}
                           </p>
                         </div>
                       );
                     })}
                   </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Emergency Contact */}
-            {(emp.emergencyContactName || emp.emergencyContactPhone) && !editingContact && (
-              <Card className="border-red-100 dark:border-red-900/30">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm flex items-center gap-2 text-red-600 dark:text-red-400">
-                    <AlertCircle className="w-4 h-4" /> Emergency Contact
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid sm:grid-cols-2 gap-4">
-                    {emp.emergencyContactName && (
-                      <div>
-                        <p className="text-xs text-muted-foreground">Name</p>
-                        <p className="text-sm font-medium mt-0.5">{emp.emergencyContactName}</p>
-                      </div>
-                    )}
-                    {emp.emergencyContactPhone && (
-                      <div>
-                        <p className="text-xs text-muted-foreground">Phone</p>
-                        <p className="text-sm font-medium flex items-center gap-1.5 mt-0.5">
-                          <Phone className="w-3.5 h-3.5 text-muted-foreground" />
-                          <a href={`tel:${emp.emergencyContactPhone}`} className="hover:underline">{emp.emergencyContactPhone}</a>
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Bank Details */}
-            {(emp.bankName || emp.bankAccountNumber) && (
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm flex items-center gap-2">
-                    <CreditCard className="w-4 h-4" /> Bank Details
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid sm:grid-cols-2 gap-4">
-                    {emp.bankName && (
-                      <div>
-                        <p className="text-xs text-muted-foreground">Bank Name</p>
-                        <p className="text-sm font-medium mt-0.5">{emp.bankName}</p>
-                      </div>
-                    )}
-                    {emp.bankAccountNumber && (
-                      <div>
-                        <p className="text-xs text-muted-foreground">Account Number</p>
-                        <p className="text-sm font-medium mt-0.5">{emp.bankAccountNumber}</p>
-                      </div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
+                </div>
+              </details>
             )}
 
             <EmployeePortalMoreHub
@@ -2614,26 +2628,27 @@ export default function EmployeePortalPage() {
 
           {/* ══ REQUESTS TAB ══════════════════════════════════════════════════ */}
           <TabsContent value="requests" className="mt-0 space-y-4 focus-visible:outline-none">
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="space-y-2">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground px-0.5">New request</p>
               <Button
-                className="flex h-auto min-h-12 w-full touch-manipulation items-center justify-start gap-3 py-3 text-left"
+                className="flex h-auto min-h-14 w-full touch-manipulation items-center justify-start gap-3 py-3.5 text-left text-base shadow-sm"
                 onClick={() => setShowLeaveDialog(true)}
               >
                 <Calendar className="h-6 w-6 shrink-0" />
                 <span>
                   <span className="block font-semibold">Request leave</span>
-                  <span className="block text-xs font-normal text-muted-foreground">Annual, sick, or emergency</span>
+                  <span className="block text-xs font-normal opacity-90">Annual, sick, emergency, unpaid…</span>
                 </span>
               </Button>
               <Button
-                variant="secondary"
-                className="flex h-auto min-h-12 w-full touch-manipulation items-center justify-start gap-3 py-3 text-left"
+                variant="outline"
+                className="flex h-auto min-h-12 w-full touch-manipulation items-center justify-start gap-3 border-2 py-3 text-left"
                 onClick={() => setShowShiftRequestDialog(true)}
               >
-                <ArrowLeftRight className="h-6 w-6 shrink-0" />
+                <ArrowLeftRight className="h-5 w-5 shrink-0 text-primary" />
                 <span>
-                  <span className="block font-semibold">Shift change</span>
-                  <span className="block text-xs font-normal text-muted-foreground">Swap, time off, or adjustment</span>
+                  <span className="block font-semibold">Shift or HR request</span>
+                  <span className="block text-xs font-normal text-muted-foreground">Time off, swap, early leave…</span>
                 </span>
               </Button>
             </div>
@@ -2644,14 +2659,16 @@ export default function EmployeePortalPage() {
                   <ArrowLeftRight className="h-4 w-4 text-primary" />
                   My requests
                 </h2>
-                <p className="mt-0.5 text-xs text-muted-foreground">Calendar or list</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">Switch view — calendar shows dates; list shows detail.</p>
               </div>
-              <div className="flex items-center gap-2">
-                <div className="flex overflow-hidden rounded-md border">
+              <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+                <div className="flex overflow-hidden rounded-md border" role="tablist" aria-label="Request view">
                   <button
                     type="button"
+                    role="tab"
+                    aria-selected={calView === "calendar" ? "true" : "false"}
                     onClick={() => setCalView("calendar")}
-                    className={`flex min-h-11 items-center gap-1.5 px-3 py-2 text-xs transition-colors touch-manipulation ${
+                    className={`flex min-h-11 flex-1 items-center justify-center gap-1.5 px-3 py-2 text-xs transition-colors touch-manipulation sm:flex-initial ${
                       calView === "calendar" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted"
                     }`}
                   >
@@ -2659,16 +2676,18 @@ export default function EmployeePortalPage() {
                   </button>
                   <button
                     type="button"
+                    role="tab"
+                    aria-selected={calView === "list" ? "true" : "false"}
                     onClick={() => setCalView("list")}
-                    className={`flex min-h-11 items-center gap-1.5 px-3 py-2 text-xs transition-colors touch-manipulation ${
+                    className={`flex min-h-11 flex-1 items-center justify-center gap-1.5 px-3 py-2 text-xs transition-colors touch-manipulation sm:flex-initial ${
                       calView === "list" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted"
                     }`}
                   >
                     <FileText className="h-3.5 w-3.5" /> List
                   </button>
                 </div>
-                <Button size="sm" className="min-h-11 gap-1.5 text-xs" onClick={() => setShowShiftRequestDialog(true)}>
-                  <Plus className="h-3.5 w-3.5" /> New
+                <Button className="min-h-11 w-full gap-1.5 text-xs sm:w-auto" onClick={() => setShowShiftRequestDialog(true)}>
+                  <Plus className="h-3.5 w-3.5" /> New HR request
                 </Button>
               </div>
             </div>
@@ -3297,38 +3316,6 @@ export default function EmployeePortalPage() {
         requestBadge={pendingShiftRequestsCount}
       />
 
-      <div className="fixed bottom-[calc(6.25rem+env(safe-area-inset-bottom,0px))] right-4 z-40 md:bottom-8 md:right-8">
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button
-              size="lg"
-              className="h-14 w-14 rounded-full shadow-lg shadow-primary/20 gap-0 p-0"
-              aria-label="Quick actions"
-            >
-              <Zap className="w-6 h-6" />
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-56 p-2" align="end" side="top">
-            <p className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">Quick actions</p>
-            {getQuickActionsPresentation()
-              .filter((a) => a.visible)
-              .map(({ id }) => {
-                const { label, Icon } = EMPLOYEE_PORTAL_QUICK_ACTION_UI[id];
-                return (
-                  <Button
-                    key={id}
-                    variant="ghost"
-                    className="w-full justify-start h-9 text-sm"
-                    onClick={() => handleEmployeeQuickAction(id)}
-                  >
-                    <Icon className="w-4 h-4 mr-2 shrink-0" /> {label}
-                  </Button>
-                );
-              })}
-          </PopoverContent>
-        </Popover>
-      </div>
-
       {/* ── Self-Review Dialog ── */}
       <Dialog open={showReviewDialog} onOpenChange={setShowReviewDialog}>
         <DialogContent className="sm:max-w-md">
@@ -3411,14 +3398,18 @@ export default function EmployeePortalPage() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label>Start Date</Label>
+                <Label>
+                  Start date <span className="text-destructive">*</span>
+                </Label>
                 <DateInput value={leaveStart} onChange={(e) => setLeaveStart(e.target.value)}
-                  min={today.toISOString().split("T")[0]} />
+                  min={today.toISOString().split("T")[0]} required aria-required />
               </div>
               <div className="space-y-1.5">
-                <Label>End Date</Label>
+                <Label>
+                  End date <span className="text-destructive">*</span>
+                </Label>
                 <DateInput value={leaveEnd} onChange={(e) => setLeaveEnd(e.target.value)}
-                  min={leaveStart || today.toISOString().split("T")[0]} />
+                  min={leaveStart || today.toISOString().split("T")[0]} required aria-required />
               </div>
             </div>
             {leaveStart && leaveEnd && (
@@ -3441,20 +3432,26 @@ export default function EmployeePortalPage() {
               Cancel
             </Button>
             <Button
-              className="min-h-11 w-full touch-manipulation sm:w-auto disabled:opacity-60"
+              className="min-h-12 w-full touch-manipulation text-base font-semibold sm:w-auto disabled:opacity-60"
               disabled={!leaveStart || !leaveEnd || submitLeave.isPending}
-              onClick={() =>
-                activeCompanyId != null &&
+              onClick={() => {
+                if (activeCompanyId == null || !leaveStart || !leaveEnd) return;
+                const s = new Date(`${leaveStart}T12:00:00`).getTime();
+                const e = new Date(`${leaveEnd}T12:00:00`).getTime();
+                if (e < s) {
+                  toast.error("Check your dates", { description: "End date must be on or after start date." });
+                  return;
+                }
                 submitLeave.mutate({
                   companyId: activeCompanyId,
                   leaveType: leaveType as any,
                   startDate: leaveStart,
                   endDate: leaveEnd,
                   reason: leaveReason || undefined,
-                })
-              }
+                });
+              }}
             >
-              {submitLeave.isPending ? "Sending…" : "Send request"}
+              {submitLeave.isPending ? "Sending…" : "Send leave request"}
             </Button>
           </DialogFooter>
         </DialogContent>

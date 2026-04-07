@@ -95,4 +95,28 @@ describe("buildOverviewDashboardModel", () => {
     });
     expect(m.actionCenter.some((a) => a.key === "all-clear")).toBe(true);
   });
+
+  it("caps action center at three items", () => {
+    const m = buildOverviewDashboardModel({
+      shiftOverview: { ...baseShiftPresentation(), attendanceInconsistent: true, showMissedEndedWarning: true },
+      myActiveSchedule: null,
+      todayAttendanceRecord: null,
+      workStatusSummary: {
+        overallStatus: "urgent",
+        permit: { status: "missing", expiryDate: null, label: "x" },
+        documents: { status: "missing", expiringCount: 0, expiredCount: 0, label: "y" },
+        tasks: { openCount: 1, overdueCount: 1, nextDueAt: null, label: "z" },
+        primaryAction: { type: "open_tasks", label: "Tasks", tab: "tasks" },
+      },
+      expiringDocs: [{ id: 1, expiresAt: new Date(2020, 0, 1).toISOString() }],
+      tasks: [{ id: 1, title: "T", status: "pending", dueDate: "2020-01-01" }],
+      leave: [],
+      balance: { annual: 20, sick: 10, emergency: 5 },
+      entitlements: { annual: 30, sick: 15, emergency: 5 },
+      productivity,
+      attSummary: { present: 10, late: 0, absent: 0, total: 10 },
+      notifications: [],
+    });
+    expect(m.actionCenter.length).toBeLessThanOrEqual(3);
+  });
 });

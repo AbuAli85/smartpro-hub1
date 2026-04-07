@@ -24,7 +24,7 @@ import {
   AlertTriangle, Info, Wallet, Timer, BarChart2, CalendarCheck,
   FileCheck, FilePlus, ExternalLink, RefreshCw, Star, ArrowLeftRight, Repeat,
   Target, Activity, Award, Zap, PieChart, TrendingDown, Flame, Trophy,
-  Play, Ban,
+  Play, Ban, Menu,
 } from "lucide-react";
 import { fmtDateLong, fmtDateTime } from "@/lib/dateUtils";
 import { getDueUrgency, slaLabel, actionRequiredOverdueLabel, dueTimingPhrase } from "@/lib/taskSla";
@@ -66,6 +66,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { EmployeePortalOverview } from "@/components/employee-portal/EmployeePortalOverview";
+import { EmployeePortalMoreHub } from "@/components/employee-portal/EmployeePortalMoreHub";
 
 type QuickActionIcon = React.ComponentType<{ className?: string }>;
 
@@ -944,6 +945,9 @@ export default function EmployeePortalPage() {
   const pendingLeave = leave.filter((l: any) => l.status === "pending").length;
   const pendingShiftRequestsCount = (myShiftRequests ?? []).filter((r: any) => r.request?.status === "pending").length;
   const pendingExpensesCount = (myExpenses ?? []).filter((e: any) => e.expenseStatus === "pending").length;
+  const trainingAttentionCount = ((myTraining as any[]) ?? []).filter(
+    (t: any) => t.trainingStatus === "assigned" || t.trainingStatus === "overdue",
+  ).length;
 
   // Attendance rate for current month
   const attendanceRate = attSummary.total > 0
@@ -1069,6 +1073,9 @@ export default function EmployeePortalPage() {
       return days !== null && days <= 90;
     });
   }, [docs]);
+
+  const moreTabBadgeCount =
+    pendingLeave + expiringDocs.length + trainingAttentionCount + pendingExpensesCount;
 
   // ── Not authenticated ─────────────────────────────────────────────────────
   if (!isAuthenticated) {
@@ -1264,79 +1271,7 @@ export default function EmployeePortalPage() {
         </div>
       </div>
 
-      <div className="max-w-5xl mx-auto px-4 py-6 space-y-5">
-        {/* ── Quick Stats (secondary tier — soft surface + ring) ── */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {[
-            {
-              label: "Annual leave",
-              value: `${balance.annual} days`,
-              hint:
-                balance.annual >= entitlements.annual
-                  ? "Full balance"
-                  : `${Math.max(0, entitlements.annual - balance.annual)} days used this year`,
-              icon: Calendar,
-              color: "text-blue-500",
-              bg: "bg-blue-50 dark:bg-blue-950/20",
-              onClick: () => setActiveTab("leave"),
-            },
-            {
-              label: "Sick leave",
-              value: `${balance.sick} days`,
-              hint:
-                sickDaysUsedYtd === 0
-                  ? "No sick leave taken this year"
-                  : `${sickDaysUsedYtd} sick day${sickDaysUsedYtd === 1 ? "" : "s"} used YTD`,
-              icon: AlertCircle,
-              color: "text-amber-500",
-              bg: "bg-amber-50 dark:bg-amber-950/20",
-              onClick: () => setActiveTab("leave"),
-            },
-            {
-              label: "Pending tasks",
-              value: String(pendingTasks),
-              hint: pendingTasks === 0 ? "Inbox clear" : `${pendingTasks} need your attention`,
-              icon: CheckSquare,
-              color: "text-purple-500",
-              bg: "bg-purple-50 dark:bg-purple-950/20",
-              onClick: () => setActiveTab("tasks"),
-            },
-            {
-              label: "This month present",
-              value: `${realAttSummary.total} days`,
-              hint:
-                realAttSummary.total === 0
-                  ? "Check in from Attendance"
-                  : `${realAttSummary.total} day${realAttSummary.total === 1 ? "" : "s"} on record`,
-              icon: UserCheck,
-              color: "text-green-500",
-              bg: "bg-green-50 dark:bg-green-950/20",
-              onClick: () => setActiveTab("attendance"),
-            },
-          ].map(({ label, value, hint, icon: Icon, color, bg, onClick }) => (
-            <Card
-              key={label}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  onClick();
-                }
-              }}
-              className={`hover:shadow-md transition-shadow cursor-pointer ${bg} border-0 ring-1 ring-border/50`}
-              onClick={onClick}
-            >
-              <CardContent className="p-4">
-                <Icon className={`w-5 h-5 ${color} mb-2`} />
-                <p className="text-xl font-bold leading-tight">{value}</p>
-                <p className="text-xs font-medium text-foreground/90 mt-0.5">{label}</p>
-                <p className="text-[11px] text-muted-foreground mt-1 leading-snug line-clamp-2">{hint}</p>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-
+      <div className="max-w-5xl mx-auto px-4 py-4 sm:py-6 space-y-4 sm:space-y-5">
         {myCompanies.length > 1 && (
           <Card className="border-dashed border-primary/25 bg-muted/20 ring-1 ring-primary/10">
             <CardContent className="p-4 flex flex-wrap items-center justify-between gap-3">
@@ -1359,43 +1294,37 @@ export default function EmployeePortalPage() {
 
         {/* ── Main Tabs — sticky below header for long pages ── */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="gap-0" activationMode="automatic">
-          <div className="sticky top-16 z-[15] -mx-4 px-4 py-2 bg-background/92 backdrop-blur-md border-b border-border/60 supports-[backdrop-filter]:bg-background/80">
-            <div className="rounded-xl border border-border/60 bg-muted/50 p-1 shadow-sm max-w-5xl mx-auto">
-              <TabsList
-                aria-label="Employee portal sections"
-                className="flex h-auto w-full flex-nowrap items-stretch justify-start gap-0.5 overflow-x-auto overflow-y-hidden bg-transparent p-0 [scrollbar-width:thin]"
-              >
+          <div className="sticky top-16 z-[15] -mx-4 px-3 sm:px-4 py-2 bg-background/95 backdrop-blur-md border-b border-border/60 supports-[backdrop-filter]:bg-background/85">
+            <TabsList
+              aria-label="Employee portal main sections"
+              className="grid h-auto w-full max-w-5xl mx-auto grid-cols-6 gap-1 rounded-xl border border-border/60 bg-muted/50 p-1 shadow-sm"
+            >
               {[
-                { value: "overview", icon: Home, label: "Overview" },
-                { value: "attendance", icon: UserCheck, label: "Attendance" },
-                { value: "leave", icon: Calendar, label: "Leave", badge: pendingLeave },
-                { value: "payroll", icon: DollarSign, label: "Payslips" },
+                { value: "overview", icon: Home, label: "Home" },
+                { value: "attendance", icon: UserCheck, label: "Attendance", short: "In/Out" },
                 { value: "tasks", icon: CheckSquare, label: "Tasks", badge: pendingTasks },
-                { value: "documents", icon: FileText, label: "Docs", badge: expiringDocs.length },
-                { value: "requests", icon: ArrowLeftRight, label: "Requests", badge: pendingShiftRequestsCount },
-                { value: "kpi", icon: Target, label: "KPI", badge: 0 },
-                { value: "expenses", icon: Wallet, label: "Expenses", badge: pendingExpensesCount },
-                { value: "worklog", icon: Timer, label: "Work Log", badge: 0 },
-                { value: "training", icon: Award, label: "Training", badge: ((myTraining as any[]) ?? []).filter((t: any) => t.trainingStatus === "assigned" || t.trainingStatus === "overdue").length },
-                { value: "reviews", icon: Star, label: "Reviews", badge: 0 },
-                { value: "profile", icon: User, label: "Profile" },
-              ].map(({ value, icon: Icon, label, badge }) => (
+                { value: "requests", icon: ArrowLeftRight, label: "Requests", short: "Req", badge: pendingShiftRequestsCount },
+                { value: "profile", icon: User, label: "Profile", short: "Me" },
+                { value: "more", icon: Menu, label: "More", badge: moreTabBadgeCount },
+              ].map(({ value, icon: Icon, label, short, badge }) => (
                 <TabsTrigger
                   key={value}
                   value={value}
-                  className="relative flex h-auto min-w-[4.25rem] shrink-0 flex-col gap-0.5 rounded-md border-0 px-2 py-2 text-xs shadow-none ring-0 transition-colors focus-visible:ring-2 focus-visible:ring-primary/30 data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-sm data-[state=active]:ring-1 data-[state=active]:ring-primary/20 dark:data-[state=active]:ring-primary/35"
+                  className="relative flex min-h-[3.25rem] sm:min-h-11 flex-col items-center justify-center gap-0.5 rounded-lg border-0 px-1 py-1.5 text-[10px] sm:text-xs font-medium shadow-none ring-0 transition-colors focus-visible:ring-2 focus-visible:ring-primary/30 data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-sm data-[state=active]:ring-1 data-[state=active]:ring-primary/20"
                 >
-                  <Icon className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">{label}</span>
+                  <Icon className="h-[18px] w-[18px] sm:h-5 sm:w-5 shrink-0" aria-hidden />
+                  <span className="leading-none text-center">
+                    <span className="sm:hidden">{short ?? label}</span>
+                    <span className="hidden sm:inline">{label}</span>
+                  </span>
                   {badge != null && badge > 0 && (
-                    <span className="absolute right-0.5 top-0.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-primary px-0.5 text-[8px] font-bold text-primary-foreground">
+                    <span className="absolute right-0 top-0 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-0.5 text-[9px] font-bold text-primary-foreground">
                       {badge > 9 ? "9+" : badge}
                     </span>
                   )}
                 </TabsTrigger>
               ))}
-              </TabsList>
-            </div>
+            </TabsList>
           </div>
 
           {/* ══ OVERVIEW TAB ══════════════════════════════════════════════════ */}
@@ -1435,6 +1364,19 @@ export default function EmployeePortalPage() {
               pendingShiftRequests={pendingShiftRequestsCount}
               pendingExpenses={pendingExpensesCount}
               portalClock={portalClock}
+              realAttCheckInsMonth={realAttSummary.total}
+              sickDaysUsedYtd={sickDaysUsedYtd}
+              pendingTasksCount={pendingTasks}
+            />
+          </TabsContent>
+
+          <TabsContent value="more" className="mt-4">
+            <EmployeePortalMoreHub
+              setActiveTab={setActiveTab}
+              pendingLeave={pendingLeave}
+              expiringDocsCount={expiringDocs.length}
+              trainingAttentionCount={trainingAttentionCount}
+              pendingExpenses={pendingExpensesCount}
             />
           </TabsContent>
 

@@ -11,6 +11,7 @@ import type { EmployeeWorkStatusSummary } from "@shared/employeePortalWorkStatus
 
 export type PortalNavTab =
   | "overview"
+  | "more"
   | "attendance"
   | "leave"
   | "payroll"
@@ -47,6 +48,7 @@ export interface OverviewTaskStats {
   highOpen: number;
   overdueCount: number;
   dueTodayCount: number;
+  blockedCount: number;
   /** Highest-priority open task for CTA */
   topTask: { id: number; title: string; priority: string; dueDate: string | Date | null } | null;
 }
@@ -113,7 +115,9 @@ export function buildOverviewTaskStats(tasks: TaskLike[] | null | undefined, now
   let dueTodayCount = 0;
   let urgentOpen = 0;
   let highOpen = 0;
+  let blockedCount = 0;
   for (const t of open) {
+    if (t.status === "blocked") blockedCount++;
     const p = (t.priority ?? "medium").toLowerCase();
     if (p === "urgent") urgentOpen++;
     if (p === "high") highOpen++;
@@ -139,6 +143,7 @@ export function buildOverviewTaskStats(tasks: TaskLike[] | null | undefined, now
     highOpen,
     overdueCount,
     dueTodayCount,
+    blockedCount,
     topTask: top
       ? {
           id: top.id,
@@ -192,7 +197,7 @@ export function buildRecentTimeline(input: {
   taskEvents: { id: number; title?: string | null; status: string; updatedAt?: string | Date | null }[];
   limit?: number;
 }): TimelineRow[] {
-  const limit = input.limit ?? 8;
+  const limit = input.limit ?? 5;
   const rows: TimelineRow[] = [];
 
   for (const n of input.notifications ?? []) {
@@ -635,7 +640,7 @@ export function buildOverviewDashboardModel(input: {
     if (seen.has(c.item.key)) continue;
     seen.add(c.item.key);
     actionCenter.push(c.item);
-    if (actionCenter.length >= 4) break;
+    if (actionCenter.length >= 3) break;
   }
 
   const attentionItems: AttentionItem[] = [];
@@ -650,6 +655,9 @@ export function buildOverviewDashboardModel(input: {
   }
   if (taskStats.overdueCount > 0) {
     addAtt({ key: "a2", tone: "destructive", label: `${taskStats.overdueCount} overdue tasks` });
+  }
+  if (taskStats.blockedCount > 0) {
+    addAtt({ key: "a2b", tone: "warning", label: `${taskStats.blockedCount} blocked` });
   }
   if (expiredDocs.length > 0) {
     addAtt({ key: "a3", tone: "destructive", label: "Expired documents" });

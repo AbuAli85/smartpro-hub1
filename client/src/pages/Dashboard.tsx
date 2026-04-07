@@ -593,6 +593,68 @@ export default function Dashboard() {
               </CardContent>
             </Card>
           </div>
+
+          {(businessPulse.postSale.serviceContractsStalledNoDeliveryCount > 0 ||
+            businessPulse.finance.proBillingOverdueCount > 0 ||
+            businessPulse.commercial.contractsExpiringNext30Days > 0 ||
+            businessPulse.postSale.combinedExecutionAndCollectionRisk) && (
+            <Card className="border-amber-200/70 bg-amber-50/25 dark:bg-amber-950/20">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <AlertTriangle size={14} className="text-amber-700" />
+                  Post-sale risk
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2 text-sm">
+                <div className="flex flex-wrap gap-3 text-xs">
+                  <Link
+                    href={businessPulse.postSale.deepLinks.stalledContracts}
+                    className={`rounded-md border px-2 py-1.5 hover:bg-muted/50 ${businessPulse.postSale.serviceContractsStalledNoDeliveryCount > 0 ? "border-amber-300 bg-amber-50/80 dark:bg-amber-950/40" : "border-border/60"}`}
+                  >
+                    <span className="text-muted-foreground block">Won → no delivery touch</span>
+                    <span className={`font-semibold tabular-nums ${businessPulse.postSale.serviceContractsStalledNoDeliveryCount > 0 ? "text-amber-900" : ""}`}>
+                      {businessPulse.postSale.serviceContractsStalledNoDeliveryCount}
+                    </span>
+                    <span className="text-[10px] text-muted-foreground block">derived</span>
+                  </Link>
+                  <Link
+                    href="/client-portal?tab=invoices"
+                    className={`rounded-md border px-2 py-1.5 hover:bg-muted/50 ${businessPulse.finance.proBillingOverdueCount > 0 ? "border-red-200 bg-red-50/50 dark:bg-red-950/20" : "border-border/60"}`}
+                  >
+                    <span className="text-muted-foreground block">Billed (PRO) — overdue</span>
+                    <span className={`font-semibold tabular-nums ${businessPulse.finance.proBillingOverdueCount > 0 ? "text-red-800" : ""}`}>
+                      {businessPulse.finance.proBillingOverdueCount} · OMR{" "}
+                      {businessPulse.finance.proBillingOverdueOmr.toLocaleString("en-OM", { minimumFractionDigits: 3, maximumFractionDigits: 3 })}
+                    </span>
+                  </Link>
+                  <Link
+                    href="/contracts"
+                    className={`rounded-md border px-2 py-1.5 hover:bg-muted/50 ${businessPulse.commercial.contractsExpiringNext30Days > 0 ? "border-amber-300" : "border-border/60"}`}
+                  >
+                    <span className="text-muted-foreground block">Contracts expiring (30d)</span>
+                    <span className="font-semibold tabular-nums">{businessPulse.commercial.contractsExpiringNext30Days}</span>
+                  </Link>
+                  <Link
+                    href={businessPulse.postSale.deepLinks.proJobs}
+                    className="rounded-md border border-border/60 px-2 py-1.5 hover:bg-muted/50"
+                  >
+                    <span className="text-muted-foreground block">Completed PRO + fees (90d)</span>
+                    <span className="font-semibold tabular-nums">{businessPulse.postSale.completedProWithFeesLast90dCount}</span>
+                    <span className="text-[10px] text-muted-foreground block">billing hint</span>
+                  </Link>
+                </div>
+                {businessPulse.postSale.combinedExecutionAndCollectionRisk && (
+                  <p className="text-xs font-medium text-amber-900 dark:text-amber-200 flex items-center gap-1.5">
+                    <AlertTriangle size={12} /> Stalled delivery and overdue PRO billing — combined revenue risk.
+                  </p>
+                )}
+                <p className="text-[10px] text-muted-foreground leading-snug border-t border-border/60 pt-2">
+                  <span className="font-medium">Stalled delivery:</span> {businessPulse.postSale.stalledDeliveryBasis}{" "}
+                  <span className="font-medium">Billing follow-up:</span> {businessPulse.postSale.completedWorkBillingCaveat}
+                </p>
+              </CardContent>
+            </Card>
+          )}
         </div>
       )}
 

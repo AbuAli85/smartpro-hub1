@@ -4,6 +4,7 @@ import { canAccessGlobalAdminProcedures } from "@shared/rbac";
 import type { User } from "../../drizzle/schema";
 import { assertRowBelongsToActiveCompany, requireActiveCompanyId } from "../_core/tenant";
 import { deriveDealLifecycle, type ContractLite } from "../commercialLifecycle";
+import { getContactPostSaleSummary, getPostSaleSignals } from "../postSaleSignals";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { contracts, crmDeals, serviceQuotations } from "../../drizzle/schema";
 import {
@@ -314,6 +315,9 @@ export const crmRouter = router({
       }
       thread.sort((a, b) => b.sortAt.getTime() - a.sortAt.getTime());
 
+      const contactPostSale = await getContactPostSaleSummary(db, companyId, contractsFromQuotations);
+      const workspacePostSale = await getPostSaleSignals(db, companyId);
+
       return {
         contact,
         deals,
@@ -321,6 +325,19 @@ export const crmRouter = router({
         contractsFromQuotations,
         dealsWithLifecycle,
         lifecycleThread: thread,
+        contactPostSale,
+        workspaceCollections: {
+          proBillingOverdueOmr: workspacePostSale.proBillingOverdueOmr,
+          proBillingOverdueCount: workspacePostSale.proBillingOverdueCount,
+          subscriptionOverdueOmr: workspacePostSale.subscriptionOverdueOmr,
+          subscriptionOverdueCount: workspacePostSale.subscriptionOverdueCount,
+          scopeNote:
+            "Tenant-wide billing signals — invoices are not linked to individual CRM contacts in this schema.",
+        },
+        billingReviewHint: {
+          completedProWithFeesLast90dCount: workspacePostSale.completedProWithFeesLast90dCount,
+          caveat: workspacePostSale.completedWorkBillingCaveat,
+        },
       };
     }),
 

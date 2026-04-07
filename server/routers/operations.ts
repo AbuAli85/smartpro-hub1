@@ -35,6 +35,7 @@ import type { PayrollRun, User } from "../../drizzle/schema";
 import { canAccessGlobalAdminProcedures } from "@shared/rbac";
 import { buildOwnerAttentionQueue } from "../ownerAttentionQueue";
 import { getActiveCompanyMembership } from "../_core/membership";
+import { getPostSaleSignals } from "../postSaleSignals";
 
 type DbClient = NonNullable<Awaited<ReturnType<typeof getDb>>>;
 
@@ -432,6 +433,9 @@ export const operationsRouter = router({
             employeeTasksBlocked: 0,
           };
 
+    const postSaleSnapshot =
+      companyId != null ? await getPostSaleSignals(db, companyId) : null;
+
     const attentionQueue = buildOwnerAttentionQueue({
       isPlatformOperator,
       slaBreaches: slaBreaches.length,
@@ -454,6 +458,8 @@ export const operationsRouter = router({
       contractsExpiringNext30Days: lifecycleSignals.contractsExpiringNext30Days,
       employeeTasksOverdue: lifecycleSignals.employeeTasksOverdue,
       employeeTasksBlocked: lifecycleSignals.employeeTasksBlocked,
+      serviceContractsStalledNoDelivery: postSaleSnapshot?.serviceContractsStalledNoDeliveryCount ?? 0,
+      stalledContractSampleId: postSaleSnapshot?.stalledContractSampleId ?? null,
     });
 
     return {
@@ -885,6 +891,7 @@ export const operationsRouter = router({
         );
 
       const lifecycle = await getOwnerLifecycleSignals(db, companyId);
+      const postSale = await getPostSaleSignals(db, companyId);
 
       return {
         commercial: {
@@ -922,6 +929,24 @@ export const operationsRouter = router({
           openGovernmentCases: Number(govCases?.cnt ?? 0),
           employeeTasksOverdue: lifecycle.employeeTasksOverdue,
           employeeTasksBlocked: lifecycle.employeeTasksBlocked,
+        },
+        postSale: {
+          serviceContractsStalledNoDeliveryCount: postSale.serviceContractsStalledNoDeliveryCount,
+          stalledContractSampleId: postSale.stalledContractSampleId,
+          completedProWithFeesLast90dCount: postSale.completedProWithFeesLast90dCount,
+          stalledDeliveryBasis: postSale.stalledDeliveryBasis,
+          completedProFeesBasis: postSale.completedProFeesBasis,
+          completedWorkBillingCaveat: postSale.completedWorkBillingCaveat,
+          combinedExecutionAndCollectionRisk:
+            postSale.serviceContractsStalledNoDeliveryCount > 0 && Number(proOverdue?.cnt ?? 0) > 0,
+          deepLinks: {
+            stalledContracts:
+              postSale.stalledContractSampleId != null
+                ? `/contracts?id=${postSale.stalledContractSampleId}`
+                : "/contracts",
+            proJobs: "/pro",
+            clientBilling: "/client-portal?tab=invoices",
+          },
         },
       };
     }),

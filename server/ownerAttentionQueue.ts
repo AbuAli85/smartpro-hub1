@@ -42,6 +42,10 @@ export type OwnerAttentionInput = {
   employeeTasksOverdue?: number;
   /** Internal employee tasks in blocked state */
   employeeTasksBlocked?: number;
+  /** Service contracts with no PRO/case/booking after effective date (derived) */
+  serviceContractsStalledNoDelivery?: number;
+  /** First stalled contract id — deep link to /contracts?id=… when set */
+  stalledContractSampleId?: number | null;
 };
 
 /** Stable ordering: critical first, then high, then medium. */
@@ -69,6 +73,8 @@ export function buildOwnerAttentionQueue(input: OwnerAttentionInput): OwnerAtten
     contractsExpiringNext30Days = 0,
     employeeTasksOverdue = 0,
     employeeTasksBlocked = 0,
+    serviceContractsStalledNoDelivery = 0,
+    stalledContractSampleId = null,
   } = input;
 
   const slaHref = isPlatformOperator ? "/sla-management" : "/operations";
@@ -198,6 +204,18 @@ export function buildOwnerAttentionQueue(input: OwnerAttentionInput): OwnerAtten
       detail: "Operational and billing handoff starts after a signed agreement or quote conversion.",
       severity: "high",
       href: "/quotations?filter=accepted",
+    });
+  }
+  if (serviceContractsStalledNoDelivery > 0) {
+    const stalledHref =
+      stalledContractSampleId != null ? `/contracts?id=${stalledContractSampleId}` : "/contracts";
+    q.push({
+      key: "post_sale_stalled",
+      title: `${serviceContractsStalledNoDelivery} service contract${serviceContractsStalledNoDelivery > 1 ? "s" : ""} — no delivery touch after signing (derived)`,
+      detail:
+        "No PRO request, government case, or marketplace booking recorded after the contract effective date — confirm operations have started.",
+      severity: "high",
+      href: stalledHref,
     });
   }
   if (contractsExpiringNext30Days > 0) {

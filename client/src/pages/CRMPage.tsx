@@ -4,7 +4,7 @@ import { Link } from "wouter";
 import {
   Users, Plus, Search, Phone, Mail, Building2, TrendingUp, DollarSign,
   ChevronRight, X, MessageSquare, Calendar, Target, Star,
-  CheckCircle2, Handshake, Send, FileText,
+  CheckCircle2, Handshake, Send, FileText, AlertTriangle, Truck,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -252,6 +252,74 @@ function ContactDetailPanel({ contactId, onClose, companyId }: { contactId: numb
               <p className="text-xs text-muted-foreground">No linked deals, quotes, or contracts yet.</p>
             )}
           </div>
+
+          {(contact360.contactPostSale?.stalledServiceContracts?.length ?? 0) > 0 ||
+          (contact360.workspaceCollections?.proBillingOverdueCount ?? 0) > 0 ||
+          (contact360.workspaceCollections?.subscriptionOverdueCount ?? 0) > 0 ? (
+            <div className="rounded-lg border border-amber-200/80 bg-amber-50/50 dark:bg-amber-950/20 px-2 py-2 space-y-2">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1">
+                <Truck size={12} /> Operations & collections
+              </p>
+              {(contact360.contactPostSale?.stalledServiceContracts?.length ?? 0) > 0 && (
+                <div className="space-y-1">
+                  <p className="text-[10px] text-amber-900 dark:text-amber-200 flex items-start gap-1">
+                    <AlertTriangle size={12} className="shrink-0 mt-0.5" />
+                    Signed service agreement — weak delivery signals (derived)
+                  </p>
+                  <ul className="space-y-0.5 pl-1">
+                    {contact360.contactPostSale!.stalledServiceContracts.map((sc) => (
+                      <li key={sc.id}>
+                        <Link
+                          href={`/contracts?id=${sc.id}`}
+                          className="text-xs font-medium text-foreground hover:underline line-clamp-2"
+                        >
+                          {sc.title}
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="text-[9px] text-muted-foreground leading-snug">{contact360.contactPostSale?.stalledBasis}</p>
+                </div>
+              )}
+              {((contact360.workspaceCollections?.proBillingOverdueCount ?? 0) > 0 ||
+                (contact360.workspaceCollections?.subscriptionOverdueCount ?? 0) > 0) && (
+                <div className="text-xs space-y-1 border-t border-amber-200/60 pt-2">
+                  <p className="text-[10px] font-medium text-muted-foreground">Workspace collections (tenant-wide)</p>
+                  <div className="flex justify-between gap-2">
+                    <span className="text-muted-foreground">PRO/officer overdue</span>
+                    <span className={contact360.workspaceCollections!.proBillingOverdueOmr > 0 ? "text-red-700 font-semibold" : ""}>
+                      OMR {contact360.workspaceCollections!.proBillingOverdueOmr.toLocaleString("en-OM", { minimumFractionDigits: 3, maximumFractionDigits: 3 })} ({contact360.workspaceCollections!.proBillingOverdueCount})
+                    </span>
+                  </div>
+                  <div className="flex justify-between gap-2">
+                    <span className="text-muted-foreground">Subscription overdue</span>
+                    <span className={contact360.workspaceCollections!.subscriptionOverdueOmr > 0 ? "text-red-700 font-semibold" : ""}>
+                      OMR {contact360.workspaceCollections!.subscriptionOverdueOmr.toLocaleString("en-OM", { minimumFractionDigits: 3, maximumFractionDigits: 3 })} ({contact360.workspaceCollections!.subscriptionOverdueCount})
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    <Link href="/client-portal?tab=invoices" className="text-[10px] text-[var(--smartpro-orange)] font-medium hover:underline">
+                      Client billing →
+                    </Link>
+                    <Link href="/pro" className="text-[10px] text-[var(--smartpro-orange)] font-medium hover:underline">
+                      PRO jobs →
+                    </Link>
+                  </div>
+                  <p className="text-[9px] text-muted-foreground">{contact360.workspaceCollections?.scopeNote}</p>
+                </div>
+              )}
+              {(contact360.billingReviewHint?.completedProWithFeesLast90dCount ?? 0) > 0 && (
+                <div className="text-xs border-t border-amber-200/60 pt-2 space-y-1">
+                  <p className="text-[10px] font-medium text-muted-foreground">Billing follow-up hint (90d)</p>
+                  <p>
+                    <span className="font-semibold tabular-nums">{contact360.billingReviewHint!.completedProWithFeesLast90dCount}</span>
+                    <span className="text-muted-foreground"> completed PRO jobs with fees (company-wide)</span>
+                  </p>
+                  <p className="text-[9px] text-muted-foreground leading-snug">{contact360.billingReviewHint?.caveat}</p>
+                </div>
+              )}
+            </div>
+          ) : null}
         </div>
       )}
 

@@ -327,3 +327,75 @@
   outline: 2px solid var(--smartpro-orange);
   outline-offset: 2px;
 }
+
+/* ============================================================
+   RTL / Arabic layout support
+   Applied when <html dir="rtl"> is set by i18n.ts
+   ============================================================ */
+
+/* Arabic typography */
+[dir="rtl"],
+[dir="rtl"] body,
+[dir="rtl"] input,
+[dir="rtl"] textarea,
+[dir="rtl"] select,
+[dir="rtl"] button {
+  font-family: "Noto Sans Arabic", "Segoe UI", "Tahoma", "Arial", sans-serif;
+  letter-spacing: 0;
+}
+
+/* Text alignment */
+[dir="rtl"] .text-left { text-align: right; }
+[dir="rtl"] .text-right { text-align: left; }
+
+/* Margin logical properties */
+[dir="rtl"] .ml-auto { margin-left: unset; margin-right: auto; }
+[dir="rtl"] .mr-auto { margin-right: unset; margin-left: auto; }
+[dir="rtl"] .ml-1 { margin-left: unset; margin-right: 0.25rem; }
+[dir="rtl"] .ml-2 { margin-left: unset; margin-right: 0.5rem; }
+[dir="rtl"] .ml-3 { margin-left: unset; margin-right: 0.75rem; }
+[dir="rtl"] .ml-4 { margin-left: unset; margin-right: 1rem; }
+[dir="rtl"] .mr-1 { margin-right: unset; margin-left: 0.25rem; }
+[dir="rtl"] .mr-2 { margin-right: unset; margin-left: 0.5rem; }
+[dir="rtl"] .mr-3 { margin-right: unset; margin-left: 0.75rem; }
+[dir="rtl"] .mr-4 { margin-right: unset; margin-left: 1rem; }
+
+/* Padding logical properties */
+[dir="rtl"] .pl-3 { padding-left: unset; padding-right: 0.75rem; }
+[dir="rtl"] .pr-3 { padding-right: unset; padding-left: 0.75rem; }
+[dir="rtl"] .pl-4 { padding-left: unset; padding-right: 1rem; }
+[dir="rtl"] .pr-4 { padding-right: unset; padding-left: 1rem; }
+
+/* Table cells */
+[dir="rtl"] th,
+[dir="rtl"] td { text-align: right; }
+
+/* Form labels */
+[dir="rtl"] label { display: block; text-align: right; }
+
+/* Navigation active indicator */
+[dir="rtl"] .sidebar-nav-item.active {
+  border-right: 3px solid var(--smartpro-orange);
+  border-left: none;
+}
+
+/* Toast notifications */
+[dir="rtl"] [data-sonner-toaster] {
+  left: 1rem !important;
+  right: auto !important;
+}
+
+/* Dialog text direction */
+[dir="rtl"] [role="dialog"] { text-align: right; }
+
+/* Keep numeric inputs LTR */
+[dir="rtl"] input[type="number"],
+[dir="rtl"] input[type="tel"],
+[dir="rtl"] input[type="date"],
+[dir="rtl"] input[type="time"] {
+  direction: ltr;
+  text-align: left;
+}
+
+/* Flip directional icons explicitly */
+[dir="rtl"] .icon-flip-rtl { transform: scaleX(-1); }

@@ -1,4 +1,5 @@
 import { trpc } from "@/lib/trpc";
+import "@/lib/i18n"; // Initialize i18next before rendering
 import { UNAUTHED_ERR_MSG } from '@shared/const';
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { httpBatchLink, TRPCClientError } from "@trpc/client";
@@ -7,6 +8,7 @@ import superjson from "superjson";
 import App from "./App";
 import { getLoginUrl } from "./const";
 import { ActiveCompanyProvider } from "./contexts/ActiveCompanyContext";
+import { LanguageProvider } from "./contexts/LanguageContext";
 import "./index.css";
 import { registerServiceWorkerWithUpdatePrompt } from "./lib/registerServiceWorkerUpdatePrompt";
 
@@ -58,7 +60,9 @@ createRoot(document.getElementById("root")!).render(
   <trpc.Provider client={trpcClient} queryClient={queryClient}>
     <QueryClientProvider client={queryClient}>
       <ActiveCompanyProvider>
-        <App />
+        <LanguageProvider>
+          <App />
+        </LanguageProvider>
       </ActiveCompanyProvider>
     </QueryClientProvider>
   </trpc.Provider>

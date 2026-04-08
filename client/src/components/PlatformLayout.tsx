@@ -57,6 +57,7 @@ import {
   UserSquare2,
 } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
+import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { Link, useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import {
@@ -314,6 +315,11 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
         ))}
       </nav>
 
+      {/* Language switcher */}
+      <div className="px-3 pb-2">
+        <LanguageSwitcher className="w-full justify-start text-white/70 border-white/10 hover:bg-white/5 hover:text-white" />
+      </div>
+
       {/* User */}
       <div className="px-3 py-4 border-t border-[var(--sidebar-border)]">
         <DropdownMenu>
@@ -501,6 +507,22 @@ function NotificationBell() {
 export default function PlatformLayout({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, loading } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [location] = useLocation();
+
+  // Auto-close sidebar on route change (mobile)
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [location]);
+
+  // Prevent body scroll when sidebar is open on mobile
+  useEffect(() => {
+    if (sidebarOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => { document.body.style.overflow = ''; };
+  }, [sidebarOpen]);
   const { data: layoutCompany } = trpc.companies.myCompany.useQuery(
     undefined,
     { enabled: isAuthenticated },
@@ -560,14 +582,12 @@ export default function PlatformLayout({ children }: { children: React.ReactNode
       {/* Skip to main content — visible only on keyboard focus */}
       <a href="#main-content" className="skip-to-main">Skip to main content</a>
 
-      {/* Mobile overlay */}
-      {sidebarOpen && (
-        <div
-          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
-          onClick={() => setSidebarOpen(false)}
-          aria-hidden="true"
-        />
-      )}
+      {/* Mobile overlay — always rendered, opacity animated */}
+      <div
+        className={`fixed inset-0 bg-black/60 z-40 lg:hidden transition-opacity duration-200 ${sidebarOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
+        onClick={() => setSidebarOpen(false)}
+        aria-hidden="true"
+      />
 
       {/* Sidebar - desktop */}
       <aside className="hidden lg:flex w-60 shrink-0 flex-col h-full" aria-label="Main navigation">
@@ -576,11 +596,13 @@ export default function PlatformLayout({ children }: { children: React.ReactNode
 
       {/* Sidebar - mobile */}
       <aside
-        className={`fixed inset-y-0 left-0 w-64 z-50 lg:hidden transform transition-transform duration-200 ${
+        id="mobile-sidebar"
+        className={`fixed inset-y-0 left-0 w-72 z-50 lg:hidden transform transition-transform duration-200 ease-in-out ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
         aria-label="Mobile navigation"
         aria-hidden={!sidebarOpen}
+        aria-modal={sidebarOpen ? "true" : "false"}
       >
         <SidebarContent onClose={() => setSidebarOpen(false)} />
       </aside>

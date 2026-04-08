@@ -39,14 +39,14 @@ export function NotificationBell() {
   const automationQueriesEnabled =
     isAuthenticated && activeCompanyId != null && !companiesLoading;
 
-  const { data: countData } = trpc.automation.getUnreadCount.useQuery(undefined, {
-    refetchInterval: 30_000, // poll every 30s
-    enabled: automationQueriesEnabled,
-  });
+  const { data: countData } = trpc.automation.getUnreadCount.useQuery(
+    { companyId: activeCompanyId ?? undefined },
+    { refetchInterval: 30_000, enabled: automationQueriesEnabled },
+  );
 
   const { data: notifications = [], isLoading } = trpc.automation.listNotifications.useQuery(
-    { limit: 20, unreadOnly: false },
-    { enabled: open && automationQueriesEnabled }
+    { limit: 20, unreadOnly: false, companyId: activeCompanyId ?? undefined },
+    { enabled: open && automationQueriesEnabled },
   );
 
   const markRead = trpc.automation.markNotificationsRead.useMutation({
@@ -59,12 +59,12 @@ export function NotificationBell() {
   const unreadCount = countData?.count ?? 0;
 
   const handleMarkAllRead = () => {
-    markRead.mutate({ all: true });
+    markRead.mutate({ all: true, companyId: activeCompanyId ?? undefined });
   };
 
   const handleNotificationClick = (notif: typeof notifications[0]) => {
     if (notif.is_read === 0) {
-      markRead.mutate({ ids: [notif.id] });
+      markRead.mutate({ ids: [notif.id], companyId: activeCompanyId ?? undefined });
     }
     if (notif.link) {
       navigate(notif.link);

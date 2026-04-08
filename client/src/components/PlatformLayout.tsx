@@ -473,13 +473,13 @@ function NotificationBell() {
   // Automation notifications (company-scoped; skip when no workspace to avoid 403)
   const automationQueriesEnabled =
     isAuthenticated && activeCompanyId != null && !companiesLoading;
-  const { data: automationUnread } = trpc.automation.getUnreadCount.useQuery(undefined, {
-    enabled: automationQueriesEnabled,
-    refetchInterval: 30_000,
-  });
+  const { data: automationUnread } = trpc.automation.getUnreadCount.useQuery(
+    { companyId: activeCompanyId ?? undefined },
+    { enabled: automationQueriesEnabled, refetchInterval: 30_000 },
+  );
   const { data: automationNotifs = [] } = trpc.automation.listNotifications.useQuery(
-    { limit: 5, unreadOnly: true },
-    { enabled: open && automationQueriesEnabled }
+    { limit: 5, unreadOnly: true, companyId: activeCompanyId ?? undefined },
+    { enabled: open && automationQueriesEnabled },
   );
   const markRead = trpc.automation.markNotificationsRead.useMutation({
     onSuccess: () => {
@@ -538,7 +538,10 @@ function NotificationBell() {
             <div className="px-4 py-3 border-b flex items-center justify-between">
               <span className="font-semibold text-sm">Notifications</span>
               {totalUnread > 0 && (
-                <button className="text-xs text-primary hover:underline" onClick={() => markRead.mutate({ all: true })}>
+                <button
+                  className="text-xs text-primary hover:underline"
+                  onClick={() => markRead.mutate({ all: true, companyId: activeCompanyId ?? undefined })}
+                >
                   Mark all read
                 </button>
               )}
@@ -553,7 +556,13 @@ function NotificationBell() {
                     <button
                       key={`auto-${n.id}`}
                       className="w-full text-left px-4 py-3 hover:bg-muted/30 transition-colors"
-                      onClick={() => { markRead.mutate({ ids: [n.id] }); if (n.link) { navigate(n.link); setOpen(false); } }}
+                      onClick={() => {
+                        markRead.mutate({ ids: [n.id], companyId: activeCompanyId ?? undefined });
+                        if (n.link) {
+                          navigate(n.link);
+                          setOpen(false);
+                        }
+                      }}
                     >
                       <div className="flex items-start gap-3">
                         <div className="w-2 h-2 rounded-full mt-1.5 shrink-0 bg-amber-500" />

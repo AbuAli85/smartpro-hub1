@@ -996,9 +996,15 @@ export const automationRouter = router({
 
   // List in-app notifications for the current user/company
   listNotifications: protectedProcedure
-    .input(z.object({ limit: z.number().default(30), unreadOnly: z.boolean().default(false) }))
+    .input(
+      z.object({
+        limit: z.number().default(30),
+        unreadOnly: z.boolean().default(false),
+        companyId: z.number().optional(),
+      }),
+    )
     .query(async ({ ctx, input }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId ?? undefined, ctx.user);
       try {
         const mysql = require("mysql2/promise");
         const conn = mysql.createPool(process.env.DATABASE_URL);
@@ -1016,9 +1022,15 @@ export const automationRouter = router({
 
   // Mark notification(s) as read
   markNotificationsRead: protectedProcedure
-    .input(z.object({ ids: z.array(z.number()).optional(), all: z.boolean().default(false) }))
+    .input(
+      z.object({
+        ids: z.array(z.number()).optional(),
+        all: z.boolean().default(false),
+        companyId: z.number().optional(),
+      }),
+    )
     .mutation(async ({ ctx, input }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId ?? undefined, ctx.user);
       try {
         const mysql = require("mysql2/promise");
         const conn = mysql.createPool(process.env.DATABASE_URL);
@@ -1032,19 +1044,23 @@ export const automationRouter = router({
       } catch { return { success: false }; }
     }),
 
-  // Get unread notification count
-  getUnreadCount: protectedProcedure.query(async ({ ctx }) => {
-    const companyId = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
-    try {
-      const mysql = require("mysql2/promise");
-      const conn = mysql.createPool(process.env.DATABASE_URL);
-      const [[row]] = await conn.query(
-        `SELECT COUNT(*) as count FROM notifications WHERE company_id = ? AND is_read = 0`,
-        [companyId]
-      );
-      return { count: (row as any).count as number };
-    } catch { return { count: 0 }; }
-  }),
+  // Get unread notification count (pass companyId when the user belongs to multiple companies)
+  getUnreadCount: protectedProcedure
+    .input(z.object({ companyId: z.number().optional() }))
+    .query(async ({ ctx, input }) => {
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId ?? undefined, ctx.user);
+      try {
+        const mysql = require("mysql2/promise");
+        const conn = mysql.createPool(process.env.DATABASE_URL);
+        const [[row]] = await conn.query(
+          `SELECT COUNT(*) as count FROM notifications WHERE company_id = ? AND is_read = 0`,
+          [companyId]
+        );
+        return { count: (row as any).count as number };
+      } catch {
+        return { count: 0 };
+      }
+    }),
 
   // ─── Workforce Health KPI ─────────────────────────────────────────────────
 

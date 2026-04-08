@@ -1,9 +1,12 @@
 import { z } from "zod";
 import { eq, and } from "drizzle-orm";
+import { TRPCError } from "@trpc/server";
 import { protectedProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
 import { onboardingSteps, userOnboardingProgress } from "../../drizzle/schema";
 import { requireActiveCompanyId } from "../_core/tenant";
+import { syncOnboardingFromBusinessState } from "../onboardingSync";
+import type { User } from "../../drizzle/schema";
 
 export const onboardingRouter = router({
   /** Get all steps with the current user's progress merged in. */
@@ -12,6 +15,9 @@ export const onboardingRouter = router({
     .query(async ({ ctx, input }) => {
       const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+
+      await syncOnboardingFromBusinessState(db, ctx.user as User, companyId);
 
       // Fetch all canonical steps ordered by sortOrder
       const steps = await db.select().from(onboardingSteps).orderBy(onboardingSteps.sortOrder);

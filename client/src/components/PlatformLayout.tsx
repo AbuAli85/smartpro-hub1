@@ -452,7 +452,7 @@ function NotificationBell() {
   const [open, setOpen] = useState(false);
   const [, navigate] = useLocation();
   const { isAuthenticated } = useAuth();
-  const { activeCompanyId } = useActiveCompany();
+  const { activeCompanyId, loading: companiesLoading } = useActiveCompany();
   const utils = trpc.useUtils();
   const { data: proServices } = trpc.pro.list.useQuery(
     { status: "expiring_soon", companyId: activeCompanyId ?? undefined },
@@ -470,14 +470,16 @@ function NotificationBell() {
     { companyId: activeCompanyId ?? undefined },
     { enabled: activeCompanyId != null },
   );
-  // Automation notifications
+  // Automation notifications (company-scoped; skip when no workspace to avoid 403)
+  const automationQueriesEnabled =
+    isAuthenticated && activeCompanyId != null && !companiesLoading;
   const { data: automationUnread } = trpc.automation.getUnreadCount.useQuery(undefined, {
-    enabled: isAuthenticated,
+    enabled: automationQueriesEnabled,
     refetchInterval: 30_000,
   });
   const { data: automationNotifs = [] } = trpc.automation.listNotifications.useQuery(
     { limit: 5, unreadOnly: true },
-    { enabled: open && isAuthenticated }
+    { enabled: open && automationQueriesEnabled }
   );
   const markRead = trpc.automation.markNotificationsRead.useMutation({
     onSuccess: () => {

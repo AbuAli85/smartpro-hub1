@@ -10,6 +10,8 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { trpc } from "@/lib/trpc";
+import { useAuth } from "@/_core/hooks/useAuth";
+import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { useLocation } from "wouter";
 import { formatDistanceToNow } from "date-fns";
 
@@ -30,15 +32,21 @@ const typeBg = {
 export function NotificationBell() {
   const [open, setOpen] = useState(false);
   const [, navigate] = useLocation();
+  const { isAuthenticated } = useAuth();
+  const { activeCompanyId, loading: companiesLoading } = useActiveCompany();
   const utils = trpc.useUtils();
+
+  const automationQueriesEnabled =
+    isAuthenticated && activeCompanyId != null && !companiesLoading;
 
   const { data: countData } = trpc.automation.getUnreadCount.useQuery(undefined, {
     refetchInterval: 30_000, // poll every 30s
+    enabled: automationQueriesEnabled,
   });
 
   const { data: notifications = [], isLoading } = trpc.automation.listNotifications.useQuery(
     { limit: 20, unreadOnly: false },
-    { enabled: open }
+    { enabled: open && automationQueriesEnabled }
   );
 
   const markRead = trpc.automation.markNotificationsRead.useMutation({

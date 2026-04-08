@@ -18,9 +18,12 @@ import {
   ArrowRight,
   BookOpen,
   Building2,
+  CalendarClock,
   ChevronLeft,
   ChevronRight,
   ClipboardCheck,
+  Copy,
+  ExternalLink,
   FileText,
   Info,
   LayoutDashboard,
@@ -34,6 +37,7 @@ import {
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link, useLocation } from "wouter";
 import { toast } from "sonner";
+import { fmtDateTime } from "@/lib/dateUtils";
 import {
   CartesianGrid,
   Line,
@@ -336,14 +340,67 @@ function DirectorySurface() {
     { enabled: drawerId != null },
   );
 
+  const readiness = trpc.sanad.intelligence.centerActivationReadiness.useQuery(
+    { centerId: drawerId ?? 0 },
+    { enabled: drawerId != null },
+  );
+
   const updateOps = trpc.sanad.intelligence.updateCenterOperations.useMutation({
     onSuccess: () => {
       toast.success("Partner record updated");
       listQuery.refetch();
       detail.refetch();
+      readiness.refetch();
     },
     onError: (e) => toast.error(e.message),
   });
+
+  const genInvite = trpc.sanad.intelligence.generateCenterInvite.useMutation({
+    onSuccess: async (data) => {
+      listQuery.refetch();
+      detail.refetch();
+      readiness.refetch();
+      const url =
+        typeof window !== "undefined" ? `${window.location.origin}${data.invitePath}` : data.invitePath;
+      try {
+        await navigator.clipboard.writeText(url);
+        toast.success("Invite link generated and copied");
+      } catch {
+        toast.success("Invite link generated", { description: url });
+      }
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const outreachMut = trpc.sanad.intelligence.updateCenterOutreach.useMutation({
+    onSuccess: () => {
+      toast.success("Outreach updated");
+      detail.refetch();
+      readiness.refetch();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const activateOffice = trpc.sanad.intelligence.activateCenterAsOffice.useMutation({
+    onSuccess: (data) => {
+      toast.success(data.alreadyLinked ? "Office already linked" : "SANAD office created and linked");
+      listQuery.refetch();
+      detail.refetch();
+      readiness.refetch();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const [followUpInput, setFollowUpInput] = useState("");
+  const [outreachNote, setOutreachNote] = useState("");
+  const [contactMethodDraft, setContactMethodDraft] = useState("call");
+
+  const ops = detail.data?.ops;
+  const inviteFullUrl = useMemo(() => {
+    const t = ops?.inviteToken;
+    if (!t || typeof window === "undefined") return "";
+    return `${window.location.origin}/sanad/join?token=${encodeURIComponent(t)}`;
+  }, [ops?.inviteToken]);
 
   /** Radix Select rejects `value=""` on SelectItem; skip empty keys from API data. */
   const governorateOptions = (filters?.governorates ?? []).filter((g) => g.key.length > 0);
@@ -826,6 +883,223 @@ function DirectorySurface() {
                   }
                 />
                 </div>
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-primary/20 bg-primary/[0.04] p-4 shadow-sm">
+                <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Activation readiness
+                </p>
+                {readiness.isLoading ? (
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                ) : readiness.error ? (
+                  <p className="text-sm text-destructive">{readiness.error.message}</p>
+                ) : readiness.data ? (
+                  <ul className="space-y-1.5 text-sm text-foreground/90">
+                    <li className="flex justify-between gap-2">
+                      <span className="text-muted-foreground">Compliance seeded</span>
+                      <span className="font-medium">
+                        {readiness.data.compliance.complianceSeeded ? "Yes" : "No"}
+                      </span>
+                    </li>
+                    <li className="flex justify-between gap-2">
+                      <span className="text-muted-foreground">Checklist progress</span>
+                      <span className="font-medium tabular-nums">
+                        {readiness.data.compliance.complianceCompleted} /{" "}
+                        {readiness.data.compliance.complianceItemsTotal || "—"} complete
+                      </span>
+                    </li>
+                    <li className="flex justify-between gap-2">
+                      <span className="text-muted-foreground">Registered user (invite)</span>
+                      <span className="font-medium">
+                        {readiness.data.flags.registeredUserExists ? "Yes" : "No"}
+                      </span>
+                    </li>
+                    <li className="flex justify-between gap-2">
+                      <span className="text-muted-foreground">Linked SANAD office</span>
+                      <span className="font-medium">
+                        {readiness.data.flags.linkedOfficeExists ? "Yes" : "No"}
+                      </span>
+                    </li>
+                    <li className="flex justify-between gap-2 border-t border-border/60 pt-2 mt-2">
+                      <span className="text-muted-foreground">Activation ready</span>
+                      <span
+                        className={
+                          readiness.data.flags.activationReady ? "font-semibold text-emerald-700" : "font-medium text-amber-800"
+                        }
+                      >
+                        {readiness.data.flags.activationReady ? "Yes" : "No"}
+                      </span>
+                    </li>
+                  </ul>
+                ) : null}
+              </div>
+
+              <div className="rounded-lg border bg-card p-4 shadow-sm">
+                <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Invite, outreach &amp; office activation
+                </p>
+                <div className="space-y-3 text-sm">
+                  <div className="rounded-md bg-muted/40 px-3 py-2 space-y-1">
+                    <p>
+                      <span className="text-muted-foreground">Invite: </span>
+                      {ops?.inviteToken ? (
+                        <span className="font-medium">
+                          {ops.inviteExpiresAt && new Date(ops.inviteExpiresAt) > new Date()
+                            ? "Active"
+                            : "Expired or no expiry"}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">Not generated</span>
+                      )}
+                    </p>
+                    {ops?.inviteSentAt ? (
+                      <p className="text-xs text-muted-foreground">
+                        Sent {fmtDateTime(ops.inviteSentAt)}
+                        {ops.inviteExpiresAt ? ` · Expires ${fmtDateTime(ops.inviteExpiresAt)}` : ""}
+                      </p>
+                    ) : null}
+                    {ops?.inviteAcceptAt ? (
+                      <p className="text-xs text-muted-foreground">
+                        Lead captured {fmtDateTime(ops.inviteAcceptAt)}
+                        {ops.inviteAcceptName ? ` · ${ops.inviteAcceptName}` : ""}
+                      </p>
+                    ) : null}
+                    <p>
+                      <span className="text-muted-foreground">Linked office ID: </span>
+                      {ops?.linkedSanadOfficeId ?? "—"}
+                    </p>
+                    <p>
+                      <span className="text-muted-foreground">Last contacted: </span>
+                      {ops?.lastContactedAt ? fmtDateTime(ops.lastContactedAt) : "—"}
+                      {ops?.contactMethod ? ` (${ops.contactMethod})` : ""}
+                    </p>
+                    <p>
+                      <span className="text-muted-foreground">Follow-up due: </span>
+                      {ops?.followUpDueAt ? fmtDateTime(ops.followUpDueAt) : "—"}
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="secondary"
+                      disabled={genInvite.isPending}
+                      onClick={() => genInvite.mutate({ centerId: detail.data!.center.id })}
+                    >
+                      {genInvite.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                      Generate invite
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={!inviteFullUrl}
+                      onClick={() => {
+                        if (!inviteFullUrl) return;
+                        void navigator.clipboard.writeText(inviteFullUrl).then(
+                          () => toast.success("Invite URL copied"),
+                          () => toast.error("Could not copy"),
+                        );
+                      }}
+                    >
+                      <Copy className="h-3.5 w-3.5 mr-1" />
+                      Copy invite link
+                    </Button>
+                    {ops?.linkedSanadOfficeId ? (
+                      <Button type="button" size="sm" variant="outline" asChild>
+                        <a
+                          href={`/sanad/centre/${ops.linkedSanadOfficeId}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1"
+                        >
+                          <ExternalLink className="h-3.5 w-3.5" />
+                          Open office profile
+                        </a>
+                      </Button>
+                    ) : (
+                      <Button type="button" size="sm" variant="outline" disabled>
+                        <ExternalLink className="h-3.5 w-3.5 mr-1" />
+                        Open office profile
+                      </Button>
+                    )}
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={activateOffice.isPending || readiness.data?.flags.linkedOfficeExists}
+                      onClick={() => activateOffice.mutate({ centerId: detail.data!.center.id })}
+                    >
+                      {activateOffice.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                      Activate as office
+                    </Button>
+                  </div>
+
+                  <div className="rounded-md border border-dashed border-border/80 p-3 space-y-2">
+                    <p className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                      <CalendarClock className="h-3.5 w-3.5" />
+                      Outreach
+                    </p>
+                    <div className="flex flex-wrap gap-2 items-end">
+                      <div className="space-y-1">
+                        <Label className="text-xs">Follow-up due</Label>
+                        <Input
+                          type="datetime-local"
+                          className="h-9 w-[11.5rem] text-xs"
+                          value={followUpInput}
+                          onChange={(e) => setFollowUpInput(e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-1 min-w-[6rem]">
+                        <Label className="text-xs">Method</Label>
+                        <Input
+                          className="h-9 text-xs"
+                          placeholder="call, email, visit…"
+                          value={contactMethodDraft}
+                          onChange={(e) => setContactMethodDraft(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                    <Textarea
+                      className="text-xs min-h-[52px]"
+                      placeholder="Optional note (appended with timestamp)"
+                      value={outreachNote}
+                      onChange={(e) => setOutreachNote(e.target.value)}
+                    />
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        disabled={outreachMut.isPending}
+                        onClick={() =>
+                          outreachMut.mutate({
+                            centerId: detail.data!.center.id,
+                            lastContactedAt: new Date(),
+                            contactMethod: contactMethodDraft.trim() || undefined,
+                          })
+                        }
+                      >
+                        Mark contacted (now)
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={outreachMut.isPending || !followUpInput}
+                        onClick={() =>
+                          outreachMut.mutate({
+                            centerId: detail.data!.center.id,
+                            followUpDueAt: new Date(followUpInput),
+                            notesAppend: outreachNote.trim() || undefined,
+                          })
+                        }
+                      >
+                        Save follow-up
+                      </Button>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>

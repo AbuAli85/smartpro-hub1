@@ -3162,8 +3162,27 @@ export const sanadIntelCenterOperations = mysqlTable(
     coverageRadiusKm: int("coverage_radius_km"),
     targetSlaHours: int("target_sla_hours"),
     updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+    /** Secure token for public onboarding link (unique when set). */
+    inviteToken: varchar("invite_token", { length: 64 }).unique(),
+    inviteSentAt: timestamp("invite_sent_at"),
+    inviteExpiresAt: timestamp("invite_expires_at"),
+    registeredUserId: int("registered_user_id").references(() => users.id),
+    linkedSanadOfficeId: int("linked_sanad_office_id").references(() => sanadOffices.id),
+    activatedAt: timestamp("activated_at"),
+    activationSource: mysqlEnum("activation_source", ["manual", "invite", "admin_created"]),
+    lastContactedAt: timestamp("last_contacted_at"),
+    contactMethod: varchar("contact_method", { length: 64 }),
+    followUpDueAt: timestamp("follow_up_due_at"),
+    inviteAcceptName: varchar("invite_accept_name", { length: 255 }),
+    inviteAcceptPhone: varchar("invite_accept_phone", { length: 64 }),
+    inviteAcceptEmail: varchar("invite_accept_email", { length: 320 }),
+    inviteAcceptAt: timestamp("invite_accept_at"),
   },
-  (t) => [index("idx_sanad_intel_ops_partner").on(t.partnerStatus), index("idx_sanad_intel_ops_onb").on(t.onboardingStatus)],
+  (t) => [
+    index("idx_sanad_intel_ops_partner").on(t.partnerStatus),
+    index("idx_sanad_intel_ops_onb").on(t.onboardingStatus),
+    index("idx_sanad_intel_ops_followup").on(t.followUpDueAt),
+  ],
 );
 export type SanadIntelCenterOperations = typeof sanadIntelCenterOperations.$inferSelect;
 

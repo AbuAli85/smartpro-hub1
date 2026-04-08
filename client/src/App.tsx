@@ -66,6 +66,7 @@ import MyTeamPage from "./pages/MyTeamPage";
 import PreferencesPage from "./pages/PreferencesPage";
 import OnboardingGuidePage from "@/pages/OnboardingGuidePage";
 import AcceptInvitePage from "@/pages/AcceptInvitePage";
+import SanadJoinInvitePage from "@/pages/SanadJoinInvitePage";
 import BusinessDashboardPage from "./pages/BusinessDashboardPage";
 import EmployeeLifecyclePage from "./pages/EmployeeLifecyclePage";
 import BusinessOperationsPage from "./pages/BusinessOperationsPage";
@@ -112,6 +113,7 @@ function PublicRoutes() {
       <Route path="/jobs" component={PublicJobBoardPage} />
       <Route path="/contracts/:id/sign" component={ContractSignPage} />
       <Route path="/attend/:token" component={AttendCheckInPage} />
+      <Route path="/sanad/join" component={SanadJoinInvitePage} />
       <Route component={AppRoutes} />
     </Switch>
   );

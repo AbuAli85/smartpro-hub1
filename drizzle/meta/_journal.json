@@ -71,6 +71,13 @@
       "when": 1744400000000,
       "tag": "0025_sanad_network_intelligence",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "5",
+      "when": 1744500000000,
+      "tag": "0026_sanad_intel_activation_bridge",
+      "breakpoints": true
     }
   ]
 }

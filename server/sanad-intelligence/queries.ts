@@ -209,6 +209,8 @@ export async function listCenters(
         like(schema.sanadIntelCenters.responsiblePerson, q),
         like(schema.sanadIntelCenters.contactNumber, q),
         like(schema.sanadIntelCenters.village, q),
+        like(schema.sanadIntelCenters.wilayat, q),
+        like(schema.sanadIntelCenters.governorateLabelRaw, q),
       )!,
     );
   }

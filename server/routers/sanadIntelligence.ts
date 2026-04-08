@@ -73,7 +73,7 @@ export const sanadIntelligenceRouter = router({
           governorateKey: z.string().optional(),
           wilayat: z.string().optional(),
           partnerStatus: partnerStatusZ.optional(),
-          limit: z.number().min(1).max(200).default(50),
+          limit: z.number().min(1).max(1000).default(50),
           offset: z.number().min(0).default(0),
         })
         .optional(),

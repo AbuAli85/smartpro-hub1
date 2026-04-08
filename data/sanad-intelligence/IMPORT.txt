@@ -15,6 +15,9 @@ SANAD Network Intelligence — data import
    Requires DATABASE_URL. Optional: SANAD_INTEL_IMPORT_DIR=/absolute/path/to/folder
 
 4. Idempotence: governorate-year metrics for touched years are replaced; workforce & geography tables are cleared and reloaded; directory rows upsert by fingerprint (name + governorate + wilayat + village, not phone — so adding contact numbers updates existing centres); licence requirement seed is additive by code.
+   - Optional bulk onboarding prep (MySQL): mark all imported centres as sales prospects with
+     `UPDATE sanad_intel_center_operations SET partner_status = 'prospect' WHERE partner_status = 'unknown';`
+     Use after a coordinated outreach campaign; adjust filters in the admin SANAD directory as needed.
 
 5. Licensing PDF: place at client/public/docs/SanadServicesCenterlicense-Ar.pdf for the compliance page link.
 

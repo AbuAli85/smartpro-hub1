@@ -18,8 +18,11 @@ import {
   ArrowRight,
   BookOpen,
   Building2,
+  ChevronLeft,
+  ChevronRight,
   ClipboardCheck,
   FileText,
+  Info,
   LayoutDashboard,
   Loader2,
   MapPin,
@@ -28,7 +31,7 @@ import {
   Shield,
   TrendingUp,
 } from "lucide-react";
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link, useLocation } from "wouter";
 import { toast } from "sonner";
 import {
@@ -43,16 +46,27 @@ import {
 
 type Section = "overview" | "directory" | "demand" | "opportunity" | "compliance";
 
+function formatDirectoryLocation(c: {
+  governorateLabelRaw: string | null;
+  wilayat: string | null;
+  village: string | null;
+}): string {
+  const parts = [c.governorateLabelRaw?.trim(), c.wilayat?.trim(), c.village?.trim()].filter(
+    (p): p is string => Boolean(p && p.length > 0),
+  );
+  return parts.join(" · ");
+}
+
 function directoryPartnerBadge(partnerStatus: string | undefined) {
   const s = partnerStatus ?? "unknown";
   if (s === "unknown") {
     return (
       <Badge
         variant="outline"
-        className="font-normal text-muted-foreground"
-        title="Not classified yet — open Details to set partner status"
+        className="max-w-full whitespace-normal text-start font-normal leading-snug text-muted-foreground"
+        title="Imported registry row — not yet classified as a SmartPRO partner. Open Details → set Partner status to Prospect or Active when you engage them."
       >
-        Unknown
+        Registry
       </Badge>
     );
   }
@@ -282,6 +296,8 @@ function DirectorySurface() {
   const [wil, setWil] = useState("");
   const [partner, setPartner] = useState<string>("");
   const [drawerId, setDrawerId] = useState<number | null>(null);
+  const [pageSize, setPageSize] = useState<100 | 200 | 500>(100);
+  const [page, setPage] = useState(0);
 
   const { data: filters } = trpc.sanad.intelligence.filterOptions.useQuery();
   const { data: wilayatList } = trpc.sanad.intelligence.wilayatForGovernorate.useQuery(
@@ -292,16 +308,28 @@ function DirectorySurface() {
   const partnerFilter =
     partner === "" ? undefined : (partner as "unknown" | "prospect" | "active" | "suspended" | "churned");
 
+  const offset = page * pageSize;
+
   const listQuery = trpc.sanad.intelligence.listCenters.useQuery({
     search: search || undefined,
     governorateKey: gov || undefined,
     wilayat: wil || undefined,
     partnerStatus: partnerFilter,
-    limit: 100,
-    offset: 0,
+    limit: pageSize,
+    offset,
   });
 
+  useEffect(() => {
+    setPage(0);
+  }, [search, gov, wil, partner, pageSize]);
+
   const filtersActive = Boolean(search.trim() || gov || wil || partner);
+  const total = listQuery.data?.total ?? 0;
+  const rows = listQuery.data?.rows ?? [];
+  const rangeStart = total === 0 ? 0 : offset + 1;
+  const rangeEnd = offset + rows.length;
+  const canPrev = page > 0;
+  const canNext = offset + rows.length < total;
 
   const detail = trpc.sanad.intelligence.getCenter.useQuery(
     { id: drawerId ?? 0 },
@@ -340,6 +368,7 @@ function DirectorySurface() {
                 setGov("");
                 setWil("");
                 setPartner("");
+                setPage(0);
               }}
             >
               Clear all
@@ -401,7 +430,7 @@ function DirectorySurface() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__all">All</SelectItem>
-                  <SelectItem value="unknown">Unknown</SelectItem>
+                  <SelectItem value="unknown">Registry (default)</SelectItem>
                   <SelectItem value="prospect">Prospect</SelectItem>
                   <SelectItem value="active">Active</SelectItem>
                   <SelectItem value="suspended">Suspended</SelectItem>
@@ -413,10 +442,33 @@ function DirectorySurface() {
         </div>
       </div>
 
+      <div className="flex gap-3 rounded-lg border border-border/80 bg-muted/20 p-4 text-sm text-muted-foreground">
+        <Info className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden />
+        <div className="min-w-0 space-y-2 leading-relaxed">
+          <p className="font-medium text-foreground">Onboarding imported centres (923 registry rows)</p>
+          <p>
+            Official directory import fills <span className="text-foreground">Centre / contact / location</span> only.
+            <span className="text-foreground"> Partner status</span> starts as <strong className="font-medium">Registry</strong> until
+            your team classifies the relationship.
+          </p>
+          <p>
+            Suggested flow: outreach → set <strong className="font-medium text-foreground">Prospect</strong> → move{" "}
+            <strong className="font-medium text-foreground">Onboarding</strong> through Intake → Documentation → Licensing review →
+            Licensed. Use <strong className="font-medium text-foreground">Licensing &amp; compliance</strong> for the checklist per
+            centre. Bulk SQL (optional):{" "}
+            <code className="rounded bg-muted px-1 py-0.5 text-xs text-foreground">
+              UPDATE sanad_intel_center_operations SET partner_status = &apos;prospect&apos; WHERE partner_status =
+              &apos;unknown&apos;
+            </code>{" "}
+            to queue everyone as prospects after a campaign.
+          </p>
+        </div>
+      </div>
+
       <Card className="overflow-hidden shadow-sm">
         <CardHeader className="border-b bg-muted/30 py-4">
-          <div className="flex flex-wrap items-end justify-between gap-3">
-            <div>
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
+            <div className="min-w-0">
               <CardTitle className="text-base">Partner centres</CardTitle>
               <CardDescription className="mt-1">
                 {listQuery.isLoading
@@ -424,19 +476,54 @@ function DirectorySurface() {
                   : listQuery.error
                     ? "Could not load counts — see message below."
                     : listQuery.data
-                      ? `${listQuery.data.rows.length.toLocaleString()} shown`
-                        + (typeof listQuery.data.total === "number"
-                          ? ` · ${listQuery.data.total.toLocaleString()} total in database`
-                          : "")
+                      ? `Showing ${rangeStart.toLocaleString()}–${rangeEnd.toLocaleString()} of ${total.toLocaleString()}`
                       : null}
               </CardDescription>
             </div>
-            {listQuery.data && listQuery.data.total > listQuery.data.rows.length ? (
-              <p className="text-xs text-muted-foreground sm:max-w-[min(100%,20rem)] sm:text-right text-pretty">
-                Showing the first {listQuery.data.rows.length} matches. Refine filters or raise the list limit in code if
-                you need more rows per page.
-              </p>
-            ) : null}
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-2">
+                <Label className="text-xs text-muted-foreground whitespace-nowrap">Rows per page</Label>
+                <Select
+                  value={String(pageSize)}
+                  onValueChange={(v) => {
+                    setPageSize(Number(v) as 100 | 200 | 500);
+                  }}
+                >
+                  <SelectTrigger className="h-9 w-[4.5rem] text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="100">100</SelectItem>
+                    <SelectItem value="200">200</SelectItem>
+                    <SelectItem value="500">500</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-center gap-1">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="h-9 w-9 shrink-0"
+                  disabled={!canPrev || listQuery.isLoading}
+                  onClick={() => setPage((p) => Math.max(0, p - 1))}
+                  aria-label="Previous page"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="h-9 w-9 shrink-0"
+                  disabled={!canNext || listQuery.isLoading}
+                  onClick={() => setPage((p) => p + 1)}
+                  aria-label="Next page"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
           </div>
         </CardHeader>
         <CardContent className="p-0">
@@ -458,34 +545,37 @@ function DirectorySurface() {
                   SANAD partner centres: name, responsible person, phone, location, partner status, and actions
                 </caption>
                 <colgroup>
-                  <col className="w-[26%]" />
-                  <col className="w-[22%]" />
-                  <col className="w-[7.5rem]" />
                   <col className="w-[24%]" />
-                  <col className="w-[6.5rem]" />
+                  <col className="w-[20%]" />
+                  <col className="w-[7.5rem]" />
+                  <col className="w-[28%]" />
+                  <col className="w-[7rem]" />
                   <col className="w-[8.75rem]" />
                 </colgroup>
                 <TableHeader>
                   <TableRow className="border-b-2 border-border hover:bg-transparent">
-                    <TableHead className="sticky top-0 z-30 h-12 border-b border-border bg-card px-3 py-2 text-left align-bottom text-xs font-bold uppercase tracking-wide text-foreground shadow-[inset_0_-1px_0_0_hsl(var(--border))]">
+                    <TableHead className="sticky top-0 z-30 h-12 border-b border-border bg-card px-3 py-2 text-start align-bottom text-xs font-bold uppercase tracking-wide text-foreground shadow-[inset_0_-1px_0_0_hsl(var(--border))]">
                       Centre
                     </TableHead>
-                    <TableHead className="sticky top-0 z-30 h-12 border-b border-border bg-card px-3 py-2 text-left align-bottom text-xs font-bold uppercase tracking-wide text-foreground shadow-[inset_0_-1px_0_0_hsl(var(--border))]">
+                    <TableHead className="sticky top-0 z-30 h-12 border-b border-border bg-card px-3 py-2 text-start align-bottom text-xs font-bold uppercase tracking-wide text-foreground shadow-[inset_0_-1px_0_0_hsl(var(--border))]">
                       Responsible
                     </TableHead>
                     <TableHead
                       className="sticky top-0 z-30 h-12 border-b border-border bg-card px-2 py-2 text-center align-bottom text-xs font-bold uppercase tracking-wide text-foreground shadow-[inset_0_-1px_0_0_hsl(var(--border))]"
-                      title="Official export often leaves the contact number column empty"
+                      title="From directory import (CSV / JSON)"
                     >
                       Phone
                     </TableHead>
-                    <TableHead className="sticky top-0 z-30 h-12 border-b border-border bg-card px-3 py-2 text-left align-bottom text-xs font-bold uppercase tracking-wide text-foreground shadow-[inset_0_-1px_0_0_hsl(var(--border))]">
+                    <TableHead
+                      className="sticky top-0 z-30 h-12 border-b border-border bg-card px-3 py-2 text-start align-bottom text-xs font-bold uppercase tracking-wide text-foreground shadow-[inset_0_-1px_0_0_hsl(var(--border))]"
+                      title="Governorate · wilayat · village when present"
+                    >
                       Location
                     </TableHead>
-                    <TableHead className="sticky top-0 z-30 h-12 border-b border-border bg-card px-2 py-2 text-left align-bottom text-xs font-bold uppercase tracking-wide text-foreground shadow-[inset_0_-1px_0_0_hsl(var(--border))]">
+                    <TableHead className="sticky top-0 z-30 h-12 border-b border-border bg-card px-2 py-2 text-start align-bottom text-xs font-bold uppercase tracking-wide text-foreground shadow-[inset_0_-1px_0_0_hsl(var(--border))]">
                       Partner
                     </TableHead>
-                    <TableHead className="sticky top-0 z-30 h-12 border-b border-border bg-card px-3 py-2 text-right align-bottom text-xs font-bold uppercase tracking-wide text-foreground shadow-[inset_0_-1px_0_0_hsl(var(--border))]">
+                    <TableHead className="sticky top-0 z-30 h-12 border-b border-border bg-card px-3 py-2 text-end align-bottom text-xs font-bold uppercase tracking-wide text-foreground shadow-[inset_0_-1px_0_0_hsl(var(--border))]">
                       Actions
                     </TableHead>
                   </TableRow>
@@ -530,15 +620,16 @@ function DirectorySurface() {
                       </TableCell>
                       <TableCell
                         dir="auto"
-                        className="whitespace-normal px-3 py-2.5 align-top text-start text-sm leading-snug text-muted-foreground [overflow-wrap:anywhere]"
+                        className="whitespace-normal px-3 py-2.5 align-top text-start text-sm leading-snug [overflow-wrap:anywhere]"
                       >
-                        <span className="text-foreground/90">{center.governorateLabelRaw}</span>
-                        {center.wilayat ? (
-                          <>
-                            <span className="text-muted-foreground/80"> · </span>
-                            <span>{center.wilayat}</span>
-                          </>
-                        ) : null}
+                        {(() => {
+                          const loc = formatDirectoryLocation(center);
+                          return loc ? (
+                            <span className="text-foreground/90">{loc}</span>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          );
+                        })()}
                       </TableCell>
                       <TableCell className="px-2 py-2.5 align-middle" onClick={(e) => e.stopPropagation()}>
                         {directoryPartnerBadge(ops?.partnerStatus)}
@@ -619,7 +710,7 @@ function DirectorySurface() {
                         detail.data.center.contactNumber
                       ) : (
                         <span className="font-sans font-normal text-muted-foreground">
-                          Not in import — column is often empty in the official export
+                          Not in directory import — update CSV/JSON and re-run import if needed
                         </span>
                       )}
                     </p>
@@ -632,6 +723,10 @@ function DirectorySurface() {
                   Partner operations
                 </p>
                 <div className="space-y-4">
+                <p className="text-xs leading-relaxed text-muted-foreground">
+                  Use these fields to track commercial onboarding. Registry means the row exists only from the government
+                  directory import — it is not an active SmartPRO partner until you promote the status.
+                </p>
                 <div className="space-y-1.5">
                 <Label className="text-xs text-muted-foreground">Partner status</Label>
                 <Select
@@ -647,7 +742,7 @@ function DirectorySurface() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="unknown">Unknown</SelectItem>
+                    <SelectItem value="unknown">Registry (not classified)</SelectItem>
                     <SelectItem value="prospect">Prospect</SelectItem>
                     <SelectItem value="active">Active</SelectItem>
                     <SelectItem value="suspended">Suspended</SelectItem>

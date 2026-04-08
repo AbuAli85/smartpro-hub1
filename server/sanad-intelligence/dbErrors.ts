@@ -58,13 +58,11 @@ function chainHasMissingTableSignal(err: unknown, seen = new Set<unknown>(), dep
 
 /** True when failure is consistent with missing `sanad_intel_*` tables (typical if migration 0025 was not applied). */
 export function isSanadIntelMissingTableError(err: unknown): boolean {
-  const sql = drizzleFailedQuerySql(err);
-  if (sql && /sanad_intel_/i.test(sql)) return true;
-
   const text = collectErrorText(err).join("\n");
   if (!/sanad_intel_/i.test(text)) return false;
   if (chainHasMissingTableSignal(err)) return true;
-  if (/Failed query:/i.test(text)) return true;
+  // Driver/message-only cases (no errno on outer error)
+  if (/doesn't exist/i.test(text) && /sanad_intel_/i.test(text)) return true;
   return false;
 }
 

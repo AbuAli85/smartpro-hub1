@@ -24,3 +24,4 @@ SANAD Network Intelligence — data import
 7. tRPC 500 / console "Failed query: … sanad_intel_…":
    - The API is reaching MySQL but the SANAD intelligence tables are not there (or the DB user cannot read them). Apply step 2 (migration 0025) on the same database as DATABASE_URL used by the server, then run step 3. After migration, empty tables are OK — overview KPIs may show zeros until import runs.
    - Latest server builds map this case to a clearer tRPC message mentioning migration 0025. If you only see the raw "Failed query" line, restart/redeploy the API so the current server code is running.
+   - If the SQL mentions `compliance_item_status` but migration 0025 defines that column as `status`, the Node API is an old build: pull the current repo, rebuild, and redeploy the server so Drizzle matches the database.

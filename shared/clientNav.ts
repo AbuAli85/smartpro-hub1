@@ -277,7 +277,40 @@ export type ClientNavOptions = {
   companyWorkspaceLoading?: boolean;
   /** Company membership role (e.g. "external_auditor") — used for role-based nav filtering. */
   memberRole?: string | null;
+  /**
+   * When set, reflects whether `trpc.companies.myCompanies` returned at least one company.
+   * If `false`, non-platform users without a portal-only profile see a minimal shell until they join or create a company.
+   */
+  hasCompanyMembership?: boolean;
 };
+
+/**
+ * Routes allowed for logged-in users who are not yet in any company (non-platform, non-portal-client).
+ * Platform operators and global admins use the full app; portal clients use PORTAL_CLIENT_HREFS.
+ */
+export const NO_COMPANY_SHELL_HREFS = new Set<string>([
+  "/",
+  "/dashboard",
+  "/onboarding",
+  "/onboarding-guide",
+  "/preferences",
+  "/company/create",
+]);
+
+/**
+ * Minimal shell until the user belongs to at least one company.
+ * Does not apply when `hasCompanyMembership` is omitted (legacy callers).
+ */
+export function shouldUsePreRegistrationShell(
+  user: { role?: string | null; platformRole?: string | null } | null,
+  options?: ClientNavOptions,
+): boolean {
+  if (!user) return false;
+  if (canAccessGlobalAdminProcedures(user) || seesPlatformOperatorNav(user)) return false;
+  if (isPortalClientNav(user)) return false;
+  if (options?.hasCompanyMembership === undefined) return false;
+  return options.hasCompanyMembership === false;
+}
 
 /** Exported for mobile nav / layout parity with sidebar. */
 export function shouldUsePortalOnlyShell(
@@ -314,6 +347,10 @@ export function clientNavItemVisible(
 
   if (shouldUsePortalOnlyShell(user, options)) {
     return PORTAL_CLIENT_HREFS.has(href);
+  }
+
+  if (shouldUsePreRegistrationShell(user, options)) {
+    return NO_COMPANY_SHELL_HREFS.has(href);
   }
 
   if (PLATFORM_ONLY_HREFS.has(href)) {
@@ -399,6 +436,14 @@ function portalShellPathAllowed(path: string): boolean {
   return false;
 }
 
+/** Deep links allowed before the user has any company membership */
+function preRegistrationPathAllowed(path: string): boolean {
+  if (NO_COMPANY_SHELL_HREFS.has(path)) return true;
+  if (path.startsWith("/onboarding")) return true;
+  if (path.startsWith("/invite/")) return true;
+  return false;
+}
+
 /**
  * Full URL path access (for route guard + deep links). Uses the same rules as the sidebar.
  */
@@ -426,6 +471,10 @@ export function clientRouteAccessible(
 
   if (shouldUsePortalOnlyShell(user, options)) {
     return portalShellPathAllowed(path);
+  }
+
+  if (shouldUsePreRegistrationShell(user, options)) {
+    return preRegistrationPathAllowed(path);
   }
 
   for (const href of Array.from(GLOBAL_ADMIN_PLATFORM_HREFS)) {

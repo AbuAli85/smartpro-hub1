@@ -1,7 +1,9 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { Plus, UserPlus, DollarSign, FileText, Upload, X, Zap } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { UserPlus, DollarSign, FileText, Upload, X, Zap } from "lucide-react";
+import { useAuth } from "@/_core/hooks/useAuth";
+import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
+import { shouldUsePreRegistrationShell } from "@shared/clientNav";
 
 interface QuickAction {
   icon: React.ReactNode;
@@ -40,6 +42,11 @@ const QUICK_ACTIONS: QuickAction[] = [
 export default function QuickActionsButton() {
   const [open, setOpen] = useState(false);
   const [, navigate] = useLocation();
+  const { user } = useAuth();
+  const { companies } = useActiveCompany();
+  if (shouldUsePreRegistrationShell(user, { hasCompanyMembership: companies.length > 0 })) {
+    return null;
+  }
 
   return (
     <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-2">

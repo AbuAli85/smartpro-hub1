@@ -68,6 +68,7 @@ import {
   isPortalClientNav,
   isCompanyOwnerNav,
   shouldUsePortalOnlyShell,
+  shouldUsePreRegistrationShell,
   getMemberRoleLabel,
   getMemberRoleColor,
 } from "@shared/clientNav";
@@ -319,7 +320,7 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
   const [location] = useLocation();
   const { user, logout } = useAuth();
   const { t } = useTranslation("nav");
-  const { activeCompanyId } = useActiveCompany();
+  const { activeCompanyId, companies } = useActiveCompany();
   const { data: myCompany, isLoading: myCompanyLoading } = trpc.companies.myCompany.useQuery(
     { companyId: activeCompanyId ?? undefined },
     { enabled: activeCompanyId != null },
@@ -345,11 +346,12 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
             hasCompanyWorkspace: Boolean(myCompany?.company?.id),
             companyWorkspaceLoading: myCompanyLoading,
             memberRole: myCompany?.member?.role ?? null,
+            hasCompanyMembership: companies.length > 0,
           }),
         ),
       }))
       .filter((g) => g.items.length > 0);
-  }, [user, navPrefsEpoch, myCompany?.company?.id, myCompanyLoading]);
+  }, [user, navPrefsEpoch, myCompany?.company?.id, myCompanyLoading, companies.length]);
 
   return (
     <div className="flex flex-col h-full sidebar-nav">
@@ -745,7 +747,7 @@ export default function PlatformLayout({ children }: { children: React.ReactNode
 function MobileBottomNav() {
   const [location] = useLocation();
   const { user } = useAuth();
-  const { activeCompanyId, loading: companiesLoading } = useActiveCompany();
+  const { activeCompanyId, loading: companiesLoading, companies } = useActiveCompany();
   const { data: myCompany, isLoading: companyLoading } = trpc.companies.myCompany.useQuery(
     { companyId: activeCompanyId ?? undefined },
     { enabled: activeCompanyId != null && !companiesLoading },
@@ -755,8 +757,17 @@ function MobileBottomNav() {
     hasCompanyWorkspace: Boolean(myCompany?.company?.id),
     companyWorkspaceLoading: companyLoading,
   });
+  const preRegShell = shouldUsePreRegistrationShell(user, {
+    hasCompanyMembership: companies.length > 0,
+  });
 
   const tabs = useMemo(() => {
+    if (preRegShell) {
+      return [
+        { href: "/dashboard", icon: <LayoutDashboard size={20} />, label: "Home" },
+        { href: "/onboarding", icon: <Building2 size={20} />, label: "Set up" },
+      ];
+    }
     if (platform) {
       return [
         { href: "/dashboard", icon: <LayoutDashboard size={20} />, label: "Home" },
@@ -782,7 +793,7 @@ function MobileBottomNav() {
       { href: "/company/hub", icon: <Building2 size={20} />, label: "Hub" },
       { href: "/hr/employees", icon: <Users size={20} />, label: "HR" },
     ];
-  }, [platform, portalShell]);
+  }, [platform, portalShell, preRegShell]);
 
   return (
     <nav className="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-card border-t border-border flex items-center justify-around h-16">

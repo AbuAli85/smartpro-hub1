@@ -13,7 +13,7 @@ import { Redirect, useLocation } from "wouter";
 export function ClientAccessGate({ children }: { children: ReactNode }) {
   const [location] = useLocation();
   const { user, loading: authLoading } = useAuth();
-  const { activeCompanyId, loading: companiesLoading } = useActiveCompany();
+  const { activeCompanyId, loading: companiesLoading, companies } = useActiveCompany();
   const { data: myCompany, isLoading: companyLoading } = trpc.companies.myCompany.useQuery(
     { companyId: activeCompanyId ?? undefined },
     { enabled: Boolean(user) && !companiesLoading && activeCompanyId != null },
@@ -32,8 +32,9 @@ export function ClientAccessGate({ children }: { children: ReactNode }) {
       hasCompanyWorkspace: Boolean(myCompany?.company?.id),
       companyWorkspaceLoading: companiesLoading || (Boolean(user) && activeCompanyId != null && companyLoading),
       memberRole: myCompany?.member?.role ?? null,
+      hasCompanyMembership: companies.length > 0,
     });
-  }, [location, user, myCompany?.company?.id, myCompany?.member?.role, companyLoading, companiesLoading, activeCompanyId, prefsEpoch]);
+  }, [location, user, myCompany?.company?.id, myCompany?.member?.role, companyLoading, companiesLoading, activeCompanyId, companies.length, prefsEpoch]);
 
   if (authLoading || !user) {
     return <>{children}</>;

@@ -5,6 +5,7 @@ import {
   OPTIONAL_NAV_HREFS,
   PLATFORM_ONLY_HREFS,
   shouldUsePortalOnlyShell,
+  shouldUsePreRegistrationShell,
 } from "./clientNav";
 
 const member = { role: "user" as const, platformRole: "company_member" as const };
@@ -72,6 +73,35 @@ describe("clientNavItemVisible", () => {
     ).toBe(true);
     expect(shouldUsePortalOnlyShell(portalClient, { companyWorkspaceLoading: true })).toBe(false);
   });
+
+  it("restricts pre-registration users to onboarding essentials only", () => {
+    expect(clientNavItemVisible("/analytics", owner, new Set(), { hasCompanyMembership: false })).toBe(false);
+    expect(clientNavItemVisible("/operations", owner, new Set(), { hasCompanyMembership: false })).toBe(false);
+    expect(clientNavItemVisible("/dashboard", owner, new Set(), { hasCompanyMembership: false })).toBe(true);
+    expect(clientNavItemVisible("/onboarding", owner, new Set(), { hasCompanyMembership: false })).toBe(true);
+  });
+});
+
+describe("shouldUsePreRegistrationShell", () => {
+  it("is false when hasCompanyMembership is omitted (legacy)", () => {
+    expect(shouldUsePreRegistrationShell(member, {})).toBe(false);
+  });
+
+  it("is true for a company_member with no companies", () => {
+    expect(shouldUsePreRegistrationShell(member, { hasCompanyMembership: false })).toBe(true);
+  });
+
+  it("is false once the user has at least one company", () => {
+    expect(shouldUsePreRegistrationShell(member, { hasCompanyMembership: true })).toBe(false);
+  });
+
+  it("is false for platform operators", () => {
+    expect(shouldUsePreRegistrationShell(platform, { hasCompanyMembership: false })).toBe(false);
+  });
+
+  it("is false for portal clients (they use portal-only shell)", () => {
+    expect(shouldUsePreRegistrationShell(portalClient, { hasCompanyMembership: false })).toBe(false);
+  });
 });
 
 describe("shouldUsePortalOnlyShell", () => {
@@ -103,5 +133,17 @@ describe("clientRouteAccessible", () => {
     const hidden = new Set(["/analytics"]);
     expect(clientRouteAccessible("/analytics/overview", owner, hidden)).toBe(false);
     expect(clientRouteAccessible("/dashboard", owner, hidden)).toBe(true);
+  });
+
+  it("blocks analytics for pre-registration users with no company", () => {
+    expect(
+      clientRouteAccessible("/analytics", member, new Set(), { hasCompanyMembership: false }),
+    ).toBe(false);
+    expect(
+      clientRouteAccessible("/onboarding", member, new Set(), { hasCompanyMembership: false }),
+    ).toBe(true);
+    expect(
+      clientRouteAccessible("/dashboard", member, new Set(), { hasCompanyMembership: false }),
+    ).toBe(true);
   });
 });

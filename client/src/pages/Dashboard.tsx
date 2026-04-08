@@ -114,7 +114,7 @@ function ModuleCard({
 export default function Dashboard() {
   const { t, i18n } = useTranslation(["dashboard", "nav", "common"]);
   const { user } = useAuth();
-  const { activeCompanyId, activeCompany, loading: companyLoading } = useActiveCompany();
+  const { activeCompanyId, activeCompany, loading: companyLoading, companies } = useActiveCompany();
   const [, navigate] = useLocation();
   const { data: stats, isLoading } = trpc.companies.myStats.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
   const { data: myCompany, isLoading: myCompanyLoading } = trpc.companies.myCompany.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
@@ -152,8 +152,9 @@ export default function Dashboard() {
     () => ({
       hasCompanyWorkspace: Boolean(myCompany?.company?.id),
       companyWorkspaceLoading: myCompanyLoading,
+      hasCompanyMembership: companies.length > 0,
     }),
-    [myCompany?.company?.id, myCompanyLoading],
+    [myCompany?.company?.id, myCompanyLoading, companies.length],
   );
 
   const showHref = useMemo(() => {

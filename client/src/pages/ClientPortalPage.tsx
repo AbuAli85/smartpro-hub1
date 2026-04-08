@@ -18,6 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner";
 import { useLocation } from "wouter";
 import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
+import { useTranslation } from "react-i18next";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -320,6 +321,7 @@ function UpcomingRenewalsTab() {
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function ClientPortalPage() {
+  const { t } = useTranslation("clientPortal");
   const { user } = useAuth();
   const [location, navigate] = useLocation();
   const [activeTab, setActiveTab] = useState("dashboard");
@@ -378,17 +380,17 @@ export default function ClientPortalPage() {
   const unreadMsgs = (messagesData?.items ?? []).filter(m => !m.isRead).length;
 
   const navItems = [
-    { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-    { id: "contracts", label: "Contracts", icon: FileText, badge: pendingSig },
-    { id: "invoices", label: "Invoices", icon: CreditCard, badge: overdueInvoices },
-    { id: "pro-services", label: "PRO Services", icon: Shield },
-    { id: "gov-cases", label: "Gov Cases", icon: Building2 },
-    { id: "bookings", label: "Bookings", icon: ShoppingBag },
-    { id: "alerts", label: "Alerts", icon: Bell, badge: criticalAlerts },
-    { id: "messages", label: "Messages", icon: MessageSquare, badge: unreadMsgs },
-    { id: "service-request", label: "New Request", icon: PlusCircle },
-    { id: "my-documents", label: "My Documents", icon: FolderOpen },
-    { id: "renewals", label: "Upcoming Renewals", icon: CalendarClock },
+    { id: "dashboard", label: t("nav.dashboard"), icon: LayoutDashboard },
+    { id: "contracts", label: t("nav.contracts"), icon: FileText, badge: pendingSig },
+    { id: "invoices", label: t("nav.invoices"), icon: CreditCard, badge: overdueInvoices },
+    { id: "pro-services", label: t("nav.proServices"), icon: Shield },
+    { id: "gov-cases", label: t("nav.govCases"), icon: Building2 },
+    { id: "bookings", label: t("nav.bookings"), icon: ShoppingBag },
+    { id: "alerts", label: t("nav.alerts"), icon: Bell, badge: criticalAlerts },
+    { id: "messages", label: t("nav.messages"), icon: MessageSquare, badge: unreadMsgs },
+    { id: "service-request", label: t("nav.newRequest"), icon: PlusCircle },
+    { id: "my-documents", label: t("nav.myDocuments"), icon: FolderOpen },
+    { id: "renewals", label: t("nav.renewals"), icon: CalendarClock },
   ];
 
   return (
@@ -402,10 +404,10 @@ export default function ClientPortalPage() {
             </div>
             <div>
               <h1 className="text-base font-black text-foreground leading-tight tracking-tight">
-                SmartPRO Client Portal
+                {t("header.title")}
               </h1>
               <p className="text-xs text-muted-foreground">
-                {company?.name ?? "Your Company"} · {user?.name} · Oman & GCC Business Services
+                {company?.name ?? "Your Company"} · {user?.name} · {t("header.region")}
               </p>
             </div>
           </div>
@@ -413,11 +415,11 @@ export default function ClientPortalPage() {
             {criticalAlerts > 0 && (
               <Badge className="bg-red-100 text-red-700 border-red-200 gap-1 text-xs">
                 <AlertTriangle className="w-3 h-3" />
-                {criticalAlerts} Critical
+                {criticalAlerts} {t("header.critical")}
               </Badge>
             )}
             <Button variant="outline" size="sm" onClick={() => navigate("/dashboard")}>
-              ← Dashboard
+              {t("header.backToDashboard")}
             </Button>
           </div>
         </div>
@@ -450,25 +452,35 @@ export default function ClientPortalPage() {
               </div>
             ) : (
               <>
+                <div className="relative overflow-hidden rounded-2xl border bg-gradient-to-br from-[var(--smartpro-orange)]/12 via-background to-background p-6 md:p-8 shadow-sm">
+                  <div className="absolute right-0 top-0 h-32 w-32 rounded-full bg-[var(--smartpro-orange)]/10 blur-2xl" aria-hidden />
+                  <div className="relative">
+                    <h2 className="text-xl md:text-2xl font-black tracking-tight text-foreground">
+                      {t("landing.welcome", { name: user?.name ?? "" })}
+                    </h2>
+                    <p className="text-sm text-muted-foreground mt-1 max-w-2xl">{t("landing.subtitle")}</p>
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                  <KPICard icon={FileText} label="Active Contracts" value={kpis?.activeContracts ?? 0} color="bg-blue-100 text-blue-600" />
-                  <KPICard icon={Building2} label="Open Gov Cases" value={kpis?.openCases ?? 0} color="bg-purple-100 text-purple-600" />
-                  <KPICard icon={CreditCard} label="Pending Invoices" value={kpis?.pendingInvoices ?? 0} sub={fmtOMR(kpis?.totalPendingOMR)} color="bg-amber-100 text-amber-600" />
-                  <KPICard icon={Bell} label="Expiring Permits" value={kpis?.expiringPermits ?? 0} sub="within 30 days" color="bg-red-100 text-red-600" />
-                  <KPICard icon={Shield} label="Active PRO Services" value={kpis?.activeProServices ?? 0} color="bg-emerald-100 text-emerald-600" />
-                  <KPICard icon={AlertTriangle} label="Expiring Contracts" value={kpis?.expiringContracts ?? 0} sub="within 30 days" color="bg-orange-100 text-orange-600" />
+                  <KPICard icon={FileText} label={t("landing.kpiActiveContracts")} value={kpis?.activeContracts ?? 0} color="bg-blue-100 text-blue-600" />
+                  <KPICard icon={Building2} label={t("landing.kpiOpenGovCases")} value={kpis?.openCases ?? 0} color="bg-purple-100 text-purple-600" />
+                  <KPICard icon={CreditCard} label={t("landing.kpiPendingInvoices")} value={kpis?.pendingInvoices ?? 0} sub={fmtOMR(kpis?.totalPendingOMR)} color="bg-amber-100 text-amber-600" />
+                  <KPICard icon={Bell} label={t("landing.kpiExpiringPermits")} value={kpis?.expiringPermits ?? 0} sub={t("landing.kpiExpiringPermitsSub")} color="bg-red-100 text-red-600" />
+                  <KPICard icon={Shield} label={t("landing.kpiActivePro")} value={kpis?.activeProServices ?? 0} color="bg-emerald-100 text-emerald-600" />
+                  <KPICard icon={AlertTriangle} label={t("landing.kpiExpiringContracts")} value={kpis?.expiringContracts ?? 0} sub={t("landing.kpiExpiringContractsSub")} color="bg-orange-100 text-orange-600" />
                 </div>
 
                 {/* Quick Actions */}
                 <Card className="border-0 shadow-sm">
-                  <CardHeader className="pb-3"><CardTitle className="text-base">Quick Actions</CardTitle></CardHeader>
+                  <CardHeader className="pb-3"><CardTitle className="text-base">{t("landing.quickActions")}</CardTitle></CardHeader>
                   <CardContent>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                       {[
-                        { label: "View Contracts", tab: "contracts", icon: FileText, color: "bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200" },
-                        { label: "Pay Invoices", tab: "invoices", icon: CreditCard, color: "bg-amber-50 hover:bg-amber-100 text-amber-700 border-amber-200" },
-                        { label: "Track Cases", tab: "gov-cases", icon: Building2, color: "bg-purple-50 hover:bg-purple-100 text-purple-700 border-purple-200" },
-                        { label: "Contact Us", tab: "messages", icon: MessageSquare, color: "bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200" },
+                        { label: t("landing.qaContracts"), tab: "contracts", icon: FileText, color: "bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200" },
+                        { label: t("landing.qaInvoices"), tab: "invoices", icon: CreditCard, color: "bg-amber-50 hover:bg-amber-100 text-amber-700 border-amber-200" },
+                        { label: t("landing.qaCases"), tab: "gov-cases", icon: Building2, color: "bg-purple-50 hover:bg-purple-100 text-purple-700 border-purple-200" },
+                        { label: t("landing.qaContact"), tab: "messages", icon: MessageSquare, color: "bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200" },
                       ].map(a => (
                         <button key={a.tab} onClick={() => setActiveTab(a.tab)}
                           className={`flex items-center gap-3 p-4 rounded-xl border transition-colors text-left ${a.color}`}>
@@ -486,10 +498,10 @@ export default function ClientPortalPage() {
                   <Card className="border-0 shadow-sm">
                     <CardHeader className="pb-3 flex flex-row items-center justify-between">
                       <CardTitle className="text-base flex items-center gap-2">
-                        <Bell className="w-4 h-4 text-amber-500" /> Upcoming Expiries
+                        <Bell className="w-4 h-4 text-amber-500" /> {t("landing.expiryPreview")}
                       </CardTitle>
                       <Button variant="ghost" size="sm" onClick={() => setActiveTab("alerts")}>
-                        View All <ChevronRight className="w-3 h-3 ml-1" />
+                        {t("landing.viewAll")} <ChevronRight className="w-3 h-3 ml-1" />
                       </Button>
                     </CardHeader>
                     <CardContent>

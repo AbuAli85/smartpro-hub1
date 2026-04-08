@@ -1,0 +1,17 @@
+{
+  "title": "لوحة الامتثال",
+  "subtitle": "التعمين · PASI · WPS · تصاريح العمل · قانون العمل · {{month}}",
+  "refresh": "تحديث",
+  "attentionTitle": "متابعة الامتثال والرواتب",
+  "overallScore": "درجة الامتثال الإجمالية",
+  "checksSection": "فحوصات الامتثال",
+  "gradeExcellent": "ممتاز — امتثال كامل",
+  "gradeGood": "جيد — ملاحظات بسيطة",
+  "gradeFair": "مقبول — يتطلب إجراء",
+  "gradePoor": "ضعيف — يتطلب انتباهاً عاجلاً",
+  "gradeCritical": "حرج — إجراء فوري",
+  "payrollWps": "الرواتب و WPS",
+  "permits": "التصاريح",
+  "alerts": "التنبيهات",
+  "overdueAr": "ذمم مدينة متأخرة"
+}

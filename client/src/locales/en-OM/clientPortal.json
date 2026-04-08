@@ -1,0 +1,40 @@
+{
+  "header": {
+    "title": "SmartPRO Client Portal",
+    "region": "Oman & GCC Business Services",
+    "critical": "Critical",
+    "backToDashboard": "← Dashboard"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "contracts": "Contracts",
+    "invoices": "Invoices",
+    "proServices": "PRO Services",
+    "govCases": "Gov Cases",
+    "bookings": "Bookings",
+    "alerts": "Alerts",
+    "messages": "Messages",
+    "newRequest": "New Request",
+    "myDocuments": "My Documents",
+    "renewals": "Upcoming Renewals"
+  },
+  "landing": {
+    "welcome": "Welcome back, {{name}}",
+    "subtitle": "Your contracts, services, and compliance signals in one place.",
+    "kpiActiveContracts": "Active Contracts",
+    "kpiOpenGovCases": "Open Gov Cases",
+    "kpiPendingInvoices": "Pending Invoices",
+    "kpiExpiringPermits": "Expiring Permits",
+    "kpiExpiringPermitsSub": "within 30 days",
+    "kpiActivePro": "Active PRO Services",
+    "kpiExpiringContracts": "Expiring Contracts",
+    "kpiExpiringContractsSub": "within 30 days",
+    "quickActions": "Quick Actions",
+    "qaContracts": "View Contracts",
+    "qaInvoices": "Pay Invoices",
+    "qaCases": "Track Cases",
+    "qaContact": "Contact Us",
+    "expiryPreview": "Upcoming Expiries",
+    "viewAll": "View All"
+  }
+}

@@ -1,4 +1,12 @@
 {
+  "listPage": {
+    "title": "Contract Management",
+    "subtitle": "AI-drafted contracts, e-signatures, employment agreements, service contracts, and NDA management",
+    "statTotal": "Total Contracts",
+    "statActive": "Active / Signed",
+    "statPending": "Pending",
+    "statExpiring30": "Expiring in 30d"
+  },
   "title": "Contracts",
   "contract": "Contract",
   "agreement": "Agreement",

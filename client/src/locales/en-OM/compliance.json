@@ -1,0 +1,17 @@
+{
+  "title": "Compliance Dashboard",
+  "subtitle": "Omanisation · PASI · WPS · Work Permits · Labour Law · {{month}}",
+  "refresh": "Refresh",
+  "attentionTitle": "Compliance & payroll follow-up",
+  "overallScore": "Overall Compliance Score",
+  "checksSection": "Compliance Checks",
+  "gradeExcellent": "Excellent — fully compliant",
+  "gradeGood": "Good — minor issues",
+  "gradeFair": "Fair — action required",
+  "gradePoor": "Poor — urgent attention",
+  "gradeCritical": "Critical — immediate action",
+  "payrollWps": "Payroll & WPS",
+  "permits": "Permits",
+  "alerts": "Alerts",
+  "overdueAr": "Overdue AR"
+}

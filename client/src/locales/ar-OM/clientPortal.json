@@ -1,0 +1,40 @@
+{
+  "header": {
+    "title": "بوابة العملاء سمارت برو",
+    "region": "خدمات أعمال عُمان ودول الخليج",
+    "critical": "حرج",
+    "backToDashboard": "← لوحة التحكم"
+  },
+  "nav": {
+    "dashboard": "لوحة التحكم",
+    "contracts": "العقود",
+    "invoices": "الفواتير",
+    "proServices": "خدمات PRO",
+    "govCases": "حالات حكومية",
+    "bookings": "الحجوزات",
+    "alerts": "التنبيهات",
+    "messages": "الرسائل",
+    "newRequest": "طلب جديد",
+    "myDocuments": "مستنداتي",
+    "renewals": "التجديدات القادمة"
+  },
+  "landing": {
+    "welcome": "مرحباً بعودتك، {{name}}",
+    "subtitle": "عقودك وخدماتك وإشارات الامتثال في مكان واحد.",
+    "kpiActiveContracts": "عقود نشطة",
+    "kpiOpenGovCases": "حالات حكومية مفتوحة",
+    "kpiPendingInvoices": "فواتير معلّقة",
+    "kpiExpiringPermits": "تصاريح تنتهي قريباً",
+    "kpiExpiringPermitsSub": "خلال 30 يوماً",
+    "kpiActivePro": "خدمات PRO نشطة",
+    "kpiExpiringContracts": "عقود تنتهي قريباً",
+    "kpiExpiringContractsSub": "خلال 30 يوماً",
+    "quickActions": "إجراءات سريعة",
+    "qaContracts": "عرض العقود",
+    "qaInvoices": "دفع الفواتير",
+    "qaCases": "متابعة الحالات",
+    "qaContact": "تواصل معنا",
+    "expiryPreview": "انتهاءات قادمة",
+    "viewAll": "عرض الكل"
+  }
+}

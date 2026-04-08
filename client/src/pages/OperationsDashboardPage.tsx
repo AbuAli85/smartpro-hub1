@@ -2,6 +2,7 @@ import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { seesPlatformOperatorNav } from "@shared/clientNav";
+import { useTranslation } from "react-i18next";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -50,6 +51,7 @@ function KpiCard({ label, value, sub, icon: Icon, color }: { label: string; valu
 }
 
 export default function OperationsDashboardPage() {
+  const { t } = useTranslation("operations");
   const { user } = useAuth();
   const isPlatform = seesPlatformOperatorNav(user);
   const { activeCompanyId } = useActiveCompany();
@@ -89,16 +91,16 @@ export default function OperationsDashboardPage() {
               <Activity className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h1 className="text-2xl font-black tracking-tight">Operations Command Centre</h1>
+              <h1 className="text-2xl font-black tracking-tight">{t("commandCentre.title")}</h1>
               <p className="text-sm text-muted-foreground">
-                {format(now, "EEEE, d MMMM yyyy")} · SmartPRO Business Services Hub
+                {format(now, "EEEE, d MMMM yyyy")} · {t("commandCentre.subtitle")}
               </p>
             </div>
           </div>
         </div>
         <Button variant="outline" size="sm" onClick={() => refetch()} className="gap-2">
           <RefreshCw className="w-3.5 h-3.5" />
-          Refresh
+          {t("commandCentre.refresh")}
         </Button>
       </div>
 

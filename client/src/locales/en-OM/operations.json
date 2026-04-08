@@ -1,4 +1,9 @@
 {
+  "commandCentre": {
+    "title": "Operations Command Centre",
+    "subtitle": "SmartPRO Business Services Hub",
+    "refresh": "Refresh"
+  },
   "insights": {
     "permitsExpiring": "{{count}} work permit(s) expiring in 14 days",
     "permitsExpiringDesc": "Start renewal process now to avoid fines and employee disruption. MOL processing takes 3-5 business days.",

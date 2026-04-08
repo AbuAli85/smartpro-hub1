@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { Link } from "wouter";
 import { format } from "date-fns";
+import { useTranslation } from "react-i18next";
 
 function StatusIcon({ status }: { status: "pass" | "warn" | "fail" }) {
   if (status === "pass") return <CheckCircle2 className="w-5 h-5 text-green-500" />;
@@ -46,6 +47,7 @@ function GradeCircle({ score, grade }: { score: number; grade: string }) {
 }
 
 export default function ComplianceDashboardPage() {
+  const { t } = useTranslation("compliance");
   const { user } = useAuth();
   const isPlatform = seesPlatformOperatorNav(user);
   const { activeCompanyId } = useActiveCompany();
@@ -100,15 +102,15 @@ export default function ComplianceDashboardPage() {
             <Shield className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h1 className="text-2xl font-black tracking-tight">Compliance Dashboard</h1>
+            <h1 className="text-2xl font-black tracking-tight">{t("title")}</h1>
             <p className="text-sm text-muted-foreground">
-              Omanisation · PASI · WPS · Work Permits · Labour Law · {format(now, "MMMM yyyy")}
+              {t("subtitle", { month: format(now, "MMMM yyyy") })}
             </p>
           </div>
         </div>
         <Button variant="outline" size="sm" onClick={() => refetch()} className="gap-2">
           <RefreshCw className="w-3.5 h-3.5" />
-          Refresh
+          {t("refresh")}
         </Button>
       </div>
 
@@ -117,7 +119,7 @@ export default function ComplianceDashboardPage() {
           <div className="flex items-start gap-2 min-w-0">
             <AlertTriangle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
             <div>
-              <p className="text-sm font-semibold text-foreground">Compliance & payroll follow-up</p>
+              <p className="text-sm font-semibold text-foreground">{t("attentionTitle")}</p>
               <p className="text-xs text-muted-foreground mt-0.5">
                 {[
                   failedChecks > 0 ? `${failedChecks} failed check(s)` : null,
@@ -138,25 +140,25 @@ export default function ComplianceDashboardPage() {
             </div>
           </div>
           <div className="flex flex-wrap gap-2 shrink-0">
-            <Link href="/payroll">
+              <Link href="/payroll">
               <Button size="sm" variant="secondary" className="h-8 text-xs gap-1">
-                Payroll & WPS <ArrowRight className="w-3 h-3" />
+                {t("payrollWps")} <ArrowRight className="w-3 h-3" />
               </Button>
             </Link>
             <Link href="/workforce">
               <Button size="sm" variant="secondary" className="h-8 text-xs gap-1">
-                Permits <ArrowRight className="w-3 h-3" />
+                {t("permits")} <ArrowRight className="w-3 h-3" />
               </Button>
             </Link>
             <Link href="/alerts">
               <Button size="sm" className="h-8 text-xs bg-red-600 hover:bg-red-700 text-white gap-1">
-                Alerts <ArrowRight className="w-3 h-3" />
+                {t("alerts")} <ArrowRight className="w-3 h-3" />
               </Button>
             </Link>
             {arRisk && (
               <Link href="/billing">
                 <Button size="sm" variant="secondary" className="h-8 text-xs gap-1">
-                  Overdue AR <ArrowRight className="w-3 h-3" />
+                  {t("overdueAr")} <ArrowRight className="w-3 h-3" />
                 </Button>
               </Link>
             )}
@@ -174,20 +176,20 @@ export default function ComplianceDashboardPage() {
               <GradeCircle score={score?.score ?? 0} grade={score?.grade ?? "N/A"} />
             )}
             <div className="text-center">
-              <p className="font-bold text-lg">Overall Compliance Score</p>
+              <p className="font-bold text-lg">{t("overallScore")}</p>
               <p className="text-sm text-muted-foreground">
-                {score?.grade === "A" ? "Excellent — fully compliant" :
-                 score?.grade === "B" ? "Good — minor issues" :
-                 score?.grade === "C" ? "Fair — action required" :
-                 score?.grade === "D" ? "Poor — urgent attention" :
-                 "Critical — immediate action"}
+                {score?.grade === "A" ? t("gradeExcellent") :
+                 score?.grade === "B" ? t("gradeGood") :
+                 score?.grade === "C" ? t("gradeFair") :
+                 score?.grade === "D" ? t("gradePoor") :
+                 t("gradeCritical")}
               </p>
             </div>
           </CardContent>
         </Card>
 
         <div className="lg:col-span-2 space-y-3">
-          <h3 className="font-bold text-sm text-muted-foreground uppercase tracking-wide">Compliance Checks</h3>
+          <h3 className="font-bold text-sm text-muted-foreground uppercase tracking-wide">{t("checksSection")}</h3>
           {score?.checks.map((check, i) => (
             <Card key={i} className={`border-l-4 shadow-sm ${check.status === "pass" ? "border-l-green-500" : check.status === "warn" ? "border-l-orange-500" : "border-l-red-500"}`}>
               <CardContent className="p-4">

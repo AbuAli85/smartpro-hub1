@@ -29,6 +29,7 @@ import {
 import { toast } from "sonner";
 import { fmtDate, fmtDateTime, expiryStatus, expiryLabel, EXPIRY_BADGE } from "@/lib/dateUtils";
 import { DateInput } from "@/components/ui/date-input";
+import { useTranslation } from "react-i18next";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const STATUS_META: Record<string, { label: string; color: string }> = {
@@ -672,6 +673,7 @@ function EmployeeTimeline({ employeeId }: { employeeId: number }) {
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function HREmployeesPage() {
+  const { t } = useTranslation("hr");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("active");
   const [deptFilter, setDeptFilter] = useState("all");
@@ -787,8 +789,8 @@ export default function HREmployeesPage() {
             <div className="flex items-center gap-3 mb-1">
               <div className="w-10 h-10 rounded-xl bg-[var(--smartpro-orange)] flex items-center justify-center shadow-sm"><Users size={20} className="text-white" /></div>
               <div>
-                <h1 className="text-2xl font-black text-foreground tracking-tight">HR & Workforce</h1>
-                <p className="text-xs text-muted-foreground mt-0.5">Employee lifecycle · Omanisation tracking · Payroll intelligence</p>
+                <h1 className="text-2xl font-black text-foreground tracking-tight">{t("employeesPage.headline")}</h1>
+                <p className="text-xs text-muted-foreground mt-0.5">{t("employeesPage.subline")}</p>
               </div>
             </div>
             <div className="flex flex-wrap gap-2 mt-2">

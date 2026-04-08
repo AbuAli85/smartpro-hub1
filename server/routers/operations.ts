@@ -58,74 +58,90 @@ import { buildRoleExecutionView } from "../roleExecutionSummary";
 
 type DbClient = NonNullable<Awaited<ReturnType<typeof getDb>>>;
 
+const DEFAULT_OWNER_LIFECYCLE_SIGNALS = {
+  closedWonDealsWithoutLinkedQuote: 0,
+  wonDealsAwaitingSignedAgreement: 0,
+  contractsExpiringNext30Days: 0,
+  employeeTasksOverdue: 0,
+  employeeTasksBlocked: 0,
+};
+
 /** Commercial / delivery lifecycle signals reused by daily snapshot attention and owner business pulse. */
 async function getOwnerLifecycleSignals(db: DbClient, companyId: number) {
-  const now = new Date();
-  const in30 = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+  try {
+    const now = new Date();
+    const in30 = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
 
-  const wonDealRows = await db
-    .select({ id: crmDeals.id })
-    .from(crmDeals)
-    .where(and(eq(crmDeals.companyId, companyId), eq(crmDeals.stage, "closed_won")));
+    const wonDealRows = await db
+      .select({ id: crmDeals.id })
+      .from(crmDeals)
+      .where(and(eq(crmDeals.companyId, companyId), eq(crmDeals.stage, "closed_won")));
 
-  const quotedDealRows = await db
-    .select({ id: serviceQuotations.crmDealId })
-    .from(serviceQuotations)
-    .where(and(eq(serviceQuotations.companyId, companyId), isNotNull(serviceQuotations.crmDealId)));
-  const quotedSet = new Set(quotedDealRows.map((r) => r.id).filter((x): x is number => x != null));
+    const quotedDealRows = await db
+      .select({ id: serviceQuotations.crmDealId })
+      .from(serviceQuotations)
+      .where(and(eq(serviceQuotations.companyId, companyId), isNotNull(serviceQuotations.crmDealId)));
+    const quotedSet = new Set(quotedDealRows.map((r) => r.id).filter((x): x is number => x != null));
 
-  const closedWonDealsWithoutLinkedQuote = wonDealRows.filter((d) => !quotedSet.has(d.id)).length;
+    const closedWonDealsWithoutLinkedQuote = wonDealRows.filter((d) => !quotedSet.has(d.id)).length;
 
-  const [expiringContractsRow] = await db
-    .select({ cnt: count() })
-    .from(contracts)
-    .where(
-      and(
-        eq(contracts.companyId, companyId),
-        inArray(contracts.status, ["signed", "active"]),
-        isNotNull(contracts.endDate),
-        gte(contracts.endDate, now),
-        lte(contracts.endDate, in30),
-      ),
+    const [expiringContractsRow] = await db
+      .select({ cnt: count() })
+      .from(contracts)
+      .where(
+        and(
+          eq(contracts.companyId, companyId),
+          inArray(contracts.status, ["signed", "active"]),
+          isNotNull(contracts.endDate),
+          gte(contracts.endDate, now),
+          lte(contracts.endDate, in30),
+        ),
+      );
+
+    const [tasksOverdue] = await db
+      .select({ cnt: count() })
+      .from(employeeTasks)
+      .where(
+        and(
+          eq(employeeTasks.companyId, companyId),
+          notInArray(employeeTasks.status, ["completed", "cancelled"]),
+          sql`(${employeeTasks.dueDate} IS NOT NULL AND ${employeeTasks.dueDate} < CURDATE())`,
+        ),
+      );
+
+    const [tasksBlocked] = await db
+      .select({ cnt: count() })
+      .from(employeeTasks)
+      .where(and(eq(employeeTasks.companyId, companyId), eq(employeeTasks.status, "blocked")));
+
+    const wonAwaitRows = await db
+      .select({ dealId: crmDeals.id })
+      .from(crmDeals)
+      .innerJoin(serviceQuotations, eq(serviceQuotations.crmDealId, crmDeals.id))
+      .where(
+        and(
+          eq(crmDeals.companyId, companyId),
+          eq(crmDeals.stage, "closed_won"),
+          eq(serviceQuotations.status, "accepted"),
+          isNull(serviceQuotations.convertedToContractId),
+        ),
+      );
+    const wonDealsAwaitingSignedAgreement = new Set(wonAwaitRows.map((r) => r.dealId)).size;
+
+    return {
+      closedWonDealsWithoutLinkedQuote,
+      wonDealsAwaitingSignedAgreement,
+      contractsExpiringNext30Days: Number(expiringContractsRow?.cnt ?? 0),
+      employeeTasksOverdue: Number(tasksOverdue?.cnt ?? 0),
+      employeeTasksBlocked: Number(tasksBlocked?.cnt ?? 0),
+    };
+  } catch (err) {
+    console.warn(
+      "[operations.getOwnerLifecycleSignals] degraded (likely missing service_quotations.crm_deal_id / CRM columns):",
+      err instanceof Error ? err.message : err,
     );
-
-  const [tasksOverdue] = await db
-    .select({ cnt: count() })
-    .from(employeeTasks)
-    .where(
-      and(
-        eq(employeeTasks.companyId, companyId),
-        notInArray(employeeTasks.status, ["completed", "cancelled"]),
-        sql`(${employeeTasks.dueDate} IS NOT NULL AND ${employeeTasks.dueDate} < CURDATE())`,
-      ),
-    );
-
-  const [tasksBlocked] = await db
-    .select({ cnt: count() })
-    .from(employeeTasks)
-    .where(and(eq(employeeTasks.companyId, companyId), eq(employeeTasks.status, "blocked")));
-
-  const wonAwaitRows = await db
-    .select({ dealId: crmDeals.id })
-    .from(crmDeals)
-    .innerJoin(serviceQuotations, eq(serviceQuotations.crmDealId, crmDeals.id))
-    .where(
-      and(
-        eq(crmDeals.companyId, companyId),
-        eq(crmDeals.stage, "closed_won"),
-        eq(serviceQuotations.status, "accepted"),
-        isNull(serviceQuotations.convertedToContractId),
-      ),
-    );
-  const wonDealsAwaitingSignedAgreement = new Set(wonAwaitRows.map((r) => r.dealId)).size;
-
-  return {
-    closedWonDealsWithoutLinkedQuote,
-    wonDealsAwaitingSignedAgreement,
-    contractsExpiringNext30Days: Number(expiringContractsRow?.cnt ?? 0),
-    employeeTasksOverdue: Number(tasksOverdue?.cnt ?? 0),
-    employeeTasksBlocked: Number(tasksBlocked?.cnt ?? 0),
-  };
+    return { ...DEFAULT_OWNER_LIFECYCLE_SIGNALS };
+  }
 }
 
 /** Locks `payroll.thisMonthStatus` for tRPC client inference (`not_run` is not a DB enum value). */

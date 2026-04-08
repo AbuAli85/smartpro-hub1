@@ -17,6 +17,7 @@ import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/
 import { DateInput } from "@/components/ui/date-input";
 import { isContractHiddenByFilters, parseContractIdFromSearch } from "@/lib/contractsDeepLink";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
+import { useTranslation } from "react-i18next";
 
 const statusColors: Record<string, string> = {
   draft: "bg-gray-100 text-gray-700",
@@ -464,6 +465,7 @@ function SaveToStorageButton({ contractId }: { contractId: number }) {
 }
 
 export default function ContractsPage() {
+  const { t } = useTranslation("contracts");
   const { activeCompanyId } = useActiveCompany();
   const urlSearch = useSearch();
   const highlightContractId = useMemo(() => parseContractIdFromSearch(urlSearch), [urlSearch]);
@@ -543,9 +545,9 @@ export default function ContractsPage() {
               <FileText size={20} className="text-white" />
             </div>
             <div>
-              <h1 className="text-2xl font-black text-foreground tracking-tight">Contract Management</h1>
+              <h1 className="text-2xl font-black text-foreground tracking-tight">{t("listPage.title")}</h1>
               <p className="text-xs text-muted-foreground mt-0.5">
-                AI-drafted contracts, e-signatures, employment agreements, service contracts, and NDA management
+                {t("listPage.subtitle")}
               </p>
             </div>
           </div>
@@ -565,10 +567,10 @@ export default function ContractsPage() {
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { label: "Total Contracts", value: stats.total,   bg: "stat-gradient-1" },
-          { label: "Active / Signed", value: stats.active,  bg: "stat-gradient-4" },
-          { label: "Pending",         value: stats.pending, bg: "stat-gradient-gold" },
-          { label: "Expiring in 30d", value: contracts?.filter((c) => { if (!c.endDate || c.status !== "active") return false; const days = (new Date(c.endDate).getTime() - Date.now()) / 86400000; return days >= 0 && days <= 30; }).length ?? 0, bg: "stat-gradient-2" },
+          { label: t("listPage.statTotal"), value: stats.total,   bg: "stat-gradient-1" },
+          { label: t("listPage.statActive"), value: stats.active,  bg: "stat-gradient-4" },
+          { label: t("listPage.statPending"), value: stats.pending, bg: "stat-gradient-gold" },
+          { label: t("listPage.statExpiring30"), value: contracts?.filter((c) => { if (!c.endDate || c.status !== "active") return false; const days = (new Date(c.endDate).getTime() - Date.now()) / 86400000; return days >= 0 && days <= 30; }).length ?? 0, bg: "stat-gradient-2" },
         ].map((s) => (
           <div key={s.label} className={`${s.bg} rounded-2xl p-4 text-white shadow-sm`}>
             <p className="text-2xl font-black">{s.value}</p>

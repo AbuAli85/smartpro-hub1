@@ -1,5 +1,5 @@
 import { TRPCError } from "@trpc/server";
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import {
   sanadIntelCenterComplianceItems,
@@ -13,9 +13,12 @@ import {
   buildSanadInvitePath,
   computeCenterActivationReadiness,
   ensureCenterOperations,
+  evaluateActivationServerGate,
   findByInviteToken,
   generateInviteTokenValue,
   inviteIsExpired,
+  isSanadInviteOnboardingChannelOpen,
+  SANAD_INVITE_PEEK_NOT_FOUND_MESSAGE,
 } from "../sanad-intelligence/activation";
 import { insertSanadIntelAuditEvent } from "../sanad-intelligence/sanadIntelAudit";
 import {
@@ -397,11 +400,14 @@ export const sanadIntelligenceRouter = router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
       const row = await findByInviteToken(db as never, input.token.trim());
-      if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Invalid or unknown invite link" });
-      const expired = inviteIsExpired(row.ops.inviteExpiresAt);
+      if (!row) throw new TRPCError({ code: "NOT_FOUND", message: SANAD_INVITE_PEEK_NOT_FOUND_MESSAGE });
+      if (inviteIsExpired(row.ops.inviteExpiresAt)) {
+        throw new TRPCError({ code: "NOT_FOUND", message: SANAD_INVITE_PEEK_NOT_FOUND_MESSAGE });
+      }
+      if (!isSanadInviteOnboardingChannelOpen(row.ops)) {
+        throw new TRPCError({ code: "NOT_FOUND", message: SANAD_INVITE_PEEK_NOT_FOUND_MESSAGE });
+      }
       return {
-        expired,
-        centerId: row.center.id,
         centerName: row.center.centerName,
         governorateLabelRaw: row.center.governorateLabelRaw,
         wilayat: row.center.wilayat,
@@ -427,7 +433,15 @@ export const sanadIntelligenceRouter = router({
         .limit(1);
       if (!c) throw new TRPCError({ code: "NOT_FOUND", message: "Center not found" });
 
-      await ensureCenterOperations(db as never, input.centerId);
+      const prior = await ensureCenterOperations(db as never, input.centerId);
+      if (prior.linkedSanadOfficeId != null) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message:
+            "Cannot issue an open invite while this centre is linked to an operational SANAD office. Remove the office link first if onboarding must be reset.",
+        });
+      }
+
       const token = generateInviteTokenValue();
       const now = new Date();
       const days = input.expiresInDays ?? 14;
@@ -447,7 +461,9 @@ export const sanadIntelligenceRouter = router({
         entityType: "sanad_intel_center",
         entityId: input.centerId,
         action: "sanad_intel_invite_generated",
-        metadata: { expiresInDays: days },
+        metadata: { expiresInDays: days, replacedPriorToken: Boolean(prior.inviteToken) },
+        beforeState: { hadInviteToken: Boolean(prior.inviteToken), inviteExpiresAt: prior.inviteExpiresAt },
+        afterState: { inviteExpiresAt, reissued: true },
       });
 
       const invitePath = buildSanadInvitePath(token);
@@ -486,15 +502,43 @@ export const sanadIntelligenceRouter = router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
       const row = await findByInviteToken(db as never, input.token.trim());
-      if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Invalid or unknown invite link" });
+      if (!row) throw new TRPCError({ code: "NOT_FOUND", message: SANAD_INVITE_PEEK_NOT_FOUND_MESSAGE });
       if (inviteIsExpired(row.ops.inviteExpiresAt)) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "This invite has expired. Ask your SmartPRO contact for a new link." });
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "This invite link is no longer valid. Request a new link from SmartPRO.",
+        });
+      }
+      if (!isSanadInviteOnboardingChannelOpen(row.ops)) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "This invite link is no longer valid. Request a new link from SmartPRO.",
+        });
+      }
+      if (row.ops.registeredUserId != null) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: "This onboarding link is already linked to a SmartPRO account.",
+        });
+      }
+
+      if (row.ops.inviteAcceptAt) {
+        return {
+          success: true as const,
+          centerId: row.center.id,
+          centerName: row.center.centerName,
+          nextStep: "sign_in" as const,
+          leadAlreadyCaptured: true as const,
+          message:
+            "Your details were already submitted. Sign in with SmartPRO to link your account if you have not done so yet.",
+        };
       }
 
       const partnerStatus =
         row.ops.partnerStatus === "unknown" ? "prospect" : row.ops.partnerStatus;
       const onboardingStatus =
         row.ops.onboardingStatus === "not_started" ? "intake" : row.ops.onboardingStatus;
+      const acceptedAt = new Date();
 
       await db
         .update(sanadIntelCenterOperations)
@@ -504,7 +548,7 @@ export const sanadIntelligenceRouter = router({
           inviteAcceptName: input.name.trim(),
           inviteAcceptPhone: input.phone.trim(),
           inviteAcceptEmail: input.email?.trim() ?? null,
-          inviteAcceptAt: new Date(),
+          inviteAcceptAt: acceptedAt,
         })
         .where(eq(sanadIntelCenterOperations.centerId, row.center.id));
 
@@ -514,6 +558,8 @@ export const sanadIntelligenceRouter = router({
         entityId: row.center.id,
         action: "sanad_intel_invite_accepted",
         metadata: { hasEmail: Boolean(input.email) },
+        beforeState: { inviteAcceptAt: row.ops.inviteAcceptAt },
+        afterState: { inviteAcceptAt: acceptedAt.toISOString() },
       });
 
       return {
@@ -521,6 +567,7 @@ export const sanadIntelligenceRouter = router({
         centerId: row.center.id,
         centerName: row.center.centerName,
         nextStep: "sign_in" as const,
+        leadAlreadyCaptured: false as const,
         message:
           "Thank you. Sign in with SmartPRO (same browser) to link this centre to your account and continue onboarding.",
       };
@@ -533,9 +580,18 @@ export const sanadIntelligenceRouter = router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
       const row = await findByInviteToken(db as never, input.token.trim());
-      if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Invalid or unknown invite link" });
+      if (!row) throw new TRPCError({ code: "NOT_FOUND", message: SANAD_INVITE_PEEK_NOT_FOUND_MESSAGE });
       if (inviteIsExpired(row.ops.inviteExpiresAt)) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "This invite has expired." });
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "This invite link is no longer valid. Request a new link from SmartPRO.",
+        });
+      }
+      if (!isSanadInviteOnboardingChannelOpen(row.ops)) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "This invite link is no longer valid. Request a new link from SmartPRO.",
+        });
       }
       if (!row.ops.inviteAcceptAt) {
         throw new TRPCError({
@@ -578,6 +634,8 @@ export const sanadIntelligenceRouter = router({
         entityId: row.center.id,
         action: "sanad_intel_invite_linked_user",
         metadata: { userId: ctx.user.id },
+        beforeState: { registeredUserId: row.ops.registeredUserId },
+        afterState: { registeredUserId: ctx.user.id },
       });
 
       return {
@@ -605,60 +663,112 @@ export const sanadIntelligenceRouter = router({
     .mutation(async ({ input, ctx }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
-      const detail = await getCenterDetail(db as never, input.centerId);
-      if (!detail) throw new TRPCError({ code: "NOT_FOUND", message: "Center not found" });
 
-      const ops = detail.ops ?? (await ensureCenterOperations(db as never, input.centerId));
+      return await db.transaction(async (tx) => {
+        const [centerRow] = await tx
+          .select()
+          .from(sanadIntelCenters)
+          .where(eq(sanadIntelCenters.id, input.centerId))
+          .limit(1);
+        if (!centerRow) throw new TRPCError({ code: "NOT_FOUND", message: "Center not found" });
 
-      if (ops.linkedSanadOfficeId) {
-        const [office] = await db.select().from(sanadOffices).where(eq(sanadOffices.id, ops.linkedSanadOfficeId)).limit(1);
-        return { office, alreadyLinked: true as const };
-      }
+        let [opsRow] = await tx
+          .select()
+          .from(sanadIntelCenterOperations)
+          .where(eq(sanadIntelCenterOperations.centerId, input.centerId))
+          .limit(1);
+        if (!opsRow) {
+          await tx.insert(sanadIntelCenterOperations).values({ centerId: input.centerId });
+          [opsRow] = await tx
+            .select()
+            .from(sanadIntelCenterOperations)
+            .where(eq(sanadIntelCenterOperations.centerId, input.centerId))
+            .limit(1);
+        }
+        if (!opsRow) {
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Could not load centre operations" });
+        }
 
-      const c = detail.center;
-      const name = (input.name ?? c.centerName).trim();
-      if (!name) throw new TRPCError({ code: "BAD_REQUEST", message: "Centre name is required to create an office" });
+        if (opsRow.linkedSanadOfficeId) {
+          const [office] = await tx
+            .select()
+            .from(sanadOffices)
+            .where(eq(sanadOffices.id, opsRow.linkedSanadOfficeId))
+            .limit(1);
+          return { office, alreadyLinked: true as const };
+        }
 
-      const payload = {
-        providerType: input.providerType ?? ("typing_centre" as const),
-        name,
-        nameAr: input.nameAr ?? null,
-        phone: (input.phone ?? c.contactNumber ?? "").trim() || null,
-        governorate: (input.governorate ?? c.governorateLabelRaw ?? "").trim() || null,
-        city: (input.city ?? c.wilayat ?? c.village ?? "").trim() || null,
-        contactPerson: (input.contactPerson ?? c.responsiblePerson ?? "").trim() || null,
-        location: input.location?.trim() || null,
-        status: "active" as const,
-        isPublicListed: 0,
-        updatedAt: new Date(),
-      };
+        const [countRow] = await tx
+          .select({ n: sql<number>`count(*)`.mapWith(Number) })
+          .from(sanadIntelCenterComplianceItems)
+          .where(eq(sanadIntelCenterComplianceItems.centerId, input.centerId));
+        const complianceItemsTotal = countRow?.n ?? 0;
 
-      const [result] = await db.insert(sanadOffices).values(payload);
-      const officeId = Number((result as { insertId?: number }).insertId);
-      if (!officeId) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Could not create office" });
+        const gate = evaluateActivationServerGate({
+          centerName: centerRow.centerName,
+          complianceItemsTotal,
+          linkedSanadOfficeId: opsRow.linkedSanadOfficeId,
+        });
+        if (!gate.ok) {
+          throw new TRPCError({ code: gate.code, message: gate.message });
+        }
 
-      const now = new Date();
-      await db
-        .update(sanadIntelCenterOperations)
-        .set({
-          linkedSanadOfficeId: officeId,
-          activatedAt: now,
-          activationSource: "admin_created",
-          partnerStatus: "active",
-          onboardingStatus: detail.ops?.onboardingStatus === "licensed" ? "licensed" : "licensing_review",
-        })
-        .where(eq(sanadIntelCenterOperations.centerId, input.centerId));
+        const name = (input.name ?? centerRow.centerName).trim();
+        if (!name) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Centre name is required to create an office" });
+        }
 
-      await insertSanadIntelAuditEvent(db as never, {
-        actorUserId: ctx.user.id,
-        entityType: "sanad_intel_center",
-        entityId: input.centerId,
-        action: "sanad_intel_center_activated_office",
-        metadata: { officeId },
+        const payload = {
+          providerType: input.providerType ?? ("typing_centre" as const),
+          name,
+          nameAr: input.nameAr ?? null,
+          phone: (input.phone ?? centerRow.contactNumber ?? "").trim() || null,
+          governorate: (input.governorate ?? centerRow.governorateLabelRaw ?? "").trim() || null,
+          city: (input.city ?? centerRow.wilayat ?? centerRow.village ?? "").trim() || null,
+          contactPerson: (input.contactPerson ?? centerRow.responsiblePerson ?? "").trim() || null,
+          location: input.location?.trim() || null,
+          status: "active" as const,
+          isPublicListed: 0,
+          updatedAt: new Date(),
+        };
+
+        const [result] = await tx.insert(sanadOffices).values(payload);
+        const officeId = Number((result as { insertId?: number }).insertId);
+        if (!officeId) {
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Could not create office" });
+        }
+
+        const now = new Date();
+        await tx
+          .update(sanadIntelCenterOperations)
+          .set({
+            linkedSanadOfficeId: officeId,
+            activatedAt: now,
+            activationSource: "admin_created",
+            partnerStatus: "active",
+            onboardingStatus: opsRow.onboardingStatus === "licensed" ? "licensed" : "licensing_review",
+            inviteToken: null,
+            inviteExpiresAt: null,
+            inviteSentAt: null,
+          })
+          .where(eq(sanadIntelCenterOperations.centerId, input.centerId));
+
+        await insertSanadIntelAuditEvent(tx as never, {
+          actorUserId: ctx.user.id,
+          entityType: "sanad_intel_center",
+          entityId: input.centerId,
+          action: "sanad_intel_center_activated_office",
+          metadata: { officeId },
+          beforeState: {
+            linkedSanadOfficeId: opsRow.linkedSanadOfficeId,
+            inviteTokenPresent: Boolean(opsRow.inviteToken),
+          },
+          afterState: { linkedSanadOfficeId: officeId, inviteRevoked: true },
+        });
+
+        const [office] = await tx.select().from(sanadOffices).where(eq(sanadOffices.id, officeId)).limit(1);
+        return { office, alreadyLinked: false as const };
       });
-
-      const [office] = await db.select().from(sanadOffices).where(eq(sanadOffices.id, officeId)).limit(1);
-      return { office, alreadyLinked: false as const };
     }),
 
   updateCenterOutreach: adminSanadIntelProcedure
@@ -720,6 +830,16 @@ export const sanadIntelligenceRouter = router({
           lastContactedAt: input.lastContactedAt?.toISOString(),
           contactMethod: input.contactMethod,
           followUpDueAt: input.followUpDueAt?.toISOString() ?? null,
+        },
+        beforeState: {
+          lastContactedAt: ops.lastContactedAt,
+          contactMethod: ops.contactMethod,
+          followUpDueAt: ops.followUpDueAt,
+        },
+        afterState: {
+          lastContactedAt: input.lastContactedAt ?? ops.lastContactedAt,
+          contactMethod: input.contactMethod ?? ops.contactMethod,
+          followUpDueAt: input.followUpDueAt !== undefined ? input.followUpDueAt : ops.followUpDueAt,
         },
       });
 

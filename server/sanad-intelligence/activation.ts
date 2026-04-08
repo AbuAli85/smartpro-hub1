@@ -8,6 +8,52 @@ type DB = MySql2Database<typeof schema>;
 
 const COMPLIANCE_DONE_STATUSES = ["verified", "waived", "not_applicable"] as const;
 
+/** Single client-facing message for any unusable invite (wrong token, expired, replaced, or lifecycle closed). */
+export const SANAD_INVITE_PEEK_NOT_FOUND_MESSAGE = "Invalid or unknown invite link";
+
+type OpsInviteSlice = {
+  inviteExpiresAt: Date | null;
+  linkedSanadOfficeId: number | null;
+  activatedAt: Date | null;
+};
+
+/** True when the centre may still use the public invite URL (token row must also match and not be expired). */
+export function isSanadInviteOnboardingChannelOpen(ops: OpsInviteSlice | null | undefined): boolean {
+  if (!ops) return false;
+  if (ops.linkedSanadOfficeId != null) return false;
+  if (ops.activatedAt != null) return false;
+  return true;
+}
+
+export type ActivationServerGateResult =
+  | { ok: true }
+  | { ok: false; code: "BAD_REQUEST" | "PRECONDITION_FAILED"; message: string };
+
+/**
+ * Server-side gate for `activateCenterAsOffice` (conservative): centre name, compliance seeded, no linked office.
+ * Does not depend on UI readiness; call inside the activation transaction after re-reading state.
+ */
+export function evaluateActivationServerGate(input: {
+  centerName: string | null | undefined;
+  complianceItemsTotal: number;
+  linkedSanadOfficeId: number | null | undefined;
+}): ActivationServerGateResult {
+  if (input.linkedSanadOfficeId != null) {
+    return { ok: false, code: "BAD_REQUEST", message: "This centre already has a linked SANAD office." };
+  }
+  if (!String(input.centerName ?? "").trim()) {
+    return { ok: false, code: "BAD_REQUEST", message: "Centre name is required to create an office." };
+  }
+  if (input.complianceItemsTotal <= 0) {
+    return {
+      ok: false,
+      code: "PRECONDITION_FAILED",
+      message: "Seed compliance checklist items for this centre before activating an office.",
+    };
+  }
+  return { ok: true };
+}
+
 export function buildSanadInvitePath(token: string): string {
   return `/sanad/join?token=${encodeURIComponent(token)}`;
 }
@@ -90,6 +136,12 @@ export async function computeCenterActivationReadiness(db: DB, centerId: number)
   const hasCenterName = Boolean(detail.center.centerName?.trim());
   const canActivateAsOffice = hasCenterName && !linkedOfficeExists;
   const activationReady = canActivateAsOffice && registeredUserExists;
+  const serverActivationAllowed =
+    evaluateActivationServerGate({
+      centerName: detail.center.centerName,
+      complianceItemsTotal,
+      linkedSanadOfficeId: ops?.linkedSanadOfficeId ?? null,
+    }).ok === true;
 
   return {
     center: detail.center,
@@ -107,6 +159,7 @@ export async function computeCenterActivationReadiness(db: DB, centerId: number)
       linkedOfficeExists,
       activationReady,
       canActivateAsOffice,
+      serverActivationAllowed,
     },
   };
 }

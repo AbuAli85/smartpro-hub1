@@ -62,19 +62,11 @@ export default function SanadJoinInvitePage() {
   useEffect(() => {
     if (authLoading || !user || !token) return;
     const p = peek.data;
-    if (!p || p.expired || !p.leadCaptured || p.hasLinkedAccount) return;
+    if (!p || !p.leadCaptured || p.hasLinkedAccount) return;
     if (autoLinkTokenRef.current === token) return;
     autoLinkTokenRef.current = token;
     linkMutate({ token });
-  }, [
-    authLoading,
-    user?.id,
-    token,
-    peek.data?.leadCaptured,
-    peek.data?.hasLinkedAccount,
-    peek.data?.expired,
-    linkMutate,
-  ]);
+  }, [authLoading, user?.id, token, peek.data?.leadCaptured, peek.data?.hasLinkedAccount, linkMutate]);
 
   const loginUrl = getLoginUrl(`/sanad/join?token=${encodeURIComponent(token)}`);
 
@@ -116,21 +108,6 @@ export default function SanadJoinInvitePage() {
           <Button asChild variant="outline" size="sm">
             <Link href="/">العودة للرئيسية</Link>
           </Button>
-        </div>
-      </div>
-    );
-  }
-
-  if (peek.data.expired) {
-    return (
-      <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 px-4 py-16 dark:from-slate-950 dark:to-slate-900">
-        <div className="mx-auto max-w-md text-center space-y-3">
-          <p className="text-sm font-medium text-foreground" dir="rtl">
-            انتهت صلاحية رابط الدعوة.
-          </p>
-          <p className="text-xs text-muted-foreground" dir="rtl">
-            تواصل مع فريق SmartPRO لإصدار رابط جديد لمركز {peek.data.centerName}.
-          </p>
         </div>
       </div>
     );

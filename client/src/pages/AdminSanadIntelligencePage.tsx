@@ -921,8 +921,20 @@ function DirectorySurface() {
                         {readiness.data.flags.linkedOfficeExists ? "Yes" : "No"}
                       </span>
                     </li>
+                    <li className="flex justify-between gap-2">
+                      <span className="text-muted-foreground">Server policy: can create office</span>
+                      <span
+                        className={
+                          readiness.data.flags.serverActivationAllowed
+                            ? "font-semibold text-emerald-700"
+                            : "font-medium text-amber-800"
+                        }
+                      >
+                        {readiness.data.flags.serverActivationAllowed ? "Yes" : "No"}
+                      </span>
+                    </li>
                     <li className="flex justify-between gap-2 border-t border-border/60 pt-2 mt-2">
-                      <span className="text-muted-foreground">Activation ready</span>
+                      <span className="text-muted-foreground">Activation ready (CRM hint)</span>
                       <span
                         className={
                           readiness.data.flags.activationReady ? "font-semibold text-emerald-700" : "font-medium text-amber-800"
@@ -985,7 +997,12 @@ function DirectorySurface() {
                       type="button"
                       size="sm"
                       variant="secondary"
-                      disabled={genInvite.isPending}
+                      disabled={genInvite.isPending || Boolean(ops?.linkedSanadOfficeId)}
+                      title={
+                        ops?.linkedSanadOfficeId
+                          ? "Remove the linked SANAD office before issuing an open invite."
+                          : undefined
+                      }
                       onClick={() => genInvite.mutate({ centerId: detail.data!.center.id })}
                     >
                       {genInvite.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
@@ -1028,7 +1045,16 @@ function DirectorySurface() {
                     <Button
                       type="button"
                       size="sm"
-                      disabled={activateOffice.isPending || readiness.data?.flags.linkedOfficeExists}
+                      disabled={
+                        activateOffice.isPending ||
+                        readiness.isLoading ||
+                        !readiness.data?.flags.serverActivationAllowed
+                      }
+                      title={
+                        !readiness.data?.flags.serverActivationAllowed
+                          ? "Requires seeded compliance checklist, centre name, and no linked office (enforced on server)."
+                          : undefined
+                      }
                       onClick={() => activateOffice.mutate({ centerId: detail.data!.center.id })}
                     >
                       {activateOffice.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}

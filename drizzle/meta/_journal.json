@@ -78,6 +78,13 @@
       "when": 1744500000000,
       "tag": "0026_sanad_intel_activation_bridge",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "5",
+      "when": 1744600000000,
+      "tag": "0027_sanad_intel_stale_invite_cleanup",
+      "breakpoints": true
     }
   ]
 }

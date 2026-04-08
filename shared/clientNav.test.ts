@@ -59,19 +59,38 @@ describe("clientNavItemVisible", () => {
     expect(clientNavItemVisible("/hr/employees", portalClient, new Set(), { hasCompanyWorkspace: false })).toBe(false);
   });
 
-  it("lets platformRole client use company nav when they have a company workspace", () => {
-    expect(clientNavItemVisible("/hr/employees", portalClient, new Set(), { hasCompanyWorkspace: true })).toBe(true);
+  it("keeps portal customers on the allow-list after they join a company (no HR / admin nav)", () => {
+    expect(clientNavItemVisible("/hr/employees", portalClient, new Set(), { hasCompanyWorkspace: true })).toBe(false);
+    expect(clientNavItemVisible("/sanad", portalClient, new Set(), { hasCompanyWorkspace: true })).toBe(false);
+    expect(clientNavItemVisible("/client-portal", portalClient, new Set(), { hasCompanyWorkspace: true })).toBe(true);
     expect(clientNavItemVisible("/payroll", portalClient, new Set(), { hasCompanyWorkspace: true })).toBe(false);
   });
 
-  it("does not apply portal-only shell while company workspace is loading", () => {
+  it("uses membership role client for portal shell even when platformRole is company_admin-shaped", () => {
+    expect(
+      clientNavItemVisible("/hr/employees", owner, new Set(), {
+        hasCompanyWorkspace: true,
+        hasCompanyMembership: true,
+        memberRole: "client",
+      }),
+    ).toBe(false);
+    expect(
+      clientNavItemVisible("/contracts", owner, new Set(), {
+        hasCompanyWorkspace: true,
+        hasCompanyMembership: true,
+        memberRole: "client",
+      }),
+    ).toBe(true);
+  });
+
+  it("keeps portal shell while loading for platformRole client", () => {
     expect(
       clientNavItemVisible("/hr/employees", portalClient, new Set(), {
         hasCompanyWorkspace: false,
         companyWorkspaceLoading: true,
       }),
-    ).toBe(true);
-    expect(shouldUsePortalOnlyShell(portalClient, { companyWorkspaceLoading: true })).toBe(false);
+    ).toBe(false);
+    expect(shouldUsePortalOnlyShell(portalClient, { companyWorkspaceLoading: true })).toBe(true);
   });
 
   it("restricts pre-registration users to onboarding essentials only", () => {
@@ -102,6 +121,12 @@ describe("shouldUsePreRegistrationShell", () => {
   it("is false for portal clients (they use portal-only shell)", () => {
     expect(shouldUsePreRegistrationShell(portalClient, { hasCompanyMembership: false })).toBe(false);
   });
+
+  it("is false for customer membership role with no company list", () => {
+    expect(
+      shouldUsePreRegistrationShell(member, { hasCompanyMembership: false, memberRole: "client" }),
+    ).toBe(false);
+  });
 });
 
 describe("shouldUsePortalOnlyShell", () => {
@@ -113,8 +138,13 @@ describe("shouldUsePortalOnlyShell", () => {
     expect(shouldUsePortalOnlyShell(portalClient, { hasCompanyWorkspace: false })).toBe(true);
   });
 
-  it("is false when client has company workspace", () => {
-    expect(shouldUsePortalOnlyShell(portalClient, { hasCompanyWorkspace: true })).toBe(false);
+  it("stays true for portal clients after they join a company", () => {
+    expect(shouldUsePortalOnlyShell(portalClient, { hasCompanyWorkspace: true })).toBe(true);
+  });
+
+  it("is false for platform operators (SANAD / regional staff)", () => {
+    const regional = { role: "user" as const, platformRole: "regional_manager" as const };
+    expect(shouldUsePortalOnlyShell(regional, { hasCompanyWorkspace: false })).toBe(false);
   });
 });
 

@@ -33,6 +33,7 @@ export default function PreferencesPage() {
   const portalOnly = shouldUsePortalOnlyShell(user, {
     hasCompanyWorkspace: Boolean(myCompany?.company?.id),
     companyWorkspaceLoading: myCompanyLoading,
+    memberRole: myCompany?.member?.role ?? null,
   });
 
   const onToggle = (href: string, checked: boolean) => {

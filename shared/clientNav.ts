@@ -225,6 +225,11 @@ export function isPortalClientNav(user: { platformRole?: string | null } | null)
   return user?.platformRole === "client";
 }
 
+/** Company membership role `client` — end customer, not an internal operator (SANAD / platform staff). */
+export function isCustomerPortalMemberRole(memberRole?: string | null): boolean {
+  return memberRole === "client";
+}
+
 /**
  * Get the human-readable role label for a company member role.
  */
@@ -236,6 +241,7 @@ export function getMemberRoleLabel(memberRole?: string | null): string {
     case "company_member": return "Staff / Employee";
     case "reviewer": return "Reviewer";
     case "external_auditor": return "External Auditor";
+    case "client": return "Customer / Client";
     default: return "Team Member";
   }
 }
@@ -251,6 +257,7 @@ export function getMemberRoleColor(memberRole?: string | null): string {
     case "company_member": return "text-white/50";
     case "reviewer": return "text-purple-400";
     case "external_auditor": return "text-yellow-400";
+    case "client": return "text-cyan-400";
     default: return "text-white/40";
   }
 }
@@ -266,12 +273,13 @@ export function getRoleDefaultRoute(memberRole?: string | null): string {
     case "company_member": return "/my-portal";
     case "reviewer": return "/dashboard";
     case "external_auditor": return "/dashboard";
+    case "client": return "/client-portal";
     default: return "/dashboard";
   }
 }
 
 export type ClientNavOptions = {
-  /** When true, `platformRole: client` still gets full company nav (not the minimal portal shell). */
+  /** When true, the active company workspace is resolved (myCompany). */
   hasCompanyWorkspace?: boolean;
   /** While company membership is loading, do not treat portal users as "no company" (avoids nav flash). */
   companyWorkspaceLoading?: boolean;
@@ -308,18 +316,30 @@ export function shouldUsePreRegistrationShell(
   if (!user) return false;
   if (canAccessGlobalAdminProcedures(user) || seesPlatformOperatorNav(user)) return false;
   if (isPortalClientNav(user)) return false;
+  if (isCustomerPortalMemberRole(options?.memberRole)) return false;
   if (options?.hasCompanyMembership === undefined) return false;
   return options.hasCompanyMembership === false;
 }
 
-/** Exported for mobile nav / layout parity with sidebar. */
+/**
+ * Customer / end-user portal shell (PORTAL_CLIENT_HREFS).
+ * Applies when the user is an end customer (`platformRole` or company membership role `client`),
+ * even after they belong to a company — they must not see HR, Sanad ops, company admin, etc.
+ * Platform operators (SANAD, regional_manager, client_services) and global admins keep the full app.
+ */
 export function shouldUsePortalOnlyShell(
   user: { platformRole?: string | null } | null,
   options?: ClientNavOptions,
 ): boolean {
-  if (!isPortalClientNav(user)) return false;
-  if (options?.companyWorkspaceLoading) return false;
-  return options?.hasCompanyWorkspace !== true;
+  if (canAccessGlobalAdminProcedures(user)) return false;
+  if (seesPlatformOperatorNav(user)) return false;
+  if (options?.companyWorkspaceLoading) {
+    if (isPortalClientNav(user)) return true;
+    return false;
+  }
+  if (isPortalClientNav(user)) return true;
+  if (isCustomerPortalMemberRole(options?.memberRole)) return true;
+  return false;
 }
 
 /**
@@ -386,6 +406,7 @@ export function clientNavItemVisible(
   if (BUSINESS_MGMT_HREFS.has(href)) {
     if (seesPlatformOperatorNav(user)) return true;
     const mr = options?.memberRole;
+    if (isCustomerPortalMemberRole(mr)) return false;
     // hr_admin should not see CRM/quotations/marketplace — those are business/commercial
     if (isHrAdminMember(mr)) return false;
     // company_member cannot see these
@@ -535,6 +556,7 @@ export function clientRouteAccessible(
     if (pathMatchesRestrictedPrefix(path, href)) {
       if (seesPlatformOperatorNav(user)) return true;
       const mr = options?.memberRole;
+      if (isCustomerPortalMemberRole(mr)) return false;
       if (isHrAdminMember(mr) || isFieldEmployee(mr)) return false;
       return true;
     }

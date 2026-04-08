@@ -756,6 +756,7 @@ function MobileBottomNav() {
   const portalShell = shouldUsePortalOnlyShell(user, {
     hasCompanyWorkspace: Boolean(myCompany?.company?.id),
     companyWorkspaceLoading: companyLoading,
+    memberRole: myCompany?.member?.role ?? null,
   });
   const preRegShell = shouldUsePreRegistrationShell(user, {
     hasCompanyMembership: companies.length > 0,

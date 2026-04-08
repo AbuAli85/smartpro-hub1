@@ -57,6 +57,8 @@ import {
   UserSquare2,
 } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
+import { useTranslation } from "react-i18next";
+import { isRTL } from "@/lib/i18n";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { Link, useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
@@ -227,9 +229,96 @@ const navGroups = [
   },
 ];
 
+// Map English label strings to nav translation keys
+const NAV_GROUP_KEYS: Record<string, string> = {
+  "Overview": "overview",
+  "Government Services": "governmentServices",
+  "My Company": "myCompany",
+  "Business": "business",
+  "Human Resources": "humanResources",
+  "Workforce Hub": "workforceHub",
+  "Shared Omani PRO": "sharedOmaniPro",
+  "Platform": "platform",
+  "Your company": "platform",
+};
+const NAV_ITEM_KEYS: Record<string, string> = {
+  "Executive Control Tower": "executiveControlTower",
+  "Operations Centre": "operationsCentre",
+  "Analytics": "analytics",
+  "Compliance": "compliance",
+  "Sanad Offices": "sanadOffices",
+  "Office Dashboard": "officeDashboard",
+  "Sanad Marketplace": "sanadMarketplace",
+  "Catalogue Admin": "catalogueAdmin",
+  "Ratings Moderation": "ratingsModeration",
+  "PRO Services": "proServices",
+  "Workspace": "workspace",
+  "My Portal": "myPortal",
+  "Company Profile": "companyProfile",
+  "Team Access & Roles": "teamAccessRoles",
+  "Multi-Company Roles": "multiCompanyRoles",
+  "Company Settings": "companySettings",
+  "Email Templates": "emailTemplates",
+  "Company Documents": "companyDocuments",
+  "Company Hub": "companyHub",
+  "Quotations": "quotations",
+  "Contracts": "contracts",
+  "Marketplace": "marketplace",
+  "CRM": "crm",
+  "My Team": "myTeam",
+  "Recruitment": "recruitment",
+  "Departments": "departments",
+  "Org Chart": "orgChart",
+  "Workforce Intelligence": "workforceIntelligence",
+  "HR Performance & Automation": "hrPerformanceAutomation",
+  "Org Structure": "orgStructure",
+  "Profile Completeness": "profileCompleteness",
+  "Leave & Requests": "leaveRequests",
+  "Leave Balances": "leaveBalances",
+  "Finance Overview": "financeOverview",
+  "Payroll Engine": "payrollEngine",
+  "Attendance": "attendance",
+  "Attendance Sites": "attendanceSites",
+  "Shift Templates": "shiftTemplates",
+  "Employee Schedules": "employeeSchedules",
+  "Holiday Calendar": "holidayCalendar",
+  "Today's Board": "todaysBoard",
+  "Monthly Report": "monthlyReport",
+  "HR Documents": "hrDocuments",
+  "Document Expiry": "documentExpiry",
+  "HR Letters": "hrLetters",
+  "Promoter Agreements": "promoterAgreements",
+  "Employee Requests": "employeeRequests",
+  "Task Manager": "taskManager",
+  "Announcements": "announcements",
+  "Performance & Growth": "performanceGrowth",
+  "KPI & Performance": "kpiPerformance",
+  "Workforce Dashboard": "workforceDashboard",
+  "Workforce Employees": "workforceEmployees",
+  "Work Permits": "workPermits",
+  "Government Cases": "governmentCases",
+  "Document Vault": "documentVault",
+  "Portal Sync": "portalSync",
+  "Officer Registry": "officerRegistry",
+  "Assignments": "assignments",
+  "Billing Engine": "billingEngine",
+  "SLA Management": "slaManagement",
+  "Company Admin": "companyAdmin",
+  "Client Portal": "clientPortal",
+  "Subscriptions": "subscriptions",
+  "Expiry Alerts": "expiryAlerts",
+  "Renewal Workflows": "renewalWorkflows",
+  "Platform Operations": "platformOpsLabel",
+  "PDF Reports": "pdfReports",
+  "Audit Log": "auditLog",
+  "User Roles & Access": "userRolesAccess",
+  "Admin Panel": "adminPanel",
+  "SANAD Intelligence": "sanadIntelligence",
+};
 function SidebarContent({ onClose }: { onClose?: () => void }) {
   const [location] = useLocation();
   const { user, logout } = useAuth();
+  const { t } = useTranslation("nav");
   const { activeCompanyId } = useActiveCompany();
   const { data: myCompany, isLoading: myCompanyLoading } = trpc.companies.myCompany.useQuery(
     { companyId: activeCompanyId ?? undefined },
@@ -292,7 +381,7 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
         {visibleNavGroups.map((group) => (
           <div key={group.label}>
             <div className="px-3 mb-1.5 text-[10px] font-semibold uppercase tracking-widest text-white/30">
-              {group.label}
+              {NAV_GROUP_KEYS[group.label] ? t(NAV_GROUP_KEYS[group.label], group.label) : group.label}
             </div>
             <div className="space-y-0.5">
               {group.items.map((item) => {
@@ -305,7 +394,7 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
                     className={`sidebar-nav-item ${isActive ? "active" : ""}`}
                   >
                     {item.icon}
-                    <span className="flex-1">{item.label}</span>
+                    <span className="flex-1">{NAV_ITEM_KEYS[item.label] ? t(NAV_ITEM_KEYS[item.label], item.label) : item.label}</span>
                     {isActive && <ChevronRight size={14} className="opacity-60" />}
                   </Link>
                 );
@@ -340,17 +429,17 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
           <DropdownMenuContent align="end" className="w-52">
             <DropdownMenuItem asChild>
               <Link href="/onboarding-guide">
-                <HelpCircle size={14} className="mr-2" /> Onboarding guide
+                <HelpCircle size={14} className="mr-2" /> {t("onboardingGuideLink", "Onboarding guide")}
               </Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild>
               <Link href="/preferences">
-                <Settings size={14} className="mr-2" /> Navigation preferences
+                <Settings size={14} className="mr-2" /> {t("navigationPreferences", "Navigation preferences")}
               </Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={logout} className="text-red-600">
-              <LogOut size={14} className="mr-2" /> Sign out
+              <LogOut size={14} className="mr-2" /> {t("signOut", "Sign out")}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -597,8 +686,10 @@ export default function PlatformLayout({ children }: { children: React.ReactNode
       {/* Sidebar - mobile */}
       <aside
         id="mobile-sidebar"
-        className={`fixed inset-y-0 left-0 w-72 z-50 lg:hidden transform transition-transform duration-200 ease-in-out ${
-          sidebarOpen ? "translate-x-0" : "-translate-x-full"
+        className={`fixed inset-y-0 z-50 lg:hidden transform transition-transform duration-200 ease-in-out w-72 ${
+          isRTL() ? "right-0" : "left-0"
+        } ${
+          sidebarOpen ? "translate-x-0" : isRTL() ? "translate-x-full" : "-translate-x-full"
         }`}
         aria-label="Mobile navigation"
         aria-hidden={!sidebarOpen}

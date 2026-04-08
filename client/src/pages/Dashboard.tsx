@@ -1,4 +1,5 @@
 import { trpc } from "@/lib/trpc";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { getHiddenNavHrefs } from "@/lib/navVisibility";
@@ -111,6 +112,7 @@ function ModuleCard({
 
 /* ── Main Dashboard ────────────────────────────────────────────────────── */
 export default function Dashboard() {
+  const { t, i18n } = useTranslation(["dashboard", "nav", "common"]);
   const { user } = useAuth();
   const { activeCompanyId, activeCompany, loading: companyLoading } = useActiveCompany();
   const [, navigate] = useLocation();
@@ -360,101 +362,101 @@ export default function Dashboard() {
       {
         key: "sanad",
         href: "/sanad",
-        title: "Sanad Office Management",
-        description: "Government service centres — applications, staff, and performance tracking",
+        title: t("dashboard:modules.sanadOfficeManagement", "Sanad Office Management"),
+        description: t("dashboard:modules.sanadOfficeDesc", "Government service centres — applications, staff, and performance tracking"),
         icon: <Building2 size={18} />,
         count: stats?.sanadApplications,
-        tag: "Government",
+        tag: t("dashboard:tags.government", "Government"),
         tagColor: "module-chip-gov",
       },
       {
         key: "pro",
         href: "/pro",
-        title: "PRO & Visa Services",
-        description: "Work permits, residence visas, labour cards, PASI, and MHRSD filings",
+        title: t("dashboard:modules.proVisaServices", "PRO & Visa Services"),
+        description: t("dashboard:modules.proVisaDesc", "Work permits, residence visas, labour cards, PASI, and MHRSD filings"),
         icon: <Shield size={18} />,
         count: stats?.proServices,
-        tag: "Compliance",
+        tag: t("dashboard:tags.compliance", "Compliance"),
         tagColor: "module-chip-legal",
       },
       {
         key: "hr",
         href: "/hr/employees",
-        title: "HR & Workforce Hub",
-        description: "Employees, leave management, payroll, WPS, and Omanisation tracking",
+        title: t("dashboard:modules.hrWorkforceHub", "HR & Workforce Hub"),
+        description: t("dashboard:modules.hrWorkforceDesc", "Employees, leave management, payroll, WPS, and Omanisation tracking"),
         icon: <Briefcase size={18} />,
         count: stats?.pendingLeave,
-        tag: "Human Resources",
+        tag: t("dashboard:tags.humanResources", "Human Resources"),
         tagColor: "module-chip-hr",
       },
       {
         key: "contracts",
         href: "/contracts",
-        title: "Smart Contracts",
-        description: "Draft, negotiate, and digitally sign contracts with full audit trail",
+        title: t("dashboard:modules.smartContracts", "Smart Contracts"),
+        description: t("dashboard:modules.smartContractsDesc", "Draft, negotiate, and digitally sign contracts with full audit trail"),
         icon: <FileText size={18} />,
         count: stats?.contracts,
-        tag: "Legal",
+        tag: t("dashboard:tags.legal", "Legal"),
         tagColor: "module-chip-legal",
       },
       {
         key: "marketplace",
         href: "/marketplace",
-        title: "Service Marketplace",
-        description: "Connect with verified PRO service providers across Oman and GCC",
+        title: t("dashboard:modules.serviceMarketplace", "Service Marketplace"),
+        description: t("dashboard:modules.serviceMarketplaceDesc", "Connect with verified PRO service providers across Oman and GCC"),
         icon: <ShoppingBag size={18} />,
-        tag: "Marketplace",
+        tag: t("dashboard:tags.marketplace", "Marketplace"),
         tagColor: "module-chip-biz",
       },
       {
         key: "crm",
         href: "/crm",
-        title: "CRM & Pipeline",
-        description: "Manage clients, deals, and business development pipeline",
+        title: t("dashboard:modules.crmPipeline", "CRM & Pipeline"),
+        description: t("dashboard:modules.crmPipelineDesc", "Manage clients, deals, and business development pipeline"),
         icon: <Users size={18} />,
         count: stats?.deals,
-        tag: "Business",
+        tag: t("dashboard:tags.business", "Business"),
         tagColor: "module-chip-biz",
       },
       {
         key: "payroll",
         href: "/payroll",
-        title: "Payroll Engine",
-        description: "WPS-compliant payroll, PASI deductions, salary loans, and payslips",
+        title: t("dashboard:modules.payrollEngine", "Payroll Engine"),
+        description: t("dashboard:modules.payrollEngineDesc", "WPS-compliant payroll, PASI deductions, salary loans, and payslips"),
         icon: <Banknote size={18} />,
-        tag: "Finance",
+        tag: t("dashboard:tags.finance", "Finance"),
         tagColor: "module-chip-fin",
       },
       {
         key: "alerts",
         href: "/alerts",
-        title: "Expiry Alerts",
-        description: "Real-time alerts for visas, permits, contracts, and compliance deadlines",
+        title: t("dashboard:modules.expiryAlerts", "Expiry Alerts"),
+        description: t("dashboard:modules.expiryAlertsDesc", "Real-time alerts for visas, permits, contracts, and compliance deadlines"),
         icon: <Bell size={18} />,
         count: alertBadge?.count,
-        tag: "Compliance",
+        tag: t("dashboard:tags.compliance", "Compliance"),
         tagColor: "module-chip-legal",
       },
     ];
     return items.filter((m) => showHref(m.href));
-  }, [showHref, stats, alertBadge]);
+  }, [showHref, stats, alertBadge, t]);
 
   const platformToolLinks = useMemo(() => {
     const items = [
-      { href: "/renewal-workflows", icon: <RefreshCw size={13} />, label: "Renewal Workflows" },
-      { href: "/billing", icon: <Banknote size={13} />, label: "Billing Engine" },
-      { href: "/omani-officers", icon: <Users size={13} />, label: "Omani PRO Officers" },
-      { href: "/workforce", icon: <BarChart3 size={13} />, label: "Workforce Dashboard" },
-      { href: "/reports", icon: <FileText size={13} />, label: "PDF Reports" },
-      { href: "/audit-log", icon: <Shield size={13} />, label: "Audit Log" },
+      { href: "/renewal-workflows", icon: <RefreshCw size={13} />, label: t("dashboard:renewalWorkflows", "Renewal Workflows") },
+      { href: "/billing", icon: <Banknote size={13} />, label: t("dashboard:billingEngine", "Billing Engine") },
+      { href: "/omani-officers", icon: <Users size={13} />, label: t("dashboard:omaniProOfficers", "Omani PRO Officers") },
+      { href: "/workforce", icon: <BarChart3 size={13} />, label: t("dashboard:workforceDashboard", "Workforce Dashboard") },
+      { href: "/reports", icon: <FileText size={13} />, label: t("common:pdfReports", "PDF Reports") },
+      { href: "/audit-log", icon: <Shield size={13} />, label: t("common:auditLog", "Audit Log") },
     ];
     return items.filter((item) => showHref(item.href));
-  }, [showHref]);
+  }, [showHref, t]);
 
   const showPlatformOverview = seesPlatformOperatorNav(user);
   const hour = new Date().getHours();
-  const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
-  const dateStr = new Date().toLocaleDateString("en-GB", {
+  const greeting = hour < 12 ? t("dashboard:goodMorning", "Good morning") : hour < 17 ? t("dashboard:goodAfternoon", "Good afternoon") : t("dashboard:goodEvening", "Good evening");
+  const dateStr = new Date().toLocaleDateString(i18n.language === "ar-OM" ? "ar-OM" : "en-GB", {
     weekday: "long", year: "numeric", month: "long", day: "numeric",
   });
 
@@ -561,19 +563,19 @@ export default function Dashboard() {
         <div>
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
-              <Activity size={13} /> Platform Overview
+              <Activity size={13} /> {t("dashboard:platformOverview", "Platform Overview")}
             </h2>
             <Link href="/analytics">
               <Button variant="ghost" size="sm" className="text-xs gap-1 h-7">
-                Full Analytics <ArrowUpRight size={11} />
+                {t("dashboard:fullAnalytics", "Full Analytics")} <ArrowUpRight size={11} />
               </Button>
             </Link>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <StatCard title="Companies" value={platformStats.companies} icon={<Building2 size={20} />} gradient="stat-gradient-1" sub="Registered entities" />
-            <StatCard title="Total Users" value={platformStats.users} icon={<Users size={20} />} gradient="stat-gradient-2" change="+12% MoM" />
-            <StatCard title="Contracts" value={platformStats.contracts} icon={<FileText size={20} />} gradient="stat-gradient-3" sub="Active agreements" />
-            <StatCard title="PRO Services" value={platformStats.proServices} icon={<Shield size={20} />} gradient="stat-gradient-4" sub="Managed documents" />
+            <StatCard title={t("dashboard:companies", "Companies")} value={platformStats.companies} icon={<Building2 size={20} />} gradient="stat-gradient-1" sub={t("dashboard:registeredEntities", "Registered entities")} />
+            <StatCard title={t("dashboard:totalUsers", "Total Users")} value={platformStats.users} icon={<Users size={20} />} gradient="stat-gradient-2" change="+12% MoM" />
+            <StatCard title={t("dashboard:contracts", "Contracts")} value={platformStats.contracts} icon={<FileText size={20} />} gradient="stat-gradient-3" sub={t("dashboard:activeAgreements", "Active agreements")} />
+            <StatCard title={t("dashboard:proServices", "PRO Services")} value={platformStats.proServices} icon={<Shield size={20} />} gradient="stat-gradient-4" sub={t("dashboard:managedDocuments", "Managed documents")} />
           </div>
         </div>
       )}
@@ -583,13 +585,13 @@ export default function Dashboard() {
         <div>
           <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
             <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
-              <BarChart3 size={13} /> Command center — your business at a glance
+              <BarChart3 size={13} /> {t("dashboard:commandCenter", "Command center — your business at a glance")}
             </h2>
             <div className="flex items-center gap-1 flex-wrap justify-end">
               {showHref("/operations") && (
                 <Link href="/operations">
                   <Button variant="ghost" size="sm" className="text-xs gap-1 h-7">
-                    Operations detail <ArrowUpRight size={11} />
+                    {t("dashboard:operationsDetail", "Operations detail")} <ArrowUpRight size={11} />
                   </Button>
                 </Link>
               )}
@@ -606,10 +608,10 @@ export default function Dashboard() {
             </div>
           ) : stats ? (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <StatCard title="Employees" value={stats.employees} icon={<Users size={20} />} gradient="stat-gradient-1" sub="Active workforce" />
-              <StatCard title="PRO Services" value={stats.proServices} icon={<Shield size={20} />} gradient="stat-gradient-2" sub="Managed documents" />
-              <StatCard title="Contracts" value={stats.contracts} icon={<FileText size={20} />} gradient="stat-gradient-3" sub="Active agreements" />
-              <StatCard title="CRM Contacts" value={stats.contacts} icon={<Users size={20} />} gradient="stat-gradient-4" sub="Clients & leads" />
+              <StatCard title={t("dashboard:employees", "Employees")} value={stats.employees} icon={<Users size={20} />} gradient="stat-gradient-1" sub={t("dashboard:activeWorkforce", "Active workforce")} />
+              <StatCard title={t("dashboard:proServices", "PRO Services")} value={stats.proServices} icon={<Shield size={20} />} gradient="stat-gradient-2" sub={t("dashboard:managedDocuments", "Managed documents")} />
+              <StatCard title={t("dashboard:contracts", "Contracts")} value={stats.contracts} icon={<FileText size={20} />} gradient="stat-gradient-3" sub={t("dashboard:activeAgreements", "Active agreements")} />
+              <StatCard title={t("dashboard:crmContacts", "CRM Contacts")} value={stats.contacts} icon={<Users size={20} />} gradient="stat-gradient-4" sub={t("dashboard:clientsLeads", "Clients & leads")} />
             </div>
           ) : (
             <Card className="border-dashed">
@@ -1489,7 +1491,7 @@ export default function Dashboard() {
         {/* Module Quick Access — 2 cols */}
         <div className="lg:col-span-2 space-y-4">
           <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
-            <Zap size={13} /> Quick Access
+            <Zap size={13} /> {t("dashboard:quickAccess", "Quick Access")}
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {quickAccessModules.map((m) => (
@@ -1517,13 +1519,13 @@ export default function Dashboard() {
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm flex items-center gap-2">
                   <Award size={15} className="text-[var(--smartpro-orange)]" />
-                  Omanisation & compliance
+                  {t("dashboard:omanisationCompliance", "Omanisation & compliance")}
                 </CardTitle>
               </CardHeader>
               <CardContent className="pt-0 space-y-3">
                 <div>
                   <div className="flex items-center justify-between text-xs mb-1">
-                    <span className="text-muted-foreground">Current rate vs target</span>
+                    <span className="text-muted-foreground">{t("dashboard:currentRateVsTarget", "Current rate vs target")}</span>
                     <span className="font-semibold">
                       {omanisation.pct}% / {omanisation.targetPct}%
                     </span>
@@ -1555,7 +1557,7 @@ export default function Dashboard() {
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm flex items-center gap-2 text-amber-800">
                   <Clock size={15} className="text-amber-600" />
-                  Expiring Documents
+                  {t("dashboard:expiringDocuments", "Expiring Documents")}
                   <Badge className="ml-auto bg-amber-100 text-amber-800 border-amber-200 text-xs">{expiringDocs.length}</Badge>
                 </CardTitle>
               </CardHeader>
@@ -1588,7 +1590,7 @@ export default function Dashboard() {
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm flex items-center gap-2">
                   <Globe size={15} className="text-[var(--smartpro-teal)]" />
-                  Platform Tools
+                  {t("dashboard:platformTools", "Platform Tools")}
                 </CardTitle>
               </CardHeader>
               <CardContent className="pt-0 space-y-1">
@@ -1618,7 +1620,7 @@ export default function Dashboard() {
           <Card className="border-0 shadow-sm">
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                <Zap size={14} className="text-amber-500" /> Operational alerts
+                <Zap size={14} className="text-amber-500" /> {t("dashboard:operationalAlerts", "Operational alerts")}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -1643,8 +1645,8 @@ export default function Dashboard() {
               )) : (
                 <div className="text-center py-8 text-muted-foreground">
                   <Zap size={28} className="mx-auto mb-2 opacity-20" />
-                  <p className="text-xs">No critical alerts today</p>
-                  <p className="text-[10px] mt-0.5 opacity-60">All systems operating normally</p>
+                  <p className="text-xs">{t("dashboard:noCriticalAlerts", "No critical alerts today")}</p>
+                  <p className="text-[10px] mt-0.5 opacity-60">{t("dashboard:allSystemsNormal", "All systems operating normally")}</p>
                 </div>
               )}
             </CardContent>
@@ -1655,7 +1657,7 @@ export default function Dashboard() {
         <Card className="border-0 shadow-sm">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-semibold flex items-center gap-2">
-              <CheckCircle2 size={14} className="text-emerald-500" /> Today’s Tasks
+              <CheckCircle2 size={14} className="text-emerald-500" /> {t("dashboard:todaysTasks", "Today's Tasks")}
               {todaysTasks && todaysTasks.totalTasks > 0 && (
                 <Badge variant="secondary" className="ml-auto text-xs">{todaysTasks.totalTasks}</Badge>
               )}
@@ -1679,8 +1681,8 @@ export default function Dashboard() {
             )) : (
               <div className="text-center py-8 text-muted-foreground">
                 <CheckCircle2 size={28} className="mx-auto mb-2 opacity-20" />
-                <p className="text-xs">All clear for today</p>
-                <p className="text-[10px] mt-0.5 opacity-60">No pending tasks</p>
+                <p className="text-xs">{t("dashboard:allClear", "All clear for today")}</p>
+                <p className="text-[10px] mt-0.5 opacity-60">{t("dashboard:noPendingTasks", "No pending tasks")}</p>
               </div>
             )}
           </CardContent>
@@ -1691,7 +1693,7 @@ export default function Dashboard() {
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
               <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                <Activity size={14} className="text-blue-500" /> Recent Activity
+                <Activity size={14} className="text-blue-500" /> {t("dashboard:recentActivity", "Recent Activity")}
               </CardTitle>
               {showHref("/audit-log") && (
                 <Link href="/audit-log">
@@ -1717,12 +1719,12 @@ export default function Dashboard() {
               </div>
             )) : (
               <div className="space-y-2">
-                {["Platform initialized", "PASI module ready", "Sanad services active"].map((t, i) => (
+                {[t("dashboard:platformInitialized", "Platform initialized"), t("dashboard:pasiModuleReady", "PASI module ready"), t("dashboard:sanadServicesActive", "Sanad services active")].map((msg, i) => (
                   <div key={i} className="flex items-center gap-2 py-1.5 border-b border-border/50 last:border-0">
                     <div className="w-6 h-6 rounded-full bg-emerald-50 flex items-center justify-center shrink-0">
                       <CheckCircle2 size={11} className="text-emerald-600" />
                     </div>
-                    <p className="text-xs text-muted-foreground">{t}</p>
+                    <p className="text-xs text-muted-foreground">{msg}</p>
                   </div>
                 ))}
               </div>

@@ -1,0 +1,22 @@
+{
+  "insights": {
+    "permitsExpiring": "{{count}} work permit(s) expiring in 14 days",
+    "permitsExpiringDesc": "Start renewal process now to avoid fines and employee disruption. MOL processing takes 3-5 business days.",
+    "renewalWorkflows": "Renewal workflows",
+    "viewPermits": "View permits",
+    "slaBreaches": "{{count}} case(s) breaching SLA",
+    "slaBreachesDesc": "These cases have exceeded their target resolution time. Immediate attention required to maintain client satisfaction.",
+    "viewBreaches": "View breaches",
+    "operationsCentre": "Operations centre",
+    "overdueInvoices": "OMR {{total}} overdue from {{count}} invoice(s)",
+    "overdueInvoicesDesc": "Follow up with clients on overdue payments to maintain healthy cash flow.",
+    "billingEngine": "Billing engine",
+    "viewInvoices": "View invoices",
+    "contractsAwaitingSignature": "{{count}} contract(s) awaiting signature",
+    "contractsAwaitingSignatureDesc": "Pending signatures delay service commencement. Send reminders to signers.",
+    "viewContracts": "View Contracts",
+    "allSystemsOperational": "All systems operational",
+    "allSystemsOperationalDesc": "No critical alerts at this time. Your operations are running smoothly.",
+    "viewAnalytics": "View Analytics"
+  }
+}

@@ -148,5 +148,9 @@
     "en": "English",
     "ar": "العربية",
     "switchTo": "التبديل إلى {{lang}}"
-  }
+  },
+  "all": "الكل",
+  "viewAll": "عرض الكل",
+  "pdfReports": "تقارير PDF",
+  "auditLog": "سجل المراجعة"
 }

@@ -37,9 +37,9 @@
     "expiryAlertsDesc": "تنبيهات فورية لانتهاء صلاحية التأشيرات والتصاريح والعقود والمواعيد النهائية"
   },
   "workforceHealth": "صحة القوى العاملة",
-  "employeesTracked": "موظف مُتابَع",
-  "profileCompleteness": "اكتمال الملفات الشخصية",
-  "healthy": "سليم",
+  "employeesTracked": "{{count}} موظف مُتتبَّع",
+  "profileCompleteness": "اكتمال الملف الشخصي",
+  "healthy": "بصحة جيدة",
   "critical": "حرج",
   "warning": "تحذير",
   "incomplete": "غير مكتمل",
@@ -48,7 +48,7 @@
   "manageWorkforce": "إدارة القوى العاملة",
   "operationalAlerts": "التنبيهات التشغيلية",
   "allSystemsOperational": "جميع الأنظمة تعمل بشكل طبيعي",
-  "noCriticalAlerts": "لا توجد تنبيهات حرجة في الوقت الحالي. تسير عملياتك بسلاسة.",
+  "noCriticalAlerts": "لا توجد تنبيهات حرجة في الوقت الحالي. عملياتك تسير بسلاسة.",
   "viewAnalytics": "عرض التحليلات",
   "todaysTasks": "مهام اليوم",
   "recentActivity": "النشاط الأخير",
@@ -90,5 +90,13 @@
   "noPendingTasks": "لا توجد مهام معلقة",
   "omanisationCompliance": "التعمين والامتثال",
   "currentRateVsTarget": "النسبة الحالية مقابل الهدف",
-  "expiringDocuments": "الوثائق منتهية الصلاحية"
+  "expiringDocuments": "الوثائق منتهية الصلاحية",
+  "noEmployeesFound": "لا يوجد موظفون. أضف موظفين لعرض مؤشرات الصحة.",
+  "avgProfileCompleteness": "متوسط اكتمال الملف الشخصي لجميع الموظفين",
+  "healthyPct": "{{pct}}% بصحة جيدة",
+  "criticalExpiredDocs": "حرج — وثائق منتهية الصلاحية",
+  "viewAll": "عرض الكل",
+  "moreEmployees": "+{{count}} موظفين آخرين",
+  "missing": "مفقود",
+  "pctComplete": "{{pct}}% مكتمل"
 }

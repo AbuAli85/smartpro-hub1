@@ -578,6 +578,10 @@ export const operationsRouter = router({
       description: string;
       actionUrl: string;
       actionLabel: string;
+      titleKey?: string;
+      descriptionKey?: string;
+      actionLabelKey?: string;
+      titleParams?: Record<string, string | number>;
     }> = [];
 
     const permitsCount = Number(expiringPermits[0]?.cnt ?? 0);
@@ -590,6 +594,10 @@ export const operationsRouter = router({
           "Start renewal process now to avoid fines and employee disruption. MOL processing takes 3–5 business days.",
         actionUrl: isPlatform ? "/renewal-workflows" : "/workforce/permits",
         actionLabel: isPlatform ? "Renewal workflows" : "View permits",
+        titleKey: "insights.permitsExpiring",
+        titleParams: { count: permitsCount },
+        descriptionKey: "insights.permitsExpiringDesc",
+        actionLabelKey: isPlatform ? "insights.renewalWorkflows" : "insights.viewPermits",
       });
     }
 
@@ -603,6 +611,10 @@ export const operationsRouter = router({
           "These cases have exceeded their target resolution time. Immediate attention required to maintain client satisfaction.",
         actionUrl: isPlatform ? "/sla-management" : "/operations",
         actionLabel: isPlatform ? "View breaches" : "Operations centre",
+        titleKey: "insights.slaBreaches",
+        titleParams: { count: breachCount },
+        descriptionKey: "insights.slaBreachesDesc",
+        actionLabelKey: isPlatform ? "insights.viewBreaches" : "insights.operationsCentre",
       });
     }
 
@@ -616,6 +628,10 @@ export const operationsRouter = router({
         description: "Follow up with clients on overdue payments to maintain healthy cash flow.",
         actionUrl: isPlatform ? "/billing" : "/client-portal?tab=invoices",
         actionLabel: isPlatform ? "Billing engine" : "View invoices",
+        titleKey: "insights.overdueInvoices",
+        titleParams: { total: overdueTotal.toFixed(3), count: overdueCount },
+        descriptionKey: "insights.overdueInvoicesDesc",
+        actionLabelKey: isPlatform ? "insights.billingEngine" : "insights.viewInvoices",
       });
     }
 
@@ -628,6 +644,10 @@ export const operationsRouter = router({
         description: "Pending signatures delay service commencement. Send reminders to signers.",
         actionUrl: "/contracts",
         actionLabel: "View Contracts",
+        titleKey: "insights.contractsAwaitingSignature",
+        titleParams: { count: contractCount },
+        descriptionKey: "insights.contractsAwaitingSignatureDesc",
+        actionLabelKey: "insights.viewContracts",
       });
     }
 
@@ -639,6 +659,9 @@ export const operationsRouter = router({
         description: "No critical alerts at this time. Your operations are running smoothly.",
         actionUrl: "/analytics",
         actionLabel: "View Analytics",
+        titleKey: "insights.allSystemsOperational",
+        descriptionKey: "insights.allSystemsOperationalDesc",
+        actionLabelKey: "insights.viewAnalytics",
       });
     }
 

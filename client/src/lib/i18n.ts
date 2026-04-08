@@ -10,6 +10,7 @@ import enHr from "../locales/en-OM/hr.json";
 import enBilling from "../locales/en-OM/billing.json";
 import enContracts from "../locales/en-OM/contracts.json";
 import enDashboard from "../locales/en-OM/dashboard.json";
+import enOperations from "../locales/en-OM/operations.json";
 
 // ar-OM resources
 import arCommon from "../locales/ar-OM/common.json";
@@ -19,6 +20,7 @@ import arHr from "../locales/ar-OM/hr.json";
 import arBilling from "../locales/ar-OM/billing.json";
 import arContracts from "../locales/ar-OM/contracts.json";
 import arDashboard from "../locales/ar-OM/dashboard.json";
+import arOperations from "../locales/ar-OM/operations.json";
 
 export const SUPPORTED_LANGUAGES = [
   { code: "en-OM", label: "English", nativeLabel: "English", dir: "ltr" as const },
@@ -29,7 +31,7 @@ export type SupportedLanguage = (typeof SUPPORTED_LANGUAGES)[number]["code"];
 
 export const DEFAULT_LANGUAGE: SupportedLanguage = "en-OM";
 
-export const NAMESPACES = ["common", "nav", "government", "hr", "billing", "contracts", "dashboard"] as const;
+export const NAMESPACES = ["common", "nav", "government", "hr", "billing", "contracts", "dashboard", "operations"] as const;
 export type Namespace = (typeof NAMESPACES)[number];
 
 const resources = {
@@ -41,6 +43,7 @@ const resources = {
     billing: enBilling,
     contracts: enContracts,
     dashboard: enDashboard,
+    operations: enOperations,
   },
   "ar-OM": {
     common: arCommon,
@@ -50,6 +53,7 @@ const resources = {
     billing: arBilling,
     contracts: arContracts,
     dashboard: arDashboard,
+    operations: arOperations,
   },
 };
 

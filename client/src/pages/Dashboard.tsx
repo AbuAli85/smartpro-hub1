@@ -1630,14 +1630,14 @@ export default function Dashboard() {
                   ins.severity === "warning" ? "border-amber-500 bg-amber-50" :
                   "border-blue-500 bg-blue-50"
                 }`}>
-                  <p className="text-xs font-semibold text-foreground">{ins.title}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">{ins.description}</p>
+                  <p className="text-xs font-semibold text-foreground">{ins.titleKey ? t(`operations:${ins.titleKey}`, { ...ins.titleParams, defaultValue: ins.title }) : ins.title}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{ins.descriptionKey ? t(`operations:${ins.descriptionKey}`, { defaultValue: ins.description }) : ins.description}</p>
                   {ins.actionUrl &&
                     (!ins.actionUrl.startsWith("/") ||
                       showHref(normalizeClientPath(ins.actionUrl))) && (
                     <Link href={ins.actionUrl}>
                       <Button variant="link" size="sm" className="h-5 p-0 text-xs mt-1 gap-1">
-                        {ins.actionLabel} <ArrowRight size={10} />
+                        {ins.actionLabelKey ? t(`operations:${ins.actionLabelKey}`, { defaultValue: ins.actionLabel }) : ins.actionLabel} <ArrowRight size={10} />
                       </Button>
                     </Link>
                   )}
@@ -1698,7 +1698,7 @@ export default function Dashboard() {
               {showHref("/audit-log") && (
                 <Link href="/audit-log">
                   <Button variant="ghost" size="sm" className="text-xs gap-1 h-6">
-                    All <ArrowUpRight size={10} />
+                    {t("common:all", "All")} <ArrowUpRight size={10} />
                   </Button>
                 </Link>
               )}

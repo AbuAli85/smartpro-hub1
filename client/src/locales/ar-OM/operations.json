@@ -1,0 +1,22 @@
+{
+  "insights": {
+    "permitsExpiring": "{{count}} تصريح عمل تنتهي صلاحيته خلال 14 يوماً",
+    "permitsExpiringDesc": "ابدأ عملية التجديد الآن لتجنب الغرامات واضطراب الموظفين. تستغرق معالجة وزارة العمل 3-5 أيام عمل.",
+    "renewalWorkflows": "سير عمل التجديد",
+    "viewPermits": "عرض التصاريح",
+    "slaBreaches": "{{count}} حالة تتجاوز مستوى الخدمة",
+    "slaBreachesDesc": "تجاوزت هذه الحالات وقت الحل المستهدف. يلزم الاهتمام الفوري للحفاظ على رضا العملاء.",
+    "viewBreaches": "عرض التجاوزات",
+    "operationsCentre": "مركز العمليات",
+    "overdueInvoices": "OMR {{total}} متأخر من {{count}} فاتورة",
+    "overdueInvoicesDesc": "تابع مع العملاء بشأن المدفوعات المتأخرة للحفاظ على تدفق نقدي صحي.",
+    "billingEngine": "محرك الفواتير",
+    "viewInvoices": "عرض الفواتير",
+    "contractsAwaitingSignature": "{{count}} عقد في انتظار التوقيع",
+    "contractsAwaitingSignatureDesc": "التوقيعات المعلقة تؤخر بدء الخدمة. أرسل تذكيرات للموقعين.",
+    "viewContracts": "عرض العقود",
+    "allSystemsOperational": "جميع الأنظمة تعمل بشكل طبيعي",
+    "allSystemsOperationalDesc": "لا توجد تنبيهات حرجة في الوقت الحالي. عملياتك تسير بسلاسة.",
+    "viewAnalytics": "عرض التحليلات"
+  }
+}

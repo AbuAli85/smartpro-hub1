@@ -258,18 +258,27 @@ export async function getCenterDetail(db: DB, id: number) {
 
   if (!row) return null;
 
-  const compliance = await db
-    .select({
-      item: schema.sanadIntelCenterComplianceItems,
-      req: schema.sanadIntelLicenseRequirements,
-    })
-    .from(schema.sanadIntelCenterComplianceItems)
-    .innerJoin(
-      schema.sanadIntelLicenseRequirements,
-      eq(schema.sanadIntelLicenseRequirements.id, schema.sanadIntelCenterComplianceItems.requirementId),
-    )
-    .where(eq(schema.sanadIntelCenterComplianceItems.centerId, id))
-    .orderBy(asc(schema.sanadIntelLicenseRequirements.sortOrder));
+  type ComplianceRow = {
+    item: typeof schema.sanadIntelCenterComplianceItems.$inferSelect;
+    req: typeof schema.sanadIntelLicenseRequirements.$inferSelect;
+  };
+  let compliance: ComplianceRow[] = [];
+  try {
+    compliance = await db
+      .select({
+        item: schema.sanadIntelCenterComplianceItems,
+        req: schema.sanadIntelLicenseRequirements,
+      })
+      .from(schema.sanadIntelCenterComplianceItems)
+      .innerJoin(
+        schema.sanadIntelLicenseRequirements,
+        eq(schema.sanadIntelLicenseRequirements.id, schema.sanadIntelCenterComplianceItems.requirementId),
+      )
+      .where(eq(schema.sanadIntelCenterComplianceItems.centerId, id))
+      .orderBy(asc(schema.sanadIntelLicenseRequirements.sortOrder));
+  } catch (e) {
+    console.warn("[sanad-intelligence] getCenterDetail: compliance query failed; returning empty checklist", e);
+  }
 
   return { ...row, compliance };
 }

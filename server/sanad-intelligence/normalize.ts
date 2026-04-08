@@ -59,6 +59,8 @@ export function normalizePhone(raw: string | undefined | null): string {
 
 /**
  * Dedup fingerprint for directory rows: stable hash of normalized identity fields.
+ * Contact number is intentionally excluded so enriching CSVs with phones re-imports as updates,
+ * not duplicate centres (same name + governorate + wilayat + village).
  */
 export function fingerprintCenterRow(parts: {
   centerName: string;
@@ -67,12 +69,12 @@ export function fingerprintCenterRow(parts: {
   village: string;
   contactNumber: string;
 }): string {
+  void parts.contactNumber;
   const payload = [
     collapseWhitespace(parts.centerName).toLowerCase(),
     parts.governorateKey,
     collapseWhitespace(parts.wilayat).toLowerCase(),
     collapseWhitespace(parts.village).toLowerCase(),
-    normalizePhone(parts.contactNumber),
   ].join("|");
   return createHash("sha256").update(payload, "utf8").digest("hex");
 }

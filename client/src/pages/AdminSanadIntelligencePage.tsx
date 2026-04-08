@@ -346,13 +346,13 @@ function DirectorySurface() {
             </Button>
           ) : null}
         </div>
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-end">
-          <div className="min-w-0 flex-1 space-y-1.5">
+        <div className="flex flex-col gap-4">
+          <div className="w-full space-y-1.5">
             <Label className="text-xs font-medium text-foreground">Search</Label>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
               <Input
-                className="h-10 pl-9 text-sm"
+                className="h-10 w-full pl-9 text-sm"
                 placeholder="Centre name, contact, village, manager…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
@@ -360,8 +360,8 @@ function DirectorySurface() {
               />
             </div>
           </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 lg:flex lg:shrink-0 lg:gap-3">
-            <div className="min-w-[10rem] space-y-1.5 sm:min-w-0 lg:w-44">
+          <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="min-w-0 space-y-1.5">
               <Label className="text-xs font-medium text-foreground">Governorate</Label>
               <Select value={gov || "__all"} onValueChange={(v) => { setGov(v === "__all" ? "" : v); setWil(""); }}>
                 <SelectTrigger className="h-10 w-full text-sm">
@@ -377,7 +377,7 @@ function DirectorySurface() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="min-w-[10rem] space-y-1.5 sm:min-w-0 lg:w-44">
+            <div className="min-w-0 space-y-1.5">
               <Label className="text-xs font-medium text-foreground">Wilayat</Label>
               <Select value={wil || "__all"} onValueChange={(v) => setWil(v === "__all" ? "" : v)} disabled={!gov}>
                 <SelectTrigger className="h-10 w-full text-sm">
@@ -393,7 +393,7 @@ function DirectorySurface() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="min-w-[10rem] space-y-1.5 sm:min-w-0 lg:w-48">
+            <div className="min-w-0 space-y-1.5">
               <Label className="text-xs font-medium text-foreground">Partner status</Label>
               <Select value={partner || "__all"} onValueChange={(v) => setPartner(v === "__all" ? "" : v)}>
                 <SelectTrigger className="h-10 w-full text-sm">
@@ -432,9 +432,9 @@ function DirectorySurface() {
               </CardDescription>
             </div>
             {listQuery.data && listQuery.data.total > listQuery.data.rows.length ? (
-              <p className="text-xs text-muted-foreground max-w-sm text-pretty">
-                Refine filters to narrow results, or ask for a higher page size — this view loads the first{" "}
-                {listQuery.data.rows.length} matches.
+              <p className="text-xs text-muted-foreground sm:max-w-[min(100%,20rem)] sm:text-right text-pretty">
+                Showing the first {listQuery.data.rows.length} matches. Refine filters or raise the list limit in code if
+                you need more rows per page.
               </p>
             ) : null}
           </div>
@@ -452,131 +452,188 @@ function DirectorySurface() {
               after placing source files under <code className="text-xs bg-muted px-1 rounded">data/sanad-intelligence/import</code>.
             </div>
           ) : (
-            <ScrollArea className="h-[min(70vh,640px)]">
-              <div className="min-w-[880px] overflow-x-auto">
-                <table className="w-full caption-bottom text-sm">
-                  <TableHeader>
-                    <TableRow className="border-b border-border/80 hover:bg-transparent">
-                      <TableHead className="sticky top-0 z-20 h-11 bg-muted/95 px-3 py-2 text-left text-sm font-semibold text-foreground shadow-[0_1px_0_0_hsl(var(--border))] backdrop-blur-sm supports-[backdrop-filter]:bg-muted/80 sm:min-w-[220px]">
-                        Centre
-                      </TableHead>
-                      <TableHead className="sticky top-0 z-20 h-11 bg-muted/95 px-3 py-2 text-left text-sm font-semibold text-foreground shadow-[0_1px_0_0_hsl(var(--border))] backdrop-blur-sm supports-[backdrop-filter]:bg-muted/80 sm:min-w-[140px]">
-                        Responsible
-                      </TableHead>
-                      <TableHead className="sticky top-0 z-20 h-11 w-[7.5rem] bg-muted/95 px-3 py-2 text-center text-sm font-semibold text-foreground shadow-[0_1px_0_0_hsl(var(--border))] backdrop-blur-sm supports-[backdrop-filter]:bg-muted/80">
-                        Phone
-                      </TableHead>
-                      <TableHead className="sticky top-0 z-20 h-11 bg-muted/95 px-3 py-2 text-left text-sm font-semibold text-foreground shadow-[0_1px_0_0_hsl(var(--border))] backdrop-blur-sm supports-[backdrop-filter]:bg-muted/80 sm:min-w-[200px]">
-                        Location
-                      </TableHead>
-                      <TableHead className="sticky top-0 z-20 h-11 w-[7rem] bg-muted/95 px-3 py-2 text-left text-sm font-semibold text-foreground shadow-[0_1px_0_0_hsl(var(--border))] backdrop-blur-sm supports-[backdrop-filter]:bg-muted/80">
-                        Partner
-                      </TableHead>
-                      <TableHead className="sticky top-0 z-20 h-11 w-[1%] bg-muted/95 px-3 py-2 text-right text-sm font-semibold text-foreground shadow-[0_1px_0_0_hsl(var(--border))] backdrop-blur-sm supports-[backdrop-filter]:bg-muted/80">
-                        Actions
-                      </TableHead>
+            <div className="max-h-[min(70vh,640px)] overflow-auto border-t border-border/60">
+              <table className="w-full min-w-[760px] table-fixed border-collapse text-sm">
+                <caption className="sr-only">
+                  SANAD partner centres: name, responsible person, phone, location, partner status, and actions
+                </caption>
+                <colgroup>
+                  <col className="w-[26%]" />
+                  <col className="w-[22%]" />
+                  <col className="w-[7.5rem]" />
+                  <col className="w-[24%]" />
+                  <col className="w-[6.5rem]" />
+                  <col className="w-[8.75rem]" />
+                </colgroup>
+                <TableHeader>
+                  <TableRow className="border-b-2 border-border hover:bg-transparent">
+                    <TableHead className="sticky top-0 z-30 h-12 border-b border-border bg-card px-3 py-2 text-left align-bottom text-xs font-bold uppercase tracking-wide text-foreground shadow-[inset_0_-1px_0_0_hsl(var(--border))]">
+                      Centre
+                    </TableHead>
+                    <TableHead className="sticky top-0 z-30 h-12 border-b border-border bg-card px-3 py-2 text-left align-bottom text-xs font-bold uppercase tracking-wide text-foreground shadow-[inset_0_-1px_0_0_hsl(var(--border))]">
+                      Responsible
+                    </TableHead>
+                    <TableHead
+                      className="sticky top-0 z-30 h-12 border-b border-border bg-card px-2 py-2 text-center align-bottom text-xs font-bold uppercase tracking-wide text-foreground shadow-[inset_0_-1px_0_0_hsl(var(--border))]"
+                      title="Official export often leaves the contact number column empty"
+                    >
+                      Phone
+                    </TableHead>
+                    <TableHead className="sticky top-0 z-30 h-12 border-b border-border bg-card px-3 py-2 text-left align-bottom text-xs font-bold uppercase tracking-wide text-foreground shadow-[inset_0_-1px_0_0_hsl(var(--border))]">
+                      Location
+                    </TableHead>
+                    <TableHead className="sticky top-0 z-30 h-12 border-b border-border bg-card px-2 py-2 text-left align-bottom text-xs font-bold uppercase tracking-wide text-foreground shadow-[inset_0_-1px_0_0_hsl(var(--border))]">
+                      Partner
+                    </TableHead>
+                    <TableHead className="sticky top-0 z-30 h-12 border-b border-border bg-card px-3 py-2 text-right align-bottom text-xs font-bold uppercase tracking-wide text-foreground shadow-[inset_0_-1px_0_0_hsl(var(--border))]">
+                      Actions
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {listQuery.data.rows.map(({ center, ops }) => (
+                    <TableRow
+                      key={center.id}
+                      className="cursor-pointer border-b border-border/50 transition-colors hover:bg-muted/50"
+                      onClick={() => setDrawerId(center.id)}
+                    >
+                      <TableCell className="whitespace-normal px-3 py-2.5 align-top">
+                        <div dir="auto" className="min-w-0 text-start">
+                          <p className="text-sm font-semibold leading-snug text-foreground [overflow-wrap:anywhere]">
+                            {center.centerName}
+                          </p>
+                          <p className="mt-1 font-mono text-[11px] font-medium tabular-nums text-muted-foreground">
+                            ID {center.id}
+                          </p>
+                        </div>
+                      </TableCell>
+                      <TableCell
+                        dir="auto"
+                        className="whitespace-normal px-3 py-2.5 align-top text-start text-sm leading-snug [overflow-wrap:anywhere]"
+                      >
+                        {center.responsiblePerson?.trim() ? (
+                          center.responsiblePerson
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell
+                        dir="ltr"
+                        className="px-2 py-2.5 align-top text-center text-sm tabular-nums"
+                        title={center.contactNumber?.trim() ? undefined : "No phone in source file for this row"}
+                      >
+                        {center.contactNumber?.trim() ? (
+                          <span className="text-foreground">{center.contactNumber}</span>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell
+                        dir="auto"
+                        className="whitespace-normal px-3 py-2.5 align-top text-start text-sm leading-snug text-muted-foreground [overflow-wrap:anywhere]"
+                      >
+                        <span className="text-foreground/90">{center.governorateLabelRaw}</span>
+                        {center.wilayat ? (
+                          <>
+                            <span className="text-muted-foreground/80"> · </span>
+                            <span>{center.wilayat}</span>
+                          </>
+                        ) : null}
+                      </TableCell>
+                      <TableCell className="px-2 py-2.5 align-middle" onClick={(e) => e.stopPropagation()}>
+                        {directoryPartnerBadge(ops?.partnerStatus)}
+                      </TableCell>
+                      <TableCell
+                        className="px-3 py-2.5 align-middle text-end whitespace-nowrap"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          className="h-9 min-w-[5.5rem] gap-1.5 font-medium shadow-sm"
+                          onClick={() => setDrawerId(center.id)}
+                        >
+                          Details
+                          <ArrowRight className="h-3.5 w-3.5 shrink-0 opacity-80" aria-hidden />
+                        </Button>
+                      </TableCell>
                     </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {listQuery.data.rows.map(({ center, ops }) => (
-                      <TableRow key={center.id} className="border-b border-border/60 hover:bg-muted/40">
-                        <TableCell className="whitespace-normal px-3 py-3 align-top">
-                          <div dir="auto" className="min-w-0 space-y-1 text-start">
-                            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0">
-                              <span className="shrink-0 rounded bg-muted/80 px-1.5 py-0.5 font-mono text-[11px] font-medium tabular-nums text-muted-foreground">
-                                {center.id}
-                              </span>
-                              <span className="min-w-0 text-sm font-semibold leading-snug text-foreground [overflow-wrap:anywhere]">
-                                {center.centerName}
-                              </span>
-                            </div>
-                          </div>
-                        </TableCell>
-                        <TableCell
-                          dir="auto"
-                          className="whitespace-normal px-3 py-3 align-top text-start text-sm leading-snug [overflow-wrap:anywhere]"
-                        >
-                          {center.responsiblePerson ?? (
-                            <span className="text-muted-foreground">—</span>
-                          )}
-                        </TableCell>
-                        <TableCell
-                          dir="ltr"
-                          className="px-3 py-3 align-top text-center text-sm tabular-nums"
-                          title={center.contactNumber ? undefined : "No phone number in import"}
-                        >
-                          {center.contactNumber ? (
-                            <span className="text-foreground">{center.contactNumber}</span>
-                          ) : (
-                            <span className="text-muted-foreground">—</span>
-                          )}
-                        </TableCell>
-                        <TableCell
-                          dir="auto"
-                          className="whitespace-normal px-3 py-3 align-top text-start text-sm leading-snug text-muted-foreground [overflow-wrap:anywhere]"
-                        >
-                          <span className="text-foreground/90">{center.governorateLabelRaw}</span>
-                          {center.wilayat ? (
-                            <>
-                              <span className="text-muted-foreground/80"> · </span>
-                              <span>{center.wilayat}</span>
-                            </>
-                          ) : null}
-                        </TableCell>
-                        <TableCell className="px-3 py-3 align-middle">{directoryPartnerBadge(ops?.partnerStatus)}</TableCell>
-                        <TableCell className="px-3 py-3 align-middle text-end whitespace-nowrap">
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            className="h-9 gap-1.5 font-medium shadow-none"
-                            onClick={() => setDrawerId(center.id)}
-                          >
-                            Details
-                            <ArrowRight className="h-3.5 w-3.5 shrink-0 opacity-70" aria-hidden />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </table>
-              </div>
-            </ScrollArea>
+                  ))}
+                </TableBody>
+              </table>
+            </div>
           )}
         </CardContent>
       </Card>
 
       <Sheet open={drawerId != null} onOpenChange={(o) => !o && setDrawerId(null)}>
-        <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
-          <SheetHeader>
-            <SheetTitle>Centre detail</SheetTitle>
-            <SheetDescription>Partner operations and licensing checklist for this centre.</SheetDescription>
+        <SheetContent className="flex h-full min-h-0 w-full flex-col gap-0 border-l sm:max-w-xl">
+          <SheetHeader className="space-y-1 border-b pb-4 text-left">
+            <SheetTitle className="text-lg">Centre detail</SheetTitle>
+            <SheetDescription>Directory record, contact, and partner operations for this centre.</SheetDescription>
           </SheetHeader>
           {detail.isLoading ? (
-            <Loader2 className="animate-spin m-8" />
-          ) : detail.data ? (
-            <div className="space-y-4 mt-4">
+            <div className="flex flex-1 items-center justify-center py-16">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+          ) : detail.error ? (
+            <div className="mt-4 flex gap-2 rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
               <div>
-                <h3 className="font-semibold text-lg">{detail.data.center.centerName}</h3>
-                <p className="text-sm text-muted-foreground">
+                <p className="font-medium">Could not load this centre</p>
+                <p className="mt-1 text-destructive/90">{detail.error.message}</p>
+              </div>
+            </div>
+          ) : detail.data ? (
+            <div className="flex-1 space-y-5 overflow-y-auto py-5 pr-1">
+              <div className="rounded-lg border bg-muted/25 p-4" dir="auto">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Centre</p>
+                <h3 className="mt-1.5 text-lg font-semibold leading-snug text-foreground">
+                  {detail.data.center.centerName}
+                </h3>
+                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
                   {detail.data.center.governorateLabelRaw}
                   {detail.data.center.wilayat ? ` · ${detail.data.center.wilayat}` : ""}
                   {detail.data.center.village ? ` · ${detail.data.center.village}` : ""}
                 </p>
               </div>
-              <Separator />
-              <div className="grid gap-3 text-sm">
-                <div>
-                  <span className="text-muted-foreground">Responsible</span>
-                  <p>{detail.data.center.responsiblePerson ?? "—"}</p>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">Contact</span>
-                  <p className="tabular-nums">{detail.data.center.contactNumber ?? "—"}</p>
+
+              <div className="rounded-lg border bg-muted/25 p-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Contact</p>
+                <div className="mt-3 grid gap-4 text-sm sm:grid-cols-2">
+                  <div dir="auto">
+                    <span className="text-xs font-medium text-muted-foreground">Responsible person</span>
+                    <p className="mt-1 font-medium leading-snug text-foreground">
+                      {detail.data.center.responsiblePerson?.trim() ? (
+                        detail.data.center.responsiblePerson
+                      ) : (
+                        <span className="font-normal text-muted-foreground">Not provided</span>
+                      )}
+                    </p>
+                  </div>
+                  <div dir="ltr">
+                    <span className="text-xs font-medium text-muted-foreground">Phone</span>
+                    <p className="mt-1 tabular-nums text-foreground">
+                      {detail.data.center.contactNumber?.trim() ? (
+                        detail.data.center.contactNumber
+                      ) : (
+                        <span className="font-sans font-normal text-muted-foreground">
+                          Not in import — column is often empty in the official export
+                        </span>
+                      )}
+                    </p>
+                  </div>
                 </div>
               </div>
-              <Separator />
-              <div className="space-y-3">
-                <Label>Partner status</Label>
+
+              <div className="rounded-lg border bg-card p-4 shadow-sm">
+                <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Partner operations
+                </p>
+                <div className="space-y-4">
+                <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Partner status</Label>
                 <Select
                   value={detail.data.ops?.partnerStatus ?? "unknown"}
                   onValueChange={(v) =>
@@ -597,7 +654,9 @@ function DirectorySurface() {
                     <SelectItem value="churned">Churned</SelectItem>
                   </SelectContent>
                 </Select>
-                <Label>Onboarding</Label>
+                </div>
+                <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Onboarding</Label>
                 <Select
                   value={detail.data.ops?.onboardingStatus ?? "not_started"}
                   onValueChange={(v) =>
@@ -625,7 +684,9 @@ function DirectorySurface() {
                     <SelectItem value="blocked">Blocked</SelectItem>
                   </SelectContent>
                 </Select>
-                <Label>Compliance (overall)</Label>
+                </div>
+                <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Compliance (overall)</Label>
                 <Select
                   value={detail.data.ops?.complianceOverall ?? "not_assessed"}
                   onValueChange={(v) =>
@@ -645,14 +706,18 @@ function DirectorySurface() {
                     <SelectItem value="at_risk">At risk</SelectItem>
                   </SelectContent>
                 </Select>
-                <Label>Internal notes</Label>
+                </div>
+                <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Internal notes</Label>
                 <Textarea
                   defaultValue={detail.data.ops?.notes ?? ""}
                   onBlur={(e) =>
                     updateOps.mutate({ centerId: detail.data!.center.id, notes: e.target.value })
                   }
                 />
-                <Label>Internal tags (comma-separated)</Label>
+                </div>
+                <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Internal tags (comma-separated)</Label>
                 <Input
                   defaultValue={(detail.data.ops?.internalTags ?? []).join(", ")}
                   onBlur={(e) =>
@@ -665,6 +730,8 @@ function DirectorySurface() {
                     })
                   }
                 />
+                </div>
+                </div>
               </div>
             </div>
           ) : null}

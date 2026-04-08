@@ -7,13 +7,14 @@ SANAD Network Intelligence — data import
    - SanadCenterStatistics.json (nested governorate → wilayat → village → count)
    - MostUsedServices.json
    - SanadCenterDirectory.csv (UTF-8; preferred if present) or SanadCenterDirectory.xlsx (first sheet; same bilingual headers)
+   - Optional source of truth: SanadCenterDirectory.json (array of objects). Regenerate the CSV with: node scripts/json-to-sanad-directory-csv.mjs
 
 2. Apply DB migration 0025_sanad_network_intelligence.sql (via your usual drizzle migrate process).
 
 3. Run: pnpm sanad-intel:import
    Requires DATABASE_URL. Optional: SANAD_INTEL_IMPORT_DIR=/absolute/path/to/folder
 
-4. Idempotence: governorate-year metrics for touched years are replaced; workforce & geography tables are cleared and reloaded; directory rows upsert by fingerprint; licence requirement seed is additive by code.
+4. Idempotence: governorate-year metrics for touched years are replaced; workforce & geography tables are cleared and reloaded; directory rows upsert by fingerprint (name + governorate + wilayat + village, not phone — so adding contact numbers updates existing centres); licence requirement seed is additive by code.
 
 5. Licensing PDF: place at client/public/docs/SanadServicesCenterlicense-Ar.pdf for the compliance page link.
 

@@ -47,6 +47,24 @@ describe("fingerprintCenterRow", () => {
     });
     expect(a).toBe(b);
   });
+
+  it("does not vary by contact number (CSV phone enrichment updates same centre)", () => {
+    const emptyPhone = fingerprintCenterRow({
+      centerName: "Centre A",
+      governorateKey: "muscat",
+      wilayat: "Ruwi",
+      village: "V1",
+      contactNumber: "",
+    });
+    const withPhone = fingerprintCenterRow({
+      centerName: "Centre A",
+      governorateKey: "muscat",
+      wilayat: "Ruwi",
+      village: "V1",
+      contactNumber: "96890123456",
+    });
+    expect(emptyPhone).toBe(withPhone);
+  });
 });
 
 describe("parseYearGovernorateCounts", () => {

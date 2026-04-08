@@ -89,6 +89,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { CompanySwitcher } from "@/components/CompanySwitcher";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
+import { OnboardingProgressWidget } from "@/components/OnboardingProgressWidget";
+import { useOnboardingAutoComplete } from "@/hooks/useOnboardingAutoComplete";
 
 interface NavItem {
   label: string;
@@ -406,6 +408,9 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
         ))}
       </nav>
 
+      {/* Onboarding progress widget */}
+      <OnboardingProgressWidget />
+
       {/* Language switcher */}
       <div className="px-3 pb-2">
         <LanguageSwitcher className="w-full justify-start text-white/70 border-white/10 hover:bg-white/5 hover:text-white" />
@@ -610,6 +615,8 @@ export default function PlatformLayout({ children }: { children: React.ReactNode
   const { isAuthenticated, loading } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [location] = useLocation();
+  // Auto-complete onboarding steps when user visits relevant pages
+  useOnboardingAutoComplete();
 
   // Auto-close sidebar on route change (mobile)
   useEffect(() => {

@@ -3261,3 +3261,62 @@ export const sanadIntelCenterMetricsYearly = mysqlTable(
   (t) => [unique("uq_sanad_intel_cm_center_year").on(t.centerId, t.year)],
 );
 export type SanadIntelCenterMetricsYearly = typeof sanadIntelCenterMetricsYearly.$inferSelect;
+
+// ─── Guided Onboarding Checklist ──────────────────────────────────────────────
+
+/** Canonical onboarding step definitions (seeded, not user-editable). */
+export const onboardingSteps = mysqlTable(
+  "onboarding_steps",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    stepKey: varchar("step_key", { length: 64 }).notNull().unique(),
+    category: mysqlEnum("category", [
+      "profile",
+      "company",
+      "team",
+      "services",
+      "compliance",
+      "explore",
+    ]).notNull(),
+    titleEn: varchar("title_en", { length: 256 }).notNull(),
+    titleAr: varchar("title_ar", { length: 256 }),
+    descriptionEn: text("description_en"),
+    descriptionAr: text("description_ar"),
+    actionLabel: varchar("action_label", { length: 128 }),
+    actionUrl: varchar("action_url", { length: 256 }),
+    iconName: varchar("icon_name", { length: 64 }),
+    sortOrder: int("sort_order").notNull().default(0),
+    isRequired: boolean("is_required").notNull().default(true),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [index("idx_onboarding_steps_category").on(t.category)],
+);
+export type OnboardingStep = typeof onboardingSteps.$inferSelect;
+
+/** Per-user onboarding progress (one row per user per step). */
+export const userOnboardingProgress = mysqlTable(
+  "user_onboarding_progress",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    userId: int("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    companyId: int("company_id")
+      .notNull()
+      .references(() => companies.id, { onDelete: "cascade" }),
+    stepKey: varchar("step_key", { length: 64 }).notNull(),
+    status: mysqlEnum("status", ["pending", "completed", "skipped"])
+      .notNull()
+      .default("pending"),
+    completedAt: timestamp("completed_at"),
+    skippedAt: timestamp("skipped_at"),
+    autoCompleted: boolean("auto_completed").notNull().default(false),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  },
+  (t) => [
+    unique("uq_user_onboarding_user_company_step").on(t.userId, t.companyId, t.stepKey),
+    index("idx_user_onboarding_user_company").on(t.userId, t.companyId),
+  ],
+);
+export type UserOnboardingProgress = typeof userOnboardingProgress.$inferSelect;

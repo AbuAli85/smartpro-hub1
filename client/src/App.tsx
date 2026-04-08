@@ -64,7 +64,7 @@ import CompanyHubPage from "./pages/CompanyHubPage";
 import CompanyWorkspacePage from "./pages/CompanyWorkspacePage";
 import MyTeamPage from "./pages/MyTeamPage";
 import PreferencesPage from "./pages/PreferencesPage";
-import OnboardingGuidePage from "@/pages/OnboardingGuidePage";
+import OnboardingGuidePage from "@/pages/OnboardingChecklistPage";
 import AcceptInvitePage from "@/pages/AcceptInvitePage";
 import SanadJoinInvitePage from "@/pages/SanadJoinInvitePage";
 import BusinessDashboardPage from "./pages/BusinessDashboardPage";

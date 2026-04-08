@@ -112,7 +112,7 @@ function ModuleCard({
 
 /* ── Main Dashboard ────────────────────────────────────────────────────── */
 export default function Dashboard() {
-  const { t, i18n } = useTranslation(["dashboard", "nav", "common"]);
+  const { t, i18n } = useTranslation(["dashboard", "nav", "common", "executive"]);
   const { user } = useAuth();
   const { activeCompanyId, activeCompany, loading: companyLoading, companies } = useActiveCompany();
   const [, navigate] = useLocation();
@@ -618,9 +618,9 @@ export default function Dashboard() {
             <Card className="border-dashed">
               <CardContent className="p-8 text-center">
                 <Building2 size={32} className="mx-auto text-muted-foreground mb-3" />
-                <h3 className="font-bold mb-1">No company linked</h3>
-                <p className="text-sm text-muted-foreground mb-4">Create or join a company to access all features.</p>
-                <Button asChild size="sm"><Link href="/onboarding">Set up company</Link></Button>
+                <h3 className="font-bold mb-1">{t("noCompanyLinked", { ns: "executive" })}</h3>
+                <p className="text-sm text-muted-foreground mb-4">{t("noCompanyLinkedDesc", { ns: "executive" })}</p>
+                <Button asChild size="sm"><Link href="/onboarding">{t("setUpCompany", { ns: "executive" })}</Link></Button>
               </CardContent>
             </Card>
           )}
@@ -632,12 +632,12 @@ export default function Dashboard() {
         <div className="space-y-2">
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
-              <CircleDollarSign size={13} className="text-emerald-600" /> Cash received (paid)
+              <CircleDollarSign size={13} className="text-emerald-600" /> {t("cashReceived", { ns: "executive" })}
             </h2>
             {showHref("/finance/overview") && (
               <Link href="/finance/overview">
                 <Button variant="ghost" size="sm" className="text-xs gap-1 h-7">
-                  Finance overview <ArrowUpRight size={11} />
+                  {t("financeOverview", { ns: "executive" })} <ArrowUpRight size={11} />
                 </Button>
               </Link>
             )}
@@ -645,7 +645,7 @@ export default function Dashboard() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <Card className="border-border/80">
               <CardHeader className="pb-1 pt-4 px-4">
-                <CardTitle className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Today</CardTitle>
+                <CardTitle className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">{t("today", { ns: "executive" })}</CardTitle>
               </CardHeader>
               <CardContent className="px-4 pb-4 pt-0">
                 <p className="text-2xl font-black tabular-nums text-foreground">
@@ -663,7 +663,7 @@ export default function Dashboard() {
             </Card>
             <Card className="border-border/80">
               <CardHeader className="pb-1 pt-4 px-4">
-                <CardTitle className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">This week (Mon–today)</CardTitle>
+                <CardTitle className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">{t("thisWeek", { ns: "executive" })}</CardTitle>
               </CardHeader>
               <CardContent className="px-4 pb-4 pt-0">
                 <p className="text-2xl font-black tabular-nums text-foreground">
@@ -681,7 +681,7 @@ export default function Dashboard() {
             </Card>
             <Card className="border-border/80">
               <CardHeader className="pb-1 pt-4 px-4">
-                <CardTitle className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Month to date</CardTitle>
+                <CardTitle className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">{t("monthToDate", { ns: "executive" })}</CardTitle>
               </CardHeader>
               <CardContent className="px-4 pb-4 pt-0">
                 <p className="text-2xl font-black tabular-nums text-foreground">

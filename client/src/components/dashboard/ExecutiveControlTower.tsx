@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { Link } from "wouter";
 import { CollectionsExecutionPanel, DecisionExecutionPanel } from "@/components/dashboard/ExecutionLayer";
+import { useTranslation } from "react-i18next";
 
 type Pulse = NonNullable<RouterOutputs["operations"]["getOwnerBusinessPulse"]>;
 type ControlTower = NonNullable<Pulse["controlTower"]>;
@@ -94,6 +95,7 @@ function RoleExecutionBanner({ view }: { view: NonNullable<Pulse["roleExecution"
 }
 
 export function ExecutiveControlTower({ tower, showHref, execution, companyId, memberRole, roleExecution }: Props) {
+  const { t } = useTranslation("executive");
   const { agedReceivables, decisionsQueue, riskCompliance, clientHealthTop, insightSummary } = tower;
   const canActOnCollections = memberRole === "company_admin" || memberRole === "finance_admin";
   const readOnly = execution?.readOnlyExecution ?? false;
@@ -109,35 +111,35 @@ export function ExecutiveControlTower({ tower, showHref, execution, companyId, m
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
         <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
           <Building2 size={13} className="text-[var(--smartpro-orange)]" />
-          Owner workspace
+          {t("ownerWorkspace")}
         </h2>
         <div className="flex flex-wrap gap-1 justify-end">
           {showHref("/workspace") && (
             <Button variant="ghost" size="sm" className="text-xs h-7" asChild>
-              <Link href="/workspace">Team workspace</Link>
+              <Link href="/workspace">{t("teamWorkspace")}</Link>
             </Button>
           )}
           {showHref("/crm") && (
             <Button variant="ghost" size="sm" className="text-xs h-7" asChild>
               <Link href="/crm">
-                CRM <ArrowUpRight size={11} />
+                {t("crm")} <ArrowUpRight size={11} />
               </Link>
             </Button>
           )}
           {showHref("/client-portal") && (
             <Button variant="ghost" size="sm" className="text-xs h-7" asChild>
-              <Link href="/client-portal?tab=invoices">Collections</Link>
+              <Link href="/client-portal?tab=invoices">{t("collections")}</Link>
             </Button>
           )}
           {showHref("/renewal-workflows") && (
             <Button variant="ghost" size="sm" className="text-xs h-7" asChild>
-              <Link href="/renewal-workflows">Renewals</Link>
+              <Link href="/renewal-workflows">{t("renewals")}</Link>
             </Button>
           )}
         </div>
       </div>
 
-      <OwnerWorkspaceSection title="Business health">
+      <OwnerWorkspaceSection title={t("businessHealth")}>
         <div className={`rounded-xl border p-4 ${severityClass}`}>
           <div className="flex items-start gap-3">
             <div className="mt-0.5 p-2 rounded-lg bg-background/80 border border-border/60">
@@ -156,7 +158,7 @@ export function ExecutiveControlTower({ tower, showHref, execution, companyId, m
         {roleExecution && <RoleExecutionBanner view={roleExecution} />}
       </OwnerWorkspaceSection>
 
-      <OwnerWorkspaceSection title="Weak areas">
+      <OwnerWorkspaceSection title={t("weakAreas")}>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <Card className="border-border/80">
             <CardHeader className="pb-2">
@@ -165,37 +167,37 @@ export function ExecutiveControlTower({ tower, showHref, execution, companyId, m
                 title={riskCompliance.basis}
               >
                 <FileWarning size={14} className="text-amber-700" />
-                Contracts, renewals & compliance
+                {t("contractsRenewalsCompliance")}
               </CardTitle>
               <p className="text-[10px] text-muted-foreground font-normal">
-                Open items across contracts, renewals, HR docs, permits, and SLAs.
+                {t("contractsRenewalsDesc")}
               </p>
             </CardHeader>
             <CardContent className="space-y-2 text-[11px]">
               {(() => {
-                const rows: { label: string; value: number; hot?: boolean }[] = [
-                  { label: "SLA breaches (gov cases)", value: riskCompliance.slaOpenBreaches, hot: true },
-                  { label: "Contracts waiting for signature", value: riskCompliance.contractsPendingSignature },
-                  { label: "Contracts ending in 30 days", value: riskCompliance.contractsExpiringNext30Days },
-                  { label: "Renewal runs failed", value: riskCompliance.renewalWorkflowsFailed, hot: true },
-                  { label: "Renewal runs stuck", value: riskCompliance.renewalWorkflowsStuckPending },
-                  { label: "Employee docs expiring (7d)", value: riskCompliance.employeeDocsExpiring7Days },
-                  { label: "Company docs expiring (30d)", value: riskCompliance.companyDocsExpiring30Days },
-                  { label: "Work permits expiring (7d)", value: riskCompliance.workPermitsExpiring7Days },
+                const rows: { labelKey: string; value: number; hot?: boolean }[] = [
+                  { labelKey: "slaBreachesGov", value: riskCompliance.slaOpenBreaches, hot: true },
+                  { labelKey: "contractsWaitingSignature", value: riskCompliance.contractsPendingSignature },
+                  { labelKey: "contractsEndingIn30", value: riskCompliance.contractsExpiringNext30Days },
+                  { labelKey: "renewalRunsFailed", value: riskCompliance.renewalWorkflowsFailed, hot: true },
+                  { labelKey: "renewalRunsStuck", value: riskCompliance.renewalWorkflowsStuckPending },
+                  { labelKey: "employeeDocsExpiring", value: riskCompliance.employeeDocsExpiring7Days },
+                  { labelKey: "companyDocsExpiring", value: riskCompliance.companyDocsExpiring30Days },
+                  { labelKey: "workPermitsExpiring", value: riskCompliance.workPermitsExpiring7Days },
                 ];
                 const open = rows.filter((r) => r.value > 0);
                 if (open.length === 0) {
                   return (
                     <p className="text-xs text-muted-foreground py-1">
-                      Nothing open in these queues — good.
+                      {t("nothingOpenGood")}
                     </p>
                   );
                 }
                 return (
                   <ul className="space-y-1.5">
                     {open.map((r) => (
-                      <li key={r.label} className="flex justify-between gap-3">
-                        <span className="text-muted-foreground min-w-0">{r.label}</span>
+                      <li key={r.labelKey} className="flex justify-between gap-3">
+                        <span className="text-muted-foreground min-w-0">{t(r.labelKey)}</span>
                         <span
                           className={
                             r.hot && r.value > 0
@@ -213,17 +215,17 @@ export function ExecutiveControlTower({ tower, showHref, execution, companyId, m
               <div className="flex flex-wrap gap-1 pt-1 border-t border-border/40">
                 {showHref("/contracts") && (
                   <Button variant="ghost" size="sm" className="text-[10px] h-7" asChild>
-                    <Link href="/contracts">Contracts</Link>
+                    <Link href="/contracts">{t("contractsRenewalsCompliance").split(",")[0]}</Link>
                   </Button>
                 )}
                 {showHref("/compliance") && (
                   <Button variant="ghost" size="sm" className="text-[10px] h-7" asChild>
-                    <Link href="/compliance">Compliance</Link>
+                    <Link href="/compliance">{t("compliance", { ns: "nav", defaultValue: "Compliance" })}</Link>
                   </Button>
                 )}
                 {showHref("/hr/employee-requests") && (
                   <Button variant="ghost" size="sm" className="text-[10px] h-7" asChild>
-                    <Link href="/hr/employee-requests">Requests</Link>
+                    <Link href="/hr/employee-requests">{t("requests", { ns: "common", defaultValue: "Requests" })}</Link>
                   </Button>
                 )}
               </div>
@@ -234,15 +236,15 @@ export function ExecutiveControlTower({ tower, showHref, execution, companyId, m
             <CardHeader className="pb-2">
               <CardTitle className="text-sm flex items-center gap-2">
                 <Users size={14} className="text-[var(--smartpro-orange)]" />
-                Accounts needing attention
+                {t("accountsNeedingAttention")}
               </CardTitle>
               <p className="text-[10px] text-muted-foreground font-normal leading-snug">
-                Same order as your resolution queue below. Each row: what&apos;s wrong, who it&apos;s for, what to do next.
+                {t("accountsNeedingAttentionDesc")}
               </p>
             </CardHeader>
             <CardContent className="space-y-2">
               {clientHealthTop.length === 0 ? (
-                <p className="text-xs text-muted-foreground">No accounts need action in CRM right now.</p>
+                <p className="text-xs text-muted-foreground">{t("noAccountsNeedAction")}</p>
               ) : (
                 <ul className="space-y-3">
                   {clientHealthTop.map((row) => (
@@ -254,8 +256,17 @@ export function ExecutiveControlTower({ tower, showHref, execution, companyId, m
                         >
                           {row.displayName}
                         </Link>
-                        <Badge variant="outline" className="text-[9px] shrink-0">
-                          {row.tier.replace("_", " ")}
+                        <Badge
+                          variant={
+                            row.healthSignal === "critical"
+                              ? "destructive"
+                              : row.healthSignal === "warning"
+                                ? "secondary"
+                                : "outline"
+                          }
+                          className="text-[10px] shrink-0"
+                        >
+                          {row.healthSignal}
                         </Badge>
                       </div>
                       {row.companyLabel && (
@@ -273,16 +284,16 @@ export function ExecutiveControlTower({ tower, showHref, execution, companyId, m
                 {showHref("/crm") && (
                   <Button variant="outline" size="sm" className="w-full text-xs h-8" asChild>
                     <Link href="/crm" className="gap-1">
-                      Open CRM <ArrowUpRight size={12} />
+                      {t("openCRM")} <ArrowUpRight size={12} />
                     </Link>
                   </Button>
                 )}
                 {showHref("/workspace") && (
                   <p className="text-[10px] text-muted-foreground text-center">
                     <Link href="/workspace" className="text-[var(--smartpro-orange)] hover:underline font-medium">
-                      Team workspace
+                      {t("teamWorkspace")}
                     </Link>{" "}
-                    — people, follow-ups, and performance
+                    — {t("teamWorkspaceDesc", { defaultValue: "people, follow-ups, and performance" })}
                   </p>
                 )}
               </div>
@@ -291,28 +302,28 @@ export function ExecutiveControlTower({ tower, showHref, execution, companyId, m
         </div>
       </OwnerWorkspaceSection>
 
-      <OwnerWorkspaceSection title="Cash & risk">
+      <OwnerWorkspaceSection title={t("cashAndRisk")}>
         <Card className="border-border/80">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2" title={agedReceivables.basis}>
               <Wallet size={14} className="text-red-700" />
-              Cash at risk
+              {t("cashAtRisk")}
             </CardTitle>
             <p className="text-[10px] text-muted-foreground font-normal">
-              Overdue PRO billing and unpaid subscriptions — open collections to chase.
+              {t("cashAtRiskDesc")}
             </p>
           </CardHeader>
           <CardContent className="space-y-3 text-xs">
             <div className="flex justify-between items-baseline gap-2">
-              <span className="text-muted-foreground">Total at risk (OMR)</span>
+              <span className="text-muted-foreground">{t("totalAtRisk")}</span>
               <span className="font-black tabular-nums text-lg text-red-800 dark:text-red-200">
                 {fmtOmr(agedReceivables.combinedAtRiskOmr)}
               </span>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="rounded-lg border border-border/60 p-2 space-y-1">
-                <p className="text-[10px] font-semibold uppercase text-muted-foreground">PRO officer billing</p>
-                <p className="text-[10px] text-muted-foreground">{agedReceivables.officerPro.rowCount} row(s)</p>
+                <p className="text-[10px] font-semibold uppercase text-muted-foreground">{t("proOfficerBilling")}</p>
+                <p className="text-[10px] text-muted-foreground">{agedReceivables.officerPro.rowCount} {t("rows")}</p>
                 <div className="space-y-0.5">
                   {agedReceivables.officerPro.buckets.map((b) => (
                     <div key={b.key} className="flex justify-between gap-1">
@@ -323,8 +334,8 @@ export function ExecutiveControlTower({ tower, showHref, execution, companyId, m
                 </div>
               </div>
               <div className="rounded-lg border border-border/60 p-2 space-y-1">
-                <p className="text-[10px] font-semibold uppercase text-muted-foreground">Platform subscription</p>
-                <p className="text-[10px] text-muted-foreground">{agedReceivables.platformSubscription.rowCount} row(s)</p>
+                <p className="text-[10px] font-semibold uppercase text-muted-foreground">{t("platformSubscription")}</p>
+                <p className="text-[10px] text-muted-foreground">{agedReceivables.platformSubscription.rowCount} {t("rows")}</p>
                 <div className="space-y-0.5">
                   {agedReceivables.platformSubscription.buckets.map((b) => (
                     <div key={b.key} className="flex justify-between gap-1">
@@ -337,27 +348,27 @@ export function ExecutiveControlTower({ tower, showHref, execution, companyId, m
             </div>
             {showHref("/client-portal") && (
               <Button variant="outline" size="sm" className="w-full text-xs h-8" asChild>
-                <Link href="/client-portal?tab=invoices">Open collections</Link>
+                <Link href="/client-portal?tab=invoices">{t("openCollections")}</Link>
               </Button>
             )}
           </CardContent>
         </Card>
       </OwnerWorkspaceSection>
 
-      <OwnerWorkspaceSection title="Decisions needed">
+      <OwnerWorkspaceSection title={t("decisionsNeeded")}>
         <Card className="border-border/80">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2" title={decisionsQueue.basis}>
               <ClipboardCheck size={14} className="text-blue-700" />
-              Approvals waiting on you
+              {t("approvalsWaiting")}
             </CardTitle>
             <p className="text-[10px] text-muted-foreground font-normal">
-              Queues across HR, finance, and contracts — tap a row to decide.
+              {t("approvalsWaitingDesc")}
             </p>
           </CardHeader>
           <CardContent className="space-y-2">
             {decisionsQueue.items.length === 0 ? (
-              <p className="text-xs text-muted-foreground">No pending approvals in tracked queues.</p>
+              <p className="text-xs text-muted-foreground">{t("noPendingApprovals")}</p>
             ) : (
               <ul className="space-y-2">
                 {decisionsQueue.items.map((item) => (
@@ -385,14 +396,14 @@ export function ExecutiveControlTower({ tower, showHref, execution, companyId, m
               </ul>
             )}
             <p className="text-[10px] text-muted-foreground pt-1 border-t border-border/50">
-              Total open items: <span className="font-semibold text-foreground">{decisionsQueue.totalOpenCount}</span>
+              {t("totalOpenItems")}: <span className="font-semibold text-foreground">{decisionsQueue.totalOpenCount}</span>
             </p>
           </CardContent>
         </Card>
       </OwnerWorkspaceSection>
 
       {execution && (
-        <OwnerWorkspaceSection title="Action plan">
+        <OwnerWorkspaceSection title={t("actionPlan")}>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <DecisionExecutionPanel execution={execution} companyId={companyId} readOnly={readOnly} />
             <CollectionsExecutionPanel

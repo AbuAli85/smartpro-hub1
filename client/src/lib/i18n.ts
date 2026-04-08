@@ -13,6 +13,7 @@ import enDashboard from "../locales/en-OM/dashboard.json";
 import enOperations from "../locales/en-OM/operations.json";
 import enCompliance from "../locales/en-OM/compliance.json";
 import enClientPortal from "../locales/en-OM/clientPortal.json";
+import enExecutive from "../locales/en-OM/executive.json";
 
 // ar-OM resources
 import arCommon from "../locales/ar-OM/common.json";
@@ -25,6 +26,7 @@ import arDashboard from "../locales/ar-OM/dashboard.json";
 import arOperations from "../locales/ar-OM/operations.json";
 import arCompliance from "../locales/ar-OM/compliance.json";
 import arClientPortal from "../locales/ar-OM/clientPortal.json";
+import arExecutive from "../locales/ar-OM/executive.json";
 
 export const SUPPORTED_LANGUAGES = [
   { code: "en-OM", label: "English", nativeLabel: "English", dir: "ltr" as const },
@@ -46,6 +48,7 @@ export const NAMESPACES = [
   "operations",
   "compliance",
   "clientPortal",
+  "executive",
 ] as const;
 export type Namespace = (typeof NAMESPACES)[number];
 
@@ -61,6 +64,7 @@ const resources = {
     operations: enOperations,
     compliance: enCompliance,
     clientPortal: enClientPortal,
+    executive: enExecutive,
   },
   "ar-OM": {
     common: arCommon,
@@ -73,6 +77,7 @@ const resources = {
     operations: arOperations,
     compliance: arCompliance,
     clientPortal: arClientPortal,
+    executive: arExecutive,
   },
 };
 

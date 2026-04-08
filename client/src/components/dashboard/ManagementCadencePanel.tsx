@@ -3,6 +3,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { RouterOutputs } from "@/lib/trpc";
 import { CalendarRange, CalendarClock, LineChart, ArrowUpRight } from "lucide-react";
 import { Link } from "wouter";
+import { useTranslation } from "react-i18next";
 
 type Bundle = NonNullable<RouterOutputs["operations"]["getOwnerBusinessPulse"]>["managementCadence"];
 type Window = Bundle["windows"][keyof Bundle["windows"]];
@@ -12,32 +13,33 @@ function fmtOmr(n: number) {
 }
 
 function CadenceWindowBody({ w }: { w: Window }) {
+  const { t } = useTranslation("executive");
   return (
     <div className="space-y-3 text-xs">
       <p className="text-sm font-semibold text-foreground leading-snug">{w.headline}</p>
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
         <div className="rounded-lg border border-border/60 p-2 bg-muted/20">
-          <p className="text-[9px] uppercase tracking-wide text-muted-foreground">Cash ({w.cashPeriodLabel})</p>
+          <p className="text-[9px] uppercase tracking-wide text-muted-foreground">{t("cashReceived")} ({w.cashPeriodLabel})</p>
           <p className="font-bold tabular-nums text-foreground">OMR {fmtOmr(w.cashReceivedOmr)}</p>
         </div>
         <div className="rounded-lg border border-border/60 p-2 bg-muted/20">
-          <p className="text-[9px] uppercase tracking-wide text-muted-foreground">AR at risk</p>
+          <p className="text-[9px] uppercase tracking-wide text-muted-foreground">{t("arAtRisk")}</p>
           <p className="font-bold tabular-nums text-red-800 dark:text-red-200">OMR {fmtOmr(w.receivablesAtRiskOmr)}</p>
         </div>
         <div className="rounded-lg border border-border/60 p-2 bg-muted/20">
-          <p className="text-[9px] uppercase tracking-wide text-muted-foreground">Decisions (open)</p>
+          <p className="text-[9px] uppercase tracking-wide text-muted-foreground">{t("decisions")}</p>
           <p className="font-bold tabular-nums">{w.decisionsOpenCount}</p>
         </div>
         <div className="rounded-lg border border-border/60 p-2 bg-muted/20">
-          <p className="text-[9px] uppercase tracking-wide text-muted-foreground">Overdue invoices</p>
+          <p className="text-[9px] uppercase tracking-wide text-muted-foreground">{t("overdueInvoices")}</p>
           <p className="font-bold tabular-nums">{w.overdueInvoiceCount}</p>
         </div>
         <div className="rounded-lg border border-border/60 p-2 bg-muted/20">
-          <p className="text-[9px] uppercase tracking-wide text-muted-foreground">SLA breaches</p>
+          <p className="text-[9px] uppercase tracking-wide text-muted-foreground">{t("slaBreaches")}</p>
           <p className={`font-bold tabular-nums ${w.slaOpenBreaches > 0 ? "text-amber-800" : ""}`}>{w.slaOpenBreaches}</p>
         </div>
         <div className="rounded-lg border border-border/60 p-2 bg-muted/20">
-          <p className="text-[9px] uppercase tracking-wide text-muted-foreground">Client spotlight</p>
+          <p className="text-[9px] uppercase tracking-wide text-muted-foreground">{t("clientSpotlight")}</p>
           <p className="font-bold tabular-nums">{w.clientRiskAccountsCount}</p>
         </div>
       </div>
@@ -66,12 +68,13 @@ function CadenceWindowBody({ w }: { w: Window }) {
 }
 
 export function ManagementCadencePanel({ bundle }: { bundle: Bundle }) {
+  const { t } = useTranslation("executive");
   return (
     <Card className="border-border/80">
       <CardHeader className="pb-2">
         <CardTitle className="text-sm flex items-center gap-2">
           <CalendarRange size={14} className="text-[var(--smartpro-orange)]" />
-          Management cadence
+          {t("managementCadence")}
         </CardTitle>
         <p className="text-[10px] text-muted-foreground font-normal">{bundle.basis}</p>
       </CardHeader>
@@ -79,13 +82,13 @@ export function ManagementCadencePanel({ bundle }: { bundle: Bundle }) {
         <Tabs defaultValue="today" className="w-full">
           <TabsList className="grid w-full grid-cols-3 h-9">
             <TabsTrigger value="today" className="text-[10px] gap-1">
-              <CalendarClock size={12} /> Daily
+              <CalendarClock size={12} /> {t("daily")}
             </TabsTrigger>
             <TabsTrigger value="this_week" className="text-[10px] gap-1">
-              <LineChart size={12} /> Weekly
+              <LineChart size={12} /> {t("weekly")}
             </TabsTrigger>
             <TabsTrigger value="this_month" className="text-[10px] gap-1">
-              <LineChart size={12} /> Monthly
+              <LineChart size={12} /> {t("monthly")}
             </TabsTrigger>
           </TabsList>
           <TabsContent value="today" className="mt-3">

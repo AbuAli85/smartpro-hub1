@@ -36,7 +36,16 @@ export function ClientAccessGate({ children }: { children: ReactNode }) {
     });
   }, [location, user, myCompany?.company?.id, myCompany?.member?.role, companyLoading, companiesLoading, activeCompanyId, companies.length, prefsEpoch]);
 
+  // Don't redirect while auth or company data is still loading — prevents
+  // the infinite /dashboard ↔ /hr/employees bounce when the company query
+  // resolves and flips `allowed` from false → true.
+  const isLoadingAny = authLoading || companiesLoading || (Boolean(user) && activeCompanyId != null && companyLoading);
+
   if (authLoading || !user) {
+    return <>{children}</>;
+  }
+
+  if (isLoadingAny) {
     return <>{children}</>;
   }
 

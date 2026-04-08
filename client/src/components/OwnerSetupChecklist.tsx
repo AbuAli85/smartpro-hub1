@@ -3,6 +3,7 @@ import { trpc } from "@/lib/trpc";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import { useTranslation } from "react-i18next";
 import {
   Building2,
   UserPlus,
@@ -13,19 +14,21 @@ import {
   Zap,
 } from "lucide-react";
 
-const SETUP_STEPS = [
-  { key: "company", label: "Company profile created", icon: Building2, href: "/company/workspace" },
-  { key: "employees", label: "Add your first employee", icon: UserPlus, href: "/my-team" },
-  { key: "payroll", label: "Run your first payroll", icon: DollarSign, href: "/payroll" },
-  { key: "contracts", label: "Create a contract", icon: FileText, href: "/contracts" },
-  { key: "pro", label: "Submit a PRO service request", icon: Shield, href: "/pro" },
-] as const;
+
 
 /**
  * Shown on the owner command center for new workspaces until core setup is complete.
  */
 export function OwnerSetupChecklist() {
+  const { t } = useTranslation("executive");
   const { activeCompanyId } = useActiveCompany();
+  const SETUP_STEPS = [
+    { key: "company", label: t("companyProfileCreated"), icon: Building2, href: "/company/workspace" },
+    { key: "employees", label: t("addFirstEmployee"), icon: UserPlus, href: "/my-team" },
+    { key: "payroll", label: t("runFirstPayroll"), icon: DollarSign, href: "/payroll" },
+    { key: "contracts", label: t("createContract"), icon: FileText, href: "/contracts" },
+    { key: "pro", label: t("submitPRORequest"), icon: Shield, href: "/pro" },
+  ] as const;
   const { data: company } = trpc.companies.myCompany.useQuery(
     { companyId: activeCompanyId ?? undefined },
     { enabled: activeCompanyId != null },
@@ -62,10 +65,10 @@ export function OwnerSetupChecklist() {
         <div className="flex items-center justify-between flex-wrap gap-2">
           <CardTitle className="text-base flex items-center gap-2">
             <Zap size={16} className="text-primary" />
-            Getting started — set up your business
+            {t("gettingStarted")}
           </CardTitle>
           <span className="text-sm font-medium text-muted-foreground">
-            {setupComplete}/{setupTotal} complete
+            {setupComplete}/{setupTotal} {t("complete")}
           </span>
         </div>
         <Progress value={(setupComplete / setupTotal) * 100} className="h-1.5 mt-2" />

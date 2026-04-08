@@ -297,9 +297,11 @@ function DirectorySurface() {
     governorateKey: gov || undefined,
     wilayat: wil || undefined,
     partnerStatus: partnerFilter,
-    limit: 75,
+    limit: 100,
     offset: 0,
   });
+
+  const filtersActive = Boolean(search.trim() || gov || wil || partner);
 
   const detail = trpc.sanad.intelligence.getCenter.useQuery(
     { id: drawerId ?? 0 },
@@ -320,15 +322,37 @@ function DirectorySurface() {
   const wilayatOptions = (wilayatList ?? []).filter((w) => w.length > 0);
 
   return (
-    <div className="space-y-4">
-      <div className="rounded-xl border bg-card/80 p-4 shadow-sm">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-12 xl:items-end">
-          <div className="space-y-1 sm:col-span-2 xl:col-span-5">
-            <Label className="text-xs text-muted-foreground">Search</Label>
+    <div className="space-y-5">
+      <div className="rounded-xl border bg-card p-4 shadow-sm sm:p-5">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <p className="text-sm font-semibold text-foreground">Filters</p>
+            <p className="text-xs text-muted-foreground">Search and narrow the partner directory</p>
+          </div>
+          {filtersActive ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-8 text-xs text-muted-foreground"
+              onClick={() => {
+                setSearch("");
+                setGov("");
+                setWil("");
+                setPartner("");
+              }}
+            >
+              Clear all
+            </Button>
+          ) : null}
+        </div>
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end">
+          <div className="min-w-0 flex-1 space-y-1.5">
+            <Label className="text-xs font-medium text-foreground">Search</Label>
             <div className="relative">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
               <Input
-                className="pl-9 h-9 text-sm"
+                className="h-10 pl-9 text-sm"
                 placeholder="Centre name, contact, village, manager…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
@@ -336,58 +360,85 @@ function DirectorySurface() {
               />
             </div>
           </div>
-          <div className="space-y-1 xl:col-span-2">
-            <Label className="text-xs text-muted-foreground">Governorate</Label>
-            <Select value={gov || "__all"} onValueChange={(v) => { setGov(v === "__all" ? "" : v); setWil(""); }}>
-              <SelectTrigger className="h-9 text-sm">
-                <SelectValue placeholder="All" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__all">All</SelectItem>
-                {governorateOptions.map((g) => (
-                  <SelectItem key={g.key} value={g.key}>
-                    {g.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1 xl:col-span-2">
-            <Label className="text-xs text-muted-foreground">Wilayat</Label>
-            <Select value={wil || "__all"} onValueChange={(v) => setWil(v === "__all" ? "" : v)} disabled={!gov}>
-              <SelectTrigger className="h-9 text-sm">
-                <SelectValue placeholder="All" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__all">All</SelectItem>
-                {wilayatOptions.map((w) => (
-                  <SelectItem key={w} value={w}>
-                    {w}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1 xl:col-span-3">
-            <Label className="text-xs text-muted-foreground">Partner status</Label>
-            <Select value={partner || "__all"} onValueChange={(v) => setPartner(v === "__all" ? "" : v)}>
-              <SelectTrigger className="h-9 text-sm">
-                <SelectValue placeholder="All" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__all">All</SelectItem>
-                <SelectItem value="unknown">Unknown</SelectItem>
-                <SelectItem value="prospect">Prospect</SelectItem>
-                <SelectItem value="active">Active</SelectItem>
-                <SelectItem value="suspended">Suspended</SelectItem>
-                <SelectItem value="churned">Churned</SelectItem>
-              </SelectContent>
-            </Select>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 lg:flex lg:shrink-0 lg:gap-3">
+            <div className="min-w-[10rem] space-y-1.5 sm:min-w-0 lg:w-44">
+              <Label className="text-xs font-medium text-foreground">Governorate</Label>
+              <Select value={gov || "__all"} onValueChange={(v) => { setGov(v === "__all" ? "" : v); setWil(""); }}>
+                <SelectTrigger className="h-10 w-full text-sm">
+                  <SelectValue placeholder="All" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all">All</SelectItem>
+                  {governorateOptions.map((g) => (
+                    <SelectItem key={g.key} value={g.key}>
+                      {g.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="min-w-[10rem] space-y-1.5 sm:min-w-0 lg:w-44">
+              <Label className="text-xs font-medium text-foreground">Wilayat</Label>
+              <Select value={wil || "__all"} onValueChange={(v) => setWil(v === "__all" ? "" : v)} disabled={!gov}>
+                <SelectTrigger className="h-10 w-full text-sm">
+                  <SelectValue placeholder="All" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all">All</SelectItem>
+                  {wilayatOptions.map((w) => (
+                    <SelectItem key={w} value={w}>
+                      {w}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="min-w-[10rem] space-y-1.5 sm:min-w-0 lg:w-48">
+              <Label className="text-xs font-medium text-foreground">Partner status</Label>
+              <Select value={partner || "__all"} onValueChange={(v) => setPartner(v === "__all" ? "" : v)}>
+                <SelectTrigger className="h-10 w-full text-sm">
+                  <SelectValue placeholder="All" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all">All</SelectItem>
+                  <SelectItem value="unknown">Unknown</SelectItem>
+                  <SelectItem value="prospect">Prospect</SelectItem>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="suspended">Suspended</SelectItem>
+                  <SelectItem value="churned">Churned</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </div>
       </div>
 
-      <Card>
+      <Card className="overflow-hidden shadow-sm">
+        <CardHeader className="border-b bg-muted/30 py-4">
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <CardTitle className="text-base">Partner centres</CardTitle>
+              <CardDescription className="mt-1">
+                {listQuery.isLoading
+                  ? "Loading directory…"
+                  : listQuery.error
+                    ? "Could not load counts — see message below."
+                    : listQuery.data
+                      ? `${listQuery.data.rows.length.toLocaleString()} shown`
+                        + (typeof listQuery.data.total === "number"
+                          ? ` · ${listQuery.data.total.toLocaleString()} total in database`
+                          : "")
+                      : null}
+              </CardDescription>
+            </div>
+            {listQuery.data && listQuery.data.total > listQuery.data.rows.length ? (
+              <p className="text-xs text-muted-foreground max-w-sm text-pretty">
+                Refine filters to narrow results, or ask for a higher page size — this view loads the first{" "}
+                {listQuery.data.rows.length} matches.
+              </p>
+            ) : null}
+          </div>
+        </CardHeader>
         <CardContent className="p-0">
           {listQuery.isLoading ? (
             <div className="flex justify-center py-12">
@@ -401,43 +452,94 @@ function DirectorySurface() {
               after placing source files under <code className="text-xs bg-muted px-1 rounded">data/sanad-intelligence/import</code>.
             </div>
           ) : (
-            <ScrollArea className="h-[min(65vh,560px)]">
-              <Table className="text-sm">
-                <TableHeader>
-                  <TableRow className="hover:bg-transparent border-b">
-                    <TableHead className="h-9 py-2 w-[28%]">Centre</TableHead>
-                    <TableHead className="h-9 py-2">Responsible</TableHead>
-                    <TableHead className="h-9 py-2 whitespace-nowrap">Phone</TableHead>
-                    <TableHead className="h-9 py-2">Location</TableHead>
-                    <TableHead className="h-9 py-2 whitespace-nowrap">Partner</TableHead>
-                    <TableHead className="h-9 py-2 w-[1%] text-right"> </TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {listQuery.data.rows.map(({ center, ops }) => (
-                    <TableRow key={center.id} className="border-b hover:bg-muted/30">
-                      <TableCell dir="auto" className="py-2 align-middle font-medium max-w-[min(280px,32vw)] leading-snug">
-                        {center.centerName}
-                      </TableCell>
-                      <TableCell dir="auto" className="py-2 align-middle max-w-[140px] leading-snug">
-                        {center.responsiblePerson ?? "—"}
-                      </TableCell>
-                      <TableCell className="py-2 align-middle tabular-nums whitespace-nowrap">{center.contactNumber ?? "—"}</TableCell>
-                      <TableCell dir="auto" className="py-2 align-middle text-muted-foreground leading-snug max-w-[min(240px,28vw)]">
-                        {center.governorateLabelRaw}
-                        {center.wilayat ? ` · ${center.wilayat}` : ""}
-                      </TableCell>
-                      <TableCell className="py-2 align-middle">{directoryPartnerBadge(ops?.partnerStatus)}</TableCell>
-                      <TableCell className="py-2 align-middle text-right whitespace-nowrap">
-                        <Button variant="outline" size="sm" className="h-8 gap-1" onClick={() => setDrawerId(center.id)}>
-                          Details
-                          <ArrowRight className="h-3.5 w-3.5 shrink-0" />
-                        </Button>
-                      </TableCell>
+            <ScrollArea className="h-[min(70vh,640px)]">
+              <div className="min-w-[880px] overflow-x-auto">
+                <table className="w-full caption-bottom text-sm">
+                  <TableHeader>
+                    <TableRow className="border-b border-border/80 hover:bg-transparent">
+                      <TableHead className="sticky top-0 z-20 h-11 bg-muted/95 px-3 py-2 text-left text-sm font-semibold text-foreground shadow-[0_1px_0_0_hsl(var(--border))] backdrop-blur-sm supports-[backdrop-filter]:bg-muted/80 sm:min-w-[220px]">
+                        Centre
+                      </TableHead>
+                      <TableHead className="sticky top-0 z-20 h-11 bg-muted/95 px-3 py-2 text-left text-sm font-semibold text-foreground shadow-[0_1px_0_0_hsl(var(--border))] backdrop-blur-sm supports-[backdrop-filter]:bg-muted/80 sm:min-w-[140px]">
+                        Responsible
+                      </TableHead>
+                      <TableHead className="sticky top-0 z-20 h-11 w-[7.5rem] bg-muted/95 px-3 py-2 text-center text-sm font-semibold text-foreground shadow-[0_1px_0_0_hsl(var(--border))] backdrop-blur-sm supports-[backdrop-filter]:bg-muted/80">
+                        Phone
+                      </TableHead>
+                      <TableHead className="sticky top-0 z-20 h-11 bg-muted/95 px-3 py-2 text-left text-sm font-semibold text-foreground shadow-[0_1px_0_0_hsl(var(--border))] backdrop-blur-sm supports-[backdrop-filter]:bg-muted/80 sm:min-w-[200px]">
+                        Location
+                      </TableHead>
+                      <TableHead className="sticky top-0 z-20 h-11 w-[7rem] bg-muted/95 px-3 py-2 text-left text-sm font-semibold text-foreground shadow-[0_1px_0_0_hsl(var(--border))] backdrop-blur-sm supports-[backdrop-filter]:bg-muted/80">
+                        Partner
+                      </TableHead>
+                      <TableHead className="sticky top-0 z-20 h-11 w-[1%] bg-muted/95 px-3 py-2 text-right text-sm font-semibold text-foreground shadow-[0_1px_0_0_hsl(var(--border))] backdrop-blur-sm supports-[backdrop-filter]:bg-muted/80">
+                        Actions
+                      </TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {listQuery.data.rows.map(({ center, ops }) => (
+                      <TableRow key={center.id} className="border-b border-border/60 hover:bg-muted/40">
+                        <TableCell className="whitespace-normal px-3 py-3 align-top">
+                          <div dir="auto" className="min-w-0 space-y-1 text-start">
+                            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0">
+                              <span className="shrink-0 rounded bg-muted/80 px-1.5 py-0.5 font-mono text-[11px] font-medium tabular-nums text-muted-foreground">
+                                {center.id}
+                              </span>
+                              <span className="min-w-0 text-sm font-semibold leading-snug text-foreground [overflow-wrap:anywhere]">
+                                {center.centerName}
+                              </span>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell
+                          dir="auto"
+                          className="whitespace-normal px-3 py-3 align-top text-start text-sm leading-snug [overflow-wrap:anywhere]"
+                        >
+                          {center.responsiblePerson ?? (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell
+                          dir="ltr"
+                          className="px-3 py-3 align-top text-center text-sm tabular-nums"
+                          title={center.contactNumber ? undefined : "No phone number in import"}
+                        >
+                          {center.contactNumber ? (
+                            <span className="text-foreground">{center.contactNumber}</span>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell
+                          dir="auto"
+                          className="whitespace-normal px-3 py-3 align-top text-start text-sm leading-snug text-muted-foreground [overflow-wrap:anywhere]"
+                        >
+                          <span className="text-foreground/90">{center.governorateLabelRaw}</span>
+                          {center.wilayat ? (
+                            <>
+                              <span className="text-muted-foreground/80"> · </span>
+                              <span>{center.wilayat}</span>
+                            </>
+                          ) : null}
+                        </TableCell>
+                        <TableCell className="px-3 py-3 align-middle">{directoryPartnerBadge(ops?.partnerStatus)}</TableCell>
+                        <TableCell className="px-3 py-3 align-middle text-end whitespace-nowrap">
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            className="h-9 gap-1.5 font-medium shadow-none"
+                            onClick={() => setDrawerId(center.id)}
+                          >
+                            Details
+                            <ArrowRight className="h-3.5 w-3.5 shrink-0 opacity-70" aria-hidden />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </table>
+              </div>
             </ScrollArea>
           )}
         </CardContent>

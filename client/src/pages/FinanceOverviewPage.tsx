@@ -291,7 +291,7 @@ export default function FinanceOverviewPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowSubmitDialog(false)}>Cancel</Button>
             <Button onClick={() => submitExpense.mutate({ expenseDate: form.expenseDate, category: form.category as any, amount: form.amount, currency: form.currency, description: form.description })} disabled={!form.amount || !form.description || submitExpense.isPending}>
-              {submitExpense.isPending ? "Submitting..." : "Submit Claim"}
+              {submitExpense.isPending ? "Processing..." : "Submit Claim"}
             </Button>
           </DialogFooter>
         </DialogContent>

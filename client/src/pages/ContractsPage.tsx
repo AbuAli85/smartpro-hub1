@@ -371,7 +371,7 @@ function SignatureCanvasDialog({ signatureId, signerName }: { signatureId: numbe
             <Button variant="outline" size="sm" onClick={clearCanvas} className="flex-1">Clear</Button>
             <Button size="sm" className="flex-1" disabled={!hasDrawn || submitSignature.isPending}
               onClick={() => submitSignature.mutate({ signatureId, signatureDataUrl: canvasRef.current?.toDataURL("image/png") ?? "" })}>
-              {submitSignature.isPending ? "Submitting..." : "Submit Signature"}
+              {submitSignature.isPending ? "Processing..." : "Submit Signature"}
             </Button>
           </div>
         </div>

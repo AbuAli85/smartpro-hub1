@@ -281,7 +281,7 @@ export default function WorkforceCasesPage() {
                       disabled={submitMutation.isPending}
                     >
                       <RefreshCw className="w-3.5 h-3.5" />
-                      {submitMutation.isPending ? "Submitting..." : "Submit to MOL"}
+                      {submitMutation.isPending ? "Processing..." : "Submit to MOL"}
                     </Button>
                   )}
                 </CardContent>

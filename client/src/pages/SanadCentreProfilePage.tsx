@@ -46,7 +46,7 @@ const SERVICE_TYPE_LABELS: Record<string, string> = {
   visit_visa: "Visit Visa",
   exit_reentry: "Exit/Re-entry Permit",
   commercial_registration: "Commercial Registration",
-  commercial_registration_renewal: "CR Renewal",
+  commercial_registration_renewal: "Commercial Registration Renewal",
   business_license: "Business Licence",
   document_typing: "Document Typing",
   document_translation: "Document Translation",
@@ -244,7 +244,7 @@ function WriteReviewDialog({ officeId, onClose, onDone }: { officeId: number; on
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancel</Button>
           <Button onClick={() => submit.mutate({ officeId, ...form, reviewTitle: form.reviewTitle || undefined, reviewBody: form.reviewBody || undefined })} disabled={submit.isPending} className="bg-red-600 hover:bg-red-700 text-white">
-            {submit.isPending ? "Submitting..." : "Submit Review"}
+            {submit.isPending ? "Processing..." : "Submit Review"}
           </Button>
         </DialogFooter>
       </DialogContent>

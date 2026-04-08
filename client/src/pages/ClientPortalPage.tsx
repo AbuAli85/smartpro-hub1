@@ -198,7 +198,7 @@ function ServiceRequestTab() {
             onClick={() => submitMutation.mutate({ serviceType, description, contactName, contactPhone, contactEmail: contactEmail || undefined, urgency })}
           >
             <Send className="w-4 h-4" />
-            {submitMutation.isPending ? "Submitting..." : "Submit Service Request"}
+            {submitMutation.isPending ? "Processing..." : "Submit Service Request"}
           </Button>
         </CardContent>
       </Card>
@@ -1016,7 +1016,7 @@ export default function ClientPortalPage() {
                 className="px-4 py-2 text-sm bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50"
                 disabled={ratingValue === 0 || submitReview.isPending}
                 onClick={() => submitReview.mutate({ bookingId: ratingBooking.id, rating: ratingValue, review: ratingReview || undefined })}
-              >{submitReview.isPending ? "Submitting..." : "Submit Rating"}</button>
+              >{submitReview.isPending ? "Processing..." : "Submit Rating"}</button>
             </div>
           </div>
         </div>

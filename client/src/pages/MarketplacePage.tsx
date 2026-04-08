@@ -80,7 +80,7 @@ function ReviewDialog({ booking, onSuccess }: { booking: any; onSuccess: () => v
             onClick={() => submitReview.mutate({ bookingId: booking.id, rating, review: review || undefined })}
             disabled={submitReview.isPending}
           >
-            {submitReview.isPending ? "Submitting..." : "Submit Review"}
+            {submitReview.isPending ? "Processing..." : "Submit Review"}
           </Button>
         </div>
       </DialogContent>

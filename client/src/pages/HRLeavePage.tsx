@@ -368,7 +368,7 @@ export default function HRLeavePage() {
                   onClick={handleSubmitLeave}
                   disabled={createLeave.isPending || Boolean(dateError)}
                 >
-                  {createLeave.isPending ? "Submitting..." : "Submit Request"}
+                  {createLeave.isPending ? "Processing..." : "Submit Request"}
                 </Button>
               </div>
             </DialogContent>

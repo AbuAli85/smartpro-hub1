@@ -35,7 +35,7 @@ const PRIORITY_CONFIG: Record<Priority, { label: string; color: string; hint: st
 
 const STATUS_CONFIG: Record<Status, { label: string; icon: React.ReactNode }> = {
   pending: { label: "Pending", icon: <Circle className="w-3.5 h-3.5" /> },
-  in_progress: { label: "In Progress", icon: <Clock className="w-3.5 h-3.5 text-blue-500" /> },
+  in_progress: { label: "Processing", icon: <Clock className="w-3.5 h-3.5 text-blue-500" /> },
   blocked: { label: "Blocked", icon: <Ban className="w-3.5 h-3.5 text-orange-600" /> },
   completed: { label: "Completed", icon: <CheckCircle2 className="w-3.5 h-3.5 text-green-500" /> },
   cancelled: { label: "Cancelled", icon: <AlertCircle className="w-3.5 h-3.5 text-muted-foreground" /> },
@@ -169,7 +169,7 @@ export default function TaskManagerPage() {
           {[
             { label: "Total", value: stats.total, emphasize: false },
             { label: "Pending", value: stats.pending, emphasize: false },
-            { label: "In progress", value: stats.inProgress, emphasize: false },
+            { label: "Processing", value: stats.inProgress, emphasize: false },
             { label: "Blocked", value: stats.blocked ?? 0, emphasize: (stats.blocked ?? 0) > 0 },
             { label: "Completed", value: stats.completed, emphasize: false },
             {
@@ -192,7 +192,7 @@ export default function TaskManagerPage() {
               <CardContent className="pt-4 pb-3 text-center">
                 <p
                   className={`text-2xl font-bold tabular-nums ${
-                    s.danger ? "text-red-600" : s.label === "Completed" ? "text-green-600" : s.label === "In progress" ? "text-blue-600" : ""
+                    s.danger ? "text-red-600" : s.label === "Completed" ? "text-green-600" : s.label === "Processing" ? "text-blue-600" : ""
                   }`}
                 >
                   {s.value}

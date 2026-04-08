@@ -236,7 +236,7 @@ function AttendanceTodayCard({
 
   const hoursToday = checkIn && checkOut
     ? ((checkOut.getTime() - checkIn.getTime()) / 3600000).toFixed(1)
-    : checkIn ? "In progress" : null;
+    : checkIn ? "Active Shift" : null;
 
   // Derive shift info from todaySchedule (now getMyActiveSchedule)
   const shift = todaySchedule?.shift ?? null;
@@ -513,7 +513,7 @@ function AttendanceTodayCard({
                             <p className="text-xs text-muted-foreground">Time</p>
                             <p className="text-sm font-semibold">
                               {hoursToday}
-                              {typeof hoursToday === "string" && hoursToday !== "In progress" ? "h" : ""}
+                              {typeof hoursToday === "string" && hoursToday !== "Active Shift" ? "h" : ""}
                             </p>
                           </div>
                         )}
@@ -3440,7 +3440,7 @@ export default function EmployeePortalPage() {
               disabled={!reviewPeriod || reviewAchievements.length < 10 || reviewGoals.length < 10 || submitReviewMut.isPending}
               onClick={() => submitReviewMut.mutate({ reviewPeriod, selfRating: reviewRating, selfAchievements: reviewAchievements, selfGoals: reviewGoals })}
             >
-              {submitReviewMut.isPending ? "Submitting..." : "Submit Review"}
+              {submitReviewMut.isPending ? "Processing..." : "Submit Review"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -4047,7 +4047,7 @@ export default function EmployeePortalPage() {
                 });
               }}
             >
-              {submitExpenseMut.isPending ? "Submitting..." : "Submit Claim"}
+              {submitExpenseMut.isPending ? "Processing..." : "Submit Claim"}
             </Button>
           </DialogFooter>
         </DialogContent>

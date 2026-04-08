@@ -304,7 +304,7 @@ export default function WorkspacePage() {
                               {urgencyLabel(t.urgency)}
                             </Badge>
                           )}
-                          {t.priority} · {t.status === "in_progress" ? "In progress" : t.status.replace(/_/g, " ")}
+                          {t.priority} · {t.status === "in_progress" ? "Processing" : t.status.replace(/_/g, " ")}
                           {t.dueDate ? ` · ${t.dueDate}` : ""}
                         </span>
                       </li>

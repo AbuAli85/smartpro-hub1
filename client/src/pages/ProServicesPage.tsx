@@ -50,7 +50,7 @@ const SERVICE_LABELS: Record<string, string> = {
   visa_renewal:          "Visa Renewal",
   permit_renewal:        "Permit Renewal",
   document_attestation:  "Document Attestation",
-  company_registration:  "Company Registration (CR)",
+  company_registration:  "Commercial Registration",
   other:                 "Other",
 };
 

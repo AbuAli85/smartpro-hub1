@@ -43,7 +43,7 @@ const SERVICE_TYPE_LABELS: Record<string, string> = {
   visit_visa: "Visit Visa",
   exit_reentry: "Exit/Re-entry Permit",
   commercial_registration: "Commercial Registration",
-  commercial_registration_renewal: "CR Renewal",
+  commercial_registration_renewal: "Commercial Registration Renewal",
   business_license: "Business Licence",
   document_typing: "Document Typing",
   document_translation: "Document Translation",

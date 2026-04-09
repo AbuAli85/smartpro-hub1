@@ -767,11 +767,31 @@ export const workforceRouter = router({
           )
           .orderBy(desc(governmentServiceCases.createdAt));
 
+        const [employerCompany] = await db
+          .select({
+            id: companies.id,
+            name: companies.name,
+            nameAr: companies.nameAr,
+            country: companies.country,
+            city: companies.city,
+            address: companies.address,
+            crNumber: companies.crNumber,
+            registrationNumber: companies.registrationNumber,
+            pasiNumber: companies.pasiNumber,
+            laborCardNumber: companies.laborCardNumber,
+            phone: companies.phone,
+            email: companies.email,
+          })
+          .from(companies)
+          .where(eq(companies.id, companyId))
+          .limit(1);
+
         return {
           permit: { ...wp, daysToExpiry: computeDaysToExpiry(wp.expiryDate) },
           employee: emp ?? null,
           documents: docs,
           caseHistory: cases,
+          employerCompany: employerCompany ?? null,
         };
       }),
 

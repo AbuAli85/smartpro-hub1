@@ -4,7 +4,7 @@ import { trpc } from "@/lib/trpc";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -105,6 +105,19 @@ export default function WorkforcePermitDetailPage() {
     const emp = data?.employee;
     if (!wp) return null;
     const snap = (wp.governmentSnapshot as Record<string, unknown> | null) ?? {};
+    const ec = data?.employerCompany;
+    const ecNameEn = ec?.name?.trim() || null;
+    const ecNameAr = ec?.nameAr?.trim() || null;
+    const ecCr =
+      ec?.crNumber?.trim() || ec?.registrationNumber?.trim() || null;
+    const ecSponsorRef =
+      ec?.pasiNumber?.trim() || ec?.laborCardNumber?.trim() || null;
+    const ecLocParts = [ec?.city?.trim(), ec?.country?.trim()].filter(Boolean);
+    const ecAddress = ec?.address?.trim();
+    const employerLocation =
+      ecLocParts.length || ecAddress
+        ? [ecLocParts.join(", "), ecAddress].filter(Boolean).join(" · ")
+        : null;
     const status = wp.permitStatus ?? "unknown";
     const permitTypeRaw =
       (typeof snap.permitType === "string" ? snap.permitType : null) ?? "work_permit";
@@ -143,12 +156,20 @@ export default function WorkforcePermitDetailPage() {
         snapshotString(snap, ["civilId", "civil_number"]) ||
         null,
       companyNameEn:
+        ecNameEn ??
         snapshotString(snap, ["companyNameEn", "establishmentNameEn", "employerNameEn", "sponsorName"]) ??
         null,
       companyNameAr:
-        snapshotString(snap, ["companyNameAr", "establishmentNameAr", "employerNameAr"]) ?? null,
-      crNumber: snapshotString(snap, ["crNumber", "establishmentCrNumber", "commercial_registration"]) ?? null,
-      sponsorId: snapshotString(snap, ["sponsorId", "sponsor_id"]) ?? null,
+        ecNameAr ??
+        snapshotString(snap, ["companyNameAr", "establishmentNameAr", "employerNameAr"]) ??
+        null,
+      crNumber:
+        ecCr ??
+        snapshotString(snap, ["crNumber", "establishmentCrNumber", "commercial_registration"]) ??
+        null,
+      sponsorId:
+        ecSponsorRef ?? snapshotString(snap, ["sponsorId", "sponsor_id"]) ?? null,
+      employerLocation,
       employeeName: emp ? `${emp.firstName} ${emp.lastName}`.trim() : null,
       nationality: emp?.nationality?.trim() || snapshotString(snap, ["nationality"]) || null,
       salaryDisplay: formatEmployeeSalary(emp?.salary, emp?.currency ?? null),
@@ -392,12 +413,16 @@ export default function WorkforcePermitDetailPage() {
                 <Building2 className="w-4 h-4 text-primary" />
                 Sponsor / Employer
               </CardTitle>
+              <CardDescription className="text-xs">
+                From your active company (workspace switcher), not the import snapshot.
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-0">
               <InfoRow label="Company Name (EN)" value={p.companyNameEn} />
               <InfoRow label="Company Name (AR)" value={p.companyNameAr} />
               <InfoRow label="CR Number" value={p.crNumber} mono />
-              <InfoRow label="Sponsor ID" value={p.sponsorId} mono />
+              <InfoRow label="PASI / Labour ref." value={p.sponsorId} mono />
+              <InfoRow label="Company location" value={p.employerLocation} />
             </CardContent>
           </Card>
 

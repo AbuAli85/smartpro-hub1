@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import {
   getEmployees,
   getEmployeeById,
@@ -430,8 +430,14 @@ export const teamRouter = router({
       z.object({
         companyId: z.number().optional(),
         rows: z.array(importRowSchema),
-        /** If true, skip rows where civil number already exists in the company */
+        /** If true, skip rows where civil number already exists in the company (only for brand-new inserts) */
         skipDuplicates: z.boolean().default(true),
+        /**
+         * If true, rows whose Civil ID or Passport match an existing employee are **updated** from the file
+         * (HR + work permit fields) instead of skipped. Use this to re-import MOL / Excel after a first import
+         * that missed permit data — no need to delete staff or start over.
+         */
+        updateExisting: z.boolean().default(true),
       })
     )
     .mutation(async ({ input, ctx }) => {
@@ -440,44 +446,93 @@ export const teamRouter = router({
 
       const companyId = membership.companyId;
 
-      // Fetch existing civil IDs and passport numbers to detect duplicates
       const existing = await getEmployees(companyId, {});
       const existingCivilIds = new Set(
-        existing.map((e) => e.nationalId?.toLowerCase()).filter(Boolean)
+        existing.map((e) => e.nationalId?.toLowerCase().trim()).filter(Boolean) as string[],
       );
       const existingPassports = new Set(
-        existing.map((e) => e.passportNumber?.toLowerCase()).filter(Boolean)
+        existing.map((e) => e.passportNumber?.toLowerCase().trim()).filter(Boolean) as string[],
       );
 
+      const civilToEmployeeId = new Map<string, number>();
+      const passportToEmployeeId = new Map<string, number>();
+      for (const e of existing) {
+        if (e.nationalId) civilToEmployeeId.set(e.nationalId.toLowerCase().trim(), e.id);
+        if (e.passportNumber) passportToEmployeeId.set(e.passportNumber.toLowerCase().trim(), e.id);
+      }
+
       let imported = 0;
+      let updated = 0;
       let skipped = 0;
       const errors: Array<{ row: number; name: string; reason: string }> = [];
+
+      const upsertWorkPermitForRow = async (
+        dbConn: NonNullable<Awaited<ReturnType<typeof getDb>>>,
+        employeeId: number,
+        row: z.infer<typeof importRowSchema>,
+        wpIssue: Date | undefined,
+        wpExpiry: Date | undefined,
+      ) => {
+        if (!row.workPermitNumber?.trim()) return;
+        const permitStatus =
+          wpExpiry && wpExpiry.getTime() < Date.now() ? ("expired" as const) : ("active" as const);
+        const payload = {
+          companyId,
+          employeeId,
+          workPermitNumber: row.workPermitNumber.trim(),
+          labourAuthorisationNumber: row.visaNumber?.trim() ?? null,
+          occupationCode: row.occupationCode?.trim() ?? null,
+          occupationTitleEn: row.occupationName?.trim() ?? null,
+          issueDate: wpIssue ?? null,
+          expiryDate: wpExpiry ?? null,
+          permitStatus,
+          governmentSnapshot: { source: "bulk_import" } as Record<string, unknown>,
+          lastSyncedAt: new Date(),
+        };
+        const byNumberRows = await dbConn
+          .select({ id: workPermits.id })
+          .from(workPermits)
+          .where(and(eq(workPermits.companyId, companyId), eq(workPermits.workPermitNumber, row.workPermitNumber.trim())))
+          .limit(1);
+        const byPermitNumber = byNumberRows[0];
+        if (byPermitNumber?.id) {
+          await dbConn
+            .update(workPermits)
+            .set({ ...payload, updatedAt: new Date() })
+            .where(eq(workPermits.id, byPermitNumber.id));
+          return;
+        }
+        const byEmpRows = await dbConn
+          .select({ id: workPermits.id })
+          .from(workPermits)
+          .where(and(eq(workPermits.companyId, companyId), eq(workPermits.employeeId, employeeId)))
+          .orderBy(desc(workPermits.expiryDate))
+          .limit(1);
+        const byEmployee = byEmpRows[0];
+        if (byEmployee?.id) {
+          await dbConn
+            .update(workPermits)
+            .set({ ...payload, updatedAt: new Date() })
+            .where(eq(workPermits.id, byEmployee.id));
+          return;
+        }
+        await dbConn.insert(workPermits).values(payload).catch(() => {
+          /* duplicate permit number globally */
+        });
+      };
 
       for (let i = 0; i < input.rows.length; i++) {
         const row = input.rows[i];
         const rowNum = i + 1;
 
         try {
-          // Duplicate check
-          if (input.skipDuplicates) {
-            const civilKey = row.civilNumber?.toLowerCase();
-            const passportKey = row.passportNumber?.toLowerCase();
-            if (civilKey && existingCivilIds.has(civilKey)) {
-              skipped++;
-              continue;
-            }
-            if (passportKey && existingPassports.has(passportKey)) {
-              skipped++;
-              continue;
-            }
-          }
+          const civilKey = row.civilNumber?.toLowerCase().trim();
+          const passportKey = row.passportNumber?.toLowerCase().trim();
 
-          // Split full name into first/last (use explicit columns if provided)
           const nameParts = row.name.trim().split(/\s+/);
           const firstName = row.firstName || nameParts[0] || row.name;
           const lastName = row.lastName || nameParts.slice(1).join(" ") || firstName;
 
-          // Map MOL / Excel permit status (e.g. "Non Trans Active") → employee status
           const status = mapMolPermitStatusToEmployeeStatus(row.workPermitStatus);
 
           const hireDateParsed = parseDateField(row.hireDate) ?? parseDateField(row.dateOfIssue);
@@ -485,7 +540,6 @@ export const teamRouter = router({
           const wpExpiry = parseDateField(row.dateOfExpiry);
           const visaExpiryParsed = parseDateField(row.visaExpiryDate);
 
-          // Determine employment type
           const rawEmpType = (row.employmentType ?? "").toLowerCase().replace(/[\s-]/g, "_");
           const empTypeMap: Record<string, string> = {
             full_time: "full_time", fulltime: "full_time",
@@ -496,6 +550,58 @@ export const teamRouter = router({
 
           const dbConn = await getDb();
           if (!dbConn) throw new Error("Database unavailable");
+
+          let existingEmployeeId: number | null = null;
+          if (input.updateExisting) {
+            if (civilKey && civilToEmployeeId.has(civilKey)) existingEmployeeId = civilToEmployeeId.get(civilKey)!;
+            else if (passportKey && passportToEmployeeId.has(passportKey)) existingEmployeeId = passportToEmployeeId.get(passportKey)!;
+          }
+
+          if (existingEmployeeId != null) {
+            await dbConn
+              .update(employees)
+              .set({
+                firstName,
+                lastName,
+                firstNameAr: row.firstNameAr ?? null,
+                lastNameAr: row.lastNameAr ?? null,
+                email: row.email ?? null,
+                phone: row.phone ?? null,
+                nationality: row.nationality ?? null,
+                nationalId: row.civilNumber?.trim() || null,
+                passportNumber: row.passportNumber?.trim() || null,
+                department: row.department ?? null,
+                position: row.position?.trim() || row.occupationName?.trim() || null,
+                profession: row.occupationName?.trim() || null,
+                employmentType,
+                status,
+                salary: row.salary ? String(Number(row.salary)) : null,
+                currency: row.currency || "OMR",
+                hireDate: hireDateParsed ?? null,
+                employeeNumber: row.employeeNumber?.trim() || null,
+                workPermitNumber: row.workPermitNumber?.trim() || null,
+                visaNumber: row.visaNumber?.trim() || null,
+                workPermitExpiryDate: toMysqlDateString(wpExpiry),
+                visaExpiryDate: toMysqlDateString(visaExpiryParsed),
+                updatedAt: new Date(),
+              } as any)
+              .where(eq(employees.id, existingEmployeeId));
+
+            await upsertWorkPermitForRow(dbConn, existingEmployeeId, row, wpIssue, wpExpiry);
+            updated++;
+            continue;
+          }
+
+          if (input.skipDuplicates) {
+            if (civilKey && existingCivilIds.has(civilKey)) {
+              skipped++;
+              continue;
+            }
+            if (passportKey && existingPassports.has(passportKey)) {
+              skipped++;
+              continue;
+            }
+          }
 
           const empResult = await dbConn.insert(employees).values({
             companyId,
@@ -525,32 +631,14 @@ export const teamRouter = router({
 
           const employeeId = Number((empResult[0] as { insertId?: number }).insertId ?? 0);
 
-          if (employeeId && row.workPermitNumber?.trim()) {
-            const permitStatus =
-              wpExpiry && wpExpiry.getTime() < Date.now() ? ("expired" as const) : ("active" as const);
-            await dbConn
-              .insert(workPermits)
-              .values({
-                companyId,
-                employeeId,
-                workPermitNumber: row.workPermitNumber.trim(),
-                labourAuthorisationNumber: row.visaNumber?.trim() ?? null,
-                occupationCode: row.occupationCode?.trim() ?? null,
-                occupationTitleEn: row.occupationName?.trim() ?? null,
-                issueDate: wpIssue ?? null,
-                expiryDate: wpExpiry ?? null,
-                permitStatus,
-                governmentSnapshot: { source: "bulk_import" } as Record<string, unknown>,
-                lastSyncedAt: new Date(),
-              })
-              .catch(() => {
-                /* duplicate work permit number across tenants, etc. */
-              });
+          if (employeeId) {
+            await upsertWorkPermitForRow(dbConn, employeeId, row, wpIssue, wpExpiry);
           }
 
-          // Update duplicate tracking sets
-          if (row.civilNumber) existingCivilIds.add(row.civilNumber.toLowerCase());
-          if (row.passportNumber) existingPassports.add(row.passportNumber.toLowerCase());
+          if (row.civilNumber) existingCivilIds.add(civilKey!);
+          if (row.passportNumber) existingPassports.add(passportKey!);
+          if (employeeId && civilKey) civilToEmployeeId.set(civilKey, employeeId);
+          if (employeeId && passportKey) passportToEmployeeId.set(passportKey, employeeId);
 
           imported++;
         } catch (err) {
@@ -562,7 +650,7 @@ export const teamRouter = router({
         }
       }
 
-      return { imported, skipped, errors, total: input.rows.length };
+      return { imported, updated, skipped, errors, total: input.rows.length };
     }),
 
   /** Clear all employees for the active company (admin only) */

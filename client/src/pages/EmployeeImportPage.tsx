@@ -41,7 +41,9 @@ interface ParsedRow {
 }
 
 interface ImportResult {
-  imported: number; skipped: number;
+  imported: number;
+  updated: number;
+  skipped: number;
   errors: Array<{ row: number; name: string; reason: string }>;
   total: number;
 }
@@ -150,7 +152,7 @@ function parseExcelFile(file: File): Promise<ParsedRow[]> {
 
           for (const [key, field] of Object.entries(headerMap)) {
             const val = excelScalarToString(row[key]);
-            (r as Record<string, unknown>)[field] = val;
+            (r as unknown as Record<string, unknown>)[field] = val;
           }
 
           // Auto-build name if firstName/lastName provided but name is empty
@@ -231,12 +233,17 @@ export default function EmployeeImportPage() {
   const [isDragging, setIsDragging] = useState(false);
   const [fileName, setFileName] = useState("");
   const [skipDuplicates, setSkipDuplicates] = useState(true);
+  /** When Civil ID or Passport matches someone already in My Team, merge file data (incl. work permits) instead of skipping. */
+  const [updateExisting, setUpdateExisting] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const bulkImport = trpc.team.bulkImport.useMutation({
     onSuccess: (data) => {
       setResult(data); setStep("result");
-      if (data.imported > 0) toast.success(`${data.imported} employee${data.imported !== 1 ? "s" : ""} imported successfully`);
+      const parts: string[] = [];
+      if (data.imported > 0) parts.push(`${data.imported} new`);
+      if (data.updated > 0) parts.push(`${data.updated} updated`);
+      if (parts.length > 0) toast.success(`${parts.join(", ")} — import finished`);
     },
     onError: (err) => toast.error(err.message ?? "Import failed"),
   });
@@ -284,6 +291,7 @@ export default function EmployeeImportPage() {
         emergencyContactPhone: r.emergencyContactPhone || undefined,
       })),
       skipDuplicates,
+      updateExisting,
       companyId: activeCompanyId ?? undefined,
     });
   };
@@ -397,12 +405,22 @@ export default function EmployeeImportPage() {
         </div>
 
         {/* Options */}
-        <div className="flex items-center gap-4 mb-4 p-3 rounded-xl bg-muted/50 border border-border">
+        <div className="space-y-3 mb-4 p-4 rounded-xl bg-muted/50 border border-border">
+          <label className="flex items-start gap-2 cursor-pointer text-sm">
+            <input type="checkbox" checked={updateExisting} onChange={(e) => setUpdateExisting(e.target.checked)}
+              className="w-4 h-4 rounded mt-0.5 shrink-0" />
+            <span>
+              <span className="font-medium text-foreground">Update existing staff when Civil ID or Passport matches</span>
+              <span className="block text-muted-foreground text-xs mt-0.5">
+                Turn this on when you re-upload the same MOL / Excel file to fill or correct work permits and HR fields — existing people are merged, not skipped and not duplicated.
+              </span>
+            </span>
+          </label>
           <label className="flex items-center gap-2 cursor-pointer text-sm">
-            <input type="checkbox" checked={skipDuplicates} onChange={e => setSkipDuplicates(e.target.checked)}
+            <input type="checkbox" checked={skipDuplicates} onChange={(e) => setSkipDuplicates(e.target.checked)}
               className="w-4 h-4 rounded" />
-            <span className="font-medium">Skip duplicates</span>
-            <span className="text-muted-foreground">(by Civil ID or Passport)</span>
+            <span className="font-medium">Skip duplicates for new rows only</span>
+            <span className="text-muted-foreground">(ignored when the row matches an existing person and update is on)</span>
           </label>
         </div>
 
@@ -476,20 +494,21 @@ export default function EmployeeImportPage() {
     <div className="max-w-2xl mx-auto px-4 py-10">
       <div className="text-center mb-8">
         <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4
-          ${(result?.imported ?? 0) > 0 ? "bg-emerald-100 dark:bg-emerald-900/30" : "bg-amber-100 dark:bg-amber-900/30"}`}>
-          {(result?.imported ?? 0) > 0
+          ${((result?.imported ?? 0) > 0 || (result?.updated ?? 0) > 0) ? "bg-emerald-100 dark:bg-emerald-900/30" : "bg-amber-100 dark:bg-amber-900/30"}`}>
+          {((result?.imported ?? 0) > 0 || (result?.updated ?? 0) > 0)
             ? <CheckCircle2 size={32} className="text-emerald-600" />
             : <AlertCircle size={32} className="text-amber-600" />}
         </div>
         <h2 className="text-2xl font-bold text-foreground">Import Complete</h2>
         <p className="text-muted-foreground mt-1">
-          {result?.imported} imported · {result?.skipped} skipped · {result?.errors.length} failed
+          {result?.imported ?? 0} new · {result?.updated ?? 0} updated · {result?.skipped ?? 0} skipped · {result?.errors.length ?? 0} failed
         </p>
       </div>
 
-      <div className="grid grid-cols-3 gap-3 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
         {[
-          { label: "Imported", value: result?.imported ?? 0, color: "text-emerald-600", icon: <CheckCircle2 size={18} /> },
+          { label: "New", value: result?.imported ?? 0, color: "text-emerald-600", icon: <CheckCircle2 size={18} /> },
+          { label: "Updated", value: result?.updated ?? 0, color: "text-blue-600", icon: <RefreshCw size={18} /> },
           { label: "Skipped", value: result?.skipped ?? 0, color: "text-amber-600", icon: <SkipForward size={18} /> },
           { label: "Failed", value: result?.errors.length ?? 0, color: "text-red-600", icon: <XCircle size={18} /> },
         ].map(({ label, value, color, icon }) => (

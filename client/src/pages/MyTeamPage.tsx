@@ -358,6 +358,9 @@ function StaffFormDialog({
               {/* Work Permit / Visa */}
               <div className="pt-1">
                 <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2">Work Permit &amp; Visa (Optional)</div>
+                <p className="text-xs text-muted-foreground mb-3 leading-snug">
+                  Saves to your employee record and compliance views (Work Permits, expiry reminders). Add the MOL certificate file later under Compliance → Work Permits if you need it in the document vault.
+                </p>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <Label className="text-xs font-medium">Work Permit Number</Label>

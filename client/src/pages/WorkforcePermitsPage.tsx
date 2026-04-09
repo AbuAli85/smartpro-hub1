@@ -6,7 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
@@ -79,18 +80,23 @@ export default function WorkforcePermitsPage() {
   const [showUploadDialog, setShowUploadDialog] = useState(false);
   const [selectedPermit, setSelectedPermit] = useState<string | null>(null);
 
-  // Upload form state
+  const { activeCompanyId } = useActiveCompany();
+
+  // Manual register form (links to My Team employee — not raw "Employee ID" / civil ID confusion)
   const [uploadForm, setUploadForm] = useState({
-    employeeId: "",
+    selectedEmployeeId: "",
     permitNumber: "",
+    labourAuthorisationNumber: "",
     occupationCode: "",
     occupationTitle: "",
     issueDate: "",
     expiryDate: "",
-    permitType: "new_permit",
-    sponsorName: "",
-    workplaceLocation: "",
   });
+
+  const { data: teamMembers = [], isLoading: teamLoading } = trpc.team.listMembers.useQuery(
+    { status: "active", companyId: activeCompanyId ?? undefined },
+    { enabled: showUploadDialog && activeCompanyId != null },
+  );
 
   const { data, isLoading, refetch } = trpc.workforce.workPermits.list.useQuery({
     query: query || undefined,
@@ -100,11 +106,19 @@ export default function WorkforcePermitsPage() {
     pageSize: 20,
   });
 
-  const uploadMutation = trpc.workforce.workPermits.createFromCertificate.useMutation({
+  const registerManualMutation = trpc.workforce.workPermits.registerManual.useMutation({
     onSuccess: () => {
-      toast.success("Work permit uploaded successfully");
+      toast.success("Work permit registered and linked to the employee");
       setShowUploadDialog(false);
-      setUploadForm({ employeeId: "", permitNumber: "", occupationCode: "", occupationTitle: "", issueDate: "", expiryDate: "", permitType: "new_permit", sponsorName: "", workplaceLocation: "" });
+      setUploadForm({
+        selectedEmployeeId: "",
+        permitNumber: "",
+        labourAuthorisationNumber: "",
+        occupationCode: "",
+        occupationTitle: "",
+        issueDate: "",
+        expiryDate: "",
+      });
       refetch();
       invalidatePortalWorkStatusAndDocuments(utils);
     },
@@ -139,7 +153,7 @@ export default function WorkforcePermitsPage() {
         </div>
         <Button size="sm" onClick={() => setShowUploadDialog(true)}>
           <Upload className="w-4 h-4 mr-2" />
-          Upload Certificate
+          Register permit
         </Button>
       </div>
 
@@ -218,7 +232,7 @@ export default function WorkforcePermitsPage() {
                       </p>
                       <Button size="sm" className="mt-3" onClick={() => setShowUploadDialog(true)}>
                         <Upload className="w-4 h-4 mr-2" />
-                        Upload Certificate
+                        Register permit
                       </Button>
                     </td>
                   </tr>
@@ -321,86 +335,92 @@ export default function WorkforcePermitsPage() {
 
       {/* Upload Dialog */}
       <Dialog open={showUploadDialog} onOpenChange={setShowUploadDialog}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Upload MOL Work Permit Certificate</DialogTitle>
+            <DialogTitle>Register work permit</DialogTitle>
+            <DialogDescription>
+              Choose someone already in <strong>People → My Team</strong>, then enter the MOL permit details. This creates the official permit record for compliance and links it to their profile. To attach a PDF certificate file, use your document process or portal sync when available.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label className="text-xs">Employee *</Label>
+              <Select
+                value={uploadForm.selectedEmployeeId}
+                onValueChange={(v) => setUploadForm((f) => ({ ...f, selectedEmployeeId: v }))}
+              >
+                <SelectTrigger className="mt-1">
+                  <SelectValue placeholder={teamLoading ? "Loading staff…" : "Select employee"} />
+                </SelectTrigger>
+                <SelectContent className="max-h-64">
+                  {[...teamMembers]
+                    .sort((a, b) =>
+                      `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`, undefined, {
+                        sensitivity: "base",
+                      }),
+                    )
+                    .map((emp) => (
+                      <SelectItem key={emp.id} value={String(emp.id)}>
+                        {emp.firstName} {emp.lastName}
+                        {emp.nationalId ? ` · ${emp.nationalId}` : ""}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+              {!teamLoading && teamMembers.length === 0 && (
+                <p className="text-xs text-amber-700">No active staff found. Add employees under People → My Team first.</p>
+              )}
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <Label className="text-xs">Employee ID *</Label>
-                <Input
-                  value={uploadForm.employeeId}
-                  onChange={(e) => setUploadForm(f => ({ ...f, employeeId: e.target.value }))}
-                  placeholder="Employee ID"
-                  className="mt-1"
-                />
-              </div>
-              <div>
-                <Label className="text-xs">Permit Number *</Label>
+                <Label className="text-xs">MOL permit number *</Label>
                 <Input
                   value={uploadForm.permitNumber}
-                  onChange={(e) => setUploadForm(f => ({ ...f, permitNumber: e.target.value }))}
-                  placeholder="MOL permit number"
+                  onChange={(e) => setUploadForm((f) => ({ ...f, permitNumber: e.target.value }))}
+                  placeholder="As on the certificate"
                   className="mt-1"
                 />
               </div>
               <div>
-                <Label className="text-xs">Occupation Code</Label>
+                <Label className="text-xs">Visa / labour authorisation no.</Label>
+                <Input
+                  value={uploadForm.labourAuthorisationNumber}
+                  onChange={(e) => setUploadForm((f) => ({ ...f, labourAuthorisationNumber: e.target.value }))}
+                  placeholder="Optional"
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label className="text-xs">Occupation code</Label>
                 <Input
                   value={uploadForm.occupationCode}
-                  onChange={(e) => setUploadForm(f => ({ ...f, occupationCode: e.target.value }))}
+                  onChange={(e) => setUploadForm((f) => ({ ...f, occupationCode: e.target.value }))}
                   placeholder="e.g. 2141"
                   className="mt-1"
                 />
               </div>
               <div>
-                <Label className="text-xs">Occupation Title</Label>
+                <Label className="text-xs">Occupation title</Label>
                 <Input
                   value={uploadForm.occupationTitle}
-                  onChange={(e) => setUploadForm(f => ({ ...f, occupationTitle: e.target.value }))}
-                  placeholder="e.g. Civil Engineer"
+                  onChange={(e) => setUploadForm((f) => ({ ...f, occupationTitle: e.target.value }))}
+                  placeholder="e.g. Sales Executive"
                   className="mt-1"
                 />
               </div>
               <div>
-                <Label className="text-xs">Issue Date *</Label>
+                <Label className="text-xs">Issue date</Label>
                 <DateInput
-                  
                   value={uploadForm.issueDate}
-                  onChange={(e) => setUploadForm(f => ({ ...f, issueDate: e.target.value }))}
+                  onChange={(e) => setUploadForm((f) => ({ ...f, issueDate: e.target.value }))}
                   className="mt-1"
                 />
               </div>
               <div>
-                <Label className="text-xs">Expiry Date *</Label>
+                <Label className="text-xs">Expiry date *</Label>
                 <DateInput
-                  
                   value={uploadForm.expiryDate}
-                  onChange={(e) => setUploadForm(f => ({ ...f, expiryDate: e.target.value }))}
-                  className="mt-1"
-                />
-              </div>
-              <div>
-                <Label className="text-xs">Permit Type</Label>
-                <Select value={uploadForm.permitType} onValueChange={(v) => setUploadForm(f => ({ ...f, permitType: v }))}>
-                  <SelectTrigger className="mt-1">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="new_permit">New Permit</SelectItem>
-                    <SelectItem value="renewal">Renewal</SelectItem>
-                    <SelectItem value="transfer">Transfer</SelectItem>
-                    <SelectItem value="amendment">Amendment</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label className="text-xs">Sponsor Name</Label>
-                <Input
-                  value={uploadForm.sponsorName}
-                  onChange={(e) => setUploadForm(f => ({ ...f, sponsorName: e.target.value }))}
-                  placeholder="Sponsor / employer name"
+                  onChange={(e) => setUploadForm((f) => ({ ...f, expiryDate: e.target.value }))}
                   className="mt-1"
                 />
               </div>
@@ -409,22 +429,30 @@ export default function WorkforcePermitsPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowUploadDialog(false)}>Cancel</Button>
             <Button
-              onClick={() => uploadMutation.mutate({
-                fileUrl: "manual-entry",
-                fileKey: `manual-${Date.now()}`,
-                parsed: {
-                  civilId: uploadForm.employeeId,
-                  fullNameEn: "Manual Entry",
-                  workPermitNumber: uploadForm.permitNumber,
-                  occupationCode: uploadForm.occupationCode || undefined,
-                  occupationTitleEn: uploadForm.occupationTitle || undefined,
-                  issueDate: uploadForm.issueDate || undefined,
-                  expiryDate: uploadForm.expiryDate || undefined,
-                },
-              })}
-              disabled={uploadMutation.isPending || !uploadForm.permitNumber || !uploadForm.expiryDate || !uploadForm.employeeId}
+              onClick={() => {
+                const employeeId = Number(uploadForm.selectedEmployeeId);
+                if (!employeeId || Number.isNaN(employeeId)) {
+                  toast.error("Select an employee");
+                  return;
+                }
+                registerManualMutation.mutate({
+                  employeeId,
+                  workPermitNumber: uploadForm.permitNumber.trim(),
+                  labourAuthorisationNumber: uploadForm.labourAuthorisationNumber.trim() || undefined,
+                  occupationCode: uploadForm.occupationCode.trim() || undefined,
+                  occupationTitleEn: uploadForm.occupationTitle.trim() || undefined,
+                  issueDate: uploadForm.issueDate.trim() || undefined,
+                  expiryDate: uploadForm.expiryDate.trim() || undefined,
+                });
+              }}
+              disabled={
+                registerManualMutation.isPending ||
+                !uploadForm.selectedEmployeeId ||
+                !uploadForm.permitNumber.trim() ||
+                !uploadForm.expiryDate.trim()
+              }
             >
-              {uploadMutation.isPending ? "Uploading..." : "Upload Permit"}
+              {registerManualMutation.isPending ? "Saving…" : "Save permit"}
             </Button>
           </DialogFooter>
         </DialogContent>

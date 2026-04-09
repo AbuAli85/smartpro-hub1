@@ -812,6 +812,116 @@ export const workforceRouter = router({
         return { employeeId, workPermitId, permitStatus };
       }),
 
+    /**
+     * Register or update a work permit from the Work Permits UI when no PDF is uploaded yet
+     * (links to an existing My Team / HR employee by database id — avoids mistaken "Employee ID" vs Civil ID).
+     */
+    registerManual: protectedProcedure
+      .input(
+        z.object({
+          employeeId: z.number(),
+          workPermitNumber: z.string().min(1),
+          labourAuthorisationNumber: z.string().optional(),
+          occupationCode: z.string().optional(),
+          occupationTitleEn: z.string().optional(),
+          issueDate: z.string().optional(),
+          expiryDate: z.string().optional(),
+        }),
+      )
+      .mutation(async ({ ctx, input }) => {
+        const companyId = await getMemberCompanyId(ctx.user);
+        if (!companyId) throw new TRPCError({ code: "FORBIDDEN" });
+        if (!(await hasPermission(ctx.user, companyId, "work_permits.upload"))) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "You do not have permission to register work permits" });
+        }
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+        const [emp] = await db
+          .select()
+          .from(employees)
+          .where(and(eq(employees.id, input.employeeId), eq(employees.companyId, companyId)))
+          .limit(1);
+        if (!emp) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found in your company" });
+        }
+
+        const issueDate = input.issueDate ? new Date(input.issueDate) : undefined;
+        const expiryDate = input.expiryDate ? new Date(input.expiryDate) : undefined;
+        const permitStatus = expiryDate
+          ? (inferPermitStatusFromExpiry(expiryDate) as WorkPermitRow["permitStatus"])
+          : "unknown";
+
+        const permitData = {
+          companyId,
+          employeeId: emp.id,
+          provider: "mol",
+          workPermitNumber: input.workPermitNumber,
+          labourAuthorisationNumber: input.labourAuthorisationNumber ?? null,
+          issueDate: issueDate && !Number.isNaN(issueDate.getTime()) ? issueDate : undefined,
+          expiryDate: expiryDate && !Number.isNaN(expiryDate.getTime()) ? expiryDate : undefined,
+          permitStatus,
+          occupationCode: input.occupationCode ?? null,
+          occupationTitleEn: input.occupationTitleEn ?? emp.profession ?? emp.position ?? null,
+          governmentSnapshot: { source: "manual_register", enteredBy: ctx.user.id } as Record<string, unknown>,
+          lastSyncedAt: new Date(),
+        };
+
+        const existingPermit = await db
+          .select({ id: workPermits.id })
+          .from(workPermits)
+          .where(and(eq(workPermits.workPermitNumber, input.workPermitNumber), eq(workPermits.companyId, companyId)))
+          .limit(1);
+
+        let workPermitId: number;
+        if (existingPermit[0]) {
+          workPermitId = existingPermit[0].id;
+          await db.update(workPermits).set({ ...permitData, updatedAt: new Date() }).where(eq(workPermits.id, workPermitId));
+        } else {
+          const wpResult = await db.insert(workPermits).values(permitData);
+          workPermitId = Number((wpResult[0] as { insertId: number }).insertId);
+        }
+
+        await db
+          .update(employees)
+          .set({
+            workPermitNumber: input.workPermitNumber,
+            workPermitExpiryDate:
+              expiryDate && !Number.isNaN(expiryDate.getTime()) ? expiryDate.toISOString().slice(0, 10) : null,
+            visaNumber: input.labourAuthorisationNumber ?? emp.visaNumber,
+            updatedAt: new Date(),
+          })
+          .where(eq(employees.id, emp.id));
+
+        if (emp.nationalId) {
+          const existingGov = await db
+            .select({ id: employeeGovernmentProfiles.id })
+            .from(employeeGovernmentProfiles)
+            .where(and(eq(employeeGovernmentProfiles.employeeId, emp.id), eq(employeeGovernmentProfiles.provider, "mol")))
+            .limit(1);
+          const govData = {
+            civilId: emp.nationalId,
+            lastSyncedAt: new Date(),
+          };
+          if (existingGov[0]) {
+            await db.update(employeeGovernmentProfiles).set({ ...govData, updatedAt: new Date() }).where(eq(employeeGovernmentProfiles.id, existingGov[0].id));
+          } else {
+            await db.insert(employeeGovernmentProfiles).values({ employeeId: emp.id, provider: "mol", ...govData });
+          }
+        }
+
+        await db.insert(auditEvents).values({
+          companyId,
+          actorUserId: ctx.user.id,
+          entityType: "work_permit",
+          entityId: workPermitId,
+          action: "permit_manual_register",
+          afterState: { employeeId: emp.id, workPermitNumber: input.workPermitNumber } as Record<string, unknown>,
+        });
+
+        return { success: true as const, employeeId: emp.id, workPermitId };
+      }),
+
     // AI-powered certificate parsing from uploaded document text
     parseCertificate: protectedProcedure
       .input(z.object({ rawText: z.string() }))

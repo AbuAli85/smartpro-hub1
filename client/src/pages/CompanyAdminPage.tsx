@@ -42,9 +42,14 @@ import {
   Building2, Users, Shield, Settings, Save, UserPlus, UserMinus,
   RefreshCw, Crown, Eye, Loader2, CheckCircle2, AlertCircle,
   Mail, Globe, Phone, MapPin, Hash, FileText, Edit3, UserCheck,
-  ChevronRight, BarChart3, Search, X as XIcon
+  BarChart3, Search, X as XIcon
 } from "lucide-react";
-import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
+import { Link } from "wouter";
+import { fmtDate } from "@/lib/dateUtils";
+
+function formatRoleLabel(role: string): string {
+  return role.replace(/_/g, " ");
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -212,6 +217,7 @@ export default function CompanyAdminPage() {
       setAddEmail("");
       setAddRole("company_member");
       utils.companies.members.invalidate();
+      utils.companies.myStats.invalidate();
     },
     onError: (err: { message?: string }) => toast.error(err.message || "Failed to add member"),
   });
@@ -221,6 +227,7 @@ export default function CompanyAdminPage() {
       toast.success("Member role updated");
       setRoleDialog(null);
       utils.companies.members.invalidate();
+      utils.companies.myStats.invalidate();
     },
     onError: (err: { message?: string }) => toast.error(err.message || "Failed to update role"),
   });
@@ -230,6 +237,7 @@ export default function CompanyAdminPage() {
       toast.success("Member removed from company");
       setRemoveDialog(null);
       utils.companies.members.invalidate();
+      utils.companies.myStats.invalidate();
     },
     onError: (err: { message?: string }) => toast.error(err.message || "Failed to remove member"),
   });
@@ -238,16 +246,21 @@ export default function CompanyAdminPage() {
     onSuccess: () => {
       toast.success("Member reactivated");
       utils.companies.members.invalidate();
+      utils.companies.myStats.invalidate();
     },
     onError: (err: { message?: string }) => toast.error(err.message || "Failed to reactivate member"),
   });
 
   const isAdmin = user?.role === "admin" || myMembership?.role === "company_admin";
   // Invite pipeline queries and mutations (must be after isAdmin)
-  const { data: pendingInvites, refetch: refetchInvites } = trpc.companies.listInvites.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: isAdmin });
+  const { data: pendingInvites, refetch: refetchInvites } = trpc.companies.listInvites.useQuery(
+    { companyId: activeCompanyId ?? undefined },
+    { enabled: isAdmin && activeCompanyId != null },
+  );
   const createInvite = trpc.companies.createInvite.useMutation({
     onSuccess: (data) => {
       setInviteResult({ inviteUrl: data.inviteUrl, expiresAt: new Date(data.expiresAt) });
+      toast.success("Invite link created — copy it below or check your email");
       refetchInvites();
     },
     onError: (err: { message?: string }) => toast.error(err.message || "Failed to create invite"),
@@ -295,8 +308,16 @@ export default function CompanyAdminPage() {
             <AlertCircle className="w-12 h-12 text-muted-foreground mx-auto" />
             <h2 className="text-xl font-semibold">No Company Found</h2>
             <p className="text-sm text-muted-foreground">
-              You are not associated with any company yet. Please complete onboarding first.
+              You are not associated with any company yet. Create a company or complete onboarding to continue.
             </p>
+            <div className="flex flex-wrap gap-2 justify-center pt-2">
+              <Button asChild>
+                <Link href="/company/create">Create company</Link>
+              </Button>
+              <Button variant="outline" asChild>
+                <Link href="/onboarding">Onboarding</Link>
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -341,7 +362,7 @@ export default function CompanyAdminPage() {
       <div className="max-w-6xl mx-auto px-6 py-6 space-y-6">
         {/* ── Stats Row ── */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <StatCard icon={<Users className="w-5 h-5" />} label="Active Members" value={activeMembers.length} />
+          <StatCard icon={<Users className="w-5 h-5" />} label="Active Members" value={allActiveMembers.length} />
           <StatCard icon={<FileText className="w-5 h-5" />} label="Contracts" value={stats?.contracts ?? 0} />
           <StatCard icon={<Shield className="w-5 h-5" />} label="PRO Services" value={stats?.proServices ?? 0} />
           <StatCard icon={<BarChart3 className="w-5 h-5" />} label="Employees" value={stats?.employees ?? 0} />
@@ -358,7 +379,7 @@ export default function CompanyAdminPage() {
               <Users className="w-4 h-4" />
               Members
               <span className="ml-1 bg-primary/10 text-primary text-xs rounded-full px-1.5 py-0.5 font-medium">
-                {activeMembers.length}
+                {allActiveMembers.length}
               </span>
             </TabsTrigger>
           </TabsList>
@@ -594,19 +615,22 @@ export default function CompanyAdminPage() {
                   <CardTitle className="text-base flex items-center gap-2">
                     <UserCheck className="w-4 h-4 text-primary" />
                     Active Members
-                    <Badge variant="secondary" className="ml-1">{activeMembers.length}</Badge>
+                    <Badge variant="secondary" className="ml-1">
+                      {searchLower ? `${activeMembers.length} / ${allActiveMembers.length}` : activeMembers.length}
+                    </Badge>
                   </CardTitle>
                   <CardDescription>Users with active access to this company</CardDescription>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <div className="relative">
-                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
-                    <input
-                      type="text"
+                  <div className="relative w-52 max-w-full">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none z-10" />
+                    <Input
+                      type="search"
                       value={memberSearch}
                       onChange={(e) => setMemberSearch(e.target.value)}
                       placeholder="Search by name or email…"
-                      className="h-8 pl-8 pr-7 text-sm rounded-md border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1 w-52"
+                      className="h-8 pl-8 pr-7 text-sm"
+                      aria-label="Filter members by name or email"
                     />
                     {memberSearch && (
                       <button
@@ -1067,7 +1091,7 @@ export default function CompanyAdminPage() {
                 </div>
               </div>
               <p className="text-xs text-muted-foreground">
-                Share this link with <strong>{inviteEmail}</strong>. When they click it and sign up or log in, they will automatically join your company as <strong>{inviteRole.replace("_", " ")}</strong>.
+                Share this link with <strong>{inviteEmail}</strong>. When they click it and sign up or log in, they will automatically join your company as <strong>{formatRoleLabel(inviteRole)}</strong>.
               </p>
               <DialogFooter>
                 <Button onClick={() => { setShowInviteDialog(false); setInviteResult(null); setInviteEmail(""); }}>Done</Button>

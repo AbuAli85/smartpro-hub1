@@ -55,6 +55,7 @@ import {
   Network,
   Sparkles,
   UserSquare2,
+  Crown,
 } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
 import { useTranslation } from "react-i18next";
@@ -132,6 +133,7 @@ const navGroups = [
       { label: "Workspace", href: "/workspace", icon: <LayoutGrid size={18} /> },
       { label: "My Portal", href: "/my-portal", icon: <Home size={18} /> },
       { label: "Company Profile", href: "/company/profile", icon: <Building2 size={18} /> },
+      { label: "Company Admin", href: "/company-admin", icon: <Crown size={18} /> },
       { label: "Team Access & Roles", href: "/company/team-access", icon: <UserCheck size={18} /> },
       { label: "Multi-Company Roles", href: "/company/multi-company-roles", icon: <ShieldCheck size={18} /> },
       { label: "Company Settings", href: "/company/settings", icon: <Settings size={18} /> },
@@ -217,7 +219,6 @@ const navGroups = [
   {
     label: "Platform",
     items: [
-      { label: "Company Admin", href: "/company-admin", icon: <Building2 size={18} /> },
       { label: "Client Portal", href: "/client-portal", icon: <UserCircle size={18} /> },
       { label: "Subscriptions", href: "/subscriptions", icon: <Zap size={18} /> },
       { label: "Expiry Alerts", href: "/alerts", icon: <Bell size={18} /> },

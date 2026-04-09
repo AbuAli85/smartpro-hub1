@@ -2,8 +2,8 @@ import { z } from "zod";
 import { and, desc, eq, or } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { protectedProcedure, router } from "../_core/trpc";
-import { getDb, getUserCompany } from "../db";
-import { shiftChangeRequests, employees, shiftTemplates, notifications } from "../../drizzle/schema";
+import { createNotification, getDb, getUserCompany } from "../db";
+import { shiftChangeRequests, employees, shiftTemplates } from "../../drizzle/schema";
 import { requireActiveCompanyId } from "../_core/tenant";
 import { notifyOwner } from "../_core/notification";
 import { storagePut } from "../storage";
@@ -50,19 +50,21 @@ async function sendInAppNotification(params: {
   title: string;
   message: string;
   link?: string;
+  actorUserId?: number | null;
 }) {
-  const db = await getDb();
-  if (!db) return;
   try {
-    await db.insert(notifications).values({
-      userId: params.toUserId,
-      companyId: params.companyId,
-      type: params.type,
-      title: params.title,
-      message: params.message,
-      link: params.link ?? null,
-      isRead: false,
-    });
+    await createNotification(
+      {
+        userId: params.toUserId,
+        companyId: params.companyId,
+        type: params.type,
+        title: params.title,
+        message: params.message,
+        link: params.link ?? null,
+        isRead: false,
+      },
+      { actorUserId: params.actorUserId ?? null },
+    );
   } catch {
     // Non-critical — don't fail the main action if notification fails
   }
@@ -270,6 +272,7 @@ export const shiftRequestsRouter = router({
           input.adminNotes ? ` HR note: ${input.adminNotes}` : ""
         }`,
         link: "/my-portal?tab=requests",
+        actorUserId: ctx.user.id,
       });
       return { success: true };
     }),
@@ -308,6 +311,7 @@ export const shiftRequestsRouter = router({
         title: `Request Not Approved`,
         message: `Your ${typeLabel2} request for ${req.requestedDate} was not approved. Reason: ${input.adminNotes}`,
         link: "/my-portal?tab=requests",
+        actorUserId: ctx.user.id,
       });
       return { success: true };
     }),

@@ -1,5 +1,7 @@
 import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
+import { getDb } from "./db";
+import { recordSessionLogoutAudits } from "./complianceAudit";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router } from "./_core/trpc";
 import { analyticsRouter } from "./routers/analytics";
@@ -55,9 +57,24 @@ export const appRouter = router({
 
   auth: router({
     me: publicProcedure.query((opts) => opts.ctx.user),
-    logout: publicProcedure.mutation(({ ctx }) => {
+    logout: publicProcedure.mutation(async ({ ctx }) => {
+      const user = ctx.user;
       const cookieOptions = getSessionCookieOptions(ctx.req);
       ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
+      if (user) {
+        try {
+          const db = await getDb();
+          if (db) {
+            await recordSessionLogoutAudits(db, {
+              userId: user.id,
+              ipAddress: typeof ctx.req.ip === "string" ? ctx.req.ip : null,
+              userAgent: ctx.req.get("user-agent") ?? null,
+            });
+          }
+        } catch {
+          /* non-fatal — logout must always succeed */
+        }
+      }
       return { success: true } as const;
     }),
   }),

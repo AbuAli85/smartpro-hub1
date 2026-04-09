@@ -36,7 +36,7 @@ vi.mock("./db", () => ({
   createCrmCommunication: vi.fn().mockResolvedValue({ id: 1 }),
   // Notifications
   getUserNotifications: vi.fn().mockResolvedValue([]),
-  createNotification: vi.fn().mockResolvedValue({ id: 1 }),
+  createNotification: vi.fn().mockResolvedValue(1),
   markNotificationsRead: vi.fn().mockResolvedValue({}),
   createAuditLog: vi.fn().mockResolvedValue({ id: 1 }),
   getAnalyticsReports: vi.fn().mockResolvedValue([]),

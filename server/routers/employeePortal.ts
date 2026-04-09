@@ -10,7 +10,7 @@ import {
   workPermits,
   companies,
 } from "../../drizzle/schema";
-import { getDb } from "../db";
+import { createNotification, getDb } from "../db";
 import { protectedProcedure, router } from "../_core/trpc";
 import { getActiveCompanyMembership } from "../_core/membership";
 import { requireActiveCompanyId } from "../_core/tenant";
@@ -82,19 +82,22 @@ async function sendEmployeeNotification(params: {
   title: string;
   message: string;
   link?: string;
+  /** User who caused the notification (omit for system/cron). */
+  actorUserId?: number | null;
 }) {
-  const db = await getDb();
-  if (!db) return;
   try {
-    await db.insert(notifications).values({
-      userId: params.toUserId,
-      companyId: params.companyId,
-      type: params.type,
-      title: params.title,
-      message: params.message,
-      link: params.link ?? null,
-      isRead: false,
-    });
+    await createNotification(
+      {
+        userId: params.toUserId,
+        companyId: params.companyId,
+        type: params.type,
+        title: params.title,
+        message: params.message,
+        link: params.link ?? null,
+        isRead: false,
+      },
+      { actorUserId: params.actorUserId ?? null },
+    );
   } catch {
     // Non-critical — don't fail the main action if notification fails
   }
@@ -117,6 +120,7 @@ export async function notifyAssignerTaskCompleted(params: {
     title: "Task completed",
     message: `"${params.title}" was marked complete.`,
     link: "/hr/tasks",
+    actorUserId: params.completedByUserId,
   });
 }
 
@@ -241,6 +245,7 @@ export const employeePortalRouter = router({
           title: `Leave Request — ${myEmp.firstName} ${myEmp.lastName}`,
           message: `${myEmp.firstName} ${myEmp.lastName} submitted a ${input.leaveType.replace("_", " ")} leave request (${input.startDate} to ${input.endDate}).`,
           link: "/hr/leave",
+          actorUserId: ctx.user.id,
         });
       }
       return { id: (result as any).insertId, success: true };

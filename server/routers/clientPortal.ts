@@ -6,7 +6,7 @@
 import { z } from "zod";
 import { canAccessGlobalAdminProcedures } from "@shared/rbac";
 import { router, protectedProcedure } from "../_core/trpc";
-import { getDb } from "../db";
+import { createNotification, getDb } from "../db";
 import { TRPCError } from "@trpc/server";
 import {
   companies, contracts, proServices,
@@ -362,18 +362,21 @@ export const clientPortalRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       const companyId = await requirePortalCompanyId(ctx.user as User);
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
-      // Store in notifications table as a client message
-      const { notifications } = await import("../../drizzle/schema");
-      await db.insert(notifications).values({
-        userId: ctx.user.id,
-        title: `[${input.category.toUpperCase()}] ${input.subject}`,
-        message: input.message,
-        type: "client_message",
-        isRead: false,
-      });
+      const notificationId = await createNotification(
+        {
+          userId: ctx.user.id,
+          companyId,
+          title: `[${input.category.toUpperCase()}] ${input.subject}`,
+          message: input.message,
+          type: "client_message",
+          isRead: false,
+        },
+        { actorUserId: ctx.user.id },
+      );
+      if (notificationId == null) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      }
 
       // Notify owner
       try {
@@ -384,7 +387,7 @@ export const clientPortalRouter = router({
         });
       } catch (_) { /* non-critical */ }
 
-      return { success: true, messageId: Date.now() };
+      return { success: true, messageId: notificationId };
     }),
 
   /**

@@ -175,6 +175,7 @@ export const tasksRouter = router({
           title: "New task assigned",
           message: `You have been assigned: ${rest.title.trim()}`,
           link: "/my-portal",
+          actorUserId: ctx.user.id,
         });
       }
       return { id: insertId };
@@ -247,6 +248,7 @@ export const tasksRouter = router({
             title: "Task reassigned to you",
             message: `You have been assigned: ${existing.title}`,
             link: "/my-portal",
+            actorUserId: ctx.user.id,
           });
         }
       }

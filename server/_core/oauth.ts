@@ -7,6 +7,7 @@ import { mapMemberRoleToPlatformRole } from "@shared/rbac";
 import { getDb } from "../db";
 import { companyMembers, employees, users } from "../../drizzle/schema";
 import { and, eq, isNull } from "drizzle-orm";
+import { recordSessionLoginAudits } from "../complianceAudit";
 
 function getQueryParam(req: Request, key: string): string | undefined {
   const value = req.query[key];
@@ -98,6 +99,23 @@ export function registerOAuthRoutes(app: Express) {
         loginMethod: userInfo.loginMethod ?? userInfo.platform ?? null,
         lastSignedIn: new Date(),
       });
+
+      try {
+        const signedInUser = await db.getUserByOpenId(userInfo.openId);
+        if (signedInUser) {
+          const auditDb = await getDb();
+          if (auditDb) {
+            await recordSessionLoginAudits(auditDb, {
+              userId: signedInUser.id,
+              loginMethod: userInfo.loginMethod ?? userInfo.platform ?? null,
+              ipAddress: typeof req.ip === "string" ? req.ip : null,
+              userAgent: req.get("user-agent") ?? null,
+            });
+          }
+        }
+      } catch (auditErr) {
+        console.error("[OAuth] Session audit failed (non-fatal):", auditErr);
+      }
 
       // Self-healing: if the user has active company memberships but their platformRole
       // is still the default "client", auto-promote it based on their highest membership role.

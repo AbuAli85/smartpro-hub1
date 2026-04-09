@@ -64,7 +64,31 @@ export function projectAuditEventToUnified(row: AuditEvent): UnifiedAuditTimelin
     routeHint = "/workforce/permits";
   } else if (row.entityType.includes("case") || row.entityType === "government_service_case") {
     routeHint = "/workforce/cases";
+  } else if (row.entityType === "user_session") {
+    routeHint = "/audit-log";
+  } else if (row.entityType === "notification") {
+    routeHint = "/audit-log";
   }
+
+  let summary = `${row.action} · ${row.entityType} #${row.entityId}`;
+  if (row.entityType === "user_session") {
+    summary =
+      row.action === "session_login"
+        ? "User signed in"
+        : row.action === "session_logout"
+          ? "User signed out"
+          : `${row.action} (session)`;
+  } else if (row.entityType === "notification") {
+    const meta = row.metadata as { title?: string; type?: string; recipientUserId?: number } | null;
+    const title = meta?.title?.trim();
+    const typ = meta?.type?.trim();
+    summary = title
+      ? `In-app notification: ${title}`
+      : typ
+        ? `In-app notification (${typ})`
+        : "In-app notification";
+  }
+
   return {
     _key: `ae:${row.id}`,
     source: "audit_event",
@@ -80,7 +104,7 @@ export function projectAuditEventToUnified(row: AuditEvent): UnifiedAuditTimelin
     userAgent: row.userAgent,
     createdAt: row.createdAt,
     sensitivity: hr ? "hr_sensitive" : "normal",
-    summary: `${row.action} · ${row.entityType} #${row.entityId}`,
+    summary,
     routeHint,
     actorLabel: null,
   };

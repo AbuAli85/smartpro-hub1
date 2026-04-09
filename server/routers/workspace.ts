@@ -127,6 +127,7 @@ export const workspaceRouter = router({
           title: "Manager follow-up",
           message: "Your manager sent a follow-up. Open Workspace to see it.",
           link: "/workspace",
+          actorUserId: ctx.user.id,
         });
       }
 

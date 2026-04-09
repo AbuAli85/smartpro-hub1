@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { router, protectedProcedure } from "../_core/trpc";
-import { getDb } from "../db";
-import { kpiTargets, kpiDailyLogs, kpiAchievements, employees, notifications } from "../../drizzle/schema";
+import { createNotification, getDb } from "../db";
+import { kpiTargets, kpiDailyLogs, kpiAchievements, employees } from "../../drizzle/schema";
 import { eq, and, desc, sql, gte, lte, inArray } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { requireActiveCompanyId } from "../_core/tenant";
@@ -28,18 +28,27 @@ async function requireDb() {
 const EMPLOYEE_TARGET_STATUSES = ["active", "completed"] as const;
 const ADMIN_TEAM_TARGET_STATUSES = ["draft", "active", "completed"] as const;
 
-async function sendNotification(userId: number, companyId: number, title: string, message: string, link?: string) {
+async function sendNotification(
+  userId: number,
+  companyId: number,
+  title: string,
+  message: string,
+  link?: string,
+  auditActorUserId?: number | null,
+) {
   try {
-    const db = await requireDb();
-    await db.insert(notifications).values({
-      userId,
-      companyId,
-      type: "kpi",
-      title,
-      message,
-      link: link ?? "/my-portal",
-      isRead: false,
-    });
+    await createNotification(
+      {
+        userId,
+        companyId,
+        type: "kpi",
+        title,
+        message,
+        link: link ?? "/my-portal",
+        isRead: false,
+      },
+      { actorUserId: auditActorUserId ?? null },
+    );
   } catch {}
 }
 
@@ -413,7 +422,8 @@ export const kpiRouter = router({
           companyId,
           "New KPI Target Set",
           `A new target has been set for you: ${input.metricName} — ${input.targetValue} ${input.currency ?? "OMR"} for ${input.month}/${input.year}`,
-          "/my-portal"
+          "/my-portal",
+          ctx.user.id,
         );
       }
       return { success: true };

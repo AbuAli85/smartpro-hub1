@@ -418,6 +418,7 @@ export const hrRouter = router({
               title: `Leave Request ${statusLabel}`,
               message: `Your ${(row.leaveType ?? "").replace("_", " ")} leave request has been ${input.status}.${input.notes ? " Note: " + input.notes : ""}`,
               link: "/my-portal",
+              actorUserId: ctx.user.id,
             });
           }
         }
@@ -492,6 +493,7 @@ export const hrRouter = router({
               title: "💰 Payslip Ready",
               message: `Your salary for ${row.periodMonth}/${row.periodYear} has been processed and paid. View your payslip in My Portal.`,
               link: "/my-portal",
+              actorUserId: ctx.user.id,
             });
           }
         }

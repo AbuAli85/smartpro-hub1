@@ -1,0 +1,252 @@
+// @vitest-environment jsdom
+import "@testing-library/jest-dom/vitest";
+import React from "react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { Router } from "wouter";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+
+/** Vitest bundle expects classic `React` for JSX in this page under test. */
+vi.stubGlobal("React", React);
+import type { ActionQueueItem } from "@/features/controlTower/actionQueueTypes";
+import { attachExecutionToQueueItems } from "@/features/controlTower/executionMeta";
+import { attachEscalationToQueueItems } from "@/features/controlTower/escalationMeta";
+import type { ActionQueueResult } from "@/hooks/useActionQueue";
+
+/** Fixed "now" so aging/stale signals stay stable for decision prompts. */
+const FIXED_NOW = new Date("2026-04-09T12:00:00.000Z");
+
+const { trpcQuery } = vi.hoisted(() => ({
+  trpcQuery: (data: unknown, isLoading = false) => () => ({
+    data,
+    isLoading,
+    isError: false,
+    dataUpdatedAt: Date.now(),
+  }),
+}));
+
+function buildQueueFixture(): ActionQueueResult {
+  const raw: ActionQueueItem[] = [
+    {
+      id: "ct-int-p1",
+      kind: "payroll_blocker",
+      title: "Payroll run blocked",
+      severity: "medium",
+      blocking: true,
+      source: "payroll",
+      href: "/payroll",
+      ctaLabel: "Review",
+      createdAt: "2026-01-01T00:00:00.000Z",
+    },
+    {
+      id: "ct-int-q2",
+      kind: "generic_attention",
+      title: "Follow up on contract",
+      severity: "low",
+      blocking: false,
+      source: "hr",
+      href: "/hr",
+      ctaLabel: "Open",
+      createdAt: "2026-04-08T00:00:00.000Z",
+    },
+  ];
+  const views = attachExecutionToQueueItems(raw, null);
+  const items = attachEscalationToQueueItems(views, FIXED_NOW);
+
+  return {
+    items,
+    status: "ready",
+    isLoading: false,
+    hasHighSeverity: true,
+    hasBlocking: true,
+    lastUpdatedLabel: "Updated 1 min ago",
+    scopeActive: true,
+    queueError: false,
+    pulseError: false,
+  };
+}
+
+vi.mock("@/hooks/useSmartRoleHomeRedirect", () => ({
+  useSmartRoleHomeRedirect: () => {},
+}));
+
+vi.mock("@/features/controlTower/snapshotStore", () => ({
+  getPreviousSnapshot: () => null,
+  saveSnapshot: () => {},
+}));
+
+vi.mock("@/_core/hooks/useAuth", () => ({
+  useAuth: () => ({ user: { id: "integration-user", role: "user", platformRole: null } }),
+}));
+
+vi.mock("@/contexts/ActiveCompanyContext", () => ({
+  useActiveCompany: () => ({
+    activeCompanyId: 4242,
+    activeCompany: { name: "Integration Co", role: "company_admin" },
+    loading: false,
+  }),
+}));
+
+vi.mock("@/lib/trpc", () => ({
+  trpc: {
+    operations: {
+      getOwnerBusinessPulse: {
+        useQuery: trpcQuery({
+          controlTower: {
+            riskCompliance: { workPermitsExpiring7Days: 2 },
+            decisionsQueue: { totalOpenCount: 3, items: [] },
+          },
+          revenue: { combinedPaid: { monthToDateOmr: 1200 } },
+        }),
+      },
+      getDailySnapshot: {
+        useQuery: trpcQuery({
+          expiringDocs7Days: 1,
+          pendingLeaveRequests: 0,
+          pendingContracts: 1,
+          pendingPayrollApprovals: 0,
+          revenueMtdOmr: 800,
+          slaBreaches: 0,
+        }),
+      },
+    },
+    companies: {
+      myStats: { useQuery: trpcQuery({ employees: 42 }) },
+      getRoleRedirectSettings: { useQuery: trpcQuery({ settings: {} }) },
+    },
+    compliance: {
+      getWpsStatus: { useQuery: trpcQuery({ status: "paid" }) },
+      getComplianceScore: {
+        useQuery: trpcQuery({
+          score: 82,
+          grade: "B",
+          checks: [{ id: "work_permit_validity", status: "pass", meta: { count: 0 } }],
+        }),
+      },
+    },
+  },
+}));
+
+vi.mock("@/hooks/useActionQueue", () => ({
+  useActionQueue: vi.fn(),
+}));
+
+import ControlTowerPage from "@/pages/ControlTowerPage";
+import { useActionQueue } from "@/hooks/useActionQueue";
+
+function renderControlTowerPage() {
+  return render(
+    <Router>
+      <ControlTowerPage />
+    </Router>,
+  );
+}
+
+function clickMode(mode: "Operate" | "Brief" | "Present") {
+  fireEvent.click(screen.getByRole("button", { name: mode }));
+}
+
+beforeAll(() => {
+  vi.useFakeTimers({ now: FIXED_NOW });
+});
+
+afterAll(() => {
+  vi.useRealTimers();
+});
+
+beforeEach(() => {
+  vi.mocked(useActionQueue).mockImplementation(() => buildQueueFixture());
+});
+
+afterEach(() => {
+  cleanup();
+});
+
+describe("ControlTowerPage integration (composition)", () => {
+  it("operate mode renders the full stack", () => {
+    renderControlTowerPage();
+
+    expect(screen.getByRole("region", { name: "Operating brief" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Executive decisions" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Executive commitments" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Operating review" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Today's priorities" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Risk indicators" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Action queue" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Key metrics" })).toBeInTheDocument();
+    expect(screen.getByText("Operational snapshot")).toBeInTheDocument();
+  });
+
+  it("brief mode keeps executive stack and hides the action queue", () => {
+    renderControlTowerPage();
+    clickMode("Brief");
+
+    expect(screen.getByRole("region", { name: "Operating brief" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Executive decisions" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Executive commitments" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Operating review" })).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Action queue" })).toBeNull();
+    expect(screen.getByRole("region", { name: "Key metrics" })).toBeInTheDocument();
+  });
+
+  it("present mode hides queue, KPI snapshot, footer, and priorities while keeping the executive stack", () => {
+    renderControlTowerPage();
+    clickMode("Present");
+
+    expect(screen.getByRole("region", { name: "Operating brief" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Executive decisions" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Executive commitments" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Operating review" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Executive review" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Presentation summary")).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Risk indicators" })).toBeInTheDocument();
+
+    expect(screen.queryByRole("region", { name: "Action queue" })).toBeNull();
+    expect(screen.queryByRole("region", { name: "Key metrics" })).toBeNull();
+    expect(screen.queryByRole("region", { name: "Today's priorities" })).toBeNull();
+    expect(screen.queryByText("Operational snapshot")).toBeNull();
+  });
+
+  it("weekly variant + present mode still renders without breaking composition", () => {
+    renderControlTowerPage();
+    const audienceSelect = screen.getByLabelText(/Brief audience/i);
+    fireEvent.change(audienceSelect, { target: { value: "weekly" } });
+    clickMode("Present");
+
+    expect(screen.getByRole("region", { name: "Operating brief" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Executive decisions" })).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Action queue" })).toBeNull();
+    expect((screen.getByLabelText(/Brief audience/i) as HTMLSelectElement).value).toBe("weekly");
+  });
+
+  it("switching back to operate restores queue, KPI, and footer", () => {
+    renderControlTowerPage();
+    clickMode("Present");
+    expect(screen.queryByRole("region", { name: "Action queue" })).toBeNull();
+
+    clickMode("Operate");
+
+    expect(screen.getByRole("region", { name: "Action queue" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Key metrics" })).toBeInTheDocument();
+    expect(screen.getByText("Operational snapshot")).toBeInTheDocument();
+  });
+
+  it("main sections appear in the intended order in operate mode", () => {
+    renderControlTowerPage();
+
+    const brief = screen.getByRole("region", { name: "Operating brief" });
+    const decisions = screen.getByRole("region", { name: "Executive decisions" });
+    const commitments = screen.getByRole("region", { name: "Executive commitments" });
+    const review = screen.getByRole("region", { name: "Operating review" });
+    const priorities = screen.getByRole("region", { name: "Today's priorities" });
+    const queue = screen.getByRole("region", { name: "Action queue" });
+
+    const assertFollowing = (a: HTMLElement, b: HTMLElement) =>
+      expect(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+
+    assertFollowing(brief, decisions);
+    assertFollowing(decisions, commitments);
+    assertFollowing(commitments, review);
+    assertFollowing(review, priorities);
+    assertFollowing(priorities, queue);
+  });
+});

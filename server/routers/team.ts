@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
+import { eq } from "drizzle-orm";
 import {
   getEmployees,
   getEmployeeById,
@@ -7,7 +8,7 @@ import {
   updateEmployee,
 } from "../db";
 import { getDb } from "../db";
-import { employees } from "../../drizzle/schema";
+import { employees, workPermits } from "../../drizzle/schema";
 import { requireNotAuditor, requireWorkspaceMembership } from "../_core/membership";
 import { assertRowBelongsToActiveCompany } from "../_core/tenant";
 import type { User } from "../../drizzle/schema";
@@ -156,14 +157,54 @@ export const teamRouter = router({
     .mutation(async ({ input, ctx }) => {
       const membership = await requireMembership(ctx.user as User, input.companyId);
       requireNotAuditor(membership.role, "External Auditors cannot add staff.");
-      const { companyId: _cid, ...rest } = input;
-      await createEmployee({
-        ...rest,
-        email: rest.email || undefined,
-        companyId: membership.companyId,
-        salary: rest.salary != null ? String(rest.salary) : undefined,
-        hireDate: rest.hireDate ? new Date(rest.hireDate) : undefined,
-      });
+      const companyId = membership.companyId;
+      const {
+        companyId: _cid,
+        occupationCode,
+        occupationName,
+        workPermitExpiry,
+        workPermitNumber,
+        visaNumber,
+        ...core
+      } = input;
+
+      const emp = await createEmployee({
+        ...core,
+        email: core.email || undefined,
+        companyId,
+        salary: core.salary != null ? String(core.salary) : undefined,
+        hireDate: core.hireDate ? new Date(core.hireDate) : undefined,
+        workPermitNumber: workPermitNumber || undefined,
+        visaNumber: visaNumber || undefined,
+        workPermitExpiryDate: workPermitExpiry ? (parseDateField(workPermitExpiry) as any) : undefined,
+      } as any);
+
+      // Mirror hr.createEmployee: formal permit row drives Compliance / Work Permits UI
+      if (workPermitNumber) {
+        const db = await getDb();
+        if (db && emp) {
+          const employeeId = Number((emp as { insertId?: number }).insertId ?? 0);
+          if (employeeId) {
+            await db
+              .insert(workPermits)
+              .values({
+                companyId,
+                employeeId,
+                workPermitNumber,
+                labourAuthorisationNumber: visaNumber ?? null,
+                occupationCode: occupationCode ?? null,
+                occupationTitleEn: occupationName ?? null,
+                issueDate: null,
+                expiryDate: workPermitExpiry ? parseDateField(workPermitExpiry) ?? null : null,
+                permitStatus: "active",
+              })
+              .catch(() => {
+                /* duplicate permit number or DB constraint */
+              });
+          }
+        }
+      }
+
       return { success: true };
     }),
 
@@ -214,7 +255,20 @@ export const teamRouter = router({
     .mutation(async ({ input, ctx }) => {
       const membership = await requireMembership(ctx.user as User, input.companyId);
       requireNotAuditor(membership.role, "External Auditors cannot update staff.");
-      const { id, companyId: _cid, hireDate, dateOfBirth, visaExpiryDate, workPermitExpiryDate, ...data } = input;
+      const {
+        id,
+        companyId: _cid,
+        hireDate,
+        dateOfBirth,
+        visaExpiryDate,
+        workPermitExpiryDate,
+        workPermitNumber,
+        visaNumber,
+        occupationCode,
+        occupationName,
+        workPermitExpiry,
+        ...data
+      } = input;
       const existing = await getEmployeeById(id);
       if (!existing) throw new TRPCError({ code: "NOT_FOUND", message: "Staff member not found." });
       await assertRowBelongsToActiveCompany(ctx.user, existing.companyId, "Staff member", input.companyId);
@@ -227,7 +281,56 @@ export const teamRouter = router({
       if (dateOfBirth !== undefined) updateData.dateOfBirth = dateOfBirth || null;
       if (visaExpiryDate !== undefined) updateData.visaExpiryDate = visaExpiryDate || null;
       if (workPermitExpiryDate !== undefined) updateData.workPermitExpiryDate = workPermitExpiryDate || null;
+      if (workPermitExpiry !== undefined) {
+        updateData.workPermitExpiryDate = workPermitExpiry ? parseDateField(workPermitExpiry) ?? workPermitExpiry : null;
+      }
       await updateEmployee(id, updateData as any);
+
+      // Keep work_permits in sync (same behaviour as hr.updateEmployee)
+      if (
+        workPermitNumber !== undefined ||
+        visaNumber !== undefined ||
+        workPermitExpiry !== undefined ||
+        occupationCode !== undefined ||
+        occupationName !== undefined
+      ) {
+        const db = await getDb();
+        if (db) {
+          const existingPermits = await db
+            .select({ id: workPermits.id })
+            .from(workPermits)
+            .where(eq(workPermits.employeeId, id))
+            .limit(1);
+          const permitUpdate: Record<string, unknown> = {};
+          if (workPermitNumber !== undefined) permitUpdate.workPermitNumber = workPermitNumber;
+          if (visaNumber !== undefined) permitUpdate.labourAuthorisationNumber = visaNumber;
+          if (occupationCode !== undefined) permitUpdate.occupationCode = occupationCode;
+          if (occupationName !== undefined) permitUpdate.occupationTitleEn = occupationName;
+          if (workPermitExpiry !== undefined) {
+            permitUpdate.expiryDate = workPermitExpiry ? parseDateField(workPermitExpiry) ?? null : null;
+          }
+          if (existingPermits.length > 0) {
+            await db.update(workPermits).set(permitUpdate).where(eq(workPermits.id, existingPermits[0].id));
+          } else if (workPermitNumber) {
+            await db
+              .insert(workPermits)
+              .values({
+                companyId: existing.companyId,
+                employeeId: id,
+                workPermitNumber,
+                labourAuthorisationNumber: visaNumber ?? null,
+                occupationCode: occupationCode ?? null,
+                occupationTitleEn: occupationName ?? null,
+                expiryDate: workPermitExpiry ? parseDateField(workPermitExpiry) ?? null : null,
+                permitStatus: "active",
+              })
+              .catch(() => {
+                /* ignore */
+              });
+          }
+        }
+      }
+
       return { success: true };
     }),
 

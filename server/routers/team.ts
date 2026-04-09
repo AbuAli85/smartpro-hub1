@@ -58,18 +58,50 @@ function mapMolPermitStatusToEmployeeStatus(raw: string | undefined): "active" |
   return "active";
 }
 
+/**
+ * Single key for matching Civil / National ID across DB and Excel.
+ * Handles Excel number cells ("124689485.0"), JSON numbers, and leading zeros vs stored text.
+ */
+function canonicalCivilIdKey(raw: unknown): string | undefined {
+  if (raw === null || raw === undefined) return undefined;
+  let s = String(raw).trim();
+  if (!s) return undefined;
+  s = s.toLowerCase();
+  if (/^\d+\.0+$/.test(s)) s = s.replace(/\.0+$/, "");
+  const compact = s.replace(/\s+/g, "");
+  if (/^[\d.-]+$/.test(compact)) {
+    const digits = compact.replace(/\D/g, "");
+    if (digits.length >= 6) return digits.replace(/^0+/, "") || "0";
+  }
+  return compact;
+}
+
+function canonicalPassportKey(raw: unknown): string | undefined {
+  if (raw === null || raw === undefined) return undefined;
+  const s = String(raw).trim().toLowerCase().replace(/\s+/g, "");
+  if (!s) return undefined;
+  return s;
+}
+
+/** Coerce JSON numbers / Excel quirks to trimmed strings for bulk import rows */
+const optionalTrimmedString = z.preprocess((v) => {
+  if (v === null || v === undefined) return undefined;
+  const s = String(v).trim();
+  return s === "" ? undefined : s;
+}, z.string().optional());
+
 // ─── Bulk import row schema ───────────────────────────────────────────────────
 
 const importRowSchema = z.object({
   // Required
   name: z.string().min(1, "Employee name is required"),
   // Optional — mapped from Excel columns
-  civilNumber: z.string().optional(),
-  passportNumber: z.string().optional(),
-  visaNumber: z.string().optional(),
+  civilNumber: optionalTrimmedString,
+  passportNumber: optionalTrimmedString,
+  visaNumber: optionalTrimmedString,
   occupationCode: z.string().optional(),
   occupationName: z.string().optional(),
-  workPermitNumber: z.string().optional(),
+  workPermitNumber: optionalTrimmedString,
   workPermitStatus: z.string().optional(),
   dateOfIssue: z.string().optional(),
   dateOfExpiry: z.string().optional(),
@@ -445,20 +477,25 @@ export const teamRouter = router({
       requireNotAuditor(membership.role, "External Auditors cannot import staff.");
 
       const companyId = membership.companyId;
+      /** Explicit false only — treats undefined as true (safe re-import / older clients) */
+      const shouldUpdateExisting = input.updateExisting !== false;
 
       const existing = await getEmployees(companyId, {});
-      const existingCivilIds = new Set(
-        existing.map((e) => e.nationalId?.toLowerCase().trim()).filter(Boolean) as string[],
-      );
-      const existingPassports = new Set(
-        existing.map((e) => e.passportNumber?.toLowerCase().trim()).filter(Boolean) as string[],
-      );
-
+      const existingCivilIds = new Set<string>();
+      const existingPassports = new Set<string>();
       const civilToEmployeeId = new Map<string, number>();
       const passportToEmployeeId = new Map<string, number>();
       for (const e of existing) {
-        if (e.nationalId) civilToEmployeeId.set(e.nationalId.toLowerCase().trim(), e.id);
-        if (e.passportNumber) passportToEmployeeId.set(e.passportNumber.toLowerCase().trim(), e.id);
+        const ck = canonicalCivilIdKey(e.nationalId);
+        if (ck) {
+          existingCivilIds.add(ck);
+          civilToEmployeeId.set(ck, e.id);
+        }
+        const pk = canonicalPassportKey(e.passportNumber);
+        if (pk) {
+          existingPassports.add(pk);
+          passportToEmployeeId.set(pk, e.id);
+        }
       }
 
       let imported = 0;
@@ -526,8 +563,8 @@ export const teamRouter = router({
         const rowNum = i + 1;
 
         try {
-          const civilKey = row.civilNumber?.toLowerCase().trim();
-          const passportKey = row.passportNumber?.toLowerCase().trim();
+          const civilKey = canonicalCivilIdKey(row.civilNumber);
+          const passportKey = canonicalPassportKey(row.passportNumber);
 
           const nameParts = row.name.trim().split(/\s+/);
           const firstName = row.firstName || nameParts[0] || row.name;
@@ -552,7 +589,7 @@ export const teamRouter = router({
           if (!dbConn) throw new Error("Database unavailable");
 
           let existingEmployeeId: number | null = null;
-          if (input.updateExisting) {
+          if (shouldUpdateExisting) {
             if (civilKey && civilToEmployeeId.has(civilKey)) existingEmployeeId = civilToEmployeeId.get(civilKey)!;
             else if (passportKey && passportToEmployeeId.has(passportKey)) existingEmployeeId = passportToEmployeeId.get(passportKey)!;
           }
@@ -635,8 +672,8 @@ export const teamRouter = router({
             await upsertWorkPermitForRow(dbConn, employeeId, row, wpIssue, wpExpiry);
           }
 
-          if (row.civilNumber) existingCivilIds.add(civilKey!);
-          if (row.passportNumber) existingPassports.add(passportKey!);
+          if (civilKey) existingCivilIds.add(civilKey);
+          if (passportKey) existingPassports.add(passportKey);
           if (employeeId && civilKey) civilToEmployeeId.set(civilKey, employeeId);
           if (employeeId && passportKey) passportToEmployeeId.set(passportKey, employeeId);
 

@@ -55,6 +55,7 @@ import {
 import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
 import { DateInput } from "@/components/ui/date-input";
 import { invalidatePortalWorkStatusAndDocuments } from "@/lib/invalidatePortalWorkStatus";
+import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 
 // ─── Document type config ─────────────────────────────────────────────────────
 
@@ -117,6 +118,8 @@ export default function EmployeeDocumentsPage() {
   const employeeId = parseInt(params.id ?? "0", 10);
   const [, navigate] = useLocation();
   const utils = trpc.useUtils();
+  const { activeCompanyId, loading: companyWorkspaceLoading } = useActiveCompany();
+  const workspaceReady = !companyWorkspaceLoading && activeCompanyId != null;
 
   const [uploadOpen, setUploadOpen] = useState(false);
   const [deleteDocId, setDeleteDocId] = useState<number | null>(null);
@@ -135,25 +138,30 @@ export default function EmployeeDocumentsPage() {
 
   const { data: employee } = trpc.hr.getEmployee.useQuery({ id: employeeId }, { enabled: !!employeeId });
   const { data: docs = [], isLoading } = trpc.documents.listEmployeeDocs.useQuery(
-    { employeeId },
-    { enabled: !!employeeId }
+    { employeeId, companyId: activeCompanyId ?? undefined },
+    { enabled: !!employeeId && workspaceReady }
   );
 
   const uploadMutation = trpc.documents.uploadEmployeeDoc.useMutation({
     onSuccess: () => {
       toast.success("Document uploaded successfully");
-      utils.documents.listEmployeeDocs.invalidate({ employeeId });
+      void utils.documents.listEmployeeDocs.invalidate();
       invalidatePortalWorkStatusAndDocuments(utils);
       setUploadOpen(false);
       resetForm();
     },
-    onError: (err) => toast.error("Upload failed: " + err.message),
+    onError: (err) => {
+      const msg = err.message.includes("pass companyId")
+        ? "Select your company in the sidebar, then try again."
+        : err.message;
+      toast.error("Upload failed: " + msg);
+    },
   });
 
   const deleteMutation = trpc.documents.deleteEmployeeDoc.useMutation({
     onSuccess: () => {
       toast.success("Document removed");
-      utils.documents.listEmployeeDocs.invalidate({ employeeId });
+      void utils.documents.listEmployeeDocs.invalidate();
       invalidatePortalWorkStatusAndDocuments(utils);
       setDeleteDocId(null);
     },
@@ -214,7 +222,12 @@ export default function EmployeeDocumentsPage() {
             </div>
           </div>
         </div>
-        <Button onClick={() => setUploadOpen(true)} className="gap-2">
+        <Button
+          onClick={() => setUploadOpen(true)}
+          className="gap-2"
+          disabled={!workspaceReady}
+          title={!workspaceReady ? "Select a company workspace in the sidebar first" : undefined}
+        >
           <Plus className="w-4 h-4" /> Upload Document
         </Button>
       </div>
@@ -241,6 +254,10 @@ export default function EmployeeDocumentsPage() {
             <div key={i} className="h-32 rounded-lg bg-muted animate-pulse" />
           ))}
         </div>
+      ) : !workspaceReady ? (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950/30 p-4 text-sm text-amber-900 dark:text-amber-200">
+          Select a company workspace using the company menu in the sidebar, then reload this page.
+        </div>
       ) : docs.length === 0 ? (
         /* Empty state */
         <div className="text-center py-16 border-2 border-dashed border-border rounded-xl">
@@ -254,7 +271,12 @@ export default function EmployeeDocumentsPage() {
               <Badge key={t.value} variant="outline" className="text-xs">{t.label}</Badge>
             ))}
           </div>
-          <Button onClick={() => setUploadOpen(true)} className="gap-2">
+          <Button
+            onClick={() => setUploadOpen(true)}
+            className="gap-2"
+            disabled={!workspaceReady}
+            title={!workspaceReady ? "Select a company workspace in the sidebar first" : undefined}
+          >
             <Plus className="w-4 h-4" /> Upload First Document
           </Button>
         </div>
@@ -426,8 +448,13 @@ export default function EmployeeDocumentsPage() {
             <Button
               onClick={() => {
                 if (!form.documentType || !form.fileBase64) return;
+                if (activeCompanyId == null) {
+                  toast.error("Select your company in the sidebar, then try again.");
+                  return;
+                }
                 uploadMutation.mutate({
                   employeeId,
+                  companyId: activeCompanyId,
                   documentType: form.documentType as DocTypeValue,
                   fileName: form.fileName,
                   issuedAt: form.issuedAt || undefined,
@@ -458,7 +485,10 @@ export default function EmployeeDocumentsPage() {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={() => deleteDocId && deleteMutation.mutate({ id: deleteDocId })}
+              onClick={() => {
+                if (!deleteDocId || activeCompanyId == null) return;
+                deleteMutation.mutate({ id: deleteDocId, companyId: activeCompanyId });
+              }}
             >
               Remove
             </AlertDialogAction>

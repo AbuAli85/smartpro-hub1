@@ -14,6 +14,7 @@ import enOperations from "../locales/en-OM/operations.json";
 import enCompliance from "../locales/en-OM/compliance.json";
 import enClientPortal from "../locales/en-OM/clientPortal.json";
 import enExecutive from "../locales/en-OM/executive.json";
+import enRenewalWorkflows from "../locales/en-OM/renewalWorkflows.json";
 
 // ar-OM resources
 import arCommon from "../locales/ar-OM/common.json";
@@ -27,6 +28,7 @@ import arOperations from "../locales/ar-OM/operations.json";
 import arCompliance from "../locales/ar-OM/compliance.json";
 import arClientPortal from "../locales/ar-OM/clientPortal.json";
 import arExecutive from "../locales/ar-OM/executive.json";
+import arRenewalWorkflows from "../locales/ar-OM/renewalWorkflows.json";
 
 export const SUPPORTED_LANGUAGES = [
   { code: "en-OM", label: "English", nativeLabel: "English", dir: "ltr" as const },
@@ -49,6 +51,7 @@ export const NAMESPACES = [
   "compliance",
   "clientPortal",
   "executive",
+  "renewalWorkflows",
 ] as const;
 export type Namespace = (typeof NAMESPACES)[number];
 
@@ -65,6 +68,7 @@ const resources = {
     compliance: enCompliance,
     clientPortal: enClientPortal,
     executive: enExecutive,
+    renewalWorkflows: enRenewalWorkflows,
   },
   "ar-OM": {
     common: arCommon,
@@ -78,6 +82,7 @@ const resources = {
     compliance: arCompliance,
     clientPortal: arClientPortal,
     executive: arExecutive,
+    renewalWorkflows: arRenewalWorkflows,
   },
 };
 

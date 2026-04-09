@@ -4,33 +4,39 @@
   "refresh": "تحديث",
   "attentionTitle": "متابعة الامتثال والرواتب",
   "attention": {
-    "failedChecks": "فشل {{count}} من فحوصات الامتثال",
+    "failedChecks_one": "فحص امتثال واحد راسب",
+    "failedChecks_other": "{{count}} فحوصات امتثال راسبة",
     "omanisationGap": "فجوة التعمين {{gap}}٪",
-    "pasiUnsettled": "PASI غير مسوّى بالكامل",
-    "wpsNotPaid": "WPS غير معلّم كمدفوع",
-    "permitsExpiredExpiring": "{{expired}} منتهية / {{expiring}} تنتهي قريباً",
-    "overdueAr": "{{amount}} ر.ع. ذمم مدينة متأخرة ({{count}})",
-    "payrollBlocked": "تشغيلات الرواتب تحتاج دفعاً أو موافقة"
+    "pasiNotSettled": "لم يتم تسوية PASI بالكامل",
+    "wpsNotPaid": "لم يُعلَّم WPS كمدفوع",
+    "permitsIssue": "{{expired}} منتهية / {{expiring}} تصريح تنتهي قريباً",
+    "overdueReceivables": "{{amount}} ر.ع. ذمم مدينة متأخرة ({{count}})",
+    "payrollBlocked": "مسيرات الرواتب تحتاج دفعاً أو موافقة"
   },
   "overallScore": "درجة الامتثال الإجمالية",
   "checksSection": "فحوصات الامتثال",
   "checkNames": {
     "omanisation_quota": "حصة التعمين",
-    "work_permit_validity": "صلاحية تصريح العمل",
-    "upcoming_renewals": "تجديدات قادمة",
-    "wps_compliance": "امتثال WPS (نظام حماية الأجور)"
+    "work_permit_validity": "صلاحية تصاريح العمل",
+    "upcoming_renewals": "التجديدات القادمة",
+    "wps_compliance": "الامتثال لنظام WPS"
   },
   "checkDetails": {
-    "omanisation_quota": "{{pct}}٪ موظفون عمانيون (المستهدف: {{target}}٪)",
-    "work_permit_valid_ok": "جميع التصاريح سارية",
-    "work_permit_valid_expired": "{{count}} تصريح(ات) منتهية",
-    "upcoming_renewals_ok": "لا توجد تصاريح تنتهي خلال 30 يوماً",
-    "upcoming_renewals_expiring": "{{count}} تصريح(ات) تنتهي خلال 30 يوماً",
-    "wps_paid": "تم دفع الرواتب عبر WPS",
-    "wps_pending": "تم إنشاء ملف WPS وبانتظار الدفع",
-    "wps_not_generated": "لم يُنشأ ملف WPS للشهر الحالي"
+    "omanisation_quota_pass": "{{pct}}٪ موظفون عُمانيون — تحقيق الهدف ({{target}}٪)",
+    "omanisation_quota_warn": "{{pct}}٪ موظفون عُمانيون — قرب من الهدف ({{target}}٪)",
+    "omanisation_quota_fail": "{{pct}}٪ موظفون عُمانيون — دون الهدف ({{target}}٪)",
+    "work_permit_validity_pass": "جميع التصاريح سارية",
+    "work_permit_validity_warn": "{{count}} تصريح منتهٍ — يتطلب مراجعة",
+    "work_permit_validity_fail": "{{count}} تصريح منتهٍ — يتطلب إجراءً عاجلاً",
+    "upcoming_renewals_pass": "لا توجد تصاريح تنتهي خلال {{days}} يوماً",
+    "upcoming_renewals_warn": "{{count}} تصريح ينتهي خلال {{days}} يوماً",
+    "upcoming_renewals_fail": "{{count}} تصريح ينتهي خلال {{days}} يوماً — جدّد فوراً",
+    "wps_compliance_paid": "تم دفع الرواتب عبر WPS",
+    "wps_compliance_file_ready": "تم إنشاء ملف WPS، في انتظار الدفع",
+    "wps_compliance_not_generated": "لم يُنشأ ملف WPS للشهر الحالي"
   },
   "weightLabel": "الوزن: {{weight}}٪",
+  "weight": "الوزن",
   "gradeExcellent": "ممتاز — امتثال كامل",
   "gradeGood": "جيد — ملاحظات بسيطة",
   "gradeFair": "مقبول — يتطلب إجراء",
@@ -40,7 +46,6 @@
   "permits": "التصاريح",
   "alerts": "التنبيهات",
   "overdueAr": "ذمم مدينة متأخرة",
-  "weight": "الوزن",
   "byDepartment": "حسب القسم",
   "target": "المستهدف",
   "gap": "الفجوة",
@@ -54,6 +59,7 @@
   "omanisationCardTitle": "حصة التعمين",
   "omanisationOf": "{{omani}} عُماني من أصل {{total}} موظف",
   "pasiCardTitle": "اشتراكات PASI — {{month}}",
+  "pasiAuthorityHint": "الهيئة العامة للتأمينات الاجتماعية",
   "wpsCardTitle": "حالة WPS — {{month}}",
   "permitMatrixTitle": "مصفوفة صلاحية تصاريح العمل",
   "legendValid": "سارية",
@@ -68,36 +74,6 @@
   "colExpiring": "تنتهي قريباً",
   "colExpired": "منتهية",
   "colNoPermit": "بلا تصريح",
-  "checkNames": {
-    "omanisation_quota": "حصة التعمين",
-    "work_permit_validity": "صلاحية تصاريح العمل",
-    "upcoming_renewals": "التجديدات القادمة",
-    "wps_compliance": "الامتثال لنظام WPS"
-  },
-  "checkDetails": {
-    "omanisation_quota_pass": "{{pct}}% موظفين عُمانيين — تم تحقيق الهدف ({{target}}%)",
-    "omanisation_quota_warn": "{{pct}}% موظفين عُمانيين — يقترب من الهدف ({{target}}%)",
-    "omanisation_quota_fail": "{{pct}}% موظفين عُمانيين — دون الهدف ({{target}}%)",
-    "work_permit_validity_pass": "جميع التصاريح سارية",
-    "work_permit_validity_warn": "{{count}} تصريح منتهٍ — يتطلب مراجعة",
-    "work_permit_validity_fail": "{{count}} تصريح منتهٍ — يتطلب إجراءً عاجلاً",
-    "upcoming_renewals_pass": "لا توجد تصاريح تنتهي خلال {{days}} يوماً",
-    "upcoming_renewals_warn": "{{count}} تصريح ينتهي خلال {{days}} يوماً",
-    "upcoming_renewals_fail": "{{count}} تصريح ينتهي خلال {{days}} يوماً — جدّد فوراً",
-    "wps_compliance_paid": "تم دفع الرواتب عبر WPS",
-    "wps_compliance_file_ready": "تم إنشاء ملف WPS، في انتظار الدفع",
-    "wps_compliance_not_generated": "لم يتم إنشاء ملف WPS للشهر الحالي"
-  },
-  "attention": {
-    "failedChecks_one": "{{count}} فحص فاشل",
-    "failedChecks_other": "{{count}} فحوصات فاشلة",
-    "omanisationGap": "فجوة التعمين {{gap}}%",
-    "pasiNotSettled": "لم يتم تسوية PASI بالكامل",
-    "wpsNotPaid": "لم يُعلَّم WPS كمدفوع",
-    "permitsIssue": "{{expired}} منتهية / {{expiring}} تصريح تنتهي قريباً",
-    "overdueReceivables": "ر.ع. {{amount}} ذمم مدينة متأخرة ({{count}})",
-    "payrollBlocked": "مسيرات الرواتب تحتاج دفعاً أو موافقة"
-  },
   "pasiStatus": {
     "paid": "مدفوع",
     "approved": "معتمد",
@@ -111,5 +87,16 @@
     "generated": "تم الإنشاء",
     "not_generated": "لم يُنشأ بعد"
   },
-  "unassignedDepartment": "غير مُعيَّن"
+  "unassignedDepartment": "غير مُعيَّن",
+  "unnamedDepartment": "—",
+  "departments": {
+    "sales": "المبيعات",
+    "operations": "العمليات",
+    "marketing": "التسويق",
+    "hr": "الموارد البشرية",
+    "finance": "المالية",
+    "it": "تقنية المعلومات",
+    "scanning_data_entry": "إدخال بيانات المسح الضوئي",
+    "unassigned": "غير مُعيَّن"
+  }
 }

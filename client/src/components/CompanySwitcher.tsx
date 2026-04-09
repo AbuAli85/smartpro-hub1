@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Building2, ChevronDown, Check, Plus } from "lucide-react";
 import { useLocation } from "wouter";
+import { useTranslation } from "react-i18next";
 
 const ROLE_LABELS: Record<string, string> = {
   owner: "Owner / Admin",
@@ -43,8 +44,15 @@ const ROLE_COLORS: Record<string, string> = {
 };
 
 export function CompanySwitcher() {
+  const { t } = useTranslation("nav");
   const { companies, activeCompany, switchCompany, loading } = useActiveCompany();
   const [, navigate] = useLocation();
+
+  function roleLabel(role: string | null | undefined) {
+    const r = role?.trim() ?? "";
+    if (!r) return t("roles.member", { defaultValue: "Member" });
+    return t(`roles.${r}`, { defaultValue: ROLE_LABELS[r] ?? r });
+  }
 
   if (loading) {
     return (
@@ -77,19 +85,24 @@ export function CompanySwitcher() {
     );
   }
 
-  const roleLabel = ROLE_LABELS[activeCompany.role ?? ""] ?? activeCompany.role ?? "Member";
-
   // ALWAYS show dropdown — even for single company — so user can add another
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button className="flex items-center gap-2 px-2 py-2 rounded-lg hover:bg-white/10 transition-colors w-full text-left group focus:outline-none overflow-hidden">
+        <button className="flex items-center gap-2 px-2 py-2 rounded-lg hover:bg-white/10 transition-colors w-full text-start group focus:outline-none min-w-0">
           <div className="w-7 h-7 rounded-md bg-red-600 flex items-center justify-center flex-shrink-0">
             <Building2 size={14} className="text-white" />
           </div>
-          <div className="flex-1 min-w-0 overflow-hidden">
-            <p className="text-sm font-semibold text-white truncate leading-tight" title={activeCompany.name}>{activeCompany.name}</p>
-            <p className={`text-xs font-medium truncate leading-tight ${ROLE_COLORS[activeCompany.role ?? ""] ?? "text-white/60"}`}>{roleLabel}</p>
+          <div className="flex-1 min-w-0">
+            <p
+              className="text-sm font-semibold text-white line-clamp-2 leading-tight break-words"
+              title={activeCompany.name}
+            >
+              {activeCompany.name}
+            </p>
+            <p className={`text-xs font-medium truncate leading-tight ${ROLE_COLORS[activeCompany.role ?? ""] ?? "text-white/60"}`}>
+              {roleLabel(activeCompany.role)}
+            </p>
           </div>
           <ChevronDown
             size={13}
@@ -111,7 +124,7 @@ export function CompanySwitcher() {
         ) : (
           companies.map((company) => {
             const isActive = company.id === activeCompany.id;
-            const label = ROLE_LABELS[company.role ?? ""] ?? company.role ?? "Member";
+            const label = roleLabel(company.role);
             return (
               <DropdownMenuItem
                 key={company.id}

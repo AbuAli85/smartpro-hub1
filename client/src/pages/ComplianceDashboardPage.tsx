@@ -13,7 +13,6 @@ import { Link } from "wouter";
 import { format } from "date-fns";
 import { ar as arLocale, enUS } from "date-fns/locale";
 import { useTranslation } from "react-i18next";
-import type { TFunction } from "i18next";
 
 function StatusIcon({ status }: { status: "pass" | "warn" | "fail" }) {
   if (status === "pass") return <CheckCircle2 className="w-5 h-5 text-green-500" />;
@@ -46,70 +45,13 @@ function GradeCircle({ score, grade }: { score: number; grade: string }) {
   );
 }
 
-/** Normalize common display typos in department names from imported data */
-function formatDepartmentLabel(name: string, t: TFunction<"compliance">): string {
-  const fixed = name.replace(/\bEntery\b/gi, "Entry");
-  if (fixed === "Unassigned") return t("unassignedDepartment");
-  return fixed;
-}
-
-type ComplianceCheckRow = {
-  id: string;
-  name: string;
-  status: "pass" | "warn" | "fail";
-  detail: string;
-  weight: number;
-  meta: Record<string, string | number>;
-};
-
-function localizedCheckNameAndDetail(check: ComplianceCheckRow, t: TFunction<"compliance">) {
-  const name = t(`checkNames.${check.id}`, { defaultValue: check.name });
-  const meta = check.meta ?? {};
-  let detail = check.detail;
-  switch (check.id) {
-    case "omanisation_quota":
-      detail = t("checkDetails.omanisation_quota", {
-        pct: Number(meta.pct ?? 0),
-        target: Number(meta.target ?? 35),
-      });
-      break;
-    case "work_permit_validity": {
-      const n = Number(meta.expiredCount ?? 0);
-      detail = n === 0 ? t("checkDetails.work_permit_valid_ok") : t("checkDetails.work_permit_valid_expired", { count: n });
-      break;
-    }
-    case "upcoming_renewals": {
-      const n = Number(meta.expiringCount ?? 0);
-      detail = n === 0 ? t("checkDetails.upcoming_renewals_ok") : t("checkDetails.upcoming_renewals_expiring", { count: n });
-      break;
-    }
-    case "wps_compliance": {
-      const v = String(meta.variant ?? "not_generated");
-      detail = t(`checkDetails.wps_${v}` as "checkDetails.wps_paid", { defaultValue: check.detail });
-      break;
-    }
-    default:
-      break;
-  }
-  return { name, detail };
-}
-
-function formatPasiStatusLabel(status: string | undefined, t: TFunction<"compliance">) {
-  if (!status) return "—";
-  if (status === "not_calculated") return t("pasiStatus.not_calculated");
-  const key = `pasiStatus.${status}`;
-  const translated = t(key as "pasiStatus.paid");
-  if (translated !== key) return translated;
-  return status.replace(/_/g, " ").toUpperCase();
-}
-
-function formatWpsStatusLabel(status: string | undefined, t: TFunction<"compliance">) {
-  if (!status) return "—";
-  if (status === "not_generated") return t("wpsStatus.not_generated");
-  const key = `wpsStatus.${status}`;
-  const translated = t(key as "wpsStatus.paid");
-  if (translated !== key) return translated;
-  return status.replace(/_/g, " ").toUpperCase();
+function departmentSlug(raw: string): string {
+  return raw
+    .replace(/\bEntery\b/gi, "Entry")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_|_$/g, "");
 }
 
 export default function ComplianceDashboardPage() {
@@ -156,7 +98,7 @@ export default function ComplianceDashboardPage() {
     !scoreLoading &&
     (failedChecks > 0 || wpsBlocked || permitCritical || pasiOpen || omanGap || arRisk || payrollBlocked);
 
-  /** Translate a check using its stable id + status + meta */
+  /** Translate a check: detail keys match server meta (WPS uses meta.variant, not pass/warn/fail). */
   function localizeCheck(check: {
     id?: string;
     name: string;
@@ -166,36 +108,37 @@ export default function ComplianceDashboardPage() {
   }) {
     const id = check.id;
     if (!id) return { name: check.name, detail: check.detail };
-    const nameKey = `checkNames.${id}`;
-    const detailKey = `checkDetails.${id}_${check.status}`;
     const meta = check.meta ?? {};
-    return {
-      name: t(nameKey as Parameters<typeof t>[0], check.name),
-      detail: t(detailKey as Parameters<typeof t>[0], { ...meta, defaultValue: check.detail }),
-    };
+    const name = t(`checkNames.${id}`, { defaultValue: check.name });
+    let detailKey: string;
+    if (id === "wps_compliance") {
+      const v = String(meta.variant ?? "not_generated");
+      detailKey = `checkDetails.wps_compliance_${v}`;
+    } else {
+      detailKey = `checkDetails.${id}_${check.status}`;
+    }
+    const detail = t(detailKey, { ...(meta as Record<string, unknown>), defaultValue: check.detail });
+    return { name, detail };
   }
 
-  /** Translate department label — fix "Entery" typo and "Unassigned" */
   function formatDeptLabel(dept: string) {
-    if (dept === "Unassigned") return t("unassignedDepartment");
-    return dept.replace(/\bEntery\b/g, "Entry");
+    const fixed = dept.replace(/\bEntery\b/gi, "Entry").trim();
+    if (!fixed) return t("unnamedDepartment");
+    if (fixed === "Unassigned") return t("unassignedDepartment");
+    if (!isArabic) return fixed;
+    return t(`departments.${departmentSlug(fixed)}`, { defaultValue: fixed });
   }
 
-  /** Translate PASI status badge */
   function pasiStatusLabel(status?: string) {
     if (!status) return "—";
-    const key = `pasiStatus.${status}`;
-    return t(key as Parameters<typeof t>[0], status.replace(/_/g, " ").toUpperCase());
+    return t(`pasiStatus.${status}`, { defaultValue: status.replace(/_/g, " ").toUpperCase() });
   }
 
-  /** Translate WPS status badge */
   function wpsStatusLabel(status?: string) {
     if (!status) return "—";
-    const key = `wpsStatus.${status}`;
-    return t(key as Parameters<typeof t>[0], status.replace(/_/g, " ").toUpperCase());
+    return t(`wpsStatus.${status}`, { defaultValue: status.replace(/_/g, " ").toUpperCase() });
   }
 
-  /** Build attention detail line from structured keys */
   const attentionParts: string[] = [
     failedChecks > 0 ? t("attention.failedChecks", { count: failedChecks }) : "",
     omanGap ? t("attention.omanisationGap", { gap: omanisation?.gap }) : "",
@@ -311,7 +254,7 @@ export default function ComplianceDashboardPage() {
                     <div className="flex-1">
                       <div className="flex items-center justify-between">
                         <p className="font-semibold text-sm">{name}</p>
-                        <span className="text-xs text-muted-foreground">{t("weight")}: {check.weight}%</span>
+                        <span className="text-xs text-muted-foreground">{t("weightLabel", { weight: check.weight })}</span>
                       </div>
                       <p className="text-xs text-muted-foreground mt-0.5">{detail}</p>
                     </div>
@@ -367,8 +310,10 @@ export default function ComplianceDashboardPage() {
                   <div className="space-y-2 pt-2">
                     <p className="text-xs font-semibold text-muted-foreground uppercase">{t("byDepartment")}</p>
                     {omanisation?.byDepartment.slice(0, 5).map((dept) => (
-                      <div key={dept.department} className="flex items-center gap-2">
-                        <span className="text-xs w-28 truncate text-muted-foreground">{formatDeptLabel(dept.department)}</span>
+                      <div key={dept.department || "__empty"} className="flex items-center gap-2 min-w-0">
+                        <span className="text-xs text-muted-foreground min-w-0 flex-1 break-words leading-snug">
+                          {formatDeptLabel(dept.department ?? "")}
+                        </span>
                         <Progress value={dept.pct} className={`flex-1 h-1.5 ${dept.meetsTarget ? "[&>div]:bg-green-500" : "[&>div]:bg-orange-500"}`} />
                         <span className="text-xs font-semibold w-8 text-right">{dept.pct}%</span>
                       </div>
@@ -489,7 +434,7 @@ export default function ComplianceDashboardPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b text-xs text-muted-foreground">
-                    <th scope="col" className="text-left py-2 font-semibold">{t("colDepartment")}</th>
+                    <th scope="col" className="text-start py-2 font-semibold">{t("colDepartment")}</th>
                     <th scope="col" className="text-center py-2 font-semibold">{t("colTotal")}</th>
                     <th scope="col" className="text-center py-2 font-semibold text-green-600">{t("colValid")}</th>
                     <th scope="col" className="text-center py-2 font-semibold text-orange-600">{t("colExpiring")}</th>

@@ -101,5 +101,19 @@
   "adminPanel": "لوحة الإدارة",
   "onboardingGuideLink": "دليل التأهيل",
   "navigationPreferences": "تفضيلات التنقل",
-  "signOut": "تسجيل الخروج"
+  "signOut": "تسجيل الخروج",
+  "brandTitle": "SmartPRO",
+  "brandSubtitle": "مركز خدمات الأعمال · عُمان",
+  "roles": {
+    "member": "عضو",
+    "owner": "مالك / مسؤول",
+    "company_admin": "مالك / مسؤول",
+    "hr_admin": "مدير موارد بشرية",
+    "finance_admin": "مدير مالي",
+    "company_member": "موظف",
+    "employee": "موظف",
+    "reviewer": "مراجع",
+    "auditor": "مدقق خارجي",
+    "external_auditor": "مدقق خارجي"
+  }
 }

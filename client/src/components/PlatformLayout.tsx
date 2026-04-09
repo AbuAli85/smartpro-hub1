@@ -364,8 +364,8 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
             <span className="text-white font-black text-sm tracking-tight">SP</span>
           </div>
           <div>
-            <div className="text-white font-black text-sm leading-none tracking-tight">SmartPRO</div>
-            <div className="text-[10px] text-white/45 leading-none mt-0.5">Business Services Hub · Oman</div>
+            <div className="text-white font-black text-sm leading-none tracking-tight">{t("brandTitle")}</div>
+            <div className="text-[10px] text-white/45 leading-none mt-0.5">{t("brandSubtitle")}</div>
           </div>
         </Link>
         {onClose && (

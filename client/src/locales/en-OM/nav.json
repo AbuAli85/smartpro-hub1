@@ -100,5 +100,19 @@
   "adminPanel": "Admin Panel",
   "onboardingGuideLink": "Onboarding guide",
   "navigationPreferences": "Navigation preferences",
-  "signOut": "Sign out"
+  "signOut": "Sign out",
+  "brandTitle": "SmartPRO",
+  "brandSubtitle": "Business Services Hub · Oman",
+  "roles": {
+    "member": "Member",
+    "owner": "Owner / Admin",
+    "company_admin": "Owner / Admin",
+    "hr_admin": "HR Manager",
+    "finance_admin": "Finance Manager",
+    "company_member": "Staff / Employee",
+    "employee": "Employee",
+    "reviewer": "Reviewer",
+    "auditor": "External Auditor",
+    "external_auditor": "External Auditor"
+  }
 }

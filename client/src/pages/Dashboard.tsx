@@ -480,9 +480,9 @@ export default function Dashboard() {
   const riskCounts = useMemo(() => {
     const list = roleQueue ?? [];
     const payrollBlocked = list.filter((i) => i.type === "payroll_blocker" && (i.status === "blocked" || i.status === "overdue")).length;
-    const permitsAtRisk = list.filter((i) => i.type === "permit_expiry" && i.status === "overdue").length;
+    const expiredPermits = list.filter((i) => i.type === "permit_expiry" && i.status === "overdue").length;
     const overdueGovCases = list.filter((i) => i.type === "government_case_overdue" && i.status === "overdue").length;
-    return { payrollBlocked, permitsAtRisk, overdueGovCases };
+    return { payrollBlocked, expiredPermits, overdueGovCases };
   }, [roleQueue]);
   const hour = new Date().getHours();
   const greeting = hour < 12 ? t("dashboard:goodMorning", "Good morning") : hour < 17 ? t("dashboard:goodAfternoon", "Good afternoon") : t("dashboard:goodEvening", "Good evening");
@@ -580,10 +580,10 @@ export default function Dashboard() {
                 </div>
               </CardContent>
             </Card>
-            <Card className={`border ${riskCounts.permitsAtRisk > 0 ? "border-red-200 bg-red-50/40" : "border-border/70"}`}>
+            <Card className={`border ${riskCounts.expiredPermits > 0 ? "border-red-200 bg-red-50/40" : "border-border/70"}`}>
               <CardContent className="p-4">
-                <p className="text-xs text-muted-foreground">Permits at risk</p>
-                <p className="text-2xl font-black mt-1">{riskCounts.permitsAtRisk}</p>
+                <p className="text-xs text-muted-foreground">Expired permits</p>
+                <p className="text-2xl font-black mt-1">{riskCounts.expiredPermits}</p>
                 <div className="mt-2 text-xs">
                   <Link href="/workforce/permits?status=expired" className="text-[var(--smartpro-orange)] hover:underline">Open permits list</Link>
                 </div>

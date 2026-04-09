@@ -4,6 +4,8 @@ import { Activity, CheckCircle2, ClipboardList, Users } from "lucide-react";
 
 export type KpiSnapshotSectionProps = {
   scopeEnabled: boolean;
+  /** Optional queue size delta vs last local snapshot */
+  queueTrendHint?: string | null;
   statsLoading: boolean;
   employees: number | null | undefined;
   employeesTrust: string;
@@ -20,6 +22,7 @@ export type KpiSnapshotSectionProps = {
 
 export function KpiSnapshotSection({
   scopeEnabled,
+  queueTrendHint,
   statsLoading,
   employees,
   employeesTrust,
@@ -40,6 +43,9 @@ export function KpiSnapshotSection({
         <p className="text-[11px] text-muted-foreground mt-0.5">
           Operational context — secondary to blockers and the queue.
         </p>
+        {scopeEnabled && queueTrendHint ? (
+          <p className="text-[10px] text-muted-foreground/90 mt-1 tabular-nums">{queueTrendHint}</p>
+        ) : null}
       </div>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Card className="shadow-sm border-muted/80 bg-muted/5">

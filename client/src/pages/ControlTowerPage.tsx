@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
@@ -18,6 +18,14 @@ import {
 } from "@/features/controlTower/components";
 import { seesPlatformOperatorNav } from "@shared/clientNav";
 import { formatEscalationSummaryLine, summarizeEscalationFromItems } from "@/features/controlTower/escalationMeta";
+import { buildSnapshotFromItems } from "@/features/controlTower/snapshot";
+import { getPreviousSnapshot, saveSnapshot } from "@/features/controlTower/snapshotStore";
+import {
+  buildPrioritiesTrendHints,
+  buildQueueTotalTrendHint,
+  buildTrendSummaryLine,
+} from "@/features/controlTower/trend";
+import type { TrendComparison } from "@/features/controlTower/trendTypes";
 
 export default function ControlTowerPage() {
   const { user } = useAuth();
@@ -144,6 +152,41 @@ export default function ControlTowerPage() {
     return formatEscalationSummaryLine(summarizeEscalationFromItems(actionItems));
   }, [queueScopeActive, actionsLoading, actionItems]);
 
+  const previousSnapshot = useMemo(() => {
+    if (typeof window === "undefined" || !queueScopeActive) return null;
+    return getPreviousSnapshot(activeCompanyId, user?.id ?? null);
+  }, [queueScopeActive, activeCompanyId, user?.id]);
+
+  const currentSnapshot = useMemo(
+    () => buildSnapshotFromItems(actionItems, { prioritiesCount: priorityItems.length }),
+    [actionItems, priorityItems.length],
+  );
+
+  const trendComparison = useMemo(
+    (): TrendComparison => ({ current: currentSnapshot, previous: previousSnapshot }),
+    [currentSnapshot, previousSnapshot],
+  );
+
+  const trendSummaryLine = useMemo(() => {
+    if (!queueScopeActive || actionsLoading) return null;
+    return buildTrendSummaryLine(trendComparison);
+  }, [queueScopeActive, actionsLoading, trendComparison]);
+
+  const prioritiesTrendHintsLine = useMemo(() => {
+    if (!queueScopeActive || actionsLoading) return null;
+    return buildPrioritiesTrendHints(trendComparison);
+  }, [queueScopeActive, actionsLoading, trendComparison]);
+
+  const queueTrendHint = useMemo(() => {
+    if (!queueScopeActive || actionsLoading) return null;
+    return buildQueueTotalTrendHint(trendComparison);
+  }, [queueScopeActive, actionsLoading, trendComparison]);
+
+  useEffect(() => {
+    if (!queueScopeActive || actionsLoading) return;
+    saveSnapshot(currentSnapshot, activeCompanyId, user?.id ?? null);
+  }, [queueScopeActive, actionsLoading, currentSnapshot, activeCompanyId, user?.id]);
+
   return (
     <div className="min-h-screen bg-background">
       <ExecutiveHeader
@@ -151,6 +194,7 @@ export default function ControlTowerPage() {
         companyName={activeCompany?.name ?? null}
         freshnessLabel={queueUpdatedLabel ?? null}
         escalationSummaryLine={escalationSummaryLine}
+        trendSummaryLine={trendSummaryLine}
         queueStatus={queueStatus}
         queueScopeActive={queueScopeActive}
         actionsLoading={actionsLoading}
@@ -175,6 +219,7 @@ export default function ControlTowerPage() {
           priorityItems={priorityItems}
           hasStrongPriorities={hasStrongPriorities}
           actionItemsLength={actionItems.length}
+          trendHintsLine={prioritiesTrendHintsLine}
         />
 
         <RiskStrip cards={riskCards} />
@@ -190,6 +235,7 @@ export default function ControlTowerPage() {
 
         <KpiSnapshotSection
           scopeEnabled={scopeEnabled}
+          queueTrendHint={queueTrendHint}
           statsLoading={statsLoading}
           employees={myStats?.employees}
           employeesTrust={employeesTrust}

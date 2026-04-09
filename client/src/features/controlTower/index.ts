@@ -21,3 +21,7 @@ export * from "./sla";
 export * from "./escalation";
 export * from "./followThrough";
 export * from "./escalationMeta";
+export * from "./trendTypes";
+export * from "./snapshot";
+export * from "./snapshotStore";
+export * from "./trend";

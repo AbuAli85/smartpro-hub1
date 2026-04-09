@@ -19,6 +19,8 @@ export type PrioritiesSectionProps = {
   priorityItems: PriorityItemExecutionView[];
   hasStrongPriorities: boolean;
   actionItemsLength: number;
+  /** Compact trend glyphs vs last check (local snapshot) */
+  trendHintsLine?: string | null;
 };
 
 function priorityCardShell(level: PriorityLevel) {
@@ -38,6 +40,7 @@ export function PrioritiesSection({
   priorityItems,
   hasStrongPriorities,
   actionItemsLength,
+  trendHintsLine,
 }: PrioritiesSectionProps) {
   if (!queueScopeActive) return null;
 
@@ -51,6 +54,11 @@ export function PrioritiesSection({
         <h2 className="text-sm font-semibold tracking-tight text-foreground">Today&apos;s priorities</h2>
         <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Top 3</span>
       </div>
+      {!actionsLoading && trendHintsLine ? (
+        <p className="text-[10px] text-muted-foreground tabular-nums" aria-label="Trend vs last check">
+          {trendHintsLine}
+        </p>
+      ) : null}
 
       {!actionsLoading && (queueStatus === "partial" || queueStatus === "error") && (
         <div className="flex items-start gap-2 rounded-lg border border-amber-200/90 bg-amber-50/70 dark:bg-amber-950/30 px-3 py-2 text-xs text-amber-950 dark:text-amber-50">

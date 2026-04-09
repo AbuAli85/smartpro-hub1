@@ -1,5 +1,6 @@
 import { domainLabel } from "./decisionPromptCopy";
 import { getBriefExportTitle, getBriefVariantConfig, type BriefVariantConfig } from "./briefVariantConfig";
+import { presentationOneLine } from "./presentationMode";
 import type { OperatingBriefVariant } from "./briefVariants";
 import { getTopPressureDomains, pressureScore } from "./domainNarrative";
 import type { ExecutiveCommitment } from "./commitmentTypes";
@@ -357,5 +358,64 @@ export function formatOperatingBriefText(brief: OperatingBrief, variant: Operati
       lines.push(brief.trendSummary);
     }
   }
+  return lines.join("\n");
+}
+
+/**
+ * Shorter, title-first plain text for chat, email, or meeting notes (P13).
+ * Omits granular list sections when empty; caps list depth.
+ */
+export function formatPresentationBriefText(brief: OperatingBrief, variant: OperatingBriefVariant = "daily"): string {
+  const title = getBriefExportTitle(variant);
+  const lines: string[] = [];
+  lines.push(`${title} — Summary`);
+  lines.push("");
+  lines.push(presentationOneLine(brief.situationSummary, 220));
+
+  const pressures = brief.keyPressures.slice(0, 2);
+  if (pressures.length > 0) {
+    lines.push("");
+    lines.push("Focus:");
+    for (const p of pressures) {
+      lines.push(`• ${p}`);
+    }
+  }
+
+  const leadership = brief.leadershipFocus.slice(0, 2);
+  if (leadership.length > 0) {
+    lines.push("");
+    lines.push("Leadership attention:");
+    for (const p of leadership) {
+      lines.push(`• ${p}`);
+    }
+  }
+
+  const checkpoints = brief.operatingCheckpoints.slice(0, 1);
+  if (checkpoints.length > 0) {
+    lines.push("");
+    lines.push(`Checkpoint: ${checkpoints[0]}`);
+  }
+
+  const review = brief.reviewFocus.slice(0, 1);
+  if (review.length > 0) {
+    lines.push("");
+    lines.push(`Review: ${review[0]}`);
+  }
+
+  if (variant === "board" && brief.outcomeSummary && brief.trendSummary) {
+    lines.push("");
+    lines.push(`Trend: ${presentationOneLine(brief.outcomeSummary, 160)}`);
+    lines.push(`Outcome: ${presentationOneLine(brief.trendSummary, 160)}`);
+  } else {
+    if (brief.outcomeSummary) {
+      lines.push("");
+      lines.push(`Outcome: ${presentationOneLine(brief.outcomeSummary, 180)}`);
+    }
+    if (brief.trendSummary) {
+      lines.push("");
+      lines.push(`Trend: ${presentationOneLine(brief.trendSummary, 180)}`);
+    }
+  }
+
   return lines.join("\n");
 }

@@ -12,12 +12,14 @@ import { buildPriorityItems } from "@/features/controlTower/priorityEngine";
 import { priorityActionIdsFromItems, queueItemsAfterPriorities } from "@/features/controlTower/controlTowerLayout";
 import {
   ActionQueueSection,
+  ControlTowerViewModeSelector,
   ExecutiveCommitmentsSection,
   ExecutiveDecisionSection,
   ExecutiveHeader,
   ExecutiveReviewSection,
   KpiSnapshotSection,
   OperatingBriefSection,
+  PresentationSummaryStrip,
   PrioritiesSection,
   RiskStrip,
   SupportContextFooter,
@@ -46,6 +48,11 @@ import {
   hasOutcomeBaseline,
 } from "@/features/controlTower/outcomes";
 import {
+  getControlTowerPresentationConfig,
+  presentationOneLine,
+  type ControlTowerViewMode,
+} from "@/features/controlTower/presentationMode";
+import {
   buildDomainNarrativeSummaries,
   buildExecutiveNarrativeLines,
   buildPrioritiesDomainHint,
@@ -56,7 +63,7 @@ import {
 
 export default function ControlTowerPage() {
   const [reviewMode, setReviewMode] = useState(false);
-  const [briefMode, setBriefMode] = useState(false);
+  const [viewMode, setViewMode] = useState<ControlTowerViewMode>("operate");
   const [briefVariant, setBriefVariant] = useState<OperatingBriefVariant>(DEFAULT_BRIEF_VARIANT);
   const { user } = useAuth();
   const { activeCompanyId, activeCompany } = useActiveCompany();
@@ -353,6 +360,15 @@ export default function ControlTowerPage() {
 
   const briefVariantConfig = useMemo(() => getBriefVariantConfig(briefVariant), [briefVariant]);
 
+  const presentation = useMemo(() => getControlTowerPresentationConfig(viewMode), [viewMode]);
+
+  const emphasizeDecisionsBlock = presentation.emphasizeDecisions || briefVariantConfig.emphasis.decisions;
+  const emphasizeCommitmentsBlock =
+    presentation.emphasizeCommitments ||
+    presentation.emphasizeReview ||
+    briefVariantConfig.emphasis.commitments ||
+    briefVariantConfig.emphasis.review;
+
   const operatingBrief = useMemo(() => {
     if (!queueScopeActive || actionsLoading) return null;
     return buildOperatingBriefWithVariant(
@@ -417,6 +433,7 @@ export default function ControlTowerPage() {
 
         {queueScopeActive && !actionsLoading && (operatingBrief != null || executiveCommitments.length > 0) ? (
           <div className="flex flex-wrap items-center justify-end gap-2">
+            <ControlTowerViewModeSelector value={viewMode} onChange={setViewMode} />
             {operatingBrief != null ? (
               <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
                 <span className="sr-only">Brief audience</span>
@@ -431,18 +448,6 @@ export default function ControlTowerPage() {
                   <option value="board">Board</option>
                 </select>
               </label>
-            ) : null}
-            {operatingBrief != null ? (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="text-xs"
-                onClick={() => setBriefMode((v) => !v)}
-                aria-pressed={briefMode}
-              >
-                {briefMode ? "Exit brief mode" : "Brief mode"}
-              </Button>
             ) : null}
             {executiveCommitments.length > 0 ? (
               <Button
@@ -460,101 +465,129 @@ export default function ControlTowerPage() {
         ) : null}
 
         {operatingBrief != null ? (
-          <OperatingBriefSection brief={operatingBrief} emphasized={briefMode} variant={briefVariant} />
+          <OperatingBriefSection
+            brief={operatingBrief}
+            emphasized={presentation.emphasizeBrief}
+            variant={briefVariant}
+            viewMode={viewMode}
+          />
+        ) : null}
+
+        {viewMode === "present" && operatingBrief != null ? (
+          <PresentationSummaryStrip
+            variantLabel={briefVariantConfig.label}
+            situationLine={presentationOneLine(operatingBrief.situationSummary)}
+            outcomeLine={outcomeSummaryLine ?? operatingBrief.outcomeSummary ?? null}
+            trendLine={trendSummaryLine ?? operatingBrief.trendSummary ?? null}
+            interventionCount={executiveDecisionPrompts.length}
+          />
         ) : null}
 
         <div
           className={cn(
             "space-y-10",
-            briefMode && operatingBrief != null && "opacity-[0.88] transition-opacity",
+            presentation.dimNonBriefChrome && operatingBrief != null && "opacity-[0.88] transition-opacity",
           )}
         >
           <div
             className={cn(
-              briefVariantConfig.emphasis.decisions
-                ? "rounded-lg ring-1 ring-foreground/10 p-2 -mx-1"
-                : "opacity-[0.94]",
+              emphasizeDecisionsBlock ? "rounded-lg ring-1 ring-foreground/10 p-2 -mx-1" : "opacity-[0.94]",
             )}
           >
-            <ExecutiveDecisionSection prompts={executiveDecisionPrompts} />
+            <ExecutiveDecisionSection
+              prompts={executiveDecisionPrompts}
+              presentation={viewMode === "present"}
+            />
           </div>
 
           {executiveCommitments.length > 0 ? (
             <div
               className={cn(
                 "space-y-10",
-                briefVariantConfig.emphasis.commitments || briefVariantConfig.emphasis.review
+                emphasizeCommitmentsBlock
                   ? "rounded-lg ring-1 ring-foreground/10 p-2 -mx-1"
                   : briefVariant === "weekly" && "opacity-[0.95]",
                 reviewMode && "rounded-lg border border-amber-500/20 bg-muted/20 p-4 -mx-1 shadow-sm",
               )}
             >
-              <ExecutiveCommitmentsSection commitments={executiveCommitments} />
-              <ExecutiveReviewSection items={executiveReviewItems} />
+              <ExecutiveCommitmentsSection
+                commitments={executiveCommitments}
+                presentation={viewMode === "present"}
+              />
+              <ExecutiveReviewSection items={executiveReviewItems} presentation={viewMode === "present"} />
             </div>
           ) : null}
 
-          <div
-            className={cn(
-              briefVariantConfig.emphasis.priorities ? "rounded-lg ring-1 ring-foreground/10 p-2 -mx-1" : "opacity-[0.9]",
-            )}
-          >
-            <PrioritiesSection
-              queueScopeActive={queueScopeActive}
-              actionsLoading={actionsLoading}
-              queueStatus={queueStatus}
-              priorityItems={priorityItems}
-              hasStrongPriorities={hasStrongPriorities}
-              actionItemsLength={actionItems.length}
-              trendHintsLine={prioritiesTrendHintsLine}
-              outcomeHintLine={prioritiesOutcomeHint}
-              domainHintLine={prioritiesDomainHint}
+          {presentation.showPrioritiesSection ? (
+            <div
+              className={cn(
+                briefVariantConfig.emphasis.priorities ? "rounded-lg ring-1 ring-foreground/10 p-2 -mx-1" : "opacity-[0.9]",
+              )}
+            >
+              <PrioritiesSection
+                queueScopeActive={queueScopeActive}
+                actionsLoading={actionsLoading}
+                queueStatus={queueStatus}
+                priorityItems={priorityItems}
+                hasStrongPriorities={hasStrongPriorities}
+                actionItemsLength={actionItems.length}
+                trendHintsLine={prioritiesTrendHintsLine}
+                outcomeHintLine={prioritiesOutcomeHint}
+                domainHintLine={prioritiesDomainHint}
+              />
+            </div>
+          ) : null}
+
+          {presentation.showRiskStrip ? (
+            <RiskStrip
+              cards={riskCards}
+              domainNarrativeLine={riskStripDomainHint}
+              compact={presentation.riskStripCompact}
             />
-          </div>
+          ) : null}
 
-          <RiskStrip cards={riskCards} domainNarrativeLine={riskStripDomainHint} />
+          {presentation.showQueue ? (
+            <div className={cn(reviewMode && "opacity-[0.78] transition-opacity")}>
+              <ActionQueueSection
+                queueScopeActive={queueScopeActive}
+                actionsLoading={actionsLoading}
+                queueStatus={queueStatus}
+                queueUpdatedLabel={queueUpdatedLabel}
+                queueForList={queueForList}
+                actionItemsLength={actionItems.length}
+                outcomeHintLine={queueOutcomeHint}
+                domainHintLine={queueDomainHint}
+              />
+            </div>
+          ) : null}
 
-          <div
-            className={cn(
-              reviewMode && "opacity-[0.78] transition-opacity",
-              briefMode && "hidden",
-            )}
-          >
-            <ActionQueueSection
-              queueScopeActive={queueScopeActive}
-              actionsLoading={actionsLoading}
-              queueStatus={queueStatus}
-              queueUpdatedLabel={queueUpdatedLabel}
-              queueForList={queueForList}
-              actionItemsLength={actionItems.length}
-              outcomeHintLine={queueOutcomeHint}
-              domainHintLine={queueDomainHint}
+          {presentation.showKpis ? (
+            <KpiSnapshotSection
+              scopeEnabled={scopeEnabled}
+              queueTrendHint={queueTrendHint}
+              statsLoading={statsLoading}
+              employees={myStats?.employees}
+              employeesTrust={employeesTrust}
+              pulseLoading={pulseLoading}
+              pendingApprovals={pendingApprovals}
+              pendingTrust={pendingTrust}
+              revenueMtd={revenueMtd}
+              revenueTrust={revenueTrust}
+              scoreLoading={scoreLoading}
+              complianceScore={complianceScore?.score}
+              complianceGrade={complianceScore?.grade ?? null}
+              complianceTrust={complianceTrust}
             />
-          </div>
+          ) : null}
 
-          <KpiSnapshotSection
-            scopeEnabled={scopeEnabled}
-            queueTrendHint={queueTrendHint}
-            statsLoading={statsLoading}
-            employees={myStats?.employees}
-            employeesTrust={employeesTrust}
-            pulseLoading={pulseLoading}
-            pendingApprovals={pendingApprovals}
-            pendingTrust={pendingTrust}
-            revenueMtd={revenueMtd}
-            revenueTrust={revenueTrust}
-            scoreLoading={scoreLoading}
-            complianceScore={complianceScore?.score}
-            complianceGrade={complianceScore?.grade ?? null}
-            complianceTrust={complianceTrust}
-          />
-
-          <SupportContextFooter
-            queueScopeActive={queueScopeActive}
-            queueStatus={queueStatus}
-            roleLabel={roleLabel}
-            freshnessLabel={queueScopeActive && !actionsLoading ? queueUpdatedLabel : null}
-          />
+          {presentation.showFooter ? (
+            <SupportContextFooter
+              queueScopeActive={queueScopeActive}
+              queueStatus={queueStatus}
+              roleLabel={roleLabel}
+              freshnessLabel={queueScopeActive && !actionsLoading ? queueUpdatedLabel : null}
+            />
+          ) : null}
         </div>
       </div>
     </div>

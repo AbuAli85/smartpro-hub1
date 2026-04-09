@@ -1,3 +1,8 @@
+export {
+  ControlTowerViewModeSelector,
+  type ControlTowerViewModeSelectorProps,
+} from "./ControlTowerViewModeSelector";
+export { PresentationSummaryStrip, type PresentationSummaryStripProps } from "./PresentationSummaryStrip";
 export { ExecutiveHeader, type ExecutiveHeaderProps } from "./ExecutiveHeader";
 export { ExecutiveDecisionSection, type ExecutiveDecisionSectionProps } from "./ExecutiveDecisionSection";
 export {

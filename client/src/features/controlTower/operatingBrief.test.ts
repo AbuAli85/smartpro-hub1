@@ -12,6 +12,7 @@ import {
   buildReviewFocus,
   buildSituationSummary,
   formatOperatingBriefText,
+  formatPresentationBriefText,
   pickOutcomeSummaryLine,
 } from "./operatingBrief";
 
@@ -221,5 +222,34 @@ describe("formatOperatingBriefText", () => {
     expect(text).toContain("Review focus:");
     expect(text).toContain("Outcome:");
     expect(text).toContain("Outcome line");
+  });
+});
+
+describe("formatPresentationBriefText", () => {
+  it("produces a concise title-first summary", () => {
+    const text = formatPresentationBriefText(
+      {
+        timestamp: "2026-01-01T00:00:00.000Z",
+        situationSummary: "Pressure in payroll with aging items.",
+        keyPressures: ["Payroll: x", "HR: y", "Extra"],
+        leadershipFocus: ["Decide A", "Decide B"],
+        operatingCheckpoints: ["Checkpoint 1", "Checkpoint 2"],
+        reviewFocus: ["Review Q1", "Review Q2"],
+        outcomeSummary: "Escalations down",
+        trendSummary: "Queue flat",
+      },
+      "weekly",
+    );
+    expect(text).toContain("Weekly Leadership Brief");
+    expect(text).toContain("— Summary");
+    expect(text).toContain("Pressure in payroll");
+    expect(text).toContain("Focus:");
+    expect(text).toContain("Payroll: x");
+    expect(text).not.toContain("Extra");
+    expect(text).toContain("Leadership attention:");
+    expect(text).toContain("Checkpoint: Checkpoint 1");
+    expect(text).toContain("Review: Review Q1");
+    expect(text).toContain("Outcome:");
+    expect(text).toContain("Trend:");
   });
 });

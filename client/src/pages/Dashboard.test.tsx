@@ -28,48 +28,40 @@ vi.mock("@/contexts/ActiveCompanyContext", () => ({
 }));
 
 vi.mock("@/lib/trpc", () => ({
-  trpc: {
-    useUtils: () => ({
-      operations: { getRoleActionQueue: { prefetch: vi.fn() } },
-    }),
-    analytics: {
-      companyStats: { useQuery: () => ({ data: null, isLoading: false }) },
-      contractsOverview: { useQuery: () => ({ data: [] }) },
-      proServicesOverview: { useQuery: () => ({ data: [] }) },
-      salesPipeline: { useQuery: () => ({ data: [] }) },
-      smartInsights: { useQuery: () => ({ data: null }) },
-      criticalItems: { useQuery: () => ({ data: [] }) },
-      myTasks: { useQuery: () => ({ data: [] }) },
-      taskSummary: { useQuery: () => ({ data: null }) },
-    },
-    payroll: {
-      listRuns: { useQuery: () => ({ data: [] }) },
-      getWpsComplianceSummary: { useQuery: () => ({ data: null }) },
-      getRecentComplianceAlerts: { useQuery: () => ({ data: [] }) },
-      getOwnerComplianceOverview: { useQuery: () => ({ data: null, isLoading: false }) },
-    },
-    operations: {
-      getSmartDashboardSnapshot: { useQuery: () => ({ data: null, isLoading: false }) },
-      getOwnerBusinessPulse: { useQuery: () => ({ data: null, isLoading: false }) },
-      getRoleActionQueue: { useQuery: () => mockRoleQueue() },
-    },
-    employeePortal: {
-      getOverview: { useQuery: () => ({ data: null }) },
-      getNotifications: { useQuery: () => ({ data: [] }) },
-    },
-    hr: {
-      listEmployees: { useQuery: () => ({ data: [] }) },
-      listLeaveRequests: { useQuery: () => ({ data: [] }) },
-    },
-    workspace: {
-      listKpis: { useQuery: () => ({ data: [] }) },
-    },
-  },
+  trpc: (() => {
+    const queryResult = { data: null, isLoading: false, isFetching: false, error: null };
+    const makeNode = (): Record<string, unknown> =>
+      new Proxy(
+        {},
+        {
+          get: (_target, prop) => {
+            if (prop === "useQuery" || prop === "useInfiniteQuery") return () => queryResult;
+            if (prop === "useMutation") return () => ({ mutate: vi.fn(), isPending: false });
+            if (prop === "useUtils") return () => ({ operations: { getRoleActionQueue: { prefetch: vi.fn() } } });
+            if (prop === "operations") {
+              return new Proxy(
+                {
+                  getRoleActionQueue: { useQuery: () => mockRoleQueue() },
+                },
+                {
+                  get: (target, key) => (key in target ? (target as Record<string, unknown>)[String(key)] : makeNode()),
+                },
+              );
+            }
+            return makeNode();
+          },
+        },
+      ) as Record<string, unknown>;
+    const node = makeNode();
+    return node;
+  })(),
 }));
 
 vi.mock("@shared/clientNav", () => ({
   getHiddenNavHrefs: () => new Set<string>(),
   shouldHideBottomNav: () => false,
+  seesPlatformOperatorNav: () => false,
+  clientNavItemVisible: () => true,
 }));
 
 vi.mock("wouter", () => ({
@@ -77,8 +69,28 @@ vi.mock("wouter", () => ({
   useLocation: () => ["/dashboard", vi.fn()],
 }));
 
+vi.mock("@/components/OwnerSetupChecklist", () => ({
+  OwnerSetupChecklist: () => null,
+  default: () => null,
+}));
+vi.mock("@/components/WorkforceHealthWidget", () => ({
+  WorkforceHealthWidget: () => null,
+}));
+vi.mock("@/components/contracts/ContractKpiWidget", () => ({
+  ContractKpiWidget: () => null,
+}));
+vi.mock("@/components/dashboard/ExecutiveControlTower", () => ({
+  ExecutiveControlTower: () => null,
+}));
+vi.mock("@/components/dashboard/ManagementCadencePanel", () => ({
+  ManagementCadencePanel: () => null,
+}));
+
 vi.mock("react-i18next", () => ({
-  useTranslation: () => ({ t: (k: string) => k }),
+  useTranslation: () => ({
+    t: (k: string, fallbackOrOptions?: unknown) => (typeof fallbackOrOptions === "string" ? fallbackOrOptions : k),
+    i18n: { language: "en-GB" },
+  }),
 }));
 
 describe("Dashboard role queue widget", () => {

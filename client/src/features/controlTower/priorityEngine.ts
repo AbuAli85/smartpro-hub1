@@ -1,5 +1,7 @@
 import type { ActionQueueItem } from "./actionQueueTypes";
-import type { ActionQueueItemView, PriorityItemView } from "./executionTypes";
+import type { ActionQueueItemView } from "./executionTypes";
+import { buildEscalationMeta } from "./escalation";
+import type { ActionQueueItemExecutionView, PriorityItemExecutionView } from "./escalationTypes";
 import { getRecommendedAction, getWhyThisMatters } from "./actionExplanations";
 import { getActionShortSummary } from "./actionLabels";
 import { getDueLabel } from "./timeLabels";
@@ -38,8 +40,12 @@ export function getPriorityLevelForItem(item: ActionQueueItem): PriorityLevel {
   return "important";
 }
 
-function toPriorityItem(item: ActionQueueItemView, seq: number): PriorityItemView {
+function toPriorityItem(item: ActionQueueItemView | ActionQueueItemExecutionView, seq: number, now: Date): PriorityItemExecutionView {
   const priorityLevel = getPriorityLevelForItem(item);
+  const escalation =
+    "escalation" in item && item.escalation
+      ? item.escalation
+      : buildEscalationMeta(item, item.execution, priorityLevel, now);
   return {
     id: `priority-${item.id}-${seq}`,
     actionId: item.id,
@@ -51,16 +57,19 @@ function toPriorityItem(item: ActionQueueItemView, seq: number): PriorityItemVie
     blocking: item.blocking,
     href: item.href,
     ctaLabel: item.ctaLabel,
-    dueLabel: getDueLabel(item),
+    dueLabel: getDueLabel(item, now),
     ownerLabel: item.ownerLabel ?? null,
     source: item.source,
     kind: item.kind,
     execution: item.execution,
+    escalation,
   };
 }
 
 export type BuildPriorityItemsOptions = {
   max?: number;
+  /** For deterministic SLA / due labels in tests */
+  now?: Date;
 };
 
 /**
@@ -68,11 +77,12 @@ export type BuildPriorityItemsOptions = {
  * Fills with watch-level items only when fewer than `max` critical+important rows exist.
  */
 export function buildPriorityItems(
-  actionQueueItems: ActionQueueItemView[],
+  actionQueueItems: Array<ActionQueueItemView | ActionQueueItemExecutionView>,
   _role?: string | null,
   options?: BuildPriorityItemsOptions,
-): PriorityItemView[] {
+): PriorityItemExecutionView[] {
   const max = options?.max ?? 3;
+  const now = options?.now ?? new Date();
   if (actionQueueItems.length === 0 || max <= 0) return [];
 
   const annotated = actionQueueItems.map((item, index) => ({
@@ -97,11 +107,11 @@ export function buildPriorityItems(
     picked = [...strong, ...watch.slice(0, max - strong.length)];
   }
 
-  return picked.map((p, i) => toPriorityItem(p.item, i));
+  return picked.map((p, i) => toPriorityItem(p.item, i, now));
 }
 
 /** Items that count as “critical/high” for bell compression (must stay in sync with UX copy). */
-export function countUrgentItemsForBell(items: ActionQueueItem[] | ActionQueueItemView[]): number {
+export function countUrgentItemsForBell(items: ActionQueueItem[] | ActionQueueItemView[] | ActionQueueItemExecutionView[]): number {
   return items.filter((i) => {
     const lvl = getPriorityLevelForItem(i);
     return lvl === "critical" || i.severity === "high";
@@ -110,6 +120,10 @@ export function countUrgentItemsForBell(items: ActionQueueItem[] | ActionQueueIt
 
 export const BELL_URGENT_COMPRESSION_THRESHOLD = 5;
 
-export function shouldCompressBellActionList(items: ActionQueueItem[] | ActionQueueItemView[]): boolean {
+export function shouldCompressBellActionList(items: ActionQueueItem[] | ActionQueueItemView[] | ActionQueueItemExecutionView[]): boolean {
   return countUrgentItemsForBell(items) > BELL_URGENT_COMPRESSION_THRESHOLD;
+}
+
+export function countEscalatedItemsForBell(items: ActionQueueItemExecutionView[]): number {
+  return items.filter((i) => i.escalation.escalationLevel === "escalated").length;
 }

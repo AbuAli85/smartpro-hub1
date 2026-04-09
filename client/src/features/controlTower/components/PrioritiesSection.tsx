@@ -8,7 +8,7 @@ import { queueStatusDescription, queueStatusHeadline } from "../actionQueueCompu
 import { getPriorityBadgeLabel } from "../actionLabels";
 import { priorityLevelBadgeClass, sourceLabel } from "../displayUtils";
 import type { ActionQueueStatus } from "../actionQueueTypes";
-import type { PriorityItemView } from "../executionTypes";
+import type { PriorityItemExecutionView } from "../escalationTypes";
 import type { PriorityLevel } from "../priorityTypes";
 import { ExecutionAccountabilityRow } from "./ExecutionAccountabilityRow";
 
@@ -16,7 +16,7 @@ export type PrioritiesSectionProps = {
   queueScopeActive: boolean;
   actionsLoading: boolean;
   queueStatus: ActionQueueStatus;
-  priorityItems: PriorityItemView[];
+  priorityItems: PriorityItemExecutionView[];
   hasStrongPriorities: boolean;
   actionItemsLength: number;
 };
@@ -129,7 +129,7 @@ export function PrioritiesSection({
                       <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground pt-0.5">
                         {p.dueLabel && p.dueLabel !== "No deadline" ? <span>{p.dueLabel}</span> : null}
                       </div>
-                      <ExecutionAccountabilityRow execution={p.execution} variant="priority" />
+                      <ExecutionAccountabilityRow execution={p.execution} escalation={p.escalation} variant="priority" />
                     </div>
                     <div className="flex sm:flex-col justify-end shrink-0">
                       <Button size="sm" className="gap-1 w-full sm:w-auto font-medium" asChild>

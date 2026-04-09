@@ -6,8 +6,9 @@ import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { seesPlatformOperatorNav } from "@shared/clientNav";
 import type { RouterOutputs } from "@/lib/trpc";
 import type { ActionQueueStatus } from "@/features/controlTower/actionQueueTypes";
-import type { ActionQueueItemView } from "@/features/controlTower/executionTypes";
+import type { ActionQueueItemExecutionView } from "@/features/controlTower/escalationTypes";
 import { attachExecutionToQueueItems } from "@/features/controlTower/executionMeta";
+import { attachEscalationToQueueItems } from "@/features/controlTower/escalationMeta";
 import { buildActionQueueFromSources } from "@/features/controlTower/actionQueuePipeline";
 import type { RawDecisionRow, RawRoleQueueRow } from "@/features/controlTower/actionQueuePipeline";
 import { prioritizeActionQueueForRole } from "@/features/controlTower/actionQueueRolePrioritize";
@@ -50,7 +51,7 @@ export type UseActionQueueOptions = {
 };
 
 export type ActionQueueResult = {
-  items: ActionQueueItemView[];
+  items: ActionQueueItemExecutionView[];
   status: ActionQueueStatus;
   isLoading: boolean;
   hasHighSeverity: boolean;
@@ -62,8 +63,8 @@ export type ActionQueueResult = {
   pulseError: boolean;
 };
 
-/** @deprecated Use `ActionQueueItemView` / `ActionQueueItem` from control tower feature */
-export type ActionItem = ActionQueueItemView;
+/** @deprecated Use `ActionQueueItemExecutionView` / `ActionQueueItem` from control tower feature */
+export type ActionItem = ActionQueueItemExecutionView;
 
 /**
  * Tenant-scoped decision queue — normalized, grouped, role-prioritised, capped at 10 items.
@@ -100,7 +101,7 @@ export function useActionQueue(options: UseActionQueueOptions = {}): ActionQueue
     },
   );
 
-  const items = useMemo((): ActionQueueItemView[] => {
+  const items = useMemo((): ActionQueueItemExecutionView[] => {
     if (!scopeEnabled) return [];
     const roleRows = (rq.data ?? []).map(toRawRoleRow);
     const rawDecisions = pulse.data?.controlTower?.decisionsQueue?.items;
@@ -112,7 +113,7 @@ export function useActionQueue(options: UseActionQueueOptions = {}): ActionQueue
     });
     built = prioritizeActionQueueForRole(built, activeCompany?.role ?? null);
     const sliced = built.slice(0, 10);
-    return attachExecutionToQueueItems(sliced, user);
+    return attachEscalationToQueueItems(attachExecutionToQueueItems(sliced, user));
   }, [scopeEnabled, rq.data, pulse.data, activeCompany?.role, user]);
 
   const queueError = scopeEnabled && rq.isError;

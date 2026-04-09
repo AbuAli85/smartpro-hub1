@@ -10,6 +10,8 @@ export type ExecutiveHeaderProps = {
   companyName?: string | null;
   /** e.g. queue `lastUpdatedLabel` */
   freshnessLabel?: string | null;
+  /** Derived escalation summary; omit when null/empty */
+  escalationSummaryLine?: string | null;
   queueStatus: ActionQueueStatus;
   /** Tenant has company scope for queue */
   queueScopeActive: boolean;
@@ -20,6 +22,7 @@ export function ExecutiveHeader({
   subtitle,
   companyName,
   freshnessLabel,
+  escalationSummaryLine,
   queueStatus,
   queueScopeActive,
   actionsLoading,
@@ -37,6 +40,11 @@ export function ExecutiveHeader({
           <div className="min-w-0">
             <h1 className="text-2xl font-bold tracking-tight">Control Tower</h1>
             <p className="text-sm text-muted-foreground mt-1 max-w-xl leading-snug">{subtitle}</p>
+            {queueScopeActive && !actionsLoading && escalationSummaryLine ? (
+              <p className="text-xs text-amber-950/90 dark:text-amber-100/90 mt-2 max-w-xl leading-snug font-medium">
+                {escalationSummaryLine}
+              </p>
+            ) : null}
           </div>
         </div>
 

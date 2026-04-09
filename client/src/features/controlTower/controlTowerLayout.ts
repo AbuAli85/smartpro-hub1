@@ -1,5 +1,6 @@
 import type { ActionQueueItem } from "./actionQueueTypes";
 import type { ActionQueueItemView } from "./executionTypes";
+import type { ActionQueueItemExecutionView } from "./escalationTypes";
 
 /** Canonical section order for CEO scan hierarchy (documentation + tests). */
 export const CONTROL_TOWER_SECTION_ORDER = [
@@ -20,7 +21,7 @@ export function priorityActionIdsFromItems(priorityItems: Array<{ actionId: stri
 /**
  * Remaining queue rows after Today’s Priorities — same truth as the page, no duplicate rows.
  */
-export function queueItemsAfterPriorities<T extends ActionQueueItem | ActionQueueItemView>(
+export function queueItemsAfterPriorities<T extends ActionQueueItem | ActionQueueItemView | ActionQueueItemExecutionView>(
   actionItems: T[],
   priorityIds: Set<string>,
 ): T[] {

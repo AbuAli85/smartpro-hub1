@@ -17,6 +17,7 @@ import {
   SupportContextFooter,
 } from "@/features/controlTower/components";
 import { seesPlatformOperatorNav } from "@shared/clientNav";
+import { formatEscalationSummaryLine, summarizeEscalationFromItems } from "@/features/controlTower/escalationMeta";
 
 export default function ControlTowerPage() {
   const { user } = useAuth();
@@ -138,12 +139,18 @@ export default function ControlTowerPage() {
 
   const roleLabel = activeCompany?.role ? activeCompany.role.replace(/_/g, " ") : null;
 
+  const escalationSummaryLine = useMemo(() => {
+    if (!queueScopeActive || actionsLoading || actionItems.length === 0) return null;
+    return formatEscalationSummaryLine(summarizeEscalationFromItems(actionItems));
+  }, [queueScopeActive, actionsLoading, actionItems]);
+
   return (
     <div className="min-h-screen bg-background">
       <ExecutiveHeader
         subtitle="Monitor blockers, priorities, and operational health in one place."
         companyName={activeCompany?.name ?? null}
         freshnessLabel={queueUpdatedLabel ?? null}
+        escalationSummaryLine={escalationSummaryLine}
         queueStatus={queueStatus}
         queueScopeActive={queueScopeActive}
         actionsLoading={actionsLoading}

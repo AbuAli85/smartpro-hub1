@@ -7,7 +7,7 @@ import { AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
 import { queueStatusDescription, queueStatusHeadline } from "../actionQueueComputeStatus";
 import { severityBadgeClass, sourceLabel } from "../displayUtils";
 import type { ActionQueueStatus } from "../actionQueueTypes";
-import type { ActionQueueItemView } from "../executionTypes";
+import type { ActionQueueItemExecutionView } from "../escalationTypes";
 import { fmtDate } from "@/lib/dateUtils";
 import { ExecutionAccountabilityRow } from "./ExecutionAccountabilityRow";
 
@@ -16,7 +16,7 @@ export type ActionQueueSectionProps = {
   actionsLoading: boolean;
   queueStatus: ActionQueueStatus;
   queueUpdatedLabel?: string | null;
-  queueForList: ActionQueueItemView[];
+  queueForList: ActionQueueItemExecutionView[];
   actionItemsLength: number;
 };
 
@@ -86,7 +86,7 @@ export function ActionQueueSection({
                           {a.dueAt && <span>Due {fmtDate(a.dueAt)}</span>}
                         </div>
                         {a.reason && <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-2">{a.reason}</p>}
-                        <ExecutionAccountabilityRow execution={a.execution} variant="queue" />
+                        <ExecutionAccountabilityRow execution={a.execution} escalation={a.escalation} variant="queue" />
                       </div>
                       <Button size="sm" variant="secondary" className="shrink-0 gap-1" asChild>
                         <Link href={a.href}>{a.ctaLabel}</Link>
@@ -123,7 +123,7 @@ export function ActionQueueSection({
                           {a.count != null && a.count > 1 && <span>×{a.count}</span>}
                           {a.dueAt && <span>Due {fmtDate(a.dueAt)}</span>}
                         </div>
-                        <ExecutionAccountabilityRow execution={a.execution} variant="queue" />
+                        <ExecutionAccountabilityRow execution={a.execution} escalation={a.escalation} variant="queue" />
                       </div>
                       <Button size="sm" variant="secondary" className="shrink-0 gap-1" asChild>
                         <Link href={a.href}>{a.ctaLabel}</Link>
@@ -150,7 +150,7 @@ export function ActionQueueSection({
                       {a.dueAt && <span>Due {fmtDate(a.dueAt)}</span>}
                     </div>
                     {a.reason && <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-2">{a.reason}</p>}
-                    <ExecutionAccountabilityRow execution={a.execution} variant="queue" />
+                    <ExecutionAccountabilityRow execution={a.execution} escalation={a.escalation} variant="queue" />
                   </div>
                   <Button size="sm" variant="secondary" className="shrink-0 gap-1" asChild>
                     <Link href={a.href}>{a.ctaLabel}</Link>

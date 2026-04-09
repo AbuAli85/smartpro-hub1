@@ -7,8 +7,10 @@ import { Router } from "wouter";
 import { ExecutiveHeader } from "./ExecutiveHeader";
 import { PrioritiesSection } from "./PrioritiesSection";
 import { RiskStrip } from "./RiskStrip";
+import { buildEscalationMeta } from "../escalation";
 import { buildExecutionMeta } from "../executionMeta";
-import type { PriorityItemView } from "../executionTypes";
+import type { PriorityItemExecutionView } from "../escalationTypes";
+import { getPriorityLevelForItem } from "../priorityEngine";
 import { buildRiskStripCards } from "../riskStripModel";
 
 function wrap(ui: React.ReactElement) {
@@ -32,33 +34,36 @@ describe("ExecutiveHeader", () => {
 });
 
 describe("PrioritiesSection", () => {
-  const samplePriority = (): PriorityItemView => ({
-    id: "1",
-    actionId: "a1",
-    title: "T",
-    summary: "S",
-    whyThisMatters: "Why",
-    recommendedAction: "Do",
-    priorityLevel: "critical",
-    blocking: true,
-    href: "/a",
-    ctaLabel: "Act",
-    source: "payroll",
-    kind: "payroll_blocker",
-    execution: buildExecutionMeta(
-      {
-        id: "a1",
-        kind: "payroll_blocker",
-        title: "T",
-        severity: "high",
-        blocking: true,
-        source: "payroll",
-        href: "/a",
-        ctaLabel: "Act",
-      },
-      null,
-    ),
-  });
+  const samplePriority = (): PriorityItemExecutionView => {
+    const row = {
+      id: "a1",
+      kind: "payroll_blocker" as const,
+      title: "T",
+      severity: "high" as const,
+      blocking: true,
+      source: "payroll" as const,
+      href: "/a",
+      ctaLabel: "Act",
+    };
+    const execution = buildExecutionMeta(row, null);
+    const priorityLevel = getPriorityLevelForItem(row);
+    return {
+      id: "1",
+      actionId: "a1",
+      title: "T",
+      summary: "S",
+      whyThisMatters: "Why",
+      recommendedAction: "Do",
+      priorityLevel,
+      blocking: true,
+      href: "/a",
+      ctaLabel: "Act",
+      source: "payroll",
+      kind: "payroll_blocker",
+      execution,
+      escalation: buildEscalationMeta(row, execution, priorityLevel),
+    };
+  };
 
   it("shows partial-data confidence note when queue is partial and priorities exist", () => {
     wrap(

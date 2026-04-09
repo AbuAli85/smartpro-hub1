@@ -16,11 +16,11 @@ import { useLocation } from "wouter";
 import { formatDistanceToNow } from "date-fns";
 import { useActionQueue } from "@/hooks/useActionQueue";
 import { queueStatusDescription, queueStatusHeadline } from "@/features/controlTower/actionQueueComputeStatus";
-import type { ActionQueueItemView } from "@/features/controlTower/executionTypes";
-import { countUrgentItemsForBell, shouldCompressBellActionList } from "@/features/controlTower/priorityEngine";
+import type { ActionQueueItemExecutionView } from "@/features/controlTower/escalationTypes";
+import { countEscalatedItemsForBell, countUrgentItemsForBell, shouldCompressBellActionList } from "@/features/controlTower/priorityEngine";
 
 function ActionQueueRow(props: {
-  a: ActionQueueItemView;
+  a: ActionQueueItemExecutionView;
   navigate: (path: string) => void;
   setOpen: (open: boolean) => void;
 }) {
@@ -38,6 +38,8 @@ function ActionQueueRow(props: {
         <p className="text-[10px] text-muted-foreground mt-0.5">
           {x.assigned && x.ownerLabel ? x.ownerLabel : "Unassigned"}
           {x.overdue ? " · Overdue" : ""}
+          {a.escalation.slaState === "breached" ? " · Breached SLA" : ""}
+          {a.escalation.escalationLevel === "escalated" ? " · Escalated" : ""}
           {x.needsOwner ? " · Needs owner" : ""}
         </p>
         <Button
@@ -101,6 +103,11 @@ export function NotificationBell() {
   const compressBellQueue =
     actionItems.length > 0 && shouldCompressBellActionList(actionItems);
   const urgentBellCount = countUrgentItemsForBell(actionItems);
+  const escalatedBellCount = countEscalatedItemsForBell(actionItems);
+  const bellCompressionHeadline =
+    escalatedBellCount > 0
+      ? `${escalatedBellCount} escalated ${escalatedBellCount === 1 ? "issue" : "issues"} need attention`
+      : `${urgentBellCount} urgent issues need attention`;
 
   const markRead = trpc.automation.markNotificationsRead.useMutation({
     onSuccess: () => {
@@ -189,9 +196,7 @@ export function NotificationBell() {
                 <p className="text-[11px] text-amber-800 dark:text-amber-200">{queueStatusDescription("partial")}</p>
                 {compressBellQueue ? (
                   <div className="rounded-md border border-red-200/80 bg-red-50/60 dark:bg-red-950/25 px-3 py-2 space-y-1">
-                    <p className="text-xs font-medium text-red-900 dark:text-red-100">
-                      {urgentBellCount} urgent issues need attention
-                    </p>
+                    <p className="text-xs font-medium text-red-900 dark:text-red-100">{bellCompressionHeadline}</p>
                     <Button
                       variant="outline"
                       size="sm"
@@ -220,9 +225,7 @@ export function NotificationBell() {
                 <p className="text-[11px] text-muted-foreground">{queueStatusDescription("no_urgent_blockers")}</p>
                 {compressBellQueue ? (
                   <div className="rounded-md border border-red-200/80 bg-red-50/60 dark:bg-red-950/25 px-3 py-2 space-y-1">
-                    <p className="text-xs font-medium text-red-900 dark:text-red-100">
-                      {urgentBellCount} urgent issues need attention
-                    </p>
+                    <p className="text-xs font-medium text-red-900 dark:text-red-100">{bellCompressionHeadline}</p>
                     <Button
                       variant="outline"
                       size="sm"
@@ -243,9 +246,7 @@ export function NotificationBell() {
               </div>
             ) : compressBellQueue ? (
               <div className="rounded-md border border-red-200/80 bg-red-50/60 dark:bg-red-950/25 px-3 py-2 space-y-1">
-                <p className="text-xs font-medium text-red-900 dark:text-red-100">
-                  {urgentBellCount} urgent issues need attention
-                </p>
+                <p className="text-xs font-medium text-red-900 dark:text-red-100">{bellCompressionHeadline}</p>
                 <Button
                   variant="outline"
                   size="sm"

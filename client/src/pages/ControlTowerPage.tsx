@@ -17,6 +17,7 @@ import {
   ExecutiveHeader,
   ExecutiveReviewSection,
   KpiSnapshotSection,
+  OperatingBriefSection,
   PrioritiesSection,
   RiskStrip,
   SupportContextFooter,
@@ -24,6 +25,7 @@ import {
 import { buildExecutiveCommitments } from "@/features/controlTower/commitments";
 import { buildExecutiveDecisionPrompts } from "@/features/controlTower/decisionPrompts";
 import { buildExecutiveReviewItems } from "@/features/controlTower/reviews";
+import { buildOperatingBrief } from "@/features/controlTower/operatingBrief";
 import { seesPlatformOperatorNav } from "@shared/clientNav";
 import { formatEscalationSummaryLine, summarizeEscalationFromItems } from "@/features/controlTower/escalationMeta";
 import { buildSnapshotFromItems } from "@/features/controlTower/snapshot";
@@ -52,6 +54,7 @@ import {
 
 export default function ControlTowerPage() {
   const [reviewMode, setReviewMode] = useState(false);
+  const [briefMode, setBriefMode] = useState(false);
   const { user } = useAuth();
   const { activeCompanyId, activeCompany } = useActiveCompany();
   useSmartRoleHomeRedirect();
@@ -345,6 +348,29 @@ export default function ControlTowerPage() {
     domainNarrativeSummaries,
   ]);
 
+  const operatingBrief = useMemo(() => {
+    if (!queueScopeActive || actionsLoading) return null;
+    return buildOperatingBrief({
+      priorityItems,
+      domainNarrativeSummaries: domainNarrativeSummaries,
+      executiveDecisionPrompts,
+      executiveCommitments,
+      executiveReviewItems,
+      outcomeSummaryLine,
+      trendSummaryLine,
+    });
+  }, [
+    queueScopeActive,
+    actionsLoading,
+    priorityItems,
+    domainNarrativeSummaries,
+    executiveDecisionPrompts,
+    executiveCommitments,
+    executiveReviewItems,
+    outcomeSummaryLine,
+    trendSummaryLine,
+  ]);
+
   useEffect(() => {
     if (!queueScopeActive || actionsLoading) return;
     saveSnapshot(currentSnapshot, activeCompanyId, user?.id ?? null);
@@ -380,85 +406,110 @@ export default function ControlTowerPage() {
           </Card>
         )}
 
-        {queueScopeActive && !actionsLoading && executiveCommitments.length > 0 ? (
-          <div className="flex justify-end">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="text-xs"
-              onClick={() => setReviewMode((v) => !v)}
-              aria-pressed={reviewMode}
+        {queueScopeActive && !actionsLoading && (operatingBrief != null || executiveCommitments.length > 0) ? (
+          <div className="flex flex-wrap justify-end gap-2">
+            {operatingBrief != null ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="text-xs"
+                onClick={() => setBriefMode((v) => !v)}
+                aria-pressed={briefMode}
+              >
+                {briefMode ? "Exit brief mode" : "Brief mode"}
+              </Button>
+            ) : null}
+            {executiveCommitments.length > 0 ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="text-xs"
+                onClick={() => setReviewMode((v) => !v)}
+                aria-pressed={reviewMode}
+              >
+                {reviewMode ? "Exit review mode" : "Review mode"}
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
+
+        {operatingBrief != null ? (
+          <OperatingBriefSection brief={operatingBrief} emphasized={briefMode} />
+        ) : null}
+
+        <div
+          className={cn(
+            "space-y-10",
+            briefMode && operatingBrief != null && "opacity-[0.88] transition-opacity",
+          )}
+        >
+          <ExecutiveDecisionSection prompts={executiveDecisionPrompts} />
+
+          {executiveCommitments.length > 0 ? (
+            <div
+              className={cn(
+                "space-y-10",
+                reviewMode && "rounded-lg border border-amber-500/20 bg-muted/20 p-4 -mx-1 shadow-sm",
+              )}
             >
-              {reviewMode ? "Exit review mode" : "Review mode"}
-            </Button>
-          </div>
-        ) : null}
+              <ExecutiveCommitmentsSection commitments={executiveCommitments} />
+              <ExecutiveReviewSection items={executiveReviewItems} />
+            </div>
+          ) : null}
 
-        <ExecutiveDecisionSection prompts={executiveDecisionPrompts} />
-
-        {executiveCommitments.length > 0 ? (
-          <div
-            className={cn(
-              "space-y-10",
-              reviewMode && "rounded-lg border border-amber-500/20 bg-muted/20 p-4 -mx-1 shadow-sm",
-            )}
-          >
-            <ExecutiveCommitmentsSection commitments={executiveCommitments} />
-            <ExecutiveReviewSection items={executiveReviewItems} />
-          </div>
-        ) : null}
-
-        <PrioritiesSection
-          queueScopeActive={queueScopeActive}
-          actionsLoading={actionsLoading}
-          queueStatus={queueStatus}
-          priorityItems={priorityItems}
-          hasStrongPriorities={hasStrongPriorities}
-          actionItemsLength={actionItems.length}
-          trendHintsLine={prioritiesTrendHintsLine}
-          outcomeHintLine={prioritiesOutcomeHint}
-          domainHintLine={prioritiesDomainHint}
-        />
-
-        <RiskStrip cards={riskCards} domainNarrativeLine={riskStripDomainHint} />
-
-        <div className={cn(reviewMode && "opacity-[0.78] transition-opacity")}>
-          <ActionQueueSection
+          <PrioritiesSection
             queueScopeActive={queueScopeActive}
             actionsLoading={actionsLoading}
             queueStatus={queueStatus}
-            queueUpdatedLabel={queueUpdatedLabel}
-            queueForList={queueForList}
+            priorityItems={priorityItems}
+            hasStrongPriorities={hasStrongPriorities}
             actionItemsLength={actionItems.length}
-            outcomeHintLine={queueOutcomeHint}
-            domainHintLine={queueDomainHint}
+            trendHintsLine={prioritiesTrendHintsLine}
+            outcomeHintLine={prioritiesOutcomeHint}
+            domainHintLine={prioritiesDomainHint}
+          />
+
+          <RiskStrip cards={riskCards} domainNarrativeLine={riskStripDomainHint} />
+
+          <div className={cn(reviewMode && "opacity-[0.78] transition-opacity")}>
+            <ActionQueueSection
+              queueScopeActive={queueScopeActive}
+              actionsLoading={actionsLoading}
+              queueStatus={queueStatus}
+              queueUpdatedLabel={queueUpdatedLabel}
+              queueForList={queueForList}
+              actionItemsLength={actionItems.length}
+              outcomeHintLine={queueOutcomeHint}
+              domainHintLine={queueDomainHint}
+            />
+          </div>
+
+          <KpiSnapshotSection
+            scopeEnabled={scopeEnabled}
+            queueTrendHint={queueTrendHint}
+            statsLoading={statsLoading}
+            employees={myStats?.employees}
+            employeesTrust={employeesTrust}
+            pulseLoading={pulseLoading}
+            pendingApprovals={pendingApprovals}
+            pendingTrust={pendingTrust}
+            revenueMtd={revenueMtd}
+            revenueTrust={revenueTrust}
+            scoreLoading={scoreLoading}
+            complianceScore={complianceScore?.score}
+            complianceGrade={complianceScore?.grade ?? null}
+            complianceTrust={complianceTrust}
+          />
+
+          <SupportContextFooter
+            queueScopeActive={queueScopeActive}
+            queueStatus={queueStatus}
+            roleLabel={roleLabel}
+            freshnessLabel={queueScopeActive && !actionsLoading ? queueUpdatedLabel : null}
           />
         </div>
-
-        <KpiSnapshotSection
-          scopeEnabled={scopeEnabled}
-          queueTrendHint={queueTrendHint}
-          statsLoading={statsLoading}
-          employees={myStats?.employees}
-          employeesTrust={employeesTrust}
-          pulseLoading={pulseLoading}
-          pendingApprovals={pendingApprovals}
-          pendingTrust={pendingTrust}
-          revenueMtd={revenueMtd}
-          revenueTrust={revenueTrust}
-          scoreLoading={scoreLoading}
-          complianceScore={complianceScore?.score}
-          complianceGrade={complianceScore?.grade ?? null}
-          complianceTrust={complianceTrust}
-        />
-
-        <SupportContextFooter
-          queueScopeActive={queueScopeActive}
-          queueStatus={queueStatus}
-          roleLabel={roleLabel}
-          freshnessLabel={queueScopeActive && !actionsLoading ? queueUpdatedLabel : null}
-        />
       </div>
     </div>
   );

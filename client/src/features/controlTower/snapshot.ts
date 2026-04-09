@@ -1,4 +1,5 @@
 import type { ActionQueueItemExecutionView } from "./escalationTypes";
+import type { SnapshotItemRef } from "./outcomeTypes";
 import type { ControlTowerSnapshot } from "./trendTypes";
 
 export type BuildSnapshotOptions = {
@@ -23,6 +24,8 @@ export function buildSnapshotFromItems(
   let unassignedHighCount = 0;
   let stuckCount = 0;
 
+  const itemRefs: SnapshotItemRef[] = [];
+
   for (const i of items) {
     const { escalation: e, execution: x } = i;
     if (e.escalationLevel === "escalated") escalatedCount += 1;
@@ -30,6 +33,13 @@ export function buildSnapshotFromItems(
     if (e.slaState === "breached") breachedCount += 1;
     if (x.needsOwner) unassignedHighCount += 1;
     if (x.stuck) stuckCount += 1;
+    itemRefs.push({
+      id: i.id,
+      escalationLevel: e.escalationLevel,
+      slaState: e.slaState,
+      assigned: x.assigned,
+      needsOwner: x.needsOwner,
+    });
   }
 
   return {
@@ -41,5 +51,6 @@ export function buildSnapshotFromItems(
     unassignedHighCount,
     stuckCount,
     prioritiesCount,
+    itemRefs,
   };
 }

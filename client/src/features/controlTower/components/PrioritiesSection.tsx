@@ -21,6 +21,8 @@ export type PrioritiesSectionProps = {
   actionItemsLength: number;
   /** Compact trend glyphs vs last check (local snapshot) */
   trendHintsLine?: string | null;
+  /** Optional outcome hint (resolution / priorities change) */
+  outcomeHintLine?: string | null;
 };
 
 function priorityCardShell(level: PriorityLevel) {
@@ -41,6 +43,7 @@ export function PrioritiesSection({
   hasStrongPriorities,
   actionItemsLength,
   trendHintsLine,
+  outcomeHintLine,
 }: PrioritiesSectionProps) {
   if (!queueScopeActive) return null;
 
@@ -58,6 +61,9 @@ export function PrioritiesSection({
         <p className="text-[10px] text-muted-foreground tabular-nums" aria-label="Trend vs last check">
           {trendHintsLine}
         </p>
+      ) : null}
+      {!actionsLoading && outcomeHintLine ? (
+        <p className="text-[10px] text-emerald-900/80 dark:text-emerald-100/80 leading-snug max-w-xl">{outcomeHintLine}</p>
       ) : null}
 
       {!actionsLoading && (queueStatus === "partial" || queueStatus === "error") && (

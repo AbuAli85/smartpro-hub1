@@ -18,6 +18,8 @@ export type ActionQueueSectionProps = {
   queueUpdatedLabel?: string | null;
   queueForList: ActionQueueItemExecutionView[];
   actionItemsLength: number;
+  /** Cleared / new queue items vs last snapshot */
+  outcomeHintLine?: string | null;
 };
 
 export function ActionQueueSection({
@@ -27,6 +29,7 @@ export function ActionQueueSection({
   queueUpdatedLabel,
   queueForList,
   actionItemsLength,
+  outcomeHintLine,
 }: ActionQueueSectionProps) {
   return (
     <section aria-label="Action queue" className="space-y-3">
@@ -36,6 +39,9 @@ export function ActionQueueSection({
           <p className="text-[11px] text-muted-foreground mt-0.5 max-w-lg leading-relaxed">
             The next operational items after today&apos;s top priorities.
           </p>
+          {queueScopeActive && !actionsLoading && outcomeHintLine ? (
+            <p className="text-[10px] text-emerald-900/80 dark:text-emerald-100/80 mt-1 max-w-lg leading-snug">{outcomeHintLine}</p>
+          ) : null}
         </div>
         {queueScopeActive && !actionsLoading && queueUpdatedLabel ? (
           <span className="text-[11px] text-muted-foreground">{queueUpdatedLabel}</span>

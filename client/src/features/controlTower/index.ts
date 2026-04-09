@@ -25,3 +25,5 @@ export * from "./trendTypes";
 export * from "./snapshot";
 export * from "./snapshotStore";
 export * from "./trend";
+export * from "./outcomeTypes";
+export * from "./outcomes";

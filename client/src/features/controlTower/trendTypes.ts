@@ -1,3 +1,5 @@
+import type { SnapshotItemRef } from "./outcomeTypes";
+
 export interface ControlTowerSnapshot {
   timestamp: string;
 
@@ -11,6 +13,9 @@ export interface ControlTowerSnapshot {
   stuckCount: number;
 
   prioritiesCount: number;
+
+  /** Present for snapshots written after P6; omitted in older localStorage payloads */
+  itemRefs?: SnapshotItemRef[];
 }
 
 export interface TrendComparison {

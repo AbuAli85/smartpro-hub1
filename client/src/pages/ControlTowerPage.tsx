@@ -26,6 +26,13 @@ import {
   buildTrendSummaryLine,
 } from "@/features/controlTower/trend";
 import type { TrendComparison } from "@/features/controlTower/trendTypes";
+import {
+  buildOutcomeSummary,
+  buildOutcomeSummaryLine,
+  buildPrioritiesSectionOutcomeHint,
+  buildQueueSectionOutcomeHint,
+  hasOutcomeBaseline,
+} from "@/features/controlTower/outcomes";
 
 export default function ControlTowerPage() {
   const { user } = useAuth();
@@ -182,6 +189,43 @@ export default function ControlTowerPage() {
     return buildQueueTotalTrendHint(trendComparison);
   }, [queueScopeActive, actionsLoading, trendComparison]);
 
+  const outcomeComparable = useMemo(
+    () => queueScopeActive && hasOutcomeBaseline(previousSnapshot),
+    [queueScopeActive, previousSnapshot],
+  );
+
+  const outcomeSummary = useMemo(
+    () => buildOutcomeSummary(currentSnapshot, previousSnapshot),
+    [currentSnapshot, previousSnapshot],
+  );
+
+  const outcomeSummaryLine = useMemo(() => {
+    if (!queueScopeActive || actionsLoading || !outcomeComparable) return null;
+    return buildOutcomeSummaryLine(outcomeSummary);
+  }, [queueScopeActive, actionsLoading, outcomeComparable, outcomeSummary]);
+
+  const prioritiesOutcomeHint = useMemo(() => {
+    if (!queueScopeActive || actionsLoading || !outcomeComparable) return null;
+    return buildPrioritiesSectionOutcomeHint(
+      outcomeSummary,
+      outcomeComparable,
+      previousSnapshot?.prioritiesCount ?? null,
+      priorityItems.length,
+    );
+  }, [
+    queueScopeActive,
+    actionsLoading,
+    outcomeComparable,
+    outcomeSummary,
+    previousSnapshot?.prioritiesCount,
+    priorityItems.length,
+  ]);
+
+  const queueOutcomeHint = useMemo(() => {
+    if (!queueScopeActive || actionsLoading || !outcomeComparable) return null;
+    return buildQueueSectionOutcomeHint(outcomeSummary, outcomeComparable);
+  }, [queueScopeActive, actionsLoading, outcomeComparable, outcomeSummary]);
+
   useEffect(() => {
     if (!queueScopeActive || actionsLoading) return;
     saveSnapshot(currentSnapshot, activeCompanyId, user?.id ?? null);
@@ -195,6 +239,7 @@ export default function ControlTowerPage() {
         freshnessLabel={queueUpdatedLabel ?? null}
         escalationSummaryLine={escalationSummaryLine}
         trendSummaryLine={trendSummaryLine}
+        outcomeSummaryLine={outcomeSummaryLine}
         queueStatus={queueStatus}
         queueScopeActive={queueScopeActive}
         actionsLoading={actionsLoading}
@@ -220,6 +265,7 @@ export default function ControlTowerPage() {
           hasStrongPriorities={hasStrongPriorities}
           actionItemsLength={actionItems.length}
           trendHintsLine={prioritiesTrendHintsLine}
+          outcomeHintLine={prioritiesOutcomeHint}
         />
 
         <RiskStrip cards={riskCards} />
@@ -231,6 +277,7 @@ export default function ControlTowerPage() {
           queueUpdatedLabel={queueUpdatedLabel}
           queueForList={queueForList}
           actionItemsLength={actionItems.length}
+          outcomeHintLine={queueOutcomeHint}
         />
 
         <KpiSnapshotSection

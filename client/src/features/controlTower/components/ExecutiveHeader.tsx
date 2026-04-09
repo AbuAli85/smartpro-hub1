@@ -14,6 +14,8 @@ export type ExecutiveHeaderProps = {
   escalationSummaryLine?: string | null;
   /** vs last saved snapshot (local); omit when no baseline */
   trendSummaryLine?: string | null;
+  /** Resolution / outcome line (needs item-ref baseline); omit when unavailable */
+  outcomeSummaryLine?: string | null;
   queueStatus: ActionQueueStatus;
   /** Tenant has company scope for queue */
   queueScopeActive: boolean;
@@ -26,6 +28,7 @@ export function ExecutiveHeader({
   freshnessLabel,
   escalationSummaryLine,
   trendSummaryLine,
+  outcomeSummaryLine,
   queueStatus,
   queueScopeActive,
   actionsLoading,
@@ -50,6 +53,9 @@ export function ExecutiveHeader({
             ) : null}
             {queueScopeActive && !actionsLoading && trendSummaryLine ? (
               <p className="text-xs text-slate-600 dark:text-slate-300 mt-1.5 max-w-xl leading-snug">{trendSummaryLine}</p>
+            ) : null}
+            {queueScopeActive && !actionsLoading && outcomeSummaryLine ? (
+              <p className="text-xs text-emerald-900/85 dark:text-emerald-100/85 mt-1 max-w-xl leading-snug">{outcomeSummaryLine}</p>
             ) : null}
           </div>
         </div>

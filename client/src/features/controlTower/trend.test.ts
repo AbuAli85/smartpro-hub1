@@ -140,6 +140,8 @@ describe("buildSnapshotFromItems", () => {
     expect(snap.stuckCount).toBe(1);
     expect(snap.unassignedHighCount).toBe(1);
     expect(snap.prioritiesCount).toBe(2);
+    expect(snap.itemRefs).toHaveLength(2);
+    expect(snap.itemRefs?.[0]?.id).toBeDefined();
   });
 });
 

@@ -30,3 +30,7 @@ export * from "./outcomes";
 export * from "./domainNarrativeTypes";
 export * from "./domainMapper";
 export * from "./domainNarrative";
+export * from "./decisionPromptTypes";
+export * from "./decisionPrompts";
+export * from "./decisionLinks";
+export * from "./decisionPromptCopy";

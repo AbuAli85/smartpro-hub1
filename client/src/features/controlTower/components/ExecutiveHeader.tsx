@@ -18,6 +18,8 @@ export type ExecutiveHeaderProps = {
   outcomeSummaryLine?: string | null;
   /** Rule-based domain narrative (max 2 lines) */
   executiveNarrativeLines?: string[];
+  /** When &gt; 0, subtle leadership-intervention line (optional) */
+  leadershipInterventionCount?: number;
   queueStatus: ActionQueueStatus;
   /** Tenant has company scope for queue */
   queueScopeActive: boolean;
@@ -32,6 +34,7 @@ export function ExecutiveHeader({
   trendSummaryLine,
   outcomeSummaryLine,
   executiveNarrativeLines,
+  leadershipInterventionCount = 0,
   queueStatus,
   queueScopeActive,
   actionsLoading,
@@ -59,6 +62,13 @@ export function ExecutiveHeader({
             ) : null}
             {queueScopeActive && !actionsLoading && outcomeSummaryLine ? (
               <p className="text-xs text-emerald-900/85 dark:text-emerald-100/85 mt-1 max-w-xl leading-snug">{outcomeSummaryLine}</p>
+            ) : null}
+            {queueScopeActive && !actionsLoading && leadershipInterventionCount > 0 ? (
+              <p className="text-[11px] text-muted-foreground mt-1.5 max-w-xl leading-snug">
+                {leadershipInterventionCount === 1
+                  ? "1 leadership intervention suggested"
+                  : `${leadershipInterventionCount} leadership interventions suggested`}
+              </p>
             ) : null}
             {queueScopeActive && !actionsLoading && executiveNarrativeLines && executiveNarrativeLines.length > 0 ? (
               <div className="mt-1.5 space-y-0.5 max-w-xl">

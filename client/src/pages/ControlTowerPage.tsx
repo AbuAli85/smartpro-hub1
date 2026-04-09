@@ -10,12 +10,14 @@ import { buildPriorityItems } from "@/features/controlTower/priorityEngine";
 import { priorityActionIdsFromItems, queueItemsAfterPriorities } from "@/features/controlTower/controlTowerLayout";
 import {
   ActionQueueSection,
+  ExecutiveDecisionSection,
   ExecutiveHeader,
   KpiSnapshotSection,
   PrioritiesSection,
   RiskStrip,
   SupportContextFooter,
 } from "@/features/controlTower/components";
+import { buildExecutiveDecisionPrompts } from "@/features/controlTower/decisionPrompts";
 import { seesPlatformOperatorNav } from "@shared/clientNav";
 import { formatEscalationSummaryLine, summarizeEscalationFromItems } from "@/features/controlTower/escalationMeta";
 import { buildSnapshotFromItems } from "@/features/controlTower/snapshot";
@@ -270,6 +272,29 @@ export default function ControlTowerPage() {
     return buildRiskStripDomainHint(domainNarrativeSummaries);
   }, [queueScopeActive, actionsLoading, actionItems.length, domainNarrativeSummaries]);
 
+  const executiveDecisionPrompts = useMemo(() => {
+    if (!queueScopeActive || actionsLoading) return [];
+    return buildExecutiveDecisionPrompts({
+      queueItems: actionItems,
+      priorityItems,
+      domainSummaries: domainNarrativeSummaries,
+      outcomeSummary: outcomeComparable ? outcomeSummary : null,
+      trendComparison,
+      outcomeComparable,
+      domainBaseline: hasDomainAttributionBaseline(previousSnapshot),
+    });
+  }, [
+    queueScopeActive,
+    actionsLoading,
+    actionItems,
+    priorityItems,
+    domainNarrativeSummaries,
+    outcomeSummary,
+    trendComparison,
+    outcomeComparable,
+    previousSnapshot,
+  ]);
+
   useEffect(() => {
     if (!queueScopeActive || actionsLoading) return;
     saveSnapshot(currentSnapshot, activeCompanyId, user?.id ?? null);
@@ -285,6 +310,7 @@ export default function ControlTowerPage() {
         trendSummaryLine={trendSummaryLine}
         outcomeSummaryLine={outcomeSummaryLine}
         executiveNarrativeLines={executiveNarrativeLines}
+        leadershipInterventionCount={executiveDecisionPrompts.length}
         queueStatus={queueStatus}
         queueScopeActive={queueScopeActive}
         actionsLoading={actionsLoading}
@@ -301,6 +327,8 @@ export default function ControlTowerPage() {
             </CardHeader>
           </Card>
         )}
+
+        <ExecutiveDecisionSection prompts={executiveDecisionPrompts} />
 
         <PrioritiesSection
           queueScopeActive={queueScopeActive}

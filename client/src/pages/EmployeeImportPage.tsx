@@ -64,6 +64,9 @@ const COLUMN_MAP: Record<string, keyof ParsedRow> = {
   // Identity
   "nationality": "nationality",
   "civil number": "civilNumber", "civil no": "civilNumber", "civil id": "civilNumber",
+  "civil id no": "civilNumber", "civil id number": "civilNumber", "civil id no.": "civilNumber",
+  "id number": "civilNumber", "id no": "civilNumber", "id no.": "civilNumber", "personal number": "civilNumber",
+  "worker id": "civilNumber", "worker civil id": "civilNumber", "identity number": "civilNumber",
   "national id": "civilNumber", "national id / civil id": "civilNumber",
   "passport": "passportNumber", "passport number": "passportNumber", "passport no": "passportNumber",
   "gender": "gender", "sex": "gender",
@@ -80,6 +83,8 @@ const COLUMN_MAP: Record<string, keyof ParsedRow> = {
   "currency": "currency",
   // Work Permit
   "work permit number": "workPermitNumber", "work permit no": "workPermitNumber", "permit number": "workPermitNumber",
+  "permit no": "workPermitNumber", "wp number": "workPermitNumber", "wp no": "workPermitNumber",
+  "labour card no": "workPermitNumber", "labor card no": "workPermitNumber",
   "visa number": "visaNumber", "visa no": "visaNumber", "labour auth no": "visaNumber",
   "occupation code": "occupationCode",
   "occupation name": "occupationName", "occupation": "occupationName",
@@ -101,6 +106,28 @@ const COLUMN_MAP: Record<string, keyof ParsedRow> = {
 /** Collapse whitespace so "Work  Permit   Number" matches "work permit number" */
 function normalizeHeaderKey(key: string): string {
   return key.replace(/\s+/g, " ").toLowerCase().trim();
+}
+
+/** When MOL / bilingual exports use headers not listed in COLUMN_MAP */
+function inferMappedFieldFromHeader(norm: string): keyof ParsedRow | undefined {
+  const n = norm.replace(/\s+/g, " ").trim();
+  if (/^nationality$/i.test(n) || /\bnationality\b/i.test(n)) return undefined;
+  if (/\bcivil\b/i.test(n) || /\bnational\s+id\b/i.test(n) || /\bid\s+card\b/i.test(n) || /\bpersonal\s+(no|number|id)\b/i.test(n)) {
+    return /passport/i.test(n) ? "passportNumber" : "civilNumber";
+  }
+  if (/\bpassport\b/i.test(n)) return "passportNumber";
+  if (
+    /\b(work\s*)?permit\b/i.test(n) &&
+    /\b(no|number|#|رقم)\b/i.test(n) &&
+    !/\bstatus|expiry|issue|date|type|class\b/i.test(n)
+  ) {
+    return "workPermitNumber";
+  }
+  if (/\b(labou?r|visa)\b/i.test(n) && /\b(auth|authorization|card)\b/i.test(n) && /\b(no|number)\b/i.test(n)) {
+    return "visaNumber";
+  }
+  if (/\boccupation\b/i.test(n) && !/\bcode\b/i.test(n)) return "occupationName";
+  return undefined;
 }
 
 /** Excel numbers (civil ID, permit no.) must become plain strings — no scientific notation for integers */
@@ -132,6 +159,11 @@ function parseExcelFile(file: File): Promise<ParsedRow[]> {
           const norm = normalizeHeaderKey(key);
           const mapped = COLUMN_MAP[norm];
           if (mapped) headerMap[key] = mapped;
+        }
+        for (const key of Object.keys(firstRow)) {
+          if (headerMap[key]) continue;
+          const inferred = inferMappedFieldFromHeader(normalizeHeaderKey(key));
+          if (inferred) headerMap[key] = inferred;
         }
 
         const parsed: ParsedRow[] = rawRows.map((row, idx) => {

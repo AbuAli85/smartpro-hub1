@@ -83,6 +83,27 @@ function canonicalPassportKey(raw: unknown): string | undefined {
   return s;
 }
 
+/** Match MOL work permit numbers when Civil ID was not stored on first import but permit no. was */
+function canonicalWorkPermitKey(raw: unknown): string | undefined {
+  if (raw === null || raw === undefined) return undefined;
+  let s = String(raw).trim();
+  if (!s) return undefined;
+  s = s.toLowerCase();
+  if (/^\d+\.0+$/.test(s)) s = s.replace(/\.0+$/, "");
+  const compact = s.replace(/\s+/g, "");
+  if (/^[\d.-]+$/.test(compact)) {
+    const digits = compact.replace(/\D/g, "");
+    if (digits.length >= 4) return digits.replace(/^0+/, "") || "0";
+  }
+  return compact;
+}
+
+function nonEmptyTrimmed(raw: string | undefined | null): string | undefined {
+  if (raw === null || raw === undefined) return undefined;
+  const t = String(raw).trim();
+  return t === "" ? undefined : t;
+}
+
 /** Coerce JSON numbers / Excel quirks to trimmed strings for bulk import rows */
 const optionalTrimmedString = z.preprocess((v) => {
   if (v === null || v === undefined) return undefined;
@@ -498,6 +519,30 @@ export const teamRouter = router({
         }
       }
 
+      const dbConn = await getDb();
+      if (!dbConn) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      }
+
+      const existingWorkPermitKeys = new Set<string>();
+      const workPermitToEmployeeId = new Map<string, number>();
+      const registerWorkPermitKey = (raw: unknown, empId: number) => {
+        const wk = canonicalWorkPermitKey(raw);
+        if (!wk) return;
+        existingWorkPermitKeys.add(wk);
+        if (!workPermitToEmployeeId.has(wk)) workPermitToEmployeeId.set(wk, empId);
+      };
+      for (const e of existing) {
+        registerWorkPermitKey(e.workPermitNumber, e.id);
+      }
+      const permitRows = await dbConn
+        .select({ employeeId: workPermits.employeeId, workPermitNumber: workPermits.workPermitNumber })
+        .from(workPermits)
+        .where(eq(workPermits.companyId, companyId));
+      for (const p of permitRows) {
+        registerWorkPermitKey(p.workPermitNumber, p.employeeId);
+      }
+
       let imported = 0;
       let updated = 0;
       let skipped = 0;
@@ -565,6 +610,7 @@ export const teamRouter = router({
         try {
           const civilKey = canonicalCivilIdKey(row.civilNumber);
           const passportKey = canonicalPassportKey(row.passportNumber);
+          const wpKey = canonicalWorkPermitKey(row.workPermitNumber);
 
           const nameParts = row.name.trim().split(/\s+/);
           const firstName = row.firstName || nameParts[0] || row.name;
@@ -585,44 +631,56 @@ export const teamRouter = router({
           };
           const employmentType = (empTypeMap[rawEmpType] ?? "full_time") as "full_time" | "part_time" | "contract" | "intern";
 
-          const dbConn = await getDb();
-          if (!dbConn) throw new Error("Database unavailable");
-
           let existingEmployeeId: number | null = null;
           if (shouldUpdateExisting) {
             if (civilKey && civilToEmployeeId.has(civilKey)) existingEmployeeId = civilToEmployeeId.get(civilKey)!;
             else if (passportKey && passportToEmployeeId.has(passportKey)) existingEmployeeId = passportToEmployeeId.get(passportKey)!;
+            else if (wpKey && workPermitToEmployeeId.has(wpKey)) existingEmployeeId = workPermitToEmployeeId.get(wpKey)!;
           }
 
           if (existingEmployeeId != null) {
-            await dbConn
-              .update(employees)
-              .set({
-                firstName,
-                lastName,
-                firstNameAr: row.firstNameAr ?? null,
-                lastNameAr: row.lastNameAr ?? null,
-                email: row.email ?? null,
-                phone: row.phone ?? null,
-                nationality: row.nationality ?? null,
-                nationalId: row.civilNumber?.trim() || null,
-                passportNumber: row.passportNumber?.trim() || null,
-                department: row.department ?? null,
-                position: row.position?.trim() || row.occupationName?.trim() || null,
-                profession: row.occupationName?.trim() || null,
-                employmentType,
-                status,
-                salary: row.salary ? String(Number(row.salary)) : null,
-                currency: row.currency || "OMR",
-                hireDate: hireDateParsed ?? null,
-                employeeNumber: row.employeeNumber?.trim() || null,
-                workPermitNumber: row.workPermitNumber?.trim() || null,
-                visaNumber: row.visaNumber?.trim() || null,
-                workPermitExpiryDate: toMysqlDateString(wpExpiry),
-                visaExpiryDate: toMysqlDateString(visaExpiryParsed),
-                updatedAt: new Date(),
-              } as any)
-              .where(eq(employees.id, existingEmployeeId));
+            const pos = nonEmptyTrimmed(row.position) ?? nonEmptyTrimmed(row.occupationName);
+            const prof = nonEmptyTrimmed(row.occupationName);
+            const updatePayload: Record<string, unknown> = {
+              firstName,
+              lastName,
+              employmentType,
+              status,
+              workPermitExpiryDate: toMysqlDateString(wpExpiry),
+              visaExpiryDate: toMysqlDateString(visaExpiryParsed),
+              updatedAt: new Date(),
+            };
+            const civ = nonEmptyTrimmed(row.civilNumber);
+            const ppt = nonEmptyTrimmed(row.passportNumber);
+            if (civ !== undefined) updatePayload.nationalId = civ;
+            if (ppt !== undefined) updatePayload.passportNumber = ppt;
+            if (pos !== undefined) updatePayload.position = pos;
+            if (prof !== undefined) updatePayload.profession = prof;
+            if (hireDateParsed !== undefined) updatePayload.hireDate = hireDateParsed;
+            const fnAr = nonEmptyTrimmed(row.firstNameAr);
+            const lnAr = nonEmptyTrimmed(row.lastNameAr);
+            if (fnAr !== undefined) updatePayload.firstNameAr = fnAr;
+            if (lnAr !== undefined) updatePayload.lastNameAr = lnAr;
+            const em = nonEmptyTrimmed(row.email);
+            const ph = nonEmptyTrimmed(row.phone);
+            const nat = nonEmptyTrimmed(row.nationality);
+            const dept = nonEmptyTrimmed(row.department);
+            const sal = nonEmptyTrimmed(row.salary);
+            const eno = nonEmptyTrimmed(row.employeeNumber);
+            const wpn = nonEmptyTrimmed(row.workPermitNumber);
+            const vis = nonEmptyTrimmed(row.visaNumber);
+            if (em !== undefined) updatePayload.email = em;
+            if (ph !== undefined) updatePayload.phone = ph;
+            if (nat !== undefined) updatePayload.nationality = nat;
+            if (dept !== undefined) updatePayload.department = dept;
+            if (sal !== undefined) {
+              updatePayload.salary = String(Number(sal));
+              updatePayload.currency = row.currency || "OMR";
+            }
+            if (eno !== undefined) updatePayload.employeeNumber = eno;
+            if (wpn !== undefined) updatePayload.workPermitNumber = wpn;
+            if (vis !== undefined) updatePayload.visaNumber = vis;
+            await dbConn.update(employees).set(updatePayload as any).where(eq(employees.id, existingEmployeeId));
 
             await upsertWorkPermitForRow(dbConn, existingEmployeeId, row, wpIssue, wpExpiry);
             updated++;
@@ -635,6 +693,10 @@ export const teamRouter = router({
               continue;
             }
             if (passportKey && existingPassports.has(passportKey)) {
+              skipped++;
+              continue;
+            }
+            if (wpKey && existingWorkPermitKeys.has(wpKey)) {
               skipped++;
               continue;
             }
@@ -676,6 +738,10 @@ export const teamRouter = router({
           if (passportKey) existingPassports.add(passportKey);
           if (employeeId && civilKey) civilToEmployeeId.set(civilKey, employeeId);
           if (employeeId && passportKey) passportToEmployeeId.set(passportKey, employeeId);
+          if (employeeId && wpKey) {
+            existingWorkPermitKeys.add(wpKey);
+            workPermitToEmployeeId.set(wpKey, employeeId);
+          }
 
           imported++;
         } catch (err) {

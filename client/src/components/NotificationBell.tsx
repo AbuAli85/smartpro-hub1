@@ -17,6 +17,7 @@ import { formatDistanceToNow } from "date-fns";
 import { useActionQueue } from "@/hooks/useActionQueue";
 import { queueStatusDescription, queueStatusHeadline } from "@/features/controlTower/actionQueueComputeStatus";
 import type { ActionQueueItem } from "@/features/controlTower/actionQueueTypes";
+import { countUrgentItemsForBell, shouldCompressBellActionList } from "@/features/controlTower/priorityEngine";
 
 function ActionQueueRow(props: {
   a: ActionQueueItem;
@@ -90,6 +91,10 @@ export function NotificationBell() {
   } = useActionQueue({
     enabled: open && automationQueriesEnabled,
   });
+
+  const compressBellQueue =
+    actionItems.length > 0 && shouldCompressBellActionList(actionItems);
+  const urgentBellCount = countUrgentItemsForBell(actionItems);
 
   const markRead = trpc.automation.markNotificationsRead.useMutation({
     onSuccess: () => {
@@ -176,9 +181,28 @@ export function NotificationBell() {
             ) : queueStatus === "partial" ? (
               <div className="space-y-2">
                 <p className="text-[11px] text-amber-800 dark:text-amber-200">{queueStatusDescription("partial")}</p>
-                {actionItems.slice(0, 5).map((a) => (
-                  <ActionQueueRow key={a.id} a={a} navigate={navigate} setOpen={setOpen} />
-                ))}
+                {compressBellQueue ? (
+                  <div className="rounded-md border border-red-200/80 bg-red-50/60 dark:bg-red-950/25 px-3 py-2 space-y-1">
+                    <p className="text-xs font-medium text-red-900 dark:text-red-100">
+                      {urgentBellCount} urgent issues need attention
+                    </p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full h-8 text-xs"
+                      onClick={() => {
+                        navigate("/control-tower");
+                        setOpen(false);
+                      }}
+                    >
+                      Open Control Tower <ArrowUpRight size={12} className="inline ml-0.5" />
+                    </Button>
+                  </div>
+                ) : (
+                  actionItems.slice(0, 5).map((a) => (
+                    <ActionQueueRow key={a.id} a={a} navigate={navigate} setOpen={setOpen} />
+                  ))
+                )}
               </div>
             ) : queueStatus === "all_clear" ? (
               <div className="flex items-center gap-2 text-xs text-emerald-700 dark:text-emerald-400">
@@ -188,9 +212,45 @@ export function NotificationBell() {
             ) : queueStatus === "no_urgent_blockers" ? (
               <div className="space-y-2">
                 <p className="text-[11px] text-muted-foreground">{queueStatusDescription("no_urgent_blockers")}</p>
-                {actionItems.slice(0, 5).map((a) => (
-                  <ActionQueueRow key={a.id} a={a} navigate={navigate} setOpen={setOpen} />
-                ))}
+                {compressBellQueue ? (
+                  <div className="rounded-md border border-red-200/80 bg-red-50/60 dark:bg-red-950/25 px-3 py-2 space-y-1">
+                    <p className="text-xs font-medium text-red-900 dark:text-red-100">
+                      {urgentBellCount} urgent issues need attention
+                    </p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full h-8 text-xs"
+                      onClick={() => {
+                        navigate("/control-tower");
+                        setOpen(false);
+                      }}
+                    >
+                      Open Control Tower <ArrowUpRight size={12} className="inline ml-0.5" />
+                    </Button>
+                  </div>
+                ) : (
+                  actionItems.slice(0, 5).map((a) => (
+                    <ActionQueueRow key={a.id} a={a} navigate={navigate} setOpen={setOpen} />
+                  ))
+                )}
+              </div>
+            ) : compressBellQueue ? (
+              <div className="rounded-md border border-red-200/80 bg-red-50/60 dark:bg-red-950/25 px-3 py-2 space-y-1">
+                <p className="text-xs font-medium text-red-900 dark:text-red-100">
+                  {urgentBellCount} urgent issues need attention
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full h-8 text-xs"
+                  onClick={() => {
+                    navigate("/control-tower");
+                    setOpen(false);
+                  }}
+                >
+                  Open Control Tower <ArrowUpRight size={12} className="inline ml-0.5" />
+                </Button>
               </div>
             ) : (
               <ul className="space-y-2">

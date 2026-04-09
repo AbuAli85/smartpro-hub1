@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { Link } from "wouter";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
@@ -6,6 +7,9 @@ import { useActionQueue } from "@/hooks/useActionQueue";
 import { useSmartRoleHomeRedirect } from "@/hooks/useSmartRoleHomeRedirect";
 import { buildRiskStripCards } from "@/features/controlTower/riskStripModel";
 import { queueStatusDescription, queueStatusHeadline } from "@/features/controlTower/actionQueueComputeStatus";
+import { buildPriorityItems } from "@/features/controlTower/priorityEngine";
+import { getPriorityBadgeLabel } from "@/features/controlTower/actionLabels";
+import type { PriorityLevel } from "@/features/controlTower/priorityTypes";
 import { seesPlatformOperatorNav } from "@shared/clientNav";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,6 +23,7 @@ import {
   Radar,
   Users,
   AlertCircle,
+  Zap,
 } from "lucide-react";
 import { fmtDate } from "@/lib/dateUtils";
 
@@ -26,6 +31,16 @@ function severityBadgeClass(s: "high" | "medium" | "low") {
   if (s === "high") return "bg-red-100 text-red-800 border-red-200 dark:bg-red-950/50 dark:text-red-200";
   if (s === "medium") return "bg-amber-100 text-amber-900 border-amber-200 dark:bg-amber-950/40 dark:text-amber-100";
   return "bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-200";
+}
+
+function priorityLevelBadgeClass(level: PriorityLevel) {
+  if (level === "critical") {
+    return "bg-red-100 text-red-900 border-red-200 dark:bg-red-950/50 dark:text-red-100 dark:border-red-800";
+  }
+  if (level === "important") {
+    return "bg-amber-100 text-amber-950 border-amber-200 dark:bg-amber-950/40 dark:text-amber-50 dark:border-amber-800";
+  }
+  return "bg-slate-100 text-slate-800 border-slate-200 dark:bg-slate-800 dark:text-slate-100 dark:border-slate-600";
 }
 
 function sourceLabel(source: string) {
@@ -49,7 +64,7 @@ function sourceLabel(source: string) {
 
 export default function ControlTowerPage() {
   const { user } = useAuth();
-  const { activeCompanyId } = useActiveCompany();
+  const { activeCompanyId, activeCompany } = useActiveCompany();
   useSmartRoleHomeRedirect();
 
   const platformOp = seesPlatformOperatorNav(user);
@@ -62,6 +77,20 @@ export default function ControlTowerPage() {
     lastUpdatedLabel: queueUpdatedLabel,
     scopeActive: queueScopeActive,
   } = useActionQueue();
+
+  const priorityItems = useMemo(
+    () => buildPriorityItems(actionItems, activeCompany?.role ?? null),
+    [actionItems, activeCompany?.role],
+  );
+
+  const priorityIds = useMemo(() => new Set(priorityItems.map((p) => p.actionId)), [priorityItems]);
+
+  const queueForList = useMemo(
+    () => actionItems.filter((a) => !priorityIds.has(a.id)),
+    [actionItems, priorityIds],
+  );
+
+  const hasStrongPriorities = priorityItems.some((p) => p.priorityLevel === "critical" || p.priorityLevel === "important");
 
   const { data: pulse, isLoading: pulseLoading } = trpc.operations.getOwnerBusinessPulse.useQuery(
     { companyId: activeCompanyId ?? undefined },
@@ -194,6 +223,93 @@ export default function ControlTowerPage() {
           </div>
         </section>
 
+        {/* Today's priorities — same normalized queue as the list below */}
+        {queueScopeActive && (
+          <section aria-label="Today's priorities">
+            <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
+              <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                <Zap className="w-3.5 h-3.5 text-[var(--smartpro-orange)]" />
+                Today&apos;s priorities
+              </h2>
+            </div>
+
+            {!actionsLoading && (queueStatus === "partial" || queueStatus === "error") && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50/60 dark:bg-amber-950/25 px-3 py-2 text-xs text-amber-950 dark:text-amber-100 mb-3">
+                {queueStatus === "error" ? queueStatusDescription("error") : queueStatusDescription("partial")}
+              </div>
+            )}
+
+            <Card className="shadow-md border-[var(--smartpro-orange)]/25">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base">What to handle first</CardTitle>
+                <CardDescription>
+                  {actionsLoading
+                    ? "Loading…"
+                    : queueStatus === "error"
+                      ? "Priorities may be incomplete until the queue loads reliably."
+                      : "Ranked from the same action queue — with context on why it matters."}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {!queueScopeActive ? null : actionsLoading ? (
+                  <div className="flex items-center justify-center py-10 text-muted-foreground gap-2">
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    Loading priorities…
+                  </div>
+                ) : queueStatus === "error" && priorityItems.length === 0 ? (
+                  <p className="text-sm text-muted-foreground py-4 text-center">{queueStatusHeadline("error")}</p>
+                ) : priorityItems.length === 0 ? (
+                  <div className="py-8 text-center space-y-2">
+                    <p className="text-sm font-medium text-foreground">No critical priorities right now</p>
+                    <p className="text-xs text-muted-foreground max-w-md mx-auto">
+                      {actionItems.length > 0
+                        ? "Nothing in the top band — review the full queue below for remaining items."
+                        : "When actionable items appear in your queue, the top three will surface here with guidance."}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {!hasStrongPriorities && actionItems.length > 0 && (
+                      <p className="text-xs text-muted-foreground rounded-md border border-dashed px-3 py-2">
+                        No critical priorities right now — showing lower-urgency watch items first.
+                      </p>
+                    )}
+                    <ul className="space-y-4">
+                      {priorityItems.map((p) => (
+                        <li
+                          key={p.id}
+                          className="rounded-lg border bg-card/50 p-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"
+                        >
+                          <div className="min-w-0 flex-1 space-y-2">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Badge className={`text-[10px] ${priorityLevelBadgeClass(p.priorityLevel)}`}>
+                                {getPriorityBadgeLabel(p.priorityLevel)}
+                              </Badge>
+                              <span className="text-[10px] font-semibold uppercase text-muted-foreground">{sourceLabel(p.source)}</span>
+                            </div>
+                            <p className="text-base font-semibold leading-snug">{p.title}</p>
+                            <p className="text-sm text-muted-foreground leading-relaxed">{p.whyThisMatters}</p>
+                            <p className="text-xs text-muted-foreground/90 italic">{p.recommendedAction}</p>
+                            <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
+                              {p.dueLabel && p.dueLabel !== "No deadline" && <span>{p.dueLabel}</span>}
+                              {p.ownerLabel && <span>{p.ownerLabel}</span>}
+                            </div>
+                          </div>
+                          <Button size="sm" className="shrink-0 gap-1 w-full sm:w-auto" asChild>
+                            <Link href={p.href}>
+                              {p.ctaLabel} <ArrowUpRight className="w-3.5 h-3.5" />
+                            </Link>
+                          </Button>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </section>
+        )}
+
         {/* KPI summary */}
         <section aria-label="Key metrics">
           <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">
@@ -312,9 +428,9 @@ export default function ControlTowerPage() {
                   <div className="rounded-lg border border-amber-200 bg-amber-50/60 dark:bg-amber-950/25 px-3 py-2 text-xs text-amber-900 dark:text-amber-100">
                     {queueStatusDescription("partial")}
                   </div>
-                  {actionItems.length > 0 ? (
+                  {queueForList.length > 0 ? (
                     <ul className="divide-y rounded-lg border">
-                      {actionItems.map((a) => (
+                      {queueForList.map((a) => (
                         <li key={a.id} className="flex flex-wrap items-center gap-3 p-3 hover:bg-muted/40 transition-colors">
                           <Badge className={`shrink-0 ${severityBadgeClass(a.severity)}`}>{a.severity}</Badge>
                           <div className="flex-1 min-w-[200px]">
@@ -335,6 +451,10 @@ export default function ControlTowerPage() {
                         </li>
                       ))}
                     </ul>
+                  ) : actionItems.length > 0 ? (
+                    <p className="text-sm text-muted-foreground py-6 text-center">
+                      Every item in your queue is listed in Today&apos;s priorities above.
+                    </p>
                   ) : null}
                 </div>
               ) : queueStatus === "all_clear" ? (
@@ -348,9 +468,9 @@ export default function ControlTowerPage() {
                   <div className="rounded-lg border border-amber-200/80 bg-amber-50/40 dark:bg-amber-950/20 px-3 py-2 text-xs">
                     {queueStatusDescription("no_urgent_blockers")}
                   </div>
-                  {actionItems.length > 0 ? (
+                  {queueForList.length > 0 ? (
                     <ul className="divide-y rounded-lg border">
-                      {actionItems.map((a) => (
+                      {queueForList.map((a) => (
                         <li key={a.id} className="flex flex-wrap items-center gap-3 p-3 hover:bg-muted/40 transition-colors">
                           <Badge className={`shrink-0 ${severityBadgeClass(a.severity)}`}>{a.severity}</Badge>
                           <div className="flex-1 min-w-[200px]">
@@ -370,11 +490,15 @@ export default function ControlTowerPage() {
                         </li>
                       ))}
                     </ul>
+                  ) : actionItems.length > 0 ? (
+                    <p className="text-sm text-muted-foreground py-6 text-center">
+                      Every item in your queue is listed in Today&apos;s priorities above.
+                    </p>
                   ) : null}
                 </div>
-              ) : (
+              ) : queueForList.length > 0 ? (
                 <ul className="divide-y rounded-lg border">
-                  {actionItems.map((a) => (
+                  {queueForList.map((a) => (
                     <li key={a.id} className="flex flex-wrap items-center gap-3 p-3 hover:bg-muted/40 transition-colors">
                       <Badge className={`shrink-0 ${severityBadgeClass(a.severity)}`}>{a.severity}</Badge>
                       <div className="flex-1 min-w-[200px]">
@@ -395,6 +519,12 @@ export default function ControlTowerPage() {
                     </li>
                   ))}
                 </ul>
+              ) : actionItems.length > 0 ? (
+                <p className="text-sm text-muted-foreground py-6 text-center">
+                  Every item in your queue is listed in Today&apos;s priorities above.
+                </p>
+              ) : (
+                <p className="text-sm text-muted-foreground py-6 text-center">No additional items in the queue.</p>
               )}
             </CardContent>
           </Card>

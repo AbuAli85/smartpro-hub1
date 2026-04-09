@@ -38,7 +38,7 @@ export function buildRiskStripCards(input: {
       count: ld ? null : blockedScore,
       loading: ld,
       href: "/compliance",
-      helper: "Expired permits, payroll/WPS blockers, failed compliance checks",
+      helper: "Requires immediate action",
       semanticClass: "blocked",
     },
     {
@@ -47,16 +47,16 @@ export function buildRiskStripCards(input: {
       count: ld ? null : atRiskScore,
       loading: ld,
       href: "/workforce/permits?status=expiring_soon",
-      helper: "Due soon (≤7d) and open SLA breaches",
+      helper: "Needs attention soon",
       semanticClass: "at_risk",
     },
     {
       tier: "upcoming",
-      label: "Watch list",
+      label: "Upcoming",
       count: ld ? null : input.complianceWarnCount,
       loading: ld,
       href: "/compliance",
-      helper: "Non-blocking compliance warnings",
+      helper: "Monitor and prepare",
       semanticClass: "upcoming",
     },
   ];

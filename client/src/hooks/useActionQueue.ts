@@ -5,7 +5,9 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { seesPlatformOperatorNav } from "@shared/clientNav";
 import type { RouterOutputs } from "@/lib/trpc";
-import type { ActionQueueItem, ActionQueueStatus } from "@/features/controlTower/actionQueueTypes";
+import type { ActionQueueStatus } from "@/features/controlTower/actionQueueTypes";
+import type { ActionQueueItemView } from "@/features/controlTower/executionTypes";
+import { attachExecutionToQueueItems } from "@/features/controlTower/executionMeta";
 import { buildActionQueueFromSources } from "@/features/controlTower/actionQueuePipeline";
 import type { RawDecisionRow, RawRoleQueueRow } from "@/features/controlTower/actionQueuePipeline";
 import { prioritizeActionQueueForRole } from "@/features/controlTower/actionQueueRolePrioritize";
@@ -16,6 +18,7 @@ type OwnerPulse = NonNullable<RouterOutputs["operations"]["getOwnerBusinessPulse
 type DecisionRow = OwnerPulse["controlTower"]["decisionsQueue"]["items"][number];
 
 function toRawRoleRow(item: RoleQueueItem): RawRoleQueueRow {
+  const ext = item as RoleQueueItem & { createdAt?: string | null; updatedAt?: string | null };
   return {
     id: item.id,
     type: item.type,
@@ -26,6 +29,8 @@ function toRawRoleRow(item: RoleQueueItem): RawRoleQueueRow {
     reason: item.reason,
     ownerUserId: item.ownerUserId,
     dueAt: item.dueAt,
+    createdAt: ext.createdAt ?? null,
+    updatedAt: ext.updatedAt ?? null,
   };
 }
 
@@ -45,7 +50,7 @@ export type UseActionQueueOptions = {
 };
 
 export type ActionQueueResult = {
-  items: ActionQueueItem[];
+  items: ActionQueueItemView[];
   status: ActionQueueStatus;
   isLoading: boolean;
   hasHighSeverity: boolean;
@@ -57,8 +62,8 @@ export type ActionQueueResult = {
   pulseError: boolean;
 };
 
-/** @deprecated Use `ActionQueueItem` from `@/features/controlTower/actionQueueTypes` */
-export type ActionItem = ActionQueueItem;
+/** @deprecated Use `ActionQueueItemView` / `ActionQueueItem` from control tower feature */
+export type ActionItem = ActionQueueItemView;
 
 /**
  * Tenant-scoped decision queue — normalized, grouped, role-prioritised, capped at 10 items.
@@ -95,7 +100,7 @@ export function useActionQueue(options: UseActionQueueOptions = {}): ActionQueue
     },
   );
 
-  const items = useMemo((): ActionQueueItem[] => {
+  const items = useMemo((): ActionQueueItemView[] => {
     if (!scopeEnabled) return [];
     const roleRows = (rq.data ?? []).map(toRawRoleRow);
     const rawDecisions = pulse.data?.controlTower?.decisionsQueue?.items;
@@ -106,8 +111,9 @@ export function useActionQueue(options: UseActionQueueOptions = {}): ActionQueue
       maxCandidates: 48,
     });
     built = prioritizeActionQueueForRole(built, activeCompany?.role ?? null);
-    return built.slice(0, 10);
-  }, [scopeEnabled, rq.data, pulse.data, activeCompany?.role]);
+    const sliced = built.slice(0, 10);
+    return attachExecutionToQueueItems(sliced, user);
+  }, [scopeEnabled, rq.data, pulse.data, activeCompany?.role, user]);
 
   const queueError = scopeEnabled && rq.isError;
   const pulseError = scopeEnabled && pulse.isError;

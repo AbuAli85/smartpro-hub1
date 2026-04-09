@@ -16,15 +16,16 @@ import { useLocation } from "wouter";
 import { formatDistanceToNow } from "date-fns";
 import { useActionQueue } from "@/hooks/useActionQueue";
 import { queueStatusDescription, queueStatusHeadline } from "@/features/controlTower/actionQueueComputeStatus";
-import type { ActionQueueItem } from "@/features/controlTower/actionQueueTypes";
+import type { ActionQueueItemView } from "@/features/controlTower/executionTypes";
 import { countUrgentItemsForBell, shouldCompressBellActionList } from "@/features/controlTower/priorityEngine";
 
 function ActionQueueRow(props: {
-  a: ActionQueueItem;
+  a: ActionQueueItemView;
   navigate: (path: string) => void;
   setOpen: (open: boolean) => void;
 }) {
   const { a, navigate, setOpen } = props;
+  const { execution: x } = a;
   return (
     <div className="flex items-start gap-2">
       <span
@@ -34,6 +35,11 @@ function ActionQueueRow(props: {
       />
       <div className="min-w-0 flex-1">
         <p className="text-xs font-medium leading-snug line-clamp-2">{a.title}</p>
+        <p className="text-[10px] text-muted-foreground mt-0.5">
+          {x.assigned && x.ownerLabel ? x.ownerLabel : "Unassigned"}
+          {x.overdue ? " · Overdue" : ""}
+          {x.needsOwner ? " · Needs owner" : ""}
+        </p>
         <Button
           variant="link"
           className="h-auto p-0 text-[11px] gap-0.5"

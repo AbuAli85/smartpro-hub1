@@ -37,7 +37,12 @@ export interface ActionQueueItem {
   href: string;
   ctaLabel: string;
   ownerLabel?: string | null;
+  /** When present, used for assignment matching (from role queue). */
+  ownerUserId?: string | null;
   dueAt?: string | null;
+  /** Optional audit fields for aging when backend exposes them later. */
+  createdAt?: string | null;
+  updatedAt?: string | null;
   /** Populated when this row represents a grouped aggregate */
   count?: number;
   /** Stable key for grouping homogeneous items (e.g. permit_expired) */

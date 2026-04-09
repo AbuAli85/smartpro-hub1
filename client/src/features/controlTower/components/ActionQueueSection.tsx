@@ -6,15 +6,17 @@ import { Badge } from "@/components/ui/badge";
 import { AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
 import { queueStatusDescription, queueStatusHeadline } from "../actionQueueComputeStatus";
 import { severityBadgeClass, sourceLabel } from "../displayUtils";
-import type { ActionQueueItem, ActionQueueStatus } from "../actionQueueTypes";
+import type { ActionQueueStatus } from "../actionQueueTypes";
+import type { ActionQueueItemView } from "../executionTypes";
 import { fmtDate } from "@/lib/dateUtils";
+import { ExecutionAccountabilityRow } from "./ExecutionAccountabilityRow";
 
 export type ActionQueueSectionProps = {
   queueScopeActive: boolean;
   actionsLoading: boolean;
   queueStatus: ActionQueueStatus;
   queueUpdatedLabel?: string | null;
-  queueForList: ActionQueueItem[];
+  queueForList: ActionQueueItemView[];
   actionItemsLength: number;
 };
 
@@ -82,9 +84,9 @@ export function ActionQueueSection({
                           <span>{sourceLabel(a.source)}</span>
                           {a.count != null && a.count > 1 && <span>×{a.count}</span>}
                           {a.dueAt && <span>Due {fmtDate(a.dueAt)}</span>}
-                          {a.ownerLabel && <span>{a.ownerLabel}</span>}
                         </div>
                         {a.reason && <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-2">{a.reason}</p>}
+                        <ExecutionAccountabilityRow execution={a.execution} variant="queue" />
                       </div>
                       <Button size="sm" variant="secondary" className="shrink-0 gap-1" asChild>
                         <Link href={a.href}>{a.ctaLabel}</Link>
@@ -120,8 +122,8 @@ export function ActionQueueSection({
                           <span>{sourceLabel(a.source)}</span>
                           {a.count != null && a.count > 1 && <span>×{a.count}</span>}
                           {a.dueAt && <span>Due {fmtDate(a.dueAt)}</span>}
-                          {a.ownerLabel && <span>{a.ownerLabel}</span>}
                         </div>
+                        <ExecutionAccountabilityRow execution={a.execution} variant="queue" />
                       </div>
                       <Button size="sm" variant="secondary" className="shrink-0 gap-1" asChild>
                         <Link href={a.href}>{a.ctaLabel}</Link>
@@ -146,9 +148,9 @@ export function ActionQueueSection({
                       <span>{sourceLabel(a.source)}</span>
                       {a.count != null && a.count > 1 && <span>×{a.count}</span>}
                       {a.dueAt && <span>Due {fmtDate(a.dueAt)}</span>}
-                      {a.ownerLabel && <span>{a.ownerLabel}</span>}
                     </div>
                     {a.reason && <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-2">{a.reason}</p>}
+                    <ExecutionAccountabilityRow execution={a.execution} variant="queue" />
                   </div>
                   <Button size="sm" variant="secondary" className="shrink-0 gap-1" asChild>
                     <Link href={a.href}>{a.ctaLabel}</Link>

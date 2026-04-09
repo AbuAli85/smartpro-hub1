@@ -8,6 +8,8 @@ import {
   shouldCompressBellActionList,
 } from "./priorityEngine";
 import type { ActionQueueItem } from "./actionQueueTypes";
+import type { ActionQueueItemView } from "./executionTypes";
+import { attachExecutionToQueueItems } from "./executionMeta";
 import { getDueLabel, getDueLabelOrNone } from "./timeLabels";
 import { groupActionQueueItems, mapRoleRowToItem, type RawRoleQueueRow } from "./actionQueuePipeline";
 
@@ -21,6 +23,10 @@ function item(overrides: Partial<ActionQueueItem> & Pick<ActionQueueItem, "id" |
     ctaLabel: "Open",
     ...overrides,
   };
+}
+
+function views(items: ActionQueueItem[]): ActionQueueItemView[] {
+  return attachExecutionToQueueItems(items, null);
 }
 
 describe("getWhyThisMatters / getRecommendedAction", () => {
@@ -92,7 +98,7 @@ describe("buildPriorityItems", () => {
       blocking: true,
       source: "workforce",
     });
-    const out = buildPriorityItems([sig, permit], null);
+    const out = buildPriorityItems(views([sig, permit]), null);
     expect(out[0].kind).toBe("permit_expired");
     expect(out[1].kind).toBe("contract_signature_pending");
   });
@@ -108,7 +114,7 @@ describe("buildPriorityItems", () => {
         source: "workforce",
       }),
     );
-    expect(buildPriorityItems(five, null).length).toBe(3);
+    expect(buildPriorityItems(views(five), null).length).toBe(3);
   });
 
   it("excludes watch items when three critical priorities fill the cap", () => {
@@ -131,7 +137,7 @@ describe("buildPriorityItems", () => {
         source: "operations",
       }),
     );
-    const out = buildPriorityItems([...critical, ...watch], null);
+    const out = buildPriorityItems(views([...critical, ...watch]), null);
     expect(out).toHaveLength(3);
     expect(out.every((p) => p.priorityLevel !== "watch")).toBe(true);
   });
@@ -146,7 +152,7 @@ describe("buildPriorityItems", () => {
       status: "overdue",
     }));
     const grouped = groupActionQueueItems(rows.map(mapRoleRowToItem));
-    const out = buildPriorityItems(grouped, null);
+    const out = buildPriorityItems(views(grouped), null);
     expect(out).toHaveLength(1);
     expect(out[0].kind).toBe("permit_expired");
     expect(out[0].whyThisMatters).toContain("compliance");

@@ -7,7 +7,8 @@ import { Router } from "wouter";
 import { ExecutiveHeader } from "./ExecutiveHeader";
 import { PrioritiesSection } from "./PrioritiesSection";
 import { RiskStrip } from "./RiskStrip";
-import type { PriorityItem } from "../priorityTypes";
+import { buildExecutionMeta } from "../executionMeta";
+import type { PriorityItemView } from "../executionTypes";
 import { buildRiskStripCards } from "../riskStripModel";
 
 function wrap(ui: React.ReactElement) {
@@ -31,7 +32,9 @@ describe("ExecutiveHeader", () => {
 });
 
 describe("PrioritiesSection", () => {
-  const basePriority = (overrides: Partial<PriorityItem> & Pick<PriorityItem, "id" | "actionId">): PriorityItem => ({
+  const samplePriority = (): PriorityItemView => ({
+    id: "1",
+    actionId: "a1",
     title: "T",
     summary: "S",
     whyThisMatters: "Why",
@@ -42,7 +45,19 @@ describe("PrioritiesSection", () => {
     ctaLabel: "Act",
     source: "payroll",
     kind: "payroll_blocker",
-    ...overrides,
+    execution: buildExecutionMeta(
+      {
+        id: "a1",
+        kind: "payroll_blocker",
+        title: "T",
+        severity: "high",
+        blocking: true,
+        source: "payroll",
+        href: "/a",
+        ctaLabel: "Act",
+      },
+      null,
+    ),
   });
 
   it("shows partial-data confidence note when queue is partial and priorities exist", () => {
@@ -51,7 +66,7 @@ describe("PrioritiesSection", () => {
         queueScopeActive
         actionsLoading={false}
         queueStatus="partial"
-        priorityItems={[basePriority({ id: "1", actionId: "a1" })]}
+        priorityItems={[samplePriority()]}
         hasStrongPriorities
         actionItemsLength={1}
       />,

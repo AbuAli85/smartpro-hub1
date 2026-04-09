@@ -1,8 +1,9 @@
 import type { ActionQueueItem } from "./actionQueueTypes";
+import type { ActionQueueItemView, PriorityItemView } from "./executionTypes";
 import { getRecommendedAction, getWhyThisMatters } from "./actionExplanations";
 import { getActionShortSummary } from "./actionLabels";
 import { getDueLabel } from "./timeLabels";
-import type { PriorityItem, PriorityLevel } from "./priorityTypes";
+import type { PriorityLevel } from "./priorityTypes";
 
 const LEVEL_RANK: Record<PriorityLevel, number> = { critical: 0, important: 1, watch: 2 };
 
@@ -37,7 +38,7 @@ export function getPriorityLevelForItem(item: ActionQueueItem): PriorityLevel {
   return "important";
 }
 
-function toPriorityItem(item: ActionQueueItem, seq: number): PriorityItem {
+function toPriorityItem(item: ActionQueueItemView, seq: number): PriorityItemView {
   const priorityLevel = getPriorityLevelForItem(item);
   return {
     id: `priority-${item.id}-${seq}`,
@@ -54,6 +55,7 @@ function toPriorityItem(item: ActionQueueItem, seq: number): PriorityItem {
     ownerLabel: item.ownerLabel ?? null,
     source: item.source,
     kind: item.kind,
+    execution: item.execution,
   };
 }
 
@@ -66,10 +68,10 @@ export type BuildPriorityItemsOptions = {
  * Fills with watch-level items only when fewer than `max` critical+important rows exist.
  */
 export function buildPriorityItems(
-  actionQueueItems: ActionQueueItem[],
+  actionQueueItems: ActionQueueItemView[],
   _role?: string | null,
   options?: BuildPriorityItemsOptions,
-): PriorityItem[] {
+): PriorityItemView[] {
   const max = options?.max ?? 3;
   if (actionQueueItems.length === 0 || max <= 0) return [];
 
@@ -99,7 +101,7 @@ export function buildPriorityItems(
 }
 
 /** Items that count as “critical/high” for bell compression (must stay in sync with UX copy). */
-export function countUrgentItemsForBell(items: ActionQueueItem[]): number {
+export function countUrgentItemsForBell(items: ActionQueueItem[] | ActionQueueItemView[]): number {
   return items.filter((i) => {
     const lvl = getPriorityLevelForItem(i);
     return lvl === "critical" || i.severity === "high";
@@ -108,6 +110,6 @@ export function countUrgentItemsForBell(items: ActionQueueItem[]): number {
 
 export const BELL_URGENT_COMPRESSION_THRESHOLD = 5;
 
-export function shouldCompressBellActionList(items: ActionQueueItem[]): boolean {
+export function shouldCompressBellActionList(items: ActionQueueItem[] | ActionQueueItemView[]): boolean {
   return countUrgentItemsForBell(items) > BELL_URGENT_COMPRESSION_THRESHOLD;
 }

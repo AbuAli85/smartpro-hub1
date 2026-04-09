@@ -13,6 +13,8 @@ export type RawRoleQueueRow = {
   reason?: string;
   ownerUserId?: string | null;
   dueAt?: string | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
 };
 
 /** Serializable decision rollup (from `controlTower.decisionsQueue.items`) */
@@ -154,8 +156,11 @@ export function mapRoleRowToItem(row: RawRoleQueueRow): ActionQueueItem {
     source: sourceForKind(kind, row.type),
     href,
     ctaLabel: defaultCta(kind, false),
+    ownerUserId: row.ownerUserId ?? null,
     ownerLabel: row.ownerUserId ? `User ${row.ownerUserId}` : null,
     dueAt: row.dueAt ?? null,
+    createdAt: row.createdAt ?? null,
+    updatedAt: row.updatedAt ?? null,
     count: 1,
     groupKey,
   };
@@ -222,6 +227,8 @@ export function mapDecisionRowToItem(d: RawDecisionRow): ActionQueueItem {
     source: decisionSource(d.key),
     href: enhanceDecisionHref(d.key, d.href),
     ctaLabel: defaultCta(kind, d.count > 1),
+    ownerUserId: null,
+    ownerLabel: null,
     dueAt: null,
     count: d.count,
     groupKey: `decision:${d.key}`,

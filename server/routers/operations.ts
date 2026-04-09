@@ -182,6 +182,25 @@ const getSmartDashboardOutputSchema = z.object({
   ),
 });
 
+const roleActionQueueItemSchema = z.object({
+  id: z.string(),
+  type: z.enum([
+    "payroll_blocker",
+    "permit_expiry",
+    "government_case_overdue",
+    "hr_approval",
+    "task",
+    "document_issue",
+  ]),
+  title: z.string(),
+  severity: z.enum(["critical", "high", "medium", "low"]),
+  ownerUserId: z.string().nullable(),
+  dueAt: z.string().nullable(),
+  status: z.enum(["open", "pending", "blocked", "overdue", "resolved"]),
+  href: z.string(),
+  reason: z.string(),
+});
+
 export const operationsRouter = router({
   getRoleActionQueue: protectedProcedure
     .input(
@@ -190,6 +209,7 @@ export const operationsRouter = router({
         roleView: z.enum(["ceo", "admin", "hr", "finance", "compliance"]).optional(),
       }),
     )
+    .output(z.array(roleActionQueueItemSchema))
     .query(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
@@ -322,7 +342,7 @@ export const operationsRouter = router({
             ownerUserId: null,
             dueAt: p.expiryDate ? p.expiryDate.toISOString() : null,
             status: overdue ? "overdue" : "pending",
-            href: `/workforce/permits${overdue ? "?status=expired" : "?expiring=30"}`,
+            href: "/workforce/permits",
             reason: overdue
               ? "Work permit expiry date has passed."
               : "Work permit expires within the next 14 days.",
@@ -356,7 +376,7 @@ export const operationsRouter = router({
             ownerUserId: c.assignedTo != null ? String(c.assignedTo) : null,
             dueAt: c.dueDate ? c.dueDate.toISOString() : null,
             status: "overdue",
-            href: "/workforce/cases?status=overdue",
+            href: "/workforce/cases",
             reason: `${String(c.caseType).replace(/_/g, " ")} case exceeded due date.`,
           });
         }
@@ -424,7 +444,7 @@ export const operationsRouter = router({
             ownerUserId: t.assignedByUserId != null ? String(t.assignedByUserId) : null,
             dueAt: t.dueDate ? t.dueDate.toISOString() : null,
             status: overdue ? "overdue" : blocked ? "blocked" : "open",
-            href: `/hr/tasks${blocked ? "?status=blocked" : "?status=overdue"}`,
+            href: "/hr/tasks",
             reason: overdue ? "Task due date has passed." : "Task is currently blocked.",
           });
         }

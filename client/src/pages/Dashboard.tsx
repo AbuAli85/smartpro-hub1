@@ -546,10 +546,10 @@ export default function Dashboard() {
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <CardTitle className="text-sm flex items-center gap-2">
                   <Target size={14} className="text-[var(--smartpro-orange)]" />
-                  Role Focus
+                  Focus view
                 </CardTitle>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-muted-foreground">View as</span>
+                  <span className="text-xs text-muted-foreground">Prioritize for</span>
                   <Select value={roleView} onValueChange={(v: "ceo" | "admin" | "hr" | "finance" | "compliance") => setRoleView(v)}>
                     <SelectTrigger className="w-40 h-8 text-xs">
                       <SelectValue />
@@ -565,7 +565,7 @@ export default function Dashboard() {
                 </div>
               </div>
               <p className="text-xs text-muted-foreground">
-                This view prioritizes urgent actions for the selected role without changing permissions.
+                Prioritization only. Permissions and data access do not change.
               </p>
             </CardHeader>
           </Card>
@@ -585,7 +585,7 @@ export default function Dashboard() {
                 <p className="text-xs text-muted-foreground">Expired permits</p>
                 <p className="text-2xl font-black mt-1">{riskCounts.expiredPermits}</p>
                 <div className="mt-2 text-xs">
-                  <Link href="/workforce/permits?status=expired" className="text-[var(--smartpro-orange)] hover:underline">Open permits</Link>
+                  <Link href="/workforce/permits" className="text-[var(--smartpro-orange)] hover:underline">Open permits</Link>
                 </div>
               </CardContent>
             </Card>
@@ -594,7 +594,7 @@ export default function Dashboard() {
                 <p className="text-xs text-muted-foreground">Overdue gov. cases</p>
                 <p className="text-2xl font-black mt-1">{riskCounts.overdueGovCases}</p>
                 <div className="mt-2 text-xs">
-                  <Link href="/workforce/cases?status=overdue" className="text-[var(--smartpro-orange)] hover:underline">Open cases</Link>
+                  <Link href="/workforce/cases" className="text-[var(--smartpro-orange)] hover:underline">Open cases</Link>
                 </div>
               </CardContent>
             </Card>
@@ -651,7 +651,11 @@ export default function Dashboard() {
                     </div>
                     <p className="text-[11px] text-muted-foreground mt-0.5">{item.reason}</p>
                     <div className="flex items-center justify-between text-[10px] text-muted-foreground mt-1">
-                      <span>{item.ownerUserId ? `Owner #${item.ownerUserId}` : "Owner: unassigned"}</span>
+                      <span>
+                        {item.ownerUserId
+                          ? (String(item.ownerUserId) === String(user?.id) ? "Owner: you" : `Owner: user #${item.ownerUserId}`)
+                          : "Owner: unassigned"}
+                      </span>
                       <span>{item.dueAt ? `Due ${fmtDate(item.dueAt)}` : "No due date"}</span>
                     </div>
                   </div>

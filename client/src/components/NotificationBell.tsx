@@ -15,6 +15,38 @@ import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { useLocation } from "wouter";
 import { formatDistanceToNow } from "date-fns";
 import { useActionQueue } from "@/hooks/useActionQueue";
+import { queueStatusDescription, queueStatusHeadline } from "@/features/controlTower/actionQueueComputeStatus";
+import type { ActionQueueItem } from "@/features/controlTower/actionQueueTypes";
+
+function ActionQueueRow(props: {
+  a: ActionQueueItem;
+  navigate: (path: string) => void;
+  setOpen: (open: boolean) => void;
+}) {
+  const { a, navigate, setOpen } = props;
+  return (
+    <div className="flex items-start gap-2">
+      <span
+        className={`mt-0.5 shrink-0 h-2 w-2 rounded-full ${
+          a.severity === "high" ? "bg-red-500" : a.severity === "medium" ? "bg-amber-500" : "bg-slate-400"
+        }`}
+      />
+      <div className="min-w-0 flex-1">
+        <p className="text-xs font-medium leading-snug line-clamp-2">{a.title}</p>
+        <Button
+          variant="link"
+          className="h-auto p-0 text-[11px] gap-0.5"
+          onClick={() => {
+            navigate(a.href);
+            setOpen(false);
+          }}
+        >
+          {a.ctaLabel} <ArrowUpRight size={10} />
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 const typeIcon = {
   info: <Info size={14} className="text-blue-500" />,
@@ -50,7 +82,12 @@ export function NotificationBell() {
     { enabled: open && automationQueriesEnabled },
   );
 
-  const { items: actionItems, isLoading: actionsLoading, isEmpty: actionsEmpty } = useActionQueue({
+  const {
+    items: actionItems,
+    isLoading: actionsLoading,
+    status: queueStatus,
+    scopeActive: queueScopeActive,
+  } = useActionQueue({
     enabled: open && automationQueriesEnabled,
   });
 
@@ -129,34 +166,36 @@ export function NotificationBell() {
             </p>
             {actionsLoading ? (
               <p className="text-xs text-muted-foreground">Loading actions…</p>
-            ) : actionsEmpty ? (
+            ) : !queueScopeActive ? (
+              <p className="text-xs text-muted-foreground">Select a company to load actions.</p>
+            ) : queueStatus === "error" ? (
+              <div className="space-y-1">
+                <p className="text-xs font-medium text-amber-900 dark:text-amber-100">{queueStatusHeadline("error")}</p>
+                <p className="text-[11px] text-muted-foreground">{queueStatusDescription("error")}</p>
+              </div>
+            ) : queueStatus === "partial" ? (
+              <div className="space-y-2">
+                <p className="text-[11px] text-amber-800 dark:text-amber-200">{queueStatusDescription("partial")}</p>
+                {actionItems.slice(0, 5).map((a) => (
+                  <ActionQueueRow key={a.id} a={a} navigate={navigate} setOpen={setOpen} />
+                ))}
+              </div>
+            ) : queueStatus === "all_clear" ? (
               <div className="flex items-center gap-2 text-xs text-emerald-700 dark:text-emerald-400">
                 <CheckCircle size={14} />
-                All clear — nothing blocking
+                {queueStatusHeadline("all_clear")}
+              </div>
+            ) : queueStatus === "no_urgent_blockers" ? (
+              <div className="space-y-2">
+                <p className="text-[11px] text-muted-foreground">{queueStatusDescription("no_urgent_blockers")}</p>
+                {actionItems.slice(0, 5).map((a) => (
+                  <ActionQueueRow key={a.id} a={a} navigate={navigate} setOpen={setOpen} />
+                ))}
               </div>
             ) : (
               <ul className="space-y-2">
                 {actionItems.slice(0, 5).map((a) => (
-                  <li key={a.id} className="flex items-start gap-2">
-                    <span
-                      className={`mt-0.5 shrink-0 h-2 w-2 rounded-full ${
-                        a.severity === "high" ? "bg-red-500" : a.severity === "medium" ? "bg-amber-500" : "bg-slate-400"
-                      }`}
-                    />
-                    <div className="min-w-0 flex-1">
-                      <p className="text-xs font-medium leading-snug line-clamp-2">{a.title}</p>
-                      <Button
-                        variant="link"
-                        className="h-auto p-0 text-[11px] gap-0.5"
-                        onClick={() => {
-                          navigate(a.href);
-                          setOpen(false);
-                        }}
-                      >
-                        Open <ArrowUpRight size={10} />
-                      </Button>
-                    </div>
-                  </li>
+                  <ActionQueueRow key={a.id} a={a} navigate={navigate} setOpen={setOpen} />
                 ))}
               </ul>
             )}

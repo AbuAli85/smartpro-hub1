@@ -1,117 +1,70 @@
 import { useMemo } from "react";
+import { formatDistanceToNow } from "date-fns";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { seesPlatformOperatorNav } from "@shared/clientNav";
 import type { RouterOutputs } from "@/lib/trpc";
-
-export type ActionItem = {
-  id: string;
-  title: string;
-  severity: "high" | "medium" | "low";
-  href: string;
-  source: "payroll" | "workforce" | "contracts" | "hr";
-  owner?: string | null;
-  dueAt?: string | null;
-};
+import type { ActionQueueItem, ActionQueueStatus } from "@/features/controlTower/actionQueueTypes";
+import { buildActionQueueFromSources } from "@/features/controlTower/actionQueuePipeline";
+import type { RawDecisionRow, RawRoleQueueRow } from "@/features/controlTower/actionQueuePipeline";
+import { prioritizeActionQueueForRole } from "@/features/controlTower/actionQueueRolePrioritize";
+import { computeActionQueueStatus } from "@/features/controlTower/actionQueueComputeStatus";
 
 type RoleQueueItem = RouterOutputs["operations"]["getRoleActionQueue"][number];
 type OwnerPulse = NonNullable<RouterOutputs["operations"]["getOwnerBusinessPulse"]>;
 type DecisionRow = OwnerPulse["controlTower"]["decisionsQueue"]["items"][number];
 
-const SEVERITY_ORDER: Record<ActionItem["severity"], number> = {
-  high: 0,
-  medium: 1,
-  low: 2,
-};
-
-function mapRoleSeverity(s: RoleQueueItem["severity"]): ActionItem["severity"] {
-  if (s === "critical" || s === "high") return "high";
-  if (s === "medium") return "medium";
-  return "low";
-}
-
-function mapDecisionSeverity(s: "critical" | "high" | "medium"): ActionItem["severity"] {
-  if (s === "critical" || s === "high") return "high";
-  return "medium";
-}
-
-function sourceFromRoleType(type: RoleQueueItem["type"]): ActionItem["source"] {
-  switch (type) {
-    case "payroll_blocker":
-      return "payroll";
-    case "permit_expiry":
-    case "government_case_overdue":
-      return "workforce";
-    default:
-      return "hr";
-  }
-}
-
-/** Prefer deep links that match destination module filters (query params ignored if unsupported). */
-function enhanceRoleQueueHref(item: RoleQueueItem): string {
-  const base = item.href;
-  if (base.includes("?")) return base;
-  switch (item.type) {
-    case "payroll_blocker":
-      return `${base}?queue=attention`;
-    case "permit_expiry":
-      return base.startsWith("/workforce/permits")
-        ? base.includes("status=")
-          ? base
-          : `${base}?status=expiring_soon`
-        : "/workforce/permits?status=expiring_soon";
-    default:
-      return base;
-  }
-}
-
-function decisionKeyToSource(key: string): ActionItem["source"] {
-  if (key === "contracts") return "contracts";
-  if (key.startsWith("payroll")) return "payroll";
-  if (key === "quotations") return "contracts";
-  return "hr";
-}
-
-function enhanceDecisionHref(key: string, href: string): string {
-  if (href.includes("?")) return href;
-  switch (key) {
-    case "contracts":
-      return `${href}?status=pending_signature`;
-    case "leave":
-      return `${href}?status=pending`;
-    case "employee_requests":
-      return `${href}?status=pending`;
-    case "payroll_draft":
-    case "payroll_payment":
-      return `${href}?queue=attention`;
-    default:
-      return href;
-  }
-}
-
-function decisionItemToAction(d: DecisionRow): ActionItem {
+function toRawRoleRow(item: RoleQueueItem): RawRoleQueueRow {
   return {
-    id: `decision-${d.key}`,
-    title: d.count > 1 ? `${d.label} (${d.count})` : d.label,
-    severity: mapDecisionSeverity(d.severity),
-    href: enhanceDecisionHref(d.key, d.href),
-    source: decisionKeyToSource(d.key),
+    id: item.id,
+    type: item.type,
+    title: item.title,
+    severity: item.severity,
+    href: item.href,
+    status: item.status,
+    reason: item.reason,
+    ownerUserId: item.ownerUserId,
+    dueAt: item.dueAt,
   };
 }
 
+function toRawDecisionRows(items: DecisionRow[] | undefined): RawDecisionRow[] | undefined {
+  if (!items?.length) return undefined;
+  return items.map((d) => ({
+    key: d.key,
+    label: d.label,
+    count: d.count,
+    href: d.href,
+    severity: d.severity,
+  }));
+}
+
 export type UseActionQueueOptions = {
-  /** When false, skips tRPC (e.g. Storybook). */
   enabled?: boolean;
 };
 
+export type ActionQueueResult = {
+  items: ActionQueueItem[];
+  status: ActionQueueStatus;
+  isLoading: boolean;
+  hasHighSeverity: boolean;
+  hasBlocking: boolean;
+  lastUpdatedLabel?: string;
+  /** False for platform operators or when tenant scope is inactive */
+  scopeActive: boolean;
+  queueError: boolean;
+  pulseError: boolean;
+};
+
+/** @deprecated Use `ActionQueueItem` from `@/features/controlTower/actionQueueTypes` */
+export type ActionItem = ActionQueueItem;
+
 /**
- * Aggregates cross-module attention items from `operations.getRoleActionQueue` (payroll, workforce,
- * HR, documents) and pads with executive decision-queue rollups from `getOwnerBusinessPulse` when needed.
- * Server-side RBAC already filters queue rows by membership.
+ * Tenant-scoped decision queue — normalized, grouped, role-prioritised, capped at 10 items.
  */
-export function useActionQueue(options: UseActionQueueOptions = {}) {
-  const enabled = options.enabled !== false;
+export function useActionQueue(options: UseActionQueueOptions = {}): ActionQueueResult {
+  const hookEnabled = options.enabled !== false;
   const { user } = useAuth();
   const { activeCompanyId, activeCompany } = useActiveCompany();
   const platformOp = seesPlatformOperatorNav(user);
@@ -124,9 +77,9 @@ export function useActionQueue(options: UseActionQueueOptions = {}) {
     return "admin";
   }, [activeCompany?.role]);
 
-  const scopeEnabled = enabled && activeCompanyId != null && !platformOp;
+  const scopeEnabled = hookEnabled && activeCompanyId != null && !platformOp;
 
-  const { data: roleQueue = [], isLoading: loadingQueue } = trpc.operations.getRoleActionQueue.useQuery(
+  const rq = trpc.operations.getRoleActionQueue.useQuery(
     { companyId: activeCompanyId ?? 0, roleView },
     {
       enabled: scopeEnabled,
@@ -134,7 +87,7 @@ export function useActionQueue(options: UseActionQueueOptions = {}) {
     },
   );
 
-  const { data: pulse, isLoading: loadingPulse } = trpc.operations.getOwnerBusinessPulse.useQuery(
+  const pulse = trpc.operations.getOwnerBusinessPulse.useQuery(
     { companyId: activeCompanyId ?? undefined },
     {
       enabled: scopeEnabled,
@@ -142,49 +95,53 @@ export function useActionQueue(options: UseActionQueueOptions = {}) {
     },
   );
 
-  const items = useMemo((): ActionItem[] => {
-    const fromRole: ActionItem[] = roleQueue.map((item) => ({
-      id: item.id,
-      title: item.title,
-      severity: mapRoleSeverity(item.severity),
-      href: enhanceRoleQueueHref(item),
-      source: sourceFromRoleType(item.type),
-      owner: item.ownerUserId,
-      dueAt: item.dueAt,
-    }));
+  const items = useMemo((): ActionQueueItem[] => {
+    if (!scopeEnabled) return [];
+    const roleRows = (rq.data ?? []).map(toRawRoleRow);
+    const rawDecisions = pulse.data?.controlTower?.decisionsQueue?.items;
+    const decisionRows = toRawDecisionRows(rawDecisions);
+    let built = buildActionQueueFromSources({
+      roleRows,
+      decisionRows,
+      maxCandidates: 48,
+    });
+    built = prioritizeActionQueueForRole(built, activeCompany?.role ?? null);
+    return built.slice(0, 10);
+  }, [scopeEnabled, rq.data, pulse.data, activeCompany?.role]);
 
-    const sortBySeverity = (rows: ActionItem[]) =>
-      [...rows].sort((a, b) => {
-        const s = SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity];
-        if (s !== 0) return s;
-        return a.title.localeCompare(b.title);
-      });
+  const queueError = scopeEnabled && rq.isError;
+  const pulseError = scopeEnabled && pulse.isError;
+  const isLoading = scopeEnabled && (rq.isLoading || pulse.isLoading);
 
-    let out = sortBySeverity(fromRole).slice(0, 10);
-    const decisions = pulse?.controlTower?.decisionsQueue?.items;
-    if (out.length < 10 && decisions?.length) {
-      const pad = sortBySeverity(decisions.map((d) => decisionItemToAction(d)));
-      const ids = new Set(out.map((o) => o.id));
-      for (const row of pad) {
-        if (out.length >= 10) break;
-        if (!ids.has(row.id)) {
-          ids.add(row.id);
-          out.push(row);
-        }
-      }
-      out = sortBySeverity(out).slice(0, 10);
-    }
+  const status = useMemo((): ActionQueueStatus => {
+    if (!scopeEnabled) return "ready";
+    if (isLoading) return "ready";
+    return computeActionQueueStatus({
+      queueError,
+      pulseError,
+      items,
+    });
+  }, [scopeEnabled, isLoading, queueError, pulseError, items]);
 
-    return out;
-  }, [roleQueue, pulse?.controlTower?.decisionsQueue?.items]);
+  const hasHighSeverity = items.some((i) => i.severity === "high");
+  const hasBlocking = items.some((i) => i.blocking);
 
-  const isLoading = scopeEnabled && (loadingQueue || loadingPulse);
+  const lastUpdatedLabel = useMemo(() => {
+    if (!scopeEnabled) return undefined;
+    const t = Math.max(rq.dataUpdatedAt ?? 0, pulse.dataUpdatedAt ?? 0);
+    if (!t) return undefined;
+    return `Updated ${formatDistanceToNow(new Date(t), { addSuffix: true })}`;
+  }, [scopeEnabled, rq.dataUpdatedAt, pulse.dataUpdatedAt]);
 
   return {
     items,
+    status,
     isLoading,
-    isEmpty: !isLoading && items.length === 0,
-    /** Raw role queue length before merge (for diagnostics). */
-    rawRoleCount: roleQueue.length,
+    hasHighSeverity,
+    hasBlocking,
+    lastUpdatedLabel,
+    scopeActive: scopeEnabled,
+    queueError,
+    pulseError,
   };
 }

@@ -4,20 +4,21 @@ import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { trpc } from "@/lib/trpc";
 import { useActionQueue } from "@/hooks/useActionQueue";
 import { useSmartRoleHomeRedirect } from "@/hooks/useSmartRoleHomeRedirect";
+import { buildRiskStripCards } from "@/features/controlTower/riskStripModel";
+import { queueStatusDescription, queueStatusHeadline } from "@/features/controlTower/actionQueueComputeStatus";
 import { seesPlatformOperatorNav } from "@shared/clientNav";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
   Activity,
-  AlertTriangle,
   ArrowUpRight,
   CheckCircle2,
   ClipboardList,
   Loader2,
   Radar,
-  ShieldAlert,
   Users,
+  AlertCircle,
 } from "lucide-react";
 import { fmtDate } from "@/lib/dateUtils";
 
@@ -35,6 +36,12 @@ function sourceLabel(source: string) {
       return "Workforce";
     case "contracts":
       return "Contracts";
+    case "operations":
+      return "Operations";
+    case "compliance":
+      return "Compliance";
+    case "system":
+      return "System";
     default:
       return "HR";
   }
@@ -48,7 +55,13 @@ export default function ControlTowerPage() {
   const platformOp = seesPlatformOperatorNav(user);
   const scopeEnabled = activeCompanyId != null && !platformOp;
 
-  const { items: actionItems, isLoading: actionsLoading, isEmpty: actionsEmpty } = useActionQueue();
+  const {
+    items: actionItems,
+    isLoading: actionsLoading,
+    status: queueStatus,
+    lastUpdatedLabel: queueUpdatedLabel,
+    scopeActive: queueScopeActive,
+  } = useActionQueue();
 
   const { data: pulse, isLoading: pulseLoading } = trpc.operations.getOwnerBusinessPulse.useQuery(
     { companyId: activeCompanyId ?? undefined },
@@ -86,6 +99,7 @@ export default function ControlTowerPage() {
     pulse?.controlTower?.riskCompliance.workPermitsExpiring7Days ?? dailySnap?.expiringDocs7Days ?? 0;
 
   const complianceFailures = complianceScore?.checks?.filter((c) => c.status === "fail").length ?? 0;
+  const complianceWarnings = complianceScore?.checks?.filter((c) => c.status === "warn").length ?? 0;
 
   const pendingApprovals =
     pulse?.controlTower?.decisionsQueue.totalOpenCount ??
@@ -97,6 +111,16 @@ export default function ControlTowerPage() {
     pulse?.revenue?.combinedPaid?.monthToDateOmr ?? dailySnap?.revenueMtdOmr ?? null;
 
   const loadingStrip = scopeEnabled && (wpsLoading || scoreLoading || dailyLoading || pulseLoading);
+
+  const riskCards = buildRiskStripCards({
+    loading: loadingStrip,
+    expiredPermits,
+    wpsBlocked,
+    complianceFailCount: complianceFailures,
+    permitsExpiring7d: expiring7,
+    slaBreaches: typeof dailySnap?.slaBreaches === "number" ? dailySnap.slaBreaches : 0,
+    complianceWarnCount: complianceWarnings,
+  });
 
   return (
     <div className="min-h-screen bg-background">
@@ -138,62 +162,35 @@ export default function ControlTowerPage() {
           </Card>
         )}
 
-        {/* Critical risk strip */}
-        <section aria-label="Critical risk indicators">
+        {/* Risk strip — blocked vs at-risk vs watch */}
+        <section aria-label="Risk indicators">
           <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">
             Risk & compliance pulse
           </h2>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <Card className="shadow-sm">
-              <CardContent className="p-4 flex items-center gap-3">
-                <ShieldAlert className={`w-8 h-8 shrink-0 ${wpsBlocked ? "text-red-600" : "text-emerald-600"}`} />
-                <div>
-                  <p className="text-[10px] font-semibold uppercase text-muted-foreground">WPS</p>
-                  <p className="text-sm font-semibold">
-                    {loadingStrip ? "…" : wpsBlocked ? "Attention" : "OK"}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            {riskCards.map((card) => (
+              <Card
+                key={card.tier}
+                className={`shadow-sm border-l-4 ${
+                  card.semanticClass === "blocked"
+                    ? "border-l-red-500"
+                    : card.semanticClass === "at_risk"
+                      ? "border-l-amber-500"
+                      : "border-l-slate-400"
+                }`}
+              >
+                <CardContent className="p-4 space-y-1">
+                  <p className="text-[10px] font-semibold uppercase text-muted-foreground">{card.label}</p>
+                  <p className="text-2xl font-bold tabular-nums">
+                    {card.loading ? "…" : card.count}
                   </p>
-                  <Link href="/payroll" className="text-[11px] text-primary hover:underline">
-                    Payroll / WPS
+                  <p className="text-[11px] text-muted-foreground leading-snug">{card.helper}</p>
+                  <Link href={card.href} className="text-[11px] text-primary hover:underline inline-block pt-1">
+                    Open related view →
                   </Link>
-                </div>
-              </CardContent>
-            </Card>
-            <Card className="shadow-sm">
-              <CardContent className="p-4 flex items-center gap-3">
-                <AlertTriangle className={`w-8 h-8 shrink-0 ${expiredPermits > 0 ? "text-red-600" : "text-muted-foreground"}`} />
-                <div>
-                  <p className="text-[10px] font-semibold uppercase text-muted-foreground">Expired permits</p>
-                  <p className="text-sm font-semibold tabular-nums">{loadingStrip ? "…" : expiredPermits}</p>
-                  <Link href="/workforce/permits?status=expired" className="text-[11px] text-primary hover:underline">
-                    View permits
-                  </Link>
-                </div>
-              </CardContent>
-            </Card>
-            <Card className="shadow-sm">
-              <CardContent className="p-4 flex items-center gap-3">
-                <Activity className="w-8 h-8 shrink-0 text-amber-600" />
-                <div>
-                  <p className="text-[10px] font-semibold uppercase text-muted-foreground">Expiring ≤7d</p>
-                  <p className="text-sm font-semibold tabular-nums">{loadingStrip ? "…" : expiring7}</p>
-                  <Link href="/workforce/permits?status=expiring_soon" className="text-[11px] text-primary hover:underline">
-                    Renewals
-                  </Link>
-                </div>
-              </CardContent>
-            </Card>
-            <Card className="shadow-sm">
-              <CardContent className="p-4 flex items-center gap-3">
-                <ClipboardList className="w-8 h-8 shrink-0 text-rose-600" />
-                <div>
-                  <p className="text-[10px] font-semibold uppercase text-muted-foreground">Compliance fails</p>
-                  <p className="text-sm font-semibold tabular-nums">{scoreLoading ? "…" : complianceFailures}</p>
-                  <Link href="/compliance" className="text-[11px] text-primary hover:underline">
-                    Compliance centre
-                  </Link>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            ))}
           </div>
         </section>
 
@@ -211,6 +208,9 @@ export default function ControlTowerPage() {
                 <p className="text-2xl font-bold mt-1 tabular-nums">
                   {statsLoading ? "—" : myStats?.employees ?? "—"}
                 </p>
+                <p className="text-[10px] text-muted-foreground mt-1">
+                  {statsLoading ? "Loading…" : myStats != null ? "HR · companies.myStats" : "Unavailable"}
+                </p>
               </CardContent>
             </Card>
             <Card className="shadow-sm">
@@ -221,6 +221,15 @@ export default function ControlTowerPage() {
                 <p className="text-2xl font-bold mt-1 tabular-nums">
                   {pulseLoading && scopeEnabled ? "—" : pendingApprovals}
                 </p>
+                <p className="text-[10px] text-muted-foreground mt-1">
+                  {scopeEnabled && pulse
+                    ? "Operations · pulse decisions queue"
+                    : dailySnap && scopeEnabled
+                      ? "Operations · daily snapshot"
+                      : scopeEnabled
+                        ? "—"
+                        : "N/A"}
+                </p>
               </CardContent>
             </Card>
             <Card className="shadow-sm">
@@ -230,6 +239,15 @@ export default function ControlTowerPage() {
                 </div>
                 <p className="text-2xl font-bold mt-1 tabular-nums">
                   {revenueMtd == null ? "—" : `OMR ${Number(revenueMtd).toLocaleString("en-OM", { minimumFractionDigits: 3 })}`}
+                </p>
+                <p className="text-[10px] text-muted-foreground mt-1">
+                  {revenueMtd == null && !pulseLoading && scopeEnabled
+                    ? "Cash MTD unavailable for this scope"
+                    : pulse?.revenue
+                      ? "Finance · executive revenue (paid)"
+                      : dailySnap
+                        ? "Finance · daily snapshot (paid)"
+                        : "—"}
                 </p>
               </CardContent>
             </Card>
@@ -244,6 +262,9 @@ export default function ControlTowerPage() {
                 {complianceScore?.grade && (
                   <p className="text-xs text-muted-foreground">Grade {complianceScore.grade}</p>
                 )}
+                <p className="text-[10px] text-muted-foreground mt-1">
+                  {scoreLoading ? "Loading…" : complianceScore ? "Compliance · weighted checks" : "Unavailable"}
+                </p>
               </CardContent>
             </Card>
           </div>
@@ -251,61 +272,124 @@ export default function ControlTowerPage() {
 
         {/* Action queue */}
         <section aria-label="Action queue">
-          <div className="flex items-center justify-between gap-2 mb-3">
+          <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
             <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
               Top action queue
             </h2>
-            {actionsEmpty && !actionsLoading && (
-              <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700 dark:text-emerald-400">
-                <CheckCircle2 className="w-3.5 h-3.5" /> All clear
-              </span>
+            {queueScopeActive && !actionsLoading && (
+              <span className="text-[11px] text-muted-foreground">{queueUpdatedLabel}</span>
             )}
           </div>
 
           <Card className="shadow-sm">
             <CardHeader className="pb-2">
               <CardTitle className="text-base flex items-center gap-2">
-                Critical & blocking work
+                {queueScopeActive ? queueStatusHeadline(queueStatus) : "Action queue"}
                 <Badge variant="outline" className="text-[10px] font-normal">
                   Max 10
                 </Badge>
               </CardTitle>
               <CardDescription>
-                Prioritised by severity. Links open the module with the right context.
+                {queueScopeActive ? queueStatusDescription(queueStatus) : "Sign in with a company workspace to load tenant actions."}
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {actionsLoading ? (
+              {!queueScopeActive ? (
+                <p className="text-sm text-muted-foreground py-6 text-center">Select a company to load the action queue.</p>
+              ) : actionsLoading ? (
                 <div className="flex items-center justify-center py-12 text-muted-foreground gap-2">
                   <Loader2 className="w-5 h-5 animate-spin" />
                   Loading actions…
                 </div>
-              ) : actionsEmpty ? (
+              ) : queueStatus === "error" ? (
+                <div className="flex flex-col items-center justify-center py-12 text-center gap-2 rounded-lg border border-red-200 bg-red-50/50 dark:bg-red-950/20 px-4">
+                  <AlertCircle className="w-10 h-10 text-red-600" />
+                  <p className="text-sm font-medium text-red-900 dark:text-red-100">{queueStatusHeadline("error")}</p>
+                  <p className="text-xs text-muted-foreground max-w-sm">{queueStatusDescription("error")}</p>
+                </div>
+              ) : queueStatus === "partial" ? (
+                <div className="space-y-3">
+                  <div className="rounded-lg border border-amber-200 bg-amber-50/60 dark:bg-amber-950/25 px-3 py-2 text-xs text-amber-900 dark:text-amber-100">
+                    {queueStatusDescription("partial")}
+                  </div>
+                  {actionItems.length > 0 ? (
+                    <ul className="divide-y rounded-lg border">
+                      {actionItems.map((a) => (
+                        <li key={a.id} className="flex flex-wrap items-center gap-3 p-3 hover:bg-muted/40 transition-colors">
+                          <Badge className={`shrink-0 ${severityBadgeClass(a.severity)}`}>{a.severity}</Badge>
+                          <div className="flex-1 min-w-[200px]">
+                            <p className="text-sm font-medium leading-snug">{a.title}</p>
+                            <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1 text-[11px] text-muted-foreground">
+                              <span>{sourceLabel(a.source)}</span>
+                              {a.count != null && a.count > 1 && <span>×{a.count}</span>}
+                              {a.dueAt && <span>Due {fmtDate(a.dueAt)}</span>}
+                              {a.ownerLabel && <span>{a.ownerLabel}</span>}
+                            </div>
+                            {a.reason && <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-2">{a.reason}</p>}
+                          </div>
+                          <Button size="sm" className="shrink-0 gap-1" asChild>
+                            <Link href={a.href}>
+                              {a.ctaLabel} <ArrowUpRight className="w-3.5 h-3.5" />
+                            </Link>
+                          </Button>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </div>
+              ) : queueStatus === "all_clear" ? (
                 <div className="flex flex-col items-center justify-center py-12 text-center gap-2 rounded-lg border border-emerald-200/80 bg-emerald-50/50 dark:bg-emerald-950/20">
                   <CheckCircle2 className="w-10 h-10 text-emerald-600" />
-                  <p className="text-sm font-medium text-emerald-900 dark:text-emerald-100">All clear</p>
-                  <p className="text-xs text-muted-foreground max-w-sm">
-                    No blocking payroll, permit, contract, or HR items in your queue right now.
-                  </p>
+                  <p className="text-sm font-medium text-emerald-900 dark:text-emerald-100">{queueStatusHeadline("all_clear")}</p>
+                  <p className="text-xs text-muted-foreground max-w-sm">{queueStatusDescription("all_clear")}</p>
+                </div>
+              ) : queueStatus === "no_urgent_blockers" ? (
+                <div className="space-y-3">
+                  <div className="rounded-lg border border-amber-200/80 bg-amber-50/40 dark:bg-amber-950/20 px-3 py-2 text-xs">
+                    {queueStatusDescription("no_urgent_blockers")}
+                  </div>
+                  {actionItems.length > 0 ? (
+                    <ul className="divide-y rounded-lg border">
+                      {actionItems.map((a) => (
+                        <li key={a.id} className="flex flex-wrap items-center gap-3 p-3 hover:bg-muted/40 transition-colors">
+                          <Badge className={`shrink-0 ${severityBadgeClass(a.severity)}`}>{a.severity}</Badge>
+                          <div className="flex-1 min-w-[200px]">
+                            <p className="text-sm font-medium leading-snug">{a.title}</p>
+                            <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1 text-[11px] text-muted-foreground">
+                              <span>{sourceLabel(a.source)}</span>
+                              {a.count != null && a.count > 1 && <span>×{a.count}</span>}
+                              {a.dueAt && <span>Due {fmtDate(a.dueAt)}</span>}
+                              {a.ownerLabel && <span>{a.ownerLabel}</span>}
+                            </div>
+                          </div>
+                          <Button size="sm" className="shrink-0 gap-1" asChild>
+                            <Link href={a.href}>
+                              {a.ctaLabel} <ArrowUpRight className="w-3.5 h-3.5" />
+                            </Link>
+                          </Button>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
                 </div>
               ) : (
                 <ul className="divide-y rounded-lg border">
                   {actionItems.map((a) => (
                     <li key={a.id} className="flex flex-wrap items-center gap-3 p-3 hover:bg-muted/40 transition-colors">
-                      <Badge className={`shrink-0 ${severityBadgeClass(a.severity)}`}>
-                        {a.severity}
-                      </Badge>
+                      <Badge className={`shrink-0 ${severityBadgeClass(a.severity)}`}>{a.severity}</Badge>
                       <div className="flex-1 min-w-[200px]">
                         <p className="text-sm font-medium leading-snug">{a.title}</p>
                         <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1 text-[11px] text-muted-foreground">
                           <span>{sourceLabel(a.source)}</span>
+                          {a.count != null && a.count > 1 && <span>×{a.count}</span>}
                           {a.dueAt && <span>Due {fmtDate(a.dueAt)}</span>}
-                          {a.owner && <span>Owner #{a.owner}</span>}
+                          {a.ownerLabel && <span>{a.ownerLabel}</span>}
                         </div>
+                        {a.reason && <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-2">{a.reason}</p>}
                       </div>
                       <Button size="sm" className="shrink-0 gap-1" asChild>
                         <Link href={a.href}>
-                          Open <ArrowUpRight className="w-3.5 h-3.5" />
+                          {a.ctaLabel} <ArrowUpRight className="w-3.5 h-3.5" />
                         </Link>
                       </Button>
                     </li>

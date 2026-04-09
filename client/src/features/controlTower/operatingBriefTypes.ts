@@ -18,6 +18,8 @@ export interface OperatingBrief {
   reviewFocus: string[];
 
   outcomeSummary?: string | null;
+  /** When variant shows outcome and trend separately (e.g. weekly) */
+  trendSummary?: string | null;
 }
 
 export interface OperatingBriefInputs {

@@ -130,8 +130,16 @@ describe("buildReviewFocus", () => {
 });
 
 describe("pickOutcomeSummaryLine", () => {
-  it("prefers outcome over trend when both exist", () => {
-    expect(pickOutcomeSummaryLine("Outcome A", "Trend B")).toBe("Outcome A");
+  it("prefers outcome over trend when both exist (daily)", () => {
+    expect(pickOutcomeSummaryLine("Outcome A", "Trend B", "daily")).toBe("Outcome A");
+  });
+
+  it("combines outcome and trend for weekly", () => {
+    expect(pickOutcomeSummaryLine("Outcome A", "Trend B", "weekly")).toBe("Outcome A · Trend B");
+  });
+
+  it("prefers trend for board when framing", () => {
+    expect(pickOutcomeSummaryLine("Outcome A", "Trend B", "board")).toBe("Trend B");
   });
 
   it("falls back to trend when outcome missing", () => {
@@ -191,15 +199,19 @@ describe("buildOperatingBrief", () => {
 
 describe("formatOperatingBriefText", () => {
   it("outputs structured plain text sections", () => {
-    const text = formatOperatingBriefText({
-      timestamp: "2026-01-01T00:00:00.000Z",
-      situationSummary: "Situation one line.",
-      keyPressures: ["A: x"],
-      leadershipFocus: ["Focus 1"],
-      operatingCheckpoints: ["Checkpoint 1"],
-      reviewFocus: ["Q1?"],
-      outcomeSummary: "Outcome line",
-    });
+    const text = formatOperatingBriefText(
+      {
+        timestamp: "2026-01-01T00:00:00.000Z",
+        situationSummary: "Situation one line.",
+        keyPressures: ["A: x"],
+        leadershipFocus: ["Focus 1"],
+        operatingCheckpoints: ["Checkpoint 1"],
+        reviewFocus: ["Q1?"],
+        outcomeSummary: "Outcome line",
+      },
+      "daily",
+    );
+    expect(text).toContain("Daily Operating Brief");
     expect(text).toContain("Situation:");
     expect(text).toContain("Situation one line.");
     expect(text).toContain("Key pressures:");

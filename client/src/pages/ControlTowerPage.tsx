@@ -25,7 +25,9 @@ import {
 import { buildExecutiveCommitments } from "@/features/controlTower/commitments";
 import { buildExecutiveDecisionPrompts } from "@/features/controlTower/decisionPrompts";
 import { buildExecutiveReviewItems } from "@/features/controlTower/reviews";
-import { buildOperatingBrief } from "@/features/controlTower/operatingBrief";
+import { buildOperatingBriefWithVariant } from "@/features/controlTower/operatingBrief";
+import { getBriefVariantConfig } from "@/features/controlTower/briefVariantConfig";
+import { DEFAULT_BRIEF_VARIANT, type OperatingBriefVariant } from "@/features/controlTower/briefVariants";
 import { seesPlatformOperatorNav } from "@shared/clientNav";
 import { formatEscalationSummaryLine, summarizeEscalationFromItems } from "@/features/controlTower/escalationMeta";
 import { buildSnapshotFromItems } from "@/features/controlTower/snapshot";
@@ -55,6 +57,7 @@ import {
 export default function ControlTowerPage() {
   const [reviewMode, setReviewMode] = useState(false);
   const [briefMode, setBriefMode] = useState(false);
+  const [briefVariant, setBriefVariant] = useState<OperatingBriefVariant>(DEFAULT_BRIEF_VARIANT);
   const { user } = useAuth();
   const { activeCompanyId, activeCompany } = useActiveCompany();
   useSmartRoleHomeRedirect();
@@ -348,20 +351,26 @@ export default function ControlTowerPage() {
     domainNarrativeSummaries,
   ]);
 
+  const briefVariantConfig = useMemo(() => getBriefVariantConfig(briefVariant), [briefVariant]);
+
   const operatingBrief = useMemo(() => {
     if (!queueScopeActive || actionsLoading) return null;
-    return buildOperatingBrief({
-      priorityItems,
-      domainNarrativeSummaries: domainNarrativeSummaries,
-      executiveDecisionPrompts,
-      executiveCommitments,
-      executiveReviewItems,
-      outcomeSummaryLine,
-      trendSummaryLine,
-    });
+    return buildOperatingBriefWithVariant(
+      {
+        priorityItems,
+        domainNarrativeSummaries: domainNarrativeSummaries,
+        executiveDecisionPrompts,
+        executiveCommitments,
+        executiveReviewItems,
+        outcomeSummaryLine,
+        trendSummaryLine,
+      },
+      briefVariant,
+    );
   }, [
     queueScopeActive,
     actionsLoading,
+    briefVariant,
     priorityItems,
     domainNarrativeSummaries,
     executiveDecisionPrompts,
@@ -407,7 +416,22 @@ export default function ControlTowerPage() {
         )}
 
         {queueScopeActive && !actionsLoading && (operatingBrief != null || executiveCommitments.length > 0) ? (
-          <div className="flex flex-wrap justify-end gap-2">
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            {operatingBrief != null ? (
+              <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <span className="sr-only">Brief audience</span>
+                <select
+                  value={briefVariant}
+                  onChange={(e) => setBriefVariant(e.target.value as OperatingBriefVariant)}
+                  className="h-8 rounded-md border border-input bg-background px-2 text-xs text-foreground max-w-[140px]"
+                >
+                  <option value="daily">Daily</option>
+                  <option value="weekly">Weekly</option>
+                  <option value="leadership">Leadership</option>
+                  <option value="board">Board</option>
+                </select>
+              </label>
+            ) : null}
             {operatingBrief != null ? (
               <Button
                 type="button"
@@ -436,7 +460,7 @@ export default function ControlTowerPage() {
         ) : null}
 
         {operatingBrief != null ? (
-          <OperatingBriefSection brief={operatingBrief} emphasized={briefMode} />
+          <OperatingBriefSection brief={operatingBrief} emphasized={briefMode} variant={briefVariant} />
         ) : null}
 
         <div
@@ -445,12 +469,23 @@ export default function ControlTowerPage() {
             briefMode && operatingBrief != null && "opacity-[0.88] transition-opacity",
           )}
         >
-          <ExecutiveDecisionSection prompts={executiveDecisionPrompts} />
+          <div
+            className={cn(
+              briefVariantConfig.emphasis.decisions
+                ? "rounded-lg ring-1 ring-foreground/10 p-2 -mx-1"
+                : "opacity-[0.94]",
+            )}
+          >
+            <ExecutiveDecisionSection prompts={executiveDecisionPrompts} />
+          </div>
 
           {executiveCommitments.length > 0 ? (
             <div
               className={cn(
                 "space-y-10",
+                briefVariantConfig.emphasis.commitments || briefVariantConfig.emphasis.review
+                  ? "rounded-lg ring-1 ring-foreground/10 p-2 -mx-1"
+                  : briefVariant === "weekly" && "opacity-[0.95]",
                 reviewMode && "rounded-lg border border-amber-500/20 bg-muted/20 p-4 -mx-1 shadow-sm",
               )}
             >
@@ -459,21 +494,32 @@ export default function ControlTowerPage() {
             </div>
           ) : null}
 
-          <PrioritiesSection
-            queueScopeActive={queueScopeActive}
-            actionsLoading={actionsLoading}
-            queueStatus={queueStatus}
-            priorityItems={priorityItems}
-            hasStrongPriorities={hasStrongPriorities}
-            actionItemsLength={actionItems.length}
-            trendHintsLine={prioritiesTrendHintsLine}
-            outcomeHintLine={prioritiesOutcomeHint}
-            domainHintLine={prioritiesDomainHint}
-          />
+          <div
+            className={cn(
+              briefVariantConfig.emphasis.priorities ? "rounded-lg ring-1 ring-foreground/10 p-2 -mx-1" : "opacity-[0.9]",
+            )}
+          >
+            <PrioritiesSection
+              queueScopeActive={queueScopeActive}
+              actionsLoading={actionsLoading}
+              queueStatus={queueStatus}
+              priorityItems={priorityItems}
+              hasStrongPriorities={hasStrongPriorities}
+              actionItemsLength={actionItems.length}
+              trendHintsLine={prioritiesTrendHintsLine}
+              outcomeHintLine={prioritiesOutcomeHint}
+              domainHintLine={prioritiesDomainHint}
+            />
+          </div>
 
           <RiskStrip cards={riskCards} domainNarrativeLine={riskStripDomainHint} />
 
-          <div className={cn(reviewMode && "opacity-[0.78] transition-opacity")}>
+          <div
+            className={cn(
+              reviewMode && "opacity-[0.78] transition-opacity",
+              briefMode && "hidden",
+            )}
+          >
             <ActionQueueSection
               queueScopeActive={queueScopeActive}
               actionsLoading={actionsLoading}

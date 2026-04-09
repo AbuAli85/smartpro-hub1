@@ -2,6 +2,8 @@ import React, { useCallback, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ClipboardCopy, FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getBriefVariantConfig } from "../briefVariantConfig";
+import type { OperatingBriefVariant } from "../briefVariants";
 import type { OperatingBrief } from "../operatingBriefTypes";
 import { formatOperatingBriefText } from "../operatingBrief";
 
@@ -9,13 +11,15 @@ export type OperatingBriefSectionProps = {
   brief: OperatingBrief;
   /** When true, section is visually emphasized (brief mode) */
   emphasized?: boolean;
+  variant?: OperatingBriefVariant;
 };
 
-export function OperatingBriefSection({ brief, emphasized }: OperatingBriefSectionProps) {
+export function OperatingBriefSection({ brief, emphasized, variant = "daily" }: OperatingBriefSectionProps) {
   const [copied, setCopied] = useState(false);
+  const config = getBriefVariantConfig(variant);
 
   const handleCopy = useCallback(async () => {
-    const text = formatOperatingBriefText(brief);
+    const text = formatOperatingBriefText(brief, variant);
     try {
       await navigator.clipboard.writeText(text);
       setCopied(true);
@@ -23,7 +27,9 @@ export function OperatingBriefSection({ brief, emphasized }: OperatingBriefSecti
     } catch {
       setCopied(false);
     }
-  }, [brief]);
+  }, [brief, variant]);
+
+  const boardDual = variant === "board" && brief.outcomeSummary && brief.trendSummary;
 
   return (
     <section
@@ -37,7 +43,10 @@ export function OperatingBriefSection({ brief, emphasized }: OperatingBriefSecti
         <div className="flex items-center gap-2 min-w-0">
           <FileText className="w-4 h-4 text-[var(--smartpro-orange)] shrink-0" aria-hidden />
           <div>
-            <h2 className="text-sm font-semibold tracking-tight text-foreground">Operating brief</h2>
+            <h2 className="text-sm font-semibold tracking-tight text-foreground">
+              Operating brief
+              <span className="font-normal text-muted-foreground"> · {config.label}</span>
+            </h2>
             <p className="text-[10px] text-muted-foreground mt-0.5">
               Generated {new Date(brief.timestamp).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}
             </p>
@@ -55,28 +64,49 @@ export function OperatingBriefSection({ brief, emphasized }: OperatingBriefSecti
           <p className="text-foreground/95 leading-snug mt-1">{brief.situationSummary}</p>
         </div>
 
-        <BriefList title="Key pressures" items={brief.keyPressures} />
-        <BriefList title="Leadership focus" items={brief.leadershipFocus} />
-        <BriefList title="Checkpoints" items={brief.operatingCheckpoints} />
-        <BriefList title="Review focus" items={brief.reviewFocus} />
+        <BriefList title="Key pressures" items={brief.keyPressures} compact={variant === "board"} />
+        <BriefList title="Leadership focus" items={brief.leadershipFocus} compact={variant === "board"} />
+        <BriefList title="Checkpoints" items={brief.operatingCheckpoints} compact={variant === "board"} />
+        <BriefList title="Review focus" items={brief.reviewFocus} compact={variant === "board"} />
 
-        {brief.outcomeSummary ? (
-          <div>
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Outcome</h3>
-            <p className="text-foreground/90 leading-snug mt-1 text-xs">{brief.outcomeSummary}</p>
-          </div>
-        ) : null}
+        {boardDual ? (
+          <>
+            <div>
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Trend</h3>
+              <p className="text-foreground/90 leading-snug mt-1 text-xs">{brief.outcomeSummary}</p>
+            </div>
+            <div>
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Outcome</h3>
+              <p className="text-foreground/90 leading-snug mt-1 text-xs">{brief.trendSummary}</p>
+            </div>
+          </>
+        ) : (
+          <>
+            {brief.outcomeSummary && config.includeOutcome ? (
+              <div>
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Outcome</h3>
+                <p className="text-foreground/90 leading-snug mt-1 text-xs">{brief.outcomeSummary}</p>
+              </div>
+            ) : null}
+            {brief.trendSummary && config.includeTrend ? (
+              <div>
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Trend</h3>
+                <p className="text-foreground/90 leading-snug mt-1 text-xs">{brief.trendSummary}</p>
+              </div>
+            ) : null}
+          </>
+        )}
       </div>
     </section>
   );
 }
 
-function BriefList({ title, items }: { title: string; items: string[] }) {
+function BriefList({ title, items, compact }: { title: string; items: string[]; compact?: boolean }) {
   if (items.length === 0) return null;
   return (
     <div>
       <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{title}</h3>
-      <ul className="mt-1.5 space-y-1 list-none">
+      <ul className={cn("mt-1.5 space-y-1 list-none", compact && "space-y-0.5")}>
         {items.map((line, i) => (
           <li key={i} className="text-xs text-foreground/90 leading-snug pl-2 border-l-2 border-muted">
             {line}

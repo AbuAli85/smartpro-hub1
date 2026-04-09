@@ -25,6 +25,7 @@ import { OwnerSetupChecklist } from "@/components/OwnerSetupChecklist";
 import { ExecutiveControlTower } from "@/components/dashboard/ExecutiveControlTower";
 import { ManagementCadencePanel } from "@/components/dashboard/ManagementCadencePanel";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 /** One-line roll-up for owner resolution (non-zero counts only). */
 function compactResolutionSummary(rs: {
@@ -188,6 +189,26 @@ export default function Dashboard() {
   );
   const { data: businessPulse } = trpc.operations.getOwnerBusinessPulse.useQuery(
     { companyId: activeCompanyId ?? undefined },
+    { enabled: activeCompanyId != null && !seesPlatformOperatorNav(user), staleTime: 60_000 },
+  );
+  const deriveRoleView = useCallback((): "ceo" | "admin" | "hr" | "finance" | "compliance" => {
+    const role = activeCompany?.role;
+    if (role === "finance_admin") return "finance";
+    if (role === "hr_admin") return "hr";
+    if (role === "reviewer" || role === "external_auditor") return "compliance";
+    return "admin";
+  }, [activeCompany?.role]);
+  const [roleView, setRoleView] = useState<"ceo" | "admin" | "hr" | "finance" | "compliance">("admin");
+  useEffect(() => {
+    setRoleView(deriveRoleView());
+  }, [deriveRoleView]);
+  const { data: roleQueue, isLoading: roleQueueLoading } = trpc.operations.getRoleActionQueue.useQuery(
+    { companyId: activeCompanyId ?? 0, roleView },
+    { enabled: activeCompanyId != null && !seesPlatformOperatorNav(user), staleTime: 60_000 },
+  );
+  const now = new Date();
+  const { data: wpsStatus } = trpc.compliance.getWpsStatus.useQuery(
+    { companyId: activeCompanyId ?? undefined, month: now.getMonth() + 1, year: now.getFullYear() },
     { enabled: activeCompanyId != null && !seesPlatformOperatorNav(user), staleTime: 60_000 },
   );
   const utils = trpc.useUtils();
@@ -455,6 +476,14 @@ export default function Dashboard() {
   }, [showHref, t]);
 
   const showPlatformOverview = seesPlatformOperatorNav(user);
+  const queueTop10 = (roleQueue ?? []).slice(0, 10);
+  const riskCounts = useMemo(() => {
+    const list = roleQueue ?? [];
+    const payrollBlocked = list.filter((i) => i.type === "payroll_blocker" && (i.status === "blocked" || i.status === "overdue")).length;
+    const expiredPermits = list.filter((i) => i.type === "permit_expiry" && i.status === "overdue").length;
+    const overdueGovCases = list.filter((i) => i.type === "government_case_overdue" && i.status === "overdue").length;
+    return { payrollBlocked, expiredPermits, overdueGovCases };
+  }, [roleQueue]);
   const hour = new Date().getHours();
   const greeting = hour < 12 ? t("dashboard:goodMorning", "Good morning") : hour < 17 ? t("dashboard:goodAfternoon", "Good afternoon") : t("dashboard:goodEvening", "Good evening");
   const dateStr = new Date().toLocaleDateString(i18n.language === "ar-OM" ? "ar-OM" : "en-GB", {
@@ -512,6 +541,125 @@ export default function Dashboard() {
 
       {!showPlatformOverview && activeCompanyId && (
         <>
+          <Card className="border-border/70">
+            <CardHeader className="pb-2">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Target size={14} className="text-[var(--smartpro-orange)]" />
+                  Role Focus
+                </CardTitle>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">View as</span>
+                  <Select value={roleView} onValueChange={(v: "ceo" | "admin" | "hr" | "finance" | "compliance") => setRoleView(v)}>
+                    <SelectTrigger className="w-40 h-8 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ceo">CEO</SelectItem>
+                      <SelectItem value="admin">Admin</SelectItem>
+                      <SelectItem value="hr">HR</SelectItem>
+                      <SelectItem value="finance">Finance</SelectItem>
+                      <SelectItem value="compliance">Compliance</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                This view prioritizes urgent actions for the selected role without changing permissions.
+              </p>
+            </CardHeader>
+          </Card>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+            <Card className={`border ${riskCounts.payrollBlocked > 0 ? "border-red-200 bg-red-50/40" : "border-border/70"}`}>
+              <CardContent className="p-4">
+                <p className="text-xs text-muted-foreground">Payroll blocked</p>
+                <p className="text-2xl font-black mt-1">{riskCounts.payrollBlocked}</p>
+                <div className="mt-2 text-xs">
+                  <Link href="/payroll" className="text-[var(--smartpro-orange)] hover:underline">Open payroll</Link>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className={`border ${riskCounts.expiredPermits > 0 ? "border-red-200 bg-red-50/40" : "border-border/70"}`}>
+              <CardContent className="p-4">
+                <p className="text-xs text-muted-foreground">Expired permits</p>
+                <p className="text-2xl font-black mt-1">{riskCounts.expiredPermits}</p>
+                <div className="mt-2 text-xs">
+                  <Link href="/workforce/permits?status=expired" className="text-[var(--smartpro-orange)] hover:underline">Open permits</Link>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className={`border ${riskCounts.overdueGovCases > 0 ? "border-red-200 bg-red-50/40" : "border-border/70"}`}>
+              <CardContent className="p-4">
+                <p className="text-xs text-muted-foreground">Overdue gov. cases</p>
+                <p className="text-2xl font-black mt-1">{riskCounts.overdueGovCases}</p>
+                <div className="mt-2 text-xs">
+                  <Link href="/workforce/cases?status=overdue" className="text-[var(--smartpro-orange)] hover:underline">Open cases</Link>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className={`border ${(wpsStatus?.status && wpsStatus.status !== "paid" && wpsStatus.status !== "not_generated") ? "border-amber-200 bg-amber-50/40" : "border-border/70"}`}>
+              <CardContent className="p-4">
+                <p className="text-xs text-muted-foreground">WPS status</p>
+                <p className="text-lg font-black mt-1 capitalize">{String(wpsStatus?.status ?? "not_generated").replace(/_/g, " ")}</p>
+                <div className="mt-2 text-xs">
+                  <Link href="/payroll" className="text-[var(--smartpro-orange)] hover:underline">Open WPS run</Link>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <Card className="border-border/70">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <ClipboardList size={14} className="text-blue-600" />
+                Top Action Queue
+                {queueTop10.length > 0 && (
+                  <Badge variant="secondary" className="ml-auto text-xs">{queueTop10.length}</Badge>
+                )}
+              </CardTitle>
+              <p className="text-xs text-muted-foreground">
+                Most urgent operational actions, normalized across payroll, workforce, HR, and compliance.
+              </p>
+            </CardHeader>
+            <CardContent className="pt-0 space-y-2">
+              {roleQueueLoading ? (
+                <div className="space-y-2">
+                  {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-12 rounded-lg" />)}
+                </div>
+              ) : queueTop10.length === 0 ? (
+                <div className="text-xs text-muted-foreground py-4">No urgent work detected.</div>
+              ) : queueTop10.map((item) => (
+                <Link href={item.href} key={item.id}>
+                  <div className="rounded-lg border border-border/70 px-3 py-2 hover:bg-muted/40 transition-colors">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-xs font-semibold truncate">{item.title}</p>
+                      <Badge
+                        variant="outline"
+                        className={`text-[10px] ${
+                          item.severity === "critical"
+                            ? "border-red-200 text-red-700"
+                            : item.severity === "high"
+                              ? "border-amber-200 text-amber-700"
+                              : item.severity === "medium"
+                                ? "border-blue-200 text-blue-700"
+                                : "border-slate-200 text-slate-700"
+                        }`}
+                      >
+                        {item.severity}
+                      </Badge>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">{item.reason}</p>
+                    <div className="flex items-center justify-between text-[10px] text-muted-foreground mt-1">
+                      <span>{item.ownerUserId ? `Owner #${item.ownerUserId}` : "Owner: unassigned"}</span>
+                      <span>{item.dueAt ? `Due ${fmtDate(item.dueAt)}` : "No due date"}</span>
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </CardContent>
+          </Card>
+
           <OwnerSetupChecklist />
           {opsSnapshot && (opsSnapshot.attentionQueue?.length ?? 0) > 0 && (
             <Card className="border-orange-200 bg-orange-50/90 dark:bg-orange-950/25 dark:border-orange-900/50">

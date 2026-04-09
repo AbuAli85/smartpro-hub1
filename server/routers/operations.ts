@@ -25,7 +25,7 @@ import {
   proServices,
   employeeTasks,
 } from "../../drizzle/schema";
-import { and, eq, gte, lte, lt, count, sum, desc, isNull, isNotNull, ne, notInArray, inArray, sql } from "drizzle-orm";
+import { and, eq, gte, lte, lt, count, sum, desc, asc, isNull, isNotNull, ne, notInArray, inArray, sql } from "drizzle-orm";
 import { resolvePlatformOrCompanyScope } from "../_core/tenant";
 import {
   canReadHrPerformanceAuditSensitiveRows,
@@ -35,6 +35,7 @@ import type { PayrollRun, User } from "../../drizzle/schema";
 import { canAccessGlobalAdminProcedures } from "@shared/rbac";
 import { buildOwnerAttentionQueue } from "../ownerAttentionQueue";
 import { getActiveCompanyMembership } from "../_core/membership";
+import { requireWorkspaceMembership } from "../_core/membership";
 import { getPostSaleSignals } from "../postSaleSignals";
 import { getCompanyAccountPortfolioSnapshot } from "../accountHealth";
 import { buildRevenueRealizationSnapshot, selectRenewalMonetizationRiskRows } from "../revenueRealization";
@@ -55,6 +56,12 @@ import { listCollectionsExecutionQueue, upsertCollectionWorkItem } from "../coll
 import { filterDecisionWorkItemsForRole } from "../executionCapabilities";
 import { buildManagementCadenceBundle } from "../managementCadence";
 import { buildRoleExecutionView } from "../roleExecutionSummary";
+import {
+  type QueueRoleView,
+  type RoleActionQueueItem,
+  prioritizeForRole,
+  sortRoleActionQueue,
+} from "../roleActionQueue";
 
 type DbClient = NonNullable<Awaited<ReturnType<typeof getDb>>>;
 
@@ -176,6 +183,297 @@ const getSmartDashboardOutputSchema = z.object({
 });
 
 export const operationsRouter = router({
+  getRoleActionQueue: protectedProcedure
+    .input(
+      z.object({
+        companyId: z.number(),
+        roleView: z.enum(["ceo", "admin", "hr", "finance", "compliance"]).optional(),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+
+      let memberRole: string | null = null;
+      if (!canAccessGlobalAdminProcedures(ctx.user as User)) {
+        const membership = await requireWorkspaceMembership(ctx.user as User, input.companyId);
+        memberRole = membership.role ?? null;
+      }
+
+      const roleView: QueueRoleView =
+        input.roleView ??
+        (memberRole === "finance_admin"
+          ? "finance"
+          : memberRole === "hr_admin"
+            ? "hr"
+            : memberRole === "reviewer" || memberRole === "external_auditor"
+              ? "compliance"
+              : "admin");
+
+      const canSeeFinance = canAccessGlobalAdminProcedures(ctx.user as User)
+        || memberRole === "company_admin"
+        || memberRole === "finance_admin"
+        || memberRole === "hr_admin";
+      const canSeeHr = canAccessGlobalAdminProcedures(ctx.user as User)
+        || memberRole === "company_admin"
+        || memberRole === "hr_admin";
+      const canSeeCompliance = canAccessGlobalAdminProcedures(ctx.user as User)
+        || memberRole === "company_admin"
+        || memberRole === "hr_admin"
+        || memberRole === "finance_admin"
+        || memberRole === "reviewer"
+        || memberRole === "external_auditor";
+
+      const now = new Date();
+      const in14d = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
+
+      const items: RoleActionQueueItem[] = [];
+
+      if (canSeeFinance) {
+        const currentMonth = now.getMonth() + 1;
+        const currentYear = now.getFullYear();
+        const [currentRun] = await db
+          .select({
+            id: payrollRuns.id,
+            status: payrollRuns.status,
+            periodMonth: payrollRuns.periodMonth,
+            periodYear: payrollRuns.periodYear,
+            createdAt: payrollRuns.createdAt,
+            paidAt: payrollRuns.paidAt,
+            wpsFileUrl: payrollRuns.wpsFileUrl,
+          })
+          .from(payrollRuns)
+          .where(
+            and(
+              eq(payrollRuns.companyId, input.companyId),
+              eq(payrollRuns.periodMonth, currentMonth),
+              eq(payrollRuns.periodYear, currentYear),
+            ),
+          )
+          .orderBy(desc(payrollRuns.createdAt))
+          .limit(1);
+
+        if (!currentRun) {
+          items.push({
+            id: `payroll-missing-${input.companyId}-${currentYear}-${currentMonth}`,
+            type: "payroll_blocker",
+            title: "Current month payroll run is missing",
+            severity: "critical",
+            ownerUserId: null,
+            dueAt: new Date(currentYear, currentMonth - 1, 28).toISOString(),
+            status: "blocked",
+            href: "/payroll",
+            reason: "No payroll run exists for the current month.",
+          });
+        } else if (currentRun.status === "draft" || currentRun.status === "processing") {
+          items.push({
+            id: `payroll-blocked-${currentRun.id}`,
+            type: "payroll_blocker",
+            title: `Payroll run ${currentRun.periodMonth}/${currentRun.periodYear} needs approval`,
+            severity: "critical",
+            ownerUserId: null,
+            dueAt: new Date(currentYear, currentMonth, 0).toISOString(),
+            status: "blocked",
+            href: `/payroll`,
+            reason: "Payroll is not approved yet for the current month.",
+          });
+        } else if (currentRun.status === "approved" && !currentRun.paidAt) {
+          items.push({
+            id: `payroll-approved-${currentRun.id}`,
+            type: "payroll_blocker",
+            title: `Payroll run ${currentRun.periodMonth}/${currentRun.periodYear} approved, awaiting payment`,
+            severity: "high",
+            ownerUserId: null,
+            dueAt: new Date(currentYear, currentMonth, 0).toISOString(),
+            status: "pending",
+            href: `/payroll`,
+            reason: "Run is approved but not marked as paid.",
+          });
+        }
+      }
+
+      if (canSeeCompliance) {
+        const permits = await db
+          .select({
+            id: workPermits.id,
+            employeeId: workPermits.employeeId,
+            expiryDate: workPermits.expiryDate,
+            permitStatus: workPermits.permitStatus,
+          })
+          .from(workPermits)
+          .where(
+            and(
+              eq(workPermits.companyId, input.companyId),
+              eq(workPermits.permitStatus, "active"),
+              isNotNull(workPermits.expiryDate),
+              lte(workPermits.expiryDate, in14d),
+            ),
+          )
+          .orderBy(asc(workPermits.expiryDate))
+          .limit(25);
+
+        for (const p of permits) {
+          const overdue = p.expiryDate ? p.expiryDate < now : false;
+          items.push({
+            id: `permit-${p.id}`,
+            type: "permit_expiry",
+            title: overdue ? `Permit #${p.id} is expired` : `Permit #${p.id} expires soon`,
+            severity: overdue ? "critical" : "high",
+            ownerUserId: null,
+            dueAt: p.expiryDate ? p.expiryDate.toISOString() : null,
+            status: overdue ? "overdue" : "pending",
+            href: `/workforce/permits${overdue ? "?status=expired" : "?expiring=30"}`,
+            reason: overdue
+              ? "Work permit expiry date has passed."
+              : "Work permit expires within the next 14 days.",
+          });
+        }
+
+        const overdueCases = await db
+          .select({
+            id: governmentServiceCases.id,
+            dueDate: governmentServiceCases.dueDate,
+            assignedTo: governmentServiceCases.assignedTo,
+            caseType: governmentServiceCases.caseType,
+          })
+          .from(governmentServiceCases)
+          .where(
+            and(
+              eq(governmentServiceCases.companyId, input.companyId),
+              lt(governmentServiceCases.dueDate, now),
+              notInArray(governmentServiceCases.caseStatus, ["completed", "cancelled"]),
+            ),
+          )
+          .orderBy(asc(governmentServiceCases.dueDate))
+          .limit(20);
+
+        for (const c of overdueCases) {
+          items.push({
+            id: `govcase-${c.id}`,
+            type: "government_case_overdue",
+            title: `Government case #${c.id} is overdue`,
+            severity: "critical",
+            ownerUserId: c.assignedTo != null ? String(c.assignedTo) : null,
+            dueAt: c.dueDate ? c.dueDate.toISOString() : null,
+            status: "overdue",
+            href: "/workforce/cases?status=overdue",
+            reason: `${String(c.caseType).replace(/_/g, " ")} case exceeded due date.`,
+          });
+        }
+      }
+
+      if (canSeeHr) {
+        const pendingLeave = await db
+          .select({
+            id: leaveRequests.id,
+            createdAt: leaveRequests.createdAt,
+          })
+          .from(leaveRequests)
+          .where(
+            and(
+              eq(leaveRequests.companyId, input.companyId),
+              eq(leaveRequests.status, "pending"),
+            ),
+          )
+          .orderBy(asc(leaveRequests.createdAt))
+          .limit(15);
+
+        for (const l of pendingLeave) {
+          const ageMs = now.getTime() - (l.createdAt?.getTime() ?? now.getTime());
+          const overdue = ageMs > 3 * 24 * 60 * 60 * 1000;
+          items.push({
+            id: `leave-${l.id}`,
+            type: "hr_approval",
+            title: `Leave request #${l.id} awaiting approval`,
+            severity: overdue ? "high" : "medium",
+            ownerUserId: null,
+            dueAt: l.createdAt ? new Date(l.createdAt.getTime() + 3 * 24 * 60 * 60 * 1000).toISOString() : null,
+            status: overdue ? "overdue" : "pending",
+            href: "/hr/leave",
+            reason: overdue ? "Leave request has been pending for more than 3 days." : "Leave request is pending review.",
+          });
+        }
+
+        const taskRows = await db
+          .select({
+            id: employeeTasks.id,
+            title: employeeTasks.title,
+            status: employeeTasks.status,
+            dueDate: employeeTasks.dueDate,
+            assignedByUserId: employeeTasks.assignedByUserId,
+          })
+          .from(employeeTasks)
+          .where(
+            and(
+              eq(employeeTasks.companyId, input.companyId),
+              notInArray(employeeTasks.status, ["completed", "cancelled"]),
+            ),
+          )
+          .orderBy(asc(employeeTasks.dueDate))
+          .limit(20);
+
+        for (const t of taskRows) {
+          const overdue = t.dueDate ? t.dueDate < now : false;
+          const blocked = t.status === "blocked";
+          if (!overdue && !blocked) continue;
+          items.push({
+            id: `task-${t.id}`,
+            type: "task",
+            title: t.title,
+            severity: blocked || overdue ? "high" : "medium",
+            ownerUserId: t.assignedByUserId != null ? String(t.assignedByUserId) : null,
+            dueAt: t.dueDate ? t.dueDate.toISOString() : null,
+            status: overdue ? "overdue" : blocked ? "blocked" : "open",
+            href: `/hr/tasks${blocked ? "?status=blocked" : "?status=overdue"}`,
+            reason: overdue ? "Task due date has passed." : "Task is currently blocked.",
+          });
+        }
+      }
+
+      if (canSeeCompliance || canSeeHr) {
+        const docRows = await db
+          .select({
+            id: employeeDocuments.id,
+            expiresAt: employeeDocuments.expiresAt,
+            verificationStatus: employeeDocuments.verificationStatus,
+          })
+          .from(employeeDocuments)
+          .where(eq(employeeDocuments.companyId, input.companyId))
+          .orderBy(asc(employeeDocuments.expiresAt))
+          .limit(25);
+
+        for (const d of docRows) {
+          const expired = d.expiresAt ? d.expiresAt < now : false;
+          const expSoon = d.expiresAt ? d.expiresAt <= in14d : false;
+          const pendingVerification = d.verificationStatus === "pending";
+          if (!expired && !expSoon && !pendingVerification) continue;
+          items.push({
+            id: `doc-${d.id}`,
+            type: "document_issue",
+            title: expired
+              ? `Document #${d.id} is expired`
+              : pendingVerification
+                ? `Document #${d.id} pending verification`
+                : `Document #${d.id} expires soon`,
+            severity: expired ? "high" : pendingVerification ? "medium" : "low",
+            ownerUserId: null,
+            dueAt: d.expiresAt ? d.expiresAt.toISOString() : null,
+            status: expired ? "overdue" : pendingVerification ? "pending" : "open",
+            href: "/hr/documents-dashboard",
+            reason: expired
+              ? "Document expiry date has passed."
+              : pendingVerification
+                ? "Document is waiting for verification."
+                : "Document expires within the next 14 days.",
+          });
+        }
+      }
+
+      const sorted = sortRoleActionQueue(items);
+      const prioritized = prioritizeForRole(sorted, roleView);
+      return prioritized.slice(0, 50);
+    }),
+
   // ── Daily Snapshot ──────────────────────────────────────────────────────────
   getDailySnapshot: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }).optional())

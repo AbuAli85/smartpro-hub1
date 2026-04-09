@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useLocation, useParams } from "wouter";
 import { trpc } from "@/lib/trpc";
+import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -46,10 +47,20 @@ function daysUntil(dateStr?: string | null): number | null {
   return Math.ceil((new Date(dateStr).getTime() - Date.now()) / 86400000);
 }
 
+function formatPermitDate(d: Date | string | null | undefined): string | null {
+  if (d == null) return null;
+  try {
+    return fmtDate(d as string | Date);
+  } catch {
+    return null;
+  }
+}
+
 export default function WorkforcePermitDetailPage() {
   const params = useParams<{ id: string }>();
   const [, navigate] = useLocation();
   const permitId = parseInt(params.id || "0");
+  const { activeCompanyId, loading: companyLoading } = useActiveCompany();
 
   const [renewDialog, setRenewDialog] = useState(false);
   const [cancelDialog, setCancelDialog] = useState(false);
@@ -57,10 +68,44 @@ export default function WorkforcePermitDetailPage() {
   const [cancelNote, setCancelNote] = useState("");
   const [newExpiry, setNewExpiry] = useState("");
 
-  const { data: permit, isLoading, refetch } = trpc.workforce.workPermits.getById.useQuery(
-    { workPermitId: permitId },
-    { enabled: permitId > 0 }
+  const { data, isLoading, isError } = trpc.workforce.workPermits.getById.useQuery(
+    { workPermitId: permitId, companyId: activeCompanyId ?? undefined },
+    { enabled: permitId > 0 && activeCompanyId != null },
   );
+
+  /** API returns nested { permit, employee }; map DB field names for the UI */
+  const p = useMemo(() => {
+    const wp = data?.permit;
+    const emp = data?.employee;
+    if (!wp) return null;
+    const snap = (wp.governmentSnapshot as Record<string, unknown> | null) ?? {};
+    const status = wp.permitStatus ?? "unknown";
+    return {
+      permitNumber: wp.workPermitNumber,
+      status,
+      permitType: (typeof snap.permitType === "string" ? snap.permitType : null) ?? "work_permit",
+      issueDate: formatPermitDate(wp.issueDate),
+      expiryDate: formatPermitDate(wp.expiryDate),
+      durationMonths: wp.durationMonths,
+      labourAuthorisationNumber: wp.labourAuthorisationNumber,
+      occupationCode: wp.occupationCode,
+      occupationTitleEn: wp.occupationTitleEn,
+      occupationTitleAr: wp.occupationTitleAr,
+      skillLevel: wp.skillLevel,
+      activityCode: wp.activityCode,
+      activityNameEn: wp.activityNameEn,
+      workLocationGovernorate: wp.workLocationGovernorate,
+      workLocationWilayat: wp.workLocationWilayat,
+      workLocationArea: wp.workLocationArea,
+      civilId: emp?.nationalId ?? null,
+      companyNameEn: (snap.companyNameEn as string) || null,
+      companyNameAr: (snap.companyNameAr as string) || null,
+      crNumber: (snap.crNumber as string) || null,
+      sponsorId: (snap.sponsorId as string) || null,
+      renewalCount: 0,
+      renewals: [] as Array<{ id: number; newExpiryDate?: string; status: string; createdAt?: Date | string }>,
+    };
+  }, [data]);
 
   const utils = trpc.useUtils();
 
@@ -87,7 +132,21 @@ export default function WorkforcePermitDetailPage() {
     onError: (err: { message?: string }) => toast.error(err.message || "Failed to cancel permit"),
   });
 
-  if (isLoading) {
+  if (permitId <= 0) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center space-y-3">
+          <AlertTriangle className="w-10 h-10 text-muted-foreground mx-auto" />
+          <p className="text-muted-foreground">Invalid permit link.</p>
+          <Button variant="outline" onClick={() => navigate("/workforce/permits")}>
+            Back to Permits
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (companyLoading || activeCompanyId == null || isLoading) {
     return (
       <div className="min-h-screen bg-background">
         <div className="border-b bg-card px-6 py-4 flex items-center gap-4">
@@ -102,7 +161,7 @@ export default function WorkforcePermitDetailPage() {
     );
   }
 
-  if (!permit) {
+  if (isError || !data?.permit || !p) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center space-y-3">
@@ -116,12 +175,12 @@ export default function WorkforcePermitDetailPage() {
     );
   }
 
-  const p = permit as any;
-  const daysLeft = daysUntil(p.expiryDate);
+  const daysLeft = daysUntil(p.expiryDate ?? undefined);
   const isExpired = daysLeft !== null && daysLeft < 0;
   const isExpiringSoon = daysLeft !== null && daysLeft >= 0 && daysLeft <= 30;
   const canRenew = p.status !== "cancelled" && p.status !== "transferred";
-  const canCancel = p.status === "active" || p.status === "valid" || p.status === "pending";
+  const canCancel =
+    p.status === "active" || p.status === "expiring_soon" || p.status === "in_grace" || p.status === "unknown";
 
   return (
     <div className="min-h-screen bg-background">

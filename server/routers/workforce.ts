@@ -698,17 +698,28 @@ export const workforceRouter = router({
       }),
 
     getById: protectedProcedure
-      .input(z.object({ workPermitId: z.number() }))
+      .input(
+        z.object({
+          workPermitId: z.number(),
+          companyId: z.number().optional(),
+        }),
+      )
       .query(async ({ ctx, input }) => {
-        const companyId = await getMemberCompanyId(ctx.user);
-        if (!companyId) throw new TRPCError({ code: "FORBIDDEN" });
+        const membership = await getActiveCompanyMembership(ctx.user.id, input.companyId);
+        if (!membership) throw new TRPCError({ code: "NOT_FOUND", message: "Work permit not found" });
+        const companyId = membership.companyId;
+        if (!(await hasPermission(ctx.user, companyId, "work_permits.read"))) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "You do not have permission to view work permits" });
+        }
         const db = await getDb();
         if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
-        const [wp] = await db.select().from(workPermits)
+        const [wp] = await db
+          .select()
+          .from(workPermits)
           .where(and(eq(workPermits.id, input.workPermitId), eq(workPermits.companyId, companyId)))
           .limit(1);
-        if (!wp) throw new TRPCError({ code: "NOT_FOUND" });
+        if (!wp) throw new TRPCError({ code: "NOT_FOUND", message: "Work permit not found" });
 
         const [emp] = await db
           .select()

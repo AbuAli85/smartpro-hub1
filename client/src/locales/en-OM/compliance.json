@@ -40,6 +40,7 @@
   "permits": "Permits",
   "alerts": "Alerts",
   "overdueAr": "Overdue AR",
+<<<<<<< Updated upstream
   "omanisationCardTitle": "Omanisation Quota",
   "omaniOfEmployees": "{{omani}} Omani of {{total}} employees",
   "target": "Target",
@@ -64,10 +65,28 @@
     "paid": "Paid"
   },
   "downloadWpsFile": "Download WPS File",
+=======
+  "weight": "Weight",
+  "byDepartment": "By Department",
+  "target": "Target",
+  "gap": "Gap",
+  "employeesEnrolled": "{{count}} employees enrolled",
+  "employees": "{{count}} employees",
+  "downloadWps": "Download WPS File",
+  "viewPayroll": "View Payroll",
+  "manageWorkforce": "Manage Workforce",
+  "triggerRenewals": "Trigger Renewals",
+  "noEmployeeData": "No employee data available. Add employees to see the permit matrix.",
+  "omanisationCardTitle": "Omanisation Quota",
+  "omanisationOf": "{{omani}} Omani of {{total}} employees",
+  "pasiCardTitle": "PASI Contributions — {{month}}",
+  "wpsCardTitle": "WPS Status — {{month}}",
+>>>>>>> Stashed changes
   "permitMatrixTitle": "Work Permit Validity Matrix",
   "legendValid": "Valid",
   "legendExpiring": "Expiring",
   "legendExpired": "Expired",
+<<<<<<< Updated upstream
   "legendNoPermit": "No permit",
   "summaryValid": "Valid",
   "summaryExpiring": "Expiring (30d)",
@@ -82,5 +101,59 @@
   "permitMatrixEmpty": "No employee data available. Add employees to see the permit matrix.",
   "manageWorkforce": "Manage workforce",
   "triggerRenewals": "Trigger renewals",
+=======
+  "legendNoPermit": "No Permit",
+  "summaryExpiring30d": "Expiring (30d)",
+  "summaryTotalEmployees": "Total Employees",
+  "colDepartment": "Department",
+  "colTotal": "Total",
+  "colValid": "Valid",
+  "colExpiring": "Expiring",
+  "colExpired": "Expired",
+  "colNoPermit": "No Permit",
+  "checkNames": {
+    "omanisation_quota": "Omanisation Quota",
+    "work_permit_validity": "Work Permit Validity",
+    "upcoming_renewals": "Upcoming Renewals",
+    "wps_compliance": "WPS Compliance"
+  },
+  "checkDetails": {
+    "omanisation_quota_pass": "{{pct}}% Omani employees — target met ({{target}}%)",
+    "omanisation_quota_warn": "{{pct}}% Omani employees — approaching target ({{target}}%)",
+    "omanisation_quota_fail": "{{pct}}% Omani employees — below target ({{target}}%)",
+    "work_permit_validity_pass": "All permits valid",
+    "work_permit_validity_warn": "{{count}} expired permit(s) — review required",
+    "work_permit_validity_fail": "{{count}} expired permit(s) — urgent action needed",
+    "upcoming_renewals_pass": "No permits expiring in {{days}} days",
+    "upcoming_renewals_warn": "{{count}} permit(s) expiring in {{days}} days",
+    "upcoming_renewals_fail": "{{count}} permit(s) expiring in {{days}} days — renew immediately",
+    "wps_compliance_paid": "Payroll paid via WPS",
+    "wps_compliance_file_ready": "WPS file generated, pending payment",
+    "wps_compliance_not_generated": "WPS file not generated for current month"
+  },
+  "attention": {
+    "failedChecks_one": "{{count}} failed check",
+    "failedChecks_other": "{{count}} failed checks",
+    "omanisationGap": "Omanisation gap {{gap}}%",
+    "pasiNotSettled": "PASI not fully settled",
+    "wpsNotPaid": "WPS not marked paid",
+    "permitsIssue": "{{expired}} expired / {{expiring}} expiring permits",
+    "overdueReceivables": "OMR {{amount}} overdue receivables ({{count}})",
+    "payrollBlocked": "Payroll runs need payment or approval"
+  },
+  "pasiStatus": {
+    "paid": "PAID",
+    "approved": "APPROVED",
+    "not_calculated": "Not Calculated",
+    "draft": "DRAFT",
+    "pending": "PENDING"
+  },
+  "wpsStatus": {
+    "paid": "PAID",
+    "submitted": "SUBMITTED",
+    "generated": "GENERATED",
+    "not_generated": "Not Generated"
+  },
+>>>>>>> Stashed changes
   "unassignedDepartment": "Unassigned"
 }

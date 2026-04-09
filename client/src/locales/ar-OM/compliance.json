@@ -40,6 +40,7 @@
   "permits": "التصاريح",
   "alerts": "التنبيهات",
   "overdueAr": "ذمم مدينة متأخرة",
+<<<<<<< Updated upstream
   "omanisationCardTitle": "حصة التعمين",
   "omaniOfEmployees": "{{omani}} عماني من أصل {{total}} موظف",
   "target": "المستهدف",
@@ -83,4 +84,78 @@
   "manageWorkforce": "إدارة القوى العاملة",
   "triggerRenewals": "تشغيل التجديدات",
   "unassignedDepartment": "غير معيّن"
+=======
+  "weight": "الوزن",
+  "byDepartment": "حسب القسم",
+  "target": "المستهدف",
+  "gap": "الفجوة",
+  "employeesEnrolled": "{{count}} موظف مسجّل",
+  "employees": "{{count}} موظف",
+  "downloadWps": "تحميل ملف WPS",
+  "viewPayroll": "عرض كشف الرواتب",
+  "manageWorkforce": "إدارة القوى العاملة",
+  "triggerRenewals": "تشغيل التجديدات",
+  "noEmployeeData": "لا توجد بيانات موظفين. أضف موظفين لعرض مصفوفة التصاريح.",
+  "omanisationCardTitle": "حصة التعمين",
+  "omanisationOf": "{{omani}} عُماني من أصل {{total}} موظف",
+  "pasiCardTitle": "اشتراكات PASI — {{month}}",
+  "wpsCardTitle": "حالة WPS — {{month}}",
+  "permitMatrixTitle": "مصفوفة صلاحية تصاريح العمل",
+  "legendValid": "سارية",
+  "legendExpiring": "تنتهي قريباً",
+  "legendExpired": "منتهية",
+  "legendNoPermit": "بلا تصريح",
+  "summaryExpiring30d": "تنتهي (30 يوماً)",
+  "summaryTotalEmployees": "إجمالي الموظفين",
+  "colDepartment": "القسم",
+  "colTotal": "الإجمالي",
+  "colValid": "سارية",
+  "colExpiring": "تنتهي قريباً",
+  "colExpired": "منتهية",
+  "colNoPermit": "بلا تصريح",
+  "checkNames": {
+    "omanisation_quota": "حصة التعمين",
+    "work_permit_validity": "صلاحية تصاريح العمل",
+    "upcoming_renewals": "التجديدات القادمة",
+    "wps_compliance": "الامتثال لنظام WPS"
+  },
+  "checkDetails": {
+    "omanisation_quota_pass": "{{pct}}% موظفين عُمانيين — تم تحقيق الهدف ({{target}}%)",
+    "omanisation_quota_warn": "{{pct}}% موظفين عُمانيين — يقترب من الهدف ({{target}}%)",
+    "omanisation_quota_fail": "{{pct}}% موظفين عُمانيين — دون الهدف ({{target}}%)",
+    "work_permit_validity_pass": "جميع التصاريح سارية",
+    "work_permit_validity_warn": "{{count}} تصريح منتهٍ — يتطلب مراجعة",
+    "work_permit_validity_fail": "{{count}} تصريح منتهٍ — يتطلب إجراءً عاجلاً",
+    "upcoming_renewals_pass": "لا توجد تصاريح تنتهي خلال {{days}} يوماً",
+    "upcoming_renewals_warn": "{{count}} تصريح ينتهي خلال {{days}} يوماً",
+    "upcoming_renewals_fail": "{{count}} تصريح ينتهي خلال {{days}} يوماً — جدّد فوراً",
+    "wps_compliance_paid": "تم دفع الرواتب عبر WPS",
+    "wps_compliance_file_ready": "تم إنشاء ملف WPS، في انتظار الدفع",
+    "wps_compliance_not_generated": "لم يتم إنشاء ملف WPS للشهر الحالي"
+  },
+  "attention": {
+    "failedChecks_one": "{{count}} فحص فاشل",
+    "failedChecks_other": "{{count}} فحوصات فاشلة",
+    "omanisationGap": "فجوة التعمين {{gap}}%",
+    "pasiNotSettled": "لم يتم تسوية PASI بالكامل",
+    "wpsNotPaid": "لم يُعلَّم WPS كمدفوع",
+    "permitsIssue": "{{expired}} منتهية / {{expiring}} تصريح تنتهي قريباً",
+    "overdueReceivables": "ر.ع. {{amount}} ذمم مدينة متأخرة ({{count}})",
+    "payrollBlocked": "مسيرات الرواتب تحتاج دفعاً أو موافقة"
+  },
+  "pasiStatus": {
+    "paid": "مدفوع",
+    "approved": "معتمد",
+    "not_calculated": "غير محسوب",
+    "draft": "مسودة",
+    "pending": "قيد الانتظار"
+  },
+  "wpsStatus": {
+    "paid": "مدفوع",
+    "submitted": "مُقدَّم",
+    "generated": "تم الإنشاء",
+    "not_generated": "لم يُنشأ بعد"
+  },
+  "unassignedDepartment": "غير مُعيَّن"
+>>>>>>> Stashed changes
 }

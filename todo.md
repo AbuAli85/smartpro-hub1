@@ -1908,3 +1908,9 @@ Every company on SmartPRO Hub gets a complete, unified business operating area â
 - [x] Audit-grade exports: CSV/PDF for automation logs, compliance reports, rule history
 - [x] Platform-wide automation engine: extend triggers/actions to bookings, payments, contracts, client inactivity
 - [x] Auto-link employee record to user account on sign-in when email matches
+
+## Compliance i18n fixes (Apr 9 2026)
+- [x] Extend compliance router with stable check IDs and meta fields
+- [x] Expand compliance locale files (en-OM and ar-OM) with checkNames, checkDetails, attention, matrix, pasiStatus, wpsStatus keys
+- [x] Rewrite ComplianceDashboardPage.tsx with full localization (all hardcoded English removed)
+- [x] Fix CompanySwitcher for long company names (truncate + overflow-hidden)

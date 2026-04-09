@@ -98,13 +98,23 @@ export default function WorkforcePermitsPage() {
     { enabled: showUploadDialog && activeCompanyId != null },
   );
 
-  const { data, isLoading, refetch } = trpc.workforce.workPermits.list.useQuery({
-    query: query || undefined,
-    permitStatus: statusFilter !== "all" ? (statusFilter as "active" | "expiring_soon" | "expired" | "in_grace" | "cancelled") : undefined,
-    expiringWithinDays: expiringFilter === "30" ? 30 : expiringFilter === "90" ? 90 : undefined,
-    page,
-    pageSize: 20,
-  });
+  const canSubmitPermit =
+    !!activeCompanyId &&
+    !!uploadForm.selectedEmployeeId &&
+    !!uploadForm.permitNumber.trim() &&
+    !!uploadForm.expiryDate.trim();
+
+  const { data, isLoading, refetch } = trpc.workforce.workPermits.list.useQuery(
+    {
+      companyId: activeCompanyId ?? undefined,
+      query: query || undefined,
+      permitStatus: statusFilter !== "all" ? (statusFilter as "active" | "expiring_soon" | "expired" | "in_grace" | "cancelled") : undefined,
+      expiringWithinDays: expiringFilter === "30" ? 30 : expiringFilter === "90" ? 90 : undefined,
+      page,
+      pageSize: 20,
+    },
+    { enabled: activeCompanyId != null },
+  );
 
   const registerManualMutation = trpc.workforce.registerWorkPermitManual.useMutation({
     onSuccess: () => {
@@ -345,8 +355,11 @@ export default function WorkforcePermitsPage() {
           <div className="space-y-4 py-2">
             <div className="space-y-2">
               <Label className="text-xs">Employee *</Label>
+              <p className="text-[11px] text-muted-foreground leading-snug">
+                Same roster as <strong>People → My Team</strong> for your current workspace. Text after “·” is Civil ID when stored; the permit links to that staff record by system id.
+              </p>
               <Select
-                value={uploadForm.selectedEmployeeId}
+                value={uploadForm.selectedEmployeeId || undefined}
                 onValueChange={(v) => setUploadForm((f) => ({ ...f, selectedEmployeeId: v }))}
               >
                 <SelectTrigger className="mt-1">
@@ -430,12 +443,17 @@ export default function WorkforcePermitsPage() {
             <Button variant="outline" onClick={() => setShowUploadDialog(false)}>Cancel</Button>
             <Button
               onClick={() => {
+                if (!activeCompanyId) {
+                  toast.error("Select a company workspace first");
+                  return;
+                }
                 const employeeId = Number(uploadForm.selectedEmployeeId);
                 if (!employeeId || Number.isNaN(employeeId)) {
                   toast.error("Select an employee");
                   return;
                 }
                 registerManualMutation.mutate({
+                  companyId: activeCompanyId,
                   employeeId,
                   workPermitNumber: uploadForm.permitNumber.trim(),
                   labourAuthorisationNumber: uploadForm.labourAuthorisationNumber.trim() || undefined,
@@ -445,12 +463,7 @@ export default function WorkforcePermitsPage() {
                   expiryDate: uploadForm.expiryDate.trim() || undefined,
                 });
               }}
-              disabled={
-                registerManualMutation.isPending ||
-                !uploadForm.selectedEmployeeId ||
-                !uploadForm.permitNumber.trim() ||
-                !uploadForm.expiryDate.trim()
-              }
+              disabled={registerManualMutation.isPending || !canSubmitPermit}
             >
               {registerManualMutation.isPending ? "Saving…" : "Save permit"}
             </Button>

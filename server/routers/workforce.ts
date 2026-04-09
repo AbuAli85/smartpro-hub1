@@ -24,6 +24,7 @@ import {
   HR_AUDIT_SENSITIVE_ENTITY_TYPES,
   isHrPerformanceSensitiveEntityType,
 } from "../hrPerformanceAuditReadPolicy";
+import { getActiveCompanyMembership, requireNotAuditor, requireWorkspaceMembership } from "../_core/membership";
 import { protectedProcedure, router } from "../_core/trpc";
 import { invokeLLM } from "../_core/llm";
 import { fileUrlMatchesConfiguredStorage, storagePut } from "../storage";
@@ -452,6 +453,8 @@ export const workforceRouter = router({
   registerWorkPermitManual: protectedProcedure
     .input(
       z.object({
+        /** Selected workspace (required when user belongs to multiple companies) — must match People → My Team */
+        companyId: z.number().optional(),
         employeeId: z.number(),
         workPermitNumber: z.string().min(1),
         labourAuthorisationNumber: z.string().optional(),
@@ -462,8 +465,9 @@ export const workforceRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const companyId = await getMemberCompanyId(ctx.user);
-      if (!companyId) throw new TRPCError({ code: "FORBIDDEN" });
+      const membership = await requireWorkspaceMembership(ctx.user as User, input.companyId);
+      requireNotAuditor(membership.role, "External Auditors cannot register work permits.");
+      const companyId = membership.companyId;
       if (!(await hasPermission(ctx.user, companyId, "work_permits.upload"))) {
         throw new TRPCError({ code: "FORBIDDEN", message: "You do not have permission to register work permits" });
       }
@@ -559,6 +563,7 @@ export const workforceRouter = router({
   workPermits: router({
     list: protectedProcedure
       .input(z.object({
+        companyId: z.number().optional(),
         branchId: z.number().optional(),
         permitStatus: z.enum(["active", "expiring_soon", "expired", "in_grace", "cancelled", "transferred", "pending_update", "unknown"]).optional(),
         expiringWithinDays: z.number().optional(),
@@ -568,8 +573,9 @@ export const workforceRouter = router({
         pageSize: z.number().default(20),
       }))
       .query(async ({ ctx, input }) => {
-        const companyId = await getMemberCompanyId(ctx.user);
-        if (!companyId) return { items: [], total: 0 };
+        const membership = await getActiveCompanyMembership(ctx.user.id, input.companyId);
+        if (!membership) return { items: [], total: 0 };
+        const companyId = membership.companyId;
         // Permission check: work_permits.read
         if (!(await hasPermission(ctx.user, companyId, "work_permits.read"))) {
           return { items: [], total: 0 };

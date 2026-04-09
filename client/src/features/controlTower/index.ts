@@ -27,3 +27,6 @@ export * from "./snapshotStore";
 export * from "./trend";
 export * from "./outcomeTypes";
 export * from "./outcomes";
+export * from "./domainNarrativeTypes";
+export * from "./domainMapper";
+export * from "./domainNarrative";

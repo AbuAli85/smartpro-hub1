@@ -16,6 +16,8 @@ export type ExecutiveHeaderProps = {
   trendSummaryLine?: string | null;
   /** Resolution / outcome line (needs item-ref baseline); omit when unavailable */
   outcomeSummaryLine?: string | null;
+  /** Rule-based domain narrative (max 2 lines) */
+  executiveNarrativeLines?: string[];
   queueStatus: ActionQueueStatus;
   /** Tenant has company scope for queue */
   queueScopeActive: boolean;
@@ -29,6 +31,7 @@ export function ExecutiveHeader({
   escalationSummaryLine,
   trendSummaryLine,
   outcomeSummaryLine,
+  executiveNarrativeLines,
   queueStatus,
   queueScopeActive,
   actionsLoading,
@@ -56,6 +59,15 @@ export function ExecutiveHeader({
             ) : null}
             {queueScopeActive && !actionsLoading && outcomeSummaryLine ? (
               <p className="text-xs text-emerald-900/85 dark:text-emerald-100/85 mt-1 max-w-xl leading-snug">{outcomeSummaryLine}</p>
+            ) : null}
+            {queueScopeActive && !actionsLoading && executiveNarrativeLines && executiveNarrativeLines.length > 0 ? (
+              <div className="mt-1.5 space-y-0.5 max-w-xl">
+                {executiveNarrativeLines.map((line, i) => (
+                  <p key={i} className="text-[11px] text-muted-foreground leading-snug">
+                    {line}
+                  </p>
+                ))}
+              </div>
             ) : null}
           </div>
         </div>

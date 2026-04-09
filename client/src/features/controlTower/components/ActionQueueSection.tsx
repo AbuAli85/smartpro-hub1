@@ -20,6 +20,7 @@ export type ActionQueueSectionProps = {
   actionItemsLength: number;
   /** Cleared / new queue items vs last snapshot */
   outcomeHintLine?: string | null;
+  domainHintLine?: string | null;
 };
 
 export function ActionQueueSection({
@@ -30,6 +31,7 @@ export function ActionQueueSection({
   queueForList,
   actionItemsLength,
   outcomeHintLine,
+  domainHintLine,
 }: ActionQueueSectionProps) {
   return (
     <section aria-label="Action queue" className="space-y-3">
@@ -41,6 +43,9 @@ export function ActionQueueSection({
           </p>
           {queueScopeActive && !actionsLoading && outcomeHintLine ? (
             <p className="text-[10px] text-emerald-900/80 dark:text-emerald-100/80 mt-1 max-w-lg leading-snug">{outcomeHintLine}</p>
+          ) : null}
+          {queueScopeActive && !actionsLoading && domainHintLine ? (
+            <p className="text-[10px] text-muted-foreground/90 mt-1 max-w-lg leading-snug">{domainHintLine}</p>
           ) : null}
         </div>
         {queueScopeActive && !actionsLoading && queueUpdatedLabel ? (

@@ -5,6 +5,7 @@ const PREFIX = "smartpro.controlTower.snapshot";
 
 const ESC_LEVELS = new Set(["normal", "attention", "escalated"]);
 const SLA_STATES = new Set(["within_sla", "nearing_sla", "breached", "unknown"]);
+const DOMAINS = new Set(["payroll", "workforce", "contracts", "hr", "compliance", "operations", "general"]);
 
 function normalizeItemRefs(raw: unknown): SnapshotItemRef[] | undefined {
   if (!Array.isArray(raw)) return undefined;
@@ -22,6 +23,9 @@ function normalizeItemRefs(raw: unknown): SnapshotItemRef[] | undefined {
     }
     if (typeof o.assigned === "boolean") ref.assigned = o.assigned;
     if (typeof o.needsOwner === "boolean") ref.needsOwner = o.needsOwner;
+    if (typeof o.domain === "string" && DOMAINS.has(o.domain)) {
+      ref.domain = o.domain as SnapshotItemRef["domain"];
+    }
     out.push(ref);
   }
   return out;

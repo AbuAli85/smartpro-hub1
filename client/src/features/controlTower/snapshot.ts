@@ -1,4 +1,5 @@
 import type { ActionQueueItemExecutionView } from "./escalationTypes";
+import { getControlTowerDomain } from "./domainMapper";
 import type { SnapshotItemRef } from "./outcomeTypes";
 import type { ControlTowerSnapshot } from "./trendTypes";
 
@@ -39,6 +40,7 @@ export function buildSnapshotFromItems(
       slaState: e.slaState,
       assigned: x.assigned,
       needsOwner: x.needsOwner,
+      domain: getControlTowerDomain(i),
     });
   }
 

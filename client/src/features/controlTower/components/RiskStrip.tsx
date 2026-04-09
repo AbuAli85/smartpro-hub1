@@ -5,14 +5,19 @@ import type { RiskStripCard } from "../riskStripModel";
 
 export type RiskStripProps = {
   cards: RiskStripCard[];
+  /** Optional domain load hint — secondary to card content */
+  domainNarrativeLine?: string | null;
 };
 
-export function RiskStrip({ cards }: RiskStripProps) {
+export function RiskStrip({ cards, domainNarrativeLine }: RiskStripProps) {
   return (
     <section aria-label="Risk indicators" className="space-y-3">
       <div>
         <h2 className="text-sm font-semibold tracking-tight text-foreground">What is blocked vs building</h2>
         <p className="text-[11px] text-muted-foreground mt-0.5">Three buckets — scan left to right.</p>
+        {domainNarrativeLine ? (
+          <p className="text-[10px] text-muted-foreground/90 mt-1 max-w-xl leading-snug">{domainNarrativeLine}</p>
+        ) : null}
       </div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         {cards.map((card) => (

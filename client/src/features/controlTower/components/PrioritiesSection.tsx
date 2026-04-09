@@ -23,6 +23,8 @@ export type PrioritiesSectionProps = {
   trendHintsLine?: string | null;
   /** Optional outcome hint (resolution / priorities change) */
   outcomeHintLine?: string | null;
+  /** Where pressure clusters by domain */
+  domainHintLine?: string | null;
 };
 
 function priorityCardShell(level: PriorityLevel) {
@@ -44,6 +46,7 @@ export function PrioritiesSection({
   actionItemsLength,
   trendHintsLine,
   outcomeHintLine,
+  domainHintLine,
 }: PrioritiesSectionProps) {
   if (!queueScopeActive) return null;
 
@@ -64,6 +67,9 @@ export function PrioritiesSection({
       ) : null}
       {!actionsLoading && outcomeHintLine ? (
         <p className="text-[10px] text-emerald-900/80 dark:text-emerald-100/80 leading-snug max-w-xl">{outcomeHintLine}</p>
+      ) : null}
+      {!actionsLoading && domainHintLine ? (
+        <p className="text-[10px] text-muted-foreground/90 leading-snug max-w-xl">{domainHintLine}</p>
       ) : null}
 
       {!actionsLoading && (queueStatus === "partial" || queueStatus === "error") && (

@@ -33,6 +33,14 @@ import {
   buildQueueSectionOutcomeHint,
   hasOutcomeBaseline,
 } from "@/features/controlTower/outcomes";
+import {
+  buildDomainNarrativeSummaries,
+  buildExecutiveNarrativeLines,
+  buildPrioritiesDomainHint,
+  buildQueueDomainHint,
+  buildRiskStripDomainHint,
+  hasDomainAttributionBaseline,
+} from "@/features/controlTower/domainNarrative";
 
 export default function ControlTowerPage() {
   const { user } = useAuth();
@@ -226,6 +234,42 @@ export default function ControlTowerPage() {
     return buildQueueSectionOutcomeHint(outcomeSummary, outcomeComparable);
   }, [queueScopeActive, actionsLoading, outcomeComparable, outcomeSummary]);
 
+  const domainNarrativeSummaries = useMemo(
+    () => buildDomainNarrativeSummaries(actionItems, currentSnapshot, previousSnapshot),
+    [actionItems, currentSnapshot, previousSnapshot],
+  );
+
+  const executiveNarrativeLines = useMemo(() => {
+    if (!queueScopeActive || actionsLoading) return [];
+    return buildExecutiveNarrativeLines(domainNarrativeSummaries, outcomeSummary, trendComparison, {
+      outcomeComparable,
+      domainBaseline: hasDomainAttributionBaseline(previousSnapshot),
+    });
+  }, [
+    queueScopeActive,
+    actionsLoading,
+    domainNarrativeSummaries,
+    outcomeSummary,
+    trendComparison,
+    outcomeComparable,
+    previousSnapshot,
+  ]);
+
+  const prioritiesDomainHint = useMemo(() => {
+    if (!queueScopeActive || actionsLoading || actionItems.length === 0) return null;
+    return buildPrioritiesDomainHint(domainNarrativeSummaries);
+  }, [queueScopeActive, actionsLoading, actionItems.length, domainNarrativeSummaries]);
+
+  const queueDomainHint = useMemo(() => {
+    if (!queueScopeActive || actionsLoading || actionItems.length === 0) return null;
+    return buildQueueDomainHint(domainNarrativeSummaries);
+  }, [queueScopeActive, actionsLoading, actionItems.length, domainNarrativeSummaries]);
+
+  const riskStripDomainHint = useMemo(() => {
+    if (!queueScopeActive || actionsLoading || actionItems.length === 0) return null;
+    return buildRiskStripDomainHint(domainNarrativeSummaries);
+  }, [queueScopeActive, actionsLoading, actionItems.length, domainNarrativeSummaries]);
+
   useEffect(() => {
     if (!queueScopeActive || actionsLoading) return;
     saveSnapshot(currentSnapshot, activeCompanyId, user?.id ?? null);
@@ -240,6 +284,7 @@ export default function ControlTowerPage() {
         escalationSummaryLine={escalationSummaryLine}
         trendSummaryLine={trendSummaryLine}
         outcomeSummaryLine={outcomeSummaryLine}
+        executiveNarrativeLines={executiveNarrativeLines}
         queueStatus={queueStatus}
         queueScopeActive={queueScopeActive}
         actionsLoading={actionsLoading}
@@ -266,9 +311,10 @@ export default function ControlTowerPage() {
           actionItemsLength={actionItems.length}
           trendHintsLine={prioritiesTrendHintsLine}
           outcomeHintLine={prioritiesOutcomeHint}
+          domainHintLine={prioritiesDomainHint}
         />
 
-        <RiskStrip cards={riskCards} />
+        <RiskStrip cards={riskCards} domainNarrativeLine={riskStripDomainHint} />
 
         <ActionQueueSection
           queueScopeActive={queueScopeActive}
@@ -278,6 +324,7 @@ export default function ControlTowerPage() {
           queueForList={queueForList}
           actionItemsLength={actionItems.length}
           outcomeHintLine={queueOutcomeHint}
+          domainHintLine={queueDomainHint}
         />
 
         <KpiSnapshotSection

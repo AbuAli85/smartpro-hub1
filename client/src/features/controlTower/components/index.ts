@@ -4,6 +4,7 @@ export {
   ExecutiveCommitmentsSection,
   type ExecutiveCommitmentsSectionProps,
 } from "./ExecutiveCommitmentsSection";
+export { ExecutiveReviewSection, type ExecutiveReviewSectionProps } from "./ExecutiveReviewSection";
 export { PrioritiesSection, type PrioritiesSectionProps } from "./PrioritiesSection";
 export { RiskStrip, type RiskStripProps } from "./RiskStrip";
 export { ActionQueueSection, type ActionQueueSectionProps } from "./ActionQueueSection";

@@ -22,6 +22,8 @@ export type ExecutiveHeaderProps = {
   leadershipInterventionCount?: number;
   /** Quieter than intervention line — operating checkpoints from commitments */
   operatingCheckpointsCount?: number;
+  /** Quieter — items to verify in next leadership check-in */
+  reviewCheckInCount?: number;
   queueStatus: ActionQueueStatus;
   /** Tenant has company scope for queue */
   queueScopeActive: boolean;
@@ -38,6 +40,7 @@ export function ExecutiveHeader({
   executiveNarrativeLines,
   leadershipInterventionCount = 0,
   operatingCheckpointsCount = 0,
+  reviewCheckInCount = 0,
   queueStatus,
   queueScopeActive,
   actionsLoading,
@@ -78,6 +81,13 @@ export function ExecutiveHeader({
                 {operatingCheckpointsCount === 1
                   ? "1 operating checkpoint suggested"
                   : `${operatingCheckpointsCount} operating checkpoints suggested`}
+              </p>
+            ) : null}
+            {queueScopeActive && !actionsLoading && reviewCheckInCount > 0 ? (
+              <p className="text-[10px] text-muted-foreground/75 mt-0.5 max-w-xl leading-snug">
+                {reviewCheckInCount === 1
+                  ? "1 item to review in next check-in"
+                  : `${reviewCheckInCount} items to review in next check-in`}
               </p>
             ) : null}
             {queueScopeActive && !actionsLoading && executiveNarrativeLines && executiveNarrativeLines.length > 0 ? (

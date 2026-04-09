@@ -38,3 +38,6 @@ export * from "./commitmentTypes";
 export * from "./commitmentHorizon";
 export * from "./commitmentCopy";
 export * from "./commitments";
+export * from "./reviewTypes";
+export * from "./reviewCopy";
+export * from "./reviews";

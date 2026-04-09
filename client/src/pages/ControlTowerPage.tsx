@@ -1,5 +1,7 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { trpc } from "@/lib/trpc";
@@ -13,6 +15,7 @@ import {
   ExecutiveCommitmentsSection,
   ExecutiveDecisionSection,
   ExecutiveHeader,
+  ExecutiveReviewSection,
   KpiSnapshotSection,
   PrioritiesSection,
   RiskStrip,
@@ -20,6 +23,7 @@ import {
 } from "@/features/controlTower/components";
 import { buildExecutiveCommitments } from "@/features/controlTower/commitments";
 import { buildExecutiveDecisionPrompts } from "@/features/controlTower/decisionPrompts";
+import { buildExecutiveReviewItems } from "@/features/controlTower/reviews";
 import { seesPlatformOperatorNav } from "@shared/clientNav";
 import { formatEscalationSummaryLine, summarizeEscalationFromItems } from "@/features/controlTower/escalationMeta";
 import { buildSnapshotFromItems } from "@/features/controlTower/snapshot";
@@ -47,6 +51,7 @@ import {
 } from "@/features/controlTower/domainNarrative";
 
 export default function ControlTowerPage() {
+  const [reviewMode, setReviewMode] = useState(false);
   const { user } = useAuth();
   const { activeCompanyId, activeCompany } = useActiveCompany();
   useSmartRoleHomeRedirect();
@@ -319,6 +324,27 @@ export default function ControlTowerPage() {
     outcomeComparable,
   ]);
 
+  const executiveReviewItems = useMemo(() => {
+    if (!queueScopeActive || actionsLoading) return [];
+    return buildExecutiveReviewItems(executiveCommitments, {
+      queueItems: actionItems,
+      priorityItems,
+      outcomeSummary: outcomeComparable ? outcomeSummary : null,
+      trendComparison,
+      domainSummaries: domainNarrativeSummaries,
+    });
+  }, [
+    queueScopeActive,
+    actionsLoading,
+    executiveCommitments,
+    actionItems,
+    priorityItems,
+    outcomeSummary,
+    trendComparison,
+    outcomeComparable,
+    domainNarrativeSummaries,
+  ]);
+
   useEffect(() => {
     if (!queueScopeActive || actionsLoading) return;
     saveSnapshot(currentSnapshot, activeCompanyId, user?.id ?? null);
@@ -336,6 +362,7 @@ export default function ControlTowerPage() {
         executiveNarrativeLines={executiveNarrativeLines}
         leadershipInterventionCount={executiveDecisionPrompts.length}
         operatingCheckpointsCount={executiveCommitments.length}
+        reviewCheckInCount={executiveReviewItems.length}
         queueStatus={queueStatus}
         queueScopeActive={queueScopeActive}
         actionsLoading={actionsLoading}
@@ -353,9 +380,34 @@ export default function ControlTowerPage() {
           </Card>
         )}
 
+        {queueScopeActive && !actionsLoading && executiveCommitments.length > 0 ? (
+          <div className="flex justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="text-xs"
+              onClick={() => setReviewMode((v) => !v)}
+              aria-pressed={reviewMode}
+            >
+              {reviewMode ? "Exit review mode" : "Review mode"}
+            </Button>
+          </div>
+        ) : null}
+
         <ExecutiveDecisionSection prompts={executiveDecisionPrompts} />
 
-        <ExecutiveCommitmentsSection commitments={executiveCommitments} />
+        {executiveCommitments.length > 0 ? (
+          <div
+            className={cn(
+              "space-y-10",
+              reviewMode && "rounded-lg border border-amber-500/20 bg-muted/20 p-4 -mx-1 shadow-sm",
+            )}
+          >
+            <ExecutiveCommitmentsSection commitments={executiveCommitments} />
+            <ExecutiveReviewSection items={executiveReviewItems} />
+          </div>
+        ) : null}
 
         <PrioritiesSection
           queueScopeActive={queueScopeActive}
@@ -371,16 +423,18 @@ export default function ControlTowerPage() {
 
         <RiskStrip cards={riskCards} domainNarrativeLine={riskStripDomainHint} />
 
-        <ActionQueueSection
-          queueScopeActive={queueScopeActive}
-          actionsLoading={actionsLoading}
-          queueStatus={queueStatus}
-          queueUpdatedLabel={queueUpdatedLabel}
-          queueForList={queueForList}
-          actionItemsLength={actionItems.length}
-          outcomeHintLine={queueOutcomeHint}
-          domainHintLine={queueDomainHint}
-        />
+        <div className={cn(reviewMode && "opacity-[0.78] transition-opacity")}>
+          <ActionQueueSection
+            queueScopeActive={queueScopeActive}
+            actionsLoading={actionsLoading}
+            queueStatus={queueStatus}
+            queueUpdatedLabel={queueUpdatedLabel}
+            queueForList={queueForList}
+            actionItemsLength={actionItems.length}
+            outcomeHintLine={queueOutcomeHint}
+            domainHintLine={queueDomainHint}
+          />
+        </div>
 
         <KpiSnapshotSection
           scopeEnabled={scopeEnabled}

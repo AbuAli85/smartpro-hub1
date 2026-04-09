@@ -48,6 +48,7 @@ export function buildExecutiveCommitments(inputs: ExecutiveCommitmentInputs): Ex
     rows.push({
       id: `commit-${prompt.id}`,
       decisionPromptId: prompt.id,
+      decisionType: prompt.type,
       title: buildCommitmentTitle(prompt),
       checkpoint: buildCheckpoint(prompt),
       horizon,

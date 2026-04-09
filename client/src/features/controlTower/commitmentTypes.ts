@@ -1,6 +1,6 @@
 import type { ActionQueueItemExecutionView } from "./escalationTypes";
 import type { PriorityItemExecutionView } from "./escalationTypes";
-import type { ExecutiveDecisionPrompt } from "./decisionPromptTypes";
+import type { ExecutiveDecisionPrompt, ExecutiveDecisionType } from "./decisionPromptTypes";
 import type { ControlTowerDomain, DomainNarrativeSummary } from "./domainNarrativeTypes";
 import type { ControlTowerOutcomeSummary } from "./outcomeTypes";
 import type { TrendComparison } from "./trendTypes";
@@ -15,6 +15,8 @@ export type CommitmentHorizon =
 export interface ExecutiveCommitment {
   id: string;
   decisionPromptId: string;
+  /** Source decision type — used for operating review mapping */
+  decisionType: ExecutiveDecisionType;
   title: string;
   checkpoint: string;
   horizon: CommitmentHorizon;

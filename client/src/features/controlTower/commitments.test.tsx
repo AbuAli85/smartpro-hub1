@@ -213,6 +213,7 @@ describe("ExecutiveCommitmentsSection", () => {
             {
               id: "c1",
               decisionPromptId: "p1",
+              decisionType: "push_clearance",
               title: "Clear aging queue before escalation",
               checkpoint: "Clear aging queue items before they move into escalation.",
               horizon: "next_48h",

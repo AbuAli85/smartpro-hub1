@@ -106,7 +106,7 @@ export default function WorkforcePermitsPage() {
     pageSize: 20,
   });
 
-  const registerManualMutation = trpc.workforce.workPermits.registerManual.useMutation({
+  const registerManualMutation = trpc.workforce.registerWorkPermitManual.useMutation({
     onSuccess: () => {
       toast.success("Work permit registered and linked to the employee");
       setShowUploadDialog(false);

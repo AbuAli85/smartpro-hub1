@@ -82,7 +82,8 @@ const COLUMN_MAP: Record<string, keyof ParsedRow> = {
   "occupation code": "occupationCode",
   "occupation name": "occupationName", "occupation": "occupationName",
   "work permit status": "workPermitStatus", "permit status": "workPermitStatus",
-  "date of issue": "dateOfIssue", "issue date": "dateOfIssue", "creation date": "dateOfIssue",
+  // Issue/expiry only — do NOT map "creation date" here (often empty and overwrote real issue date)
+  "date of issue": "dateOfIssue", "issue date": "dateOfIssue",
   "date of expiry": "dateOfExpiry", "expiry date": "dateOfExpiry", "expiry": "dateOfExpiry",
   "visa expiry": "visaExpiryDate", "visa expiry date": "visaExpiryDate",
   "work permit expiry": "workPermitExpiryDate", "permit expiry": "workPermitExpiryDate",
@@ -94,6 +95,22 @@ const COLUMN_MAP: Record<string, keyof ParsedRow> = {
   "emergency contact": "emergencyContactName", "emergency contact name": "emergencyContactName",
   "emergency phone": "emergencyContactPhone", "emergency contact phone": "emergencyContactPhone",
 };
+
+/** Collapse whitespace so "Work  Permit   Number" matches "work permit number" */
+function normalizeHeaderKey(key: string): string {
+  return key.replace(/\s+/g, " ").toLowerCase().trim();
+}
+
+/** Excel numbers (civil ID, permit no.) must become plain strings — no scientific notation for integers */
+function excelScalarToString(val: unknown): string {
+  if (val === null || val === undefined) return "";
+  if (typeof val === "number") {
+    if (!Number.isFinite(val)) return "";
+    if (Number.isInteger(val) && Math.abs(val) < 1e15) return String(val);
+    return String(val);
+  }
+  return String(val).trim();
+}
 
 function parseExcelFile(file: File): Promise<ParsedRow[]> {
   return new Promise((resolve, reject) => {
@@ -110,7 +127,7 @@ function parseExcelFile(file: File): Promise<ParsedRow[]> {
         const firstRow = rawRows[0];
         const headerMap: Record<string, keyof ParsedRow> = {};
         for (const key of Object.keys(firstRow)) {
-          const norm = key.toLowerCase().trim();
+          const norm = normalizeHeaderKey(key);
           const mapped = COLUMN_MAP[norm];
           if (mapped) headerMap[key] = mapped;
         }
@@ -132,8 +149,8 @@ function parseExcelFile(file: File): Promise<ParsedRow[]> {
           };
 
           for (const [key, field] of Object.entries(headerMap)) {
-            const val = String(row[key] ?? "").trim();
-            (r as any)[field] = val;
+            const val = excelScalarToString(row[key]);
+            (r as Record<string, unknown>)[field] = val;
           }
 
           // Auto-build name if firstName/lastName provided but name is empty
@@ -195,9 +212,13 @@ function downloadTemplate() {
 
 function StatusBadge({ status }: { status: string }) {
   const s = status.toLowerCase();
-  if (s === "active") return <Badge className="bg-emerald-500/15 text-emerald-600 border-emerald-500/30 text-xs">Active</Badge>;
-  if (s === "cancelled" || s === "expired") return <Badge className="bg-red-500/15 text-red-600 border-red-500/30 text-xs">Cancelled</Badge>;
-  if (s === "deserted") return <Badge className="bg-orange-500/15 text-orange-600 border-orange-500/30 text-xs">Deserted</Badge>;
+  if ((s.includes("active") || s.includes("valid")) && !s.includes("cancel")) {
+    return <Badge className="bg-emerald-500/15 text-emerald-600 border-emerald-500/30 text-xs">Active</Badge>;
+  }
+  if (s.includes("cancel") || s.includes("expired")) {
+    return <Badge className="bg-red-500/15 text-red-600 border-red-500/30 text-xs">Ended</Badge>;
+  }
+  if (s.includes("deserted")) return <Badge className="bg-orange-500/15 text-orange-600 border-orange-500/30 text-xs">Deserted</Badge>;
   return <Badge variant="outline" className="text-xs">{status || "—"}</Badge>;
 }
 

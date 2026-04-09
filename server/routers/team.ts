@@ -26,19 +26,36 @@ async function requireMembership(user: User, companyId?: number | null) {
   return requireWorkspaceMembership(user, companyId);
 }
 
-/** Parse a DD-MM-YYYY or YYYY-MM-DD date string into a Date object, or return undefined */
+/** Parse DD-MM-YYYY, DD/MM/YYYY, or YYYY-MM-DD into a Date object, or return undefined */
 function parseDateField(raw: string | null | undefined): Date | undefined {
   if (!raw) return undefined;
   const s = String(raw).trim();
-  // DD-MM-YYYY
-  const ddmmyyyy = s.match(/^(\d{2})-(\d{2})-(\d{4})$/);
-  if (ddmmyyyy) {
-    const d = new Date(`${ddmmyyyy[3]}-${ddmmyyyy[2]}-${ddmmyyyy[1]}`);
+  // DD-MM-YYYY or DD/MM/YYYY (common in Oman / MOL exports)
+  const dmy = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  if (dmy) {
+    const day = dmy[1].padStart(2, "0");
+    const month = dmy[2].padStart(2, "0");
+    const year = dmy[3];
+    const d = new Date(`${year}-${month}-${day}`);
     return isNaN(d.getTime()) ? undefined : d;
   }
   // YYYY-MM-DD or ISO
   const d = new Date(s);
   return isNaN(d.getTime()) ? undefined : d;
+}
+
+function toMysqlDateString(d: Date | undefined): string | null {
+  if (!d || isNaN(d.getTime())) return null;
+  return d.toISOString().slice(0, 10);
+}
+
+/** MOL-style status text e.g. "Non Trans Active", "Non Trans Cancelled" */
+function mapMolPermitStatusToEmployeeStatus(raw: string | undefined): "active" | "terminated" | "resigned" {
+  const s = (raw ?? "").toLowerCase();
+  if (s.includes("cancelled") || s.includes("canceled") || s.includes("expired")) return "terminated";
+  if (s.includes("deserted")) return "resigned";
+  if (s.includes("active") || s.includes("valid")) return "active";
+  return "active";
 }
 
 // ─── Bulk import row schema ───────────────────────────────────────────────────
@@ -460,14 +477,13 @@ export const teamRouter = router({
           const firstName = row.firstName || nameParts[0] || row.name;
           const lastName = row.lastName || nameParts.slice(1).join(" ") || firstName;
 
-          // Map work permit status → employee status
-          const rawStatus = (row.workPermitStatus ?? "").toLowerCase();
-          let status: "active" | "terminated" | "resigned" = "active";
-          if (rawStatus === "cancelled" || rawStatus === "expired") status = "terminated";
-          else if (rawStatus === "deserted") status = "resigned";
+          // Map MOL / Excel permit status (e.g. "Non Trans Active") → employee status
+          const status = mapMolPermitStatusToEmployeeStatus(row.workPermitStatus);
 
-          // Parse dates
-          const hireDate = parseDateField(row.hireDate || row.dateOfIssue);
+          const hireDateParsed = parseDateField(row.hireDate) ?? parseDateField(row.dateOfIssue);
+          const wpIssue = parseDateField(row.dateOfIssue);
+          const wpExpiry = parseDateField(row.dateOfExpiry);
+          const visaExpiryParsed = parseDateField(row.visaExpiryDate);
 
           // Determine employment type
           const rawEmpType = (row.employmentType ?? "").toLowerCase().replace(/[\s-]/g, "_");
@@ -480,7 +496,8 @@ export const teamRouter = router({
 
           const dbConn = await getDb();
           if (!dbConn) throw new Error("Database unavailable");
-          await dbConn.insert(employees).values({
+
+          const empResult = await dbConn.insert(employees).values({
             companyId,
             firstName,
             lastName,
@@ -489,17 +506,47 @@ export const teamRouter = router({
             email: row.email ?? null,
             phone: row.phone ?? null,
             nationality: row.nationality ?? null,
-            nationalId: row.civilNumber ?? null,
-            passportNumber: row.passportNumber ?? null,
+            nationalId: row.civilNumber?.trim() || null,
+            passportNumber: row.passportNumber?.trim() || null,
             department: row.department ?? null,
-            position: row.position || row.occupationName || null,
+            position: row.position?.trim() || row.occupationName?.trim() || null,
+            profession: row.occupationName?.trim() || null,
             employmentType,
             status,
             salary: row.salary ? String(Number(row.salary)) : null,
             currency: row.currency || "OMR",
-            hireDate: hireDate ?? null,
-            employeeNumber: row.employeeNumber ?? null,
+            hireDate: hireDateParsed ?? null,
+            employeeNumber: row.employeeNumber?.trim() || null,
+            workPermitNumber: row.workPermitNumber?.trim() || null,
+            visaNumber: row.visaNumber?.trim() || null,
+            workPermitExpiryDate: toMysqlDateString(wpExpiry),
+            visaExpiryDate: toMysqlDateString(visaExpiryParsed),
           } as any);
+
+          const employeeId = Number((empResult[0] as { insertId?: number }).insertId ?? 0);
+
+          if (employeeId && row.workPermitNumber?.trim()) {
+            const permitStatus =
+              wpExpiry && wpExpiry.getTime() < Date.now() ? ("expired" as const) : ("active" as const);
+            await dbConn
+              .insert(workPermits)
+              .values({
+                companyId,
+                employeeId,
+                workPermitNumber: row.workPermitNumber.trim(),
+                labourAuthorisationNumber: row.visaNumber?.trim() ?? null,
+                occupationCode: row.occupationCode?.trim() ?? null,
+                occupationTitleEn: row.occupationName?.trim() ?? null,
+                issueDate: wpIssue ?? null,
+                expiryDate: wpExpiry ?? null,
+                permitStatus,
+                governmentSnapshot: { source: "bulk_import" } as Record<string, unknown>,
+                lastSyncedAt: new Date(),
+              })
+              .catch(() => {
+                /* duplicate work permit number across tenants, etc. */
+              });
+          }
 
           // Update duplicate tracking sets
           if (row.civilNumber) existingCivilIds.add(row.civilNumber.toLowerCase());

@@ -40,6 +40,8 @@ type PermitItem = {
   employeeName: string;
   nationality: string | null;
   daysToExpiry: number | null;
+  /** From My Team / HR when no MOL row exists yet */
+  fromHrProfileOnly?: boolean;
 };
 
 type PermitFilterState = {
@@ -118,6 +120,7 @@ export default function WorkforcePermitsPage() {
   });
 
   const permits = data?.items ?? [];
+  const totalCount = data?.total ?? permits.length;
 
   useEffect(() => {
     const parsed = parsePermitFiltersFromSearch(typeof window !== "undefined" ? window.location.search : "");
@@ -210,7 +213,9 @@ export default function WorkforcePermitsPage() {
                     <td colSpan={8} className="px-4 py-12 text-center text-muted-foreground">
                       <FileText className="w-10 h-10 mx-auto mb-3 opacity-30" />
                       <p className="font-medium">No work permits found</p>
-                      <p className="text-xs mt-1">Upload MOL certificates to track permit lifecycle</p>
+                      <p className="text-xs mt-1 max-w-md mx-auto">
+                        Upload MOL certificates to track the full lifecycle, or enter permit number and dates under People → My Team so they appear here.
+                      </p>
                       <Button size="sm" className="mt-3" onClick={() => setShowUploadDialog(true)}>
                         <Upload className="w-4 h-4 mr-2" />
                         Upload Certificate
@@ -221,9 +226,20 @@ export default function WorkforcePermitsPage() {
                   (permits as PermitItem[]).map((permit) => {
                     const cfg = STATUS_CONFIG[permit.permitStatus ?? "unknown"] ?? STATUS_CONFIG.unknown;
                     const Icon = cfg.icon;
+                    const detailHref =
+                      permit.fromHrProfileOnly || permit.id < 0
+                        ? `/workforce/employees/${Math.abs(permit.id)}`
+                        : `/workforce/permits/${permit.id}`;
                     return (
                       <tr key={permit.id} className="border-b hover:bg-muted/20 transition-colors">
-                        <td className="px-4 py-3 font-mono text-xs font-medium">{permit.workPermitNumber}</td>
+                        <td className="px-4 py-3 font-mono text-xs font-medium">
+                          <span className="inline-flex flex-col gap-0.5">
+                            <span>{permit.workPermitNumber}</span>
+                            {permit.fromHrProfileOnly ? (
+                              <span className="text-[10px] font-normal text-muted-foreground">From HR profile</span>
+                            ) : null}
+                          </span>
+                        </td>
                         <td className="px-4 py-3">
                           <div>
                             <p className="font-medium">{permit.employeeName ?? "—"}</p>
@@ -262,11 +278,13 @@ export default function WorkforcePermitsPage() {
                               variant="ghost"
                               size="sm"
                               className="h-7 px-2 text-xs"
-                              onClick={() => navigate(`/workforce/permits/${permit.id}`)}
+                              onClick={() => navigate(detailHref)}
                             >
                               <Eye className="w-3.5 h-3.5" />
                             </Button>
-                            {(permit.permitStatus === "active" || permit.permitStatus === "expiring_soon") && (
+                            {(permit.permitStatus === "active" || permit.permitStatus === "expiring_soon") &&
+                              !permit.fromHrProfileOnly &&
+                              permit.id > 0 && (
                               <Button
                                 variant="ghost"
                                 size="sm"
@@ -289,10 +307,12 @@ export default function WorkforcePermitsPage() {
 
           {!isLoading && permits.length > 0 && (
             <div className="flex items-center justify-between px-4 py-3 border-t">
-              <p className="text-xs text-muted-foreground">Showing {permits.length} permits</p>
+              <p className="text-xs text-muted-foreground">
+                Page {page} — showing {permits.length} of {totalCount} permit{totalCount === 1 ? "" : "s"}
+              </p>
               <div className="flex flex-wrap gap-2">
                 <Button variant="outline" size="sm" disabled={page === 1} onClick={() => setPage(p => p - 1)}>Previous</Button>
-                <Button variant="outline" size="sm" disabled={permits.length < 20} onClick={() => setPage(p => p + 1)}>Next</Button>
+                <Button variant="outline" size="sm" disabled={page * 20 >= totalCount} onClick={() => setPage(p => p + 1)}>Next</Button>
               </div>
             </div>
           )}

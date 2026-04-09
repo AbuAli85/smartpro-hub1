@@ -36,7 +36,7 @@ export default function WorkforceEmployeeDetailPage() {
   const [, navigate] = useLocation();
   const employeeId = parseInt(params.id || "0");
 
-  const { data: employee, isLoading } = trpc.workforce.employees.getById.useQuery(
+  const { data: detail, isLoading } = trpc.workforce.employees.getById.useQuery(
     { employeeId },
     { enabled: employeeId > 0 }
   );
@@ -48,11 +48,6 @@ export default function WorkforceEmployeeDetailPage() {
 
   const { data: docsData } = trpc.workforce.documents.list.useQuery(
     { employeeId },
-    { enabled: employeeId > 0 }
-  );
-
-  const { data: permitsData } = trpc.workforce.workPermits.list.useQuery(
-    {},
     { enabled: employeeId > 0 }
   );
 
@@ -70,7 +65,7 @@ export default function WorkforceEmployeeDetailPage() {
     );
   }
 
-  if (!employee) {
+  if (!detail?.employee) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center space-y-3">
@@ -84,11 +79,22 @@ export default function WorkforceEmployeeDetailPage() {
     );
   }
 
-  const emp = employee as any;
-  const cases = (casesData as any)?.cases ?? [];
-  const docs = (docsData as any)?.documents ?? [];
-  const permits = (permitsData as any)?.permits ?? [];
-  const activePermit = permits.find((p: any) => p.status === "active" || p.status === "valid");
+  const emp = detail.employee as Record<string, unknown>;
+  const gov = detail.governmentProfile as { civilId?: string | null } | null;
+  const activePermit = detail.activePermit as Record<string, unknown> | null | undefined;
+  const allPermits = (detail.allPermits ?? []) as Array<Record<string, unknown>>;
+  const permitHealth = detail.permitHealth as { status?: string; daysToExpiry?: number | null } | undefined;
+
+  const cases = (casesData as { items?: unknown[] })?.items ?? [];
+  const docs = Array.isArray(docsData) ? docsData : [];
+  const permits = allPermits;
+
+  const displayName =
+    typeof emp.firstName === "string" || typeof emp.lastName === "string"
+      ? `${emp.firstName ?? ""} ${emp.lastName ?? ""}`.trim()
+      : "";
+  const civilIdDisplay =
+    (typeof gov?.civilId === "string" && gov.civilId) || (typeof emp.nationalId === "string" && emp.nationalId) || null;
 
   return (
     <div className="min-h-screen bg-background">
@@ -101,11 +107,13 @@ export default function WorkforceEmployeeDetailPage() {
           </Button>
           <Separator orientation="vertical" className="h-5" />
           <div className="flex-1">
-            <h1 className="text-lg font-semibold">{emp.fullName || emp.name || `Employee #${employeeId}`}</h1>
-            <p className="text-xs text-muted-foreground">{emp.jobTitle || "—"} · {emp.department || "—"}</p>
+            <h1 className="text-lg font-semibold">{displayName || `Employee #${employeeId}`}</h1>
+            <p className="text-xs text-muted-foreground">
+              {typeof emp.position === "string" ? emp.position : "—"} · {typeof emp.department === "string" ? emp.department : "—"}
+            </p>
           </div>
-          <Badge className={`text-xs ${statusColor(emp.permitStatus || emp.status || "")}`}>
-            {emp.permitStatus || emp.status || "Active"}
+          <Badge className={`text-xs ${statusColor(String(permitHealth?.status ?? (typeof emp.status === "string" ? emp.status : "") ?? ""))}`}>
+            {permitHealth?.status ?? (typeof emp.status === "string" ? emp.status : "Active")}
           </Badge>
           <Button size="sm" onClick={() => navigate(`/workforce/cases/new?employeeId=${employeeId}`)}>
             Open Case
@@ -117,12 +125,13 @@ export default function WorkforceEmployeeDetailPage() {
         {/* Summary cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
-            { label: "Active Permits", value: permits.filter((p: any) => p.status === "active").length, icon: Shield, color: "text-emerald-600" },
+            { label: "Active Permits", value: permits.filter((p) => String((p as { permitStatus?: string }).permitStatus) === "active").length, icon: Shield, color: "text-emerald-600" },
             { label: "Open Cases", value: cases.filter((c: any) => c.status !== "closed" && c.status !== "completed").length, icon: FileText, color: "text-blue-600" },
             { label: "Documents", value: docs.length, icon: CreditCard, color: "text-purple-600" },
-            { label: "Expiring Soon", value: permits.filter((p: any) => {
-              if (!p.expiryDate) return false;
-              const days = Math.ceil((new Date(p.expiryDate).getTime() - Date.now()) / 86400000);
+            { label: "Expiring Soon", value: permits.filter((p) => {
+              const ex = (p as { expiryDate?: Date | string | null }).expiryDate;
+              if (!ex) return false;
+              const days = Math.ceil((new Date(ex).getTime() - Date.now()) / 86400000);
               return days >= 0 && days <= 30;
             }).length, icon: AlertTriangle, color: "text-amber-600" },
           ].map(({ label, value, icon: Icon, color }) => (
@@ -158,14 +167,14 @@ export default function WorkforceEmployeeDetailPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-0">
-                  <InfoRow label="Full Name (EN)" value={emp.fullName || emp.name} />
-                  <InfoRow label="Full Name (AR)" value={emp.fullNameAr} />
-                  <InfoRow label="Civil ID" value={emp.civilId} />
-                  <InfoRow label="Nationality" value={emp.nationality} />
-                  <InfoRow label="Date of Birth" value={emp.birthDate} />
-                  <InfoRow label="Gender" value={emp.gender} />
-                  <InfoRow label="Email" value={emp.email} />
-                  <InfoRow label="Phone" value={emp.phone} />
+                  <InfoRow label="Full Name (EN)" value={displayName || undefined} />
+                  <InfoRow label="Full Name (AR)" value={typeof emp.firstNameAr === "string" || typeof emp.lastNameAr === "string" ? `${emp.firstNameAr ?? ""} ${emp.lastNameAr ?? ""}`.trim() : undefined} />
+                  <InfoRow label="Civil ID" value={civilIdDisplay ?? undefined} />
+                  <InfoRow label="Nationality" value={typeof emp.nationality === "string" ? emp.nationality : undefined} />
+                  <InfoRow label="Date of Birth" value={emp.dateOfBirth ? fmtDate(emp.dateOfBirth as string | Date) : undefined} />
+                  <InfoRow label="Gender" value={typeof emp.gender === "string" ? emp.gender : undefined} />
+                  <InfoRow label="Email" value={typeof emp.email === "string" ? emp.email : undefined} />
+                  <InfoRow label="Phone" value={typeof emp.phone === "string" ? emp.phone : undefined} />
                 </CardContent>
               </Card>
 
@@ -177,11 +186,11 @@ export default function WorkforceEmployeeDetailPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-0">
-                  <InfoRow label="Job Title" value={emp.jobTitle} />
-                  <InfoRow label="Department" value={emp.department} />
-                  <InfoRow label="Employee Type" value={emp.employeeType} />
-                  <InfoRow label="Start Date" value={emp.startDate} />
-                  <InfoRow label="Salary" value={emp.salary ? `OMR ${emp.salary}` : null} />
+                  <InfoRow label="Job Title" value={typeof emp.position === "string" ? emp.position : undefined} />
+                  <InfoRow label="Department" value={typeof emp.department === "string" ? emp.department : undefined} />
+                  <InfoRow label="Employee Type" value={typeof emp.employmentType === "string" ? emp.employmentType.replace(/_/g, " ") : undefined} />
+                  <InfoRow label="Start Date" value={emp.hireDate ? fmtDate(emp.hireDate as string | Date) : undefined} />
+                  <InfoRow label="Salary" value={emp.salary ? `OMR ${String(emp.salary)}` : null} />
                   <InfoRow label="Branch" value={emp.branchId ? `Branch #${emp.branchId}` : null} />
                 </CardContent>
               </Card>
@@ -194,12 +203,10 @@ export default function WorkforceEmployeeDetailPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-0">
-                  <InfoRow label="Passport Number" value={emp.passportNumber} />
-                  <InfoRow label="Passport Issue Country" value={emp.passportIssueCountry} />
-                  <InfoRow label="Passport Issue Date" value={emp.passportIssueDate} />
-                  <InfoRow label="Passport Expiry" value={emp.passportExpiryDate} />
-                  <InfoRow label="Visa Number" value={emp.visaNumber} />
-                  <InfoRow label="Arrival Date" value={emp.arrivalDate} />
+                  <InfoRow label="Passport Number" value={typeof emp.passportNumber === "string" ? emp.passportNumber : undefined} />
+                  <InfoRow label="Visa Number" value={typeof emp.visaNumber === "string" ? emp.visaNumber : undefined} />
+                  <InfoRow label="Visa Expiry" value={emp.visaExpiryDate ? fmtDate(emp.visaExpiryDate as string | Date) : undefined} />
+                  <InfoRow label="Work permit expiry (HR)" value={emp.workPermitExpiryDate ? fmtDate(emp.workPermitExpiryDate as string | Date) : undefined} />
                 </CardContent>
               </Card>
 
@@ -213,11 +220,11 @@ export default function WorkforceEmployeeDetailPage() {
                 <CardContent className="space-y-0">
                   {activePermit ? (
                     <>
-                      <InfoRow label="Permit Number" value={activePermit.permitNumber} />
-                      <InfoRow label="Occupation" value={activePermit.occupationTitleEn} />
-                      <InfoRow label="Issue Date" value={activePermit.issueDate} />
-                      <InfoRow label="Expiry Date" value={activePermit.expiryDate} />
-                      <InfoRow label="Status" value={activePermit.status} />
+                      <InfoRow label="Permit Number" value={typeof activePermit.workPermitNumber === "string" ? activePermit.workPermitNumber : undefined} />
+                      <InfoRow label="Occupation" value={typeof activePermit.occupationTitleEn === "string" ? activePermit.occupationTitleEn : undefined} />
+                      <InfoRow label="Issue Date" value={activePermit.issueDate ? fmtDate(activePermit.issueDate as string | Date) : undefined} />
+                      <InfoRow label="Expiry Date" value={activePermit.expiryDate ? fmtDate(activePermit.expiryDate as string | Date) : undefined} />
+                      <InfoRow label="Status" value={typeof activePermit.permitStatus === "string" ? activePermit.permitStatus : undefined} />
                     </>
                   ) : (
                     <p className="text-sm text-muted-foreground py-2">No active work permit found.</p>
@@ -245,17 +252,19 @@ export default function WorkforceEmployeeDetailPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {permits.map((p: any) => (
-                        <tr key={p.id} className="border-b last:border-0 hover:bg-muted/20">
-                          <td className="px-4 py-3 font-mono text-xs">{p.permitNumber}</td>
-                          <td className="px-4 py-3 capitalize">{p.permitType?.replace(/_/g, " ")}</td>
-                          <td className="px-4 py-3">{p.occupationTitleEn || p.occupationCode || "—"}</td>
-                          <td className="px-4 py-3">{p.expiryDate || "—"}</td>
+                      {permits.map((p) => {
+                        const row = p as { id?: number; workPermitNumber?: string; permitStatus?: string; occupationTitleEn?: string; occupationCode?: string; expiryDate?: Date | string | null };
+                        return (
+                        <tr key={String(row.id)} className="border-b last:border-0 hover:bg-muted/20">
+                          <td className="px-4 py-3 font-mono text-xs">{row.workPermitNumber ?? "—"}</td>
+                          <td className="px-4 py-3 capitalize">—</td>
+                          <td className="px-4 py-3">{row.occupationTitleEn || row.occupationCode || "—"}</td>
+                          <td className="px-4 py-3">{row.expiryDate ? fmtDate(row.expiryDate) : "—"}</td>
                           <td className="px-4 py-3">
-                            <Badge className={`text-xs ${statusColor(p.status)}`}>{p.status}</Badge>
+                            <Badge className={`text-xs ${statusColor(String(row.permitStatus ?? ""))}`}>{row.permitStatus ?? "—"}</Badge>
                           </td>
                         </tr>
-                      ))}
+                      );})}
                     </tbody>
                   </table>
                 )}

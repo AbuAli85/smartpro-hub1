@@ -128,6 +128,37 @@ function computeDaysToExpiry(expiryDate?: Date | null): number | null {
   return Math.ceil(diff / (1000 * 60 * 60 * 24));
 }
 
+/** When work_permits row is missing or status is unknown, derive lifecycle from expiry (incl. HR-only My Team data). */
+function inferPermitStatusFromExpiry(expiryDate?: Date | string | null): "active" | "expiring_soon" | "expired" | "unknown" {
+  if (!expiryDate) return "unknown";
+  const d = expiryDate instanceof Date ? expiryDate : new Date(expiryDate);
+  if (Number.isNaN(d.getTime())) return "unknown";
+  const days = computeDaysToExpiry(d);
+  if (days === null) return "unknown";
+  if (days < 0) return "expired";
+  if (days <= 30) return "expiring_soon";
+  return "active";
+}
+
+type WorkPermitRow = typeof workPermits.$inferSelect;
+
+function pickBestPermitRow(rows: WorkPermitRow[]): WorkPermitRow | null {
+  if (rows.length === 0) return null;
+  const active = rows.find((p) => p.permitStatus === "active");
+  if (active) return active;
+  const sorted = [...rows].sort(
+    (a, b) => (b.expiryDate?.getTime() ?? 0) - (a.expiryDate?.getTime() ?? 0),
+  );
+  return sorted[0] ?? null;
+}
+
+function displayPermitStatus(row: WorkPermitRow | null, fallbackExpiry?: Date | string | null): string | null {
+  if (row?.permitStatus && row.permitStatus !== "unknown") return row.permitStatus;
+  const ex = row?.expiryDate ?? fallbackExpiry;
+  if (!ex) return row?.permitStatus ?? null;
+  return inferPermitStatusFromExpiry(ex);
+}
+
 function autoTasksForCaseType(caseType: string): Array<{ taskType: string; title: string; sortOrder: number }> {
   const taskMap: Record<string, Array<{ taskType: string; title: string; sortOrder: number }>> = {
     renewal: [
@@ -270,19 +301,9 @@ export const workforceRouter = router({
           .limit(input.pageSize)
           .offset((input.page - 1) * input.pageSize);
 
-        // Enrich with active work permit projection
+        // Enrich with work permit projection (MOL rows + HR/My Team fields when no permit table row)
         const enriched = await Promise.all(empRows.map(async (emp) => {
-          const permits = await db
-            .select({
-              id: workPermits.id,
-              workPermitNumber: workPermits.workPermitNumber,
-              permitStatus: workPermits.permitStatus,
-              expiryDate: workPermits.expiryDate,
-              occupationTitleEn: workPermits.occupationTitleEn,
-            })
-            .from(workPermits)
-            .where(and(eq(workPermits.employeeId, emp.id), eq(workPermits.permitStatus, "active")))
-            .limit(1);
+          const permitRows = await db.select().from(workPermits).where(eq(workPermits.employeeId, emp.id));
 
           const govProfile = await db
             .select({ civilId: employeeGovernmentProfiles.civilId, visaExpiryDate: employeeGovernmentProfiles.visaExpiryDate })
@@ -290,17 +311,26 @@ export const workforceRouter = router({
             .where(eq(employeeGovernmentProfiles.employeeId, emp.id))
             .limit(1);
 
-          const activePermit = permits[0] ?? null;
-          const daysToExpiry = computeDaysToExpiry(activePermit?.expiryDate);
+          const best = pickBestPermitRow(permitRows);
+          const hrHasPermit = Boolean(emp.workPermitNumber || emp.workPermitExpiryDate);
+          const activePermitNumber = best?.workPermitNumber ?? emp.workPermitNumber ?? null;
+          const permitExpiryDate = best?.expiryDate ?? emp.workPermitExpiryDate ?? null;
+          const permitStatus = best
+            ? displayPermitStatus(best, null)
+            : hrHasPermit
+              ? inferPermitStatusFromExpiry(emp.workPermitExpiryDate)
+              : null;
+          const occupationTitle = best?.occupationTitleEn ?? emp.profession ?? emp.position ?? null;
+          const daysToExpiry = computeDaysToExpiry(permitExpiryDate);
 
           return {
             ...emp,
-            civilId: govProfile[0]?.civilId ?? null,
-            activePermitNumber: activePermit?.workPermitNumber ?? null,
-            permitStatus: activePermit?.permitStatus ?? null,
-            permitExpiryDate: activePermit?.expiryDate ?? null,
+            civilId: govProfile[0]?.civilId ?? emp.nationalId ?? null,
+            activePermitNumber,
+            permitStatus,
+            permitExpiryDate,
             daysToExpiry,
-            occupationTitle: activePermit?.occupationTitleEn ?? null,
+            occupationTitle,
           };
         }));
 
@@ -353,19 +383,63 @@ export const workforceRouter = router({
           .orderBy(desc(governmentServiceCases.createdAt))
           .limit(10);
 
-        const activePermit = permits.find(p => p.permitStatus === "active") ?? permits[0] ?? null;
+        const best = pickBestPermitRow(permits);
+        const hrHasPermit = Boolean(emp.workPermitNumber || emp.workPermitExpiryDate);
+        const effectiveExpiry = best?.expiryDate ?? emp.workPermitExpiryDate ?? null;
+        const effectiveStatus = best
+          ? (displayPermitStatus(best, null) ?? "unknown")
+          : hrHasPermit
+            ? inferPermitStatusFromExpiry(emp.workPermitExpiryDate)
+            : "unknown";
+
+        let activePermit: WorkPermitRow | null = best;
+        if (!activePermit && hrHasPermit) {
+          activePermit = {
+            id: 0,
+            companyId,
+            employeeId: emp.id,
+            branchId: null,
+            provider: "mol",
+            workPermitNumber: emp.workPermitNumber ?? `HR-${emp.id}`,
+            labourAuthorisationNumber: emp.visaNumber ?? null,
+            issueDate: null,
+            expiryDate: emp.workPermitExpiryDate,
+            graceDate: null,
+            statusDate: null,
+            durationMonths: null,
+            permitStatus: inferPermitStatusFromExpiry(emp.workPermitExpiryDate),
+            transferStatus: null,
+            skillLevel: null,
+            occupationCode: null,
+            occupationTitleEn: emp.profession ?? emp.position,
+            occupationTitleAr: null,
+            occupationClass: null,
+            activityCode: null,
+            activityNameEn: null,
+            activityNameAr: null,
+            workLocationGovernorate: null,
+            workLocationWilayat: null,
+            workLocationArea: null,
+            governmentSnapshot: null,
+            lastSyncedAt: null,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          } as unknown as WorkPermitRow;
+        }
+
+        const allPermitsForUi = permits.length > 0 ? permits : activePermit && activePermit.id === 0 ? [activePermit] : permits;
 
         return {
           employee: emp,
           governmentProfile: govProfile ?? null,
           activePermit,
-          allPermits: permits,
+          allPermits: allPermitsForUi,
           documents: docs,
           recentCases: cases,
           permitHealth: {
-            daysToExpiry: computeDaysToExpiry(activePermit?.expiryDate),
-            status: activePermit?.permitStatus ?? "unknown",
-            expiryDate: activePermit?.expiryDate ?? null,
+            daysToExpiry: computeDaysToExpiry(effectiveExpiry),
+            status: effectiveStatus,
+            expiryDate: effectiveExpiry,
           },
         };
       }),
@@ -394,45 +468,117 @@ export const workforceRouter = router({
         if (!db) return { items: [], total: 0 };
 
         const conditions = [eq(workPermits.companyId, companyId)];
-        if (input.permitStatus) conditions.push(eq(workPermits.permitStatus, input.permitStatus));
         if (input.occupationCode) conditions.push(eq(workPermits.occupationCode, input.occupationCode));
-        if (input.expiringWithinDays != null) {
-          const cutoff = new Date(Date.now() + input.expiringWithinDays * 86400000);
-          conditions.push(lte(workPermits.expiryDate, cutoff));
-          conditions.push(gte(workPermits.expiryDate, new Date()));
-        }
 
-        const rows = await db
+        const permitRows = await db
           .select()
           .from(workPermits)
           .where(and(...conditions))
-          .orderBy(asc(workPermits.expiryDate))
-          .limit(input.pageSize)
-          .offset((input.page - 1) * input.pageSize);
+          .limit(2000);
 
-        // Enrich with employee name
-        const enriched = await Promise.all(rows.map(async (wp) => {
-          const [emp] = await db.select({ firstName: employees.firstName, lastName: employees.lastName, nationality: employees.nationality })
-            .from(employees).where(eq(employees.id, wp.employeeId)).limit(1);
-          return {
-            ...wp,
-            employeeName: emp ? `${emp.firstName} ${emp.lastName}` : "Unknown",
-            nationality: emp?.nationality ?? null,
-            daysToExpiry: computeDaysToExpiry(wp.expiryDate),
-          };
-        }));
+        const coveredEmpIds = new Set(permitRows.map((p) => p.employeeId));
 
-        let filtered = enriched;
+        const hrWithPermitFields = await db
+          .select()
+          .from(employees)
+          .where(
+            and(
+              eq(employees.companyId, companyId),
+              or(isNotNull(employees.workPermitNumber), isNotNull(employees.workPermitExpiryDate)),
+            ),
+          )
+          .limit(2000);
+
+        const syntheticFromHr: WorkPermitRow[] = [];
+        for (const e of hrWithPermitFields) {
+          if (coveredEmpIds.has(e.id)) continue;
+          syntheticFromHr.push({
+            id: -e.id,
+            companyId,
+            employeeId: e.id,
+            branchId: null,
+            provider: "mol",
+            workPermitNumber: e.workPermitNumber ?? `HR-${e.id}`,
+            labourAuthorisationNumber: e.visaNumber ?? null,
+            issueDate: null,
+            expiryDate: e.workPermitExpiryDate,
+            graceDate: null,
+            statusDate: null,
+            durationMonths: null,
+            permitStatus: inferPermitStatusFromExpiry(e.workPermitExpiryDate) as WorkPermitRow["permitStatus"],
+            transferStatus: null,
+            skillLevel: null,
+            occupationCode: null,
+            occupationTitleEn: e.profession ?? e.position,
+            occupationTitleAr: null,
+            occupationClass: null,
+            activityCode: null,
+            activityNameEn: null,
+            activityNameAr: null,
+            workLocationGovernorate: null,
+            workLocationWilayat: null,
+            workLocationArea: null,
+            governmentSnapshot: null,
+            lastSyncedAt: null,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          } as unknown as WorkPermitRow);
+        }
+
+        const combined = [...permitRows, ...syntheticFromHr];
+
+        const effectiveListStatus = (wp: WorkPermitRow) =>
+          (displayPermitStatus(wp, wp.expiryDate) ?? wp.permitStatus ?? "unknown") as string;
+
+        let merged = combined.filter((wp) => {
+          if (input.permitStatus && effectiveListStatus(wp) !== input.permitStatus) return false;
+          if (input.expiringWithinDays != null) {
+            const days = computeDaysToExpiry(wp.expiryDate);
+            if (days == null || days < 0 || days > input.expiringWithinDays) return false;
+          }
+          return true;
+        });
+
+        merged.sort((a, b) => {
+          const ta = a.expiryDate?.getTime() ?? Number.MAX_SAFE_INTEGER;
+          const tb = b.expiryDate?.getTime() ?? Number.MAX_SAFE_INTEGER;
+          return ta - tb;
+        });
+
+        const enrichedAll = await Promise.all(
+          merged.map(async (wp) => {
+            const [emp] = await db
+              .select({ firstName: employees.firstName, lastName: employees.lastName, nationality: employees.nationality })
+              .from(employees)
+              .where(eq(employees.id, wp.employeeId))
+              .limit(1);
+            return {
+              ...wp,
+              employeeName: emp ? `${emp.firstName} ${emp.lastName}` : "Unknown",
+              nationality: emp?.nationality ?? null,
+              daysToExpiry: computeDaysToExpiry(wp.expiryDate),
+              /** True when this row is only from HR / My Team (no MOL row yet). */
+              fromHrProfileOnly: wp.id < 0,
+            };
+          }),
+        );
+
+        let filtered = enrichedAll;
         if (input.query) {
           const q = input.query.toLowerCase();
-          filtered = filtered.filter(w =>
-            w.workPermitNumber.toLowerCase().includes(q) ||
-            w.employeeName.toLowerCase().includes(q) ||
-            (w.occupationTitleEn ?? "").toLowerCase().includes(q)
+          filtered = filtered.filter(
+            (w) =>
+              w.workPermitNumber.toLowerCase().includes(q) ||
+              w.employeeName.toLowerCase().includes(q) ||
+              (w.occupationTitleEn ?? "").toLowerCase().includes(q),
           );
         }
 
-        return { items: filtered, total: filtered.length };
+        const total = filtered.length;
+        const start = (input.page - 1) * input.pageSize;
+        const pageItems = filtered.slice(start, start + input.pageSize);
+
+        return { items: pageItems, total };
       }),
 
     getById: protectedProcedure

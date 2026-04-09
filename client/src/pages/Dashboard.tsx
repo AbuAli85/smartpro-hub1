@@ -582,10 +582,10 @@ export default function Dashboard() {
             </Card>
             <Card className={`border ${riskCounts.expiredPermits > 0 ? "border-red-200 bg-red-50/40" : "border-border/70"}`}>
               <CardContent className="p-4">
-                <p className="text-xs text-muted-foreground">Expired permits</p>
+                <p className="text-xs text-muted-foreground">Permits at risk</p>
                 <p className="text-2xl font-black mt-1">{riskCounts.expiredPermits}</p>
                 <div className="mt-2 text-xs">
-                  <Link href="/workforce/permits" className="text-[var(--smartpro-orange)] hover:underline">Open permits</Link>
+                  <Link href="/workforce/permits" className="text-[var(--smartpro-orange)] hover:underline">Open permits list</Link>
                 </div>
               </CardContent>
             </Card>
@@ -653,8 +653,8 @@ export default function Dashboard() {
                     <div className="flex items-center justify-between text-[10px] text-muted-foreground mt-1">
                       <span>
                         {item.ownerUserId
-                          ? (String(item.ownerUserId) === String(user?.id) ? "Owner: you" : `Owner: user #${item.ownerUserId}`)
-                          : "Owner: unassigned"}
+                          ? (String(item.ownerUserId) === String(user?.id) ? "Owner: You" : "Owner: Assigned")
+                          : "Owner: Unassigned"}
                       </span>
                       <span>{item.dueAt ? `Due ${fmtDate(item.dueAt)}` : "No due date"}</span>
                     </div>
@@ -666,17 +666,17 @@ export default function Dashboard() {
 
           <OwnerSetupChecklist />
           {opsSnapshot && (opsSnapshot.attentionQueue?.length ?? 0) > 0 && (
-            <Card className="border-orange-200 bg-orange-50/90 dark:bg-orange-950/25 dark:border-orange-900/50">
+            <Card className="border-border/60 bg-muted/30 dark:bg-muted/15">
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm flex items-center gap-2">
-                  <AlertTriangle className="h-4 w-4 text-orange-600" />
-                  Needs your attention
+                  <AlertTriangle className="h-4 w-4 text-muted-foreground" />
+                  Additional attention signals
                   <Badge variant="secondary" className="ml-auto text-xs">
                     {opsSnapshot.attentionQueue.length}
                   </Badge>
                 </CardTitle>
                 <p className="text-xs text-muted-foreground font-normal">
-                  Action items for this workspace — open a row to resolve or delegate.
+                  Secondary strategic signals. Use Top Action Queue for daily operational actions.
                 </p>
               </CardHeader>
               <CardContent className="pt-0 space-y-2">

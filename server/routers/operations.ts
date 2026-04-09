@@ -337,7 +337,7 @@ export const operationsRouter = router({
           items.push({
             id: `permit-${p.id}`,
             type: "permit_expiry",
-            title: overdue ? `Permit #${p.id} is expired` : `Permit #${p.id} expires soon`,
+            title: overdue ? `Permit #${p.id} expired` : `Permit #${p.id} expires soon`,
             severity: overdue ? "critical" : "high",
             ownerUserId: null,
             dueAt: p.expiryDate ? p.expiryDate.toISOString() : null,

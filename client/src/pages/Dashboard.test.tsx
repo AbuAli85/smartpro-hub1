@@ -108,6 +108,8 @@ describe("Dashboard role queue widget", () => {
 
     render(<Dashboard />);
     expect(screen.getByText("Focus view")).toBeInTheDocument();
+    expect(screen.getByText("Permits at risk")).toBeInTheDocument();
+    expect(screen.getByText("Open permits list")).toBeInTheDocument();
     expect(screen.getByText("No urgent work detected.")).toBeInTheDocument();
   });
 
@@ -133,6 +135,6 @@ describe("Dashboard role queue widget", () => {
 
     render(<Dashboard />);
     expect(screen.getByText("Payroll waiting for approval")).toBeInTheDocument();
-    expect(screen.getByText("Owner: you")).toBeInTheDocument();
+    expect(screen.getByText("Owner: You")).toBeInTheDocument();
   });
 });

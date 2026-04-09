@@ -489,6 +489,30 @@ export const workforceRouter = router({
         ? (inferPermitStatusFromExpiry(expiryDate) as WorkPermitRow["permitStatus"])
         : "unknown";
 
+      let durationMonths: number | null = null;
+      if (
+        issueDate &&
+        expiryDate &&
+        !Number.isNaN(issueDate.getTime()) &&
+        !Number.isNaN(expiryDate.getTime())
+      ) {
+        let m =
+          (expiryDate.getFullYear() - issueDate.getFullYear()) * 12 +
+          (expiryDate.getMonth() - issueDate.getMonth());
+        if (expiryDate.getDate() < issueDate.getDate()) m -= 1;
+        durationMonths = m >= 0 ? m : null;
+      }
+
+      const governmentSnapshot: Record<string, unknown> = {
+        source: "manual_register",
+        enteredBy: ctx.user.id,
+      };
+      if (emp.nationality?.trim()) governmentSnapshot.nationality = emp.nationality.trim();
+      if (emp.salary != null && String(emp.salary).trim() !== "") {
+        governmentSnapshot.salary = String(emp.salary);
+        governmentSnapshot.currency = emp.currency ?? "OMR";
+      }
+
       const permitData = {
         companyId,
         employeeId: emp.id,
@@ -497,10 +521,11 @@ export const workforceRouter = router({
         labourAuthorisationNumber: input.labourAuthorisationNumber ?? null,
         issueDate: issueDate && !Number.isNaN(issueDate.getTime()) ? issueDate : undefined,
         expiryDate: expiryDate && !Number.isNaN(expiryDate.getTime()) ? expiryDate : undefined,
+        durationMonths,
         permitStatus,
         occupationCode: input.occupationCode ?? null,
         occupationTitleEn: input.occupationTitleEn ?? emp.profession ?? emp.position ?? null,
-        governmentSnapshot: { source: "manual_register", enteredBy: ctx.user.id } as Record<string, unknown>,
+        governmentSnapshot,
         lastSyncedAt: new Date(),
       };
 

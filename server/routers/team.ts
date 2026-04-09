@@ -49,6 +49,14 @@ function toMysqlDateString(d: Date | undefined): string | null {
   return d.toISOString().slice(0, 10);
 }
 
+/** Whole months between permit issue and expiry (MOL-style duration). */
+function permitDurationMonths(issue: Date | undefined, expiry: Date | undefined): number | null {
+  if (!issue || !expiry || isNaN(issue.getTime()) || isNaN(expiry.getTime())) return null;
+  let m = (expiry.getFullYear() - issue.getFullYear()) * 12 + (expiry.getMonth() - issue.getMonth());
+  if (expiry.getDate() < issue.getDate()) m -= 1;
+  return m >= 0 ? m : null;
+}
+
 /** MOL-style status text e.g. "Non Trans Active", "Non Trans Cancelled" */
 function mapMolPermitStatusToEmployeeStatus(raw: string | undefined): "active" | "terminated" | "resigned" {
   const s = (raw ?? "").toLowerCase();
@@ -153,6 +161,19 @@ const importRowSchema = z.object({
   bankAccountNumber: z.string().optional(),
   emergencyContactName: z.string().optional(),
   emergencyContactPhone: z.string().optional(),
+  // MOL / establishment (optional columns)
+  occupationNameAr: z.string().optional(),
+  skillLevel: z.string().optional(),
+  activityCode: z.string().optional(),
+  activityNameEn: z.string().optional(),
+  activityNameAr: z.string().optional(),
+  workLocationGovernorate: z.string().optional(),
+  workLocationWilayat: z.string().optional(),
+  workLocationArea: z.string().optional(),
+  establishmentNameEn: z.string().optional(),
+  establishmentNameAr: z.string().optional(),
+  establishmentCrNumber: z.string().optional(),
+  sponsorId: z.string().optional(),
 });
 
 // ─── router ──────────────────────────────────────────────────────────────────
@@ -558,6 +579,29 @@ export const teamRouter = router({
         if (!row.workPermitNumber?.trim()) return;
         const permitStatus =
           wpExpiry && wpExpiry.getTime() < Date.now() ? ("expired" as const) : ("active" as const);
+        const durationMonths = permitDurationMonths(wpIssue, wpExpiry);
+        const govSnap: Record<string, unknown> = {
+          source: "bulk_import",
+          importedAt: new Date().toISOString(),
+        };
+        const n = nonEmptyTrimmed(row.nationality);
+        if (n) govSnap.nationality = n;
+        const sal = nonEmptyTrimmed(row.salary);
+        if (sal) {
+          govSnap.salary = sal;
+          govSnap.currency = row.currency || "OMR";
+        }
+        const dpt = nonEmptyTrimmed(row.department);
+        if (dpt) govSnap.department = dpt;
+        const estEn = nonEmptyTrimmed(row.establishmentNameEn);
+        const estAr = nonEmptyTrimmed(row.establishmentNameAr);
+        if (estEn) govSnap.companyNameEn = estEn;
+        if (estAr) govSnap.companyNameAr = estAr;
+        const cr = nonEmptyTrimmed(row.establishmentCrNumber);
+        if (cr) govSnap.crNumber = cr;
+        const sp = nonEmptyTrimmed(row.sponsorId);
+        if (sp) govSnap.sponsorId = sp;
+
         const payload = {
           companyId,
           employeeId,
@@ -565,10 +609,19 @@ export const teamRouter = router({
           labourAuthorisationNumber: row.visaNumber?.trim() ?? null,
           occupationCode: row.occupationCode?.trim() ?? null,
           occupationTitleEn: row.occupationName?.trim() ?? null,
+          occupationTitleAr: row.occupationNameAr?.trim() ?? null,
+          skillLevel: row.skillLevel?.trim() ?? null,
+          activityCode: row.activityCode?.trim() ?? null,
+          activityNameEn: row.activityNameEn?.trim() ?? null,
+          activityNameAr: row.activityNameAr?.trim() ?? null,
+          workLocationGovernorate: row.workLocationGovernorate?.trim() ?? null,
+          workLocationWilayat: row.workLocationWilayat?.trim() ?? null,
+          workLocationArea: row.workLocationArea?.trim() ?? null,
+          durationMonths: durationMonths ?? null,
           issueDate: wpIssue ?? null,
           expiryDate: wpExpiry ?? null,
           permitStatus,
-          governmentSnapshot: { source: "bulk_import" } as Record<string, unknown>,
+          governmentSnapshot: govSnap,
           lastSyncedAt: new Date(),
         };
         const byNumberRows = await dbConn

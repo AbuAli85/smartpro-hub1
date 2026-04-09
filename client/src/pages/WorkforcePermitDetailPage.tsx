@@ -42,9 +42,35 @@ function InfoRow({ label, value, mono = false }: { label: string; value?: string
   );
 }
 
-function daysUntil(dateStr?: string | null): number | null {
-  if (!dateStr) return null;
-  return Math.ceil((new Date(dateStr).getTime() - Date.now()) / 86400000);
+function daysUntilRaw(expiry: Date | string | null | undefined): number | null {
+  if (expiry == null) return null;
+  const t = new Date(expiry as string | Date).getTime();
+  if (Number.isNaN(t)) return null;
+  return Math.ceil((t - Date.now()) / 86400000);
+}
+
+function snapshotString(snap: Record<string, unknown>, keys: string[]): string | null {
+  for (const k of keys) {
+    const v = snap[k];
+    if (typeof v === "string" && v.trim()) return v.trim();
+    if (typeof v === "number" && Number.isFinite(v)) return String(v);
+  }
+  return null;
+}
+
+function monthsBetweenRaw(issue: Date | string | null | undefined, exp: Date | string | null | undefined): number | null {
+  const a = issue == null ? null : new Date(issue as string | Date);
+  const b = exp == null ? null : new Date(exp as string | Date);
+  if (!a || !b || Number.isNaN(a.getTime()) || Number.isNaN(b.getTime())) return null;
+  let m = (b.getFullYear() - a.getFullYear()) * 12 + (b.getMonth() - a.getMonth());
+  if (b.getDate() < a.getDate()) m -= 1;
+  return m >= 0 ? m : null;
+}
+
+function formatEmployeeSalary(salary: unknown, currency: string | null | undefined): string | null {
+  if (salary == null || salary === "") return null;
+  const c = (currency || "OMR").trim() || "OMR";
+  return `${c} ${String(salary)}`;
 }
 
 function formatPermitDate(d: Date | string | null | undefined): string | null {
@@ -80,28 +106,57 @@ export default function WorkforcePermitDetailPage() {
     if (!wp) return null;
     const snap = (wp.governmentSnapshot as Record<string, unknown> | null) ?? {};
     const status = wp.permitStatus ?? "unknown";
+    const permitTypeRaw =
+      (typeof snap.permitType === "string" ? snap.permitType : null) ?? "work_permit";
+    const permitTypeLabel = permitTypeRaw.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+    const durationMonths =
+      wp.durationMonths != null
+        ? wp.durationMonths
+        : monthsBetweenRaw(wp.issueDate, wp.expiryDate);
     return {
       permitNumber: wp.workPermitNumber,
       status,
-      permitType: (typeof snap.permitType === "string" ? snap.permitType : null) ?? "work_permit",
+      permitType: permitTypeLabel,
       issueDate: formatPermitDate(wp.issueDate),
       expiryDate: formatPermitDate(wp.expiryDate),
-      durationMonths: wp.durationMonths,
+      expiryRaw: wp.expiryDate,
+      durationMonths,
       labourAuthorisationNumber: wp.labourAuthorisationNumber,
       occupationCode: wp.occupationCode,
       occupationTitleEn: wp.occupationTitleEn,
-      occupationTitleAr: wp.occupationTitleAr,
-      skillLevel: wp.skillLevel,
-      activityCode: wp.activityCode,
-      activityNameEn: wp.activityNameEn,
-      workLocationGovernorate: wp.workLocationGovernorate,
-      workLocationWilayat: wp.workLocationWilayat,
-      workLocationArea: wp.workLocationArea,
-      civilId: emp?.nationalId ?? null,
-      companyNameEn: (snap.companyNameEn as string) || null,
-      companyNameAr: (snap.companyNameAr as string) || null,
-      crNumber: (snap.crNumber as string) || null,
-      sponsorId: (snap.sponsorId as string) || null,
+      occupationTitleAr:
+        wp.occupationTitleAr ??
+        snapshotString(snap, ["occupationNameAr", "occupationTitleAr", "occupation_ar"]),
+      skillLevel: wp.skillLevel ?? snapshotString(snap, ["skillLevel", "skill_level"]),
+      activityCode: wp.activityCode ?? snapshotString(snap, ["activityCode", "activity_code"]),
+      activityNameEn: wp.activityNameEn ?? snapshotString(snap, ["activityNameEn", "activity_name_en"]),
+      activityNameAr: wp.activityNameAr ?? snapshotString(snap, ["activityNameAr", "activity_name_ar"]),
+      workLocationGovernorate:
+        wp.workLocationGovernorate ??
+        snapshotString(snap, ["workLocationGovernorate", "governorate", "work_governorate"]),
+      workLocationWilayat:
+        wp.workLocationWilayat ?? snapshotString(snap, ["workLocationWilayat", "wilayat", "work_wilayat"]),
+      workLocationArea:
+        wp.workLocationArea ?? snapshotString(snap, ["workLocationArea", "work_area", "area"]),
+      civilId:
+        (emp?.nationalId && String(emp.nationalId).trim()) ||
+        snapshotString(snap, ["civilId", "civil_number"]) ||
+        null,
+      companyNameEn:
+        snapshotString(snap, ["companyNameEn", "establishmentNameEn", "employerNameEn", "sponsorName"]) ??
+        null,
+      companyNameAr:
+        snapshotString(snap, ["companyNameAr", "establishmentNameAr", "employerNameAr"]) ?? null,
+      crNumber: snapshotString(snap, ["crNumber", "establishmentCrNumber", "commercial_registration"]) ?? null,
+      sponsorId: snapshotString(snap, ["sponsorId", "sponsor_id"]) ?? null,
+      employeeName: emp ? `${emp.firstName} ${emp.lastName}`.trim() : null,
+      nationality: emp?.nationality?.trim() || snapshotString(snap, ["nationality"]) || null,
+      salaryDisplay: formatEmployeeSalary(emp?.salary, emp?.currency ?? null),
+      passportNumber: emp?.passportNumber?.trim() || null,
+      department: emp?.department?.trim() || snapshotString(snap, ["department"]) || null,
+      position: emp?.position?.trim() || snapshotString(snap, ["position"]) || null,
+      email: emp?.email?.trim() || null,
+      phone: emp?.phone?.trim() || null,
       renewalCount: 0,
       renewals: [] as Array<{ id: number; newExpiryDate?: string; status: string; createdAt?: Date | string }>,
     };
@@ -175,7 +230,7 @@ export default function WorkforcePermitDetailPage() {
     );
   }
 
-  const daysLeft = daysUntil(p.expiryDate ?? undefined);
+  const daysLeft = daysUntilRaw(p.expiryRaw);
   const isExpired = daysLeft !== null && daysLeft < 0;
   const isExpiringSoon = daysLeft !== null && daysLeft >= 0 && daysLeft <= 30;
   const canRenew = p.status !== "cancelled" && p.status !== "transferred";
@@ -194,8 +249,8 @@ export default function WorkforcePermitDetailPage() {
           <Separator orientation="vertical" className="h-5" />
           <div className="flex-1">
             <h1 className="text-lg font-semibold font-mono">{p.permitNumber || `Permit #${permitId}`}</h1>
-            <p className="text-xs text-muted-foreground capitalize">
-              {p.permitType?.replace(/_/g, " ") || "Work Permit"} · {p.occupationTitleEn || p.occupationCode || "—"}
+            <p className="text-xs text-muted-foreground">
+              {p.permitType || "Work permit"} · {p.occupationTitleEn || p.occupationCode || "—"}
             </p>
           </div>
           <Badge className={`text-xs border ${statusColor(p.status)}`}>
@@ -250,7 +305,7 @@ export default function WorkforcePermitDetailPage() {
             },
             {
               label: "Permit Type",
-              value: p.permitType?.replace(/_/g, " ") || "—",
+              value: p.permitType || "—",
               icon: FileText,
               color: "text-blue-600",
             },
@@ -285,11 +340,11 @@ export default function WorkforcePermitDetailPage() {
             <CardContent className="space-y-0">
               <InfoRow label="Permit Number" value={p.permitNumber} mono />
               <InfoRow label="Labour Auth. No." value={p.labourAuthorisationNumber} mono />
-              <InfoRow label="Permit Type" value={p.permitType?.replace(/_/g, " ")} />
+              <InfoRow label="Permit Type" value={p.permitType} />
               <InfoRow label="Status" value={p.status?.replace(/_/g, " ")} />
               <InfoRow label="Issue Date" value={p.issueDate} />
               <InfoRow label="Expiry Date" value={p.expiryDate} />
-              <InfoRow label="Duration (months)" value={p.durationMonths?.toString()} />
+              <InfoRow label="Duration (months)" value={p.durationMonths != null ? String(p.durationMonths) : undefined} />
             </CardContent>
           </Card>
 
@@ -297,7 +352,26 @@ export default function WorkforcePermitDetailPage() {
             <CardHeader className="pb-2">
               <CardTitle className="text-sm flex items-center gap-2">
                 <User className="w-4 h-4 text-primary" />
-                Employee & Occupation
+                Employee (HR profile)
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-0">
+              <InfoRow label="Name" value={p.employeeName} />
+              <InfoRow label="Nationality" value={p.nationality} />
+              <InfoRow label="Salary" value={p.salaryDisplay} />
+              <InfoRow label="Passport" value={p.passportNumber} mono />
+              <InfoRow label="Department" value={p.department} />
+              <InfoRow label="Position" value={p.position} />
+              <InfoRow label="Email" value={p.email} />
+              <InfoRow label="Phone" value={p.phone} />
+            </CardContent>
+          </Card>
+
+          <Card className="shadow-sm">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <FileText className="w-4 h-4 text-primary" />
+                Occupation & activity
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-0">
@@ -308,6 +382,7 @@ export default function WorkforcePermitDetailPage() {
               <InfoRow label="Skill Level" value={p.skillLevel} />
               <InfoRow label="Activity Code" value={p.activityCode} mono />
               <InfoRow label="Activity (EN)" value={p.activityNameEn} />
+              <InfoRow label="Activity (AR)" value={p.activityNameAr} />
             </CardContent>
           </Card>
 

@@ -27,7 +27,10 @@ interface ParsedRow {
   employmentType: string; employeeNumber: string;
   hireDate: string; salary: string; currency: string;
   // Permit / Visa
-  visaNumber: string; occupationCode: string; occupationName: string;
+  visaNumber: string; occupationCode: string; occupationName: string; occupationNameAr: string;
+  skillLevel: string; activityCode: string; activityNameEn: string; activityNameAr: string;
+  workGovernorate: string; workWilayat: string; workArea: string;
+  establishmentNameEn: string; establishmentNameAr: string; establishmentCrNumber: string; sponsorId: string;
   workPermitNumber: string; workPermitStatus: string;
   dateOfIssue: string; dateOfExpiry: string;
   visaExpiryDate: string; workPermitExpiryDate: string;
@@ -88,6 +91,21 @@ const COLUMN_MAP: Record<string, keyof ParsedRow> = {
   "visa number": "visaNumber", "visa no": "visaNumber", "labour auth no": "visaNumber",
   "occupation code": "occupationCode",
   "occupation name": "occupationName", "occupation": "occupationName",
+  "occupation name (ar)": "occupationNameAr", "occupation (ar)": "occupationNameAr",
+  "occupation ar": "occupationNameAr", "arabic occupation": "occupationNameAr",
+  "skill level": "skillLevel", "worker skill level": "skillLevel",
+  "activity code": "activityCode", "establishment activity code": "activityCode",
+  "activity name": "activityNameEn", "activity": "activityNameEn", "establishment activity": "activityNameEn",
+  "activity name (ar)": "activityNameAr",
+  "governorate": "workGovernorate", "work governorate": "workGovernorate",
+  "wilayat": "workWilayat", "work wilayat": "workWilayat",
+  "work area": "workArea", "work location area": "workArea", "location area": "workArea",
+  "establishment name": "establishmentNameEn", "employer name": "establishmentNameEn",
+  "company name (establishment)": "establishmentNameEn", "sponsor name": "establishmentNameEn",
+  "establishment name (ar)": "establishmentNameAr", "employer name (ar)": "establishmentNameAr",
+  "cr number": "establishmentCrNumber", "commercial registration": "establishmentCrNumber",
+  "commercial reg": "establishmentCrNumber", "cr no": "establishmentCrNumber",
+  "sponsor id": "sponsorId", "sponsor number": "sponsorId",
   "work permit status": "workPermitStatus", "permit status": "workPermitStatus",
   // Issue/expiry only — do NOT map "creation date" here (often empty and overwrote real issue date)
   "date of issue": "dateOfIssue", "issue date": "dateOfIssue",
@@ -126,7 +144,14 @@ function inferMappedFieldFromHeader(norm: string): keyof ParsedRow | undefined {
   if (/\b(labou?r|visa)\b/i.test(n) && /\b(auth|authorization|card)\b/i.test(n) && /\b(no|number)\b/i.test(n)) {
     return "visaNumber";
   }
+  if (/\boccupation\b/i.test(n) && /\(ar\)|arabic|عربي|بالعربي/i.test(n)) return "occupationNameAr";
   if (/\boccupation\b/i.test(n) && !/\bcode\b/i.test(n)) return "occupationName";
+  if (/\bgovernorate\b/i.test(n)) return "workGovernorate";
+  if (/\bwilayat\b/i.test(n)) return "workWilayat";
+  if (/\b(activity|establishment)\b/i.test(n) && /\bcode\b/i.test(n)) return "activityCode";
+  if (/\bactivity\b/i.test(n) && !/\bcode\b/i.test(n)) return "activityNameEn";
+  if (/\b(employer|establishment|sponsor)\b/i.test(n) && /\(ar\)|arabic/i.test(n)) return "establishmentNameAr";
+  if (/\b(employer|establishment|sponsor)\b/i.test(n) && !/\(ar\)|arabic/i.test(n)) return "establishmentNameEn";
   return undefined;
 }
 
@@ -174,7 +199,10 @@ function parseExcelFile(file: File): Promise<ParsedRow[]> {
             gender: "", dateOfBirth: "", maritalStatus: "",
             department: "", position: "", profession: "",
             employmentType: "", employeeNumber: "", hireDate: "", salary: "", currency: "",
-            visaNumber: "", occupationCode: "", occupationName: "",
+            visaNumber: "", occupationCode: "", occupationName: "", occupationNameAr: "",
+            skillLevel: "", activityCode: "", activityNameEn: "", activityNameAr: "",
+            workGovernorate: "", workWilayat: "", workArea: "",
+            establishmentNameEn: "", establishmentNameAr: "", establishmentCrNumber: "", sponsorId: "",
             workPermitNumber: "", workPermitStatus: "", dateOfIssue: "", dateOfExpiry: "",
             visaExpiryDate: "", workPermitExpiryDate: "", transferred: "",
             pasiNumber: "", bankName: "", bankAccountNumber: "",
@@ -313,7 +341,17 @@ export default function EmployeeImportPage() {
         employeeNumber: r.employeeNumber || undefined, hireDate: r.hireDate || undefined,
         salary: r.salary || undefined, currency: r.currency || undefined,
         visaNumber: r.visaNumber || undefined, occupationCode: r.occupationCode || undefined,
-        occupationName: r.occupationName || undefined, workPermitNumber: r.workPermitNumber || undefined,
+        occupationName: r.occupationName || undefined, occupationNameAr: r.occupationNameAr || undefined,
+        skillLevel: r.skillLevel || undefined, activityCode: r.activityCode || undefined,
+        activityNameEn: r.activityNameEn || undefined, activityNameAr: r.activityNameAr || undefined,
+        workLocationGovernorate: r.workGovernorate || undefined,
+        workLocationWilayat: r.workWilayat || undefined,
+        workLocationArea: r.workArea || undefined,
+        establishmentNameEn: r.establishmentNameEn || undefined,
+        establishmentNameAr: r.establishmentNameAr || undefined,
+        establishmentCrNumber: r.establishmentCrNumber || undefined,
+        sponsorId: r.sponsorId || undefined,
+        workPermitNumber: r.workPermitNumber || undefined,
         workPermitStatus: r.workPermitStatus || undefined, dateOfIssue: r.dateOfIssue || undefined,
         dateOfExpiry: r.dateOfExpiry || undefined, visaExpiryDate: r.visaExpiryDate || undefined,
         workPermitExpiryDate: r.workPermitExpiryDate || undefined, transferred: r.transferred || undefined,

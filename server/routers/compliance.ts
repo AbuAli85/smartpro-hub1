@@ -277,18 +277,7 @@ export const complianceRouter = router({
       const now = new Date();
       const in30Days = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
 
-<<<<<<< Updated upstream
-      const checks: Array<{
-        id: string;
-        name: string;
-        status: "pass" | "warn" | "fail";
-        detail: string;
-        weight: number;
-        meta: Record<string, string | number>;
-      }> = [];
-=======
       const checks: Array<{ id: string; name: string; status: "pass" | "warn" | "fail"; detail: string; weight: number; meta?: Record<string, number | string> }> = [];
->>>>>>> Stashed changes
 
       // 1. Omanisation check
       const empConditions = [eq(employees.status, "active")];
@@ -323,11 +312,7 @@ export const complianceRouter = router({
         status: expiredCount === 0 ? "pass" : expiredCount <= 2 ? "warn" : "fail",
         detail: expiredCount === 0 ? "All permits valid" : `${expiredCount} expired permit(s)`,
         weight: 25,
-<<<<<<< Updated upstream
-        meta: { expiredCount },
-=======
         meta: { count: expiredCount },
->>>>>>> Stashed changes
       });
 
       // 3. Expiring permits (30 days)
@@ -348,11 +333,7 @@ export const complianceRouter = router({
         status: expiringCount === 0 ? "pass" : expiringCount <= 3 ? "warn" : "fail",
         detail: expiringCount === 0 ? "No permits expiring in 30 days" : `${expiringCount} permit(s) expiring in 30 days`,
         weight: 20,
-<<<<<<< Updated upstream
-        meta: { expiringCount },
-=======
         meta: { count: expiringCount, days: 30 },
->>>>>>> Stashed changes
       });
 
       // 4. WPS compliance (current month payroll paid)
@@ -370,24 +351,15 @@ export const complianceRouter = router({
         .orderBy(desc(payrollRuns.createdAt))
         .limit(1);
 
-<<<<<<< Updated upstream
-      const wpsDetailVariant =
-        latestRun?.status === "paid" ? "paid" : latestRun?.wpsFileUrl ? "pending" : "not_generated";
-=======
       const wpsVariant: string =
         latestRun?.status === "paid" ? "paid" : latestRun?.wpsFileUrl ? "file_ready" : "not_generated";
->>>>>>> Stashed changes
       checks.push({
         id: "wps_compliance",
         name: "WPS Compliance",
         status: latestRun?.status === "paid" ? "pass" : latestRun?.wpsFileUrl ? "warn" : "fail",
         detail: latestRun?.status === "paid" ? "Payroll paid via WPS" : latestRun?.wpsFileUrl ? "WPS file generated, pending payment" : "WPS file not generated for current month",
         weight: 25,
-<<<<<<< Updated upstream
-        meta: { variant: wpsDetailVariant },
-=======
         meta: { variant: wpsVariant },
->>>>>>> Stashed changes
       });
 
       // Calculate overall score

@@ -40,51 +40,6 @@
   "permits": "التصاريح",
   "alerts": "التنبيهات",
   "overdueAr": "ذمم مدينة متأخرة",
-<<<<<<< Updated upstream
-  "omanisationCardTitle": "حصة التعمين",
-  "omaniOfEmployees": "{{omani}} عماني من أصل {{total}} موظف",
-  "target": "المستهدف",
-  "gapLabel": "الفجوة: {{gap}}٪",
-  "byDepartment": "حسب القسم",
-  "pasiCardTitle": "مساهمات PASI — {{month}}",
-  "pasiAuthorityHint": "الهيئة العامة للتأمينات الاجتماعية",
-  "employeesEnrolled": "{{count}} موظف مسجل",
-  "pasiStatus": {
-    "not_calculated": "غير محسوب",
-    "paid": "مدفوع",
-    "approved": "معتمد",
-    "draft": "مسودة"
-  },
-  "viewPayroll": "عرض الرواتب",
-  "wpsCardTitle": "حالة WPS — {{month}}",
-  "wpsEmployees": "{{count}} موظف",
-  "wpsStatus": {
-    "not_generated": "غير مُنشأ",
-    "generated": "مُنشأ",
-    "submitted": "مُرسل",
-    "paid": "مدفوع"
-  },
-  "downloadWpsFile": "تنزيل ملف WPS",
-  "permitMatrixTitle": "مصفوفة صلاحية تصاريح العمل",
-  "legendValid": "ساري",
-  "legendExpiring": "ينتهي قريباً",
-  "legendExpired": "منتهٍ",
-  "legendNoPermit": "بدون تصريح",
-  "summaryValid": "ساري",
-  "summaryExpiring": "ينتهي (30 يوماً)",
-  "summaryExpired": "منتهٍ",
-  "summaryTotalEmployees": "إجمالي الموظفين",
-  "deptColDepartment": "القسم",
-  "deptColTotal": "الإجمالي",
-  "deptColValid": "ساري",
-  "deptColExpiring": "ينتهي قريباً",
-  "deptColExpired": "منتهٍ",
-  "deptColNoPermit": "بدون تصريح",
-  "permitMatrixEmpty": "لا توجد بيانات موظفين. أضف موظفين لعرض المصفوفة.",
-  "manageWorkforce": "إدارة القوى العاملة",
-  "triggerRenewals": "تشغيل التجديدات",
-  "unassignedDepartment": "غير معيّن"
-=======
   "weight": "الوزن",
   "byDepartment": "حسب القسم",
   "target": "المستهدف",
@@ -157,5 +112,4 @@
     "not_generated": "لم يُنشأ بعد"
   },
   "unassignedDepartment": "غير مُعيَّن"
->>>>>>> Stashed changes
 }

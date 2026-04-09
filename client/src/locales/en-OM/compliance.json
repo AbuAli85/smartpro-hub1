@@ -40,32 +40,6 @@
   "permits": "Permits",
   "alerts": "Alerts",
   "overdueAr": "Overdue AR",
-<<<<<<< Updated upstream
-  "omanisationCardTitle": "Omanisation Quota",
-  "omaniOfEmployees": "{{omani}} Omani of {{total}} employees",
-  "target": "Target",
-  "gapLabel": "Gap: {{gap}}%",
-  "byDepartment": "By department",
-  "pasiCardTitle": "PASI Contributions — {{month}}",
-  "pasiAuthorityHint": "Public Authority for Social Insurance",
-  "employeesEnrolled": "{{count}} employees enrolled",
-  "pasiStatus": {
-    "not_calculated": "Not Calculated",
-    "paid": "Paid",
-    "approved": "Approved",
-    "draft": "Draft"
-  },
-  "viewPayroll": "View Payroll",
-  "wpsCardTitle": "WPS Status — {{month}}",
-  "wpsEmployees": "{{count}} employees",
-  "wpsStatus": {
-    "not_generated": "Not Generated",
-    "generated": "Generated",
-    "submitted": "Submitted",
-    "paid": "Paid"
-  },
-  "downloadWpsFile": "Download WPS File",
-=======
   "weight": "Weight",
   "byDepartment": "By Department",
   "target": "Target",
@@ -81,27 +55,10 @@
   "omanisationOf": "{{omani}} Omani of {{total}} employees",
   "pasiCardTitle": "PASI Contributions — {{month}}",
   "wpsCardTitle": "WPS Status — {{month}}",
->>>>>>> Stashed changes
   "permitMatrixTitle": "Work Permit Validity Matrix",
   "legendValid": "Valid",
   "legendExpiring": "Expiring",
   "legendExpired": "Expired",
-<<<<<<< Updated upstream
-  "legendNoPermit": "No permit",
-  "summaryValid": "Valid",
-  "summaryExpiring": "Expiring (30d)",
-  "summaryExpired": "Expired",
-  "summaryTotalEmployees": "Total employees",
-  "deptColDepartment": "Department",
-  "deptColTotal": "Total",
-  "deptColValid": "Valid",
-  "deptColExpiring": "Expiring",
-  "deptColExpired": "Expired",
-  "deptColNoPermit": "No permit",
-  "permitMatrixEmpty": "No employee data available. Add employees to see the permit matrix.",
-  "manageWorkforce": "Manage workforce",
-  "triggerRenewals": "Trigger renewals",
-=======
   "legendNoPermit": "No Permit",
   "summaryExpiring30d": "Expiring (30d)",
   "summaryTotalEmployees": "Total Employees",
@@ -154,6 +111,5 @@
     "generated": "GENERATED",
     "not_generated": "Not Generated"
   },
->>>>>>> Stashed changes
   "unassignedDepartment": "Unassigned"
 }

@@ -11,12 +11,7 @@ import {
 } from "lucide-react";
 import { Link } from "wouter";
 import { format } from "date-fns";
-<<<<<<< Updated upstream
-import { arSA } from "date-fns/locale/ar-SA";
-import { enUS } from "date-fns/locale/en-US";
-=======
 import { ar as arLocale, enUS } from "date-fns/locale";
->>>>>>> Stashed changes
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 
@@ -119,10 +114,6 @@ function formatWpsStatusLabel(status: string | undefined, t: TFunction<"complian
 
 export default function ComplianceDashboardPage() {
   const { t, i18n } = useTranslation("compliance");
-<<<<<<< Updated upstream
-  const dateLocale = i18n.language === "ar-OM" ? arSA : enUS;
-=======
->>>>>>> Stashed changes
   const { user } = useAuth();
   const isPlatform = seesPlatformOperatorNav(user);
   const { activeCompanyId } = useActiveCompany();
@@ -131,12 +122,8 @@ export default function ComplianceDashboardPage() {
   const now = new Date();
   const currentMonth = now.getMonth() + 1;
   const currentYear = now.getFullYear();
-<<<<<<< Updated upstream
-  const monthYearLabel = format(now, "MMMM yyyy", { locale: dateLocale });
-=======
   const isArabic = i18n.language === "ar-OM";
   const dateFnsLocale = isArabic ? arLocale : enUS;
->>>>>>> Stashed changes
 
   const { data: score, isLoading: scoreLoading, refetch } = trpc.compliance.getComplianceScore.useQuery(companyScope, {
     enabled: scopeEnabled,
@@ -169,30 +156,6 @@ export default function ComplianceDashboardPage() {
     !scoreLoading &&
     (failedChecks > 0 || wpsBlocked || permitCritical || pasiOpen || omanGap || arRisk || payrollBlocked);
 
-<<<<<<< Updated upstream
-  const attentionParts: string[] = [];
-  if (failedChecks > 0) attentionParts.push(t("attention.failedChecks", { count: failedChecks }));
-  if (omanGap) attentionParts.push(t("attention.omanisationGap", { gap: omanisation?.gap ?? 0 }));
-  if (pasiOpen) attentionParts.push(t("attention.pasiUnsettled"));
-  if (wpsBlocked) attentionParts.push(t("attention.wpsNotPaid"));
-  if (permitCritical) {
-    attentionParts.push(
-      t("attention.permitsExpiredExpiring", {
-        expired: permitMatrix?.summary.expired ?? 0,
-        expiring: permitMatrix?.summary.expiring ?? 0,
-      }),
-    );
-  }
-  if (arRisk) {
-    attentionParts.push(
-      t("attention.overdueAr", {
-        amount: (opsSnapshot?.overdueInvoices?.totalOmr ?? 0).toFixed(3),
-        count: opsSnapshot?.overdueInvoices?.count ?? 0,
-      }),
-    );
-  }
-  if (payrollBlocked) attentionParts.push(t("attention.payrollBlocked"));
-=======
   /** Translate a check using its stable id + status + meta */
   function localizeCheck(check: {
     id?: string;
@@ -254,7 +217,6 @@ export default function ComplianceDashboardPage() {
   ].filter(Boolean);
 
   const monthLabel = format(now, "MMMM yyyy", { locale: dateFnsLocale });
->>>>>>> Stashed changes
 
   return (
     <div className="p-6 space-y-6 max-w-7xl">
@@ -267,11 +229,7 @@ export default function ComplianceDashboardPage() {
           <div>
             <h1 className="text-2xl font-black tracking-tight">{t("title")}</h1>
             <p className="text-sm text-muted-foreground">
-<<<<<<< Updated upstream
-              {t("subtitle", { month: monthYearLabel })}
-=======
               {t("subtitle", { month: monthLabel })}
->>>>>>> Stashed changes
             </p>
           </div>
         </div>
@@ -344,25 +302,6 @@ export default function ComplianceDashboardPage() {
         <div className="lg:col-span-2 space-y-3">
           <h3 className="font-bold text-sm text-muted-foreground uppercase tracking-wide">{t("checksSection")}</h3>
           {score?.checks.map((check, i) => {
-<<<<<<< Updated upstream
-            const row = check as ComplianceCheckRow;
-            const { name, detail } = localizedCheckNameAndDetail(row, t);
-            return (
-            <Card key={i} className={`border-l-4 shadow-sm ${check.status === "pass" ? "border-l-green-500" : check.status === "warn" ? "border-l-orange-500" : "border-l-red-500"}`}>
-              <CardContent className="p-4">
-                <div className="flex items-start gap-3">
-                  <StatusIcon status={check.status} />
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="font-semibold text-sm">{name}</p>
-                      <span className="text-xs text-muted-foreground shrink-0">{t("weightLabel", { weight: check.weight })}</span>
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-0.5">{detail}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-=======
             const { name, detail } = localizeCheck(check);
             return (
               <Card key={i} className={`border-l-4 shadow-sm ${check.status === "pass" ? "border-l-green-500" : check.status === "warn" ? "border-l-orange-500" : "border-l-red-500"}`}>
@@ -379,7 +318,6 @@ export default function ComplianceDashboardPage() {
                   </div>
                 </CardContent>
               </Card>
->>>>>>> Stashed changes
             );
           })}
         </div>
@@ -403,22 +341,14 @@ export default function ComplianceDashboardPage() {
                   <div>
                     <p className="text-4xl font-black">{omanisation?.pct ?? 0}%</p>
                     <p className="text-sm text-muted-foreground">
-<<<<<<< Updated upstream
-                      {t("omaniOfEmployees", { omani: omanisation?.omani ?? 0, total: omanisation?.total ?? 0 })}
-=======
                       {t("omanisationOf", { omani: omanisation?.omani ?? 0, total: omanisation?.total ?? 0 })}
->>>>>>> Stashed changes
                     </p>
                   </div>
                   <div className="text-right">
                     <p className="text-sm font-semibold text-muted-foreground">{t("target")}</p>
                     <p className="text-2xl font-black text-emerald-600">{omanisation?.targetPct ?? 35}%</p>
                     {(omanisation?.gap ?? 0) > 0 && (
-<<<<<<< Updated upstream
-                      <p className="text-xs text-red-600 font-semibold">{t("gapLabel", { gap: omanisation?.gap ?? 0 })}</p>
-=======
                       <p className="text-xs text-red-600 font-semibold">{t("gap")}: {omanisation?.gap}%</p>
->>>>>>> Stashed changes
                     )}
                   </div>
                 </div>
@@ -429,13 +359,7 @@ export default function ComplianceDashboardPage() {
                   />
                   <div className="flex justify-between text-xs text-muted-foreground mt-1">
                     <span>0%</span>
-<<<<<<< Updated upstream
-                    <span className="text-orange-600 font-semibold">
-                      {t("target")}: {omanisation?.targetPct ?? 35}%
-                    </span>
-=======
                     <span className="text-orange-600 font-semibold">{t("target")}: {omanisation?.targetPct ?? 35}%</span>
->>>>>>> Stashed changes
                     <span>100%</span>
                   </div>
                 </div>
@@ -444,13 +368,7 @@ export default function ComplianceDashboardPage() {
                     <p className="text-xs font-semibold text-muted-foreground uppercase">{t("byDepartment")}</p>
                     {omanisation?.byDepartment.slice(0, 5).map((dept) => (
                       <div key={dept.department} className="flex items-center gap-2">
-<<<<<<< Updated upstream
-                        <span className="text-xs w-28 truncate text-muted-foreground" title={formatDepartmentLabel(dept.department, t)}>
-                          {formatDepartmentLabel(dept.department, t)}
-                        </span>
-=======
                         <span className="text-xs w-28 truncate text-muted-foreground">{formatDeptLabel(dept.department)}</span>
->>>>>>> Stashed changes
                         <Progress value={dept.pct} className={`flex-1 h-1.5 ${dept.meetsTarget ? "[&>div]:bg-green-500" : "[&>div]:bg-orange-500"}`} />
                         <span className="text-xs font-semibold w-8 text-right">{dept.pct}%</span>
                       </div>
@@ -468,11 +386,7 @@ export default function ComplianceDashboardPage() {
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-bold flex items-center gap-2">
                 <DollarSign className="w-4 h-4 text-blue-600" />
-<<<<<<< Updated upstream
-                {t("pasiCardTitle", { month: monthYearLabel })}
-=======
                 {t("pasiCardTitle", { month: monthLabel })}
->>>>>>> Stashed changes
               </CardTitle>
               <p className="text-xs text-muted-foreground font-normal">{t("pasiAuthorityHint")}</p>
             </CardHeader>
@@ -480,13 +394,9 @@ export default function ComplianceDashboardPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-3xl font-black">OMR {(pasi?.totalContribution ?? 0).toFixed(3)}</p>
-<<<<<<< Updated upstream
-                  <p className="text-sm text-muted-foreground">{t("employeesEnrolled", { count: pasi?.employees?.length ?? 0 })}</p>
-=======
                   <p className="text-sm text-muted-foreground">
                     {t("employeesEnrolled", { count: pasi?.employees?.length ?? 0 })}
                   </p>
->>>>>>> Stashed changes
                 </div>
                 <div className={`px-3 py-1.5 rounded-full text-sm font-bold ${
                   pasi?.status === "paid" ? "bg-green-100 text-green-700" :
@@ -494,11 +404,7 @@ export default function ComplianceDashboardPage() {
                   pasi?.status === "not_calculated" ? "bg-gray-100 text-gray-600" :
                   "bg-orange-100 text-orange-700"
                 }`}>
-<<<<<<< Updated upstream
-                  {formatPasiStatusLabel(pasi?.status, t)}
-=======
                   {pasiStatusLabel(pasi?.status)}
->>>>>>> Stashed changes
                 </div>
               </div>
               <Link href="/payroll">
@@ -513,24 +419,16 @@ export default function ComplianceDashboardPage() {
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-bold flex items-center gap-2">
                 <FileText className="w-4 h-4 text-purple-600" />
-<<<<<<< Updated upstream
-                {t("wpsCardTitle", { month: monthYearLabel })}
-=======
                 {t("wpsCardTitle", { month: monthLabel })}
->>>>>>> Stashed changes
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-3xl font-black">OMR {(wps?.totalNetOmr ?? 0).toFixed(3)}</p>
-<<<<<<< Updated upstream
-                  <p className="text-sm text-muted-foreground">{t("wpsEmployees", { count: wps?.employeeCount ?? 0 })}</p>
-=======
                   <p className="text-sm text-muted-foreground">
                     {t("employees", { count: wps?.employeeCount ?? 0 })}
                   </p>
->>>>>>> Stashed changes
                 </div>
                 <div className={`px-3 py-1.5 rounded-full text-sm font-bold ${
                   wps?.status === "paid" ? "bg-green-100 text-green-700" :
@@ -538,22 +436,14 @@ export default function ComplianceDashboardPage() {
                   wps?.status === "generated" ? "bg-yellow-100 text-yellow-700" :
                   "bg-red-100 text-red-700"
                 }`}>
-<<<<<<< Updated upstream
-                  {formatWpsStatusLabel(wps?.status, t)}
-=======
                   {wpsStatusLabel(wps?.status)}
->>>>>>> Stashed changes
                 </div>
               </div>
               {wps?.wpsFileUrl && (
                 <a href={wps.wpsFileUrl} target="_blank" rel="noopener noreferrer">
                   <Button variant="outline" size="sm" className="mt-3 w-full text-xs gap-1">
                     <FileText className="w-3 h-3" />
-<<<<<<< Updated upstream
-                    {t("downloadWpsFile")}
-=======
                     {t("downloadWps")}
->>>>>>> Stashed changes
                   </Button>
                 </a>
               )}
@@ -570,11 +460,7 @@ export default function ComplianceDashboardPage() {
               <Globe className="w-4 h-4 text-indigo-600" />
               {t("permitMatrixTitle")}
             </CardTitle>
-<<<<<<< Updated upstream
-            <div className="flex flex-wrap gap-3 text-xs">
-=======
             <div className="flex gap-3 text-xs">
->>>>>>> Stashed changes
               <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500 inline-block" />{t("legendValid")}</span>
               <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-orange-500 inline-block" />{t("legendExpiring")}</span>
               <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500 inline-block" />{t("legendExpired")}</span>
@@ -586,15 +472,9 @@ export default function ComplianceDashboardPage() {
           {/* Summary */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
             {[
-<<<<<<< Updated upstream
-              { labelKey: "summaryValid" as const, value: permitMatrix?.summary.valid ?? 0, color: "text-green-600" },
-              { labelKey: "summaryExpiring" as const, value: permitMatrix?.summary.expiring ?? 0, color: "text-orange-600" },
-              { labelKey: "summaryExpired" as const, value: permitMatrix?.summary.expired ?? 0, color: "text-red-600" },
-=======
               { labelKey: "legendValid" as const, value: permitMatrix?.summary.valid ?? 0, color: "text-green-600" },
               { labelKey: "summaryExpiring30d" as const, value: permitMatrix?.summary.expiring ?? 0, color: "text-orange-600" },
               { labelKey: "legendExpired" as const, value: permitMatrix?.summary.expired ?? 0, color: "text-red-600" },
->>>>>>> Stashed changes
               { labelKey: "summaryTotalEmployees" as const, value: permitMatrix?.summary.total ?? 0, color: "text-slate-700" },
             ].map((s) => (
               <div key={s.labelKey} className="text-center">
@@ -609,31 +489,18 @@ export default function ComplianceDashboardPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b text-xs text-muted-foreground">
-<<<<<<< Updated upstream
-                    <th scope="col" className="text-start py-2 font-semibold">{t("deptColDepartment")}</th>
-                    <th scope="col" className="text-center py-2 font-semibold">{t("deptColTotal")}</th>
-                    <th scope="col" className="text-center py-2 font-semibold text-green-600">{t("deptColValid")}</th>
-                    <th scope="col" className="text-center py-2 font-semibold text-orange-600">{t("deptColExpiring")}</th>
-                    <th scope="col" className="text-center py-2 font-semibold text-red-600">{t("deptColExpired")}</th>
-                    <th scope="col" className="text-center py-2 font-semibold text-gray-500">{t("deptColNoPermit")}</th>
-=======
                     <th scope="col" className="text-left py-2 font-semibold">{t("colDepartment")}</th>
                     <th scope="col" className="text-center py-2 font-semibold">{t("colTotal")}</th>
                     <th scope="col" className="text-center py-2 font-semibold text-green-600">{t("colValid")}</th>
                     <th scope="col" className="text-center py-2 font-semibold text-orange-600">{t("colExpiring")}</th>
                     <th scope="col" className="text-center py-2 font-semibold text-red-600">{t("colExpired")}</th>
                     <th scope="col" className="text-center py-2 font-semibold text-gray-500">{t("colNoPermit")}</th>
->>>>>>> Stashed changes
                   </tr>
                 </thead>
                 <tbody className="divide-y">
                   {permitMatrix?.byDepartment.map((dept) => (
                     <tr key={dept.department} className="hover:bg-muted/30">
-<<<<<<< Updated upstream
-                      <td className="py-2 font-medium">{formatDepartmentLabel(dept.department, t)}</td>
-=======
                       <td className="py-2 font-medium">{formatDeptLabel(dept.department)}</td>
->>>>>>> Stashed changes
                       <td className="text-center py-2">{dept.total}</td>
                       <td className="text-center py-2 text-green-600 font-semibold">{dept.valid}</td>
                       <td className="text-center py-2 text-orange-600 font-semibold">{dept.expiring}</td>
@@ -646,11 +513,7 @@ export default function ComplianceDashboardPage() {
             </div>
           )}
           {(permitMatrix?.byDepartment?.length ?? 0) === 0 && (
-<<<<<<< Updated upstream
-            <p className="text-sm text-muted-foreground text-center py-6">{t("permitMatrixEmpty")}</p>
-=======
             <p className="text-sm text-muted-foreground text-center py-6">{t("noEmployeeData")}</p>
->>>>>>> Stashed changes
           )}
           <div className="mt-4 flex gap-2">
             <Link href="/workforce">

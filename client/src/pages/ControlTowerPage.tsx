@@ -10,6 +10,7 @@ import { buildPriorityItems } from "@/features/controlTower/priorityEngine";
 import { priorityActionIdsFromItems, queueItemsAfterPriorities } from "@/features/controlTower/controlTowerLayout";
 import {
   ActionQueueSection,
+  ExecutiveCommitmentsSection,
   ExecutiveDecisionSection,
   ExecutiveHeader,
   KpiSnapshotSection,
@@ -17,6 +18,7 @@ import {
   RiskStrip,
   SupportContextFooter,
 } from "@/features/controlTower/components";
+import { buildExecutiveCommitments } from "@/features/controlTower/commitments";
 import { buildExecutiveDecisionPrompts } from "@/features/controlTower/decisionPrompts";
 import { seesPlatformOperatorNav } from "@shared/clientNav";
 import { formatEscalationSummaryLine, summarizeEscalationFromItems } from "@/features/controlTower/escalationMeta";
@@ -295,6 +297,28 @@ export default function ControlTowerPage() {
     previousSnapshot,
   ]);
 
+  const executiveCommitments = useMemo(() => {
+    if (!queueScopeActive || actionsLoading) return [];
+    return buildExecutiveCommitments({
+      decisionPrompts: executiveDecisionPrompts,
+      queueItems: actionItems,
+      priorityItems,
+      domainSummaries: domainNarrativeSummaries,
+      outcomeSummary: outcomeComparable ? outcomeSummary : null,
+      trendComparison,
+    });
+  }, [
+    queueScopeActive,
+    actionsLoading,
+    executiveDecisionPrompts,
+    actionItems,
+    priorityItems,
+    domainNarrativeSummaries,
+    outcomeSummary,
+    trendComparison,
+    outcomeComparable,
+  ]);
+
   useEffect(() => {
     if (!queueScopeActive || actionsLoading) return;
     saveSnapshot(currentSnapshot, activeCompanyId, user?.id ?? null);
@@ -311,6 +335,7 @@ export default function ControlTowerPage() {
         outcomeSummaryLine={outcomeSummaryLine}
         executiveNarrativeLines={executiveNarrativeLines}
         leadershipInterventionCount={executiveDecisionPrompts.length}
+        operatingCheckpointsCount={executiveCommitments.length}
         queueStatus={queueStatus}
         queueScopeActive={queueScopeActive}
         actionsLoading={actionsLoading}
@@ -329,6 +354,8 @@ export default function ControlTowerPage() {
         )}
 
         <ExecutiveDecisionSection prompts={executiveDecisionPrompts} />
+
+        <ExecutiveCommitmentsSection commitments={executiveCommitments} />
 
         <PrioritiesSection
           queueScopeActive={queueScopeActive}

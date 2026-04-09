@@ -106,7 +106,7 @@ import MultiCompanyRolesPage from "./pages/MultiCompanyRolesPage";
 import EmailPreviewPage from "./pages/EmailPreviewPage";
 import UserRolesPage from "./pages/UserRolesPage";
 import ExecutiveDashboardPage from "./pages/ExecutiveDashboardPage";
-import ControlTowerRedirect from "./pages/ControlTowerRedirect";
+import ControlTowerPage from "./pages/ControlTowerPage";
 function PublicRoutes() {
   return (
     <Switch>
@@ -122,9 +122,9 @@ function AppRoutes() {
   return (
     <PlatformLayout>
       <Switch>
-        <Route path="/" component={Dashboard} />
+        <Route path="/" component={ControlTowerPage} />
         <Route path="/dashboard" component={Dashboard} />
-        <Route path="/control-tower" component={ControlTowerRedirect} />
+        <Route path="/control-tower" component={ControlTowerPage} />
         <Route path="/sanad" component={SanadPage} />
         <Route path="/sanad/office-dashboard" component={SanadOfficeDashboardPage} />
         <Route path="/pro" component={ProServicesPage} />

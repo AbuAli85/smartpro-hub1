@@ -3,7 +3,8 @@ import { useTranslation } from "react-i18next";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { getHiddenNavHrefs } from "@/lib/navVisibility";
-import { clientNavItemVisible, normalizeClientPath, seesPlatformOperatorNav, getRoleDefaultRoute } from "@shared/clientNav";
+import { clientNavItemVisible, normalizeClientPath, seesPlatformOperatorNav } from "@shared/clientNav";
+import { useSmartRoleHomeRedirect } from "@/hooks/useSmartRoleHomeRedirect";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle, ArrowRight, ArrowUpRight, BarChart3,
@@ -12,7 +13,7 @@ import {
   Globe, Zap, RefreshCw, Award, MapPin, Calendar,
   ChevronDown, ChevronRight, Activity, Bell, Target, CircleDollarSign, Truck, ClipboardList, Download,
 } from "lucide-react";
-import { Link, useLocation } from "wouter";
+import { Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -116,32 +117,12 @@ export default function Dashboard() {
   const { t, i18n } = useTranslation(["dashboard", "nav", "common", "executive"]);
   const { user } = useAuth();
   const { activeCompanyId, activeCompany, loading: companyLoading, companies } = useActiveCompany();
-  const [, navigate] = useLocation();
   const { data: stats, isLoading } = trpc.companies.myStats.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
   const { data: myCompany, isLoading: myCompanyLoading } = trpc.companies.myCompany.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
   const [navPrefsEpoch, setNavPrefsEpoch] = useState(0);
 
   // Fetch custom role redirect settings for this company
-  const { data: roleRedirectData } = trpc.companies.getRoleRedirectSettings.useQuery(
-    { companyId: activeCompanyId ?? 0 },
-    { enabled: activeCompanyId != null && !companyLoading }
-  );
-
-  // Smart redirect: send non-admin roles to their appropriate page (custom or system default)
-  useEffect(() => {
-    if (companyLoading) return;
-    const memberRole = activeCompany?.role ?? null;
-    if (!memberRole) return;
-    // Platform admins and company_admin stay on the main dashboard
-    if (seesPlatformOperatorNav(user)) return;
-    if (memberRole === "company_admin" || (memberRole as string) === "owner") return;
-    // Check for a custom redirect configured by the company admin; fall back to system default
-    const customRoute = roleRedirectData?.settings?.[memberRole];
-    const targetRoute = customRoute || getRoleDefaultRoute(memberRole);
-    if (targetRoute && targetRoute !== "/dashboard" && targetRoute !== "/" && targetRoute !== "/control-tower") {
-      navigate(targetRoute);
-    }
-  }, [activeCompany?.role, companyLoading, roleRedirectData]);
+  useSmartRoleHomeRedirect();
 
   useEffect(() => {
     const fn = () => setNavPrefsEpoch((n) => n + 1);

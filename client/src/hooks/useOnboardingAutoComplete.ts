@@ -15,6 +15,7 @@ const ROUTE_STEP_MAP: Array<{ prefix: string; stepKey: string }> = [
   { prefix: "/company-admin", stepKey: "invite_team" },
   { prefix: "/company/team-access", stepKey: "invite_team" },
   { prefix: "/dashboard", stepKey: "explore_dashboard" },
+  { prefix: "/control-tower", stepKey: "explore_dashboard" },
   { prefix: "/hr/employees", stepKey: "add_employee" },
   { prefix: "/my-team", stepKey: "add_employee" },
   { prefix: "/contracts", stepKey: "create_contract" },

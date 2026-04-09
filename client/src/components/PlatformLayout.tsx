@@ -56,6 +56,7 @@ import {
   Sparkles,
   UserSquare2,
   Crown,
+  Radar,
 } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
 import { useTranslation } from "react-i18next";
@@ -102,14 +103,21 @@ interface NavItem {
 }
 
 const navGroups = [
+  // ── CONTROL (decision layer) ───────────────────────────────────────────────
+  {
+    label: "Control",
+    items: [
+      { label: "Control Tower", href: "/control-tower", icon: <Radar size={18} /> },
+    ],
+  },
   // ── OVERVIEW ──────────────────────────────────────────────────────────────
   {
     label: "Overview",
     items: [
-      { label: "Executive Control Tower", href: "/dashboard", icon: <LayoutDashboard size={18} /> },
+      { label: "Executive Dashboard", href: "/dashboard", icon: <LayoutDashboard size={18} /> },
       { label: "Operations Centre", href: "/operations", icon: <Activity size={18} /> },
       { label: "Analytics", href: "/analytics", icon: <BarChart3 size={18} /> },
-      { label: "Compliance", href: "/compliance", icon: <CheckCircle2 size={18} /> },
+      { label: "Compliance Centre", href: "/compliance", icon: <CheckCircle2 size={18} /> },
     ],
   },
   // ── GOVERNMENT SERVICES ───────────────────────────────────────────────────
@@ -141,24 +149,26 @@ const navGroups = [
       { label: "Company Documents", href: "/company/documents", icon: <FolderOpen size={18} /> },
     ],
   },
-  // ── BUSINESS ──────────────────────────────────────────────────────────────
+  // ── OPERATIONS (commercial) ────────────────────────────────────────────────
   {
-    label: "Business",
+    label: "Operations",
     items: [
       { label: "Company Hub", href: "/company/hub", icon: <Building2 size={18} /> },
+      { label: "CRM", href: "/crm", icon: <Users size={18} /> },
       { label: "Quotations", href: "/quotations", icon: <Target size={18} /> },
       { label: "Contracts", href: "/contracts", icon: <FileText size={18} /> },
       { label: "Marketplace", href: "/marketplace", icon: <ShoppingBag size={18} /> },
-      { label: "CRM", href: "/crm", icon: <Users size={18} /> },
     ],
   },
-  // ── HUMAN RESOURCES ───────────────────────────────────────────────────────
-  // Single source of truth for all employee and HR data.
+  // ── PEOPLE (HR) ───────────────────────────────────────────────────────────
   {
-    label: "Human Resources",
+    label: "People",
     items: [
-      // People
       { label: "My Team", href: "/my-team", icon: <Users size={18} /> },
+      { label: "Attendance", href: "/hr/attendance", icon: <Clock size={18} /> },
+      { label: "Payroll Engine", href: "/payroll", icon: <Banknote size={18} /> },
+      { label: "Performance & Growth", href: "/hr/performance", icon: <Sparkles size={18} /> },
+      { label: "Task Manager", href: "/hr/tasks", icon: <ListTodo size={18} /> },
       { label: "Recruitment", href: "/hr/recruitment", icon: <BookOpen size={18} /> },
       { label: "Departments", href: "/hr/departments", icon: <Building2 size={18} /> },
       { label: "Org Chart", href: "/hr/org-chart", icon: <Network size={18} /> },
@@ -166,43 +176,34 @@ const navGroups = [
       { label: "HR Performance & Automation", href: "/hr/executive-dashboard", icon: <Globe size={18} /> },
       { label: "Org Structure", href: "/hr/org-structure", icon: <LayoutGrid size={18} /> },
       { label: "Profile Completeness", href: "/hr/completeness", icon: <UserCheck size={18} /> },
-      // Pay & Leave
       { label: "Leave & Requests", href: "/hr/leave", icon: <Calendar size={18} /> },
       { label: "Leave Balances", href: "/hr/leave-balance", icon: <CalendarCheck size={18} /> },
       { label: "Finance Overview", href: "/finance/overview", icon: <TrendingDown size={18} /> },
-      { label: "Payroll Engine", href: "/payroll", icon: <Banknote size={18} /> },
-      // Attendance & Scheduling
-      { label: "Attendance", href: "/hr/attendance", icon: <Clock size={18} /> },
       { label: "Attendance Sites", href: "/hr/attendance-sites", icon: <QrCode size={18} /> },
       { label: "Shift Templates", href: "/hr/shift-templates", icon: <CalendarDays size={18} /> },
       { label: "Employee Schedules", href: "/hr/employee-schedules", icon: <CalendarRange size={18} /> },
       { label: "Holiday Calendar", href: "/hr/holidays", icon: <SunMedium size={18} /> },
       { label: "Today's Board", href: "/hr/today-board", icon: <CalendarClock size={18} /> },
       { label: "Monthly Report", href: "/hr/monthly-report", icon: <BarChart2 size={18} /> },
-      // Documents & Comms
       { label: "HR Documents", href: "/hr/documents-dashboard", icon: <FileText size={18} /> },
-      { label: "Document Expiry", href: "/hr/expiry-dashboard", icon: <AlertTriangle size={18} /> },
       { label: "HR Letters", href: "/hr/letters", icon: <Mail size={18} /> },
       { label: "Promoter Agreements", href: "/hr/contracts", icon: <UserSquare2 size={18} /> },
       { label: "Employee Requests", href: "/hr/employee-requests", icon: <ClipboardList size={18} /> },
-      { label: "Task Manager", href: "/hr/tasks", icon: <ListTodo size={18} /> },
       { label: "Announcements", href: "/hr/announcements", icon: <Megaphone size={18} /> },
-      { label: "Performance & Growth", href: "/hr/performance", icon: <Sparkles size={18} /> },
       { label: "KPI & Performance", href: "/hr/kpi", icon: <Target size={18} /> },
     ],
   },
-  // ── WORKFORCE HUB ─────────────────────────────────────────────────────────
-  // Government workforce compliance: work permits, MOL cases, portal sync.
-  // Distinct from HR: focuses on regulatory/government data, not day-to-day HR.
+  // ── COMPLIANCE (regulatory / workforce) ─────────────────────────────────
   {
-    label: "Workforce Hub",
+    label: "Compliance",
     items: [
-      { label: "Workforce Dashboard", href: "/workforce", icon: <BarChart3 size={18} /> },
-      { label: "Workforce Employees", href: "/workforce/employees", icon: <Briefcase size={18} /> },
       { label: "Work Permits", href: "/workforce/permits", icon: <Shield size={18} /> },
       { label: "Government Cases", href: "/workforce/cases", icon: <ClipboardCheck size={18} /> },
-      { label: "Document Vault", href: "/workforce/documents", icon: <FolderOpen size={18} /> },
+      { label: "Expiry Dashboard", href: "/hr/expiry-dashboard", icon: <AlertTriangle size={18} /> },
       { label: "Portal Sync", href: "/workforce/sync", icon: <RefreshCw size={18} /> },
+      { label: "Workforce Dashboard", href: "/workforce", icon: <BarChart3 size={18} /> },
+      { label: "Workforce Employees", href: "/workforce/employees", icon: <Briefcase size={18} /> },
+      { label: "Document Vault", href: "/workforce/documents", icon: <FolderOpen size={18} /> },
     ],
   },
   // ── SHARED OMANI PRO ──────────────────────────────────────────────────────
@@ -235,21 +236,23 @@ const navGroups = [
 
 // Map English label strings to nav translation keys
 const NAV_GROUP_KEYS: Record<string, string> = {
+  "Control": "control",
   "Overview": "overview",
   "Government Services": "governmentServices",
   "My Company": "myCompany",
-  "Business": "business",
-  "Human Resources": "humanResources",
-  "Workforce Hub": "workforceHub",
+  "Operations": "operations",
+  "People": "people",
+  "Compliance": "compliance",
   "Shared Omani PRO": "sharedOmaniPro",
   "Platform": "platform",
   "Your company": "platform",
 };
 const NAV_ITEM_KEYS: Record<string, string> = {
-  "Executive Control Tower": "executiveControlTower",
+  "Control Tower": "controlTower",
+  "Executive Dashboard": "executiveDashboard",
   "Operations Centre": "operationsCentre",
   "Analytics": "analytics",
-  "Compliance": "compliance",
+  "Compliance Centre": "complianceCentre",
   "Sanad Offices": "sanadOffices",
   "Office Dashboard": "officeDashboard",
   "Sanad Marketplace": "sanadMarketplace",
@@ -301,6 +304,7 @@ const NAV_ITEM_KEYS: Record<string, string> = {
   "Workforce Employees": "workforceEmployees",
   "Work Permits": "workPermits",
   "Government Cases": "governmentCases",
+  "Expiry Dashboard": "expiryDashboard",
   "Document Vault": "documentVault",
   "Portal Sync": "portalSync",
   "Officer Registry": "officerRegistry",

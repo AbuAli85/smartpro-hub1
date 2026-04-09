@@ -267,14 +267,14 @@ export function getMemberRoleColor(memberRole?: string | null): string {
  */
 export function getRoleDefaultRoute(memberRole?: string | null): string {
   switch (memberRole) {
-    case "company_admin": return "/dashboard";
+    case "company_admin": return "/control-tower";
     case "hr_admin": return "/hr/employees";
     case "finance_admin": return "/payroll";
     case "company_member": return "/my-portal";
-    case "reviewer": return "/dashboard";
-    case "external_auditor": return "/dashboard";
+    case "reviewer": return "/control-tower";
+    case "external_auditor": return "/control-tower";
     case "client": return "/client-portal";
-    default: return "/dashboard";
+    default: return "/control-tower";
   }
 }
 
@@ -299,6 +299,7 @@ export type ClientNavOptions = {
 export const NO_COMPANY_SHELL_HREFS = new Set<string>([
   "/",
   "/dashboard",
+  "/control-tower",
   "/onboarding",
   "/onboarding-guide",
   "/preferences",

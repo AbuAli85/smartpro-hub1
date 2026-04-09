@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Bell, BellRing, CheckCheck, ExternalLink, AlertTriangle, Info, CheckCircle, XCircle } from "lucide-react";
+import { Bell, BellRing, CheckCheck, ExternalLink, AlertTriangle, Info, CheckCircle, XCircle, ArrowUpRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -14,6 +14,7 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { useLocation } from "wouter";
 import { formatDistanceToNow } from "date-fns";
+import { useActionQueue } from "@/hooks/useActionQueue";
 
 const typeIcon = {
   info: <Info size={14} className="text-blue-500" />,
@@ -48,6 +49,10 @@ export function NotificationBell() {
     { limit: 20, unreadOnly: false, companyId: activeCompanyId ?? undefined },
     { enabled: open && automationQueriesEnabled },
   );
+
+  const { items: actionItems, isLoading: actionsLoading, isEmpty: actionsEmpty } = useActionQueue({
+    enabled: open && automationQueriesEnabled,
+  });
 
   const markRead = trpc.automation.markNotificationsRead.useMutation({
     onSuccess: () => {
@@ -90,12 +95,12 @@ export function NotificationBell() {
           )}
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-80 p-0" sideOffset={8}>
+      <PopoverContent align="end" className="w-96 p-0" sideOffset={8}>
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b">
           <div className="flex items-center gap-2">
             <Bell size={16} />
-            <span className="font-semibold text-sm">Notifications</span>
+            <span className="font-semibold text-sm">Inbox</span>
             {unreadCount > 0 && (
               <Badge variant="secondary" className="text-xs h-5 px-1.5">
                 {unreadCount} new
@@ -116,8 +121,65 @@ export function NotificationBell() {
           )}
         </div>
 
+        {/* Action queue (same logic as Control Tower) */}
+        {open && automationQueriesEnabled && (
+          <div className="px-4 py-3 border-b bg-muted/30">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-2">
+              Action queue
+            </p>
+            {actionsLoading ? (
+              <p className="text-xs text-muted-foreground">Loading actions…</p>
+            ) : actionsEmpty ? (
+              <div className="flex items-center gap-2 text-xs text-emerald-700 dark:text-emerald-400">
+                <CheckCircle size={14} />
+                All clear — nothing blocking
+              </div>
+            ) : (
+              <ul className="space-y-2">
+                {actionItems.slice(0, 5).map((a) => (
+                  <li key={a.id} className="flex items-start gap-2">
+                    <span
+                      className={`mt-0.5 shrink-0 h-2 w-2 rounded-full ${
+                        a.severity === "high" ? "bg-red-500" : a.severity === "medium" ? "bg-amber-500" : "bg-slate-400"
+                      }`}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-medium leading-snug line-clamp-2">{a.title}</p>
+                      <Button
+                        variant="link"
+                        className="h-auto p-0 text-[11px] gap-0.5"
+                        onClick={() => {
+                          navigate(a.href);
+                          setOpen(false);
+                        }}
+                      >
+                        Open <ArrowUpRight size={10} />
+                      </Button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full h-7 mt-2 text-xs text-muted-foreground"
+              onClick={() => {
+                navigate("/control-tower");
+                setOpen(false);
+              }}
+            >
+              View Control Tower
+            </Button>
+          </div>
+        )}
+
+        <p className="px-4 pt-3 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+          Notifications
+        </p>
+
         {/* Notification list */}
-        <ScrollArea className="max-h-[360px]">
+        <ScrollArea className="max-h-[320px]">
           {isLoading ? (
             <div className="py-8 text-center text-sm text-muted-foreground">Loading…</div>
           ) : notifications.length === 0 ? (
@@ -173,21 +235,33 @@ export function NotificationBell() {
         </ScrollArea>
 
         {/* Footer */}
-        {notifications.length > 0 && (
-          <>
-            <Separator />
-            <div className="px-4 py-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="w-full h-7 text-xs text-muted-foreground"
-                onClick={() => { navigate("/hr/workforce-intelligence"); setOpen(false); }}
-              >
-                View all in Workforce Intelligence →
-              </Button>
-            </div>
-          </>
-        )}
+        <Separator />
+        <div className="px-4 py-2 space-y-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-full h-7 text-xs"
+            onClick={() => {
+              navigate("/control-tower");
+              setOpen(false);
+            }}
+          >
+            Open Control Tower →
+          </Button>
+          {notifications.length > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full h-7 text-xs text-muted-foreground"
+              onClick={() => {
+                navigate("/hr/workforce-intelligence");
+                setOpen(false);
+              }}
+            >
+              Workforce Intelligence →
+            </Button>
+          )}
+        </div>
       </PopoverContent>
     </Popover>
   );

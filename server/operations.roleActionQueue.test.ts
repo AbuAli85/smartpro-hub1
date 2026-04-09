@@ -163,5 +163,8 @@ describe("operations.getRoleActionQueue", () => {
     expect(first?.reason).toEqual(expect.any(String));
     expect(first?.ownerUserId == null || typeof first?.ownerUserId === "string").toBe(true);
     expect(first?.dueAt == null || typeof first?.dueAt === "string").toBe(true);
+    if (first?.type === "permit_expiry") {
+      expect(first.href).toMatch(/^\/workforce\/permits\?status=(expired|expiring_soon)$/);
+    }
   });
 });

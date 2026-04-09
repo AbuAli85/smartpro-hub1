@@ -110,6 +110,7 @@ describe("Dashboard role queue widget", () => {
     expect(screen.getByText("Focus view")).toBeInTheDocument();
     expect(screen.getByText("Permits at risk")).toBeInTheDocument();
     expect(screen.getByText("Open permits list")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Open permits list" })).toHaveAttribute("href", "/workforce/permits?status=expired");
     expect(screen.getByText("No urgent work detected.")).toBeInTheDocument();
   });
 

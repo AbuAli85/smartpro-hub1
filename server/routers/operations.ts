@@ -342,7 +342,7 @@ export const operationsRouter = router({
             ownerUserId: null,
             dueAt: p.expiryDate ? p.expiryDate.toISOString() : null,
             status: overdue ? "overdue" : "pending",
-            href: "/workforce/permits",
+            href: overdue ? "/workforce/permits?status=expired" : "/workforce/permits?status=expiring_soon",
             reason: overdue
               ? "Work permit expiry date has passed."
               : "Work permit expires within the next 14 days.",

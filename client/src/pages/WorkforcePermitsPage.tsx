@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -42,6 +42,23 @@ type PermitItem = {
   daysToExpiry: number | null;
 };
 
+type PermitFilterState = {
+  statusFilter: "all" | "active" | "expiring_soon" | "expired" | "in_grace" | "cancelled";
+  expiringFilter: "all" | "30" | "90";
+};
+
+export function parsePermitFiltersFromSearch(search: string): PermitFilterState {
+  const raw = search.startsWith("?") ? search.slice(1) : search;
+  const params = new URLSearchParams(raw);
+  const status = (params.get("status") ?? "").toLowerCase();
+
+  if (status === "expired") return { statusFilter: "expired", expiringFilter: "all" };
+  if (status === "expiring_soon") return { statusFilter: "expiring_soon", expiringFilter: "all" };
+  if (status === "at_risk") return { statusFilter: "all", expiringFilter: "30" };
+
+  return { statusFilter: "all", expiringFilter: "all" };
+}
+
 function daysLabel(days: number | null) {
   if (days == null) return "—";
   if (days < 0) return `Expired ${Math.abs(days)}d ago`;
@@ -51,10 +68,11 @@ function daysLabel(days: number | null) {
 
 export default function WorkforcePermitsPage() {
   const utils = trpc.useUtils();
-  const [, navigate] = useLocation();
+  const [location, navigate] = useLocation();
+  const initialFilters = parsePermitFiltersFromSearch(typeof window !== "undefined" ? window.location.search : "");
   const [query, setQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [expiringFilter, setExpiringFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState<PermitFilterState["statusFilter"]>(initialFilters.statusFilter);
+  const [expiringFilter, setExpiringFilter] = useState<PermitFilterState["expiringFilter"]>(initialFilters.expiringFilter);
   const [page, setPage] = useState(1);
   const [showUploadDialog, setShowUploadDialog] = useState(false);
   const [selectedPermit, setSelectedPermit] = useState<string | null>(null);
@@ -100,6 +118,13 @@ export default function WorkforcePermitsPage() {
   });
 
   const permits = data?.items ?? [];
+
+  useEffect(() => {
+    const parsed = parsePermitFiltersFromSearch(typeof window !== "undefined" ? window.location.search : "");
+    setStatusFilter(parsed.statusFilter);
+    setExpiringFilter(parsed.expiringFilter);
+    setPage(1);
+  }, [location]);
 
   return (
     <div className="p-6 space-y-5 max-w-7xl mx-auto">

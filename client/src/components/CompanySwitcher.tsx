@@ -88,7 +88,12 @@ export function CompanySwitcher() {
             <Building2 size={14} className="text-white" />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-white truncate leading-tight">{activeCompany.name}</p>
+            <p
+              className="text-sm font-semibold text-white line-clamp-2 leading-tight break-words text-start"
+              title={activeCompany.name}
+            >
+              {activeCompany.name}
+            </p>
             <p className={`text-xs font-medium truncate leading-tight ${ROLE_COLORS[activeCompany.role ?? ""] ?? "text-white/60"}`}>{roleLabel}</p>
           </div>
           <ChevronDown

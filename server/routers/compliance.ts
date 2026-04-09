@@ -277,7 +277,14 @@ export const complianceRouter = router({
       const now = new Date();
       const in30Days = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
 
-      const checks: Array<{ name: string; status: "pass" | "warn" | "fail"; detail: string; weight: number }> = [];
+      const checks: Array<{
+        id: string;
+        name: string;
+        status: "pass" | "warn" | "fail";
+        detail: string;
+        weight: number;
+        meta: Record<string, string | number>;
+      }> = [];
 
       // 1. Omanisation check
       const empConditions = [eq(employees.status, "active")];
@@ -287,10 +294,12 @@ export const complianceRouter = router({
       const omani = allEmps.filter((e) => e.nationality?.toLowerCase() === "omani" || e.nationality?.toLowerCase() === "om").length;
       const omanisationPct = total > 0 ? Math.round((omani / total) * 100) : 0;
       checks.push({
+        id: "omanisation_quota",
         name: "Omanisation Quota",
         status: omanisationPct >= 35 ? "pass" : omanisationPct >= 25 ? "warn" : "fail",
         detail: `${omanisationPct}% Omani employees (target: 35%)`,
         weight: 30,
+        meta: { pct: omanisationPct, target: 35 },
       });
 
       // 2. Work permit validity
@@ -305,10 +314,12 @@ export const complianceRouter = router({
         .where(and(...expiredPermitCond));
       const expiredCount = Number(expiredPermits[0]?.cnt ?? 0);
       checks.push({
+        id: "work_permit_validity",
         name: "Work Permit Validity",
         status: expiredCount === 0 ? "pass" : expiredCount <= 2 ? "warn" : "fail",
         detail: expiredCount === 0 ? "All permits valid" : `${expiredCount} expired permit(s)`,
         weight: 25,
+        meta: { expiredCount },
       });
 
       // 3. Expiring permits (30 days)
@@ -324,10 +335,12 @@ export const complianceRouter = router({
         .where(and(...expiringPermitCond));
       const expiringCount = Number(expiringPermits[0]?.cnt ?? 0);
       checks.push({
+        id: "upcoming_renewals",
         name: "Upcoming Renewals",
         status: expiringCount === 0 ? "pass" : expiringCount <= 3 ? "warn" : "fail",
         detail: expiringCount === 0 ? "No permits expiring in 30 days" : `${expiringCount} permit(s) expiring in 30 days`,
         weight: 20,
+        meta: { expiringCount },
       });
 
       // 4. WPS compliance (current month payroll paid)
@@ -345,11 +358,15 @@ export const complianceRouter = router({
         .orderBy(desc(payrollRuns.createdAt))
         .limit(1);
 
+      const wpsDetailVariant =
+        latestRun?.status === "paid" ? "paid" : latestRun?.wpsFileUrl ? "pending" : "not_generated";
       checks.push({
+        id: "wps_compliance",
         name: "WPS Compliance",
         status: latestRun?.status === "paid" ? "pass" : latestRun?.wpsFileUrl ? "warn" : "fail",
         detail: latestRun?.status === "paid" ? "Payroll paid via WPS" : latestRun?.wpsFileUrl ? "WPS file generated, pending payment" : "WPS file not generated for current month",
         weight: 25,
+        meta: { variant: wpsDetailVariant },
       });
 
       // Calculate overall score

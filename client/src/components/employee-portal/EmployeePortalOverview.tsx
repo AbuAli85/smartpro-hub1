@@ -662,7 +662,7 @@ export function EmployeePortalOverview(props: EmployeePortalOverviewProps) {
         <CardHeader className="px-4 pb-1 pt-3">
           <CardTitle className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">HR attendance (month)</CardTitle>
         </CardHeader>
-        <CardContent className="px-4 pb-3">
+        <CardContent className="px-4 pb-3 space-y-2">
           {attendanceRate !== null ? (
             <div className="flex items-center gap-3">
               <p className="text-xl font-bold tabular-nums text-green-600 sm:text-2xl">{attendanceRate}%</p>
@@ -674,7 +674,38 @@ export function EmployeePortalOverview(props: EmployeePortalOverviewProps) {
               </div>
             </div>
           ) : (
-            <p className="text-xs text-muted-foreground">No HR marks yet. Check-ins: Attendance tab.</p>
+            <div className="space-y-1.5 text-xs text-muted-foreground leading-snug">
+              <p>
+                No <span className="font-medium text-foreground">official HR daily marks</span> for this month yet. Many
+                companies record those separately from your self check-in.
+              </p>
+              {realAttCheckInsMonth > 0 ? (
+                <p className="text-[11px]">
+                  You have <span className="font-medium text-foreground">{realAttCheckInsMonth}</span> self check-in
+                  {realAttCheckInsMonth === 1 ? "" : "s"} this month — open{" "}
+                  <button
+                    type="button"
+                    className="font-medium text-primary underline-offset-2 hover:underline"
+                    onClick={() => go("attendance")}
+                  >
+                    Attendance
+                  </button>{" "}
+                  for times and history.
+                </p>
+              ) : (
+                <p className="text-[11px]">
+                  When you check in from the portal, counts appear under{" "}
+                  <button
+                    type="button"
+                    className="font-medium text-primary underline-offset-2 hover:underline"
+                    onClick={() => go("attendance")}
+                  >
+                    Attendance
+                  </button>
+                  .
+                </p>
+              )}
+            </div>
           )}
         </CardContent>
       </Card>
@@ -682,7 +713,7 @@ export function EmployeePortalOverview(props: EmployeePortalOverviewProps) {
       {/* 9 — Secondary insights (collapsed by default) */}
       <details className="group rounded-xl border border-border/70 bg-card open:shadow-sm">
         <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-4 py-2.5 text-sm font-medium text-muted-foreground [&::-webkit-details-marker]:hidden">
-          More (score &amp; compliance)
+          More (score & compliance)
           <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
         </summary>
         <div className="space-y-3 border-t border-border/50 px-4 py-3 text-xs">
@@ -806,7 +837,13 @@ export function EmployeePortalOverview(props: EmployeePortalOverviewProps) {
         <div className="flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {[
             { label: "Annual", value: `${balance.annual}d`, sub: "left", onClick: () => go("leave") },
-            { label: "Sick", value: `${balance.sick}d`, sub: sickDaysUsedYtd ? `${sickDaysUsedYtd} used YTD` : "left", onClick: () => go("leave") },
+            {
+              label: "Sick",
+              value: `${balance.sick}d`,
+              sub: sickDaysUsedYtd > 0 ? `left · ${sickDaysUsedYtd} sick used` : "left",
+              onClick: () => go("leave"),
+            },
+            { label: "Emergency", value: `${balance.emergency}d`, sub: "left", onClick: () => go("leave") },
             { label: "Tasks", value: String(pendingTasksCount), sub: "open", onClick: () => go("tasks") },
             { label: "Check-ins", value: String(realAttCheckInsMonth), sub: "this month", onClick: () => go("attendance") },
           ].map((x) => (

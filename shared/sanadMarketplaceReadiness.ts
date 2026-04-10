@@ -34,3 +34,21 @@ export function computeSanadMarketplaceReadiness(
   const ready = reasons.length === 0;
   return { ready, reasons: ready ? [] : reasons };
 }
+
+/**
+ * Readiness to **turn on** public listing / appear on marketplace: same bar as discovery quality,
+ * but evaluates as if `isPublicListed` were already enabled (so we do not block on "not listed yet").
+ */
+export function computeSanadGoLiveReadiness(
+  office: SanadLifecycleOfficeInput,
+  activeCatalogueCount: number,
+): SanadMarketplaceReadiness {
+  if (!office) {
+    return { ready: false, reasons: ["Operational office profile is not available yet."] };
+  }
+  const hypothetical: SanadLifecycleOfficeInput = {
+    ...office,
+    isPublicListed: 1,
+  };
+  return computeSanadMarketplaceReadiness(hypothetical, activeCatalogueCount);
+}

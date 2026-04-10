@@ -1,7 +1,8 @@
 import { TRPCError } from "@trpc/server";
 import { nanoid } from "nanoid";
-import { and, avg, count, desc, eq, exists, gte, like, or, sql } from "drizzle-orm";
+import { and, asc, avg, count, desc, eq, exists, gte, like, or, sql } from "drizzle-orm";
 import { z } from "zod";
+import type { SanadLifecycleOfficeInput } from "@shared/sanadLifecycle";
 import {
   listSanadLifecycleBlockers,
   recommendedSanadPartnerNextActions,
@@ -9,6 +10,7 @@ import {
   sanadLifecycleBadge,
   sanadPublicProfileCompleteness,
 } from "@shared/sanadLifecycle";
+import { validateEnablePublicListing } from "@shared/sanadLifecycleTransitions";
 import { canAccessGlobalAdminProcedures } from "@shared/rbac";
 import { getDb } from "../db";
 import {
@@ -38,7 +40,7 @@ import { getActiveCompanyMembership } from "../_core/membership";
 import { assertRowBelongsToActiveCompany, requireActiveCompanyId } from "../_core/tenant";
 import { protectedProcedure, publicProcedure, router } from "../_core/trpc";
 import { getCenterDetail } from "../sanad-intelligence/queries";
-import { computeSanadMarketplaceReadiness } from "@shared/sanadMarketplaceReadiness";
+import { computeSanadGoLiveReadiness, computeSanadMarketplaceReadiness } from "@shared/sanadMarketplaceReadiness";
 import {
   assertSanadOfficeAccess,
   assertSanadOfficeCatalogueAccess,
@@ -101,6 +103,36 @@ function assertCanAssignSanadOfficeOwner(user: { platformRole?: string | null; r
     code: "FORBIDDEN",
     message: "Only platform or SANAD network administrators can assign the owner role.",
   });
+}
+
+async function requireGoLiveOkForPublicListing(
+  db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
+  officeRow: typeof sanadOffices.$inferSelect,
+  officeId: number,
+): Promise<void> {
+  const [catRow] = await db
+    .select({ n: count() })
+    .from(sanadServiceCatalogue)
+    .where(and(eq(sanadServiceCatalogue.officeId, officeId), eq(sanadServiceCatalogue.isActive, 1)));
+  const activeN = Number(catRow?.n ?? 0);
+  const draft: SanadLifecycleOfficeInput = {
+    name: officeRow.name,
+    description: officeRow.description,
+    phone: officeRow.phone,
+    governorate: officeRow.governorate,
+    city: officeRow.city,
+    languages: officeRow.languages,
+    logoUrl: officeRow.logoUrl,
+    status: officeRow.status,
+    isPublicListed: 1,
+    avgRating: officeRow.avgRating,
+    totalReviews: officeRow.totalReviews,
+    isVerified: officeRow.isVerified,
+  };
+  const v = validateEnablePublicListing(draft, activeN);
+  if (!v.ok) {
+    throw new TRPCError({ code: v.code, message: v.message });
+  }
 }
 
 export const sanadRouter = router({
@@ -834,6 +866,18 @@ export const sanadRouter = router({
       if (!canAccessGlobalAdminProcedures(ctx.user)) {
         await assertSanadOfficeProfileAccess(db as never, ctx.user.id, officeId);
       }
+      if (fields.isPublicListed === true) {
+        const [current] = await db.select().from(sanadOffices).where(eq(sanadOffices.id, officeId)).limit(1);
+        if (!current) throw new TRPCError({ code: "NOT_FOUND", message: "Office not found" });
+        const merged = {
+          ...current,
+          governorate: fields.governorate ?? current.governorate,
+          languages: fields.languages ?? current.languages,
+          logoUrl: fields.logoUrl ?? current.logoUrl,
+          descriptionAr: fields.descriptionAr ?? current.descriptionAr,
+        };
+        await requireGoLiveOkForPublicListing(db as never, merged, officeId);
+      }
       await db
         .update(sanadOffices)
         .set({
@@ -1195,9 +1239,17 @@ export const sanadRouter = router({
         throw new TRPCError({ code: "NOT_FOUND", message: "SANAD office not found for your account." });
       }
       if (existing.length > 0) {
+        const projected = { ...existing[0], ...payload };
+        if (payload.isPublicListed === 1) {
+          await requireGoLiveOkForPublicListing(db as never, projected, existing[0].id);
+        }
         await db.update(sanadOffices).set(payload).where(eq(sanadOffices.id, existing[0].id));
 
         return { id: existing[0].id };
+      }
+      if (payload.isPublicListed === 1) {
+        const projected = { ...payload, status: "active" as const } as typeof sanadOffices.$inferSelect;
+        await requireGoLiveOkForPublicListing(db as never, projected, 0);
       }
       const [result] = await db.insert(sanadOffices).values({ ...payload, status: "active" });
       return { id: (result as any).insertId };
@@ -1324,6 +1376,54 @@ export const sanadRouter = router({
         await assertSanadOfficeAccess(db as never, ctx.user.id, input.officeId);
       }
       return db.select().from(sanadServiceCatalogue).where(eq(sanadServiceCatalogue.officeId, input.officeId)).orderBy(sanadServiceCatalogue.serviceType);
+    }),
+
+  /** Go-live / marketplace readiness for an office (owner/manager/staff). */
+  officeGoLiveReadiness: protectedProcedure
+    .input(z.object({ officeId: z.number() }))
+    .query(async ({ input, ctx }) => {
+      const db = await getDb();
+      if (!db) return null;
+      await assertSanadOfficeAccess(db as never, ctx.user.id, input.officeId);
+      const [office] = await db.select().from(sanadOffices).where(eq(sanadOffices.id, input.officeId)).limit(1);
+      if (!office) return null;
+      const [catRow] = await db
+        .select({ n: count() })
+        .from(sanadServiceCatalogue)
+        .where(and(eq(sanadServiceCatalogue.officeId, input.officeId), eq(sanadServiceCatalogue.isActive, 1)));
+      const activeN = Number(catRow?.n ?? 0);
+      return {
+        activeCatalogueCount: activeN,
+        goLiveReadiness: computeSanadGoLiveReadiness(office, activeN),
+        marketplaceAsListed: computeSanadMarketplaceReadiness(office, activeN),
+        profileCompleteness: sanadPublicProfileCompleteness(office),
+      };
+    }),
+
+  /** Search platform users by name/email for SANAD roster assignment (intel read+). */
+  searchUsersForSanadRoster: protectedProcedure
+    .input(z.object({ query: z.string().min(2).max(120) }))
+    .query(async ({ input, ctx }) => {
+      if (!canAccessSanadIntelRead(ctx.user)) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "SANAD network or compliance access is required to search users for roster assignment.",
+        });
+      }
+      const db = await getDb();
+      if (!db) return [];
+      const q = `%${input.query.trim()}%`;
+      return db
+        .select({
+          id: users.id,
+          name: users.name,
+          email: users.email,
+          platformRole: users.platformRole,
+        })
+        .from(users)
+        .where(or(like(users.email, q), like(users.name, q)))
+        .orderBy(asc(users.id))
+        .limit(20);
     }),
 
   /** Office roster — platform / SANAD intel read, or any office member. */

@@ -2,6 +2,11 @@ import { TRPCError } from "@trpc/server";
 import { and, asc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { NOT_ADMIN_ERR_MSG } from "@shared/const";
+import {
+  validateAcceptCenterInvite,
+  validateGenerateCenterInvite,
+  validateLinkSanadInviteToAccount,
+} from "@shared/sanadLifecycleTransitions";
 import { canAccessSanadIntelFull, canAccessSanadIntelRead } from "@shared/sanadRoles";
 import {
   sanadIntelCenterComplianceItems,
@@ -467,12 +472,9 @@ export const sanadIntelligenceRouter = router({
       if (!c) throw new TRPCError({ code: "NOT_FOUND", message: "Center not found" });
 
       const prior = await ensureCenterOperations(db as never, input.centerId);
-      if (prior.linkedSanadOfficeId != null) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message:
-            "Cannot issue an open invite while this centre is linked to an operational SANAD office. Remove the office link first if onboarding must be reset.",
-        });
+      const genCheck = validateGenerateCenterInvite(prior);
+      if (!genCheck.ok) {
+        throw new TRPCError({ code: genCheck.code, message: genCheck.message });
       }
 
       const token = generateInviteTokenValue();
@@ -555,6 +557,11 @@ export const sanadIntelligenceRouter = router({
         });
       }
 
+      const acceptCheck = validateAcceptCenterInvite(row.ops, false);
+      if (!acceptCheck.ok) {
+        throw new TRPCError({ code: acceptCheck.code, message: acceptCheck.message });
+      }
+
       if (row.ops.inviteAcceptAt) {
         return {
           success: true as const,
@@ -626,11 +633,9 @@ export const sanadIntelligenceRouter = router({
           message: "This invite link is no longer valid. Request a new link from SmartPRO.",
         });
       }
-      if (!row.ops.inviteAcceptAt) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "Submit your contact details on the invite page before linking your SmartPRO account.",
-        });
+      const linkCheck = validateLinkSanadInviteToAccount(row.ops, Boolean(row.ops.inviteAcceptAt));
+      if (!linkCheck.ok) {
+        throw new TRPCError({ code: linkCheck.code, message: linkCheck.message });
       }
 
       if (row.ops.registeredUserId != null) {

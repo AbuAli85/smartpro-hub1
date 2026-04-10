@@ -218,11 +218,25 @@ function OverviewSurface() {
                 </div>
               ))}
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-1 border-t border-border/60">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 pt-1 border-t border-border/60">
               {(
                 [
                   { label: "Stuck in onboarding", value: netOps.bottlenecks.stuckInOnboarding },
                   { label: "Licensed, not activated", value: netOps.bottlenecks.licensedNotYetActivated },
+                  { label: "Invited, no account yet", value: netOps.bottlenecks.invitedNeverLinked ?? 0 },
+                  { label: "Linked, not activated", value: netOps.bottlenecks.linkedAccountNotActivated ?? 0 },
+                  {
+                    label: "Activated, not public-listed",
+                    value: netOps.bottlenecks.activatedLinkedNotPublicListed ?? 0,
+                  },
+                  {
+                    label: "Public-listed, no active cat.",
+                    value: netOps.bottlenecks.publicListedWithoutActiveCatalogue ?? 0,
+                  },
+                  {
+                    label: "Solo owner roster only",
+                    value: netOps.bottlenecks.officesWithSoloOwnerRosterOnly ?? 0,
+                  },
                 ] as const
               ).map((k) => (
                 <div
@@ -460,6 +474,7 @@ function DirectorySurface() {
     onSuccess: () => {
       toast.success("Member added");
       setRosterNewUserId("");
+      setRosterUserSearch("");
       void rosterQuery.refetch();
     },
     onError: (e) => toast.error(e.message),
@@ -484,6 +499,14 @@ function DirectorySurface() {
   const [contactMethodDraft, setContactMethodDraft] = useState("call");
   const [rosterNewUserId, setRosterNewUserId] = useState("");
   const [rosterNewRole, setRosterNewRole] = useState<"owner" | "manager" | "staff">("staff");
+  const [rosterUserSearch, setRosterUserSearch] = useState("");
+  const rosterUserPickQuery = trpc.sanad.searchUsersForSanadRoster.useQuery(
+    { query: rosterUserSearch.trim() },
+    {
+      enabled:
+        Boolean(detail.data?.ops?.linkedSanadOfficeId) && rosterUserSearch.trim().length >= 2,
+    },
+  );
 
   const ops = detail.data?.ops;
   const inviteFullUrl = useMemo(() => {
@@ -1228,8 +1251,37 @@ function DirectorySurface() {
                             </TableBody>
                           </Table>
                           <div className="flex flex-wrap items-end gap-2 pt-1 border-t border-border/60">
+                            <div className="space-y-1 min-w-[min(100%,14rem)] flex-1">
+                              <Label className="text-xs">Find user (name or email)</Label>
+                              <Input
+                                className="h-8 text-xs"
+                                placeholder="Type 2+ characters…"
+                                value={rosterUserSearch}
+                                onChange={(e) => setRosterUserSearch(e.target.value)}
+                              />
+                              {rosterUserPickQuery.data && rosterUserPickQuery.data.length > 0 ? (
+                                <ul className="max-h-28 overflow-auto rounded border border-border/80 bg-background text-xs mt-1">
+                                  {rosterUserPickQuery.data.map((u) => (
+                                    <li key={u.id}>
+                                      <button
+                                        type="button"
+                                        className="w-full text-left px-2 py-1.5 hover:bg-muted/80"
+                                        onClick={() => {
+                                          setRosterNewUserId(String(u.id));
+                                          setRosterUserSearch("");
+                                        }}
+                                      >
+                                        <span className="font-medium">{u.name ?? "—"}</span>{" "}
+                                        <span className="text-muted-foreground break-all">{u.email ?? ""}</span>{" "}
+                                        <span className="tabular-nums text-muted-foreground">#{u.id}</span>
+                                      </button>
+                                    </li>
+                                  ))}
+                                </ul>
+                              ) : null}
+                            </div>
                             <div className="space-y-1">
-                              <Label className="text-xs">User ID</Label>
+                              <Label className="text-xs">Or user ID</Label>
                               <Input
                                 className="h-8 text-xs w-[7rem] tabular-nums"
                                 inputMode="numeric"

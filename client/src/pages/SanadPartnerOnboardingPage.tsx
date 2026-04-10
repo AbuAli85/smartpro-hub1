@@ -26,6 +26,11 @@ export default function SanadPartnerOnboardingPage() {
   const { data, isLoading, error } = trpc.sanad.partnerOnboardingWorkspace.useQuery(undefined, {
     enabled: Boolean(user),
   });
+  const officeId = data?.office?.id;
+  const { data: goLivePack } = trpc.sanad.officeGoLiveReadiness.useQuery(
+    { officeId: officeId ?? 0 },
+    { enabled: Boolean(officeId) },
+  );
 
   if (authLoading) {
     return (
@@ -215,6 +220,38 @@ export default function SanadPartnerOnboardingPage() {
           </CardContent>
         </Card>
       </div>
+
+      {goLivePack && data.office ? (
+        <Card className="border-border/80">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">Go-live checklist (listing)</CardTitle>
+            <CardDescription>
+              Requirements before your office can be publicly listed with a full marketplace profile.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <div className="flex items-center gap-2">
+              <Badge variant={goLivePack.goLiveReadiness.ready ? "default" : "secondary"}>
+                {goLivePack.goLiveReadiness.ready ? "Ready to list" : "Not ready"}
+              </Badge>
+              <span className="text-xs text-muted-foreground tabular-nums">
+                {goLivePack.activeCatalogueCount} active catalogue item(s)
+              </span>
+            </div>
+            {!goLivePack.goLiveReadiness.ready && goLivePack.goLiveReadiness.reasons.length > 0 ? (
+              <ul className="list-disc pl-5 space-y-1 text-xs text-muted-foreground">
+                {goLivePack.goLiveReadiness.reasons.map((r, i) => (
+                  <li key={i}>{r}</li>
+                ))}
+              </ul>
+            ) : goLivePack.goLiveReadiness.ready ? (
+              <p className="text-sm text-muted-foreground">
+                You meet the bar to turn on public listing from the office profile when you are ready.
+              </p>
+            ) : null}
+          </CardContent>
+        </Card>
+      ) : null}
 
       <div className="grid gap-4 md:grid-cols-2">
         <Card>

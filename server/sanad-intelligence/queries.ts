@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, like, notInArray, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, isNull, like, notInArray, or, sql } from "drizzle-orm";
 import {
   resolveSanadLifecycleStage,
   SANAD_LIFECYCLE_STAGES,
@@ -560,8 +560,72 @@ export async function getSanadBottleneckKpis(db: DB) {
       ),
     );
 
+  const [invitedNeverLinkedRow] = await db
+    .select({ n: sql<number>`count(*)`.mapWith(Number) })
+    .from(schema.sanadIntelCenterOperations)
+    .where(
+      and(
+        isNotNull(schema.sanadIntelCenterOperations.inviteSentAt),
+        isNull(schema.sanadIntelCenterOperations.registeredUserId),
+        isNull(schema.sanadIntelCenterOperations.linkedSanadOfficeId),
+      ),
+    );
+
+  const [linkedAccountNotActivatedRow] = await db
+    .select({ n: sql<number>`count(*)`.mapWith(Number) })
+    .from(schema.sanadIntelCenterOperations)
+    .where(
+      and(isNotNull(schema.sanadIntelCenterOperations.registeredUserId), isNull(schema.sanadIntelCenterOperations.linkedSanadOfficeId)),
+    );
+
+  const [activatedLinkedNotPublicListedRow] = await db
+    .select({ n: sql<number>`count(*)`.mapWith(Number) })
+    .from(schema.sanadIntelCenterOperations)
+    .innerJoin(
+      schema.sanadOffices,
+      eq(schema.sanadOffices.id, schema.sanadIntelCenterOperations.linkedSanadOfficeId),
+    )
+    .where(
+      and(
+        isNotNull(schema.sanadIntelCenterOperations.linkedSanadOfficeId),
+        sql`${schema.sanadOffices.isPublicListed} <> 1`,
+      ),
+    );
+
+  const [publicListedNoActiveCatalogueRow] = await db
+    .select({ n: sql<number>`count(*)`.mapWith(Number) })
+    .from(schema.sanadOffices)
+    .where(
+      and(
+        eq(schema.sanadOffices.isPublicListed, 1),
+        sql`NOT EXISTS (
+          SELECT 1 FROM sanad_service_catalogue c
+          WHERE c.office_id = ${schema.sanadOffices.id} AND c.is_active = 1
+        )`,
+      ),
+    );
+
+  const [soloOwnerRosterRow] = await db
+    .select({
+      n: sql<number>`(
+        SELECT COUNT(*) FROM sanad_office_members m
+        WHERE m.sanad_office_id IN (
+          SELECT sanad_office_id FROM sanad_office_members
+          GROUP BY sanad_office_id
+          HAVING COUNT(*) = 1
+        ) AND m.role = 'owner'
+      )`.mapWith(Number),
+    })
+    .from(schema.sanadIntelCenters)
+    .limit(1);
+
   return {
     stuckInOnboarding: stuckOnboardingRow?.n ?? 0,
     licensedNotYetActivated: licensedNoOfficeRow?.n ?? 0,
+    invitedNeverLinked: invitedNeverLinkedRow?.n ?? 0,
+    linkedAccountNotActivated: linkedAccountNotActivatedRow?.n ?? 0,
+    activatedLinkedNotPublicListed: activatedLinkedNotPublicListedRow?.n ?? 0,
+    publicListedWithoutActiveCatalogue: publicListedNoActiveCatalogueRow?.n ?? 0,
+    officesWithSoloOwnerRosterOnly: soloOwnerRosterRow?.n ?? 0,
   };
 }

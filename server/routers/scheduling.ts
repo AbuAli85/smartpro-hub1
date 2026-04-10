@@ -35,6 +35,19 @@ function timeToMinutes(t: string): number {
   return h * 60 + m;
 }
 
+/**
+ * `employee_schedules.employee_user_id` may store `employees.id` (legacy / no portal user yet)
+ * or `employees.userId` (login id). Prefer primary-key match first — same order as
+ * `listEmployeeSchedules` / `getMyActiveSchedule`.
+ */
+function employeeRowFromScheduleRef<E extends { id: number; userId: number | null }>(
+  rawId: number,
+  empById: Map<number, E>,
+  empByLoginUserId: Map<number, E>
+): E | undefined {
+  return empById.get(rawId) ?? empByLoginUserId.get(rawId);
+}
+
 function todayStr(): string {
   return new Date().toISOString().slice(0, 10);
 }
@@ -323,7 +336,10 @@ export const schedulingRouter = router({
         ));
 
       const empRows = await db.select().from(employees).where(eq(employees.companyId, companyId));
-      const empByUserId = new Map(empRows.map(e => [e.userId, e]));
+      const empById = new Map(empRows.map((e) => [e.id, e]));
+      const empByLoginUserId = new Map(
+        empRows.filter((e) => e.userId != null).map((e) => [e.userId as number, e])
+      );
 
       const now = new Date();
       const [yy, mm, dd] = today.split("-").map((x) => parseInt(x, 10));
@@ -332,10 +348,16 @@ export const schedulingRouter = router({
       const board = await Promise.all(todaySchedules.map(async (s) => {
         const [shift] = await db.select().from(shiftTemplates).where(eq(shiftTemplates.id, s.shiftTemplateId)).limit(1);
         const [site] = await db.select().from(attendanceSites).where(eq(attendanceSites.id, s.siteId)).limit(1);
-        const [emp] = await db.select({ id: users.id, name: users.name, email: users.email, avatarUrl: users.avatarUrl })
-          .from(users).where(eq(users.id, s.employeeUserId)).limit(1);
-
-        const empRow = empByUserId.get(s.employeeUserId);
+        const empRow = employeeRowFromScheduleRef(s.employeeUserId, empById, empByLoginUserId);
+        let emp: { id: number; name: string | null; email: string | null; avatarUrl: string | null } | null = null;
+        if (empRow?.userId != null) {
+          const [u] = await db
+            .select({ id: users.id, name: users.name, email: users.email, avatarUrl: users.avatarUrl })
+            .from(users)
+            .where(eq(users.id, empRow.userId))
+            .limit(1);
+          emp = u ?? null;
+        }
         /** Prefer any same-day record for this employee (avoids false “absent” when siteId differs). */
         const record = empRow
           ? allRecords
@@ -572,7 +594,10 @@ export const schedulingRouter = router({
         ));
 
       const empRows = await db.select().from(employees).where(eq(employees.companyId, companyId));
-      const empByUserId = new Map(empRows.map(e => [e.userId, e]));
+      const empById = new Map(empRows.map((e) => [e.id, e]));
+      const empByLoginUserId = new Map(
+        empRows.filter((e) => e.userId != null).map((e) => [e.userId as number, e])
+      );
 
       const recordMap = new Map<string, typeof records[0]>();
       for (const r of records) {
@@ -582,9 +607,16 @@ export const schedulingRouter = router({
 
       const employeeUserIds = Array.from(new Set(allSchedules.map(s => s.employeeUserId)));
       const report = await Promise.all(employeeUserIds.map(async (empUserId) => {
-        const [emp] = await db.select({ id: users.id, name: users.name, email: users.email })
-          .from(users).where(eq(users.id, empUserId)).limit(1);
-        const empRow = empByUserId.get(empUserId);
+        const empRow = employeeRowFromScheduleRef(empUserId, empById, empByLoginUserId);
+        let emp: { id: number; name: string | null; email: string | null } | null = null;
+        if (empRow?.userId != null) {
+          const [u] = await db
+            .select({ id: users.id, name: users.name, email: users.email })
+            .from(users)
+            .where(eq(users.id, empRow.userId))
+            .limit(1);
+          emp = u ?? null;
+        }
         const empSchedules = allSchedules.filter(s => s.employeeUserId === empUserId);
 
         let scheduledDays = 0, presentDays = 0, lateDays = 0, absentDays = 0, holidayDays = 0;

@@ -22,6 +22,14 @@ function isLateCheckIn(checkInTime: string, shiftStart: string, gracePeriodMinut
   return timeToMinutes(checkInTime) > timeToMinutes(shiftStart) + gracePeriodMinutes;
 }
 
+function employeeRowFromScheduleRef<E extends { id: number; userId: number | null }>(
+  rawId: number,
+  empById: Map<number, E>,
+  empByLoginUserId: Map<number, E>
+): E | undefined {
+  return empById.get(rawId) ?? empByLoginUserId.get(rawId);
+}
+
 function buildDateRange(year: number, month: number): { startDate: string; endDate: string; lastDay: number } {
   const mm = String(month).padStart(2, "0");
   const startDate = `${year}-${mm}-01`;
@@ -31,6 +39,28 @@ function buildDateRange(year: number, month: number): { startDate: string; endDa
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────
+
+describe("employeeRowFromScheduleRef", () => {
+  it("resolves by employees.id when that is what the schedule stores", () => {
+    const row = { id: 42, userId: 7 as number | null, firstName: "A", lastName: "B" };
+    const empById = new Map([[42, row]]);
+    const empByLoginUserId = new Map([[7, row]]);
+    expect(employeeRowFromScheduleRef(42, empById, empByLoginUserId)).toBe(row);
+  });
+  it("resolves by login user id when schedule stores users.id", () => {
+    const row = { id: 99, userId: 7 as number | null, firstName: "A", lastName: "B" };
+    const empById = new Map<number, typeof row>();
+    const empByLoginUserId = new Map([[7, row]]);
+    expect(employeeRowFromScheduleRef(7, empById, empByLoginUserId)).toBe(row);
+  });
+  it("prefers primary key when raw id could theoretically collide", () => {
+    const byId = { id: 10, userId: 20 as number | null, firstName: "By", lastName: "Id" };
+    const byUser = { id: 99, userId: 10 as number | null, firstName: "By", lastName: "User" };
+    const empById = new Map([[10, byId]]);
+    const empByLoginUserId = new Map([[10, byUser]]);
+    expect(employeeRowFromScheduleRef(10, empById, empByLoginUserId)).toBe(byId);
+  });
+});
 
 describe("timeToMinutes", () => {
   it("converts 00:00 to 0", () => {

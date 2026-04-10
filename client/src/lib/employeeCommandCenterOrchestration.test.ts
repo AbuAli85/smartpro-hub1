@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   blockersBeforeTopActionsWhenBothVisible,
+  buildCommandCenterOrchestrationSummary,
   getOrderedVisibleCommandCenterSections,
   shouldRenderCommandCenterSection,
 } from "./employeeCommandCenterOrchestration";
+import { buildCommandCenterOrchestrationMeta } from "./employeeCommandCenterState";
 import type { CommandCenterStateContext } from "./employeeCommandCenterState";
 import type { CommandCenterSectionKey } from "./employeePortalPriorityProfile";
 import { getBaseCommandCenterSectionOrder } from "./employeePortalPriorityProfile";
@@ -88,6 +90,50 @@ describe("getOrderedVisibleCommandCenterSections", () => {
   it("places recent_activity before work_summary for hr_operational", () => {
     const keys = getOrderedVisibleCommandCenterSections("hr_operational", allVisible, neutral(), 0);
     expect(keys.indexOf("recent_activity")).toBeLessThan(keys.indexOf("work_summary"));
+  });
+
+  it("orders heads_up early when urgent without blockers", () => {
+    const v = { ...allVisible, hasBlockers: false, collapseRecentForBlockers: false };
+    const keys = getOrderedVisibleCommandCenterSections("default", v, neutral({ hasUrgentTopActions: true, hasBlockers: false }), 0);
+    expect(keys.indexOf("heads_up")).toBe(keys.indexOf("today_status") + 1);
+  });
+});
+
+describe("buildCommandCenterOrchestrationSummary", () => {
+  it("lists hidden sections using visibility rules (e.g. recent collapsed for blockers)", () => {
+    const v = {
+      hasBlockers: true,
+      hasTopActions: true,
+      hasHeadsUp: true,
+      hasRecentActivity: true,
+      collapseRecentForBlockers: true,
+    };
+    const summary = buildCommandCenterOrchestrationSummary({
+      profile: "default",
+      state: neutral({ hasBlockers: true }),
+      meta: buildCommandCenterOrchestrationMeta({ blockerCount: 1, pendingRequestCount: 0 }),
+      pendingRequestCount: 0,
+      v,
+    });
+    expect(summary.hiddenSections).toContain("recent_activity");
+    expect(summary.visibleOrder).not.toContain("recent_activity");
+    expect(summary.reasons).toContain("blocked_mode");
+    expect(summary.emphasisBySection.blockers).toBe("primary");
+    expect(summary.emphasisBySection.secondary_tools).toBe("muted");
+  });
+
+  it("marks urgent_actions reason and primary top_actions when urgent without blockers", () => {
+    const v = { ...allVisible, hasBlockers: false, collapseRecentForBlockers: false };
+    const summary = buildCommandCenterOrchestrationSummary({
+      profile: "default",
+      state: neutral({ hasUrgentTopActions: true, hasBlockers: false }),
+      meta: buildCommandCenterOrchestrationMeta({ blockerCount: 0, pendingRequestCount: 0 }),
+      pendingRequestCount: 0,
+      v,
+    });
+    expect(summary.reasons).toContain("urgent_actions");
+    expect(summary.emphasisBySection.top_actions).toBe("primary");
+    expect(summary.emphasisBySection.recent_activity).toBe("muted");
   });
 });
 

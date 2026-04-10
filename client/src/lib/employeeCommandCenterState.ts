@@ -127,7 +127,14 @@ export function adaptCommandCenterSectionOrder(
     }
   }
 
-  // Case 1 — blockers: demote recent_activity and secondary_tools to the tail
+  // Case 5 — urgent top actions, no blockers: surface heads-up next to hero; demote history / utilities
+  if (state.hasUrgentTopActions && !state.hasBlockers) {
+    order = moveSectionAfter(order, "heads_up", "today_status");
+    order = moveSectionToEnd(order, "recent_activity");
+    order = moveSectionToEnd(order, "secondary_tools");
+  }
+
+  // Case 1 — blockers: demote recent_activity and secondary_tools to the tail (wins over Case 5)
   if (state.hasBlockers) {
     order = moveSectionToEnd(order, "recent_activity");
     order = moveSectionToEnd(order, "secondary_tools");

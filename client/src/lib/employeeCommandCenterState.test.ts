@@ -81,6 +81,17 @@ describe("adaptCommandCenterSectionOrder / getCommandCenterSectionOrder", () => 
     const adapted = getCommandCenterSectionOrder("approver", neutral({ hasAnyTasks: true, hasPendingRequests: true }), 5);
     expect(adapted[2]).toBe("requests_summary");
   });
+
+  it("surfaces heads_up after today_status when urgent top actions and no blockers", () => {
+    const adapted = getCommandCenterSectionOrder(
+      "default",
+      neutral({ hasUrgentTopActions: true, hasBlockers: false, hasAnyTasks: true, hasPendingRequests: true }),
+      0,
+    );
+    expect(adapted.indexOf("heads_up")).toBe(adapted.indexOf("today_status") + 1);
+    expect(adapted.indexOf("secondary_tools")).toBe(adapted.length - 1);
+    expect(adapted.indexOf("recent_activity")).toBe(adapted.length - 2);
+  });
 });
 
 describe("moveSectionToIndex", () => {

@@ -12,7 +12,11 @@ import { buildUnifiedEmployeeRequests, summarizeRequestsForHome } from "@/lib/em
 import type { CommandCenterSectionKey } from "@/lib/employeePortalPriorityProfile";
 import { resolveEmployeePortalPriorityProfile } from "@/lib/employeePortalPriorityProfile";
 import { buildCommandCenterOrchestrationMeta, buildCommandCenterStateContext } from "@/lib/employeeCommandCenterState";
-import { getOrderedVisibleCommandCenterSections } from "@/lib/employeeCommandCenterOrchestration";
+import {
+  buildCommandCenterOrchestrationSummary,
+  getOrderedVisibleCommandCenterSections,
+} from "@/lib/employeeCommandCenterOrchestration";
+import { emphasisSectionClassName } from "@/lib/employeeCommandCenterPolicy";
 import { cn } from "@/lib/utils";
 import type { ProductivitySnapshot } from "@/lib/employeePortalUtils";
 import { getDueUrgency, slaLabel } from "@/lib/taskSla";
@@ -386,13 +390,35 @@ export function EmployeePortalOverview(props: EmployeePortalOverviewProps) {
     [priorityProfile, commandCenterVisibility, ccState, requestHomeSummary.pendingCount],
   );
 
+  const orchestrationSummary = useMemo(
+    () =>
+      buildCommandCenterOrchestrationSummary({
+        profile: priorityProfile,
+        state: ccState,
+        meta: ccMeta,
+        pendingRequestCount: requestHomeSummary.pendingCount,
+        v: commandCenterVisibility,
+      }),
+    [priorityProfile, ccState, ccMeta, requestHomeSummary.pendingCount, commandCenterVisibility],
+  );
+
+  const urgentNonBlocked = ccState.hasUrgentTopActions && !ccState.hasBlockers;
+  const isBlocked = ccMeta.isBlocked;
+
   const renderSection = (key: CommandCenterSectionKey): React.ReactNode => {
     switch (key) {
       case "command_header":
         return (
-          <div className="flex items-center justify-between gap-2 px-0.5">
-            <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-primary">Command center</p>
-            <p className="text-[10px] text-muted-foreground">Today status and next steps</p>
+          <div className="space-y-1.5 px-0.5">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-primary">Command center</p>
+              <p className="text-[10px] text-muted-foreground">Today status and next steps</p>
+            </div>
+            {isBlocked && (
+              <p className="text-[11px] font-medium leading-snug text-red-900 dark:text-red-100 border-l-2 border-red-500 pl-2 py-0.5">
+                Resolve blockers first to clear today&apos;s workflow.
+              </p>
+            )}
           </div>
         );
       case "today_status":
@@ -558,7 +584,12 @@ export function EmployeePortalOverview(props: EmployeePortalOverviewProps) {
         );
       case "top_actions":
         return (
-          <div className="space-y-2 ring-1 ring-border/50 rounded-xl p-0.5">
+          <div
+            className={cn(
+              "space-y-2 rounded-xl p-0.5",
+              urgentNonBlocked ? "ring-2 ring-primary/40 shadow-sm dark:ring-primary/35" : "ring-1 ring-border/50",
+            )}
+          >
             <div className="px-0.5 pt-0.5">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                 {primaryCtaDominant ? "More priorities" : "Top actions"}
@@ -867,8 +898,8 @@ export function EmployeePortalOverview(props: EmployeePortalOverviewProps) {
             </CardContent>
           </Card>
         );
-      case "recent_activity":
-        return (
+      case "recent_activity": {
+        const recentCard = (
           <Card className="border-border/40 bg-muted/5 opacity-95">
             <CardHeader className="px-4 pb-1 pt-3">
               <CardTitle className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Recent activity</CardTitle>
@@ -890,6 +921,19 @@ export function EmployeePortalOverview(props: EmployeePortalOverviewProps) {
             </CardContent>
           </Card>
         );
+        if (urgentNonBlocked) {
+          return (
+            <details className="group rounded-xl border border-border/40 bg-muted/10 open:border-border/60">
+              <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground [&::-webkit-details-marker]:hidden">
+                <ChevronDown className="h-3.5 w-3.5 shrink-0 transition-transform group-open:rotate-180" aria-hidden />
+                Recent activity
+              </summary>
+              <div className="border-t border-border/30 px-0.5 pb-1 pt-1">{recentCard}</div>
+            </details>
+          );
+        }
+        return recentCard;
+      }
       case "pay_and_files":
         return (
           <div className="rounded-xl border border-dashed border-border/60 bg-muted/10 px-3 py-2.5 text-muted-foreground">
@@ -938,8 +982,8 @@ export function EmployeePortalOverview(props: EmployeePortalOverviewProps) {
             </div>
           </div>
         );
-      case "secondary_tools":
-        return (
+      case "secondary_tools": {
+        const toolsBundle = (
           <div className="space-y-3 rounded-xl border border-border/50 bg-muted/5 p-1">
             <Card className="border-border/60 bg-card/90 shadow-none">
               <CardHeader className="px-4 pb-1.5 pt-3">
@@ -1072,25 +1116,37 @@ export function EmployeePortalOverview(props: EmployeePortalOverviewProps) {
             )}
           </div>
         );
+        if (isBlocked) {
+          return (
+            <details className="group rounded-xl border border-border/50 bg-muted/5 open:border-amber-200/40 dark:open:border-amber-900/40">
+              <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2.5 text-sm font-medium text-muted-foreground [&::-webkit-details-marker]:hidden">
+                <ChevronDown className="h-4 w-4 shrink-0 transition-transform group-open:rotate-180" aria-hidden />
+                Tools and leave — open after you address blockers
+              </summary>
+              <div className="border-t border-border/40 p-1">{toolsBundle}</div>
+            </details>
+          );
+        }
+        return toolsBundle;
+      }
       default:
         return null;
     }
   };
 
-  const blockerIdx = orderedSectionKeys.indexOf("blockers");
-  const isBlocked = ccMeta.isBlocked;
-
   return (
-    <div className={cn("flex flex-col gap-3 pb-2", isBlocked && "rounded-xl")}>
-      {orderedSectionKeys.map((key, index) => {
-        const subdued =
-          isBlocked &&
-          blockerIdx !== -1 &&
-          !["command_header", "today_status", "blockers", "top_actions"].includes(key) &&
-          index > blockerIdx + 1;
+    <div
+      className={cn(
+        "flex flex-col pb-2 transition-[gap]",
+        isBlocked ? "gap-2" : urgentNonBlocked ? "gap-2.5" : "gap-3",
+        isBlocked && "rounded-xl",
+      )}
+    >
+      {orderedSectionKeys.map((key) => {
+        const emphasis = orchestrationSummary.emphasisBySection[key] ?? "secondary";
         return (
           <Fragment key={key}>
-            <div className={subdued ? "opacity-[0.82] transition-opacity" : undefined}>{renderSection(key)}</div>
+            <div className={cn(emphasisSectionClassName(emphasis), "transition-[opacity,filter]")}>{renderSection(key)}</div>
           </Fragment>
         );
       })}

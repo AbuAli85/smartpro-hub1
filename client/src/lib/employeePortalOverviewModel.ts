@@ -144,13 +144,13 @@ export function buildOverviewTaskStats(tasks: TaskLike[] | null | undefined, now
     const p = (t.priority ?? "medium").toLowerCase();
     if (p === "urgent") urgentOpen++;
     if (p === "high") highOpen++;
-    const u = getDueUrgency(t.dueDate, t.status);
+    const u = getDueUrgency(t.dueDate, t.status, now);
     if (u === "overdue") overdueCount++;
     if (u === "due_today") dueTodayCount++;
   }
   const sorted = [...open].sort((a, b) => {
-    const au = getDueUrgency(a.dueDate, a.status);
-    const bu = getDueUrgency(b.dueDate, b.status);
+    const au = getDueUrgency(a.dueDate, a.status, now);
+    const bu = getDueUrgency(b.dueDate, b.status, now);
     const score = (u: ReturnType<typeof getDueUrgency>) =>
       u === "overdue" ? 0 : u === "due_today" ? 1 : u === "upcoming" ? 2 : 3;
     const ds = score(au) - score(bu);

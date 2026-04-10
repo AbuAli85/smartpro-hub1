@@ -10,18 +10,20 @@ function parseDueLocal(due: Date | string): Date {
   return new Date(x.getFullYear(), x.getMonth(), x.getDate());
 }
 
-function startOfTodayLocal(): Date {
-  const n = new Date();
+function startOfTodayLocal(reference?: Date): Date {
+  const n = reference ?? new Date();
   return new Date(n.getFullYear(), n.getMonth(), n.getDate());
 }
 
 export function getDueUrgency(
   dueDate: Date | string | null | undefined,
   status: string,
+  /** When set (e.g. dashboard “as of” time), compare due dates to this day instead of the real clock. */
+  referenceNow?: Date,
 ): DueUrgency {
   if (!dueDate || status === "completed" || status === "cancelled") return "none";
   const due = parseDueLocal(dueDate);
-  const today = startOfTodayLocal();
+  const today = startOfTodayLocal(referenceNow);
   const dueT = due.getTime();
   const todayT = today.getTime();
   if (dueT < todayT) return "overdue";

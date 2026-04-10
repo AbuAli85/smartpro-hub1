@@ -43,6 +43,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { RequestsCalendar } from "@/components/RequestsCalendar";
 import { DateInput } from "@/components/ui/date-input";
+import { OMAN_LEAVE_PORTAL_DEFAULTS } from "@shared/omanLeavePolicyDefaults";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { cn } from "@/lib/utils";
 import {
@@ -95,24 +96,40 @@ const LEAVE_TYPE_COLOR: Record<string, string> = {
   other: "bg-gray-100 text-gray-700",
 };
 
+/** Labels aligned with `employee_documents.documentType` (HR vault → portal). */
 const DOC_LABELS: Record<string, string> = {
+  mol_work_permit_certificate: "MOL work permit certificate",
   passport: "Passport",
   visa: "Visa",
-  work_permit: "Work Permit",
-  national_id: "National ID",
-  contract: "Employment Contract",
-  certificate: "Certificate",
+  resident_card: "Resident card",
+  labour_card: "Labour card",
+  employment_contract: "Employment contract",
+  civil_id: "Civil ID",
+  medical_certificate: "Medical certificate",
+  photo: "Photograph",
   other: "Other",
+  // Legacy / alternate keys if older rows exist
+  work_permit: "Work permit",
+  national_id: "National ID",
+  contract: "Employment contract",
+  certificate: "Certificate",
 };
 
 const DOC_ICONS: Record<string, React.ReactElement> = {
+  mol_work_permit_certificate: <FileText className="w-4 h-4 text-amber-500" />,
   passport: <Shield className="w-4 h-4 text-blue-500" />,
   visa: <FileCheck className="w-4 h-4 text-green-500" />,
+  resident_card: <UserCheck className="w-4 h-4 text-violet-500" />,
+  labour_card: <Briefcase className="w-4 h-4 text-orange-500" />,
+  employment_contract: <FileText className="w-4 h-4 text-primary" />,
+  civil_id: <User className="w-4 h-4 text-purple-500" />,
+  medical_certificate: <Activity className="w-4 h-4 text-teal-500" />,
+  photo: <User className="w-4 h-4 text-sky-500" />,
+  other: <FileText className="w-4 h-4 text-muted-foreground" />,
   work_permit: <FileText className="w-4 h-4 text-amber-500" />,
   national_id: <User className="w-4 h-4 text-purple-500" />,
   contract: <FileText className="w-4 h-4 text-primary" />,
   certificate: <Star className="w-4 h-4 text-yellow-500" />,
-  other: <FileText className="w-4 h-4 text-muted-foreground" />,
 };
 
 function formatTime(ts: Date | string | null | undefined): string {
@@ -1165,8 +1182,8 @@ export default function EmployeePortalPage() {
 
   // ── Derived data ──────────────────────────────────────────────────────────
   const leave = leaveData?.requests ?? [];
-  const entitlements = leaveData?.entitlements ?? { annual: 30, sick: 15, emergency: 5 };
-  const balance = leaveData?.balance ?? { annual: 30, sick: 15, emergency: 5 };
+  const entitlements = leaveData?.entitlements ?? { ...OMAN_LEAVE_PORTAL_DEFAULTS };
+  const balance = leaveData?.balance ?? { ...OMAN_LEAVE_PORTAL_DEFAULTS };
   const leaveYear = new Date().getFullYear();
   const attRecords = attData?.records ?? [];
   const attSummary = attData?.summary ?? { present: 0, absent: 0, late: 0, halfDay: 0, remote: 0, total: 0 };
@@ -2021,7 +2038,7 @@ export default function EmployeePortalPage() {
               {[
                 { label: "Annual", key: "annual" as const, color: "text-blue-600", bg: "bg-blue-50 dark:bg-blue-950/20" },
                 { label: "Sick", key: "sick" as const, color: "text-amber-600", bg: "bg-amber-50 dark:bg-amber-950/20" },
-                { label: "Emergency", key: "emergency" as const, color: "text-red-600", bg: "bg-red-50 dark:bg-red-950/20" },
+                { label: "Emergency", key: "emergency" as const, color: "text-orange-700", bg: "bg-orange-50 dark:bg-orange-950/20" },
               ].map(({ label, key, color, bg }) => {
                 const total = entitlements[key];
                 const remaining = balance[key];
@@ -2041,6 +2058,22 @@ export default function EmployeePortalPage() {
                 );
               })}
             </div>
+
+            <Card className="border-dashed bg-muted/20">
+              <CardContent className="p-3 flex gap-2 text-[11px] text-muted-foreground leading-snug">
+                <Info className="w-4 h-4 shrink-0 text-primary mt-0.5" aria-hidden />
+                <div>
+                  <p className="font-medium text-foreground">How balances work</p>
+                  <p className="mt-1">
+                    Days shown are <strong>approved</strong> leave used this calendar year against{" "}
+                    <strong>company default caps</strong> (annual {OMAN_LEAVE_PORTAL_DEFAULTS.annual}, sick pool{" "}
+                    {OMAN_LEAVE_PORTAL_DEFAULTS.sick}, emergency {OMAN_LEAVE_PORTAL_DEFAULTS.emergency}) aligned with
+                    typical Oman HR practice — not a full legal calculation. Omani law allows longer medically certified
+                    sick leave with tiered pay; your HR team may apply different rules when company policy is configured.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
 
             {/* Filter + New Request */}
             <div className="flex items-center justify-between gap-3">
@@ -2422,11 +2455,9 @@ export default function EmployeePortalPage() {
                 <FileText className="w-10 h-10 mx-auto mb-2 opacity-30" />
                 <p className="font-medium">No documents on file</p>
                 <p className="text-sm mt-1">Contact HR to upload your documents</p>
-                <div className="mt-4 p-3 bg-muted/30 rounded-lg text-xs text-left max-w-xs mx-auto space-y-1">
-                  <p className="font-medium text-foreground">Documents HR can upload for you:</p>
-                  {["Passport copy", "Visa / Residence permit", "Work permit", "Employment contract", "Certificates"].map((d) => (
-                    <p key={d} className="flex items-center gap-1.5"><Check className="w-3 h-3 text-green-500" /> {d}</p>
-                  ))}
+                <div className="mt-4 p-3 bg-muted/30 rounded-lg text-xs text-left max-w-md mx-auto space-y-1">
+                  <p className="font-medium text-foreground">Same vault as HR — documents appear here when uploaded to your file</p>
+                  <p className="text-muted-foreground mt-1">Examples: passport, visa, resident card, civil ID, work permit certificate, contract, medical, photo.</p>
                 </div>
               </div>
             ) : (

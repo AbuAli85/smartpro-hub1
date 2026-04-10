@@ -15,11 +15,12 @@ import { protectedProcedure, router } from "../_core/trpc";
 import { getActiveCompanyMembership } from "../_core/membership";
 import { requireActiveCompanyId } from "../_core/tenant";
 import { computePortalOperationalHints } from "@shared/employeePortalOperationalHints";
+import { OMAN_LEAVE_PORTAL_DEFAULTS } from "@shared/omanLeavePolicyDefaults";
 import { resolveEmployeeAttendanceDayContext } from "../resolveEmployeeAttendanceDayContext";
 import { buildEmployeeWorkStatusSummary } from "@shared/employeePortalWorkStatusSummary";
 
-/** Default annual entitlements (calendar year) — keep in sync with portal UI until per-company policies exist */
-export const DEFAULT_LEAVE_ENTITLEMENTS = { annual: 30, sick: 15, emergency: 5 } as const;
+/** @deprecated Use OMAN_LEAVE_PORTAL_DEFAULTS from @shared/omanLeavePolicyDefaults — re-exported for callers. */
+export const DEFAULT_LEAVE_ENTITLEMENTS = OMAN_LEAVE_PORTAL_DEFAULTS;
 
 const taskCompleterEmp = alias(users, "taskCompleterEmp");
 
@@ -168,7 +169,7 @@ export const employeePortalRouter = router({
     const empty = {
       requests: [] as (typeof leaveRequests.$inferSelect)[],
       balance: { annual: 0, sick: 0, emergency: 0 },
-      entitlements: { ...DEFAULT_LEAVE_ENTITLEMENTS },
+      entitlements: { ...OMAN_LEAVE_PORTAL_DEFAULTS },
     };
     const m = await getActiveCompanyMembership(ctx.user.id, input.companyId ?? undefined);
     if (!m) return empty;
@@ -192,10 +193,10 @@ export const employeePortalRouter = router({
     const calcDays = (list: typeof approved) =>
       list.reduce((s, r) => s + Math.ceil((new Date(r.endDate).getTime() - new Date(r.startDate).getTime()) / 86400000) + 1, 0);
 
-    const { annual: maxA, sick: maxS, emergency: maxE } = DEFAULT_LEAVE_ENTITLEMENTS;
+    const { annual: maxA, sick: maxS, emergency: maxE } = OMAN_LEAVE_PORTAL_DEFAULTS;
     return {
       requests,
-      entitlements: { ...DEFAULT_LEAVE_ENTITLEMENTS },
+      entitlements: { ...OMAN_LEAVE_PORTAL_DEFAULTS },
       balance: {
         annual: Math.max(0, maxA - calcDays(approved.filter((r) => r.leaveType === "annual"))),
         sick: Math.max(0, maxS - calcDays(approved.filter((r) => r.leaveType === "sick"))),

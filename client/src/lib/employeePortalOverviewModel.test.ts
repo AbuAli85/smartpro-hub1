@@ -40,7 +40,7 @@ describe("buildOverviewTaskStats", () => {
 
 describe("buildLeaveOverviewSignals", () => {
   it("detects low balance", () => {
-    const sig = buildLeaveOverviewSignals([], { annual: 1, sick: 14, emergency: 5 }, { annual: 30, sick: 15, emergency: 5 });
+    const sig = buildLeaveOverviewSignals([], { annual: 1, sick: 14, emergency: 5 }, { annual: 30, sick: 15, emergency: 6 });
     expect(sig.warnings.some((w) => w.includes("Annual"))).toBe(true);
   });
 });
@@ -70,7 +70,7 @@ describe("buildOverviewDashboardModel", () => {
       tasks: [],
       leave: [],
       balance: { annual: 20, sick: 10, emergency: 5 },
-      entitlements: { annual: 30, sick: 15, emergency: 5 },
+      entitlements: { annual: 30, sick: 15, emergency: 6 },
       productivity,
       attSummary: { present: 10, late: 0, absent: 0, total: 10 },
       notifications: [],
@@ -92,7 +92,7 @@ describe("buildOverviewDashboardModel", () => {
       tasks: [],
       leave: [],
       balance: { annual: 20, sick: 10, emergency: 5 },
-      entitlements: { annual: 30, sick: 15, emergency: 5 },
+      entitlements: { annual: 30, sick: 15, emergency: 6 },
       productivity,
       attSummary: { present: 0, late: 0, absent: 0, total: 0 },
       notifications: [],
@@ -116,7 +116,7 @@ describe("buildOverviewDashboardModel", () => {
       tasks: [{ id: 1, title: "T", status: "pending", dueDate: "2020-01-01" }],
       leave: [],
       balance: { annual: 20, sick: 10, emergency: 5 },
-      entitlements: { annual: 30, sick: 15, emergency: 5 },
+      entitlements: { annual: 30, sick: 15, emergency: 6 },
       productivity,
       attSummary: { present: 10, late: 0, absent: 0, total: 10 },
       notifications: [],

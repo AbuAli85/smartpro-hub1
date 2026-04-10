@@ -1,5 +1,6 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
+import { OMAN_LEAVE_PORTAL_DEFAULTS } from "../../shared/omanLeavePolicyDefaults";
 import { eq, and, desc, gte, lte, count, sum } from "drizzle-orm";
 import {
   workPermits,
@@ -708,7 +709,13 @@ export const hrRouter = router({
       const cid = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user).catch(() => null);
       if (!cid) throw new TRPCError({ code: "FORBIDDEN", message: "No company" });
       const allLeave = await getLeaveRequests(cid, input.employeeId);
-      const ENTITLEMENTS: Record<string, number> = { annual: 30, sick: 10, emergency: 6, maternity: 50, paternity: 3, unpaid: 0, other: 0 };
+      const ENTITLEMENTS: Record<string, number> = {
+        ...OMAN_LEAVE_PORTAL_DEFAULTS,
+        maternity: 50,
+        paternity: 3,
+        unpaid: 0,
+        other: 0,
+      };
       const usedByType: Record<string, number> = {};
       const pendingByType: Record<string, number> = {};
       for (const r of allLeave) {
@@ -734,7 +741,7 @@ export const hrRouter = router({
     const emps = await getEmployees(cid);
     const activeEmps = emps.filter((e) => e.status === "active");
     const allLeave = await getLeaveRequests(cid);
-    const ENTITLEMENTS: Record<string, number> = { annual: 30, sick: 10, emergency: 6 };
+      const ENTITLEMENTS: Record<string, number> = { ...OMAN_LEAVE_PORTAL_DEFAULTS };
     return activeEmps.map((emp) => {
       const empLeave = allLeave.filter((r) => r.employeeId === emp.id);
       const usedByType: Record<string, number> = {};

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -189,6 +190,9 @@ export default function SanadOfficeDashboardPage() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
+          <Button variant="outline" size="sm" className="h-9" asChild>
+            <Link href="/sanad/catalogue-admin">Centre profile &amp; catalogue</Link>
+          </Button>
           <Select
             value={String(officeId)}
             onValueChange={(v) => setSelectedOfficeId(Number(v))}

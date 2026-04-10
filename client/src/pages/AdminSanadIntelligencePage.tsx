@@ -660,12 +660,17 @@ function DirectorySurface() {
       </div>
 
       {pipelineDrilldownLabel ? (
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-500/30 bg-amber-500/[0.07] px-3 py-2 text-sm">
-          <span>
-            <span className="font-medium text-foreground">Bottleneck drilldown:</span>{" "}
-            <span className="text-muted-foreground">{pipelineDrilldownLabel}</span>
-          </span>
-          <Button type="button" variant="outline" size="sm" className="h-8 text-xs" asChild>
+        <div className="flex flex-col gap-1.5 rounded-lg border border-amber-500/30 bg-amber-500/[0.07] px-3 py-2 text-sm sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0 space-y-0.5">
+            <span>
+              <span className="font-medium text-foreground">Bottleneck drilldown:</span>{" "}
+              <span className="text-muted-foreground">{pipelineDrilldownLabel}</span>
+            </span>
+            <p className="text-[11px] text-muted-foreground leading-snug">
+              Same cohort definitions as the Network overview bottleneck tiles — open a centre row to act (invite, activate, roster).
+            </p>
+          </div>
+          <Button type="button" variant="outline" size="sm" className="h-8 shrink-0 text-xs" asChild>
             <Link href="/admin/sanad/directory">Clear drilldown</Link>
           </Button>
         </div>

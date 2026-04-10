@@ -3,7 +3,7 @@ import { trpc } from "@/lib/trpc";
 import {
   Plus, Pencil, Trash2, Eye, EyeOff, Building2, CheckCircle,
   DollarSign, Calendar, Search, X, Shield, Globe, Phone, Mail,
-  Clock, MapPin, Save, ChevronDown,
+  Clock, MapPin, Save, ChevronDown, Users, Loader2, UserMinus,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -123,10 +123,16 @@ export default function SanadCatalogueAdminPage() {
     { enabled: !!myOffice?.id }
   );
 
+  const { data: goLiveReadiness } = trpc.sanad.officeGoLiveReadiness.useQuery(
+    { officeId: myOffice?.id ?? 0 },
+    { enabled: !!myOffice?.id },
+  );
+
   const saveProfileMutation = trpc.sanad.upsertOfficeProfile.useMutation({
     onSuccess: () => {
       toast.success("Profile saved successfully.");
       utils.sanad.getMyOfficeProfile.invalidate();
+      void utils.sanad.officeGoLiveReadiness.invalidate();
     },
     onError: (err) => toast.error(err.message),
   });
@@ -202,11 +208,16 @@ export default function SanadCatalogueAdminPage() {
   };
 
   const handleSaveProfile = () => {
+    if (!myOffice?.id) {
+      toast.error("No SANAD office is linked to your account yet.");
+      return;
+    }
     if (!profileForm.name || !profileForm.providerType) {
       toast.error("Centre name and type are required.");
       return;
     }
     saveProfileMutation.mutate({
+      officeId: myOffice.id,
       name: profileForm.name,
       nameAr: profileForm.nameAr || undefined,
       providerType: profileForm.providerType as any,
@@ -253,6 +264,10 @@ export default function SanadCatalogueAdminPage() {
       <Tabs defaultValue="profile">
         <TabsList className="mb-6">
           <TabsTrigger value="profile">Centre Profile</TabsTrigger>
+          <TabsTrigger value="team" className="gap-1">
+            <Users className="h-3.5 w-3.5" />
+            Team
+          </TabsTrigger>
           <TabsTrigger value="catalogue">
             Services Catalogue
             {catalogue.length > 0 && (
@@ -272,6 +287,50 @@ export default function SanadCatalogueAdminPage() {
             </div>
           ) : (
             <div className="space-y-6">
+              {goLiveReadiness && (
+                <Card className="border-dashed">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                      <CheckCircle className="h-4 w-4 text-primary" /> Marketplace readiness
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="text-sm space-y-2">
+                    {(myOffice as { isPublicListed?: number })?.isPublicListed === 1 ? (
+                      goLiveReadiness.marketplaceAsListed.ready ? (
+                        <p className="text-emerald-700 dark:text-emerald-400">Your centre meets the public marketplace bar.</p>
+                      ) : (
+                        <div>
+                          <p className="text-amber-800 dark:text-amber-200 text-xs font-medium mb-1">
+                            Listed offices must stay discoverable — fix the following:
+                          </p>
+                          <ul className="text-xs text-muted-foreground list-disc pl-4 space-y-0.5">
+                            {goLiveReadiness.marketplaceAsListed.reasons.map((r, i) => (
+                              <li key={i}>{r}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )
+                    ) : goLiveReadiness.goLiveReadiness.ready ? (
+                      <p className="text-emerald-700 dark:text-emerald-400">
+                        You can turn on marketplace listing when you are ready (toggle below).
+                      </p>
+                    ) : (
+                      <div>
+                        <p className="text-xs text-muted-foreground mb-1">Before going public, complete:</p>
+                        <ul className="text-xs text-muted-foreground list-disc pl-4 space-y-0.5">
+                          {goLiveReadiness.goLiveReadiness.reasons.map((r, i) => (
+                            <li key={i}>{r}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    <p className="text-[11px] text-muted-foreground">
+                      Active catalogue items:{" "}
+                      <span className="font-medium tabular-nums">{goLiveReadiness.activeCatalogueCount}</span>
+                    </p>
+                  </CardContent>
+                </Card>
+              )}
               <Card>
                 <CardHeader>
                   <CardTitle className="text-sm font-semibold flex items-center gap-2">
@@ -407,6 +466,10 @@ export default function SanadCatalogueAdminPage() {
               </div>
             </div>
           )}
+        </TabsContent>
+
+        <TabsContent value="team">
+          <OfficeTeamTab officeId={myOffice?.id} />
         </TabsContent>
 
         {/* ── CATALOGUE TAB ── */}
@@ -598,6 +661,170 @@ export default function SanadCatalogueAdminPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </div>
+  );
+}
+
+function OfficeTeamTab({ officeId }: { officeId?: number }) {
+  const [userSearch, setUserSearch] = useState("");
+  const [pickUserId, setPickUserId] = useState<number | null>(null);
+  const [newRole, setNewRole] = useState<"owner" | "manager" | "staff">("staff");
+
+  const members = trpc.sanad.listSanadOfficeMembers.useQuery(
+    { officeId: officeId ?? 0 },
+    { enabled: !!officeId },
+  );
+  const searchUsers = trpc.sanad.searchUsersForSanadRoster.useQuery(
+    { query: userSearch.trim(), officeId: officeId ?? undefined },
+    { enabled: !!officeId && userSearch.trim().length >= 2 },
+  );
+
+  const addMember = trpc.sanad.addSanadOfficeMember.useMutation({
+    onSuccess: () => {
+      toast.success("Team member added");
+      setUserSearch("");
+      setPickUserId(null);
+      void members.refetch();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+  const removeMember = trpc.sanad.removeSanadOfficeMember.useMutation({
+    onSuccess: () => {
+      toast.success("Access removed");
+      void members.refetch();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+  const updateRole = trpc.sanad.updateSanadOfficeMemberRole.useMutation({
+    onSuccess: () => void members.refetch(),
+    onError: (e) => toast.error(e.message),
+  });
+
+  if (!officeId) {
+    return (
+      <p className="text-sm text-muted-foreground border rounded-lg p-6 text-center">
+        No office loaded. Complete SANAD onboarding to manage team access.
+      </p>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm font-semibold flex items-center gap-2">
+            <Users className="h-4 w-4" /> Add people by SmartPRO account
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-xs text-muted-foreground">
+            Search by name or email, pick a user, choose a role, then add. Only owners can add other owners; platform admins can assign owners.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <Input
+              placeholder="Search name or email…"
+              value={userSearch}
+              onChange={(e) => setUserSearch(e.target.value)}
+              className="flex-1"
+            />
+            <Select value={newRole} onValueChange={(v) => setNewRole(v as typeof newRole)}>
+              <SelectTrigger className="w-full sm:w-36">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="staff">Staff</SelectItem>
+                <SelectItem value="manager">Manager</SelectItem>
+                <SelectItem value="owner">Owner</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button
+              type="button"
+              disabled={pickUserId == null || addMember.isPending}
+              onClick={() => pickUserId != null && addMember.mutate({ officeId, userId: pickUserId, role: newRole })}
+            >
+              {addMember.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Add member"}
+            </Button>
+          </div>
+          {searchUsers.isFetching ? (
+            <p className="text-xs text-muted-foreground flex items-center gap-2">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Searching…
+            </p>
+          ) : searchUsers.data && searchUsers.data.length > 0 ? (
+            <div className="rounded-md border divide-y max-h-48 overflow-y-auto">
+              {searchUsers.data.map((u) => (
+                <button
+                  key={u.id}
+                  type="button"
+                  className={`w-full text-left px-3 py-2 text-sm hover:bg-muted/60 ${pickUserId === u.id ? "bg-muted" : ""}`}
+                  onClick={() => setPickUserId(u.id)}
+                >
+                  <span className="font-medium">{u.name ?? "—"}</span>
+                  <span className="text-muted-foreground text-xs block">{u.email}</span>
+                </button>
+              ))}
+            </div>
+          ) : userSearch.trim().length >= 2 ? (
+            <p className="text-xs text-muted-foreground">No users match.</p>
+          ) : null}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm font-semibold">Current access</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {members.isLoading ? (
+            <div className="space-y-2">
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+            </div>
+          ) : !members.data?.length ? (
+            <p className="text-sm text-muted-foreground">No members yet.</p>
+          ) : (
+            <div className="space-y-2">
+              {members.data.map((m) => (
+                <div
+                  key={m.userId}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm"
+                >
+                  <div className="min-w-0">
+                    <p className="font-medium truncate">{m.name}</p>
+                    <p className="text-xs text-muted-foreground truncate">{m.email}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Select
+                      value={m.role}
+                      onValueChange={(v) =>
+                        updateRole.mutate({ officeId, userId: m.userId, role: v as typeof m.role })
+                      }
+                    >
+                      <SelectTrigger className="h-8 w-28 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="owner">Owner</SelectItem>
+                        <SelectItem value="manager">Manager</SelectItem>
+                        <SelectItem value="staff">Staff</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-destructive"
+                      aria-label="Remove member"
+                      onClick={() => removeMember.mutate({ officeId, userId: m.userId })}
+                    >
+                      <UserMinus className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

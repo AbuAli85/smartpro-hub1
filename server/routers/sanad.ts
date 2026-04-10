@@ -11,6 +11,7 @@ import {
   sanadPublicProfileCompleteness,
 } from "@shared/sanadLifecycle";
 import { validateEnablePublicListing, validateListedOfficeRemainsDiscoverable } from "@shared/sanadLifecycleTransitions";
+import { omitUndefined } from "@shared/objectUtils";
 import { canAccessGlobalAdminProcedures } from "@shared/rbac";
 import { getDb } from "../db";
 import {
@@ -291,8 +292,22 @@ export const sanadRouter = router({
     )
     .mutation(async ({ input, ctx }) => {
       if (!canAccessGlobalAdminProcedures(ctx.user)) throw new TRPCError({ code: "FORBIDDEN" });
-      const { id, ...data } = input;
-      await updateSanadOffice(id, data as any);
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      const { id, ...rest } = input;
+      const patch = omitUndefined(rest as Record<string, unknown>);
+      if (Object.keys(patch).length === 0) return { success: true };
+
+      const [current] = await db.select().from(sanadOffices).where(eq(sanadOffices.id, id)).limit(1);
+      if (!current) throw new TRPCError({ code: "NOT_FOUND", message: "Service provider not found" });
+
+      const projected = { ...current, ...patch } as typeof sanadOffices.$inferSelect;
+      const activeN = await getActiveCatalogueCountForOffice(db, id);
+      if (projected.isPublicListed === 1) {
+        await requireListedOfficeRemainsDiscoverableOrThrow(db as never, projected, id, activeN);
+      }
+
+      await updateSanadOffice(id, patch as typeof sanadOffices.$inferInsert);
       return { success: true };
     }),
 
@@ -947,17 +962,24 @@ export const sanadRouter = router({
 
       await db
         .update(sanadOffices)
-        .set({
-          isPublicListed: fields.isPublicListed !== undefined ? (fields.isPublicListed ? 1 : 0) : undefined,
-          licenceNumber: fields.licenceNumber,
-          licenceExpiry: fields.licenceExpiry ? new Date(fields.licenceExpiry) : undefined,
-          languages: fields.languages,
-          governorate: fields.governorate,
-          logoUrl: fields.logoUrl,
-          descriptionAr: fields.descriptionAr,
-          responseTimeHours: fields.responseTimeHours,
-          updatedAt: new Date(),
-        })
+        .set(
+          omitUndefined({
+            isPublicListed: fields.isPublicListed !== undefined ? (fields.isPublicListed ? 1 : 0) : undefined,
+            licenceNumber: fields.licenceNumber,
+            licenceExpiry:
+              fields.licenceExpiry !== undefined
+                ? fields.licenceExpiry
+                  ? new Date(fields.licenceExpiry)
+                  : null
+                : undefined,
+            languages: fields.languages,
+            governorate: fields.governorate,
+            logoUrl: fields.logoUrl,
+            descriptionAr: fields.descriptionAr,
+            responseTimeHours: fields.responseTimeHours,
+            updatedAt: new Date(),
+          }) as never,
+        )
         .where(eq(sanadOffices.id, officeId));
       return { success: true };
     }),
@@ -1300,7 +1322,7 @@ export const sanadRouter = router({
       } else {
         existing = [];
       }
-      const payload: any = {
+      const payload = omitUndefined({
         name: input.name,
         nameAr: input.nameAr,
         providerType: input.providerType,
@@ -1319,26 +1341,23 @@ export const sanadRouter = router({
         responseTimeHours: input.responseTimeHours,
         isPublicListed: input.isPublicListed,
         updatedAt: new Date(),
-      };
-      if (input.isPublicListed === undefined) {
-        delete payload.isPublicListed;
-      }
+      }) as Record<string, unknown>;
       if (existing.length === 0 && !canAccessGlobalAdminProcedures(ctx.user)) {
         throw new TRPCError({ code: "NOT_FOUND", message: "SANAD office not found for your account." });
       }
       if (existing.length > 0) {
         const projected = { ...existing[0], ...payload } as typeof sanadOffices.$inferSelect;
         const activeN = await getActiveCatalogueCountForOffice(db, existing[0].id);
-        if (payload.isPublicListed === 1) {
+        if ("isPublicListed" in payload && payload.isPublicListed === 1) {
           await requireGoLiveOkForPublicListing(db as never, projected, existing[0].id);
         } else if (projected.isPublicListed === 1) {
           await requireListedOfficeRemainsDiscoverableOrThrow(db as never, projected, existing[0].id, activeN);
         }
-        await db.update(sanadOffices).set(payload).where(eq(sanadOffices.id, existing[0].id));
+        await db.update(sanadOffices).set(payload as never).where(eq(sanadOffices.id, existing[0].id));
 
         return { id: existing[0].id };
       }
-      if (payload.isPublicListed === 1) {
+      if ("isPublicListed" in payload && payload.isPublicListed === 1) {
         const projected = { ...payload, status: "active" as const } as typeof sanadOffices.$inferSelect;
         await requireGoLiveOkForPublicListing(db as never, projected, 0);
       }
@@ -1406,16 +1425,21 @@ export const sanadRouter = router({
       if (!canAccessGlobalAdminProcedures(ctx.user)) {
         await assertSanadOfficeCatalogueAccess(db as never, ctx.user.id, row.officeId);
       }
-      await db.update(sanadServiceCatalogue).set({
-        serviceName: input.serviceName,
-        serviceNameAr: input.serviceNameAr,
-        serviceType: input.serviceType,
-        priceOmr: input.priceOmr,
-        processingDays: input.processingDays,
-        description: input.description,
-        descriptionAr: input.descriptionAr,
-        updatedAt: new Date(),
-      }).where(eq(sanadServiceCatalogue.id, input.id));
+      await db
+        .update(sanadServiceCatalogue)
+        .set(
+          omitUndefined({
+            serviceName: input.serviceName,
+            serviceNameAr: input.serviceNameAr,
+            serviceType: input.serviceType,
+            priceOmr: input.priceOmr,
+            processingDays: input.processingDays,
+            description: input.description,
+            descriptionAr: input.descriptionAr,
+            updatedAt: new Date(),
+          }) as never,
+        )
+        .where(eq(sanadServiceCatalogue.id, input.id));
       return { success: true };
     }),
 

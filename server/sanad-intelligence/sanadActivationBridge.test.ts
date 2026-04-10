@@ -24,6 +24,7 @@ import {
   sanadIntelCenterOperations,
   sanadIntelCenters,
   sanadOffices,
+  sanadOfficeMembers,
 } from "../../drizzle/schema";
 
 // ---------------------------------------------------------------------------
@@ -541,6 +542,7 @@ describe("D. Office activation", () => {
     return makeOps({
       inviteToken: "some-token",
       inviteExpiresAt: new Date(Date.now() + 86400000),
+      registeredUserId: 42,
     });
   }
 
@@ -561,6 +563,10 @@ describe("D. Office activation", () => {
     expect(result.alreadyLinked).toBe(false);
     // sanad_offices insert was called
     expect(insertSpy).toHaveBeenCalledWith(sanadOffices, expect.objectContaining({ name: "مركز سند مسقط" }));
+    expect(insertSpy).toHaveBeenCalledWith(
+      sanadOfficeMembers,
+      expect.objectContaining({ role: "owner", userId: 42 }),
+    );
     // Audit event written
     expect(insertSpy).toHaveBeenCalledWith(
       auditEvents,
@@ -611,8 +617,23 @@ describe("D. Office activation", () => {
   it("D4 — PRECONDITION_FAILED when no compliance items seeded", async () => {
     const selectMap = new Map<object, unknown[]>([
       [sanadIntelCenters, [makeCenter()]],
-      [sanadIntelCenterOperations, [makeOps()]],
+      [sanadIntelCenterOperations, [makeOps({ registeredUserId: 99 })]],
       [sanadIntelCenterComplianceItems, []], // empty → gate fails
+    ]);
+    const mockDb = buildMockDb({ selectMap });
+    vi.spyOn(db, "getDb").mockResolvedValue(mockDb as never);
+
+    const caller = sanadIntelligenceRouter.createCaller(makeAdminCtx());
+    await expect(caller.activateCenterAsOffice({ centerId: 1 })).rejects.toMatchObject({
+      code: "PRECONDITION_FAILED",
+    });
+  });
+
+  it("D4b — PRECONDITION_FAILED when no SmartPRO account linked", async () => {
+    const selectMap = new Map<object, unknown[]>([
+      [sanadIntelCenters, [makeCenter()]],
+      [sanadIntelCenterOperations, [makeOps({ registeredUserId: null })]],
+      [sanadIntelCenterComplianceItems, [{ id: 1 }]],
     ]);
     const mockDb = buildMockDb({ selectMap });
     vi.spyOn(db, "getDb").mockResolvedValue(mockDb as never);
@@ -626,7 +647,7 @@ describe("D. Office activation", () => {
   it("D5 — BAD_REQUEST when centre name is empty", async () => {
     const selectMap = new Map<object, unknown[]>([
       [sanadIntelCenters, [makeCenter({ centerName: "   " })]],
-      [sanadIntelCenterOperations, [makeOps()]],
+      [sanadIntelCenterOperations, [makeOps({ registeredUserId: 5 })]],
       [sanadIntelCenterComplianceItems, [{ id: 1 }]],
     ]);
     const mockDb = buildMockDb({ selectMap });
@@ -733,7 +754,7 @@ describe("E. Audit side effects", () => {
     const insertSpy = vi.fn();
     const selectMap = new Map<object, unknown[]>([
       [sanadIntelCenters, [makeCenter()]],
-      [sanadIntelCenterOperations, [makeOps()]],
+      [sanadIntelCenterOperations, [makeOps({ registeredUserId: 7 })]],
       [sanadIntelCenterComplianceItems, [{ id: 1 }]],
       [sanadOffices, [makeSanadOffice(200)]],
     ]);

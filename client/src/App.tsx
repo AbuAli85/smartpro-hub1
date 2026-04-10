@@ -42,6 +42,7 @@ import CompanySettingsPage from "./pages/CompanySettingsPage";
 import OmaniOfficersPage from "./pages/OmaniOfficersPage";
 import OfficerAssignmentPage from "./pages/OfficerAssignmentPage";
 import SanadMarketplacePage from "./pages/SanadMarketplacePage";
+import SanadPartnerOnboardingPage from "./pages/SanadPartnerOnboardingPage";
 import SanadCentreProfilePage from "./pages/SanadCentreProfilePage";
 import SanadCatalogueAdminPage from "./pages/SanadCatalogueAdminPage";
 import BillingEnginePage from "./pages/BillingEnginePage";
@@ -172,6 +173,7 @@ function AppRoutes() {
         <Route path="/omani-officers" component={OmaniOfficersPage} />
         <Route path="/officer-assignments" component={OfficerAssignmentPage} />
         {/* Sanad Marketplace — specific routes before parameterized */}
+        <Route path="/sanad/partner-onboarding" component={SanadPartnerOnboardingPage} />
         <Route path="/sanad/marketplace" component={SanadMarketplacePage} />
         <Route path="/sanad/catalogue-admin" component={SanadCatalogueAdminPage} />
         <Route path="/billing" component={BillingEnginePage} />

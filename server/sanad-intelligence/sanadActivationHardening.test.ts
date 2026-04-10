@@ -48,6 +48,7 @@ describe("evaluateActivationServerGate", () => {
       centerName: "Centre",
       complianceItemsTotal: 0,
       linkedSanadOfficeId: null,
+      registeredUserId: 1,
     });
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.code).toBe("PRECONDITION_FAILED");
@@ -58,6 +59,7 @@ describe("evaluateActivationServerGate", () => {
       centerName: "Centre",
       complianceItemsTotal: 3,
       linkedSanadOfficeId: 42,
+      registeredUserId: 1,
     });
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.code).toBe("BAD_REQUEST");
@@ -68,6 +70,7 @@ describe("evaluateActivationServerGate", () => {
       centerName: "  ",
       complianceItemsTotal: 2,
       linkedSanadOfficeId: null,
+      registeredUserId: 1,
     });
     expect(r.ok).toBe(false);
   });
@@ -78,8 +81,20 @@ describe("evaluateActivationServerGate", () => {
         centerName: "Valid",
         complianceItemsTotal: 1,
         linkedSanadOfficeId: null,
+        registeredUserId: 55,
       }).ok,
     ).toBe(true);
+  });
+
+  it("requires a linked SmartPRO account", () => {
+    const r = evaluateActivationServerGate({
+      centerName: "Valid",
+      complianceItemsTotal: 2,
+      linkedSanadOfficeId: null,
+      registeredUserId: null,
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.code).toBe("PRECONDITION_FAILED");
   });
 });
 

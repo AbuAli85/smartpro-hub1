@@ -37,6 +37,8 @@ export const users = mysqlTable("users", {
     "reviewer",
     "client",
     "external_auditor",
+    "sanad_network_admin",
+    "sanad_compliance_reviewer",
   ])
     .default("client")
     .notNull(),
@@ -276,6 +278,27 @@ export const sanadOffices = mysqlTable("sanad_offices", {
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
 export type SanadOffice = typeof sanadOffices.$inferSelect;;
+
+/** Per-user roles for a SANAD office (partner self-service RBAC). */
+export const sanadOfficeMembers = mysqlTable(
+  "sanad_office_members",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    sanadOfficeId: int("sanad_office_id")
+      .notNull()
+      .references(() => sanadOffices.id, { onDelete: "cascade" }),
+    userId: int("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    role: mysqlEnum("role", ["owner", "manager", "staff"]).notNull().default("staff"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    unique("uq_sanad_office_member").on(t.sanadOfficeId, t.userId),
+    index("idx_sanad_office_members_user").on(t.userId),
+  ],
+);
+export type SanadOfficeMember = typeof sanadOfficeMembers.$inferSelect;
 
 // ─── SANAD APPLICATIONS ───────────────────────────────────────────────────────
 

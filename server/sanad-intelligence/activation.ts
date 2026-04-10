@@ -37,6 +37,7 @@ export function evaluateActivationServerGate(input: {
   centerName: string | null | undefined;
   complianceItemsTotal: number;
   linkedSanadOfficeId: number | null | undefined;
+  registeredUserId: number | null | undefined;
 }): ActivationServerGateResult {
   if (input.linkedSanadOfficeId != null) {
     return { ok: false, code: "BAD_REQUEST", message: "This centre already has a linked SANAD office." };
@@ -49,6 +50,13 @@ export function evaluateActivationServerGate(input: {
       ok: false,
       code: "PRECONDITION_FAILED",
       message: "Seed compliance checklist items for this centre before activating an office.",
+    };
+  }
+  if (input.registeredUserId == null) {
+    return {
+      ok: false,
+      code: "PRECONDITION_FAILED",
+      message: "Link a SmartPRO account to this centre before activating an office.",
     };
   }
   return { ok: true };
@@ -141,6 +149,7 @@ export async function computeCenterActivationReadiness(db: DB, centerId: number)
       centerName: detail.center.centerName,
       complianceItemsTotal,
       linkedSanadOfficeId: ops?.linkedSanadOfficeId ?? null,
+      registeredUserId: ops?.registeredUserId ?? null,
     }).ok === true;
 
   return {

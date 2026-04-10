@@ -1,4 +1,9 @@
-import { and, asc, desc, eq, inArray, like, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, like, notInArray, or, sql } from "drizzle-orm";
+import {
+  resolveSanadLifecycleStage,
+  SANAD_LIFECYCLE_STAGES,
+  type SanadLifecycleStage,
+} from "@shared/sanadLifecycle";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import * as schema from "../../drizzle/schema";
 import { computeGovernorateOpportunityRows } from "./opportunityScore";
@@ -384,4 +389,145 @@ export async function listWilayatForGovernorate(db: DB, governorateKey: string) 
     .from(schema.sanadIntelCenters)
     .where(eq(schema.sanadIntelCenters.governorateKey, governorateKey))
     .orderBy(asc(schema.sanadIntelCenters.wilayat));
+}
+
+/** Funnel counts + conversion rates for SANAD network intelligence dashboard. */
+export async function getSanadNetworkLifecycleKpis(db: DB) {
+  const rows = await db
+    .select({
+      center: schema.sanadIntelCenters,
+      ops: schema.sanadIntelCenterOperations,
+    })
+    .from(schema.sanadIntelCenters)
+    .leftJoin(
+      schema.sanadIntelCenterOperations,
+      eq(schema.sanadIntelCenterOperations.centerId, schema.sanadIntelCenters.id),
+    );
+
+  const linkedIds = new Set<number>();
+  for (const r of rows) {
+    const lid = r.ops?.linkedSanadOfficeId;
+    if (lid != null) linkedIds.add(lid);
+  }
+  const officeList =
+    linkedIds.size > 0
+      ? await db
+          .select()
+          .from(schema.sanadOffices)
+          .where(inArray(schema.sanadOffices.id, [...linkedIds]))
+      : [];
+  const officeById = new Map(officeList.map((o) => [o.id, o]));
+
+  const catalogueAgg = await db
+    .select({
+      officeId: schema.sanadServiceCatalogue.officeId,
+      n: sql<number>`count(*)`.mapWith(Number),
+    })
+    .from(schema.sanadServiceCatalogue)
+    .where(eq(schema.sanadServiceCatalogue.isActive, 1))
+    .groupBy(schema.sanadServiceCatalogue.officeId);
+  const catByOffice = new Map(catalogueAgg.map((r) => [r.officeId, r.n]));
+
+  const funnel = {} as Record<SanadLifecycleStage, number>;
+  for (const s of SANAD_LIFECYCLE_STAGES) {
+    funnel[s] = 0;
+  }
+  for (const r of rows) {
+    const oid = r.ops?.linkedSanadOfficeId ?? null;
+    const office = oid ? (officeById.get(oid) ?? null) : null;
+    const activeCat = oid ? catByOffice.get(oid) ?? 0 : 0;
+    const stage = resolveSanadLifecycleStage(r.ops ?? {}, office, {
+      activeCatalogueCount: activeCat,
+    });
+    funnel[stage] += 1;
+  }
+
+  const totalCenters = rows.length;
+  const pct = (n: number) => (totalCenters > 0 ? Math.round((n / totalCenters) * 1000) / 10 : 0);
+  const sumStages = (...stages: SanadLifecycleStage[]) => stages.reduce((s, k) => s + funnel[k], 0);
+
+  return {
+    totalCenters,
+    funnel,
+    conversion: {
+      outreachOrLater: pct(
+        sumStages(
+          "contacted",
+          "prospect",
+          "invited",
+          "lead_captured",
+          "account_linked",
+          "compliance_in_progress",
+          "licensed",
+          "activated_office",
+          "public_listed",
+          "live_partner",
+        ),
+      ),
+      invitePipeline: pct(
+        sumStages(
+          "invited",
+          "lead_captured",
+          "account_linked",
+          "compliance_in_progress",
+          "licensed",
+          "activated_office",
+          "public_listed",
+          "live_partner",
+        ),
+      ),
+      accountToActivated: pct(sumStages("activated_office", "public_listed", "live_partner")),
+      liveShare: pct(funnel.live_partner),
+    },
+  };
+}
+
+export async function getSanadOperationalKpis(db: DB) {
+  const now = new Date();
+  const [overdueRow] = await db
+    .select({ n: sql<number>`count(*)`.mapWith(Number) })
+    .from(schema.sanadIntelCenterOperations)
+    .where(
+      and(
+        sql`${schema.sanadIntelCenterOperations.followUpDueAt} IS NOT NULL`,
+        sql`${schema.sanadIntelCenterOperations.followUpDueAt} < ${now}`,
+      ),
+    );
+
+  const [activeWoRow] = await db
+    .select({ n: sql<number>`count(*)`.mapWith(Number) })
+    .from(schema.sanadApplications)
+    .where(notInArray(schema.sanadApplications.status, ["completed", "cancelled"]));
+
+  const [avgRatingRow] = await db
+    .select({ a: sql<string>`avg(${schema.sanadOffices.avgRating})` })
+    .from(schema.sanadOffices)
+    .where(eq(schema.sanadOffices.status, "active"));
+
+  const officesWithActiveCat = await db
+    .selectDistinct({ officeId: schema.sanadServiceCatalogue.officeId })
+    .from(schema.sanadServiceCatalogue)
+    .where(eq(schema.sanadServiceCatalogue.isActive, 1));
+  const withCat = new Set(officesWithActiveCat.map((r) => r.officeId));
+
+  const [officeCountRow] = await db
+    .select({ n: sql<number>`count(*)`.mapWith(Number) })
+    .from(schema.sanadOffices);
+
+  const allOffices = await db.select({ id: schema.sanadOffices.id, isPublicListed: schema.sanadOffices.isPublicListed }).from(schema.sanadOffices);
+  let noCatalogue = 0;
+  let notPublicListed = 0;
+  for (const o of allOffices) {
+    if (!withCat.has(o.id)) noCatalogue++;
+    if (o.isPublicListed !== 1) notPublicListed++;
+  }
+
+  return {
+    overdueFollowUps: overdueRow?.n ?? 0,
+    activeWorkOrders: activeWoRow?.n ?? 0,
+    averagePartnerRating: parseFloat(String(avgRatingRow?.a ?? "0")) || 0,
+    officesWithNoActiveCatalogue: noCatalogue,
+    officesNotPublicListed: notPublicListed,
+    totalOffices: officeCountRow?.n ?? 0,
+  };
 }

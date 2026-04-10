@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { Link } from "wouter";
 import { trpc } from "@/lib/trpc";
 import {
@@ -187,38 +187,33 @@ function ProviderCardSkeleton() {
 export default function SanadMarketplacePage() {
   const [search, setSearch] = useState("");
   const [governorate, setGovernorate] = useState("all");
+  const [wilayat, setWilayat] = useState("");
   const [providerType, setProviderType] = useState("all");
   const [minRating, setMinRating] = useState("any");
   const [showFilters, setShowFilters] = useState(false);
 
-  const { data: providers = [], isLoading } = trpc.sanad.listPublicProviders.useQuery({});
+  const { data: providers = [], isLoading } = trpc.sanad.listPublicProviders.useQuery({
+    search: search.trim() || undefined,
+    governorate: governorate !== "all" ? governorate : undefined,
+    wilayat: wilayat.trim() || undefined,
+    providerType: providerType !== "all" ? (providerType as any) : undefined,
+    minRating: minRating !== "any" ? Number(minRating) : undefined,
+    publicListedOnly: true,
+  });
 
-  const filtered = useMemo(() => {
-    return providers.filter((p) => {
-      if (search) {
-        const q = search.toLowerCase();
-        const match =
-          p.name?.toLowerCase().includes(q) ||
-          (p.nameAr ?? "").toLowerCase().includes(q) ||
-          (p.city ?? "").toLowerCase().includes(q) ||
-          (p.governorate ?? "").toLowerCase().includes(q) ||
-          (p.description ?? "").toLowerCase().includes(q);
-        if (!match) return false;
-      }
-      if (governorate !== "all" && p.governorate !== governorate) return false;
-      if (providerType !== "all" && p.providerType !== providerType) return false;
-      if (minRating !== "any") {
-        const r = Number((p as any).avgRating ?? p.rating ?? 0);
-        if (r < Number(minRating)) return false;
-      }
-      return true;
-    });
-  }, [providers, search, governorate, providerType, minRating]);
-
-  const activeFilterCount = [governorate !== "all", providerType !== "all", minRating !== "any"].filter(Boolean).length;
+  const activeFilterCount = [
+    governorate !== "all",
+    Boolean(wilayat.trim()),
+    providerType !== "all",
+    minRating !== "any",
+  ].filter(Boolean).length;
 
   const clearFilters = () => {
-    setGovernorate("all"); setProviderType("all"); setMinRating("any"); setSearch("");
+    setGovernorate("all");
+    setWilayat("");
+    setProviderType("all");
+    setMinRating("any");
+    setSearch("");
   };
 
   return (
@@ -303,6 +298,13 @@ export default function SanadMarketplacePage() {
                 </SelectContent>
               </Select>
 
+              <Input
+                className="w-44 h-8 text-xs"
+                placeholder="Wilayat / city"
+                value={wilayat}
+                onChange={(e) => setWilayat(e.target.value)}
+              />
+
               <Select value={providerType} onValueChange={setProviderType}>
                 <SelectTrigger className="w-44 h-8 text-xs">
                   <SelectValue placeholder="All Types" />
@@ -341,7 +343,7 @@ export default function SanadMarketplacePage() {
       <div className="max-w-6xl mx-auto px-4 py-8">
         <div className="flex items-center justify-between mb-6">
           <p className="text-sm text-muted-foreground">
-            {isLoading ? "Loading…" : `${filtered.length} service provider${filtered.length !== 1 ? "s" : ""} found`}
+            {isLoading ? "Loading…" : `${providers.length} service provider${providers.length !== 1 ? "s" : ""} found`}
           </p>
           {activeFilterCount > 0 && (
             <button onClick={clearFilters} className="text-xs text-red-600 hover:underline flex items-center gap-1">
@@ -354,7 +356,7 @@ export default function SanadMarketplacePage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {Array.from({ length: 8 }).map((_, i) => <ProviderCardSkeleton key={i} />)}
           </div>
-        ) : filtered.length === 0 ? (
+        ) : providers.length === 0 ? (
           <div className="text-center py-20">
             <Building2 className="h-12 w-12 text-muted-foreground mx-auto mb-4 opacity-40" />
             <h3 className="text-lg font-semibold mb-2">No providers found</h3>
@@ -367,7 +369,7 @@ export default function SanadMarketplacePage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {filtered.map((office) => <ProviderCard key={office.id} office={office} />)}
+            {providers.map((office) => <ProviderCard key={office.id} office={office} />)}
           </div>
         )}
 

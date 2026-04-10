@@ -11,7 +11,13 @@ import { Separator } from "@/components/ui/separator";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
-import { canAccessGlobalAdminProcedures } from "@shared/rbac";
+import {
+  resolveSanadLifecycleStage,
+  SANAD_LIFECYCLE_STAGES,
+  sanadLifecycleBadge,
+  type SanadLifecycleOpsInput,
+} from "@shared/sanadLifecycle";
+import { canAccessSanadIntelligenceUi } from "@shared/sanadRoles";
 import {
   Activity,
   AlertCircle,
@@ -61,24 +67,18 @@ function formatDirectoryLocation(c: {
   return parts.join(" · ");
 }
 
-function directoryPartnerBadge(partnerStatus: string | undefined) {
-  const s = partnerStatus ?? "unknown";
-  if (s === "unknown") {
-    return (
-      <Badge
-        variant="outline"
-        className="max-w-full whitespace-normal text-start font-normal leading-snug text-muted-foreground"
-        title="Imported registry row — not yet classified as a SmartPRO partner. Open Details → set Partner status to Prospect or Active when you engage them."
-      >
-        Registry
-      </Badge>
-    );
-  }
-  if (s === "active") return <Badge className="font-normal">Active</Badge>;
-  if (s === "prospect") return <Badge variant="secondary" className="font-normal">Prospect</Badge>;
-  if (s === "suspended") return <Badge variant="destructive" className="font-normal">Suspended</Badge>;
-  if (s === "churned") return <Badge variant="outline" className="font-normal">Churned</Badge>;
-  return <Badge variant="secondary" className="font-normal">{s}</Badge>;
+function directoryLifecycleBadge(ops: SanadLifecycleOpsInput | null | undefined) {
+  const stage = resolveSanadLifecycleStage(ops ?? {}, null);
+  const b = sanadLifecycleBadge(stage);
+  return (
+    <Badge
+      variant={b.style === "outline" ? "outline" : "secondary"}
+      className={`max-w-full whitespace-normal text-start font-normal leading-snug ${b.className}`}
+      title={b.description}
+    >
+      {b.label}
+    </Badge>
+  );
 }
 
 function useSection(): Section {
@@ -132,6 +132,7 @@ function SectionNav() {
 
 function OverviewSurface() {
   const { data, isLoading, error } = trpc.sanad.intelligence.overviewSummary.useQuery();
+  const { data: netOps } = trpc.sanad.intelligence.networkOperationsMetrics.useQuery();
 
   if (isLoading)
     return (
@@ -177,6 +178,42 @@ function OverviewSurface() {
           </Card>
         ))}
       </div>
+
+      {netOps && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Partner lifecycle funnel</CardTitle>
+            <CardDescription>
+              Centres by canonical stage · conversion: outreach+ {netOps.lifecycle.conversion.outreachOrLater}% · live{" "}
+              {netOps.lifecycle.conversion.liveShare}%
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm">
+            <div className="flex flex-wrap gap-2">
+              {SANAD_LIFECYCLE_STAGES.map((stage) => (
+                <span key={stage} className="inline-flex items-center gap-1 rounded-md border bg-card px-2 py-0.5 text-xs">
+                  <span className="text-muted-foreground capitalize">{stage.replace(/_/g, " ")}</span>
+                  <span className="font-semibold tabular-nums">{netOps.lifecycle.funnel[stage]}</span>
+                </span>
+              ))}
+            </div>
+            <p className="text-muted-foreground leading-relaxed">
+              Active work orders: <strong className="text-foreground">{netOps.operational.activeWorkOrders}</strong>
+              {" · "}
+              Avg partner rating:{" "}
+              <strong className="text-foreground">{netOps.operational.averagePartnerRating.toFixed(2)}</strong>
+              {" · "}
+              Offices with no active catalogue:{" "}
+              <strong className="text-foreground">{netOps.operational.officesWithNoActiveCatalogue}</strong>
+              {" · "}
+              Not public-listed:{" "}
+              <strong className="text-foreground">{netOps.operational.officesNotPublicListed}</strong>
+              {" · "}
+              Overdue follow-ups: <strong className="text-foreground">{netOps.operational.overdueFollowUps}</strong>
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       {data.interpretation.length > 0 && (
         <Card className="border-[var(--smartpro-orange)]/25 bg-orange-50/40 dark:bg-orange-950/20">
@@ -689,7 +726,7 @@ function DirectorySurface() {
                         })()}
                       </TableCell>
                       <TableCell className="px-2 py-2.5 align-middle" onClick={(e) => e.stopPropagation()}>
-                        {directoryPartnerBadge(ops?.partnerStatus)}
+                        {directoryLifecycleBadge(ops)}
                       </TableCell>
                       <TableCell
                         className="px-3 py-2.5 align-middle text-end whitespace-nowrap"
@@ -1504,7 +1541,7 @@ export default function AdminSanadIntelligencePage() {
   const { user } = useAuth();
   const section = useSection();
 
-  if (!user || !canAccessGlobalAdminProcedures(user)) {
+  if (!user || !canAccessSanadIntelligenceUi(user)) {
     return <AccessDenied />;
   }
 

@@ -1,7 +1,13 @@
 import { TRPCError } from "@trpc/server";
 import { nanoid } from "nanoid";
-import { and, avg, count, desc, eq, gte, sql } from "drizzle-orm";
+import { and, avg, count, desc, eq, gte, like, or, sql } from "drizzle-orm";
 import { z } from "zod";
+import {
+  listSanadLifecycleBlockers,
+  resolveSanadLifecycleStage,
+  sanadLifecycleBadge,
+  sanadPublicProfileCompleteness,
+} from "@shared/sanadLifecycle";
 import { canAccessGlobalAdminProcedures } from "@shared/rbac";
 import { getDb } from "../db";
 import {
@@ -9,6 +15,8 @@ import {
   officerCompanyAssignments,
   omaniProOfficers,
   sanadApplications,
+  sanadIntelCenterOperations,
+  sanadIntelCenters,
   sanadOffices,
   sanadServiceCatalogue,
   sanadServiceRequests,
@@ -20,13 +28,19 @@ import {
   getAllSanadOffices,
   getSanadApplicationById,
   getSanadApplications,
-  getSanadOffices,
   updateSanadApplication,
   updateSanadOffice,
 } from "../db";
 import { getActiveCompanyMembership } from "../_core/membership";
 import { assertRowBelongsToActiveCompany, requireActiveCompanyId } from "../_core/tenant";
 import { protectedProcedure, publicProcedure, router } from "../_core/trpc";
+import { getCenterDetail } from "../sanad-intelligence/queries";
+import {
+  assertSanadOfficeAccess,
+  assertSanadOfficeCatalogueAccess,
+  assertSanadOfficeProfileAccess,
+  getSanadOfficesForUser,
+} from "../sanadAccess";
 import { sanadIntelligenceRouter } from "./sanadIntelligence";
 
 export const PROVIDER_TYPES = [
@@ -85,9 +99,15 @@ export const sanadRouter = router({
       }).optional()
     )
     .query(async ({ ctx, input }) => {
-      const offices = canAccessGlobalAdminProcedures(ctx.user)
-        ? await getAllSanadOffices()
-        : await getSanadOffices(0);
+      const db = await getDb();
+      let offices: Awaited<ReturnType<typeof getAllSanadOffices>>;
+      if (canAccessGlobalAdminProcedures(ctx.user)) {
+        offices = await getAllSanadOffices();
+      } else if (db) {
+        offices = await getSanadOfficesForUser(db as never, ctx.user.id);
+      } else {
+        offices = [];
+      }
       let results = offices as any[];
       if (input?.providerType) results = results.filter((o: any) => o.providerType === input.providerType);
       if (input?.status) results = results.filter((o: any) => o.status === input.status);
@@ -641,23 +661,62 @@ export const sanadRouter = router({
   // ─── Public Marketplace ──────────────────────────────────────────────────
   listPublicProviders: publicProcedure
     .input(
-      z.object({
-        governorate: z.string().optional(),
-        serviceType: z.string().optional(),
-        language: z.string().optional(),
-        minRating: z.number().min(0).max(5).optional(),
-        search: z.string().optional(),
-      }).optional()
+      z
+        .object({
+          governorate: z.string().optional(),
+          wilayat: z.string().optional(),
+          providerType: z.enum(PROVIDER_TYPES).optional(),
+          serviceType: z.enum(SERVICE_TYPES).optional(),
+          language: z.string().optional(),
+          minRating: z.number().min(0).max(5).optional(),
+          search: z.string().optional(),
+          publicListedOnly: z.boolean().optional().default(true),
+        })
+        .optional(),
     )
-    .query(async () => {
+    .query(async ({ input }) => {
       const db = await getDb();
       if (!db) return [];
-      const rows = await db
+      const conds = [eq(sanadOffices.status, "active")];
+      if (input?.publicListedOnly !== false) {
+        conds.push(eq(sanadOffices.isPublicListed, 1));
+      }
+      if (input?.governorate?.trim()) {
+        conds.push(eq(sanadOffices.governorate, input.governorate.trim()));
+      }
+      if (input?.wilayat?.trim()) {
+        conds.push(eq(sanadOffices.city, input.wilayat.trim()));
+      }
+      if (input?.providerType) {
+        conds.push(eq(sanadOffices.providerType, input.providerType));
+      }
+      if (input?.serviceType) {
+        conds.push(sql`JSON_CONTAINS(${sanadOffices.services}, ${JSON.stringify(input.serviceType)}, '$')`);
+      }
+      if (input?.language?.trim()) {
+        conds.push(like(sanadOffices.languages, `%${input.language.trim()}%`));
+      }
+      if (input?.minRating != null) {
+        conds.push(gte(sanadOffices.avgRating, String(input.minRating)));
+      }
+      if (input?.search?.trim()) {
+        const q = `%${input.search.trim()}%`;
+        conds.push(
+          or(
+            like(sanadOffices.name, q),
+            like(sanadOffices.nameAr, q),
+            like(sanadOffices.city, q),
+            like(sanadOffices.governorate, q),
+            like(sanadOffices.description, q),
+            like(sanadOffices.descriptionAr, q),
+          )!,
+        );
+      }
+      return db
         .select()
         .from(sanadOffices)
-        .where(eq(sanadOffices.status, "active"))
+        .where(and(...conds))
         .orderBy(desc(sanadOffices.avgRating));
-      return rows;
     }),
 
   getPublicProfile: publicProcedure
@@ -700,10 +759,12 @@ export const sanadRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
-      if (!canAccessGlobalAdminProcedures(ctx.user)) throw new Error("FORBIDDEN");
       const db = await getDb();
       if (!db) throw new Error("DB unavailable");
       const { officeId, ...fields } = input;
+      if (!canAccessGlobalAdminProcedures(ctx.user)) {
+        await assertSanadOfficeProfileAccess(db as never, ctx.user.id, officeId);
+      }
       await db
         .update(sanadOffices)
         .set({
@@ -723,9 +784,12 @@ export const sanadRouter = router({
 
   listServiceCatalogue: protectedProcedure
     .input(z.object({ officeId: z.number() }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       const db = await getDb();
       if (!db) return [];
+      if (!canAccessGlobalAdminProcedures(ctx.user)) {
+        await assertSanadOfficeAccess(db as never, ctx.user.id, input.officeId);
+      }
       return db
         .select()
         .from(sanadServiceCatalogue)
@@ -749,9 +813,11 @@ export const sanadRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
-      if (!canAccessGlobalAdminProcedures(ctx.user)) throw new Error("FORBIDDEN");
       const db = await getDb();
       if (!db) throw new Error("DB unavailable");
+      if (!canAccessGlobalAdminProcedures(ctx.user)) {
+        await assertSanadOfficeCatalogueAccess(db as never, ctx.user.id, input.officeId);
+      }
       if (input.id) {
         await db
           .update(sanadServiceCatalogue)
@@ -786,9 +852,17 @@ export const sanadRouter = router({
   deleteServiceItem: protectedProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input, ctx }) => {
-      if (!canAccessGlobalAdminProcedures(ctx.user)) throw new Error("FORBIDDEN");
       const db = await getDb();
       if (!db) throw new Error("DB unavailable");
+      const [row] = await db
+        .select({ officeId: sanadServiceCatalogue.officeId })
+        .from(sanadServiceCatalogue)
+        .where(eq(sanadServiceCatalogue.id, input.id))
+        .limit(1);
+      if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Catalogue item not found" });
+      if (!canAccessGlobalAdminProcedures(ctx.user)) {
+        await assertSanadOfficeCatalogueAccess(db as never, ctx.user.id, row.officeId);
+      }
       await db.delete(sanadServiceCatalogue).where(eq(sanadServiceCatalogue.id, input.id));
       return { success: true };
     }),
@@ -840,9 +914,11 @@ export const sanadRouter = router({
   listServiceRequests: protectedProcedure
     .input(z.object({ officeId: z.number(), status: z.string().optional() }))
     .query(async ({ input, ctx }) => {
-      if (!canAccessGlobalAdminProcedures(ctx.user)) throw new Error("FORBIDDEN");
       const db = await getDb();
       if (!db) return [];
+      if (!canAccessGlobalAdminProcedures(ctx.user)) {
+        await assertSanadOfficeAccess(db as never, ctx.user.id, input.officeId);
+      }
       const conditions = [eq(sanadServiceRequests.officeId, input.officeId)];
       if (input.status) conditions.push(eq(sanadServiceRequests.status, input.status as any));
       return db
@@ -861,9 +937,19 @@ export const sanadRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
-      if (!canAccessGlobalAdminProcedures(ctx.user)) throw new Error("FORBIDDEN");
       const db = await getDb();
       if (!db) throw new Error("DB unavailable");
+      const [reqRow] = await db
+        .select()
+        .from(sanadServiceRequests)
+        .where(eq(sanadServiceRequests.id, input.id))
+        .limit(1);
+      if (!reqRow) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Service request not found" });
+      }
+      if (!canAccessGlobalAdminProcedures(ctx.user)) {
+        await assertSanadOfficeAccess(db as never, ctx.user.id, reqRow.officeId);
+      }
       await db
         .update(sanadServiceRequests)
         .set({ status: input.status, notes: input.notes, updatedAt: new Date() })
@@ -873,25 +959,104 @@ export const sanadRouter = router({
 
   // ─── Sanad Centre Self-Management ──────────────────────────────────────────
 
+  /** Guided onboarding for the centre linked to the signed-in user (invite pipeline). */
+  partnerOnboardingWorkspace: protectedProcedure.query(async ({ ctx }) => {
+    const db = await getDb();
+    if (!db) return null;
+    const [intelRow] = await db
+      .select({ centerId: sanadIntelCenterOperations.centerId })
+      .from(sanadIntelCenterOperations)
+      .where(eq(sanadIntelCenterOperations.registeredUserId, ctx.user.id))
+      .limit(1);
+    if (!intelRow) return null;
+
+    const detail = await getCenterDetail(db as never, intelRow.centerId);
+    if (!detail) return null;
+
+    const office =
+      detail.ops?.linkedSanadOfficeId != null
+        ? (
+            await db
+              .select()
+              .from(sanadOffices)
+              .where(eq(sanadOffices.id, detail.ops.linkedSanadOfficeId))
+              .limit(1)
+          )[0] ?? null
+        : null;
+
+    let activeCatalogueCount = 0;
+    if (detail.ops?.linkedSanadOfficeId) {
+      const [catRow] = await db
+        .select({ n: sql<number>`count(*)`.mapWith(Number) })
+        .from(sanadServiceCatalogue)
+        .where(
+          and(
+            eq(sanadServiceCatalogue.officeId, detail.ops.linkedSanadOfficeId),
+            eq(sanadServiceCatalogue.isActive, 1),
+          ),
+        );
+      activeCatalogueCount = catRow?.n ?? 0;
+    }
+
+    const doneStatuses = new Set(["verified", "waived", "not_applicable"]);
+    const complianceTotal = detail.compliance.length;
+    const complianceDone = detail.compliance.filter((r) => doneStatuses.has(r.item.status)).length;
+
+    const stage = resolveSanadLifecycleStage(detail.ops ?? {}, office, { activeCatalogueCount });
+    const badge = sanadLifecycleBadge(stage);
+    const blockers = listSanadLifecycleBlockers(stage, detail.ops, office, {
+      activeCatalogueCount,
+      complianceDone,
+      complianceTotal,
+    });
+    const profileCompleteness = sanadPublicProfileCompleteness(office);
+
+    return {
+      centerId: detail.center.id,
+      centerName: detail.center.centerName,
+      governorateLabel: detail.center.governorateLabelRaw,
+      wilayat: detail.center.wilayat,
+      stage,
+      badge,
+      blockers,
+      compliance: { done: complianceDone, total: complianceTotal },
+      profileCompleteness,
+      contact: {
+        inviteAcceptName: detail.ops?.inviteAcceptName,
+        inviteAcceptPhone: detail.ops?.inviteAcceptPhone,
+        inviteAcceptEmail: detail.ops?.inviteAcceptEmail,
+      },
+      office,
+      ops: detail.ops,
+    };
+  }),
+
   /** Get the first Sanad office profile (for self-management by the current user) */
   getMyOfficeProfile: protectedProcedure
     .input(z.object({ officeId: z.number().optional() }).optional())
     .query(async ({ input, ctx }) => {
-      if (!canAccessGlobalAdminProcedures(ctx.user)) return null;
       const db = await getDb();
       if (!db) return null;
-      if (input?.officeId) {
-        const [office] = await db.select().from(sanadOffices).where(eq(sanadOffices.id, input.officeId)).limit(1);
+      if (canAccessGlobalAdminProcedures(ctx.user)) {
+        if (input?.officeId) {
+          const [office] = await db.select().from(sanadOffices).where(eq(sanadOffices.id, input.officeId)).limit(1);
+          return office ?? null;
+        }
+        const [office] = await db.select().from(sanadOffices).limit(1);
         return office ?? null;
       }
-      const [office] = await db.select().from(sanadOffices).limit(1);
-      return office ?? null;
+      const offices = await getSanadOfficesForUser(db as never, ctx.user.id);
+      if (input?.officeId) {
+        return offices.find((o) => o.id === input.officeId) ?? null;
+      }
+      return offices[0] ?? null;
     }),
 
   /** Create or update the Sanad office profile for the current user's company */
   upsertOfficeProfile: protectedProcedure
     .input(
       z.object({
+        officeId: z.number().optional(),
         name: z.string().min(1),
         nameAr: z.string().optional(),
         providerType: z.enum(PROVIDER_TYPES).default("pro_office"),
@@ -912,15 +1077,23 @@ export const sanadRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
-      if (!canAccessGlobalAdminProcedures(ctx.user)) {
-        throw new TRPCError({ code: "FORBIDDEN", message: "Platform access required" });
-      }
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-      const officeId = (input as any).officeId as number | undefined;
-      const existing = officeId
-        ? await db.select().from(sanadOffices).where(eq(sanadOffices.id, officeId)).limit(1)
-        : await db.select().from(sanadOffices).limit(1);
+      const officeId = input.officeId;
+      if (!canAccessGlobalAdminProcedures(ctx.user)) {
+        if (!officeId) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "officeId is required to update a SANAD office profile." });
+        }
+        await assertSanadOfficeProfileAccess(db as never, ctx.user.id, officeId);
+      }
+      let existing: (typeof sanadOffices.$inferSelect)[];
+      if (officeId) {
+        existing = await db.select().from(sanadOffices).where(eq(sanadOffices.id, officeId)).limit(1);
+      } else if (canAccessGlobalAdminProcedures(ctx.user)) {
+        existing = await db.select().from(sanadOffices).limit(1);
+      } else {
+        existing = [];
+      }
       const payload: any = {
         name: input.name,
         nameAr: input.nameAr,
@@ -941,6 +1114,9 @@ export const sanadRouter = router({
         isPublicListed: input.isPublicListed,
         updatedAt: new Date(),
       };
+      if (existing.length === 0 && !canAccessGlobalAdminProcedures(ctx.user)) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "SANAD office not found for your account." });
+      }
       if (existing.length > 0) {
         await db.update(sanadOffices).set(payload).where(eq(sanadOffices.id, existing[0].id));
 
@@ -965,11 +1141,11 @@ export const sanadRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
-      if (!canAccessGlobalAdminProcedures(ctx.user)) {
-        throw new TRPCError({ code: "FORBIDDEN", message: "Platform access required" });
-      }
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+      if (!canAccessGlobalAdminProcedures(ctx.user)) {
+        await assertSanadOfficeCatalogueAccess(db as never, ctx.user.id, input.officeId);
+      }
       const [result] = await db.insert(sanadServiceCatalogue).values({
         officeId: input.officeId,
         serviceType: input.serviceType,
@@ -999,11 +1175,17 @@ export const sanadRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
-      if (!canAccessGlobalAdminProcedures(ctx.user)) {
-        throw new TRPCError({ code: "FORBIDDEN", message: "Platform access required" });
-      }
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+      const [row] = await db
+        .select({ officeId: sanadServiceCatalogue.officeId })
+        .from(sanadServiceCatalogue)
+        .where(eq(sanadServiceCatalogue.id, input.id))
+        .limit(1);
+      if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Catalogue item not found" });
+      if (!canAccessGlobalAdminProcedures(ctx.user)) {
+        await assertSanadOfficeCatalogueAccess(db as never, ctx.user.id, row.officeId);
+      }
       await db.update(sanadServiceCatalogue).set({
         serviceName: input.serviceName,
         serviceNameAr: input.serviceNameAr,
@@ -1021,11 +1203,17 @@ export const sanadRouter = router({
   toggleCatalogueItem: protectedProcedure
     .input(z.object({ id: z.number(), isActive: z.boolean() }))
     .mutation(async ({ input, ctx }) => {
-      if (!canAccessGlobalAdminProcedures(ctx.user)) {
-        throw new TRPCError({ code: "FORBIDDEN", message: "Platform access required" });
-      }
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+      const [row] = await db
+        .select({ officeId: sanadServiceCatalogue.officeId })
+        .from(sanadServiceCatalogue)
+        .where(eq(sanadServiceCatalogue.id, input.id))
+        .limit(1);
+      if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Catalogue item not found" });
+      if (!canAccessGlobalAdminProcedures(ctx.user)) {
+        await assertSanadOfficeCatalogueAccess(db as never, ctx.user.id, row.officeId);
+      }
       await db.update(sanadServiceCatalogue).set({ isActive: input.isActive ? 1 : 0, updatedAt: new Date() }).where(eq(sanadServiceCatalogue.id, input.id));
       return { success: true };
     }),
@@ -1034,11 +1222,17 @@ export const sanadRouter = router({
   deleteCatalogueItem: protectedProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input, ctx }) => {
-      if (!canAccessGlobalAdminProcedures(ctx.user)) {
-        throw new TRPCError({ code: "FORBIDDEN", message: "Platform access required" });
-      }
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+      const [row] = await db
+        .select({ officeId: sanadServiceCatalogue.officeId })
+        .from(sanadServiceCatalogue)
+        .where(eq(sanadServiceCatalogue.id, input.id))
+        .limit(1);
+      if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Catalogue item not found" });
+      if (!canAccessGlobalAdminProcedures(ctx.user)) {
+        await assertSanadOfficeCatalogueAccess(db as never, ctx.user.id, row.officeId);
+      }
       await db.delete(sanadServiceCatalogue).where(eq(sanadServiceCatalogue.id, input.id));
       return { success: true };
     }),
@@ -1046,15 +1240,21 @@ export const sanadRouter = router({
   /** Get service catalogue for a specific office (alias used by admin page) */
   getServiceCatalogue: protectedProcedure
     .input(z.object({ officeId: z.number() }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       const db = await getDb();
       if (!db) return [];
+      if (!canAccessGlobalAdminProcedures(ctx.user)) {
+        await assertSanadOfficeAccess(db as never, ctx.user.id, input.officeId);
+      }
       return db.select().from(sanadServiceCatalogue).where(eq(sanadServiceCatalogue.officeId, input.officeId)).orderBy(sanadServiceCatalogue.serviceType);
     }),
 
   // ─── Legacy aliases (backward compat) ────────────────────────────────────
   listOffices: protectedProcedure.query(async ({ ctx }) => {
-    return canAccessGlobalAdminProcedures(ctx.user) ? getAllSanadOffices() : getSanadOffices(0);
+    const db = await getDb();
+    if (!db) return [];
+    if (canAccessGlobalAdminProcedures(ctx.user)) return getAllSanadOffices();
+    return getSanadOfficesForUser(db as never, ctx.user.id);
   }),
   listApplications: protectedProcedure
     .input(

@@ -56,7 +56,6 @@
   "emailTemplates": "قوالب البريد الإلكتروني",
   "companyDocuments": "وثائق الشركة",
   "business": "الأعمال",
-  "companyHub": "مركز الشركة",
   "humanResources": "الموارد البشرية",
   "myTeam": "فريقي",
   "orgChart": "الهيكل التنظيمي",
@@ -104,9 +103,6 @@
   "signOut": "تسجيل الخروج",
   "brandTitle": "SmartPRO",
   "brandSubtitle": "مركز خدمات الأعمال · عُمان",
-  "workspace": {
-    "company": "الشركة"
-  },
   "roles": {
     "member": "عضو",
     "owner": "مالك / مسؤول",
@@ -118,5 +114,6 @@
     "reviewer": "مراجع",
     "auditor": "مدقق خارجي",
     "external_auditor": "مدقق خارجي"
-  }
+  },
+  "workspaceCompanyLabel": "الشركة"
 }

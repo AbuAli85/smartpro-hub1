@@ -95,7 +95,7 @@ export function CompanySwitcher() {
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-[9px] font-semibold uppercase tracking-wider text-white/40 mb-0.5">
-              {t("workspace.company", { defaultValue: "Company" })}
+              {t("workspaceCompanyLabel", { defaultValue: "Company" })}
             </p>
             <p
               className="text-sm font-semibold text-white line-clamp-2 leading-tight break-words"

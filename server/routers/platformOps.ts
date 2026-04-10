@@ -25,6 +25,7 @@ import {
   deriveEdgeCaseWarning,
   deriveBestMemberRole,
 } from "../../shared/roleHelpers";
+import { PLATFORM_ROLE_VALUES } from "../../shared/platformRoles";
 
 // ─── Platform Operations Router ───────────────────────────────────────────────
 
@@ -374,7 +375,7 @@ export const platformOpsRouter = router({
     .input(
       z.object({
         userId: z.number(),
-        platformRole: z.enum(["client", "company_admin", "platform_admin"]).optional(),
+        platformRole: z.enum(PLATFORM_ROLE_VALUES as unknown as [string, ...string[]]).optional(),
         role: z.enum(["admin", "user"]).optional(),
         isActive: z.boolean().optional(),
       })

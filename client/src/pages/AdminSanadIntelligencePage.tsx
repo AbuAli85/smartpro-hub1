@@ -38,7 +38,9 @@ import {
   Network,
   Search,
   Shield,
+  Trash2,
   TrendingUp,
+  Users,
 } from "lucide-react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link, useLocation } from "wouter";
@@ -197,20 +199,41 @@ function OverviewSurface() {
                 </span>
               ))}
             </div>
-            <p className="text-muted-foreground leading-relaxed">
-              Active work orders: <strong className="text-foreground">{netOps.operational.activeWorkOrders}</strong>
-              {" · "}
-              Avg partner rating:{" "}
-              <strong className="text-foreground">{netOps.operational.averagePartnerRating.toFixed(2)}</strong>
-              {" · "}
-              Offices with no active catalogue:{" "}
-              <strong className="text-foreground">{netOps.operational.officesWithNoActiveCatalogue}</strong>
-              {" · "}
-              Not public-listed:{" "}
-              <strong className="text-foreground">{netOps.operational.officesNotPublicListed}</strong>
-              {" · "}
-              Overdue follow-ups: <strong className="text-foreground">{netOps.operational.overdueFollowUps}</strong>
-            </p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+              {(
+                [
+                  { label: "Active work orders", value: netOps.operational.activeWorkOrders },
+                  { label: "Avg partner rating", value: netOps.operational.averagePartnerRating.toFixed(2) },
+                  { label: "No active catalogue", value: netOps.operational.officesWithNoActiveCatalogue },
+                  { label: "Not public listed", value: netOps.operational.officesNotPublicListed },
+                  { label: "Overdue follow-ups", value: netOps.operational.overdueFollowUps },
+                ] as const
+              ).map((k) => (
+                <div
+                  key={k.label}
+                  className="rounded-md border border-border/70 bg-muted/20 px-2.5 py-2 text-xs"
+                >
+                  <p className="text-muted-foreground leading-snug">{k.label}</p>
+                  <p className="font-semibold tabular-nums text-foreground mt-0.5">{k.value}</p>
+                </div>
+              ))}
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-1 border-t border-border/60">
+              {(
+                [
+                  { label: "Stuck in onboarding", value: netOps.bottlenecks.stuckInOnboarding },
+                  { label: "Licensed, not activated", value: netOps.bottlenecks.licensedNotYetActivated },
+                ] as const
+              ).map((k) => (
+                <div
+                  key={k.label}
+                  className="rounded-md border border-amber-500/25 bg-amber-500/[0.06] px-2.5 py-2 text-xs"
+                >
+                  <p className="text-muted-foreground leading-snug">{k.label}</p>
+                  <p className="font-semibold tabular-nums text-foreground mt-0.5">{k.value}</p>
+                </div>
+              ))}
+            </div>
           </CardContent>
         </Card>
       )}
@@ -428,9 +451,39 @@ function DirectorySurface() {
     onError: (e) => toast.error(e.message),
   });
 
+  const officeRosterId = detail.data?.ops?.linkedSanadOfficeId ?? null;
+  const rosterQuery = trpc.sanad.listSanadOfficeMembers.useQuery(
+    { officeId: officeRosterId ?? 0 },
+    { enabled: officeRosterId != null },
+  );
+  const addRosterMember = trpc.sanad.addSanadOfficeMember.useMutation({
+    onSuccess: () => {
+      toast.success("Member added");
+      setRosterNewUserId("");
+      void rosterQuery.refetch();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+  const updateRosterRole = trpc.sanad.updateSanadOfficeMemberRole.useMutation({
+    onSuccess: () => {
+      toast.success("Role updated");
+      void rosterQuery.refetch();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+  const removeRosterMember = trpc.sanad.removeSanadOfficeMember.useMutation({
+    onSuccess: () => {
+      toast.success("Access removed");
+      void rosterQuery.refetch();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
   const [followUpInput, setFollowUpInput] = useState("");
   const [outreachNote, setOutreachNote] = useState("");
   const [contactMethodDraft, setContactMethodDraft] = useState("call");
+  const [rosterNewUserId, setRosterNewUserId] = useState("");
+  const [rosterNewRole, setRosterNewRole] = useState<"owner" | "manager" | "staff">("staff");
 
   const ops = detail.data?.ops;
   const inviteFullUrl = useMemo(() => {
@@ -1098,6 +1151,133 @@ function DirectorySurface() {
                       Activate as office
                     </Button>
                   </div>
+
+                  {ops?.linkedSanadOfficeId ? (
+                    <div className="rounded-lg border bg-muted/15 p-3 space-y-3">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
+                        <Users className="h-3.5 w-3.5" />
+                        Office access (roster)
+                      </p>
+                      <p className="text-xs text-muted-foreground leading-relaxed">
+                        Owner and manager roles can self-serve in the partner app. Assign owner only for trusted leads — requires
+                        network admin on the server when choosing <strong className="text-foreground">owner</strong>.
+                      </p>
+                      {rosterQuery.isLoading ? (
+                        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                      ) : rosterQuery.error ? (
+                        <p className="text-xs text-destructive">{rosterQuery.error.message}</p>
+                      ) : (
+                        <div className="space-y-2">
+                          <Table>
+                            <TableHeader>
+                              <TableRow className="hover:bg-transparent">
+                                <TableHead className="text-xs h-8">User</TableHead>
+                                <TableHead className="text-xs h-8 w-[7.5rem]">Role</TableHead>
+                                <TableHead className="text-xs h-8 w-20 text-end">Actions</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {(rosterQuery.data ?? []).map((m) => (
+                                <TableRow key={m.userId}>
+                                  <TableCell className="text-xs py-2 align-top">
+                                    <span className="font-medium text-foreground block">{m.name ?? "—"}</span>
+                                    <span className="text-muted-foreground break-all">{m.email ?? ""}</span>
+                                    <span className="text-[10px] text-muted-foreground tabular-nums">ID {m.userId}</span>
+                                  </TableCell>
+                                  <TableCell className="py-2 align-top">
+                                    <Select
+                                      value={m.role}
+                                      onValueChange={(v) =>
+                                        updateRosterRole.mutate({
+                                          officeId: ops.linkedSanadOfficeId!,
+                                          userId: m.userId,
+                                          role: v as "owner" | "manager" | "staff",
+                                        })
+                                      }
+                                    >
+                                      <SelectTrigger className="h-8 text-xs">
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="owner">Owner</SelectItem>
+                                        <SelectItem value="manager">Manager</SelectItem>
+                                        <SelectItem value="staff">Staff</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                  </TableCell>
+                                  <TableCell className="text-end py-2 align-top">
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-8 w-8 text-destructive hover:text-destructive"
+                                      title="Remove access"
+                                      disabled={removeRosterMember.isPending}
+                                      onClick={() =>
+                                        removeRosterMember.mutate({
+                                          officeId: ops.linkedSanadOfficeId!,
+                                          userId: m.userId,
+                                        })
+                                      }
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                          <div className="flex flex-wrap items-end gap-2 pt-1 border-t border-border/60">
+                            <div className="space-y-1">
+                              <Label className="text-xs">User ID</Label>
+                              <Input
+                                className="h-8 text-xs w-[7rem] tabular-nums"
+                                inputMode="numeric"
+                                placeholder="e.g. 42"
+                                value={rosterNewUserId}
+                                onChange={(e) => setRosterNewUserId(e.target.value.replace(/\D/g, ""))}
+                              />
+                            </div>
+                            <div className="space-y-1 min-w-[6.5rem]">
+                              <Label className="text-xs">Role</Label>
+                              <Select
+                                value={rosterNewRole}
+                                onValueChange={(v) => setRosterNewRole(v as "owner" | "manager" | "staff")}
+                              >
+                                <SelectTrigger className="h-8 text-xs">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="owner">Owner</SelectItem>
+                                  <SelectItem value="manager">Manager</SelectItem>
+                                  <SelectItem value="staff">Staff</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <Button
+                              type="button"
+                              size="sm"
+                              className="h-8"
+                              disabled={
+                                addRosterMember.isPending ||
+                                !rosterNewUserId.trim() ||
+                                !ops.linkedSanadOfficeId
+                              }
+                              onClick={() =>
+                                addRosterMember.mutate({
+                                  officeId: ops.linkedSanadOfficeId!,
+                                  userId: Number(rosterNewUserId),
+                                  role: rosterNewRole,
+                                })
+                              }
+                            >
+                              Add member
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ) : null}
 
                   <div className="rounded-md border border-dashed border-border/80 p-3 space-y-2">
                     <p className="text-xs font-medium text-muted-foreground flex items-center gap-1">

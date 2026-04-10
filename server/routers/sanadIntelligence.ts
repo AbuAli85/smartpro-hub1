@@ -36,6 +36,7 @@ import {
   listWilayatForGovernorate,
   getSanadNetworkLifecycleKpis,
   getSanadOperationalKpis,
+  getSanadBottleneckKpis,
 } from "../sanad-intelligence/queries";
 import { protectedProcedure, publicProcedure, router, t } from "../_core/trpc";
 import { throwIfSanadIntelSchemaMissing } from "../sanad-intelligence/dbErrors";
@@ -112,11 +113,12 @@ export const sanadIntelligenceRouter = router({
   networkOperationsMetrics: sanadIntelReadProcedure.query(async () => {
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
-    const [lifecycle, operational] = await Promise.all([
+    const [lifecycle, operational, bottlenecks] = await Promise.all([
       getSanadNetworkLifecycleKpis(db as never),
       getSanadOperationalKpis(db as never),
+      getSanadBottleneckKpis(db as never),
     ]);
-    return { lifecycle, operational };
+    return { lifecycle, operational, bottlenecks };
   }),
 
   overviewSummary: sanadIntelReadProcedure.query(async () => {

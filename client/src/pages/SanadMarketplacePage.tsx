@@ -199,6 +199,7 @@ export default function SanadMarketplacePage() {
     providerType: providerType !== "all" ? (providerType as any) : undefined,
     minRating: minRating !== "any" ? Number(minRating) : undefined,
     publicListedOnly: true,
+    marketplaceReadyOnly: true,
   });
 
   const activeFilterCount = [

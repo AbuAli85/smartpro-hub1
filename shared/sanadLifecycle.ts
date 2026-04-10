@@ -53,6 +53,7 @@ export type SanadLifecycleOfficeInput = {
   description?: string | null;
   phone?: string | null;
   governorate?: string | null;
+  city?: string | null;
   languages?: string | null;
   logoUrl?: string | null;
   status?: string | null;
@@ -278,6 +279,48 @@ export function listSanadLifecycleBlockers(
     next("Add at least one active catalogue item or earn reviews to reach live partner status.");
   }
   return blockers;
+}
+
+/**
+ * Partner workspace: merge lifecycle blockers, marketplace gaps, and stage-based CTAs (deduped).
+ */
+export function recommendedSanadPartnerNextActions(
+  stage: SanadLifecycleStage,
+  blockers: string[],
+  marketplaceReasons: string[],
+): string[] {
+  const extra: string[] = [];
+  for (const r of marketplaceReasons) {
+    extra.push(`Marketplace · ${r}`);
+  }
+  if (stage === "registry" || stage === "contacted") {
+    extra.push(
+      "Work with SmartPRO operations to classify this centre and begin onboarding when you are ready.",
+    );
+  }
+  if (stage === "invited" || stage === "lead_captured") {
+    extra.push("Open your SmartPRO invite link and complete the capture form.");
+  }
+  if (stage === "account_linked" || stage === "compliance_in_progress") {
+    extra.push("Complete compliance checklist items and respond to your network contact.");
+  }
+  if (stage === "licensed" || stage === "activated_office") {
+    extra.push("Finish your public profile, add active catalogue services, then enable marketplace listing.");
+  }
+  if (stage === "public_listed" || stage === "live_partner") {
+    extra.push("Keep your catalogue and contact details current for clients.");
+  }
+  const merged = [...blockers, ...extra];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const s of merged) {
+    if (!seen.has(s)) {
+      seen.add(s);
+      out.push(s);
+    }
+    if (out.length >= 18) break;
+  }
+  return out;
 }
 
 export function sanadPublicProfileCompleteness(office: SanadLifecycleOfficeInput): {

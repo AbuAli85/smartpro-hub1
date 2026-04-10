@@ -414,7 +414,7 @@ export async function getSanadNetworkLifecycleKpis(db: DB) {
       ? await db
           .select()
           .from(schema.sanadOffices)
-          .where(inArray(schema.sanadOffices.id, [...linkedIds]))
+          .where(inArray(schema.sanadOffices.id, Array.from(linkedIds)))
       : [];
   const officeById = new Map(officeList.map((o) => [o.id, o]));
 
@@ -529,5 +529,39 @@ export async function getSanadOperationalKpis(db: DB) {
     officesWithNoActiveCatalogue: noCatalogue,
     officesNotPublicListed: notPublicListed,
     totalOffices: officeCountRow?.n ?? 0,
+  };
+}
+
+/** Centres with linked account but no office yet, or licensed intel without activation. */
+export async function getSanadBottleneckKpis(db: DB) {
+  const [stuckOnboardingRow] = await db
+    .select({ n: sql<number>`count(*)`.mapWith(Number) })
+    .from(schema.sanadIntelCenterOperations)
+    .where(
+      and(
+        sql`${schema.sanadIntelCenterOperations.registeredUserId} IS NOT NULL`,
+        sql`${schema.sanadIntelCenterOperations.linkedSanadOfficeId} IS NULL`,
+        inArray(schema.sanadIntelCenterOperations.onboardingStatus, [
+          "intake",
+          "documentation",
+          "licensing_review",
+          "blocked",
+        ]),
+      ),
+    );
+
+  const [licensedNoOfficeRow] = await db
+    .select({ n: sql<number>`count(*)`.mapWith(Number) })
+    .from(schema.sanadIntelCenterOperations)
+    .where(
+      and(
+        eq(schema.sanadIntelCenterOperations.onboardingStatus, "licensed"),
+        sql`${schema.sanadIntelCenterOperations.linkedSanadOfficeId} IS NULL`,
+      ),
+    );
+
+  return {
+    stuckInOnboarding: stuckOnboardingRow?.n ?? 0,
+    licensedNotYetActivated: licensedNoOfficeRow?.n ?? 0,
   };
 }

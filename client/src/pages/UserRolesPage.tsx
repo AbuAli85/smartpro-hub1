@@ -9,6 +9,7 @@ import {
   deriveEdgeCaseWarning,
   type AccountType,
 } from "../../../shared/roleHelpers";
+import type { PlatformRoleValue } from "../../../shared/platformRoles";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -387,7 +388,7 @@ function UserRow({
                   onValueChange={(v) =>
                     updatePlatformRole.mutate({
                       userId: user.id,
-                      platformRole: v as "client" | "company_admin" | "platform_admin",
+                      platformRole: v as PlatformRoleValue,
                     })
                   }
                 >
@@ -404,6 +405,8 @@ function UserRow({
                     <SelectItem value="reviewer">Reviewer</SelectItem>
                     <SelectItem value="external_auditor">External Auditor</SelectItem>
                     <SelectItem value="client">Customer Portal</SelectItem>
+                    <SelectItem value="sanad_network_admin">SANAD Network Admin</SelectItem>
+                    <SelectItem value="sanad_compliance_reviewer">SANAD Compliance Reviewer</SelectItem>
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">Use "Fix Mismatch" for auto-correction.</p>

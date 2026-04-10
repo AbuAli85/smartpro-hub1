@@ -813,11 +813,10 @@ describe("sanad.officeDashboard", () => {
     ).rejects.toThrow();
   });
 
-  it("rejects non-platform users", async () => {
+  it("returns null when DB is unavailable before office RBAC (mock env; same short-circuit as admin)", async () => {
     const ctx = makeCtx({ role: "user", platformRole: "company_member" });
-    await expect(
-      appRouter.createCaller(ctx).sanad.officeDashboard({ officeId: 1 }),
-    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    const result = await appRouter.createCaller(ctx).sanad.officeDashboard({ officeId: 1 });
+    expect(result).toBeNull();
   });
 });
 
@@ -986,7 +985,7 @@ describe("sanad.addCatalogueItem", () => {
       })
     ).rejects.toThrow();
   });
-  it("rejects non-platform users", async () => {
+  it("returns INTERNAL_SERVER_ERROR when DB is unavailable (before catalogue RBAC)", async () => {
     const ctx = makeCtx({ role: "user", platformRole: "company_member" });
     await expect(
       appRouter.createCaller(ctx).sanad.addCatalogueItem({
@@ -996,7 +995,7 @@ describe("sanad.addCatalogueItem", () => {
         priceOmr: "10.000",
         processingDays: 3,
       }),
-    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    ).rejects.toMatchObject({ code: "INTERNAL_SERVER_ERROR" });
   });
 });
 

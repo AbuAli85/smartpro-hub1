@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   compareSanadLifecycleStage,
+  recommendedSanadPartnerNextActions,
   resolveSanadLifecycleStage,
   type SanadLifecycleOpsInput,
   type SanadLifecycleOfficeInput,
@@ -133,5 +134,18 @@ describe("compareSanadLifecycleStage", () => {
   it("orders stages monotonically", () => {
     expect(compareSanadLifecycleStage("registry", "live_partner")).toBeLessThan(0);
     expect(compareSanadLifecycleStage("live_partner", "registry")).toBeGreaterThan(0);
+  });
+});
+
+describe("recommendedSanadPartnerNextActions", () => {
+  it("includes marketplace reasons and dedupes", () => {
+    const out = recommendedSanadPartnerNextActions(
+      "activated_office",
+      ["Complete compliance"],
+      ["Office is not marked public-listed."],
+    );
+    expect(out.some((s) => s.includes("Marketplace"))).toBe(true);
+    expect(out).toContain("Complete compliance");
+    expect(out.length).toBeLessThanOrEqual(18);
   });
 });

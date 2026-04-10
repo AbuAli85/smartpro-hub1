@@ -1,6 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
+import { canAccessGlobalAdminProcedures } from "@shared/rbac";
 import {
   canAccessSanadIntelFull,
   canAccessSanadIntelRead,
@@ -27,6 +28,41 @@ export function canViewSanadServiceRequests(role: SanadOfficeMemberRole | null):
 
 export function canUpdateSanadServiceRequestStatus(role: SanadOfficeMemberRole | null): boolean {
   return role === "owner" || role === "manager" || role === "staff";
+}
+
+/** Officer dashboard / payroll-style KPIs — not for staff. */
+export function canViewSensitiveOfficeDashboard(role: SanadOfficeMemberRole | null): boolean {
+  return role === "owner" || role === "manager";
+}
+
+type UserLike = { id: number; role?: string | null; platformRole?: string | null };
+
+/**
+ * Who may add/remove/update SANAD office members: platform admins, SANAD network admins, or office owner/manager.
+ */
+export async function assertSanadOfficeRosterAdmin(
+  db: DB,
+  user: UserLike,
+  officeId: number,
+): Promise<SanadOfficeMemberRole | "platform"> {
+  if (canAccessGlobalAdminProcedures(user)) return "platform";
+  if (canAccessSanadIntelFull(user)) return "platform";
+  const role = await getSanadOfficeRoleForUser(db, user.id, officeId);
+  if (role === "owner" || role === "manager") return role;
+  throw new TRPCError({
+    code: "FORBIDDEN",
+    message: "Only platform administrators, SANAD network admins, or this office’s owner/manager can manage members.",
+  });
+}
+
+export async function countSanadOfficeOwners(db: DB, officeId: number): Promise<number> {
+  const [row] = await db
+    .select({ n: sql<number>`count(*)`.mapWith(Number) })
+    .from(schema.sanadOfficeMembers)
+    .where(
+      and(eq(schema.sanadOfficeMembers.sanadOfficeId, officeId), eq(schema.sanadOfficeMembers.role, "owner")),
+    );
+  return Number(row?.n ?? 0);
 }
 
 export async function getSanadOfficeRoleForUser(
@@ -72,7 +108,7 @@ export async function getSanadOfficeIdsForUser(db: DB, userId: number): Promise<
   for (const r of intelRows) {
     if (r.oid != null) fromMembers.add(r.oid);
   }
-  return [...fromMembers];
+  return Array.from(fromMembers);
 }
 
 export async function assertSanadOfficeAccess(

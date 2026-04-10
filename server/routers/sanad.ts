@@ -1,9 +1,10 @@
 import { TRPCError } from "@trpc/server";
 import { nanoid } from "nanoid";
-import { and, avg, count, desc, eq, gte, like, or, sql } from "drizzle-orm";
+import { and, avg, count, desc, eq, exists, gte, like, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import {
   listSanadLifecycleBlockers,
+  recommendedSanadPartnerNextActions,
   resolveSanadLifecycleStage,
   sanadLifecycleBadge,
   sanadPublicProfileCompleteness,
@@ -18,8 +19,10 @@ import {
   sanadIntelCenterOperations,
   sanadIntelCenters,
   sanadOffices,
+  sanadOfficeMembers,
   sanadServiceCatalogue,
   sanadServiceRequests,
+  users,
 } from "../../drizzle/schema";
 import {
   createSanadApplication,
@@ -35,12 +38,17 @@ import { getActiveCompanyMembership } from "../_core/membership";
 import { assertRowBelongsToActiveCompany, requireActiveCompanyId } from "../_core/tenant";
 import { protectedProcedure, publicProcedure, router } from "../_core/trpc";
 import { getCenterDetail } from "../sanad-intelligence/queries";
+import { computeSanadMarketplaceReadiness } from "@shared/sanadMarketplaceReadiness";
 import {
   assertSanadOfficeAccess,
   assertSanadOfficeCatalogueAccess,
   assertSanadOfficeProfileAccess,
+  assertSanadOfficeRosterAdmin,
+  canViewSensitiveOfficeDashboard,
+  countSanadOfficeOwners,
   getSanadOfficesForUser,
 } from "../sanadAccess";
+import { canAccessSanadIntelFull, canAccessSanadIntelRead } from "@shared/sanadRoles";
 import { sanadIntelligenceRouter } from "./sanadIntelligence";
 
 export const PROVIDER_TYPES = [
@@ -86,6 +94,15 @@ export const WORK_ORDER_STATUSES = [
   "cancelled",
 ] as const;
 
+function assertCanAssignSanadOfficeOwner(user: { platformRole?: string | null; role?: string | null }): void {
+  if (canAccessGlobalAdminProcedures(user)) return;
+  if (canAccessSanadIntelFull(user)) return;
+  throw new TRPCError({
+    code: "FORBIDDEN",
+    message: "Only platform or SANAD network administrators can assign the owner role.",
+  });
+}
+
 export const sanadRouter = router({
   // ─── Service Providers (Sanad Offices) ────────────────────────────────────
 
@@ -127,9 +144,17 @@ export const sanadRouter = router({
   /** Get a single provider by id */
   getProvider: protectedProcedure
     .input(z.object({ id: z.number() }))
-    .query(async ({ input }) => {
-      const offices = await getAllSanadOffices();
-      const office = (offices as any[]).find((o: any) => o.id === input.id);
+    .query(async ({ input, ctx }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      if (canAccessGlobalAdminProcedures(ctx.user)) {
+        const offices = await getAllSanadOffices();
+        const office = (offices as any[]).find((o: any) => o.id === input.id);
+        if (!office) throw new TRPCError({ code: "NOT_FOUND", message: "Service provider not found" });
+        return office;
+      }
+      await assertSanadOfficeAccess(db as never, ctx.user.id, input.id);
+      const [office] = await db.select().from(sanadOffices).where(eq(sanadOffices.id, input.id)).limit(1);
       if (!office) throw new TRPCError({ code: "NOT_FOUND", message: "Service provider not found" });
       return office;
     }),
@@ -321,11 +346,17 @@ export const sanadRouter = router({
   officeDashboard: protectedProcedure
     .input(z.object({ officeId: z.number() }))
     .query(async ({ input, ctx }) => {
-      if (!canAccessGlobalAdminProcedures(ctx.user)) {
-        throw new TRPCError({ code: "FORBIDDEN", message: "Platform access required" });
-      }
       const db = await getDb();
       if (!db) return null;
+      if (!canAccessGlobalAdminProcedures(ctx.user)) {
+        const role = await assertSanadOfficeAccess(db as never, ctx.user.id, input.officeId);
+        if (!canViewSensitiveOfficeDashboard(role)) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "Office analytics require owner or manager access.",
+          });
+        }
+      }
 
       // Officers belonging to this office
       const officerRows = await db
@@ -443,11 +474,17 @@ export const sanadRouter = router({
   officerPerformance: protectedProcedure
     .input(z.object({ officeId: z.number() }))
     .query(async ({ input, ctx }) => {
-      if (!canAccessGlobalAdminProcedures(ctx.user)) {
-        throw new TRPCError({ code: "FORBIDDEN", message: "Platform access required" });
-      }
       const db = await getDb();
       if (!db) return [];
+      if (!canAccessGlobalAdminProcedures(ctx.user)) {
+        const role = await assertSanadOfficeAccess(db as never, ctx.user.id, input.officeId);
+        if (!canViewSensitiveOfficeDashboard(role)) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "Officer performance requires owner or manager access.",
+          });
+        }
+      }
 
       const officerRows = await db
         .select()
@@ -600,11 +637,17 @@ export const sanadRouter = router({
   workOrderStats: protectedProcedure
     .input(z.object({ officeId: z.number() }))
     .query(async ({ input, ctx }) => {
-      if (!canAccessGlobalAdminProcedures(ctx.user)) {
-        throw new TRPCError({ code: "FORBIDDEN", message: "Platform access required" });
-      }
       const db = await getDb();
       if (!db) return { byServiceType: [], byStatus: [], recentOrders: [] };
+      if (!canAccessGlobalAdminProcedures(ctx.user)) {
+        const role = await assertSanadOfficeAccess(db as never, ctx.user.id, input.officeId);
+        if (!canViewSensitiveOfficeDashboard(role)) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "Work order analytics require owner or manager access.",
+          });
+        }
+      }
 
       const byServiceType = await db
         .select({
@@ -671,6 +714,8 @@ export const sanadRouter = router({
           minRating: z.number().min(0).max(5).optional(),
           search: z.string().optional(),
           publicListedOnly: z.boolean().optional().default(true),
+          /** When true (default), only offices that pass shared marketplace readiness (profile + catalogue + contact + location). */
+          marketplaceReadyOnly: z.boolean().optional().default(true),
         })
         .optional(),
     )
@@ -678,8 +723,32 @@ export const sanadRouter = router({
       const db = await getDb();
       if (!db) return [];
       const conds = [eq(sanadOffices.status, "active")];
-      if (input?.publicListedOnly !== false) {
+      const strictMarketplace = input?.marketplaceReadyOnly !== false;
+      if (strictMarketplace || input?.publicListedOnly !== false) {
         conds.push(eq(sanadOffices.isPublicListed, 1));
+      }
+      if (strictMarketplace) {
+        conds.push(sql`trim(coalesce(${sanadOffices.phone}, '')) <> ''`);
+        conds.push(
+          or(
+            sql`trim(coalesce(${sanadOffices.governorate}, '')) <> ''`,
+            sql`trim(coalesce(${sanadOffices.city}, '')) <> ''`,
+          )!,
+        );
+        conds.push(sql`trim(coalesce(${sanadOffices.name}, '')) <> ''`);
+        conds.push(
+          exists(
+            db
+              .select({ id: sanadServiceCatalogue.id })
+              .from(sanadServiceCatalogue)
+              .where(
+                and(
+                  eq(sanadServiceCatalogue.officeId, sanadOffices.id),
+                  eq(sanadServiceCatalogue.isActive, 1),
+                ),
+              ),
+          ),
+        );
       }
       if (input?.governorate?.trim()) {
         conds.push(eq(sanadOffices.governorate, input.governorate.trim()));
@@ -1010,6 +1079,8 @@ export const sanadRouter = router({
       complianceTotal,
     });
     const profileCompleteness = sanadPublicProfileCompleteness(office);
+    const marketplaceReadiness = computeSanadMarketplaceReadiness(office, activeCatalogueCount);
+    const recommendedNextActions = recommendedSanadPartnerNextActions(stage, blockers, marketplaceReadiness.reasons);
 
     return {
       centerId: detail.center.id,
@@ -1021,6 +1092,12 @@ export const sanadRouter = router({
       blockers,
       compliance: { done: complianceDone, total: complianceTotal },
       profileCompleteness,
+      catalogueCompleteness: {
+        activeCount: activeCatalogueCount,
+        needsAtLeastOneActive: activeCatalogueCount < 1,
+      },
+      marketplaceReadiness,
+      recommendedNextActions,
       contact: {
         inviteAcceptName: detail.ops?.inviteAcceptName,
         inviteAcceptPhone: detail.ops?.inviteAcceptPhone,
@@ -1247,6 +1324,148 @@ export const sanadRouter = router({
         await assertSanadOfficeAccess(db as never, ctx.user.id, input.officeId);
       }
       return db.select().from(sanadServiceCatalogue).where(eq(sanadServiceCatalogue.officeId, input.officeId)).orderBy(sanadServiceCatalogue.serviceType);
+    }),
+
+  /** Office roster — platform / SANAD intel read, or any office member. */
+  listSanadOfficeMembers: protectedProcedure
+    .input(z.object({ officeId: z.number() }))
+    .query(async ({ input, ctx }) => {
+      const db = await getDb();
+      if (!db) return [];
+      if (!canAccessSanadIntelRead(ctx.user)) {
+        await assertSanadOfficeAccess(db as never, ctx.user.id, input.officeId);
+      }
+      return db
+        .select({
+          membershipId: sanadOfficeMembers.id,
+          userId: users.id,
+          role: sanadOfficeMembers.role,
+          name: users.name,
+          email: users.email,
+          platformRole: users.platformRole,
+          createdAt: sanadOfficeMembers.createdAt,
+        })
+        .from(sanadOfficeMembers)
+        .innerJoin(users, eq(users.id, sanadOfficeMembers.userId))
+        .where(eq(sanadOfficeMembers.sanadOfficeId, input.officeId))
+        .orderBy(desc(sanadOfficeMembers.createdAt));
+    }),
+
+  addSanadOfficeMember: protectedProcedure
+    .input(
+      z.object({
+        officeId: z.number(),
+        userId: z.number(),
+        role: z.enum(["owner", "manager", "staff"]),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+      await assertSanadOfficeRosterAdmin(db as never, ctx.user, input.officeId);
+      if (input.role === "owner") {
+        assertCanAssignSanadOfficeOwner(ctx.user);
+      }
+      const [u] = await db.select({ id: users.id }).from(users).where(eq(users.id, input.userId)).limit(1);
+      if (!u) throw new TRPCError({ code: "NOT_FOUND", message: "User not found." });
+      try {
+        await db.insert(sanadOfficeMembers).values({
+          sanadOfficeId: input.officeId,
+          userId: input.userId,
+          role: input.role,
+        });
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        if (msg.includes("Duplicate") || msg.includes("duplicate")) {
+          throw new TRPCError({ code: "CONFLICT", message: "This user is already a member of this office." });
+        }
+        throw e;
+      }
+      return { success: true };
+    }),
+
+  updateSanadOfficeMemberRole: protectedProcedure
+    .input(
+      z.object({
+        officeId: z.number(),
+        userId: z.number(),
+        role: z.enum(["owner", "manager", "staff"]),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+      await assertSanadOfficeRosterAdmin(db as never, ctx.user, input.officeId);
+      const [row] = await db
+        .select({ role: sanadOfficeMembers.role })
+        .from(sanadOfficeMembers)
+        .where(
+          and(
+            eq(sanadOfficeMembers.sanadOfficeId, input.officeId),
+            eq(sanadOfficeMembers.userId, input.userId),
+          ),
+        )
+        .limit(1);
+      if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Office membership not found." });
+      if (input.role === "owner") {
+        assertCanAssignSanadOfficeOwner(ctx.user);
+      }
+      if (row.role === "owner" && input.role !== "owner") {
+        const owners = await countSanadOfficeOwners(db as never, input.officeId);
+        if (owners <= 1) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Cannot change role: this is the only owner for the office. Add another owner first.",
+          });
+        }
+      }
+      await db
+        .update(sanadOfficeMembers)
+        .set({ role: input.role })
+        .where(
+          and(
+            eq(sanadOfficeMembers.sanadOfficeId, input.officeId),
+            eq(sanadOfficeMembers.userId, input.userId),
+          ),
+        );
+      return { success: true };
+    }),
+
+  removeSanadOfficeMember: protectedProcedure
+    .input(z.object({ officeId: z.number(), userId: z.number() }))
+    .mutation(async ({ input, ctx }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+      await assertSanadOfficeRosterAdmin(db as never, ctx.user, input.officeId);
+      const [row] = await db
+        .select({ role: sanadOfficeMembers.role })
+        .from(sanadOfficeMembers)
+        .where(
+          and(
+            eq(sanadOfficeMembers.sanadOfficeId, input.officeId),
+            eq(sanadOfficeMembers.userId, input.userId),
+          ),
+        )
+        .limit(1);
+      if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Office membership not found." });
+      if (row.role === "owner") {
+        const owners = await countSanadOfficeOwners(db as never, input.officeId);
+        if (owners <= 1) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Cannot remove the only owner for this office.",
+          });
+        }
+      }
+      await db
+        .delete(sanadOfficeMembers)
+        .where(
+          and(
+            eq(sanadOfficeMembers.sanadOfficeId, input.officeId),
+            eq(sanadOfficeMembers.userId, input.userId),
+          ),
+        );
+      return { success: true };
     }),
 
   // ─── Legacy aliases (backward compat) ────────────────────────────────────

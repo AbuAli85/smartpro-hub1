@@ -132,7 +132,7 @@ export default function EmployeeSchedulesPage() {
       if (!map.has(k)) map.set(k, []);
       map.get(k)!.push(s);
     }
-    return [...map.entries()]
+    return Array.from(map.entries())
       .map(([employeeUserId, rows]) => {
         const sorted = [...rows].sort((a, b) => {
           const ta = a.shift?.startTime ?? "";

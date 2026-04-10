@@ -2066,10 +2066,10 @@ export default function EmployeePortalPage() {
                   <p className="font-medium text-foreground">How balances work</p>
                   <p className="mt-1">
                     Days shown are <strong>approved</strong> leave used this calendar year against{" "}
-                    <strong>company default caps</strong> (annual {OMAN_LEAVE_PORTAL_DEFAULTS.annual}, sick pool{" "}
-                    {OMAN_LEAVE_PORTAL_DEFAULTS.sick}, emergency {OMAN_LEAVE_PORTAL_DEFAULTS.emergency}) aligned with
-                    typical Oman HR practice — not a full legal calculation. Omani law allows longer medically certified
-                    sick leave with tiered pay; your HR team may apply different rules when company policy is configured.
+                    <strong>the caps configured for your company</strong> (annual {entitlements.annual}, sick pool{" "}
+                    {entitlements.sick}, emergency {entitlements.emergency}) — not a full legal calculation. Omani law allows longer medically
+                    certified sick leave with tiered pay; treat the sick figure as a display limit unless HR confirms
+                    otherwise.
                   </p>
                 </div>
               </CardContent>

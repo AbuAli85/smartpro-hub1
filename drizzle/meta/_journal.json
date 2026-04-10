@@ -92,6 +92,13 @@
       "when": 1744700000000,
       "tag": "0030_attendance_schedule_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "5",
+      "when": 1744800000000,
+      "tag": "0031_company_leave_policy_caps",
+      "breakpoints": true
     }
   ]
 }

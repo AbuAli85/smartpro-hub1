@@ -7,11 +7,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Users, Search, Calendar, ChevronRight, Download, TrendingDown } from "lucide-react";
+import { Users, Search, Calendar, ChevronRight, Download, TrendingDown, Info } from "lucide-react";
 
 const LEAVE_COLORS: Record<string, string> = {
   annual: "bg-blue-500",
-  sick: "bg-red-500",
+  sick: "bg-amber-500",
   emergency: "bg-orange-500",
 };
 
@@ -47,7 +47,9 @@ export default function LeaveBalancePage() {
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState<"name" | "annual" | "sick">("name");
 
-  const { data: summary, isLoading } = trpc.hr.getLeaveBalanceSummary.useQuery();
+  const { data: summaryPayload, isLoading } = trpc.hr.getLeaveBalanceSummary.useQuery();
+  const summary = summaryPayload?.employees ?? [];
+  const policyCaps = summaryPayload?.policyCaps;
 
   const filtered = (summary ?? []).filter((emp) =>
     `${emp.name} ${emp.department}`.toLowerCase().includes(search.toLowerCase())
@@ -83,7 +85,7 @@ export default function LeaveBalancePage() {
               Leave Balance Summary
             </h1>
             <p className="text-sm text-muted-foreground mt-1">
-              Annual, sick, and emergency leave balances for all active employees
+              Annual, sick, and emergency balances use your company caps (or Oman-style defaults). Maternity and paternity are reference only.
             </p>
           </div>
           <Button variant="outline" size="sm" onClick={() => navigate("/hr/leave")} className="gap-1.5">
@@ -133,16 +135,16 @@ export default function LeaveBalancePage() {
         {/* Entitlement Reference */}
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-semibold">Leave Entitlements (Annual)</CardTitle>
+            <CardTitle className="text-sm font-semibold">Leave caps (this company)</CardTitle>
           </CardHeader>
-          <CardContent className="pt-0">
+          <CardContent className="pt-0 space-y-3">
             <div className="flex flex-wrap gap-4">
               {[
-                { type: "annual", days: 30, label: "Annual Leave" },
-                { type: "sick", days: 10, label: "Sick Leave" },
-                { type: "emergency", days: 6, label: "Emergency Leave" },
-                { type: "maternity", days: 50, label: "Maternity Leave" },
-                { type: "paternity", days: 3, label: "Paternity Leave" },
+                { type: "annual", days: policyCaps?.annual ?? 30, label: "Annual leave" },
+                { type: "sick", days: policyCaps?.sick ?? 15, label: "Sick (full-pay pool)" },
+                { type: "emergency", days: policyCaps?.emergency ?? 6, label: "Emergency leave" },
+                { type: "maternity", days: 50, label: "Maternity (reference)" },
+                { type: "paternity", days: 3, label: "Paternity (reference)" },
               ].map((e) => (
                 <div key={e.type} className="flex items-center gap-2">
                   <div className={`w-2.5 h-2.5 rounded-full ${LEAVE_COLORS[e.type] ?? "bg-gray-400"}`} />
@@ -150,6 +152,13 @@ export default function LeaveBalancePage() {
                   <Badge variant="outline" className="text-xs">{e.days} days</Badge>
                 </div>
               ))}
+            </div>
+            <div className="flex gap-2 text-xs text-muted-foreground border-t pt-3">
+              <Info className="w-4 h-4 shrink-0 text-primary" aria-hidden />
+              <p>
+                Approved leave this year is subtracted from annual, sick, and emergency caps above. Sick pool is a simple HR display limit, not the full statutory sick regime.                 Edit caps on{" "}
+                <span className="font-medium text-foreground">Company Settings</span> (/company/settings) — Leave balance caps.
+              </p>
             </div>
           </CardContent>
         </Card>

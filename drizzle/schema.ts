@@ -85,6 +85,8 @@ export const companies = mysqlTable("companies", {
   expiryWarningDays: int("expiryWarningDays").default(30).notNull(),
   /** Per-role login redirect overrides. JSON: { hr_admin: "/hr/employees", finance_admin: "/payroll", ... } */
   roleRedirectSettings: json("roleRedirectSettings").$type<Record<string, string>>().default({}),
+  /** Optional annual/sick/emergency caps for portal + HR leave balances; null = Oman portal defaults in shared code. */
+  leavePolicyCaps: json("leavePolicyCaps").$type<Partial<Record<"annual" | "sick" | "emergency", number>> | null>(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

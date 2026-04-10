@@ -1061,6 +1061,17 @@ export const companiesRouter = router({
         taxNumber: z.string().optional(),
         description: z.string().optional(),
         expiryWarningDays: z.number().int().min(1).max(365).optional(),
+        /** Set explicit caps, or `null` to clear and use Oman portal defaults from shared code. */
+        leavePolicyCaps: z
+          .union([
+            z.object({
+              annual: z.number().int().min(0).max(366),
+              sick: z.number().int().min(0).max(366),
+              emergency: z.number().int().min(0).max(366),
+            }),
+            z.null(),
+          ])
+          .optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {

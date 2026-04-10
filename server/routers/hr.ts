@@ -1,8 +1,9 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { OMAN_LEAVE_PORTAL_DEFAULTS } from "../../shared/omanLeavePolicyDefaults";
+import { mergeLeavePolicyCaps } from "../../shared/leavePolicyCaps";
 import { eq, and, desc, gte, lte, count, sum } from "drizzle-orm";
 import {
+  companies,
   workPermits,
   employees,
   attendanceRecords,
@@ -56,6 +57,18 @@ import {
   ATTENDANCE_AUDIT_SOURCE,
 } from "@shared/attendanceAuditTaxonomy";
 import { attendancePayloadJson, insertAttendanceAuditRow } from "../attendanceAudit";
+
+async function getMergedLeaveCapsForCompanyId(
+  db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
+  companyId: number,
+) {
+  const [row] = await db
+    .select({ leavePolicyCaps: companies.leavePolicyCaps })
+    .from(companies)
+    .where(eq(companies.id, companyId))
+    .limit(1);
+  return mergeLeavePolicyCaps(row?.leavePolicyCaps ?? null);
+}
 
 export const hrRouter = router({
   // Employees
@@ -708,9 +721,12 @@ export const hrRouter = router({
     .query(async ({ input, ctx }) => {
       const cid = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user).catch(() => null);
       if (!cid) throw new TRPCError({ code: "FORBIDDEN", message: "No company" });
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      const caps = await getMergedLeaveCapsForCompanyId(db, cid);
       const allLeave = await getLeaveRequests(cid, input.employeeId);
       const ENTITLEMENTS: Record<string, number> = {
-        ...OMAN_LEAVE_PORTAL_DEFAULTS,
+        ...caps,
         maternity: 50,
         paternity: 3,
         unpaid: 0,
@@ -737,12 +753,15 @@ export const hrRouter = router({
     .input(z.object({ companyId: z.number().optional() }).optional())
     .query(async ({ input, ctx }) => {
     const cid = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user).catch(() => null);
-    if (!cid) return [];
+    if (!cid) return { employees: [], policyCaps: mergeLeavePolicyCaps(null) };
+    const db = await getDb();
+    if (!db) return { employees: [], policyCaps: mergeLeavePolicyCaps(null) };
+    const policyCaps = await getMergedLeaveCapsForCompanyId(db, cid);
     const emps = await getEmployees(cid);
     const activeEmps = emps.filter((e) => e.status === "active");
     const allLeave = await getLeaveRequests(cid);
-      const ENTITLEMENTS: Record<string, number> = { ...OMAN_LEAVE_PORTAL_DEFAULTS };
-    return activeEmps.map((emp) => {
+    const ENTITLEMENTS: Record<string, number> = { ...policyCaps };
+    const rows = activeEmps.map((emp) => {
       const empLeave = allLeave.filter((r) => r.employeeId === emp.id);
       const usedByType: Record<string, number> = {};
       for (const r of empLeave) {
@@ -763,6 +782,7 @@ export const hrRouter = router({
         })),
       };
     });
+    return { employees: rows, policyCaps };
   }),
 
   // ── Employee Profile Completeness ─────────────────────────────────────────

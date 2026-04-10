@@ -16,6 +16,7 @@ import { getActiveCompanyMembership } from "../_core/membership";
 import { requireActiveCompanyId } from "../_core/tenant";
 import { computePortalOperationalHints } from "@shared/employeePortalOperationalHints";
 import { OMAN_LEAVE_PORTAL_DEFAULTS } from "@shared/omanLeavePolicyDefaults";
+import { mergeLeavePolicyCaps } from "@shared/leavePolicyCaps";
 import { resolveEmployeeAttendanceDayContext } from "../resolveEmployeeAttendanceDayContext";
 import { buildEmployeeWorkStatusSummary } from "@shared/employeePortalWorkStatusSummary";
 
@@ -166,16 +167,23 @@ export const employeePortalRouter = router({
   getMyLeave: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }))
     .query(async ({ ctx, input }) => {
+    const emptyCaps = mergeLeavePolicyCaps(null);
     const empty = {
       requests: [] as (typeof leaveRequests.$inferSelect)[],
       balance: { annual: 0, sick: 0, emergency: 0 },
-      entitlements: { ...OMAN_LEAVE_PORTAL_DEFAULTS },
+      entitlements: { ...emptyCaps },
     };
     const m = await getActiveCompanyMembership(ctx.user.id, input.companyId ?? undefined);
     if (!m) return empty;
     const myEmp = await resolveMyEmployee(ctx.user.id, ctx.user.email ?? "", m.companyId);
     if (!myEmp) return empty;
     const db = await requireDb();
+    const [companyRow] = await db
+      .select({ leavePolicyCaps: companies.leavePolicyCaps })
+      .from(companies)
+      .where(eq(companies.id, m.companyId))
+      .limit(1);
+    const caps = mergeLeavePolicyCaps(companyRow?.leavePolicyCaps ?? null);
     const requests = await db
       .select()
       .from(leaveRequests)
@@ -193,10 +201,10 @@ export const employeePortalRouter = router({
     const calcDays = (list: typeof approved) =>
       list.reduce((s, r) => s + Math.ceil((new Date(r.endDate).getTime() - new Date(r.startDate).getTime()) / 86400000) + 1, 0);
 
-    const { annual: maxA, sick: maxS, emergency: maxE } = OMAN_LEAVE_PORTAL_DEFAULTS;
+    const { annual: maxA, sick: maxS, emergency: maxE } = caps;
     return {
       requests,
-      entitlements: { ...OMAN_LEAVE_PORTAL_DEFAULTS },
+      entitlements: { ...caps },
       balance: {
         annual: Math.max(0, maxA - calcDays(approved.filter((r) => r.leaveType === "annual"))),
         sick: Math.max(0, maxS - calcDays(approved.filter((r) => r.leaveType === "sick"))),

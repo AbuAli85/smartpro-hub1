@@ -37,8 +37,10 @@ import {
   RotateCcw,
   LogIn,
   ChevronRight,
+  Calendar,
 } from "lucide-react";
 import { getRoleDefaultRoute } from "@shared/clientNav";
+import { mergeLeavePolicyCaps } from "@shared/leavePolicyCaps";
 
 const INDUSTRIES = [
   // Investment & Finance
@@ -170,6 +172,11 @@ export default function CompanySettingsPage() {
   const [expiryDays, setExpiryDays] = useState<number>(30);
   const [expiryDaysInput, setExpiryDaysInput] = useState("30");
   const [savingExpiry, setSavingExpiry] = useState(false);
+
+  const [leaveCapAnnual, setLeaveCapAnnual] = useState("30");
+  const [leaveCapSick, setLeaveCapSick] = useState("15");
+  const [leaveCapEmergency, setLeaveCapEmergency] = useState("6");
+  const [savingLeaveCaps, setSavingLeaveCaps] = useState(false);
 
   const { data: expirySettings } = trpc.companies.getExpirySettings.useQuery(
     { companyId: activeCompany?.id ?? 0 },
@@ -335,6 +342,54 @@ export default function CompanySettingsPage() {
       description: c.description ?? "",
     });
   }, [companyData]);
+
+  useEffect(() => {
+    if (!companyData) return;
+    const c = companyData as { leavePolicyCaps?: Partial<Record<"annual" | "sick" | "emergency", number>> | null };
+    const caps = mergeLeavePolicyCaps(c.leavePolicyCaps ?? null);
+    setLeaveCapAnnual(String(caps.annual));
+    setLeaveCapSick(String(caps.sick));
+    setLeaveCapEmergency(String(caps.emergency));
+  }, [companyData]);
+
+  const handleSaveLeaveCaps = async () => {
+    if (!activeCompany?.id) return;
+    const annual = parseInt(leaveCapAnnual, 10);
+    const sick = parseInt(leaveCapSick, 10);
+    const emergency = parseInt(leaveCapEmergency, 10);
+    if ([annual, sick, emergency].some((n) => Number.isNaN(n) || n < 0 || n > 366)) {
+      toast.error("Enter whole days between 0 and 366 for each leave type.");
+      return;
+    }
+    setSavingLeaveCaps(true);
+    try {
+      await updateMutation.mutateAsync({
+        companyId: activeCompany.id,
+        leavePolicyCaps: { annual, sick, emergency },
+      } as any);
+      toast.success("Leave balance caps saved");
+    } finally {
+      setSavingLeaveCaps(false);
+    }
+  };
+
+  const handleResetLeaveCaps = async () => {
+    if (!activeCompany?.id) return;
+    setSavingLeaveCaps(true);
+    try {
+      await updateMutation.mutateAsync({
+        companyId: activeCompany.id,
+        leavePolicyCaps: null,
+      } as any);
+      const d = mergeLeavePolicyCaps(null);
+      setLeaveCapAnnual(String(d.annual));
+      setLeaveCapSick(String(d.sick));
+      setLeaveCapEmergency(String(d.emergency));
+      toast.success("Leave caps reset to Oman-style defaults");
+    } finally {
+      setSavingLeaveCaps(false);
+    }
+  };
 
   const handleSave = () => {
     if (!activeCompany?.id) return;
@@ -673,6 +728,75 @@ export default function CompanySettingsPage() {
               </button>
             ))}
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Leave balance caps (portal + HR summaries) */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Calendar size={16} className="text-primary" /> Leave balance caps
+          </CardTitle>
+          <CardDescription>
+            Annual, sick, and emergency limits for the employee portal and HR leave balance summary. Reset restores the
+            built-in Oman-style defaults (30 / 15 / 6).
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="leaveCapAnnual">Annual (days)</Label>
+              <Input
+                id="leaveCapAnnual"
+                type="number"
+                min={0}
+                max={366}
+                value={leaveCapAnnual}
+                onChange={(e) => setLeaveCapAnnual(e.target.value)}
+                disabled={!canEdit}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="leaveCapSick">Sick full-pay pool (days)</Label>
+              <Input
+                id="leaveCapSick"
+                type="number"
+                min={0}
+                max={366}
+                value={leaveCapSick}
+                onChange={(e) => setLeaveCapSick(e.target.value)}
+                disabled={!canEdit}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="leaveCapEmergency">Emergency (days)</Label>
+              <Input
+                id="leaveCapEmergency"
+                type="number"
+                min={0}
+                max={366}
+                value={leaveCapEmergency}
+                onChange={(e) => setLeaveCapEmergency(e.target.value)}
+                disabled={!canEdit}
+              />
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            This is not legal advice. Statutory sick leave in Oman can exceed this pool; use these numbers as operational caps
+            until payroll-grade rules are configured elsewhere.
+          </p>
+          {canEdit && (
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" variant="default" className="gap-2" disabled={savingLeaveCaps} onClick={handleSaveLeaveCaps}>
+                <Save size={14} />
+                {savingLeaveCaps ? "Saving…" : "Save leave caps"}
+              </Button>
+              <Button type="button" variant="outline" className="gap-2" disabled={savingLeaveCaps} onClick={handleResetLeaveCaps}>
+                <RotateCcw size={14} />
+                Reset to defaults
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
 

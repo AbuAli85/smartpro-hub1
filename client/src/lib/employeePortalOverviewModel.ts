@@ -9,6 +9,9 @@ import { employeePortalConfig } from "@/config/employeePortalConfig";
 import { getShiftInstantBounds } from "@shared/employeePortalShift";
 import type { EmployeeWorkStatusSummary } from "@shared/employeePortalWorkStatusSummary";
 
+/** Max priority rows in the home “Top actions” queue (EOS command center). */
+export const EMPLOYEE_PORTAL_TOP_ACTIONS_MAX = 5;
+
 export type PortalNavTab =
   | "overview"
   | "more"
@@ -84,6 +87,8 @@ export interface PerformanceBlock {
 
 export interface ShiftTimingExtras {
   isLateNoCheckIn: boolean;
+  /** Shift is active, no check-in yet, still inside grace (before late threshold). */
+  lateRiskCheckIn: boolean;
   lateDetail: string | null;
   checkInSummary: string | null;
   checkOutSummary: string | null;
@@ -354,6 +359,13 @@ export function buildShiftTimingExtras(input: {
     now.getTime() > lateThreshold &&
     (shiftOverview.phase === "active" || shiftOverview.phase === "ended");
 
+  const lateRiskCheckIn =
+    isWorkingDay &&
+    !checkIn &&
+    now.getTime() >= shiftStart.getTime() &&
+    now.getTime() <= lateThreshold &&
+    shiftOverview.phase === "active";
+
   let lateDetail: string | null = null;
   if (isLateNoCheckIn) {
     const mins = Math.max(1, Math.round((now.getTime() - lateThreshold) / 60_000));
@@ -365,6 +377,7 @@ export function buildShiftTimingExtras(input: {
 
   return {
     isLateNoCheckIn,
+    lateRiskCheckIn,
     lateDetail,
     checkInSummary: checkIn ? `Checked in ${checkIn.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : null,
     checkOutSummary: checkOut ? `Checked out ${checkOut.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : null,
@@ -437,6 +450,13 @@ export function buildHeroPresentation(input: {
   }
 
   if (input.checkIn && !input.checkOut) {
+    if (input.shiftOverview.phase === "ended") {
+      return {
+        stateLabel: "Missing check-out",
+        severity: "warning",
+        proactiveHint: "Shift ended with no check-out — complete it or submit a correction.",
+      };
+    }
     return { stateLabel: "Checked in", severity: "normal", proactiveHint: null };
   }
   if (input.checkIn && input.checkOut) {
@@ -453,6 +473,13 @@ export function buildHeroPresentation(input: {
 
   const phase = input.shiftOverview.phase;
   if (phase === "active") {
+    if (input.shiftTiming?.lateRiskCheckIn) {
+      return {
+        stateLabel: "Late risk",
+        severity: "warning",
+        proactiveHint: "Grace window — check in now to avoid a late mark.",
+      };
+    }
     return {
       stateLabel: "On shift",
       severity: "warning",
@@ -491,6 +518,10 @@ export function buildOverviewDashboardModel(input: {
   myTraining?: { trainingStatus?: string | null }[] | null;
   mySelfReviews?: { reviewStatus?: string | null }[] | null;
   emp?: { phone?: string | null; emergencyContact?: string | null; emergencyPhone?: string | null } | null;
+  /** Pending shift / time-off requests (portal queue). */
+  pendingShiftRequests?: number;
+  /** Pending expense submissions. */
+  pendingExpenses?: number;
   now?: Date;
   /** When true, hero is omitted (loading); proactive hints stay conservative */
   todayAttendanceLoading?: boolean;
@@ -735,6 +766,40 @@ export function buildOverviewDashboardModel(input: {
     });
   }
 
+  const pendingShifts = input.pendingShiftRequests ?? 0;
+  if (pendingShifts > 0) {
+    candidates.push({
+      score: 34,
+      item: {
+        key: "shift-req-pending",
+        severity: "info",
+        actionType: "hr",
+        nextStep: "Follow up on shift or time-off requests",
+        headline: "Shift requests pending",
+        detail: `${pendingShifts} open submission${pendingShifts === 1 ? "" : "s"} awaiting HR.`,
+        ctaLabel: "Open requests",
+        tab: "requests",
+      },
+    });
+  }
+
+  const pendingEx = input.pendingExpenses ?? 0;
+  if (pendingEx > 0) {
+    candidates.push({
+      score: 33,
+      item: {
+        key: "expense-pending",
+        severity: "info",
+        actionType: "hr",
+        nextStep: "Track reimbursement status",
+        headline: "Expenses pending review",
+        detail: `${pendingEx} claim${pendingEx === 1 ? "" : "s"} in the queue.`,
+        ctaLabel: "Open expenses",
+        tab: "expenses",
+      },
+    });
+  }
+
   if (profileReminder) {
     candidates.push({
       score: 32,
@@ -774,7 +839,7 @@ export function buildOverviewDashboardModel(input: {
     if (seen.has(c.item.key)) continue;
     seen.add(c.item.key);
     actionCenter.push(c.item);
-    if (actionCenter.length >= 3) break;
+    if (actionCenter.length >= EMPLOYEE_PORTAL_TOP_ACTIONS_MAX) break;
   }
 
   const attentionItems: AttentionItem[] = [];

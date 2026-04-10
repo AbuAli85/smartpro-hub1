@@ -7,7 +7,7 @@ import { Progress } from "@/components/ui/progress";
 import { employeePortalConfig } from "@/config/employeePortalConfig";
 import type { OverviewShiftCardPresentation, ServerEligibilityHints } from "@/lib/employeePortalOverviewPresentation";
 import type { ActionCenterCategory, AttentionState, PortalNavTab } from "@/lib/employeePortalOverviewModel";
-import { buildOverviewDashboardModel } from "@/lib/employeePortalOverviewModel";
+import { buildOverviewDashboardModel, EMPLOYEE_PORTAL_TOP_ACTIONS_MAX } from "@/lib/employeePortalOverviewModel";
 import type { ProductivitySnapshot } from "@/lib/employeePortalUtils";
 import { getDueUrgency, slaLabel } from "@/lib/taskSla";
 import type { EmployeeWorkStatusSummary } from "@shared/employeePortalWorkStatusSummary";
@@ -210,6 +210,8 @@ export function EmployeePortalOverview(props: EmployeePortalOverviewProps) {
         myTraining,
         mySelfReviews,
         emp,
+        pendingShiftRequests,
+        pendingExpenses,
         now: new Date(),
       }),
     [
@@ -229,6 +231,8 @@ export function EmployeePortalOverview(props: EmployeePortalOverviewProps) {
       myTraining,
       mySelfReviews,
       emp,
+      pendingShiftRequests,
+      pendingExpenses,
       portalClock,
     ],
   );
@@ -266,18 +270,24 @@ export function EmployeePortalOverview(props: EmployeePortalOverviewProps) {
     model.hero?.severity === "critical" || model.hero?.severity === "warning";
 
   const focusItems = useMemo(
-    () => actionCenterAfterHeroDedupe(model.actionCenter, primaryCtaDominant, 3),
+    () => actionCenterAfterHeroDedupe(model.actionCenter, primaryCtaDominant, EMPLOYEE_PORTAL_TOP_ACTIONS_MAX),
     [model.actionCenter, primaryCtaDominant],
   );
 
   return (
     <div className="space-y-3 pb-2">
+      <div className="flex items-center justify-between gap-2 px-0.5">
+        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-primary">Command center</p>
+        <p className="text-[10px] text-muted-foreground">Today status and next steps</p>
+      </div>
+
       {/* 1 — Hero: shift + attendance + primary CTAs */}
       <Card className={`overflow-hidden border-2 shadow-sm ${heroCardTone}`}>
         <CardContent className="space-y-2 p-3 sm:p-4 sm:space-y-3">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0 flex-1">
               <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                <span className="text-foreground/80">Today</span> ·{" "}
                 {new Date().toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}
               </p>
               {todayAttendanceLoading ? (
@@ -403,7 +413,7 @@ export function EmployeePortalOverview(props: EmployeePortalOverviewProps) {
 
       {/* 2 — Pay & files only (leave / requests: hero secondary or Requests tab — avoids duplicating Leave) */}
       <div className="rounded-xl border border-border/60 bg-muted/10 px-3 py-2.5">
-        <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-0.5">Pay &amp; files</p>
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-0.5">Pay and files</p>
         <p className="text-[10px] text-muted-foreground/90 mb-2">Payslips · docs · leave → Requests.</p>
         <div className="flex flex-wrap gap-2">
           <Button type="button" variant="secondary" size="sm" className="min-h-10 flex-1 sm:flex-none sm:min-w-[6rem]" onClick={() => go("payroll")}>
@@ -420,9 +430,16 @@ export function EmployeePortalOverview(props: EmployeePortalOverviewProps) {
       {/* 3 — Follow-ups (non-duplicative of hero when urgent) */}
       {focusItems.length > 0 && (
         <div className="space-y-2">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground px-0.5">
-            {primaryCtaDominant ? "If you have time" : "Do this next"}
-          </p>
+          <div className="px-0.5">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              {primaryCtaDominant ? "More priorities" : "Top actions"}
+            </p>
+            <p className="text-[10px] text-muted-foreground leading-snug mt-0.5">
+              {primaryCtaDominant
+                ? "After the urgent banner above — up to five next best steps."
+                : "Priority queue — what to do next (up to five)."}
+            </p>
+          </div>
           <div className="space-y-2">
             {focusItems.map((a) => (
               <button
@@ -482,7 +499,10 @@ export function EmployeePortalOverview(props: EmployeePortalOverviewProps) {
       <Card className="border-border/60 bg-card/80">
         <CardHeader className="px-4 pb-1.5 pt-3">
           <div className="flex items-center justify-between gap-2">
-            <CardTitle className="text-sm font-semibold">My work today</CardTitle>
+            <div>
+              <CardTitle className="text-sm font-semibold">Work summary</CardTitle>
+              <p className="text-[10px] text-muted-foreground mt-0.5">Tasks due or overdue · execution layer</p>
+            </div>
             <Button variant="ghost" size="sm" className="h-8 shrink-0 text-xs" onClick={() => go("tasks")}>
               Tasks <ChevronRight className="ml-0.5 h-3 w-3" />
             </Button>

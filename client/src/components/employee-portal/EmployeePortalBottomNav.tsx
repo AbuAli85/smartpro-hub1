@@ -1,5 +1,5 @@
 import React from "react";
-import { Home, UserCheck, CheckSquare, ArrowLeftRight, User } from "lucide-react";
+import { LayoutDashboard, UserCheck, CheckSquare, ArrowLeftRight, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const PRIMARY_TABS = new Set(["overview", "attendance", "tasks", "requests", "profile"]);
@@ -19,7 +19,7 @@ export interface EmployeePortalBottomNavProps {
 }
 
 const NAV_ITEMS = [
-  { value: "overview", label: "Home", Icon: Home },
+  { value: "overview", label: "Command", Icon: LayoutDashboard },
   { value: "attendance", label: "Attendance", Icon: UserCheck },
   { value: "tasks", label: "Tasks", Icon: CheckSquare },
   { value: "requests", label: "Requests", Icon: ArrowLeftRight },
@@ -45,7 +45,7 @@ export function EmployeePortalBottomNav({
         "pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-1 shadow-[0_-4px_24px_-8px_rgba(0,0,0,0.12)]",
         className,
       )}
-      aria-label="Main navigation"
+      aria-label="Main navigation — Command center is home"
     >
       <div className="mx-auto flex max-w-lg items-stretch justify-around gap-0 px-1">
         {NAV_ITEMS.map(({ value, label, Icon }) => {

@@ -100,7 +100,7 @@ describe("buildOverviewDashboardModel", () => {
     expect(m.actionCenter.some((a) => a.key === "all-clear")).toBe(true);
   });
 
-  it("caps action center at three items", () => {
+  it("caps action center at five items", () => {
     const m = buildOverviewDashboardModel({
       shiftOverview: { ...baseShiftPresentation(), attendanceInconsistent: true, showMissedEndedWarning: true },
       myActiveSchedule: null,
@@ -120,7 +120,9 @@ describe("buildOverviewDashboardModel", () => {
       productivity,
       attSummary: { present: 10, late: 0, absent: 0, total: 10 },
       notifications: [],
+      pendingShiftRequests: 2,
+      pendingExpenses: 1,
     });
-    expect(m.actionCenter.length).toBeLessThanOrEqual(3);
+    expect(m.actionCenter.length).toBeLessThanOrEqual(5);
   });
 });

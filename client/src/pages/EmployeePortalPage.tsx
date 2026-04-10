@@ -1326,7 +1326,7 @@ export default function EmployeePortalPage() {
   const portalTasksHasActiveWork =
     groupedPortalTasks.today.length > 0 || groupedPortalTasks.upcoming.length > 0;
 
-  /** One gentle nudge per session when Home shows actionable state (real data only) */
+  /** One gentle nudge per session when Command center shows actionable state (real data only) */
   useEffect(() => {
     if (activeTab !== "overview") return;
     const storageKey = "emp-portal-session-toasts";
@@ -2272,9 +2272,9 @@ export default function EmployeePortalPage() {
               <div className="rounded-xl border border-dashed border-border/80 py-10 text-center text-muted-foreground">
                 <CheckSquare className="mx-auto mb-2 h-10 w-10 opacity-30" />
                 <p className="font-medium text-foreground">No tasks yet</p>
-                <p className="mx-auto mt-1 max-w-sm px-4 text-sm">Assigned work shows here. Home has priorities.</p>
+                <p className="mx-auto mt-1 max-w-sm px-4 text-sm">Assigned work shows here. Command center has your priorities.</p>
                 <Button className="mt-5 min-h-11" onClick={() => setActiveTab("overview")}>
-                  Back to Home
+                  Back to Command center
                 </Button>
               </div>
             ) : (

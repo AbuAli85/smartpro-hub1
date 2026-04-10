@@ -486,9 +486,13 @@ function boardStatusBadge(status: string) {
 
 // ─── Today's Live Board ──────────────────────────────────────────────────────
 function TodayBoard({ companyId }: { companyId: number | null }) {
-  const { data, isLoading, refetch } = trpc.scheduling.getTodayBoard.useQuery(
+  const { data, isLoading, isFetching, dataUpdatedAt, refetch } = trpc.scheduling.getTodayBoard.useQuery(
     { companyId: companyId ?? undefined },
-    { enabled: companyId != null },
+    {
+      enabled: companyId != null,
+      refetchInterval: 60_000,
+      refetchIntervalInBackground: true,
+    },
   );
   if (companyId == null) {
     return (
@@ -520,8 +524,33 @@ function TodayBoard({ companyId }: { companyId: number | null }) {
           <p className="text-[11px] text-muted-foreground mt-0.5 max-w-xl">
             Absent applies only after the shift ends with no check-in. Before that, you’ll see upcoming, awaiting check-in, or late / no arrival.
           </p>
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1.5 text-[11px] text-muted-foreground">
+            {dataUpdatedAt > 0 ? (
+              <span>
+                Last updated:{" "}
+                <time dateTime={new Date(dataUpdatedAt).toISOString()}>
+                  {new Date(dataUpdatedAt).toLocaleTimeString("en-GB", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    second: "2-digit",
+                  })}
+                </time>
+              </span>
+            ) : null}
+            {dataUpdatedAt > 0 ? <span className="hidden sm:inline" aria-hidden>·</span> : null}
+            <span>Auto-refresh every 60s</span>
+            {isFetching && !isLoading ? (
+              <span className="inline-flex items-center gap-1 text-primary font-medium">
+                <RefreshCw className="h-3 w-3 animate-spin shrink-0" aria-hidden />
+                Syncing…
+              </span>
+            ) : null}
+          </div>
         </div>
-        <Button variant="outline" size="sm" onClick={() => refetch()}><RefreshCw className="h-3.5 w-3.5 mr-1.5" /> Refresh</Button>
+        <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>
+          <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${isFetching ? "animate-spin" : ""}`} />
+          Refresh
+        </Button>
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         {stats.map((st) => (

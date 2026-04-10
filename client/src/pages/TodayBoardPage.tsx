@@ -102,9 +102,14 @@ export default function TodayBoardPage() {
   const { activeCompanyId } = useActiveCompany();
   const utils = trpc.useUtils();
 
-  const { data, isLoading, error } = trpc.scheduling.getTodayBoard.useQuery(
+  const { data, isLoading, error, isFetching, dataUpdatedAt } = trpc.scheduling.getTodayBoard.useQuery(
     { companyId: activeCompanyId ?? undefined },
-    { enabled: !!activeCompanyId, refetchInterval: 60_000 }
+    {
+      enabled: !!activeCompanyId,
+      /** Keep ops view current while the tab stays open (no WebSocket; polling is the contract). */
+      refetchInterval: 60_000,
+      refetchIntervalInBackground: true,
+    }
   );
 
   function handleRefresh() {
@@ -141,9 +146,38 @@ export default function TodayBoardPage() {
           <p className="text-[11px] text-muted-foreground mt-1 max-w-lg">
             Absent is shown only after the scheduled shift ends with no check-in. Earlier in the day you&apos;ll see upcoming or awaiting check-in instead.
           </p>
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-2 text-[11px] text-muted-foreground">
+            {dataUpdatedAt > 0 ? (
+              <span>
+                Last updated:{" "}
+                <time dateTime={new Date(dataUpdatedAt).toISOString()}>
+                  {new Date(dataUpdatedAt).toLocaleString(undefined, {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    second: "2-digit",
+                  })}
+                </time>
+              </span>
+            ) : null}
+            {dataUpdatedAt > 0 ? <span className="hidden sm:inline" aria-hidden>·</span> : null}
+            <span>Auto-refresh every 60s while this page is open</span>
+            {isFetching && !isLoading ? (
+              <span className="inline-flex items-center gap-1 text-primary font-medium">
+                <RefreshCw size={12} className="animate-spin shrink-0" aria-hidden />
+                Syncing…
+              </span>
+            ) : null}
+          </div>
         </div>
-        <Button variant="outline" size="sm" className="gap-2" onClick={handleRefresh}>
-          <RefreshCw size={14} /> Refresh
+        <Button
+          variant="outline"
+          size="sm"
+          className="gap-2 shrink-0"
+          onClick={handleRefresh}
+          disabled={isFetching}
+        >
+          <RefreshCw size={14} className={isFetching ? "animate-spin" : ""} />
+          Refresh
         </Button>
       </div>
 

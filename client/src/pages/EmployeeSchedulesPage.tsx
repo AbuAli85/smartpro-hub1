@@ -1,6 +1,7 @@
-import { useState } from "react";
-import { trpc } from "@/lib/trpc";
+import { useMemo, useState } from "react";
+import { trpc, type RouterOutputs } from "@/lib/trpc";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,6 +12,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
 import {
@@ -67,6 +69,22 @@ const defaultForm: SchedForm = {
   notes: "",
 };
 
+type ScheduleRow = RouterOutputs["scheduling"]["listEmployeeSchedules"][number];
+
+interface ScheduleFieldErrors {
+  employeeUserId?: string;
+  siteId?: string;
+  shiftTemplateId?: string;
+  workingDays?: string;
+}
+
+/** Working day chips: emerald reads as “scheduled”, not destructive red. */
+function workingDayPillClass(on: boolean) {
+  return on
+    ? "bg-emerald-600 text-white border border-emerald-700 shadow-sm"
+    : "bg-muted/70 text-muted-foreground border border-transparent";
+}
+
 export default function EmployeeSchedulesPage() {
   const { activeCompanyId } = useActiveCompany();
   const utils = trpc.useUtils();
@@ -83,6 +101,7 @@ export default function EmployeeSchedulesPage() {
   const [adminCalYear, setAdminCalYear] = useState(() => new Date().getFullYear());
   const [adminCalSelectedDay, setAdminCalSelectedDay] = useState<string | null>(null);
   const [showCalPanel, setShowCalPanel] = useState(true);
+  const [fieldErrors, setFieldErrors] = useState<ScheduleFieldErrors>({});
 
   const { data: schedules = [], isLoading } = trpc.scheduling.listEmployeeSchedules.useQuery(
     { companyId: activeCompanyId ?? undefined },
@@ -105,6 +124,27 @@ export default function EmployeeSchedulesPage() {
     { enabled: !!activeCompanyId }
   );
   const employees = employeesData ?? [];
+
+  const scheduleGroups = useMemo(() => {
+    const map = new Map<number, ScheduleRow[]>();
+    for (const s of schedules) {
+      const k = s.employeeUserId;
+      if (!map.has(k)) map.set(k, []);
+      map.get(k)!.push(s);
+    }
+    return [...map.entries()]
+      .map(([employeeUserId, rows]) => {
+        const sorted = [...rows].sort((a, b) => {
+          const ta = a.shift?.startTime ?? "";
+          const tb = b.shift?.startTime ?? "";
+          if (ta !== tb) return ta.localeCompare(tb);
+          return a.id - b.id;
+        });
+        const name = sorted[0]?.employee?.name?.trim() || "Unknown";
+        return { employeeUserId, name, rows: sorted };
+      })
+      .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
+  }, [schedules]);
 
   const assignMut = trpc.scheduling.assignSchedule.useMutation({
     onSuccess: () => {
@@ -150,11 +190,13 @@ export default function EmployeeSchedulesPage() {
   function openCreate() {
     setEditId(null);
     setForm(defaultForm);
+    setFieldErrors({});
     setOpen(true);
   }
 
-  function openEdit(s: typeof schedules[0]) {
+  function openEdit(s: ScheduleRow) {
     setEditId(s.id);
+    setFieldErrors({});
     setForm({
       employeeUserId: String(s.employeeUserId),
       siteId: String(s.siteId),
@@ -168,6 +210,7 @@ export default function EmployeeSchedulesPage() {
   }
 
   function toggleDay(d: number) {
+    setFieldErrors((e) => ({ ...e, workingDays: undefined }));
     setForm((prev) => ({
       ...prev,
       workingDays: prev.workingDays.includes(d)
@@ -177,10 +220,21 @@ export default function EmployeeSchedulesPage() {
   }
 
   function handleSubmit() {
-    if (!activeCompanyId || !form.employeeUserId || !form.siteId || !form.shiftTemplateId || form.workingDays.length === 0) {
-      toast.error("Please fill all required fields");
+    const err: ScheduleFieldErrors = {};
+    if (!form.employeeUserId) err.employeeUserId = "Select an employee.";
+    if (!form.siteId) err.siteId = "Select an attendance site.";
+    if (!form.shiftTemplateId) err.shiftTemplateId = "Select a shift template.";
+    if (form.workingDays.length === 0) err.workingDays = "Select at least one working day.";
+    if (Object.keys(err).length > 0) {
+      setFieldErrors(err);
+      toast.error("Please fix the highlighted fields.");
       return;
     }
+    if (!activeCompanyId) {
+      toast.error("No active company");
+      return;
+    }
+    setFieldErrors({});
     const payload = {
       companyId: activeCompanyId,
       employeeUserId: Number(form.employeeUserId),
@@ -238,74 +292,94 @@ export default function EmployeeSchedulesPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-3">
-          {schedules.map((s) => (
-            <Card key={s.id} className="group hover:shadow-sm transition-shadow">
-              <CardContent className="p-4">
-                <div className="flex items-center gap-4">
-                  <Avatar className="h-10 w-10">
-                    <AvatarFallback className="text-xs font-semibold">
-                      {s.employee ? getInitials(s.employee.name ?? "?") : "?"}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-semibold text-sm">{s.employee?.name ?? "Unknown"}</span>
-                      {s.shift && (
-                        <Badge
-                          style={{ backgroundColor: s.shift.color ?? "#6366f1", color: "white" }}
-                          className="text-xs"
-                        >
-                          {s.shift.name}
-                        </Badge>
-                      )}
-                      {!s.isActive && <Badge variant="secondary" className="text-xs">Inactive</Badge>}
-                    </div>
-                    <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground flex-wrap">
-                      {s.site && (
-                        <span className="flex items-center gap-1">
-                          <MapPin size={11} /> {s.site.name}
-                        </span>
-                      )}
-                      {s.shift && (
-                        <span className="flex items-center gap-1">
-                          <Clock size={11} /> {s.shift.startTime} – {s.shift.endTime}
-                        </span>
-                      )}
-                      <span>
-                        From <strong>{s.startDate}</strong>
-                        {s.endDate ? ` to ${s.endDate}` : " (ongoing)"}
-                      </span>
-                    </div>
-                    <div className="flex gap-1 mt-2">
-                      {DAYS.map((d) => (
-                        <span
-                          key={d.value}
-                          className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
-                            s.workingDays.split(",").map(Number).includes(d.value)
-                              ? "bg-primary text-primary-foreground"
-                              : "bg-muted text-muted-foreground"
-                          }`}
-                        >
-                          {d.label}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => openEdit(s)}>
-                      <Pencil size={14} />
-                    </Button>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="h-8 w-8 text-destructive hover:text-destructive"
-                      onClick={() => setDeleteId(s.id)}
-                    >
-                      <Trash2 size={14} />
-                    </Button>
-                  </div>
+        <div className="space-y-4">
+          {scheduleGroups.map((g) => (
+            <Card key={g.employeeUserId} className="overflow-hidden shadow-sm">
+              <div className="flex items-center gap-3 px-4 py-3 border-b bg-muted/40">
+                <Avatar className="h-10 w-10 shrink-0">
+                  <AvatarFallback className="text-xs font-semibold">
+                    {getInitials(g.name)}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="min-w-0 flex-1">
+                  <p className="font-semibold text-sm truncate">{g.name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {g.rows.length} schedule{g.rows.length === 1 ? "" : "s"} (e.g. split shifts)
+                  </p>
                 </div>
+              </div>
+              <CardContent className="p-0 divide-y">
+                {g.rows.map((s) => (
+                  <div
+                    key={s.id}
+                    className="flex flex-col gap-3 p-4 sm:flex-row sm:items-start sm:gap-4"
+                  >
+                    <div className="flex-1 min-w-0 space-y-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        {s.shift && (
+                          <Badge
+                            style={{ backgroundColor: s.shift.color ?? "#6366f1", color: "white" }}
+                            className="text-xs"
+                          >
+                            {s.shift.name}
+                          </Badge>
+                        )}
+                        {!s.isActive && (
+                          <Badge variant="secondary" className="text-xs">
+                            Inactive
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                        {s.site && (
+                          <span className="flex items-center gap-1">
+                            <MapPin size={11} /> {s.site.name}
+                          </span>
+                        )}
+                        {s.shift && (
+                          <span className="flex items-center gap-1">
+                            <Clock size={11} /> {s.shift.startTime} – {s.shift.endTime}
+                          </span>
+                        )}
+                        <span>
+                          From <strong className="text-foreground">{s.startDate}</strong>
+                          {s.endDate ? ` to ${s.endDate}` : " (ongoing)"}
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap gap-1" aria-label="Working days">
+                        {DAYS.map((d) => (
+                          <span
+                            key={d.value}
+                            className={cn(
+                              "text-[10px] px-1.5 py-0.5 rounded font-medium border",
+                              workingDayPillClass(s.workingDays.split(",").map(Number).includes(d.value))
+                            )}
+                          >
+                            {d.label}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="flex shrink-0 gap-1 sm:flex-col sm:items-end">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 gap-1 text-xs"
+                        onClick={() => openEdit(s)}
+                      >
+                        <Pencil size={14} /> Edit
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 gap-1 text-xs text-destructive border-destructive/30 hover:bg-destructive/10"
+                        onClick={() => setDeleteId(s.id)}
+                      >
+                        <Trash2 size={14} /> Remove
+                      </Button>
+                    </div>
+                  </div>
+                ))}
               </CardContent>
             </Card>
           ))}
@@ -606,17 +680,38 @@ export default function EmployeeSchedulesPage() {
       </Card>
 
       {/* Assign / Edit Dialog */}
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog
+        open={open}
+        onOpenChange={(next) => {
+          setOpen(next);
+          if (!next) setFieldErrors({});
+        }}
+      >
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>{editId ? "Edit Schedule" : "Assign Schedule"}</DialogTitle>
+            <DialogDescription>
+              Each row is one site + shift + working-day pattern. Add another assignment for the same person for a
+              second daily shift (e.g. morning and evening).
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-1.5">
-              <Label>Employee *</Label>
-              <Select value={form.employeeUserId} onValueChange={(v) => setForm({ ...form, employeeUserId: v })}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select employee..." />
+              <Label htmlFor="sched-employee">Employee *</Label>
+              <Select
+                value={form.employeeUserId}
+                onValueChange={(v) => {
+                  setFieldErrors((e) => ({ ...e, employeeUserId: undefined }));
+                  setForm({ ...form, employeeUserId: v });
+                }}
+                disabled={employees.length === 0}
+              >
+                <SelectTrigger
+                  id="sched-employee"
+                  aria-invalid={!!fieldErrors.employeeUserId}
+                  className={cn("w-full min-w-0 justify-between", fieldErrors.employeeUserId && "border-destructive")}
+                >
+                  <SelectValue placeholder={employees.length === 0 ? "No employees in company" : "Select employee..."} />
                 </SelectTrigger>
                 <SelectContent>
                   {employees.map((e) => (
@@ -626,13 +721,29 @@ export default function EmployeeSchedulesPage() {
                   ))}
                 </SelectContent>
               </Select>
+              {fieldErrors.employeeUserId ? (
+                <p className="text-xs text-destructive">{fieldErrors.employeeUserId}</p>
+              ) : employees.length === 0 ? (
+                <p className="text-xs text-muted-foreground">Add employees under HR → Employees first.</p>
+              ) : null}
             </div>
 
             <div className="space-y-1.5">
-              <Label>Attendance Site *</Label>
-              <Select value={form.siteId} onValueChange={(v) => setForm({ ...form, siteId: v })}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select site..." />
+              <Label htmlFor="sched-site">Attendance Site *</Label>
+              <Select
+                value={form.siteId}
+                onValueChange={(v) => {
+                  setFieldErrors((e) => ({ ...e, siteId: undefined }));
+                  setForm({ ...form, siteId: v });
+                }}
+                disabled={sites.length === 0}
+              >
+                <SelectTrigger
+                  id="sched-site"
+                  aria-invalid={!!fieldErrors.siteId}
+                  className={cn("w-full min-w-0 justify-between", fieldErrors.siteId && "border-destructive")}
+                >
+                  <SelectValue placeholder={sites.length === 0 ? "No sites — create under Attendance Sites" : "Select site..."} />
                 </SelectTrigger>
                 <SelectContent>
                   {sites.map((s: { id: number; name: string }) => (
@@ -642,13 +753,27 @@ export default function EmployeeSchedulesPage() {
                   ))}
                 </SelectContent>
               </Select>
+              {fieldErrors.siteId ? <p className="text-xs text-destructive">{fieldErrors.siteId}</p> : null}
             </div>
 
             <div className="space-y-1.5">
-              <Label>Shift Template *</Label>
-              <Select value={form.shiftTemplateId} onValueChange={(v) => setForm({ ...form, shiftTemplateId: v })}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select shift..." />
+              <Label htmlFor="sched-shift">Shift Template *</Label>
+              <Select
+                value={form.shiftTemplateId}
+                onValueChange={(v) => {
+                  setFieldErrors((e) => ({ ...e, shiftTemplateId: undefined }));
+                  setForm({ ...form, shiftTemplateId: v });
+                }}
+                disabled={shifts.length === 0}
+              >
+                <SelectTrigger
+                  id="sched-shift"
+                  aria-invalid={!!fieldErrors.shiftTemplateId}
+                  className={cn("w-full min-w-0 justify-between", fieldErrors.shiftTemplateId && "border-destructive")}
+                >
+                  <SelectValue
+                    placeholder={shifts.length === 0 ? "No shifts — create under Shift Templates" : "Select shift..."}
+                  />
                 </SelectTrigger>
                 <SelectContent>
                   {shifts.map((s) => (
@@ -658,44 +783,51 @@ export default function EmployeeSchedulesPage() {
                   ))}
                 </SelectContent>
               </Select>
+              {fieldErrors.shiftTemplateId ? <p className="text-xs text-destructive">{fieldErrors.shiftTemplateId}</p> : null}
             </div>
 
             <div className="space-y-1.5">
               <Label>Working Days *</Label>
-              <div className="flex gap-2 flex-wrap">
-                {DAYS.map((d) => (
-                  <button
-                    key={d.value}
-                    type="button"
-                    onClick={() => toggleDay(d.value)}
-                    className={`px-3 py-1.5 rounded-md text-sm font-medium border transition-colors ${
-                      form.workingDays.includes(d.value)
-                        ? "bg-primary text-primary-foreground border-primary"
-                        : "bg-background text-foreground border-border hover:bg-muted"
-                    }`}
-                  >
-                    {d.label}
-                  </button>
-                ))}
+              <div className="flex gap-2 flex-wrap" role="group" aria-label="Working days of week">
+                {DAYS.map((d) => {
+                  const on = form.workingDays.includes(d.value);
+                  return (
+                    <button
+                      key={d.value}
+                      type="button"
+                      aria-pressed={on}
+                      onClick={() => toggleDay(d.value)}
+                      className={cn(
+                        "px-3 py-1.5 rounded-md text-sm font-medium border transition-colors",
+                        on
+                          ? "bg-emerald-600 text-white border-emerald-700 shadow-sm"
+                          : "bg-background text-foreground border-border hover:bg-muted"
+                      )}
+                    >
+                      {d.label}
+                    </button>
+                  );
+                })}
               </div>
+              {fieldErrors.workingDays ? <p className="text-xs text-destructive">{fieldErrors.workingDays}</p> : null}
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <Label>Start Date *</Label>
                 <DateInput
-                  
                   value={form.startDate}
                   onChange={(e) => setForm({ ...form, startDate: e.target.value })}
                 />
+                <p className="text-xs text-muted-foreground">Shown as DD/MM/YYYY; stored as YYYY-MM-DD.</p>
               </div>
               <div className="space-y-1.5">
                 <Label>End Date (optional)</Label>
                 <DateInput
-                  
                   value={form.endDate}
                   onChange={(e) => setForm({ ...form, endDate: e.target.value })}
                 />
+                <p className="text-xs text-muted-foreground">Leave blank for an open-ended roster.</p>
               </div>
             </div>
 

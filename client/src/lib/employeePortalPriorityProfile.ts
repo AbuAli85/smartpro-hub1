@@ -10,6 +10,10 @@ export type EmployeePortalPriorityProfile =
   | "hr_operational"
   | "store_sales";
 
+/**
+ * Ordered slots for the employee Command Center (Phase 2.5).
+ * `pay_and_files` — payslip / docs strip. `secondary_tools` — leave, insights, news, expiring docs (utility bundle).
+ */
 export type CommandCenterSectionKey =
   | "command_header"
   | "today_status"
@@ -18,15 +22,13 @@ export type CommandCenterSectionKey =
   | "heads_up"
   | "work_summary"
   | "requests_summary"
-  | "leave_quick"
-  | "pay_files"
   | "hr_month"
   | "recent_activity"
-  | "more_insights"
-  | "announcements"
-  | "expiring_docs"
-  | "at_a_glance";
+  | "pay_and_files"
+  | "at_a_glance"
+  | "secondary_tools";
 
+/** Default: today → blockers → actions → work → requests → history → utilities. */
 const DEFAULT_ORDER: CommandCenterSectionKey[] = [
   "command_header",
   "today_status",
@@ -35,52 +37,46 @@ const DEFAULT_ORDER: CommandCenterSectionKey[] = [
   "heads_up",
   "work_summary",
   "requests_summary",
-  "leave_quick",
-  "pay_files",
-  "hr_month",
   "recent_activity",
-  "more_insights",
-  "announcements",
-  "expiring_docs",
+  "hr_month",
+  "pay_and_files",
   "at_a_glance",
+  "secondary_tools",
 ];
 
+/** Field: execution + glance before requests pipeline. */
 const FIELD_ORDER: CommandCenterSectionKey[] = [
   "command_header",
   "today_status",
   "blockers",
   "top_actions",
-  "work_summary",
-  "hr_month",
-  "requests_summary",
-  "leave_quick",
   "heads_up",
-  "pay_files",
-  "recent_activity",
-  "more_insights",
-  "announcements",
-  "expiring_docs",
+  "work_summary",
   "at_a_glance",
+  "requests_summary",
+  "recent_activity",
+  "pay_and_files",
+  "hr_month",
+  "secondary_tools",
 ];
 
+/** Approver: requests pipeline before personal work queue. */
 const APPROVER_ORDER: CommandCenterSectionKey[] = [
   "command_header",
   "today_status",
   "blockers",
   "requests_summary",
   "top_actions",
-  "work_summary",
   "heads_up",
-  "leave_quick",
-  "pay_files",
-  "hr_month",
+  "work_summary",
   "recent_activity",
-  "more_insights",
-  "announcements",
-  "expiring_docs",
+  "pay_and_files",
   "at_a_glance",
+  "hr_month",
+  "secondary_tools",
 ];
 
+/** HR operational: records / activity before work summary. */
 const HR_OPS_ORDER: CommandCenterSectionKey[] = [
   "command_header",
   "today_status",
@@ -88,33 +84,28 @@ const HR_OPS_ORDER: CommandCenterSectionKey[] = [
   "requests_summary",
   "top_actions",
   "heads_up",
-  "work_summary",
-  "hr_month",
-  "leave_quick",
-  "pay_files",
   "recent_activity",
-  "more_insights",
-  "announcements",
-  "expiring_docs",
+  "work_summary",
+  "pay_and_files",
   "at_a_glance",
+  "hr_month",
+  "secondary_tools",
 ];
 
+/** Store / sales: short-cycle work and glance before requests. */
 const STORE_ORDER: CommandCenterSectionKey[] = [
   "command_header",
   "today_status",
   "blockers",
   "top_actions",
-  "work_summary",
-  "hr_month",
-  "requests_summary",
-  "leave_quick",
   "heads_up",
-  "pay_files",
-  "recent_activity",
-  "more_insights",
-  "announcements",
-  "expiring_docs",
+  "work_summary",
   "at_a_glance",
+  "requests_summary",
+  "recent_activity",
+  "pay_and_files",
+  "hr_month",
+  "secondary_tools",
 ];
 
 export function resolveEmployeePortalPriorityProfile(input: {

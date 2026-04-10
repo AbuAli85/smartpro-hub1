@@ -39,4 +39,17 @@ describe("getCommandCenterSectionOrder", () => {
     const order = getCommandCenterSectionOrder("default");
     expect(order.indexOf("work_summary")).toBeLessThan(order.indexOf("requests_summary"));
   });
+
+  it("uses pay_and_files (not legacy pay_files) in order arrays", () => {
+    for (const p of ["default", "field", "approver", "hr_operational", "store_sales"] as const) {
+      const order = getCommandCenterSectionOrder(p);
+      expect(order).toContain("pay_and_files");
+      expect(order).not.toContain("pay_files" as any);
+    }
+  });
+
+  it("places at_a_glance before requests_summary for store_sales", () => {
+    const order = getCommandCenterSectionOrder("store_sales");
+    expect(order.indexOf("at_a_glance")).toBeLessThan(order.indexOf("requests_summary"));
+  });
 });

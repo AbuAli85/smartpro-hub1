@@ -2202,23 +2202,30 @@ export type AttendanceSite = typeof attendanceSites.$inferSelect;
 export type InsertAttendanceSite = typeof attendanceSites.$inferInsert;
 
 // ─── ATTENDANCE RECORDS ───────────────────────────────────────────────────────
-export const attendanceRecords = mysqlTable("attendance_records", {
-  id: int("id").autoincrement().primaryKey(),
-  companyId: int("company_id").notNull(),
-  employeeId: int("employee_id").notNull(),
-  siteId: int("site_id"),
-  siteName: varchar("site_name", { length: 128 }),
-  checkIn: timestamp("check_in").notNull(),
-  checkOut: timestamp("check_out"),
-  checkInLat: decimal("check_in_lat", { precision: 10, scale: 7 }),
-  checkInLng: decimal("check_in_lng", { precision: 10, scale: 7 }),
-  checkOutLat: decimal("check_out_lat", { precision: 10, scale: 7 }),
-  checkOutLng: decimal("check_out_lng", { precision: 10, scale: 7 }),
-  method: mysqlEnum("method", ["qr_scan", "manual", "admin"]).notNull().default("qr_scan"),
-  notes: text("notes"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
-});
+export const attendanceRecords = mysqlTable(
+  "attendance_records",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    companyId: int("company_id").notNull(),
+    employeeId: int("employee_id").notNull(),
+    siteId: int("site_id"),
+    siteName: varchar("site_name", { length: 128 }),
+    checkIn: timestamp("check_in").notNull(),
+    checkOut: timestamp("check_out"),
+    checkInLat: decimal("check_in_lat", { precision: 10, scale: 7 }),
+    checkInLng: decimal("check_in_lng", { precision: 10, scale: 7 }),
+    checkOutLat: decimal("check_out_lat", { precision: 10, scale: 7 }),
+    checkOutLng: decimal("check_out_lng", { precision: 10, scale: 7 }),
+    method: mysqlEnum("method", ["qr_scan", "manual", "admin"]).notNull().default("qr_scan"),
+    notes: text("notes"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  },
+  (t) => [
+    index("idx_att_rec_company_checkin").on(t.companyId, t.checkIn),
+    index("idx_att_rec_employee_checkin").on(t.employeeId, t.checkIn),
+  ]
+);
 export type AttendanceRecord = typeof attendanceRecords.$inferSelect;
 export type InsertAttendanceRecord = typeof attendanceRecords.$inferInsert;
 
@@ -2312,21 +2319,28 @@ export type InsertShiftTemplate = typeof shiftTemplates.$inferInsert;
 
 // ─── Employee Schedules ───────────────────────────────────────────────────────
 // Assigns a shift template to an employee for specific days at a specific site
-export const employeeSchedules = mysqlTable("employee_schedules", {
-  id: int("id").primaryKey().autoincrement(),
-  companyId: int("company_id").notNull(),
-  employeeUserId: int("employee_user_id").notNull(),
-  siteId: int("site_id").notNull(),
-  shiftTemplateId: int("shift_template_id").notNull(),
-  workingDays: varchar("working_days", { length: 20 }).notNull().default("0,1,2,3,4"),
-  startDate: date("start_date", { mode: "string" }).notNull(),
-  endDate: date("end_date", { mode: "string" }),
-  isActive: boolean("is_active").notNull().default(true),
-  notes: text("notes"),
-  createdByUserId: int("created_by_user_id").notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
-});
+export const employeeSchedules = mysqlTable(
+  "employee_schedules",
+  {
+    id: int("id").primaryKey().autoincrement(),
+    companyId: int("company_id").notNull(),
+    employeeUserId: int("employee_user_id").notNull(),
+    siteId: int("site_id").notNull(),
+    shiftTemplateId: int("shift_template_id").notNull(),
+    workingDays: varchar("working_days", { length: 20 }).notNull().default("0,1,2,3,4"),
+    startDate: date("start_date", { mode: "string" }).notNull(),
+    endDate: date("end_date", { mode: "string" }),
+    isActive: boolean("is_active").notNull().default(true),
+    notes: text("notes"),
+    createdByUserId: int("created_by_user_id").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  },
+  (t) => [
+    index("idx_emp_sched_company_emp_active").on(t.companyId, t.employeeUserId, t.isActive),
+    index("idx_emp_sched_company_active_dates").on(t.companyId, t.isActive, t.startDate, t.endDate),
+  ]
+);
 export type EmployeeSchedule = typeof employeeSchedules.$inferSelect;
 export type InsertEmployeeSchedule = typeof employeeSchedules.$inferInsert;
 

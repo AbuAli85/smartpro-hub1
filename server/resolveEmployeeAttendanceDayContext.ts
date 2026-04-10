@@ -2,7 +2,7 @@
  * Shared resolution of “today’s” schedule + attendance record for an employee.
  * Keeps employeePortal hints and attendance.checkIn aligned on businessDate and schedule rules.
  */
-import { and, desc, eq, gte, isNull, lte, or } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNull, lte, or } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import {
   attendanceRecords,
@@ -11,6 +11,7 @@ import {
   employees,
   shiftTemplates,
 } from "../drizzle/schema";
+import { pickScheduleRowForNow } from "@shared/pickScheduleForAttendanceNow";
 
 export interface EmployeeAttendanceDayContext {
   businessDate: string;
@@ -80,21 +81,34 @@ export async function resolveEmployeeAttendanceDayContext(
 
   if (allMySchedules.length > 0) {
     hasSchedule = true;
-    const todayScheduleRow = allMySchedules.find((s) =>
+    const templateIds = Array.from(new Set(allMySchedules.map((s) => s.shiftTemplateId)));
+    const shiftRows =
+      templateIds.length > 0
+        ? await db.select().from(shiftTemplates).where(inArray(shiftTemplates.id, templateIds))
+        : [];
+    const shiftById = new Map(shiftRows.map((st) => [st.id, st]));
+
+    const now = new Date();
+    const mySchedule = pickScheduleRowForNow({
+      now,
+      businessDate,
+      dow,
+      isHoliday: !!holiday,
+      scheduleRows: allMySchedules,
+      getShift: (tid) => shiftById.get(tid),
+    });
+    const workingToday = allMySchedules.filter((s) =>
       s.workingDays.split(",").map(Number).includes(dow)
     );
-    const mySchedule = todayScheduleRow ?? allMySchedules[0];
-    isWorkingDay = !!todayScheduleRow && !holiday;
-    assignedSiteId = mySchedule.siteId ?? null;
-    const [st] = await db
-      .select()
-      .from(shiftTemplates)
-      .where(eq(shiftTemplates.id, mySchedule.shiftTemplateId))
-      .limit(1);
-    if (st) {
-      shiftStart = st.startTime;
-      shiftEnd = st.endTime;
-      gracePeriodMinutes = st.gracePeriodMinutes ?? 15;
+    isWorkingDay = workingToday.length > 0 && !holiday;
+    if (mySchedule) {
+      assignedSiteId = mySchedule.siteId ?? null;
+      const st = shiftById.get(mySchedule.shiftTemplateId);
+      if (st) {
+        shiftStart = st.startTime;
+        shiftEnd = st.endTime;
+        gracePeriodMinutes = st.gracePeriodMinutes ?? 15;
+      }
     }
   }
 

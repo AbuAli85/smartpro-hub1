@@ -4,7 +4,7 @@
  */
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { and, eq, gte, lte, or, isNull } from "drizzle-orm";
+import { and, eq, gte, inArray, lte, or, isNull } from "drizzle-orm";
 import { getDb, getUserCompany } from "../db";
 import {
   shiftTemplates,
@@ -23,6 +23,7 @@ import {
   minutesPastExpectedCheckIn,
 } from "@shared/attendanceBoardStatus";
 import { getShiftInstantBounds } from "@shared/employeePortalShift";
+import { pickScheduleRowForNow } from "@shared/pickScheduleForAttendanceNow";
 
 async function requireDb() {
   const db = await getDb();
@@ -488,9 +489,26 @@ export const schedulingRouter = router({
           .limit(1);
         if (empRow) allMySchedules = await queryTodaySchedules(empRow.id);
       }
-      const mySchedule = allMySchedules.find(s =>
+      const workingToday = allMySchedules.filter((s) =>
         s.workingDays.split(",").map(Number).includes(dow)
-      ) ?? null;
+      );
+      if (workingToday.length === 0) {
+        return { isHoliday: false, holiday: null, schedule: null, shift: null, site: null };
+      }
+      const templateIds = Array.from(new Set(allMySchedules.map((s) => s.shiftTemplateId)));
+      const shiftRows =
+        templateIds.length > 0
+          ? await db.select().from(shiftTemplates).where(inArray(shiftTemplates.id, templateIds))
+          : [];
+      const shiftById = new Map(shiftRows.map((st) => [st.id, st]));
+      const mySchedule = pickScheduleRowForNow({
+        now: new Date(),
+        businessDate: today,
+        dow,
+        isHoliday: false,
+        scheduleRows: allMySchedules,
+        getShift: (tid) => shiftById.get(tid),
+      });
       if (!mySchedule) return { isHoliday: false, holiday: null, schedule: null, shift: null, site: null };
 
       const [shift] = await db.select().from(shiftTemplates).where(eq(shiftTemplates.id, mySchedule.shiftTemplateId)).limit(1);
@@ -540,10 +558,27 @@ export const schedulingRouter = router({
       if (allMySchedules.length === 0) {
         return { hasSchedule: false, isHoliday: !!holiday, holiday: holiday ?? null, isWorkingDay: false, schedule: null, shift: null, site: null, workingDays: [] as number[] };
       }
-      // Pick today's schedule if it is a working day, otherwise pick the first active schedule
-      const todayScheduleRow = allMySchedules.find(s => s.workingDays.split(",").map(Number).includes(dow));
-      const mySchedule = todayScheduleRow ?? allMySchedules[0];
-      const isWorkingDay = !!todayScheduleRow && !holiday;
+      const templateIds = Array.from(new Set(allMySchedules.map((s) => s.shiftTemplateId)));
+      const shiftRows =
+        templateIds.length > 0
+          ? await db.select().from(shiftTemplates).where(inArray(shiftTemplates.id, templateIds))
+          : [];
+      const shiftById = new Map(shiftRows.map((st) => [st.id, st]));
+      const mySchedule = pickScheduleRowForNow({
+        now: new Date(),
+        businessDate: today,
+        dow,
+        isHoliday: !!holiday,
+        scheduleRows: allMySchedules,
+        getShift: (tid) => shiftById.get(tid),
+      });
+      if (!mySchedule) {
+        return { hasSchedule: false, isHoliday: !!holiday, holiday: holiday ?? null, isWorkingDay: false, schedule: null, shift: null, site: null, workingDays: [] as number[] };
+      }
+      const workingToday = allMySchedules.filter((s) =>
+        s.workingDays.split(",").map(Number).includes(dow)
+      );
+      const isWorkingDay = workingToday.length > 0 && !holiday;
       const [shift] = await db.select().from(shiftTemplates).where(eq(shiftTemplates.id, mySchedule.shiftTemplateId)).limit(1);
       const [site] = await db.select().from(attendanceSites).where(eq(attendanceSites.id, mySchedule.siteId)).limit(1);
       const workingDays = mySchedule.workingDays.split(",").map(Number);

@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { trpc } from "@/lib/trpc";
 import {
   Plus, Pencil, Trash2, Eye, EyeOff, Building2, CheckCircle,
   DollarSign, Calendar, Search, X, Shield, Globe, Phone, Mail,
-  Clock, MapPin, Save, ChevronDown, Users, Loader2, UserMinus,
+  Clock, MapPin, Save, Users, Loader2, UserMinus,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -25,6 +25,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
+import { Link } from "wouter";
 import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
 
 const SERVICE_TYPES = [
@@ -80,6 +81,28 @@ const EMPTY_PROFILE_FORM = {
   responseTimeHours: "24", isPublicListed: "1",
 };
 
+function mapOfficeToProfileForm(data: Record<string, unknown>) {
+  return {
+    name: String(data.name ?? ""),
+    nameAr: String(data.nameAr ?? ""),
+    providerType: String(data.providerType ?? "pro_office"),
+    description: String(data.description ?? ""),
+    descriptionAr: String(data.descriptionAr ?? ""),
+    licenseNumber: String(data.licenseNumber ?? ""),
+    city: String(data.city ?? ""),
+    governorate: String(data.governorate ?? ""),
+    location: String(data.location ?? ""),
+    phone: String(data.phone ?? ""),
+    email: String(data.email ?? ""),
+    website: String(data.website ?? ""),
+    contactPerson: String(data.contactPerson ?? ""),
+    openingHours: String(data.openingHours ?? ""),
+    languages: String(data.languages ?? "Arabic,English"),
+    responseTimeHours: String(data.responseTimeHours ?? 24),
+    isPublicListed: String(Number(data.isPublicListed ?? 0) === 1 ? "1" : "0"),
+  };
+}
+
 export default function SanadCatalogueAdminPage() {
   const utils = trpc.useUtils();
   const [search, setSearch] = useState("");
@@ -88,35 +111,22 @@ export default function SanadCatalogueAdminPage() {
   const [addOpen, setAddOpen] = useState(false);
   const [form, setForm] = useState({ ...EMPTY_CATALOGUE_FORM });
   const [profileForm, setProfileForm] = useState({ ...EMPTY_PROFILE_FORM });
-  const [profileLoaded, setProfileLoaded] = useState(false);
+  /** Hydrate local profile form once per office id (avoid overwriting edits on refetch). */
+  const hydratedOfficeIdRef = useRef<number | null>(null);
 
   // Fetch the company's own Sanad office profile
-  const { data: myOffice, isLoading: officeLoading } = trpc.sanad.getMyOfficeProfile.useQuery(undefined, {
-    onSuccess: (data: any) => {
-      if (data && !profileLoaded) {
-        setProfileForm({
-          name: data.name ?? "",
-          nameAr: data.nameAr ?? "",
-          providerType: data.providerType ?? "pro_office",
-          description: data.description ?? "",
-          descriptionAr: (data as any).descriptionAr ?? "",
-          licenseNumber: data.licenseNumber ?? "",
-          city: data.city ?? "",
-          governorate: data.governorate ?? "",
-          location: data.location ?? "",
-          phone: data.phone ?? "",
-          email: data.email ?? "",
-          website: data.website ?? "",
-          contactPerson: data.contactPerson ?? "",
-          openingHours: data.openingHours ?? "",
-          languages: (data as any).languages ?? "Arabic,English",
-          responseTimeHours: String((data as any).responseTimeHours ?? 24),
-          isPublicListed: String((data as any).isPublicListed ?? 1),
-        });
-        setProfileLoaded(true);
-      }
-    },
-  } as any);
+  const {
+    data: myOffice,
+    isLoading: officeLoading,
+    error: officeError,
+  } = trpc.sanad.getMyOfficeProfile.useQuery(undefined);
+
+  useEffect(() => {
+    if (!myOffice?.id) return;
+    if (hydratedOfficeIdRef.current === myOffice.id) return;
+    hydratedOfficeIdRef.current = myOffice.id;
+    setProfileForm(mapOfficeToProfileForm(myOffice as unknown as Record<string, unknown>));
+  }, [myOffice]);
 
   const { data: catalogue = [], isLoading: catalogueLoading } = trpc.sanad.getServiceCatalogue.useQuery(
     { officeId: myOffice?.id ?? 0 },
@@ -129,10 +139,16 @@ export default function SanadCatalogueAdminPage() {
   );
 
   const saveProfileMutation = trpc.sanad.upsertOfficeProfile.useMutation({
-    onSuccess: () => {
+    onSuccess: async () => {
       toast.success("Profile saved successfully.");
-      utils.sanad.getMyOfficeProfile.invalidate();
-      void utils.sanad.officeGoLiveReadiness.invalidate();
+      await utils.sanad.getMyOfficeProfile.invalidate();
+      const fresh = await utils.sanad.getMyOfficeProfile.fetch();
+      if (fresh) {
+        setProfileForm(mapOfficeToProfileForm(fresh as unknown as Record<string, unknown>));
+      }
+      await utils.sanad.officeGoLiveReadiness.invalidate();
+      void utils.sanad.listProviders.invalidate();
+      void utils.sanad.partnerOnboardingWorkspace.invalidate();
     },
     onError: (err) => toast.error(err.message),
   });
@@ -140,7 +156,9 @@ export default function SanadCatalogueAdminPage() {
   const addMutation = trpc.sanad.addCatalogueItem.useMutation({
     onSuccess: () => {
       toast.success("Service added to catalogue.");
-      utils.sanad.getServiceCatalogue.invalidate();
+      void utils.sanad.getServiceCatalogue.invalidate();
+      void utils.sanad.officeGoLiveReadiness.invalidate();
+      void utils.sanad.partnerOnboardingWorkspace.invalidate();
       setAddOpen(false);
       setForm({ ...EMPTY_CATALOGUE_FORM });
     },
@@ -150,21 +168,29 @@ export default function SanadCatalogueAdminPage() {
   const updateMutation = trpc.sanad.updateCatalogueItem.useMutation({
     onSuccess: () => {
       toast.success("Service updated.");
-      utils.sanad.getServiceCatalogue.invalidate();
+      void utils.sanad.getServiceCatalogue.invalidate();
+      void utils.sanad.officeGoLiveReadiness.invalidate();
+      void utils.sanad.partnerOnboardingWorkspace.invalidate();
       setEditItem(null);
     },
     onError: (err) => toast.error(err.message),
   });
 
   const toggleMutation = trpc.sanad.toggleCatalogueItem.useMutation({
-    onSuccess: () => utils.sanad.getServiceCatalogue.invalidate(),
+    onSuccess: () => {
+      void utils.sanad.getServiceCatalogue.invalidate();
+      void utils.sanad.officeGoLiveReadiness.invalidate();
+      void utils.sanad.partnerOnboardingWorkspace.invalidate();
+    },
     onError: (err) => toast.error(err.message),
   });
 
   const deleteMutation = trpc.sanad.deleteCatalogueItem.useMutation({
     onSuccess: () => {
       toast.success("Service removed.");
-      utils.sanad.getServiceCatalogue.invalidate();
+      void utils.sanad.getServiceCatalogue.invalidate();
+      void utils.sanad.officeGoLiveReadiness.invalidate();
+      void utils.sanad.partnerOnboardingWorkspace.invalidate();
       setDeleteId(null);
     },
     onError: (err) => toast.error(err.message),
@@ -261,6 +287,36 @@ export default function SanadCatalogueAdminPage() {
         )}
       </div>
 
+      {officeLoading && (
+        <div className="space-y-4 max-w-4xl">
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-32 w-full" />
+        </div>
+      )}
+
+      {!officeLoading && !myOffice && (
+        <Card className="mb-6 border-dashed max-w-4xl">
+          <CardContent className="py-8 text-center space-y-3">
+            {officeError ? (
+              <p className="text-sm text-destructive">{officeError.message}</p>
+            ) : (
+              <>
+                <p className="text-sm text-muted-foreground">
+                  No SANAD office is linked to your SmartPRO account yet. Use partner onboarding after your invite, or ask SmartPRO
+                  operations to connect your centre.
+                </p>
+                <Button variant="outline" size="sm" asChild>
+                  <Link href="/sanad/partner-onboarding">Open partner onboarding</Link>
+                </Button>
+              </>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {myOffice && (
+      <>
       <Tabs defaultValue="profile">
         <TabsList className="mb-6">
           <TabsTrigger value="profile">Centre Profile</TabsTrigger>
@@ -279,13 +335,6 @@ export default function SanadCatalogueAdminPage() {
 
         {/* ── PROFILE TAB ── */}
         <TabsContent value="profile">
-          {officeLoading ? (
-            <div className="space-y-4">
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-24 w-full" />
-            </div>
-          ) : (
             <div className="space-y-6">
               {goLiveReadiness && (
                 <Card className="border-dashed">
@@ -465,7 +514,6 @@ export default function SanadCatalogueAdminPage() {
                 </Button>
               </div>
             </div>
-          )}
         </TabsContent>
 
         <TabsContent value="team">
@@ -661,11 +709,14 @@ export default function SanadCatalogueAdminPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      </>
+      )}
     </div>
   );
 }
 
 function OfficeTeamTab({ officeId }: { officeId?: number }) {
+  const utils = trpc.useUtils();
   const [userSearch, setUserSearch] = useState("");
   const [pickUserId, setPickUserId] = useState<number | null>(null);
   const [newRole, setNewRole] = useState<"owner" | "manager" | "staff">("staff");
@@ -685,6 +736,7 @@ function OfficeTeamTab({ officeId }: { officeId?: number }) {
       setUserSearch("");
       setPickUserId(null);
       void members.refetch();
+      void utils.sanad.partnerOnboardingWorkspace.invalidate();
     },
     onError: (e) => toast.error(e.message),
   });
@@ -692,11 +744,15 @@ function OfficeTeamTab({ officeId }: { officeId?: number }) {
     onSuccess: () => {
       toast.success("Access removed");
       void members.refetch();
+      void utils.sanad.partnerOnboardingWorkspace.invalidate();
     },
     onError: (e) => toast.error(e.message),
   });
   const updateRole = trpc.sanad.updateSanadOfficeMemberRole.useMutation({
-    onSuccess: () => void members.refetch(),
+    onSuccess: () => {
+      void members.refetch();
+      void utils.sanad.partnerOnboardingWorkspace.invalidate();
+    },
     onError: (e) => toast.error(e.message),
   });
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   listSanadIntelOfficeIntegrityWarnings,
+  validateAcceptCenterInvite,
   validateEnablePublicListing,
   validateGenerateCenterInvite,
   validateLinkSanadInviteToAccount,
@@ -16,6 +17,24 @@ describe("validateGenerateCenterInvite", () => {
 
   it("allows when no linked office", () => {
     expect(validateGenerateCenterInvite({ linkedSanadOfficeId: null }).ok).toBe(true);
+  });
+});
+
+describe("validateAcceptCenterInvite", () => {
+  it("blocks when office already linked", () => {
+    const r = validateAcceptCenterInvite({ linkedSanadOfficeId: 1 }, false);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.message).toMatch(/no longer accepting/i);
+  });
+
+  it("blocks duplicate link when user already linked", () => {
+    const r = validateAcceptCenterInvite({}, true);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.code).toBe("CONFLICT");
+  });
+
+  it("allows fresh accept", () => {
+    expect(validateAcceptCenterInvite({ linkedSanadOfficeId: null }, false).ok).toBe(true);
   });
 });
 

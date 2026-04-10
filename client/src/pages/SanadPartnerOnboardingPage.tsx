@@ -341,11 +341,11 @@ export default function SanadPartnerOnboardingPage() {
           <>
             <Button asChild className="gap-2">
               <Link href="/sanad/catalogue-admin">
-                Complete catalogue <ArrowRight className="h-4 w-4" />
+                Centre profile &amp; catalogue <ArrowRight className="h-4 w-4" />
               </Link>
             </Button>
             <Button variant="outline" asChild>
-              <Link href="/sanad/office-dashboard">Office profile &amp; listing</Link>
+              <Link href="/sanad/office-dashboard">Office performance</Link>
             </Button>
           </>
         ) : (
@@ -356,10 +356,10 @@ export default function SanadPartnerOnboardingPage() {
               </Link>
             </Button>
             <Button variant="outline" asChild>
-              <Link href="/sanad/catalogue-admin">Manage catalogue</Link>
+              <Link href="/sanad/catalogue-admin">Profile, catalogue &amp; team</Link>
             </Button>
             <Button variant="outline" asChild>
-              <Link href="/sanad/office-dashboard">Office dashboard</Link>
+              <Link href="/sanad/office-dashboard">Office performance</Link>
             </Button>
           </>
         )}

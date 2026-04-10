@@ -9,4 +9,8 @@ describe("omitUndefined", () => {
   it("keeps null", () => {
     expect(omitUndefined({ x: null as string | null })).toEqual({ x: null });
   });
+
+  it("keeps false and zero for patch semantics", () => {
+    expect(omitUndefined({ a: false, b: 0, c: undefined })).toEqual({ a: false, b: 0 });
+  });
 });

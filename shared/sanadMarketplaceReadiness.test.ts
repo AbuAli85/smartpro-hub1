@@ -40,4 +40,17 @@ describe("computeSanadGoLiveReadiness", () => {
     const r = computeSanadGoLiveReadiness(office, 1);
     expect(r.ready).toBe(true);
   });
+
+  it("fails when phone missing even with catalogue", () => {
+    const office = {
+      name: "X",
+      status: "active" as const,
+      isPublicListed: 0 as const,
+      phone: "  ",
+      governorate: "A",
+    };
+    const r = computeSanadGoLiveReadiness(office, 1);
+    expect(r.ready).toBe(false);
+    expect(r.reasons.some((x) => /phone/i.test(x))).toBe(true);
+  });
 });

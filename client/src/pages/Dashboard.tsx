@@ -12,6 +12,7 @@ import {
   Shield, ShoppingBag, TrendingUp, Users, Banknote,
   Globe, Zap, RefreshCw, Award, MapPin, Calendar,
   ChevronDown, ChevronRight, Activity, Bell, Target, CircleDollarSign, Truck, ClipboardList, Download,
+  User,
 } from "lucide-react";
 import { Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -484,9 +485,17 @@ export default function Dashboard() {
           </div>
           <p className="text-muted-foreground text-sm flex items-center gap-2 flex-wrap">
             {myCompany && (
-              <span className="flex items-center gap-1">
-                <Building2 size={12} /> {myCompany.company.name}
+              <span className="flex items-center gap-1 min-w-0">
+                <Building2 size={12} className="shrink-0" /> <span className="truncate">{myCompany.company.name}</span>
               </span>
+            )}
+            {user?.name && (
+              <>
+                <span className="text-border">·</span>
+                <span className="flex items-center gap-1 min-w-0">
+                  <User size={12} className="shrink-0" /> <span className="truncate">{user.name}</span>
+                </span>
+              </>
             )}
             <span className="text-border">·</span>
             <span className="flex items-center gap-1"><MapPin size={12} /> Sultanate of Oman</span>
@@ -831,7 +840,9 @@ export default function Dashboard() {
               </CardContent>
             </Card>
           </div>
-          <p className="text-[10px] text-muted-foreground leading-snug max-w-4xl">{businessPulse.revenue.basis}</p>
+          <p className="text-[10px] text-muted-foreground leading-snug w-full min-w-0 break-words">
+            {businessPulse.revenue.basis}
+          </p>
         </div>
       )}
 

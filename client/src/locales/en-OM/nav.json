@@ -103,6 +103,9 @@
   "signOut": "Sign out",
   "brandTitle": "SmartPRO",
   "brandSubtitle": "Business Services Hub · Oman",
+  "workspace": {
+    "company": "Company"
+  },
   "roles": {
     "member": "Member",
     "owner": "Owner / Admin",

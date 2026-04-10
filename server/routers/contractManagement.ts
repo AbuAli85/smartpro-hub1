@@ -615,12 +615,14 @@ export const contractManagementRouter = router({
    * Suitable for a dashboard stats bar — intentionally read-only and fast.
    * See repository ADR comment for the performance migration plan.
    */
-  kpis: protectedProcedure.query(async ({ ctx }) => {
+  kpis: protectedProcedure
+    .input(z.object({ companyId: z.number().optional() }).optional())
+    .query(async ({ ctx, input }) => {
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
 
     const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
-    const activeId = isPlatform ? 0 : await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
+    const activeId = isPlatform ? 0 : await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user);
 
     // Apply the same RBAC gate as the list query: only managers/admins, not auditors
     if (!isPlatform) {

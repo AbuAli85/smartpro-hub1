@@ -28,6 +28,8 @@
 import { trpc } from "@/lib/trpc";
 
 export type UseContractKpisOptions = {
+  /** Active workspace company; pass when resolving KPIs for a specific tenant (required for multi-company users). */
+  companyId?: number | null;
   /** Disable the query entirely (e.g., user lacks access). Default: true. */
   enabled?: boolean;
   /**
@@ -45,6 +47,7 @@ export type UseContractKpisOptions = {
  */
 export function useContractKpis(opts: UseContractKpisOptions = {}) {
   const {
+    companyId,
     enabled = true,
     staleTime = 60_000,
     refetchOnWindowFocus = false,
@@ -52,7 +55,9 @@ export function useContractKpis(opts: UseContractKpisOptions = {}) {
 
   const utils = trpc.useUtils();
 
-  const query = trpc.contractManagement.kpis.useQuery(undefined, {
+  const input = companyId != null ? { companyId } : undefined;
+
+  const query = trpc.contractManagement.kpis.useQuery(input, {
     enabled,
     staleTime,
     refetchOnWindowFocus,

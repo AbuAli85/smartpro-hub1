@@ -24,7 +24,15 @@ function CadenceWindowBody({ w }: { w: Window }) {
         </div>
         <div className="rounded-lg border border-border/60 p-2 bg-muted/20">
           <p className="text-[9px] uppercase tracking-wide text-muted-foreground">{t("arAtRisk")}</p>
-          <p className="font-bold tabular-nums text-red-800 dark:text-red-200">OMR {fmtOmr(w.receivablesAtRiskOmr)}</p>
+          <p
+            className={
+              w.receivablesAtRiskOmr > 0
+                ? "font-bold tabular-nums text-red-800 dark:text-red-200"
+                : "font-bold tabular-nums text-foreground"
+            }
+          >
+            OMR {fmtOmr(w.receivablesAtRiskOmr)}
+          </p>
         </div>
         <div className="rounded-lg border border-border/60 p-2 bg-muted/20">
           <p className="text-[9px] uppercase tracking-wide text-muted-foreground">{t("decisions")}</p>

@@ -42,6 +42,9 @@
 
 import React from "react";
 import { Link } from "wouter";
+import { useAuth } from "@/_core/hooks/useAuth";
+import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
+import { seesPlatformOperatorNav } from "@shared/clientNav";
 import { Badge } from "@/components/ui/badge";
 import {
   AlertCircle,
@@ -76,6 +79,11 @@ export interface ContractKpiWidgetProps {
    * Default: true for those variants, not applicable for "compact".
    */
   showTitle?: boolean;
+  /**
+   * Workspace company for KPI scope (defaults to the active company from context).
+   * Platform operators may omit this when no company is selected.
+   */
+  companyId?: number | null;
 }
 
 // ─── Internal state machine ───────────────────────────────────────────────────
@@ -705,8 +713,18 @@ export function ContractKpiWidget({
   variant = "stats-bar",
   className,
   showTitle,
+  companyId: companyIdProp,
 }: ContractKpiWidgetProps) {
-  const { data: kpis, isLoading, isError, isPermissionError } = useContractKpis();
+  const { activeCompanyId } = useActiveCompany();
+  const { user } = useAuth();
+  const platform = seesPlatformOperatorNav(user);
+  const companyId = companyIdProp ?? activeCompanyId ?? undefined;
+  const queryEnabled = platform || companyId != null;
+
+  const { data: kpis, isLoading, isError, isPermissionError } = useContractKpis({
+    companyId,
+    enabled: queryEnabled,
+  });
 
   const state = resolveState(isLoading, isError, isPermissionError, kpis);
   const resolvedShowTitle = showTitle ?? true; // explicit default: always show title unless overridden

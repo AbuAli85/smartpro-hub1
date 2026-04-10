@@ -79,8 +79,12 @@ function RoleExecutionBanner({ view }: { view: NonNullable<Pulse["roleExecution"
               {m.label}: <span className={`font-semibold tabular-nums ${emphasisCls}`}>{m.value}</span>
             </>
           );
+          const linkTone =
+            m.emphasis === "critical" || m.emphasis === "warning"
+              ? "text-[10px] text-[var(--smartpro-orange)] hover:underline"
+              : "text-[10px] text-muted-foreground hover:text-foreground hover:underline";
           return m.href ? (
-            <Link key={i} href={m.href} className="text-[10px] text-[var(--smartpro-orange)] hover:underline">
+            <Link key={i} href={m.href} className={linkTone}>
               {content}
             </Link>
           ) : (
@@ -306,7 +310,10 @@ export function ExecutiveControlTower({ tower, showHref, execution, companyId, m
         <Card className="border-border/80">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2" title={agedReceivables.basis}>
-              <Wallet size={14} className="text-red-700" />
+              <Wallet
+                size={14}
+                className={agedReceivables.combinedAtRiskOmr > 0 ? "text-red-700" : "text-muted-foreground"}
+              />
               {t("cashAtRisk")}
             </CardTitle>
             <p className="text-[10px] text-muted-foreground font-normal">
@@ -316,7 +323,14 @@ export function ExecutiveControlTower({ tower, showHref, execution, companyId, m
           <CardContent className="space-y-3 text-xs">
             <div className="flex justify-between items-baseline gap-2">
               <span className="text-muted-foreground">{t("totalAtRisk")}</span>
-              <span className="font-black tabular-nums text-lg text-red-800 dark:text-red-200">
+              <span
+                className={cn(
+                  "font-black tabular-nums text-lg",
+                  agedReceivables.combinedAtRiskOmr > 0
+                    ? "text-red-800 dark:text-red-200"
+                    : "text-foreground",
+                )}
+              >
                 {fmtOmr(agedReceivables.combinedAtRiskOmr)}
               </span>
             </div>

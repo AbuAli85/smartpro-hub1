@@ -1354,7 +1354,7 @@ export const operationsRouter = router({
         roleExecution,
         execution: {
           basis:
-            "Execution layer: actions are filtered server-side by membership role (see executionCapabilities). Decision rows map to hr.updateLeave, financeHR.reviewExpense, employeeRequests.updateStatus, quotations.send, payroll (company_admin only), etc. Collections persist in collection_work_items (company_admin | finance_admin).",
+            "Approvals and collections actions shown here match your workspace role. Open a row to review context; buttons run only when your role is allowed.",
           decisionWorkItems,
           collectionQueue: collectionExecutionQueue,
           viewerRole: membership.role,

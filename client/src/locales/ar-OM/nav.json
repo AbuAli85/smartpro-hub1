@@ -104,6 +104,9 @@
   "signOut": "تسجيل الخروج",
   "brandTitle": "SmartPRO",
   "brandSubtitle": "مركز خدمات الأعمال · عُمان",
+  "workspace": {
+    "company": "الشركة"
+  },
   "roles": {
     "member": "عضو",
     "owner": "مالك / مسؤول",

@@ -1,15 +1,18 @@
 /**
- * Command Center section visibility + ordered rendering helpers (Phase 2.5).
- * Presentation-only — pairs with `getCommandCenterSectionOrder`.
+ * Command Center section visibility + ordered rendering helpers (Phase 2.5 + 3).
+ * Presentation-only — pairs with `getCommandCenterSectionOrder` in `employeeCommandCenterState`.
  */
 import type { CommandCenterSectionKey, EmployeePortalPriorityProfile } from "./employeePortalPriorityProfile";
-import { getCommandCenterSectionOrder } from "./employeePortalPriorityProfile";
+import type { CommandCenterStateContext } from "./employeeCommandCenterState";
+import { getCommandCenterSectionOrder } from "./employeeCommandCenterState";
 
 export type CommandCenterVisibility = {
   hasBlockers: boolean;
   hasTopActions: boolean;
   hasHeadsUp: boolean;
   hasRecentActivity: boolean;
+  /** When blockers exist, recent activity is dropped from the queue (collapsed / de-emphasized). */
+  collapseRecentForBlockers: boolean;
 };
 
 export function shouldRenderCommandCenterSection(key: CommandCenterSectionKey, v: CommandCenterVisibility): boolean {
@@ -21,7 +24,7 @@ export function shouldRenderCommandCenterSection(key: CommandCenterSectionKey, v
     case "heads_up":
       return v.hasHeadsUp;
     case "recent_activity":
-      return v.hasRecentActivity;
+      return v.hasRecentActivity && !v.collapseRecentForBlockers;
     default:
       return true;
   }
@@ -30,8 +33,10 @@ export function shouldRenderCommandCenterSection(key: CommandCenterSectionKey, v
 export function getOrderedVisibleCommandCenterSections(
   profile: EmployeePortalPriorityProfile,
   v: CommandCenterVisibility,
+  state: CommandCenterStateContext,
+  pendingRequestCount: number,
 ): CommandCenterSectionKey[] {
-  return getCommandCenterSectionOrder(profile).filter((k) => shouldRenderCommandCenterSection(k, v));
+  return getCommandCenterSectionOrder(profile, state, pendingRequestCount).filter((k) => shouldRenderCommandCenterSection(k, v));
 }
 
 /** True when both appear and blockers comes first (invariant for all profiles). */

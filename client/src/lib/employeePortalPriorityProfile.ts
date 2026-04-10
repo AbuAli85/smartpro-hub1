@@ -146,7 +146,8 @@ export function resolveEmployeePortalPriorityProfile(input: {
   return "default";
 }
 
-export function getCommandCenterSectionOrder(profile: EmployeePortalPriorityProfile): CommandCenterSectionKey[] {
+/** Profile-only baseline order (Phase 2.5). Adaptive ordering layers on top in `employeeCommandCenterState`. */
+export function getBaseCommandCenterSectionOrder(profile: EmployeePortalPriorityProfile): CommandCenterSectionKey[] {
   switch (profile) {
     case "field":
       return [...FIELD_ORDER];
@@ -160,3 +161,4 @@ export function getCommandCenterSectionOrder(profile: EmployeePortalPriorityProf
       return [...DEFAULT_ORDER];
   }
 }
+

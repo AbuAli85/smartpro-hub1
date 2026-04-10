@@ -11,7 +11,9 @@ import { buildOverviewDashboardModel, EMPLOYEE_PORTAL_TOP_ACTIONS_MAX } from "@/
 import { buildUnifiedEmployeeRequests, summarizeRequestsForHome } from "@/lib/employeeRequestsPresentation";
 import type { CommandCenterSectionKey } from "@/lib/employeePortalPriorityProfile";
 import { resolveEmployeePortalPriorityProfile } from "@/lib/employeePortalPriorityProfile";
+import { buildCommandCenterOrchestrationMeta, buildCommandCenterStateContext } from "@/lib/employeeCommandCenterState";
 import { getOrderedVisibleCommandCenterSections } from "@/lib/employeeCommandCenterOrchestration";
+import { cn } from "@/lib/utils";
 import type { ProductivitySnapshot } from "@/lib/employeePortalUtils";
 import { getDueUrgency, slaLabel } from "@/lib/taskSla";
 import type { EmployeeWorkStatusSummary } from "@shared/employeePortalWorkStatusSummary";
@@ -315,19 +317,73 @@ export function EmployeePortalOverview(props: EmployeePortalOverviewProps) {
     }
   };
 
+  const complianceForHeadsUp =
+    !workStatusLoading &&
+    workStatusSummary &&
+    (workStatusSummary.overallStatus === "urgent" || workStatusSummary.overallStatus === "needs_attention");
+
   const commandCenterVisibility = useMemo(
     () => ({
       hasBlockers: model.blockers.length > 0,
       hasTopActions: focusItems.length > 0,
-      hasHeadsUp: model.attentionItems.length > 0,
+      hasHeadsUp:
+        model.attentionItems.length > 0 || !!complianceForHeadsUp || ((expiringDocs as any[])?.length ?? 0) > 0,
       hasRecentActivity: model.recentTimeline.length > 0,
+      collapseRecentForBlockers: model.blockers.length > 0,
     }),
-    [model.blockers.length, model.attentionItems.length, model.recentTimeline.length, focusItems.length],
+    [
+      model.blockers.length,
+      model.attentionItems.length,
+      model.recentTimeline.length,
+      focusItems.length,
+      complianceForHeadsUp,
+      expiringDocs,
+    ],
+  );
+
+  const ccState = useMemo(
+    () =>
+      buildCommandCenterStateContext({
+        blockerCount: model.blockers.length,
+        focusItems,
+        taskOpenCount: model.taskStats.openCount,
+        pendingRequestCount: requestHomeSummary.pendingCount,
+        shiftPhase: shiftOverview.phase,
+        isHoliday: !!myActiveSchedule?.isHoliday,
+        isWorkingDay: myActiveSchedule?.isWorkingDay,
+        hasShift: !!(myActiveSchedule?.schedule && myActiveSchedule?.shift),
+      }),
+    [
+      model.blockers.length,
+      focusItems,
+      model.taskStats.openCount,
+      requestHomeSummary.pendingCount,
+      shiftOverview.phase,
+      myActiveSchedule?.isHoliday,
+      myActiveSchedule?.isWorkingDay,
+      myActiveSchedule?.schedule,
+      myActiveSchedule?.shift,
+    ],
+  );
+
+  const ccMeta = useMemo(
+    () =>
+      buildCommandCenterOrchestrationMeta({
+        blockerCount: model.blockers.length,
+        pendingRequestCount: requestHomeSummary.pendingCount,
+      }),
+    [model.blockers.length, requestHomeSummary.pendingCount],
   );
 
   const orderedSectionKeys = useMemo(
-    () => getOrderedVisibleCommandCenterSections(priorityProfile, commandCenterVisibility),
-    [priorityProfile, commandCenterVisibility],
+    () =>
+      getOrderedVisibleCommandCenterSections(
+        priorityProfile,
+        commandCenterVisibility,
+        ccState,
+        requestHomeSummary.pendingCount,
+      ),
+    [priorityProfile, commandCenterVisibility, ccState, requestHomeSummary.pendingCount],
   );
 
   const renderSection = (key: CommandCenterSectionKey): React.ReactNode => {
@@ -557,13 +613,65 @@ export function EmployeePortalOverview(props: EmployeePortalOverviewProps) {
         );
       case "heads_up":
         return (
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            <span className="shrink-0 text-[10px] font-semibold uppercase text-muted-foreground">Heads-up</span>
-            {model.attentionItems.map((x) => (
-              <Badge key={x.key} variant="outline" className={`shrink-0 whitespace-nowrap ${attentionStateClasses(x.state)}`}>
-                {x.label}
-              </Badge>
-            ))}
+          <div className="space-y-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="shrink-0 text-[10px] font-semibold uppercase text-muted-foreground">Heads-up</span>
+              <div className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                {model.attentionItems.map((x) => (
+                  <Badge key={x.key} variant="outline" className={`shrink-0 whitespace-nowrap ${attentionStateClasses(x.state)}`}>
+                    {x.label}
+                  </Badge>
+                ))}
+                {complianceForHeadsUp && workStatusSummary && (
+                  <Badge
+                    variant="outline"
+                    className={`shrink-0 whitespace-nowrap text-[10px] ${
+                      workStatusSummary.overallStatus === "urgent"
+                        ? "border-red-300 bg-red-50/90 text-red-900 dark:bg-red-950/35"
+                        : "border-amber-300 bg-amber-50/90 text-amber-900 dark:bg-amber-950/25"
+                    }`}
+                  >
+                    Compliance: {workStatusSummary.overallStatus.replace("_", " ")}
+                  </Badge>
+                )}
+                {expiringDocs.length > 0 && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-7 shrink-0 gap-1 px-2 text-[10px]"
+                    onClick={() => go("documents")}
+                  >
+                    <AlertTriangle className="h-3.5 w-3.5 text-amber-600" aria-hidden />
+                    Documents ({expiringDocs.length})
+                  </Button>
+                )}
+              </div>
+            </div>
+            {complianceForHeadsUp && workStatusSummary && (
+              <div className="rounded-lg border border-border/50 bg-muted/15 px-3 py-2 text-[10px] text-muted-foreground space-y-1">
+                <p className="line-clamp-2">{workStatusSummary.permit.label}</p>
+                <p className="line-clamp-2">{workStatusSummary.documents.label}</p>
+                {workStatusSummary.primaryAction.type !== "none" && (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    className="h-8 text-[11px] w-full sm:w-auto"
+                    onClick={() => {
+                      const tab = workStatusSummary.primaryAction.tab;
+                      if (tab) {
+                        go(tab);
+                        requestAnimationFrame(() => {
+                          document.getElementById(`portal-${tab}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+                        });
+                      } else if (workStatusSummary.primaryAction.type === "contact_hr") go("profile");
+                    }}
+                  >
+                    {workStatusSummary.primaryAction.label}
+                  </Button>
+                )}
+              </div>
+            )}
           </div>
         );
       case "work_summary":
@@ -930,39 +1038,6 @@ export function EmployeePortalOverview(props: EmployeePortalOverviewProps) {
                   ))}
                 </ul>
 
-                {workStatusLoading ? (
-                  <Skeleton className="h-12" />
-                ) : workStatusSummary ? (
-                  <div className="rounded-lg border border-border/50 bg-muted/15 p-2 space-y-1.5">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-medium text-foreground text-[11px]">Compliance</span>
-                      <Badge variant="outline" className="text-[9px] capitalize">
-                        {workStatusSummary.overallStatus.replace("_", " ")}
-                      </Badge>
-                    </div>
-                    <p className="text-[10px] line-clamp-2 text-muted-foreground">{workStatusSummary.permit.label}</p>
-                    <p className="text-[10px] line-clamp-2 text-muted-foreground">{workStatusSummary.documents.label}</p>
-                    {workStatusSummary.primaryAction.type !== "none" && (
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        className="h-8 text-[11px] w-full sm:w-auto"
-                        onClick={() => {
-                          const tab = workStatusSummary.primaryAction.tab;
-                          if (tab) {
-                            go(tab);
-                            requestAnimationFrame(() => {
-                              document.getElementById(`portal-${tab}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
-                            });
-                          } else if (workStatusSummary.primaryAction.type === "contact_hr") go("profile");
-                        }}
-                      >
-                        {workStatusSummary.primaryAction.label}
-                      </Button>
-                    )}
-                  </div>
-                ) : null}
-
                 {model.profileReminder && (
                   <Button variant="outline" size="sm" className="h-9 w-full text-xs" onClick={() => go("profile")}>
                     {model.profileReminder}
@@ -995,30 +1070,6 @@ export function EmployeePortalOverview(props: EmployeePortalOverviewProps) {
                 </CardContent>
               </Card>
             )}
-
-            {expiringDocs.length > 0 && (
-              <Card className="border-amber-200/80 bg-amber-50/40 dark:bg-amber-950/10">
-                <CardContent className="p-3 space-y-2">
-                  <p className="text-sm font-semibold flex items-center gap-2 text-amber-900 dark:text-amber-100">
-                    <AlertTriangle className="h-4 w-4" /> Documents
-                  </p>
-                  {expiringDocs.slice(0, 3).map((d: any) => {
-                    const days = daysUntilExpiry(d.expiresAt);
-                    return (
-                      <div key={d.id} className="flex justify-between text-xs gap-2">
-                        <span>{DOC_LABELS[d.documentType] ?? d.documentType}</span>
-                        <span className={days != null && days < 0 ? "text-red-600 font-medium" : "text-amber-800"}>
-                          {days != null && days < 0 ? "Expired" : days === 0 ? "Today" : `${days}d`}
-                        </span>
-                      </div>
-                    );
-                  })}
-                  <Button size="sm" variant="outline" className="w-full min-h-10" onClick={() => go("documents")}>
-                    Open documents
-                  </Button>
-                </CardContent>
-              </Card>
-            )}
           </div>
         );
       default:
@@ -1026,11 +1077,23 @@ export function EmployeePortalOverview(props: EmployeePortalOverviewProps) {
     }
   };
 
+  const blockerIdx = orderedSectionKeys.indexOf("blockers");
+  const isBlocked = ccMeta.isBlocked;
+
   return (
-    <div className="flex flex-col gap-3 pb-2">
-      {orderedSectionKeys.map((key) => (
-        <Fragment key={key}>{renderSection(key)}</Fragment>
-      ))}
+    <div className={cn("flex flex-col gap-3 pb-2", isBlocked && "rounded-xl")}>
+      {orderedSectionKeys.map((key, index) => {
+        const subdued =
+          isBlocked &&
+          blockerIdx !== -1 &&
+          !["command_header", "today_status", "blockers", "top_actions"].includes(key) &&
+          index > blockerIdx + 1;
+        return (
+          <Fragment key={key}>
+            <div className={subdued ? "opacity-[0.82] transition-opacity" : undefined}>{renderSection(key)}</div>
+          </Fragment>
+        );
+      })}
     </div>
   );
 }

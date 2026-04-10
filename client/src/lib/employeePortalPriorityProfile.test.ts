@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getCommandCenterSectionOrder, resolveEmployeePortalPriorityProfile } from "./employeePortalPriorityProfile";
+import { getBaseCommandCenterSectionOrder, resolveEmployeePortalPriorityProfile } from "./employeePortalPriorityProfile";
 
 describe("resolveEmployeePortalPriorityProfile", () => {
   it("defaults when no signals", () => {
@@ -29,27 +29,27 @@ describe("resolveEmployeePortalPriorityProfile", () => {
   });
 });
 
-describe("getCommandCenterSectionOrder", () => {
+describe("getBaseCommandCenterSectionOrder", () => {
   it("places requests_summary before work_summary for approver profile", () => {
-    const order = getCommandCenterSectionOrder("approver");
+    const order = getBaseCommandCenterSectionOrder("approver");
     expect(order.indexOf("requests_summary")).toBeLessThan(order.indexOf("work_summary"));
   });
 
   it("places work_summary before requests_summary for default profile", () => {
-    const order = getCommandCenterSectionOrder("default");
+    const order = getBaseCommandCenterSectionOrder("default");
     expect(order.indexOf("work_summary")).toBeLessThan(order.indexOf("requests_summary"));
   });
 
   it("uses pay_and_files (not legacy pay_files) in order arrays", () => {
     for (const p of ["default", "field", "approver", "hr_operational", "store_sales"] as const) {
-      const order = getCommandCenterSectionOrder(p);
+      const order = getBaseCommandCenterSectionOrder(p);
       expect(order).toContain("pay_and_files");
       expect(order).not.toContain("pay_files" as any);
     }
   });
 
   it("places at_a_glance before requests_summary for store_sales", () => {
-    const order = getCommandCenterSectionOrder("store_sales");
+    const order = getBaseCommandCenterSectionOrder("store_sales");
     expect(order.indexOf("at_a_glance")).toBeLessThan(order.indexOf("requests_summary"));
   });
 });

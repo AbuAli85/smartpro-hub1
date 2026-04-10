@@ -1,4 +1,4 @@
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { useTranslation } from "react-i18next";
@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 export function OnboardingProgressWidget() {
   const { i18n } = useTranslation("common");
   const isAr = i18n.language.startsWith("ar");
+  const [location] = useLocation();
   const { activeCompanyId } = useActiveCompany();
   const [dismissed, setDismissed] = useState(false);
 
@@ -27,6 +28,9 @@ export function OnboardingProgressWidget() {
   );
 
   const summary = data?.summary;
+
+  // Main dashboard already shows OwnerSetupChecklist — avoid duplicate "Getting started" UI.
+  if (location === "/dashboard" || location.startsWith("/dashboard/")) return null;
 
   // Hide if: dismissed, no data, or all required steps done
   if (dismissed || !summary || summary.isComplete) return null;

@@ -769,8 +769,8 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* ── Cash received (paid) — server-authoritative revenue snapshot ── */}
-      {!showPlatformOverview && activeCompanyId && businessPulse?.revenue && (
+      {/* ── Cash received (paid) — only when cadence panel is absent; otherwise folded into ManagementCadencePanel ── */}
+      {!showPlatformOverview && activeCompanyId && businessPulse?.revenue && !businessPulse?.managementCadence && (
         <div className="space-y-2">
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
@@ -847,7 +847,11 @@ export default function Dashboard() {
       )}
 
       {!showPlatformOverview && activeCompanyId && businessPulse?.managementCadence && (
-        <ManagementCadencePanel bundle={businessPulse.managementCadence} />
+        <ManagementCadencePanel
+          bundle={businessPulse.managementCadence}
+          revenue={businessPulse.revenue}
+          showFinanceOverviewLink={showHref("/finance/overview")}
+        />
       )}
 
       {!showPlatformOverview && activeCompanyId && businessPulse?.controlTower && (

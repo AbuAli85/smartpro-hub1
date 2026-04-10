@@ -26,7 +26,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { Link } from "wouter";
-import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
+import { fmtDateTime } from "@/lib/dateUtils";
 
 const SERVICE_TYPES = [
   { value: "work_permit", label: "Work Permit" },
@@ -65,6 +65,11 @@ const GOVERNORATES = [
   "Al Batinah North","Al Batinah South","Ash Sharqiyah North",
   "Ash Sharqiyah South","Ad Dhahirah","Al Wusta",
 ];
+
+function governorateSelectValue(g: string): string {
+  const t = g.trim();
+  return t === "" ? "__none__" : t;
+}
 
 const EMPTY_CATALOGUE_FORM = {
   serviceName: "", serviceNameAr: "", serviceType: "",
@@ -142,7 +147,7 @@ export default function SanadCatalogueAdminPage() {
     onSuccess: async () => {
       toast.success("Profile saved successfully.");
       await utils.sanad.getMyOfficeProfile.invalidate();
-      const fresh = await utils.sanad.getMyOfficeProfile.fetch();
+      const fresh = await utils.sanad.getMyOfficeProfile.fetch(undefined);
       if (fresh) {
         setProfileForm(mapOfficeToProfileForm(fresh as unknown as Record<string, unknown>));
       }
@@ -437,10 +442,28 @@ export default function SanadCatalogueAdminPage() {
                     </div>
                     <div className="space-y-1.5">
                       <Label>Governorate</Label>
-                      <Select value={profileForm.governorate} onValueChange={(v) => setProfileForm({ ...profileForm, governorate: v })}>
-                        <SelectTrigger><SelectValue placeholder="Select governorate" /></SelectTrigger>
+                      <Select
+                        value={governorateSelectValue(profileForm.governorate)}
+                        onValueChange={(v) =>
+                          setProfileForm({ ...profileForm, governorate: v === "__none__" ? "" : v })
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select governorate" />
+                        </SelectTrigger>
                         <SelectContent>
-                          {GOVERNORATES.map((g) => <SelectItem key={g} value={g}>{g}</SelectItem>)}
+                          <SelectItem value="__none__">— Not selected —</SelectItem>
+                          {profileForm.governorate.trim() !== "" &&
+                            !GOVERNORATES.includes(profileForm.governorate.trim()) && (
+                              <SelectItem value={profileForm.governorate.trim()}>
+                                {profileForm.governorate.trim()} (saved value)
+                              </SelectItem>
+                            )}
+                          {GOVERNORATES.map((g) => (
+                            <SelectItem key={g} value={g}>
+                              {g}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     </div>
@@ -614,10 +637,20 @@ export default function SanadCatalogueAdminPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>Service Type *</Label>
-                <Select value={form.serviceType} onValueChange={(v) => setForm({ ...form, serviceType: v })}>
-                  <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
+                <Select
+                  value={form.serviceType.trim() === "" ? "__none__" : form.serviceType}
+                  onValueChange={(v) => setForm({ ...form, serviceType: v === "__none__" ? "" : v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select type" />
+                  </SelectTrigger>
                   <SelectContent>
-                    {SERVICE_TYPES.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
+                    <SelectItem value="__none__">— Select type —</SelectItem>
+                    {SERVICE_TYPES.map((t) => (
+                      <SelectItem key={t.value} value={t.value}>
+                        {t.label}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>

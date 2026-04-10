@@ -109,6 +109,19 @@ describe("validateListedOfficeRemainsDiscoverable", () => {
     };
     expect(validateListedOfficeRemainsDiscoverable(office, 0).ok).toBe(true);
   });
+
+  it("blocks when listed but office status is not active", () => {
+    const office = {
+      name: "X",
+      status: "suspended" as const,
+      phone: "1",
+      governorate: "M",
+      isPublicListed: 1,
+    };
+    const r = validateListedOfficeRemainsDiscoverable(office, 1);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.message).toMatch(/marketplace/i);
+  });
 });
 
 describe("listSanadIntelOfficeIntegrityWarnings", () => {

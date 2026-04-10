@@ -16,7 +16,8 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import {
   ArrowLeft, Shield, Calendar, User, Building2, MapPin,
-  RefreshCw, XCircle, AlertTriangle, CheckCircle2, Clock, Loader2, FileText
+  RefreshCw, XCircle, AlertTriangle, CheckCircle2, Clock, Loader2, FileText,
+  Briefcase, Phone, Users, CreditCard
 } from "lucide-react";
 import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
 import { DateInput } from "@/components/ui/date-input";
@@ -171,13 +172,29 @@ export default function WorkforcePermitDetailPage() {
         ecSponsorRef ?? snapshotString(snap, ["sponsorId", "sponsor_id"]) ?? null,
       employerLocation,
       employeeName: emp ? `${emp.firstName} ${emp.lastName}`.trim() : null,
+      employeeNameAr: emp ? [emp.firstNameAr, emp.lastNameAr].filter(Boolean).join(" ").trim() || null : null,
+      employeeNumber: emp?.employeeNumber?.trim() || null,
+      employeeId: emp?.id ?? null,
+      employeeStatus: emp?.status ?? null,
       nationality: emp?.nationality?.trim() || snapshotString(snap, ["nationality"]) || null,
       salaryDisplay: formatEmployeeSalary(emp?.salary, emp?.currency ?? null),
       passportNumber: emp?.passportNumber?.trim() || null,
+      passportExpiry: formatPermitDate((emp as any)?.passportExpiry ?? null),
+      nationalId: emp?.nationalId?.trim() || null,
+      dateOfBirth: formatPermitDate((emp as any)?.dateOfBirth ?? null),
+      gender: (emp as any)?.gender ?? null,
+      maritalStatus: (emp as any)?.maritalStatus ?? null,
       department: emp?.department?.trim() || snapshotString(snap, ["department"]) || null,
       position: emp?.position?.trim() || snapshotString(snap, ["position"]) || null,
+      employmentType: (emp as any)?.employmentType ?? null,
+      hireDate: formatPermitDate((emp as any)?.hireDate ?? null),
       email: emp?.email?.trim() || null,
       phone: emp?.phone?.trim() || null,
+      pasiNumber: (emp as any)?.pasiNumber?.trim() || null,
+      bankName: (emp as any)?.bankName?.trim() || null,
+      bankAccountNumber: (emp as any)?.bankAccountNumber?.trim() || null,
+      emergencyContactName: (emp as any)?.emergencyContactName?.trim() || null,
+      emergencyContactPhone: (emp as any)?.emergencyContactPhone?.trim() || null,
       renewalCount: 0,
       renewals: [] as Array<{ id: number; newExpiryDate?: string; status: string; createdAt?: Date | string }>,
     };
@@ -440,6 +457,79 @@ export default function WorkforcePermitDetailPage() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Employee Personal Information */}
+        {data?.employee && (
+          <Card className="shadow-sm">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <User className="w-4 h-4 text-primary" />
+                Employee Personal Information
+              </CardTitle>
+              {p.employeeId && (
+                <CardDescription className="text-xs">
+                  Linked employee record — ID #{p.employeeId}
+                  {p.employeeNumber ? ` · Emp. No. ${p.employeeNumber}` : ""}
+                </CardDescription>
+              )}
+            </CardHeader>
+            <CardContent className="space-y-0">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8">
+                {/* Left column: Identity */}
+                <div>
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide pt-3 pb-1 flex items-center gap-1">
+                    <User className="w-3 h-3" /> Identity
+                  </p>
+                  <InfoRow label="Full Name (EN)" value={p.employeeName} />
+                  {p.employeeNameAr && <InfoRow label="Full Name (AR)" value={p.employeeNameAr} />}
+                  <InfoRow label="Nationality" value={p.nationality} />
+                  <InfoRow label="Date of Birth" value={p.dateOfBirth} />
+                  <InfoRow label="Gender" value={p.gender ? p.gender.charAt(0).toUpperCase() + p.gender.slice(1) : null} />
+                  <InfoRow label="Marital Status" value={p.maritalStatus ? p.maritalStatus.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase()) : null} />
+                  <InfoRow label="Civil / National ID" value={p.nationalId ?? p.civilId} mono />
+                  <InfoRow label="Passport Number" value={p.passportNumber} mono />
+                  <InfoRow label="Passport Expiry" value={p.passportExpiry} />
+                  <InfoRow label="PASI Number" value={p.pasiNumber} mono />
+                </div>
+                {/* Right column: Employment + Contact */}
+                <div>
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide pt-3 pb-1 flex items-center gap-1">
+                    <Briefcase className="w-3 h-3" /> Employment
+                  </p>
+                  <InfoRow label="Department" value={p.department} />
+                  <InfoRow label="Position / Job Title" value={p.position} />
+                  <InfoRow label="Employment Type" value={p.employmentType ? p.employmentType.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase()) : null} />
+                  <InfoRow label="Hire Date" value={p.hireDate} />
+                  <InfoRow label="Status" value={p.employeeStatus ? p.employeeStatus.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase()) : null} />
+                  <InfoRow label="Salary" value={p.salaryDisplay} />
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide pt-3 pb-1 flex items-center gap-1">
+                    <Phone className="w-3 h-3" /> Contact
+                  </p>
+                  <InfoRow label="Email" value={p.email} />
+                  <InfoRow label="Phone" value={p.phone} />
+                  {(p.emergencyContactName || p.emergencyContactPhone) && (
+                    <>
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide pt-3 pb-1 flex items-center gap-1">
+                        <Users className="w-3 h-3" /> Emergency Contact
+                      </p>
+                      <InfoRow label="Name" value={p.emergencyContactName} />
+                      <InfoRow label="Phone" value={p.emergencyContactPhone} />
+                    </>
+                  )}
+                  {(p.bankName || p.bankAccountNumber) && (
+                    <>
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide pt-3 pb-1 flex items-center gap-1">
+                        <CreditCard className="w-3 h-3" /> Banking
+                      </p>
+                      <InfoRow label="Bank" value={p.bankName} />
+                      <InfoRow label="Account No." value={p.bankAccountNumber} mono />
+                    </>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Renewal history */}
         {p.renewals && p.renewals.length > 0 && (

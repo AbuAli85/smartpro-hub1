@@ -8,6 +8,13 @@ import { getDueUrgency } from "@/lib/taskSla";
 import { employeePortalConfig } from "@/config/employeePortalConfig";
 import { getShiftInstantBounds } from "@shared/employeePortalShift";
 import type { EmployeeWorkStatusSummary } from "@shared/employeePortalWorkStatusSummary";
+import {
+  attendancePresentationToHeroSeverity,
+  buildEmployeeAttendancePresentation,
+  type EmployeeAttendancePresentation,
+} from "@/lib/employeeAttendanceState";
+import { buildEmployeeBlockers, suppressedActionKeysFromBlockers, type EmployeeBlocker } from "@/lib/employeeBlockersModel";
+import { isOnApprovedLeaveToday } from "@/lib/employeeRequestsPresentation";
 
 /** Max priority rows in the home “Top actions” queue (EOS command center). */
 export const EMPLOYEE_PORTAL_TOP_ACTIONS_MAX = 5;
@@ -107,6 +114,9 @@ export interface HeroPresentation {
 }
 
 export interface OverviewDashboardModel {
+  /** Canonical attendance presentation (Phase 2). */
+  attendancePresentation: EmployeeAttendancePresentation | null;
+  blockers: EmployeeBlocker[];
   actionCenter: ActionCenterItem[];
   attentionItems: AttentionItem[];
   taskStats: OverviewTaskStats;
@@ -522,6 +532,8 @@ export function buildOverviewDashboardModel(input: {
   pendingShiftRequests?: number;
   /** Pending expense submissions. */
   pendingExpenses?: number;
+  /** Pending attendance corrections (for hero / attendance state copy). */
+  pendingCorrectionCount?: number;
   now?: Date;
   /** When true, hero is omitted (loading); proactive hints stay conservative */
   todayAttendanceLoading?: boolean;
@@ -580,6 +592,54 @@ export function buildOverviewDashboardModel(input: {
     const days = Math.ceil((new Date(d.expiresAt).getTime() - now.getTime()) / 86400000);
     return days >= 0 && days <= 14;
   });
+  const criticalSoonDocs = input.expiringDocs.filter((d) => {
+    if (!d.expiresAt) return false;
+    const days = Math.ceil((new Date(d.expiresAt).getTime() - now.getTime()) / 86400000);
+    return days >= 0 && days <= 7;
+  });
+
+  const timingCtx =
+    shiftTiming != null
+      ? {
+          isLateNoCheckIn: shiftTiming.isLateNoCheckIn,
+          lateRiskCheckIn: shiftTiming.lateRiskCheckIn,
+          lateDetail: shiftTiming.lateDetail,
+        }
+      : null;
+
+  const todayAttendanceLoading = input.todayAttendanceLoading ?? false;
+  const attendancePresentation: EmployeeAttendancePresentation | null = buildEmployeeAttendancePresentation({
+    todayAttendanceLoading,
+    myActiveSchedule: input.myActiveSchedule,
+    shiftOverview: input.shiftOverview,
+    shiftTiming: timingCtx,
+    checkIn,
+    checkOut,
+    onApprovedLeaveToday: isOnApprovedLeaveToday(
+      (input.leave ?? []).map((l) => {
+        const end = (l as { endDate?: string | Date | null }).endDate;
+        return {
+          status: l.status,
+          startDate: l.startDate,
+          endDate: end ?? l.startDate,
+        };
+      }),
+      now,
+    ),
+    pendingCorrectionCount: input.pendingCorrectionCount ?? 0,
+  });
+
+  const blockers = buildEmployeeBlockers({
+    shiftOverview: input.shiftOverview,
+    phase: input.shiftOverview.phase,
+    checkIn,
+    checkOut,
+    workStatusSummary: input.workStatusSummary,
+    expiredDocCount: expiredDocs.length,
+    criticalSoonDocCount: criticalSoonDocs.length,
+    profileReminder,
+  });
+  const suppressedActionKeys = suppressedActionKeysFromBlockers(blockers);
 
   type Candidate = { score: number; item: ActionCenterItem };
   const candidates: Candidate[] = [];
@@ -836,10 +896,24 @@ export function buildOverviewDashboardModel(input: {
   const seen = new Set<string>();
   const actionCenter: ActionCenterItem[] = [];
   for (const c of candidates) {
+    if (suppressedActionKeys.has(c.item.key)) continue;
     if (seen.has(c.item.key)) continue;
     seen.add(c.item.key);
     actionCenter.push(c.item);
     if (actionCenter.length >= EMPLOYEE_PORTAL_TOP_ACTIONS_MAX) break;
+  }
+
+  if (actionCenter.length === 0) {
+    actionCenter.push({
+      key: "all-clear",
+      severity: "info",
+      actionType: "attendance",
+      nextStep: "Keep attendance and tasks current",
+      headline: "On track",
+      detail: null,
+      ctaLabel: primaryCta,
+      tab: "attendance",
+    });
   }
 
   const attentionItems: AttentionItem[] = [];
@@ -891,17 +965,22 @@ export function buildOverviewDashboardModel(input: {
     })),
   });
 
-  const todayAttendanceLoading = input.todayAttendanceLoading ?? false;
-  const hero = todayAttendanceLoading
-    ? null
-    : buildHeroPresentation({
-        todayAttendanceLoading: false,
-        myActiveSchedule: input.myActiveSchedule,
-        shiftOverview: input.shiftOverview,
-        shiftTiming,
-        checkIn,
-        checkOut,
-      });
+  const hero: HeroPresentation | null =
+    todayAttendanceLoading || !attendancePresentation
+      ? null
+      : (() => {
+          const p = attendancePresentation;
+          const severity = attendancePresentationToHeroSeverity(p);
+          let proactiveHint: string | null = p.supportingText ?? null;
+          if (!proactiveHint && p.headline && p.headline !== p.badgeLabel) proactiveHint = p.headline;
+          if (p.state === "completed" && p.severity === "success") proactiveHint = null;
+          if (p.state === "loading") proactiveHint = null;
+          return {
+            stateLabel: p.badgeLabel,
+            severity,
+            proactiveHint,
+          };
+        })();
 
   const proactiveHints: string[] = [];
   const pushHint = (msg: string) => {
@@ -936,6 +1015,8 @@ export function buildOverviewDashboardModel(input: {
   }
 
   return {
+    attendancePresentation,
+    blockers,
     actionCenter,
     attentionItems,
     taskStats,

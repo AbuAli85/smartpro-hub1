@@ -8,6 +8,8 @@ import { employeePortalConfig } from "@/config/employeePortalConfig";
 import type { OverviewShiftCardPresentation, ServerEligibilityHints } from "@/lib/employeePortalOverviewPresentation";
 import type { ActionCenterCategory, AttentionState, PortalNavTab } from "@/lib/employeePortalOverviewModel";
 import { buildOverviewDashboardModel, EMPLOYEE_PORTAL_TOP_ACTIONS_MAX } from "@/lib/employeePortalOverviewModel";
+import { buildUnifiedEmployeeRequests, summarizeRequestsForHome } from "@/lib/employeeRequestsPresentation";
+import { resolveEmployeePortalPriorityProfile } from "@/lib/employeePortalPriorityProfile";
 import type { ProductivitySnapshot } from "@/lib/employeePortalUtils";
 import { getDueUrgency, slaLabel } from "@/lib/taskSla";
 import type { EmployeeWorkStatusSummary } from "@shared/employeePortalWorkStatusSummary";
@@ -26,6 +28,7 @@ import {
   ArrowLeftRight,
   Activity,
   UserCheck,
+  ShieldAlert,
 } from "lucide-react";
 
 type TaskStatus = "pending" | "in_progress" | "completed" | "cancelled" | "blocked";
@@ -61,8 +64,8 @@ function attentionStateClasses(s: AttentionState): string {
 
 function taskNextActionLabel(status: string): string {
   if (status === "blocked") return "Unblock or escalate";
-  if (status === "in_progress") return "Continue";
-  return "Open";
+  if (status === "in_progress") return "Resume task";
+  return "Open task";
 }
 
 function Skeleton({ className = "" }: { className?: string }) {
@@ -143,7 +146,7 @@ export interface EmployeePortalOverviewProps {
 
   myTraining: any[] | undefined;
   mySelfReviews: any[] | undefined;
-  emp: { phone?: string | null; emergencyContact?: string | null; emergencyPhone?: string | null };
+  emp: { phone?: string | null; emergencyContact?: string | null; emergencyPhone?: string | null; department?: string | null };
 
   pendingShiftRequests: number;
   pendingExpenses: number;
@@ -153,6 +156,13 @@ export interface EmployeePortalOverviewProps {
   realAttCheckInsMonth: number;
   sickDaysUsedYtd: number;
   pendingTasksCount: number;
+
+  pendingCorrectionCount?: number;
+  membershipRole?: string | null;
+  employeePosition?: string | null;
+  unifiedShiftRequests?: any[];
+  unifiedCorrections?: any[];
+  unifiedExpenses?: any[];
 }
 
 export function EmployeePortalOverview(props: EmployeePortalOverviewProps) {
@@ -189,7 +199,39 @@ export function EmployeePortalOverview(props: EmployeePortalOverviewProps) {
     realAttCheckInsMonth,
     sickDaysUsedYtd,
     pendingTasksCount,
+    pendingCorrectionCount = 0,
+    membershipRole,
+    employeePosition,
+    unifiedShiftRequests = [],
+    unifiedCorrections = [],
+    unifiedExpenses = [],
   } = props;
+
+  const priorityProfile = useMemo(
+    () =>
+      resolveEmployeePortalPriorityProfile({
+        membershipRole: membershipRole ?? null,
+        position: employeePosition ?? null,
+        department: (emp as { department?: string | null })?.department ?? null,
+      }),
+    [membershipRole, employeePosition, emp],
+  );
+
+  const unifiedRequestRows = useMemo(
+    () =>
+      buildUnifiedEmployeeRequests({
+        leave: leave as any[],
+        shiftRequests: unifiedShiftRequests as any[],
+        corrections: unifiedCorrections as any[],
+        expenses: unifiedExpenses as any[],
+      }),
+    [leave, unifiedShiftRequests, unifiedCorrections, unifiedExpenses],
+  );
+  const requestHomeSummary = useMemo(() => summarizeRequestsForHome(unifiedRequestRows), [unifiedRequestRows]);
+
+  /** Phase 2: lightweight role-based emphasis (full section order in `getCommandCenterSectionOrder`). */
+  const requestsAboveWork =
+    priorityProfile === "approver" || priorityProfile === "hr_operational";
 
   const model = useMemo(
     () =>
@@ -212,6 +254,7 @@ export function EmployeePortalOverview(props: EmployeePortalOverviewProps) {
         emp,
         pendingShiftRequests,
         pendingExpenses,
+        pendingCorrectionCount,
         now: new Date(),
       }),
     [
@@ -233,6 +276,7 @@ export function EmployeePortalOverview(props: EmployeePortalOverviewProps) {
       emp,
       pendingShiftRequests,
       pendingExpenses,
+      pendingCorrectionCount,
       portalClock,
     ],
   );
@@ -374,11 +418,13 @@ export function EmployeePortalOverview(props: EmployeePortalOverviewProps) {
               className={`w-full gap-2 sm:w-auto sm:min-w-[160px] ${
                 primaryCtaDominant ? "min-h-[3.25rem] text-base font-semibold shadow-md sm:min-h-12" : "min-h-11"
               }`}
-              onClick={() => go("attendance")}
-              aria-label={`${shiftOverview.primaryCtaLabel}, attendance tab`}
+              onClick={() =>
+                go((model.attendancePresentation?.primaryActionTab ?? "attendance") as PortalNavTab)
+              }
+              aria-label={`${model.attendancePresentation?.primaryActionLabel ?? shiftOverview.primaryCtaLabel}, primary action`}
             >
               <UserCheck className="h-5 w-5 shrink-0" aria-hidden />
-              {shiftOverview.primaryCtaLabel}
+              {model.attendancePresentation?.primaryActionLabel ?? shiftOverview.primaryCtaLabel}
             </Button>
             {shiftOverview.showSecondaryLogWork ? (
               <Button variant="outline" className="min-h-11 w-full sm:w-auto gap-2 text-muted-foreground" onClick={() => go("worklog")}>
@@ -411,21 +457,36 @@ export function EmployeePortalOverview(props: EmployeePortalOverviewProps) {
         </CardContent>
       </Card>
 
-      {/* 2 — Pay & files only (leave / requests: hero secondary or Requests tab — avoids duplicating Leave) */}
-      <div className="rounded-xl border border-border/60 bg-muted/10 px-3 py-2.5">
-        <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-0.5">Pay and files</p>
-        <p className="text-[10px] text-muted-foreground/90 mb-2">Payslips · docs · leave → Requests.</p>
-        <div className="flex flex-wrap gap-2">
-          <Button type="button" variant="secondary" size="sm" className="min-h-10 flex-1 sm:flex-none sm:min-w-[6rem]" onClick={() => go("payroll")}>
-            <DollarSign className="mr-1.5 h-4 w-4 shrink-0" />
-            Payslip
-          </Button>
-          <Button type="button" variant="secondary" size="sm" className="min-h-10 flex-1 sm:flex-none sm:min-w-[6rem]" onClick={() => go("documents")}>
-            <FileText className="mr-1.5 h-4 w-4 shrink-0" />
-            Docs
-          </Button>
+      {/* 2 — Blockers (Phase 2: above Top Actions) */}
+      {model.blockers.length > 0 && (
+        <div className="space-y-2" role="region" aria-label="Blockers">
+          <p className="text-[10px] font-bold uppercase tracking-wide text-red-800 dark:text-red-200 px-0.5 flex items-center gap-1.5">
+            <ShieldAlert className="h-3.5 w-3.5 shrink-0" aria-hidden />
+            Blockers
+          </p>
+          <div className="space-y-2">
+            {model.blockers.map((b) => (
+              <Card
+                key={b.id}
+                className={`border-2 shadow-sm ${
+                  b.severity === "critical"
+                    ? "border-red-400 bg-red-50/80 dark:bg-red-950/30 dark:border-red-800"
+                    : "border-amber-400 bg-amber-50/70 dark:bg-amber-950/20 dark:border-amber-800"
+                }`}
+              >
+                <CardContent className="p-3 space-y-2">
+                  <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">{b.type.replace("_", " ")}</p>
+                  <p className="text-sm font-semibold leading-snug">{b.title}</p>
+                  {b.description && <p className="text-[11px] text-muted-foreground leading-snug">{b.description}</p>}
+                  <Button className="w-full min-h-11" variant="default" onClick={() => go(b.actionTab as PortalNavTab)}>
+                    {b.actionLabel}
+                  </Button>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* 3 — Follow-ups (non-duplicative of hero when urgent) */}
       {focusItems.length > 0 && (
@@ -495,8 +556,12 @@ export function EmployeePortalOverview(props: EmployeePortalOverviewProps) {
         </div>
       )}
 
-      {/* 5 — My work today */}
-      <Card className="border-border/60 bg-card/80">
+      {/* 5 — Work summary + Requests (order varies by role profile) */}
+      <div className="flex flex-col gap-3">
+      <Card
+        className="border-border/60 bg-card/80"
+        style={{ order: requestsAboveWork ? 2 : 1 }}
+      >
         <CardHeader className="px-4 pb-1.5 pt-3">
           <div className="flex items-center justify-between gap-2">
             <div>
@@ -520,6 +585,13 @@ export function EmployeePortalOverview(props: EmployeePortalOverviewProps) {
             </div>
           ) : (
             <>
+              <p className="text-[11px] text-muted-foreground">
+                Requests pipeline:{" "}
+                <span className="font-medium text-foreground">{requestHomeSummary.pendingCount} pending</span>
+                {pendingShiftRequests > 0 && (
+                  <span className="text-muted-foreground"> · {pendingShiftRequests} shift HR request(s)</span>
+                )}
+              </p>
               <div className="flex flex-wrap gap-2 text-center text-[11px]">
                 <div className="min-w-[4.5rem] flex-1 rounded-lg border bg-muted/30 py-2">
                   <p className="text-base font-bold">{model.taskStats.overdueCount}</p>
@@ -586,10 +658,40 @@ export function EmployeePortalOverview(props: EmployeePortalOverviewProps) {
         </CardContent>
       </Card>
 
+      <Card
+        className="border-border/60 bg-card/80"
+        style={{ order: requestsAboveWork ? 1 : 2 }}
+      >
+        <CardHeader className="px-4 pb-1.5 pt-3">
+          <CardTitle className="text-sm font-semibold">Requests and approvals</CardTitle>
+          <p className="text-[10px] text-muted-foreground mt-0.5">Leave, shift, expenses, corrections — one status language</p>
+        </CardHeader>
+        <CardContent className="space-y-2 px-4 pb-3">
+          <div className="flex flex-wrap gap-2 text-[11px]">
+            <Badge variant="secondary" className="font-mono tabular-nums">
+              Pending {requestHomeSummary.pendingCount}
+            </Badge>
+            {requestHomeSummary.latestLine && (
+              <span className="text-muted-foreground line-clamp-2">Latest: {requestHomeSummary.latestLine}</span>
+            )}
+          </div>
+          {requestHomeSummary.topPendingTitle && (
+            <p className="text-xs font-medium text-amber-900 dark:text-amber-200">Next: {requestHomeSummary.topPendingTitle}</p>
+          )}
+          {unifiedRequestRows.length === 0 && (
+            <p className="text-sm text-muted-foreground">Nothing submitted yet — requests you send will appear here with Pending or Approved status.</p>
+          )}
+          <Button variant="secondary" className="w-full min-h-11" onClick={() => go("requests")}>
+            Open requests
+          </Button>
+        </CardContent>
+      </Card>
+      </div>
+
       {/* 6 — Requests & leave */}
       <Card className="border-border/60 bg-card/80">
         <CardHeader className="px-4 pb-1.5 pt-3">
-          <CardTitle className="text-sm font-semibold">Leave &amp; HR requests</CardTitle>
+          <CardTitle className="text-sm font-semibold">Leave and balances</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2.5 px-4 pb-3">
           {pendingShiftRequests > 0 && (
@@ -850,6 +952,22 @@ export function EmployeePortalOverview(props: EmployeePortalOverviewProps) {
           </CardContent>
         </Card>
       )}
+
+      {/* Pay and files — secondary tools (Phase 2 hierarchy) */}
+      <div className="rounded-xl border border-border/60 bg-muted/10 px-3 py-2.5">
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-0.5">Pay and files</p>
+        <p className="text-[10px] text-muted-foreground/90 mb-2">Payslips and documents. Submit leave or HR changes from Requests.</p>
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" variant="secondary" size="sm" className="min-h-10 flex-1 sm:flex-none sm:min-w-[6rem]" onClick={() => go("payroll")}>
+            <DollarSign className="mr-1.5 h-4 w-4 shrink-0" />
+            Payslip
+          </Button>
+          <Button type="button" variant="secondary" size="sm" className="min-h-10 flex-1 sm:flex-none sm:min-w-[6rem]" onClick={() => go("documents")}>
+            <FileText className="mr-1.5 h-4 w-4 shrink-0" />
+            Docs
+          </Button>
+        </div>
+      </div>
 
       {/* 10 — At a glance (was top stats; secondary) */}
       <div>

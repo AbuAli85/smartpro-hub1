@@ -60,7 +60,7 @@ describe("profileCompletenessReminder", () => {
 describe("buildOverviewDashboardModel", () => {
   const productivity = computeProductivityScore({ attendanceRatePercent: 80, tasks: [{ status: "completed" }, { status: "pending" }] });
 
-  it("prioritizes attendance inconsistency in action center", () => {
+  it("surfaces attendance inconsistency as a blocker, not duplicated in top actions", () => {
     const m = buildOverviewDashboardModel({
       shiftOverview: { ...baseShiftPresentation(), attendanceInconsistent: true },
       myActiveSchedule: null,
@@ -75,9 +75,9 @@ describe("buildOverviewDashboardModel", () => {
       attSummary: { present: 10, late: 0, absent: 0, total: 10 },
       notifications: [],
     });
-    expect(m.actionCenter[0]?.key).toBe("att-inconsistent");
-    expect(m.actionCenter[0]?.actionType).toBe("attendance");
-    expect(m.actionCenter[0]?.nextStep).toBeTruthy();
+    expect(m.blockers.some((b) => b.id === "blocker-att-inconsistent")).toBe(true);
+    expect(m.actionCenter.some((a) => a.key === "att-inconsistent")).toBe(false);
+    expect(m.actionCenter.length).toBeGreaterThan(0);
     expect(m.hero?.stateLabel).toBeTruthy();
     expect(Array.isArray(m.proactiveHints)).toBe(true);
   });
@@ -124,5 +124,26 @@ describe("buildOverviewDashboardModel", () => {
       pendingExpenses: 1,
     });
     expect(m.actionCenter.length).toBeLessThanOrEqual(5);
+  });
+
+  it("exposes attendancePresentation and blockers for inconsistent attendance", () => {
+    const m = buildOverviewDashboardModel({
+      shiftOverview: { ...baseShiftPresentation(), attendanceInconsistent: true },
+      myActiveSchedule: null,
+      todayAttendanceRecord: null,
+      todayAttendanceLoading: false,
+      workStatusSummary: undefined,
+      expiringDocs: [],
+      tasks: [],
+      leave: [],
+      balance: { annual: 20, sick: 10, emergency: 5 },
+      entitlements: { annual: 30, sick: 15, emergency: 6 },
+      productivity,
+      attSummary: { present: 10, late: 0, absent: 0, total: 10 },
+      notifications: [],
+    });
+    expect(m.attendancePresentation?.state).toBe("exception_pending");
+    expect(m.blockers.some((b) => b.id === "blocker-att-inconsistent")).toBe(true);
+    expect(m.actionCenter.some((a) => a.key === "att-inconsistent")).toBe(false);
   });
 });

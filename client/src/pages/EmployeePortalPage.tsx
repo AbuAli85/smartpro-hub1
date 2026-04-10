@@ -940,7 +940,7 @@ export default function EmployeePortalPage() {
     );
   const { data: overviewCorrectionList } = trpc.attendance.myCorrections.useQuery(
     { companyId: activeCompanyId ?? undefined },
-    { enabled: isAuthenticated && activeCompanyId != null && !operationalHintsSuccess },
+    { enabled: isAuthenticated && activeCompanyId != null },
   );
   const { data: myShiftRequests } = trpc.shiftRequests.listMine.useQuery(
     {}, { enabled: isAuthenticated }
@@ -1627,13 +1627,24 @@ export default function EmployeePortalPage() {
               notifications={notifications}
               myTraining={myTraining as any[] | undefined}
               mySelfReviews={mySelfReviews as any[] | undefined}
-              emp={emp}
+              emp={{
+                phone: emp?.phone,
+                emergencyContact: emp?.emergencyContact,
+                emergencyPhone: emp?.emergencyPhone,
+                department: emp?.department ?? null,
+              }}
               pendingShiftRequests={pendingShiftRequestsCount}
               pendingExpenses={pendingExpensesCount}
               portalClock={portalClock}
               realAttCheckInsMonth={realAttSummary.total}
               sickDaysUsedYtd={sickDaysUsedYtd}
               pendingTasksCount={pendingTasks}
+              pendingCorrectionCount={pendingOverviewCorrections}
+              membershipRole={activeCompanyCtx?.role ?? null}
+              employeePosition={(emp as { position?: string | null })?.position ?? null}
+              unifiedShiftRequests={myShiftRequests ?? []}
+              unifiedCorrections={overviewCorrectionList ?? []}
+              unifiedExpenses={myExpenses ?? []}
             />
           </TabsContent>
 

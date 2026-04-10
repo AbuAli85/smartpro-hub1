@@ -1361,7 +1361,12 @@ export const sanadRouter = router({
         const projected = { ...payload, status: "active" as const } as typeof sanadOffices.$inferSelect;
         await requireGoLiveOkForPublicListing(db as never, projected, 0);
       }
-      const [result] = await db.insert(sanadOffices).values({ ...payload, status: "active" });
+      const [result] = await db.insert(sanadOffices).values({
+        ...(payload as Partial<typeof sanadOffices.$inferInsert>),
+        name: input.name,
+        providerType: input.providerType,
+        status: "active",
+      } as typeof sanadOffices.$inferInsert);
       return { id: (result as any).insertId };
     }),
 

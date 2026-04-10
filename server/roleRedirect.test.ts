@@ -19,8 +19,8 @@ function resolveRedirectTarget(
 }
 
 describe("getRoleDefaultRoute — system defaults", () => {
-  it("returns /dashboard for company_admin", () => {
-    expect(getRoleDefaultRoute("company_admin")).toBe("/dashboard");
+  it("returns /control-tower for company_admin", () => {
+    expect(getRoleDefaultRoute("company_admin")).toBe("/control-tower");
   });
 
   it("returns /hr/employees for hr_admin", () => {
@@ -35,18 +35,18 @@ describe("getRoleDefaultRoute — system defaults", () => {
     expect(getRoleDefaultRoute("company_member")).toBe("/my-portal");
   });
 
-  it("returns /dashboard for reviewer", () => {
-    expect(getRoleDefaultRoute("reviewer")).toBe("/dashboard");
+  it("returns /control-tower for reviewer", () => {
+    expect(getRoleDefaultRoute("reviewer")).toBe("/control-tower");
   });
 
-  it("returns /dashboard for external_auditor", () => {
-    expect(getRoleDefaultRoute("external_auditor")).toBe("/dashboard");
+  it("returns /control-tower for external_auditor", () => {
+    expect(getRoleDefaultRoute("external_auditor")).toBe("/control-tower");
   });
 
-  it("returns /dashboard for unknown roles", () => {
-    expect(getRoleDefaultRoute("unknown_role")).toBe("/dashboard");
-    expect(getRoleDefaultRoute(null)).toBe("/dashboard");
-    expect(getRoleDefaultRoute(undefined)).toBe("/dashboard");
+  it("returns /control-tower for unknown roles", () => {
+    expect(getRoleDefaultRoute("unknown_role")).toBe("/control-tower");
+    expect(getRoleDefaultRoute(null)).toBe("/control-tower");
+    expect(getRoleDefaultRoute(undefined)).toBe("/control-tower");
   });
 });
 

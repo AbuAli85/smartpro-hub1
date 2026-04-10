@@ -178,7 +178,13 @@ export default function WorkforcePermitsPage() {
             className="pl-9"
           />
         </div>
-        <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setPage(1); }}>
+        <Select
+          value={statusFilter}
+          onValueChange={(v) => {
+            setStatusFilter(v as PermitFilterState["statusFilter"]);
+            setPage(1);
+          }}
+        >
           <SelectTrigger className="w-44">
             <SelectValue placeholder="Status" />
           </SelectTrigger>
@@ -191,7 +197,13 @@ export default function WorkforcePermitsPage() {
             <SelectItem value="cancelled">Cancelled</SelectItem>
           </SelectContent>
         </Select>
-        <Select value={expiringFilter} onValueChange={(v) => { setExpiringFilter(v); setPage(1); }}>
+        <Select
+          value={expiringFilter}
+          onValueChange={(v) => {
+            setExpiringFilter(v as PermitFilterState["expiringFilter"]);
+            setPage(1);
+          }}
+        >
           <SelectTrigger className="w-44">
             <SelectValue />
           </SelectTrigger>

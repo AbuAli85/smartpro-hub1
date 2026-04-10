@@ -262,15 +262,15 @@ export function ExecutiveControlTower({ tower, showHref, execution, companyId, m
                         </Link>
                         <Badge
                           variant={
-                            row.healthSignal === "critical"
+                            row.tier === "urgent"
                               ? "destructive"
-                              : row.healthSignal === "warning"
+                              : row.tier === "at_risk" || row.tier === "watch"
                                 ? "secondary"
                                 : "outline"
                           }
-                          className="text-[10px] shrink-0"
+                          className="text-[10px] shrink-0 capitalize"
                         >
-                          {row.healthSignal}
+                          {row.tier.replace(/_/g, " ")}
                         </Badge>
                       </div>
                       {row.companyLabel && (

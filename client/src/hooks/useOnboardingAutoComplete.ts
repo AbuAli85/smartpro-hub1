@@ -32,7 +32,7 @@ const ROUTE_STEP_MAP: Array<{ prefix: string; stepKey: string }> = [
  */
 export function useOnboardingAutoComplete() {
   const [location] = useLocation();
-  const { user, isLoading } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const { activeCompanyId } = useActiveCompany();
   const completedRef = useRef<Set<string>>(new Set());
 
@@ -45,7 +45,7 @@ export function useOnboardingAutoComplete() {
   });
 
   useEffect(() => {
-    if (isLoading || !user || !activeCompanyId) return;
+    if (authLoading || !user || !activeCompanyId) return;
 
     // Find matching step for current route
     const match = ROUTE_STEP_MAP.find(({ prefix }) => location.startsWith(prefix));
@@ -63,5 +63,5 @@ export function useOnboardingAutoComplete() {
       companyId: activeCompanyId,
       autoCompleted: true,
     });
-  }, [location, user, activeCompanyId, isLoading]);
+  }, [location, user, activeCompanyId, authLoading]);
 }

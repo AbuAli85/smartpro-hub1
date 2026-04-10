@@ -1,10 +1,12 @@
 import type { ActionQueueItem } from "./actionQueueTypes";
 import type { ControlTowerDomain } from "./domainNarrativeTypes";
 
+type DomainKey = Pick<ActionQueueItem, "kind" | "source">;
+
 /**
  * Single canonical mapping from queue row → business domain (deterministic).
  */
-export function getControlTowerDomain(item: ActionQueueItem): ControlTowerDomain {
+export function getControlTowerDomain(item: DomainKey): ControlTowerDomain {
   const { kind, source } = item;
 
   if (kind === "payroll_blocker" || source === "payroll") return "payroll";

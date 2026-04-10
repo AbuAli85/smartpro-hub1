@@ -56,14 +56,14 @@ export function buildOutcomeSummary(
   const prevIds = new Set(prevMap.keys());
   const currIds = new Set(currMap.keys());
 
-  for (const id of currIds) {
+  for (const id of Array.from(currIds)) {
     if (!prevIds.has(id)) result.newItemsCount += 1;
   }
-  for (const id of prevIds) {
+  for (const id of Array.from(prevIds)) {
     if (!currIds.has(id)) result.resolvedItemsCount += 1;
   }
 
-  for (const id of prevIds) {
+  for (const id of Array.from(prevIds)) {
     const p = prevMap.get(id)!;
     const c = currMap.get(id);
     if (c) {
@@ -80,7 +80,7 @@ export function buildOutcomeSummary(
     }
   }
 
-  for (const id of currIds) {
+  for (const id of Array.from(currIds)) {
     if (prevIds.has(id)) continue;
     const c = currMap.get(id)!;
     if (isEscalated(c)) result.escalationsAddedCount += 1;

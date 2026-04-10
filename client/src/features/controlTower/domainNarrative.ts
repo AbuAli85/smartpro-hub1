@@ -69,7 +69,7 @@ function computeDomainDeltas(
   const prevIds = new Set(prevMap.keys());
   const currIds = new Set(currMap.keys());
 
-  for (const id of prevIds) {
+  for (const id of Array.from(prevIds)) {
     const p = prevMap.get(id)!;
     const dP = domainOfRef(p);
     const c = currMap.get(id);
@@ -96,7 +96,7 @@ function computeDomainDeltas(
     }
   }
 
-  for (const id of currIds) {
+  for (const id of Array.from(currIds)) {
     if (prevIds.has(id)) continue;
     const c = currMap.get(id)!;
     const dC = getControlTowerDomain(c);

@@ -157,7 +157,7 @@ export async function syncOnboardingFromBusinessState(db: Db, user: User, compan
     stepsToComplete.add("setup_subscription");
   }
 
-  for (const stepKey of stepsToComplete) {
+  for (const stepKey of Array.from(stepsToComplete)) {
     const existing = progressByKey.get(stepKey);
     if (existing?.status === "skipped") continue;
     if (existing?.status === "completed") continue;

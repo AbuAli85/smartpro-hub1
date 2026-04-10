@@ -549,7 +549,7 @@ export const workforceRouter = router({
         .set({
           workPermitNumber: input.workPermitNumber,
           workPermitExpiryDate:
-            expiryDate && !Number.isNaN(expiryDate.getTime()) ? expiryDate.toISOString().slice(0, 10) : null,
+            expiryDate && !Number.isNaN(expiryDate.getTime()) ? expiryDate : null,
           visaNumber: input.labourAuthorisationNumber ?? emp.visaNumber,
           updatedAt: new Date(),
         })

@@ -332,7 +332,7 @@ export function shouldUsePortalOnlyShell(
   user: { platformRole?: string | null } | null,
   options?: ClientNavOptions,
 ): boolean {
-  if (canAccessGlobalAdminProcedures(user)) return false;
+  if (canAccessGlobalAdminProcedures(user ?? {})) return false;
   if (seesPlatformOperatorNav(user)) return false;
   if (options?.companyWorkspaceLoading) {
     if (isPortalClientNav(user)) return true;

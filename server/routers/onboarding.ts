@@ -83,6 +83,7 @@ export const onboardingRouter = router({
     .mutation(async ({ ctx, input }) => {
       const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
 
       await db
         .insert(userOnboardingProgress)
@@ -116,6 +117,7 @@ export const onboardingRouter = router({
     .mutation(async ({ ctx, input }) => {
       const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
 
       await db
         .insert(userOnboardingProgress)
@@ -142,6 +144,7 @@ export const onboardingRouter = router({
     .mutation(async ({ ctx, input }) => {
       const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
 
       await db
         .delete(userOnboardingProgress)

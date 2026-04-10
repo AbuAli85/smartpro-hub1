@@ -88,7 +88,18 @@ vi.mock("@/components/dashboard/ManagementCadencePanel", () => ({
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
-    t: (k: string, fallbackOrOptions?: unknown) => (typeof fallbackOrOptions === "string" ? fallbackOrOptions : k),
+    t: (k: string, fallbackOrOptions?: unknown) => {
+      if (typeof fallbackOrOptions === "string") return fallbackOrOptions;
+      if (fallbackOrOptions && typeof fallbackOrOptions === "object" && fallbackOrOptions !== null && "defaultValue" in fallbackOrOptions) {
+        return String((fallbackOrOptions as { defaultValue: string }).defaultValue);
+      }
+      const map: Record<string, string> = {
+        "dashboard:focusAndPriorities": "Focus & priorities",
+        "dashboard:focusPrioritiesHint": "Queue order only — permissions unchanged. Use the sidebar for every module.",
+        "dashboard:prioritizeFor": "Prioritize for",
+      };
+      return map[k] ?? k;
+    },
     i18n: { language: "en-GB" },
   }),
 }));
@@ -107,7 +118,7 @@ describe("Dashboard role queue widget", () => {
     });
 
     render(<Dashboard />);
-    expect(screen.getByText("Focus view")).toBeInTheDocument();
+    expect(screen.getByText("Focus & priorities")).toBeInTheDocument();
     expect(screen.getByText("Expired permits")).toBeInTheDocument();
     expect(screen.getByText("Open permits list")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Open permits list" })).toHaveAttribute("href", "/workforce/permits?status=expired");

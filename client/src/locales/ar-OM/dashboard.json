@@ -98,5 +98,11 @@
   "viewAll": "عرض الكل",
   "moreEmployees": "+{{count}} موظفين آخرين",
   "missing": "مفقود",
-  "pctComplete": "{{pct}}% مكتمل"
+  "pctComplete": "{{pct}}% مكتمل",
+  "focusAndPriorities": "التركيز والأولويات",
+  "focusPrioritiesHint": "ترتيب القائمة فقط — الصلاحيات كما هي. استخدم الشريط الجانبي لكل الوحدات.",
+  "prioritizeFor": "الأولوية لـ",
+  "hrTodayBoardShort": "لوحة الموارد البشرية اليوم",
+  "metricsAndTrends": "المقاييس والاتجاهات:",
+  "analytics": "التحليلات"
 }

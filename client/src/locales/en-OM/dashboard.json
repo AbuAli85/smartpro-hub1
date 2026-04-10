@@ -68,5 +68,11 @@
   },
   "platformInitialized": "Platform initialized",
   "pasiModuleReady": "PASI module ready",
-  "sanadServicesActive": "Sanad services active"
+  "sanadServicesActive": "Sanad services active",
+  "focusAndPriorities": "Focus & priorities",
+  "focusPrioritiesHint": "Queue order only — permissions unchanged. Use the sidebar for every module.",
+  "prioritizeFor": "Prioritize for",
+  "hrTodayBoardShort": "HR today’s board",
+  "metricsAndTrends": "Metrics & trends:",
+  "analytics": "Analytics"
 }

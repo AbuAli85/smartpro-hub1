@@ -458,6 +458,9 @@ export default function Dashboard() {
   }, [showHref, t]);
 
   const showPlatformOverview = seesPlatformOperatorNav(user);
+  /** Lighter dashboard when owner workspace (control tower) is shown — same info lives there + sidebar nav. */
+  const streamlinedExecDash =
+    !showPlatformOverview && activeCompanyId != null && Boolean(businessPulse?.controlTower);
   const queueTop10 = (roleQueue ?? []).slice(0, 10);
   const riskCounts = useMemo(() => {
     const list = roleQueue ?? [];
@@ -532,14 +535,19 @@ export default function Dashboard() {
       {!showPlatformOverview && activeCompanyId && (
         <>
           <Card className="border-border/70">
-            <CardHeader className="pb-2">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <CardTitle className="text-sm flex items-center gap-2">
-                  <Target size={14} className="text-[var(--smartpro-orange)]" />
-                  Focus view
-                </CardTitle>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-muted-foreground">Prioritize for</span>
+            <CardHeader className="pb-3">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div className="space-y-1 min-w-0">
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <Target size={14} className="text-[var(--smartpro-orange)] shrink-0" />
+                    {t("dashboard:focusAndPriorities")}
+                  </CardTitle>
+                  <p className="text-xs text-muted-foreground">
+                    {t("dashboard:focusPrioritiesHint")}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="text-xs text-muted-foreground whitespace-nowrap">{t("dashboard:prioritizeFor")}</span>
                   <Select value={roleView} onValueChange={(v: "ceo" | "admin" | "hr" | "finance" | "compliance") => setRoleView(v)}>
                     <SelectTrigger className="w-40 h-8 text-xs">
                       <SelectValue />
@@ -554,50 +562,41 @@ export default function Dashboard() {
                   </Select>
                 </div>
               </div>
-              <p className="text-xs text-muted-foreground">
-                Prioritization only. Permissions and data access do not change.
-              </p>
             </CardHeader>
+            <CardContent className="pt-0">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3">
+                <div className={`rounded-xl border p-3 ${riskCounts.payrollBlocked > 0 ? "border-red-200 bg-red-50/40" : "border-border/70 bg-card"}`}>
+                  <p className="text-[11px] text-muted-foreground">Payroll blocked</p>
+                  <p className="text-xl font-black tabular-nums mt-0.5">{riskCounts.payrollBlocked}</p>
+                  <Link href="/payroll" className="text-[11px] text-[var(--smartpro-orange)] hover:underline mt-1 inline-block">Payroll</Link>
+                </div>
+                <div className={`rounded-xl border p-3 ${riskCounts.expiredPermits > 0 ? "border-red-200 bg-red-50/40" : "border-border/70 bg-card"}`}>
+                  <p className="text-[11px] text-muted-foreground">Expired permits</p>
+                  <p className="text-xl font-black tabular-nums mt-0.5">{riskCounts.expiredPermits}</p>
+                  <Link href="/workforce/permits?status=expired" className="text-[11px] text-[var(--smartpro-orange)] hover:underline mt-1 inline-block">Permits</Link>
+                </div>
+                <div className={`rounded-xl border p-3 ${riskCounts.overdueGovCases > 0 ? "border-red-200 bg-red-50/40" : "border-border/70 bg-card"}`}>
+                  <p className="text-[11px] text-muted-foreground">Overdue gov.</p>
+                  <p className="text-xl font-black tabular-nums mt-0.5">{riskCounts.overdueGovCases}</p>
+                  <Link href="/workforce/cases" className="text-[11px] text-[var(--smartpro-orange)] hover:underline mt-1 inline-block">Cases</Link>
+                </div>
+                <div className={`rounded-xl border p-3 ${(wpsStatus?.status && wpsStatus.status !== "paid" && wpsStatus.status !== "not_generated") ? "border-amber-200 bg-amber-50/40" : "border-border/70 bg-card"}`}>
+                  <p className="text-[11px] text-muted-foreground">WPS</p>
+                  <p className="text-base font-black mt-0.5 capitalize tabular-nums">{String(wpsStatus?.status ?? "not_generated").replace(/_/g, " ")}</p>
+                  <Link href="/payroll" className="text-[11px] text-[var(--smartpro-orange)] hover:underline mt-1 inline-block">WPS run</Link>
+                </div>
+              </div>
+              {streamlinedExecDash && showHref("/hr/today-board") && (
+                <div className="mt-3 pt-3 border-t border-border/60">
+                  <Link href="/hr/today-board">
+                    <Button variant="ghost" size="sm" className="text-xs gap-1 h-8 px-0 text-muted-foreground hover:text-foreground">
+                      {t("dashboard:hrTodayBoardShort")} <ArrowUpRight size={11} />
+                    </Button>
+                  </Link>
+                </div>
+              )}
+            </CardContent>
           </Card>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
-            <Card className={`border ${riskCounts.payrollBlocked > 0 ? "border-red-200 bg-red-50/40" : "border-border/70"}`}>
-              <CardContent className="p-4">
-                <p className="text-xs text-muted-foreground">Payroll blocked</p>
-                <p className="text-2xl font-black mt-1">{riskCounts.payrollBlocked}</p>
-                <div className="mt-2 text-xs">
-                  <Link href="/payroll" className="text-[var(--smartpro-orange)] hover:underline">Open payroll</Link>
-                </div>
-              </CardContent>
-            </Card>
-            <Card className={`border ${riskCounts.expiredPermits > 0 ? "border-red-200 bg-red-50/40" : "border-border/70"}`}>
-              <CardContent className="p-4">
-                <p className="text-xs text-muted-foreground">Expired permits</p>
-                <p className="text-2xl font-black mt-1">{riskCounts.expiredPermits}</p>
-                <div className="mt-2 text-xs">
-                  <Link href="/workforce/permits?status=expired" className="text-[var(--smartpro-orange)] hover:underline">Open permits list</Link>
-                </div>
-              </CardContent>
-            </Card>
-            <Card className={`border ${riskCounts.overdueGovCases > 0 ? "border-red-200 bg-red-50/40" : "border-border/70"}`}>
-              <CardContent className="p-4">
-                <p className="text-xs text-muted-foreground">Overdue gov. cases</p>
-                <p className="text-2xl font-black mt-1">{riskCounts.overdueGovCases}</p>
-                <div className="mt-2 text-xs">
-                  <Link href="/workforce/cases" className="text-[var(--smartpro-orange)] hover:underline">Open cases</Link>
-                </div>
-              </CardContent>
-            </Card>
-            <Card className={`border ${(wpsStatus?.status && wpsStatus.status !== "paid" && wpsStatus.status !== "not_generated") ? "border-amber-200 bg-amber-50/40" : "border-border/70"}`}>
-              <CardContent className="p-4">
-                <p className="text-xs text-muted-foreground">WPS status</p>
-                <p className="text-lg font-black mt-1 capitalize">{String(wpsStatus?.status ?? "not_generated").replace(/_/g, " ")}</p>
-                <div className="mt-2 text-xs">
-                  <Link href="/payroll" className="text-[var(--smartpro-orange)] hover:underline">Open WPS run</Link>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
 
           <Card className="border-border/70">
             <CardHeader className="pb-2">
@@ -655,7 +654,7 @@ export default function Dashboard() {
           </Card>
 
           <OwnerSetupChecklist />
-          {opsSnapshot && (opsSnapshot.attentionQueue?.length ?? 0) > 0 && (
+          {!streamlinedExecDash && opsSnapshot && (opsSnapshot.attentionQueue?.length ?? 0) > 0 && (
             <Card className="border-border/60 bg-muted/30 dark:bg-muted/15">
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm flex items-center gap-2">
@@ -723,8 +722,8 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* ── Company KPI Stats ── */}
-      {!showPlatformOverview && (
+      {/* ── Company KPI Stats (hidden when owner workspace already surfaces the same headline metrics) ── */}
+      {!showPlatformOverview && !streamlinedExecDash && (
         <div>
           <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
             <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
@@ -766,6 +765,21 @@ export default function Dashboard() {
               </CardContent>
             </Card>
           )}
+        </div>
+      )}
+
+      {/* ── Streamlined: quick links to analytics / operations (replaces command-center tiles) ── */}
+      {streamlinedExecDash && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[11px] text-muted-foreground mr-1">{t("dashboard:metricsAndTrends")}</span>
+          {showHref("/operations") && (
+            <Button variant="outline" size="sm" className="text-xs h-8" asChild>
+              <Link href="/operations">{t("dashboard:operationsDetail", "Operations detail")}</Link>
+            </Button>
+          )}
+          <Button variant="outline" size="sm" className="text-xs h-8" asChild>
+            <Link href="/analytics">{t("dashboard:analytics")}</Link>
+          </Button>
         </div>
       )}
 
@@ -1558,8 +1572,8 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* ── HR Live Stats ── */}
-      {!showPlatformOverview && activeCompanyId && hrStats && (
+      {/* ── HR Live Stats (skip when executive workspace — control tower + workforce widget cover this) ── */}
+      {!showPlatformOverview && !streamlinedExecDash && activeCompanyId && hrStats && (
         <div>
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
@@ -1628,37 +1642,37 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* ── Promoter Contract KPIs (compact) ── */}
-      {!showPlatformOverview && activeCompanyId && showHref("/hr/contracts") && (
+      {/* ── Promoter Contract KPIs (compact) — hidden in streamlined exec view ── */}
+      {!showPlatformOverview && !streamlinedExecDash && activeCompanyId && showHref("/hr/contracts") && (
         <div className="rounded-xl border bg-card/80 shadow-sm p-4">
           <ContractKpiWidget variant="compact" />
         </div>
       )}
 
-      {/* ── Main content grid ── */}
-      <div className="grid lg:grid-cols-3 gap-6">
-        {/* Module Quick Access — 2 cols */}
-        <div className="lg:col-span-2 space-y-4">
-          <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
-            <Zap size={13} /> {t("dashboard:quickAccess", "Quick Access")}
-          </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {quickAccessModules.map((m) => (
-              <ModuleCard
-                key={m.key}
-                title={m.title}
-                description={m.description}
-                href={m.href}
-                icon={m.icon}
-                count={m.count}
-                tag={m.tag}
-                tagColor={m.tagColor}
-              />
-            ))}
+      {/* ── Main content grid — quick access mirrors sidebar; omitted in streamlined executive view ── */}
+      <div className={streamlinedExecDash ? "grid lg:grid-cols-1 gap-6 max-w-2xl" : "grid lg:grid-cols-3 gap-6"}>
+        {!streamlinedExecDash && (
+          <div className="lg:col-span-2 space-y-4">
+            <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
+              <Zap size={13} /> {t("dashboard:quickAccess", "Quick Access")}
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {quickAccessModules.map((m) => (
+                <ModuleCard
+                  key={m.key}
+                  title={m.title}
+                  description={m.description}
+                  href={m.href}
+                  icon={m.icon}
+                  count={m.count}
+                  tag={m.tag}
+                  tagColor={m.tagColor}
+                />
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
-        {/* Right column */}
         <div className="space-y-4">
           {/* Workforce Health Widget */}
           {showHref("/hr/employees") && <WorkforceHealthWidget />}
@@ -1733,8 +1747,8 @@ export default function Dashboard() {
             </Card>
           )}
 
-          {/* Platform Links */}
-          {platformToolLinks.length > 0 && (
+          {/* Platform Links — same entries as sidebar; hide in streamlined view */}
+          {!streamlinedExecDash && platformToolLinks.length > 0 && (
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm flex items-center gap-2">

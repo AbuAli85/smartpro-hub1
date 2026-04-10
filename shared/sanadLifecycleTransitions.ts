@@ -3,7 +3,11 @@
  * Use together with DB reads so helpers stay aligned with persisted state.
  */
 
-import { computeSanadGoLiveReadiness, type SanadMarketplaceReadiness } from "./sanadMarketplaceReadiness";
+import {
+  computeSanadGoLiveReadiness,
+  computeSanadMarketplaceReadiness,
+  type SanadMarketplaceReadiness,
+} from "./sanadMarketplaceReadiness";
 import type { SanadLifecycleOfficeInput, SanadLifecycleOpsInput } from "./sanadLifecycle";
 
 export type SanadTransitionResult =
@@ -75,6 +79,32 @@ export function validateEnablePublicListing(
       ok: false,
       code: "PRECONDITION_FAILED",
       message: `Cannot enable public listing yet: ${readiness.reasons.join(" ")}`,
+      readiness,
+    };
+  }
+  return { ok: true, readiness };
+}
+
+/**
+ * After profile/catalogue changes: if the office is already public-listed, it must still satisfy
+ * marketplace discovery rules (same bar as `listPublicProviders` with marketplace readiness).
+ */
+export function validateListedOfficeRemainsDiscoverable(
+  officeRow: SanadLifecycleOfficeInput,
+  activeCatalogueCount: number,
+): SanadTransitionResult & { readiness?: SanadMarketplaceReadiness } {
+  if (!officeRow) return { ok: true };
+  const listed =
+    officeRow.isPublicListed === 1 ||
+    officeRow.isPublicListed === true ||
+    String(officeRow.isPublicListed) === "1";
+  if (!listed) return { ok: true };
+  const readiness = computeSanadMarketplaceReadiness(officeRow, activeCatalogueCount);
+  if (!readiness.ready) {
+    return {
+      ok: false,
+      code: "PRECONDITION_FAILED",
+      message: `This office is public-listed; this change would break marketplace requirements: ${readiness.reasons.join(" ")} Either turn off public listing first, or fix the issues.`,
       readiness,
     };
   }

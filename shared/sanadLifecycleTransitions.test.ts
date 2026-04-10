@@ -4,6 +4,7 @@ import {
   validateEnablePublicListing,
   validateGenerateCenterInvite,
   validateLinkSanadInviteToAccount,
+  validateListedOfficeRemainsDiscoverable,
 } from "./sanadLifecycleTransitions";
 
 describe("validateGenerateCenterInvite", () => {
@@ -53,6 +54,41 @@ describe("validateEnablePublicListing", () => {
       isPublicListed: 0,
     };
     expect(validateEnablePublicListing(office, 1).ok).toBe(true);
+  });
+});
+
+describe("validateListedOfficeRemainsDiscoverable", () => {
+  it("allows when listed and marketplace bar met", () => {
+    const office = {
+      name: "X",
+      status: "active" as const,
+      phone: "1",
+      governorate: "M",
+      isPublicListed: 1,
+    };
+    expect(validateListedOfficeRemainsDiscoverable(office, 1).ok).toBe(true);
+  });
+
+  it("blocks when listed but catalogue would be empty", () => {
+    const office = {
+      name: "X",
+      status: "active" as const,
+      phone: "1",
+      governorate: "M",
+      isPublicListed: 1,
+    };
+    const r = validateListedOfficeRemainsDiscoverable(office, 0);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.code).toBe("PRECONDITION_FAILED");
+  });
+
+  it("ignores when not public-listed", () => {
+    const office = {
+      name: "",
+      status: "inactive" as const,
+      isPublicListed: 0,
+    };
+    expect(validateListedOfficeRemainsDiscoverable(office, 0).ok).toBe(true);
   });
 });
 

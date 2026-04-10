@@ -2,6 +2,7 @@ import { TRPCError } from "@trpc/server";
 import { and, asc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { NOT_ADMIN_ERR_MSG } from "@shared/const";
+import { SANAD_DIRECTORY_PIPELINE_FILTERS } from "@shared/sanadDirectoryPipeline";
 import {
   validateAcceptCenterInvite,
   validateGenerateCenterInvite,
@@ -154,6 +155,7 @@ export const sanadIntelligenceRouter = router({
           governorateKey: z.string().optional(),
           wilayat: z.string().optional(),
           partnerStatus: partnerStatusZ.optional(),
+          pipeline: z.enum(SANAD_DIRECTORY_PIPELINE_FILTERS as unknown as [string, ...string[]]).optional(),
           limit: z.number().min(1).max(1000).default(50),
           offset: z.number().min(0).default(0),
         })
@@ -167,6 +169,7 @@ export const sanadIntelligenceRouter = router({
         governorateKey: input?.governorateKey,
         wilayat: input?.wilayat,
         partnerStatus: input?.partnerStatus,
+        pipeline: input?.pipeline,
         limit: input?.limit ?? 50,
         offset: input?.offset ?? 0,
       });

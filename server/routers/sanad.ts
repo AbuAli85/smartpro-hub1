@@ -10,7 +10,7 @@ import {
   sanadLifecycleBadge,
   sanadPublicProfileCompleteness,
 } from "@shared/sanadLifecycle";
-import { validateEnablePublicListing } from "@shared/sanadLifecycleTransitions";
+import { validateEnablePublicListing, validateListedOfficeRemainsDiscoverable } from "@shared/sanadLifecycleTransitions";
 import { canAccessGlobalAdminProcedures } from "@shared/rbac";
 import { getDb } from "../db";
 import {
@@ -105,16 +105,41 @@ function assertCanAssignSanadOfficeOwner(user: { platformRole?: string | null; r
   });
 }
 
+function sanadOfficeRowToLifecycleInput(officeRow: typeof sanadOffices.$inferSelect): SanadLifecycleOfficeInput {
+  return {
+    name: officeRow.name,
+    description: officeRow.description,
+    phone: officeRow.phone,
+    governorate: officeRow.governorate,
+    city: officeRow.city,
+    languages: officeRow.languages,
+    logoUrl: officeRow.logoUrl,
+    status: officeRow.status,
+    isPublicListed: officeRow.isPublicListed,
+    avgRating: officeRow.avgRating,
+    totalReviews: officeRow.totalReviews,
+    isVerified: officeRow.isVerified,
+  };
+}
+
+async function getActiveCatalogueCountForOffice(
+  db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
+  officeId: number,
+): Promise<number> {
+  const [catRow] = await db
+    .select({ n: count() })
+    .from(sanadServiceCatalogue)
+    .where(and(eq(sanadServiceCatalogue.officeId, officeId), eq(sanadServiceCatalogue.isActive, 1)));
+  return Number(catRow?.n ?? 0);
+}
+
+/** Enforce marketplace bar when turning listing on (go-live) or when validating a row that will be listed. */
 async function requireGoLiveOkForPublicListing(
   db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
   officeRow: typeof sanadOffices.$inferSelect,
   officeId: number,
 ): Promise<void> {
-  const [catRow] = await db
-    .select({ n: count() })
-    .from(sanadServiceCatalogue)
-    .where(and(eq(sanadServiceCatalogue.officeId, officeId), eq(sanadServiceCatalogue.isActive, 1)));
-  const activeN = Number(catRow?.n ?? 0);
+  const activeN = await getActiveCatalogueCountForOffice(db, officeId);
   const draft: SanadLifecycleOfficeInput = {
     name: officeRow.name,
     description: officeRow.description,
@@ -133,6 +158,29 @@ async function requireGoLiveOkForPublicListing(
   if (!v.ok) {
     throw new TRPCError({ code: v.code, message: v.message });
   }
+}
+
+/** Block profile/catalogue changes that would leave a public-listed office failing marketplace readiness. */
+async function requireListedOfficeRemainsDiscoverableOrThrow(
+  db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
+  officeRow: typeof sanadOffices.$inferSelect,
+  officeId: number,
+  activeCatalogueCount: number,
+): Promise<void> {
+  const v = validateListedOfficeRemainsDiscoverable(sanadOfficeRowToLifecycleInput(officeRow), activeCatalogueCount);
+  if (!v.ok) {
+    throw new TRPCError({ code: v.code ?? "PRECONDITION_FAILED", message: v.message });
+  }
+}
+
+async function assertCatalogueChangeKeepsListedOfficeValid(
+  db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
+  officeId: number,
+  activeCatalogueCountAfter: number,
+): Promise<void> {
+  const [office] = await db.select().from(sanadOffices).where(eq(sanadOffices.id, officeId)).limit(1);
+  if (!office) return;
+  await requireListedOfficeRemainsDiscoverableOrThrow(db, office, officeId, activeCatalogueCountAfter);
 }
 
 export const sanadRouter = router({
@@ -866,18 +914,37 @@ export const sanadRouter = router({
       if (!canAccessGlobalAdminProcedures(ctx.user)) {
         await assertSanadOfficeProfileAccess(db as never, ctx.user.id, officeId);
       }
+      const [current] = await db.select().from(sanadOffices).where(eq(sanadOffices.id, officeId)).limit(1);
+      if (!current) throw new TRPCError({ code: "NOT_FOUND", message: "Office not found" });
+
+      const nextIsPublicListed =
+        fields.isPublicListed !== undefined ? (fields.isPublicListed ? 1 : 0) : current.isPublicListed;
+
+      const merged: typeof sanadOffices.$inferSelect = {
+        ...current,
+        isPublicListed: nextIsPublicListed,
+        licenceNumber: fields.licenceNumber !== undefined ? fields.licenceNumber : current.licenceNumber,
+        licenceExpiry:
+          fields.licenceExpiry !== undefined
+            ? fields.licenceExpiry
+              ? new Date(fields.licenceExpiry)
+              : null
+            : current.licenceExpiry,
+        languages: fields.languages !== undefined ? fields.languages : current.languages,
+        governorate: fields.governorate !== undefined ? fields.governorate : current.governorate,
+        logoUrl: fields.logoUrl !== undefined ? fields.logoUrl : current.logoUrl,
+        descriptionAr: fields.descriptionAr !== undefined ? fields.descriptionAr : current.descriptionAr,
+        responseTimeHours:
+          fields.responseTimeHours !== undefined ? fields.responseTimeHours : current.responseTimeHours,
+      };
+
+      const activeN = await getActiveCatalogueCountForOffice(db, officeId);
       if (fields.isPublicListed === true) {
-        const [current] = await db.select().from(sanadOffices).where(eq(sanadOffices.id, officeId)).limit(1);
-        if (!current) throw new TRPCError({ code: "NOT_FOUND", message: "Office not found" });
-        const merged = {
-          ...current,
-          governorate: fields.governorate ?? current.governorate,
-          languages: fields.languages ?? current.languages,
-          logoUrl: fields.logoUrl ?? current.logoUrl,
-          descriptionAr: fields.descriptionAr ?? current.descriptionAr,
-        };
         await requireGoLiveOkForPublicListing(db as never, merged, officeId);
+      } else if (nextIsPublicListed === 1) {
+        await requireListedOfficeRemainsDiscoverableOrThrow(db as never, merged, officeId, activeN);
       }
+
       await db
         .update(sanadOffices)
         .set({
@@ -932,6 +999,18 @@ export const sanadRouter = router({
         await assertSanadOfficeCatalogueAccess(db as never, ctx.user.id, input.officeId);
       }
       if (input.id) {
+        const [prev] = await db
+          .select()
+          .from(sanadServiceCatalogue)
+          .where(eq(sanadServiceCatalogue.id, input.id))
+          .limit(1);
+        if (!prev) throw new TRPCError({ code: "NOT_FOUND", message: "Catalogue item not found" });
+        const activeNow = await getActiveCatalogueCountForOffice(db, prev.officeId);
+        const wasActive = prev.isActive === 1;
+        const willBeActive = input.isActive;
+        const activeAfter =
+          activeNow - (wasActive ? 1 : 0) + (willBeActive ? 1 : 0);
+        await assertCatalogueChangeKeepsListedOfficeValid(db, prev.officeId, activeAfter);
         await db
           .update(sanadServiceCatalogue)
           .set({
@@ -948,6 +1027,9 @@ export const sanadRouter = router({
           .where(eq(sanadServiceCatalogue.id, input.id));
         return { id: input.id };
       }
+      const activeNow = await getActiveCatalogueCountForOffice(db, input.officeId);
+      const activeAfter = activeNow + (input.isActive ? 1 : 0);
+      await assertCatalogueChangeKeepsListedOfficeValid(db, input.officeId, activeAfter);
       const [result] = await db.insert(sanadServiceCatalogue).values({
         officeId: input.officeId,
         serviceType: input.serviceType,
@@ -968,7 +1050,7 @@ export const sanadRouter = router({
       const db = await getDb();
       if (!db) throw new Error("DB unavailable");
       const [row] = await db
-        .select({ officeId: sanadServiceCatalogue.officeId })
+        .select()
         .from(sanadServiceCatalogue)
         .where(eq(sanadServiceCatalogue.id, input.id))
         .limit(1);
@@ -976,6 +1058,9 @@ export const sanadRouter = router({
       if (!canAccessGlobalAdminProcedures(ctx.user)) {
         await assertSanadOfficeCatalogueAccess(db as never, ctx.user.id, row.officeId);
       }
+      const activeNow = await getActiveCatalogueCountForOffice(db, row.officeId);
+      const activeAfter = activeNow - (row.isActive === 1 ? 1 : 0);
+      await assertCatalogueChangeKeepsListedOfficeValid(db, row.officeId, activeAfter);
       await db.delete(sanadServiceCatalogue).where(eq(sanadServiceCatalogue.id, input.id));
       return { success: true };
     }),
@@ -1235,13 +1320,19 @@ export const sanadRouter = router({
         isPublicListed: input.isPublicListed,
         updatedAt: new Date(),
       };
+      if (input.isPublicListed === undefined) {
+        delete payload.isPublicListed;
+      }
       if (existing.length === 0 && !canAccessGlobalAdminProcedures(ctx.user)) {
         throw new TRPCError({ code: "NOT_FOUND", message: "SANAD office not found for your account." });
       }
       if (existing.length > 0) {
-        const projected = { ...existing[0], ...payload };
+        const projected = { ...existing[0], ...payload } as typeof sanadOffices.$inferSelect;
+        const activeN = await getActiveCatalogueCountForOffice(db, existing[0].id);
         if (payload.isPublicListed === 1) {
           await requireGoLiveOkForPublicListing(db as never, projected, existing[0].id);
+        } else if (projected.isPublicListed === 1) {
+          await requireListedOfficeRemainsDiscoverableOrThrow(db as never, projected, existing[0].id, activeN);
         }
         await db.update(sanadOffices).set(payload).where(eq(sanadOffices.id, existing[0].id));
 
@@ -1335,7 +1426,7 @@ export const sanadRouter = router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
       const [row] = await db
-        .select({ officeId: sanadServiceCatalogue.officeId })
+        .select()
         .from(sanadServiceCatalogue)
         .where(eq(sanadServiceCatalogue.id, input.id))
         .limit(1);
@@ -1343,6 +1434,11 @@ export const sanadRouter = router({
       if (!canAccessGlobalAdminProcedures(ctx.user)) {
         await assertSanadOfficeCatalogueAccess(db as never, ctx.user.id, row.officeId);
       }
+      const activeNow = await getActiveCatalogueCountForOffice(db, row.officeId);
+      const wasActive = row.isActive === 1;
+      const willBeActive = input.isActive;
+      const activeAfter = activeNow - (wasActive ? 1 : 0) + (willBeActive ? 1 : 0);
+      await assertCatalogueChangeKeepsListedOfficeValid(db, row.officeId, activeAfter);
       await db.update(sanadServiceCatalogue).set({ isActive: input.isActive ? 1 : 0, updatedAt: new Date() }).where(eq(sanadServiceCatalogue.id, input.id));
       return { success: true };
     }),
@@ -1354,7 +1450,7 @@ export const sanadRouter = router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
       const [row] = await db
-        .select({ officeId: sanadServiceCatalogue.officeId })
+        .select()
         .from(sanadServiceCatalogue)
         .where(eq(sanadServiceCatalogue.id, input.id))
         .limit(1);
@@ -1362,6 +1458,9 @@ export const sanadRouter = router({
       if (!canAccessGlobalAdminProcedures(ctx.user)) {
         await assertSanadOfficeCatalogueAccess(db as never, ctx.user.id, row.officeId);
       }
+      const activeNow = await getActiveCatalogueCountForOffice(db, row.officeId);
+      const activeAfter = activeNow - (row.isActive === 1 ? 1 : 0);
+      await assertCatalogueChangeKeepsListedOfficeValid(db, row.officeId, activeAfter);
       await db.delete(sanadServiceCatalogue).where(eq(sanadServiceCatalogue.id, input.id));
       return { success: true };
     }),
@@ -1402,16 +1501,27 @@ export const sanadRouter = router({
 
   /** Search platform users by name/email for SANAD roster assignment (intel read+). */
   searchUsersForSanadRoster: protectedProcedure
-    .input(z.object({ query: z.string().min(2).max(120) }))
+    .input(z.object({ query: z.string().min(2).max(120), officeId: z.number().optional() }))
     .query(async ({ input, ctx }) => {
-      if (!canAccessSanadIntelRead(ctx.user)) {
+      const db = await getDb();
+      if (!db) return [];
+      if (input.officeId != null) {
+        try {
+          await assertSanadOfficeRosterAdmin(db as never, ctx.user, input.officeId);
+        } catch {
+          if (!canAccessSanadIntelRead(ctx.user)) {
+            throw new TRPCError({
+              code: "FORBIDDEN",
+              message: "SANAD network access or office owner/manager permission is required to search users for this roster.",
+            });
+          }
+        }
+      } else if (!canAccessSanadIntelRead(ctx.user)) {
         throw new TRPCError({
           code: "FORBIDDEN",
           message: "SANAD network or compliance access is required to search users for roster assignment.",
         });
       }
-      const db = await getDb();
-      if (!db) return [];
       const q = `%${input.query.trim()}%`;
       return db
         .select({

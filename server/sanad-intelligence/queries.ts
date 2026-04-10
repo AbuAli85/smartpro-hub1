@@ -6,6 +6,7 @@ import {
 } from "@shared/sanadLifecycle";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import * as schema from "../../drizzle/schema";
+import type { SanadDirectoryPipelineFilter } from "@shared/sanadDirectoryPipeline";
 import { computeGovernorateOpportunityRows } from "./opportunityScore";
 import { governorateKeyFromLabel } from "./normalize";
 
@@ -194,6 +195,7 @@ export async function listCenters(
     governorateKey?: string;
     wilayat?: string;
     partnerStatus?: (typeof schema.sanadIntelCenterOperations.$inferSelect)["partnerStatus"];
+    pipeline?: SanadDirectoryPipelineFilter;
     limit: number;
     offset: number;
   },
@@ -205,6 +207,81 @@ export async function listCenters(
   if (input.wilayat?.trim()) conds.push(like(schema.sanadIntelCenters.wilayat, `%${input.wilayat.trim()}%`));
   if (input.partnerStatus)
     conds.push(eq(schema.sanadIntelCenterOperations.partnerStatus, input.partnerStatus));
+
+  const pf = input.pipeline;
+  if (pf === "stuck_onboarding") {
+    conds.push(
+      and(
+        isNotNull(schema.sanadIntelCenterOperations.registeredUserId),
+        isNull(schema.sanadIntelCenterOperations.linkedSanadOfficeId),
+        inArray(schema.sanadIntelCenterOperations.onboardingStatus, [
+          "intake",
+          "documentation",
+          "licensing_review",
+          "blocked",
+        ]),
+      )!,
+    );
+  } else if (pf === "licensed_no_office") {
+    conds.push(
+      and(
+        eq(schema.sanadIntelCenterOperations.onboardingStatus, "licensed"),
+        isNull(schema.sanadIntelCenterOperations.linkedSanadOfficeId),
+      )!,
+    );
+  } else if (pf === "invited_never_linked") {
+    conds.push(
+      and(
+        isNotNull(schema.sanadIntelCenterOperations.inviteSentAt),
+        isNull(schema.sanadIntelCenterOperations.registeredUserId),
+        isNull(schema.sanadIntelCenterOperations.linkedSanadOfficeId),
+      )!,
+    );
+  } else if (pf === "linked_not_activated") {
+    conds.push(
+      and(
+        isNotNull(schema.sanadIntelCenterOperations.registeredUserId),
+        isNull(schema.sanadIntelCenterOperations.linkedSanadOfficeId),
+      )!,
+    );
+  } else if (pf === "activated_unlisted") {
+    conds.push(
+      and(
+        isNotNull(schema.sanadIntelCenterOperations.linkedSanadOfficeId),
+        sql`exists (
+          select 1 from sanad_offices o
+          where o.id = ${schema.sanadIntelCenterOperations.linkedSanadOfficeId}
+          and (o.is_public_listed is null or o.is_public_listed <> 1)
+        )`,
+      )!,
+    );
+  } else if (pf === "public_listed_no_active_catalogue") {
+    conds.push(
+      and(
+        isNotNull(schema.sanadIntelCenterOperations.linkedSanadOfficeId),
+        sql`exists (
+          select 1 from sanad_offices o
+          where o.id = ${schema.sanadIntelCenterOperations.linkedSanadOfficeId}
+          and o.is_public_listed = 1
+          and not exists (
+            select 1 from sanad_service_catalogue c
+            where c.office_id = o.id and c.is_active = 1
+          )
+        )`,
+      )!,
+    );
+  } else if (pf === "solo_owner_roster_only") {
+    conds.push(
+      and(
+        isNotNull(schema.sanadIntelCenterOperations.linkedSanadOfficeId),
+        sql`${schema.sanadIntelCenterOperations.linkedSanadOfficeId} in (
+          select m.sanad_office_id from sanad_office_members m
+          group by m.sanad_office_id
+          having count(*) = 1 and sum(case when m.role = 'owner' then 1 else 0 end) = 1
+        )`,
+      )!,
+    );
+  }
 
   if (search) {
     const q = `%${search}%`;

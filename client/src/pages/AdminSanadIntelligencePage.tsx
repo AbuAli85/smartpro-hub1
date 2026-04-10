@@ -17,6 +17,7 @@ import {
   sanadLifecycleBadge,
   type SanadLifecycleOpsInput,
 } from "@shared/sanadLifecycle";
+import { parseSanadDirectoryPipeline } from "@shared/sanadDirectoryPipeline";
 import { canAccessSanadIntelligenceUi } from "@shared/sanadRoles";
 import {
   Activity,
@@ -221,31 +222,52 @@ function OverviewSurface() {
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 pt-1 border-t border-border/60">
               {(
                 [
-                  { label: "Stuck in onboarding", value: netOps.bottlenecks.stuckInOnboarding },
-                  { label: "Licensed, not activated", value: netOps.bottlenecks.licensedNotYetActivated },
-                  { label: "Invited, no account yet", value: netOps.bottlenecks.invitedNeverLinked ?? 0 },
-                  { label: "Linked, not activated", value: netOps.bottlenecks.linkedAccountNotActivated ?? 0 },
+                  {
+                    label: "Stuck in onboarding",
+                    pipeline: "stuck_onboarding" as const,
+                    value: netOps.bottlenecks.stuckInOnboarding,
+                  },
+                  {
+                    label: "Licensed, not activated",
+                    pipeline: "licensed_no_office" as const,
+                    value: netOps.bottlenecks.licensedNotYetActivated,
+                  },
+                  {
+                    label: "Invited, no account yet",
+                    pipeline: "invited_never_linked" as const,
+                    value: netOps.bottlenecks.invitedNeverLinked ?? 0,
+                  },
+                  {
+                    label: "Linked, not activated",
+                    pipeline: "linked_not_activated" as const,
+                    value: netOps.bottlenecks.linkedAccountNotActivated ?? 0,
+                  },
                   {
                     label: "Activated, not public-listed",
+                    pipeline: "activated_unlisted" as const,
                     value: netOps.bottlenecks.activatedLinkedNotPublicListed ?? 0,
                   },
                   {
                     label: "Public-listed, no active cat.",
+                    pipeline: "public_listed_no_active_catalogue" as const,
                     value: netOps.bottlenecks.publicListedWithoutActiveCatalogue ?? 0,
                   },
                   {
                     label: "Solo owner roster only",
+                    pipeline: "solo_owner_roster_only" as const,
                     value: netOps.bottlenecks.officesWithSoloOwnerRosterOnly ?? 0,
                   },
                 ] as const
               ).map((k) => (
-                <div
+                <Link
                   key={k.label}
-                  className="rounded-md border border-amber-500/25 bg-amber-500/[0.06] px-2.5 py-2 text-xs"
+                  href={`/admin/sanad/directory?pipeline=${encodeURIComponent(k.pipeline)}`}
+                  className="block rounded-md border border-amber-500/25 bg-amber-500/[0.06] px-2.5 py-2 text-xs transition-colors hover:bg-amber-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   <p className="text-muted-foreground leading-snug">{k.label}</p>
                   <p className="font-semibold tabular-nums text-foreground mt-0.5">{k.value}</p>
-                </div>
+                  <p className="text-[10px] text-muted-foreground/80 mt-1">Open in directory →</p>
+                </Link>
               ))}
             </div>
           </CardContent>
@@ -376,6 +398,26 @@ function DirectorySurface() {
   const [drawerId, setDrawerId] = useState<number | null>(null);
   const [pageSize, setPageSize] = useState<100 | 200 | 500>(100);
   const [page, setPage] = useState(0);
+  const [, navigate] = useLocation();
+
+  const pipelineFilter =
+    typeof window !== "undefined"
+      ? parseSanadDirectoryPipeline(new URLSearchParams(window.location.search).get("pipeline"))
+      : undefined;
+
+  const pipelineDrilldownLabel = useMemo(() => {
+    if (!pipelineFilter) return null;
+    const labels: Record<NonNullable<typeof pipelineFilter>, string> = {
+      stuck_onboarding: "Stuck in onboarding",
+      licensed_no_office: "Licensed, not yet activated",
+      invited_never_linked: "Invited, no account yet",
+      linked_not_activated: "Linked account, not activated",
+      activated_unlisted: "Activated, not public-listed",
+      public_listed_no_active_catalogue: "Public-listed, no active catalogue",
+      solo_owner_roster_only: "Solo owner roster only",
+    };
+    return labels[pipelineFilter];
+  }, [pipelineFilter]);
 
   const { data: filters } = trpc.sanad.intelligence.filterOptions.useQuery();
   const { data: wilayatList } = trpc.sanad.intelligence.wilayatForGovernorate.useQuery(
@@ -393,15 +435,16 @@ function DirectorySurface() {
     governorateKey: gov || undefined,
     wilayat: wil || undefined,
     partnerStatus: partnerFilter,
+    pipeline: pipelineFilter,
     limit: pageSize,
     offset,
   });
 
   useEffect(() => {
     setPage(0);
-  }, [search, gov, wil, partner, pageSize]);
+  }, [search, gov, wil, partner, pageSize, pipelineFilter]);
 
-  const filtersActive = Boolean(search.trim() || gov || wil || partner);
+  const filtersActive = Boolean(search.trim() || gov || wil || partner || pipelineFilter);
   const total = listQuery.data?.total ?? 0;
   const rows = listQuery.data?.rows ?? [];
   const rangeStart = total === 0 ? 0 : offset + 1;
@@ -501,7 +544,10 @@ function DirectorySurface() {
   const [rosterNewRole, setRosterNewRole] = useState<"owner" | "manager" | "staff">("staff");
   const [rosterUserSearch, setRosterUserSearch] = useState("");
   const rosterUserPickQuery = trpc.sanad.searchUsersForSanadRoster.useQuery(
-    { query: rosterUserSearch.trim() },
+    {
+      query: rosterUserSearch.trim(),
+      officeId: detail.data?.ops?.linkedSanadOfficeId ?? undefined,
+    },
     {
       enabled:
         Boolean(detail.data?.ops?.linkedSanadOfficeId) && rosterUserSearch.trim().length >= 2,
@@ -539,6 +585,7 @@ function DirectorySurface() {
                 setWil("");
                 setPartner("");
                 setPage(0);
+                navigate("/admin/sanad/directory");
               }}
             >
               Clear all
@@ -611,6 +658,18 @@ function DirectorySurface() {
           </div>
         </div>
       </div>
+
+      {pipelineDrilldownLabel ? (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-500/30 bg-amber-500/[0.07] px-3 py-2 text-sm">
+          <span>
+            <span className="font-medium text-foreground">Bottleneck drilldown:</span>{" "}
+            <span className="text-muted-foreground">{pipelineDrilldownLabel}</span>
+          </span>
+          <Button type="button" variant="outline" size="sm" className="h-8 text-xs" asChild>
+            <Link href="/admin/sanad/directory">Clear drilldown</Link>
+          </Button>
+        </div>
+      ) : null}
 
       <div className="flex gap-3 rounded-lg border border-border/80 bg-muted/20 p-4 text-sm text-muted-foreground">
         <Info className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden />

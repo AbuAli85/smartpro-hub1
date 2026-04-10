@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildCommandCenterSectionExplainHints,
   collectOrchestrationReasons,
+  commandCenterSectionEmphasisClasses,
   computeSectionEmphasis,
-  emphasisSectionClassName,
 } from "./employeeCommandCenterPolicy";
 import type { CommandCenterOrchestrationMeta, CommandCenterStateContext } from "./employeeCommandCenterState";
 
@@ -66,7 +67,30 @@ describe("computeSectionEmphasis", () => {
     expect(computeSectionEmphasis("blockers", input(s, m))).toBe("primary");
   });
 
-  it("returns empty primary className string for primary emphasis", () => {
-    expect(emphasisSectionClassName("primary")).toBe("");
+  it("maps primary emphasis to full opacity", () => {
+    expect(commandCenterSectionEmphasisClasses("primary")).toContain("opacity-100");
+  });
+});
+
+describe("buildCommandCenterSectionExplainHints", () => {
+  it("includes blocker copy when blockers exist", () => {
+    const h = buildCommandCenterSectionExplainHints({
+      reasons: ["baseline_profile", "blocked_mode"],
+      blockerCount: 2,
+      pendingRequestCount: 0,
+      hasTopActions: true,
+    });
+    expect(h.blockers).toMatch(/2 items/);
+    expect(h.command_header).toBeDefined();
+  });
+
+  it("marks urgent top actions explanation when urgent_actions reason present", () => {
+    const h = buildCommandCenterSectionExplainHints({
+      reasons: ["baseline_profile", "urgent_actions"],
+      blockerCount: 0,
+      pendingRequestCount: 0,
+      hasTopActions: true,
+    });
+    expect(h.top_actions).toMatch(/Urgent/);
   });
 });

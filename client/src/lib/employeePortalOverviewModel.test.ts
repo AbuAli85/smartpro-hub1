@@ -145,5 +145,54 @@ describe("buildOverviewDashboardModel", () => {
     expect(m.attendancePresentation?.state).toBe("exception_pending");
     expect(m.blockers.some((b) => b.id === "blocker-att-inconsistent")).toBe(true);
     expect(m.actionCenter.some((a) => a.key === "att-inconsistent")).toBe(false);
+    expect(m.attentionItems.some((a) => a.signalKey === "att-inconsistent")).toBe(false);
+  });
+
+  it("does not duplicate top action signals in heads-up chips", () => {
+    const m = buildOverviewDashboardModel({
+      shiftOverview: baseShiftPresentation(),
+      myActiveSchedule: null,
+      todayAttendanceRecord: null,
+      workStatusSummary: undefined,
+      expiringDocs: [],
+      tasks: [{ id: 1, title: "Late", status: "pending", priority: "medium", dueDate: "2020-01-01" }],
+      leave: [],
+      balance: { annual: 20, sick: 10, emergency: 5 },
+      entitlements: { annual: 30, sick: 15, emergency: 6 },
+      productivity,
+      attSummary: { present: 10, late: 0, absent: 0, total: 10 },
+      notifications: [],
+    });
+    expect(m.actionCenter.some((a) => a.key === "tasks-overdue")).toBe(true);
+    expect(m.attentionItems.some((a) => a.signalKey === "tasks-overdue")).toBe(false);
+  });
+
+  it("caps heads-up items after classification", () => {
+    const m = buildOverviewDashboardModel({
+      shiftOverview: { ...baseShiftPresentation(), showMissedActiveWarning: true },
+      myActiveSchedule: {
+        isHoliday: false,
+        schedule: {},
+        shift: { name: "Day", startTime: "09:00", endTime: "17:00" },
+        isWorkingDay: true,
+        hasSchedule: true,
+      },
+      todayAttendanceRecord: null,
+      workStatusSummary: undefined,
+      expiringDocs: [{ id: 1, expiresAt: new Date(2030, 0, 1).toISOString() }],
+      tasks: [
+        { id: 1, title: "A", status: "blocked", priority: "medium", dueDate: "2026-05-01" },
+        { id: 2, title: "B", status: "pending", priority: "medium", dueDate: new Date(2026, 3, 10).toISOString() },
+      ],
+      myTraining: [{ trainingStatus: "overdue" }],
+      mySelfReviews: [{ reviewStatus: "draft" }],
+      leave: [],
+      balance: { annual: 20, sick: 10, emergency: 5 },
+      entitlements: { annual: 30, sick: 15, emergency: 6 },
+      productivity,
+      attSummary: { present: 10, late: 0, absent: 0, total: 10 },
+      notifications: [],
+    });
+    expect(m.attentionItems.length).toBeLessThanOrEqual(4);
   });
 });

@@ -13,7 +13,8 @@ import {
   buildEmployeeAttendancePresentation,
   type EmployeeAttendancePresentation,
 } from "@/lib/employeeAttendanceState";
-import { buildEmployeeBlockers, suppressedActionKeysFromBlockers, type EmployeeBlocker } from "@/lib/employeeBlockersModel";
+import { buildEmployeeBlockers, type EmployeeBlocker } from "@/lib/employeeBlockersModel";
+import { buildCommandCenterClassification } from "@/lib/employeeCommandCenterClassification";
 import { isOnApprovedLeaveToday } from "@/lib/employeeRequestsPresentation";
 
 /** Max priority rows in the home “Top actions” queue (EOS command center). */
@@ -58,8 +59,12 @@ export type AttentionState = "critical" | "needs_action" | "due_today" | "on_tra
 
 export interface AttentionItem {
   key: string;
+  /** Semantic bucket — must align with action `key` when the same signal could appear in Top actions */
+  signalKey: string;
   state: AttentionState;
   label: string;
+  /** Short line for “why this is shown” (tooltip / a11y) */
+  why?: string;
 }
 
 export interface OverviewTaskStats {
@@ -639,7 +644,6 @@ export function buildOverviewDashboardModel(input: {
     criticalSoonDocCount: criticalSoonDocs.length,
     profileReminder,
   });
-  const suppressedActionKeys = suppressedActionKeysFromBlockers(blockers);
 
   type Candidate = { score: number; item: ActionCenterItem };
   const candidates: Candidate[] = [];
@@ -893,64 +897,111 @@ export function buildOverviewDashboardModel(input: {
   }
 
   candidates.sort((a, b) => b.score - a.score);
-  const seen = new Set<string>();
-  const actionCenter: ActionCenterItem[] = [];
-  for (const c of candidates) {
-    if (suppressedActionKeys.has(c.item.key)) continue;
-    if (seen.has(c.item.key)) continue;
-    seen.add(c.item.key);
-    actionCenter.push(c.item);
-    if (actionCenter.length >= EMPLOYEE_PORTAL_TOP_ACTIONS_MAX) break;
-  }
+  const topActionCandidates = candidates.map((c) => c.item);
 
-  if (actionCenter.length === 0) {
-    actionCenter.push({
-      key: "all-clear",
-      severity: "info",
-      actionType: "attendance",
-      nextStep: "Keep attendance and tasks current",
-      headline: "On track",
-      detail: null,
-      ctaLabel: primaryCta,
-      tab: "attendance",
-    });
-  }
-
-  const attentionItems: AttentionItem[] = [];
-  const addAtt = (x: AttentionItem) => {
-    if (attentionItems.length >= 5) return;
-    if (attentionItems.some((a) => a.key === x.key)) return;
-    attentionItems.push(x);
+  const headsUpCandidates: AttentionItem[] = [];
+  const pushHead = (x: AttentionItem) => {
+    if (headsUpCandidates.some((h) => h.signalKey === x.signalKey)) return;
+    headsUpCandidates.push(x);
   };
 
   if (input.shiftOverview.attendanceInconsistent) {
-    addAtt({ key: "a1", state: "critical", label: "Attendance record inconsistent" });
+    pushHead({
+      key: "a1",
+      signalKey: "att-inconsistent",
+      state: "critical",
+      label: "Attendance record inconsistent",
+      why: "HR flagged an inconsistent check-in / check-out pair for today.",
+    });
   }
   if (taskStats.overdueCount > 0) {
-    addAtt({ key: "a2", state: "critical", label: `${taskStats.overdueCount} overdue tasks` });
+    pushHead({
+      key: "a2",
+      signalKey: "tasks-overdue",
+      state: "critical",
+      label: `${taskStats.overdueCount} overdue tasks`,
+      why: "Open tasks are past their due date.",
+    });
   }
   if (taskStats.blockedCount > 0) {
-    addAtt({ key: "a2b", state: "needs_action", label: `${taskStats.blockedCount} blocked` });
+    pushHead({
+      key: "a2b",
+      signalKey: "tasks-blocked",
+      state: "needs_action",
+      label: `${taskStats.blockedCount} blocked`,
+      why: "Tasks are waiting on a dependency or decision.",
+    });
   }
   if (taskStats.dueTodayCount > 0 && taskStats.overdueCount === 0) {
-    addAtt({
+    pushHead({
       key: "a2c",
+      signalKey: "tasks-today",
       state: "due_today",
       label: `${taskStats.dueTodayCount} task${taskStats.dueTodayCount === 1 ? "" : "s"} due today`,
+      why: "Tasks are due before end of day.",
     });
   }
   if (expiredDocs.length > 0) {
-    addAtt({ key: "a3", state: "critical", label: "Expired documents" });
+    pushHead({
+      key: "a3",
+      signalKey: "docs-expired",
+      state: "critical",
+      label: "Expired documents",
+      why: "At least one HR document is past its expiry date.",
+    });
   }
   if (input.shiftOverview.showMissedActiveWarning || shiftTiming?.isLateNoCheckIn) {
-    addAtt({ key: "a4", state: "needs_action", label: "Check-in required" });
+    pushHead({
+      key: "a4",
+      signalKey: "check-in",
+      state: "needs_action",
+      label: "Check-in required",
+      why: "Your shift is active or at risk and check-in is still expected.",
+    });
   }
   if (trainingDue > 0) {
-    addAtt({ key: "a5", state: "needs_action", label: "Training due" });
+    pushHead({
+      key: "a5",
+      signalKey: "training",
+      state: "needs_action",
+      label: "Training due",
+      why: "Assigned or overdue learning modules need attention.",
+    });
   }
   if (pendingReviews > 0) {
-    addAtt({ key: "a6", state: "needs_action", label: "Self-review pending" });
+    pushHead({
+      key: "a6",
+      signalKey: "reviews-pending",
+      state: "needs_action",
+      label: "Self-review pending",
+      why: "A performance self-review draft is waiting to be finished.",
+    });
   }
+
+  const classified = buildCommandCenterClassification({
+    blockers,
+    topActionCandidates,
+    headsUpCandidates,
+    maxTopActions: EMPLOYEE_PORTAL_TOP_ACTIONS_MAX,
+  });
+
+  let actionCenter = classified.topActions;
+  if (actionCenter.length === 0) {
+    actionCenter = [
+      {
+        key: "all-clear",
+        severity: "info",
+        actionType: "attendance",
+        nextStep: "Keep attendance and tasks current",
+        headline: "On track",
+        detail: null,
+        ctaLabel: primaryCta,
+        tab: "attendance",
+      },
+    ];
+  }
+
+  const attentionItems = classified.headsUp;
 
   const recentTimeline = buildRecentTimeline({
     notifications: input.notifications,

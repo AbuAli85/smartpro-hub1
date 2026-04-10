@@ -5,10 +5,10 @@
  *
  * **Blocker** — Must be resolved soon; affects payroll, compliance, legal standing, shift closure,
  * or core operability. Rendered in the Blockers region only (from `buildEmployeeBlockers`).
- * Top Actions that duplicate a blocker CTA are suppressed via `suppressedActionKeysFromBlockers`.
+ * Top actions and heads-up are filtered in one pass in `buildCommandCenterClassification`.
  *
  * **Top action** — Actionable next step with a clear CTA and meaningful urgency, but **not** a blocker.
- * Comes from the action-center model after blocker suppression. Not mixed into Heads-up chips.
+ * Distributed only via `buildCommandCenterClassification` (Phase 4) — not mixed into Heads-up chips.
  *
  * **Heads-up** — Contextual attention (tasks due, training, compliance strip, expiring-doc shortcut).
  * Informs soon; not the primary action queue. Wording must differ from blocker titles when the same
@@ -103,8 +103,55 @@ export function computeSectionEmphasis(key: CommandCenterSectionKey, input: Sect
   }
 }
 
+/**
+ * Wrapper classes for each Command Center section by emphasis tier (Phase 4).
+ * primary: full strength; secondary: standard; muted: de-emphasized density.
+ */
+export function commandCenterSectionEmphasisClasses(e: CommandCenterSectionEmphasis): string {
+  switch (e) {
+    case "primary":
+      return "opacity-100";
+    case "secondary":
+      return "opacity-100";
+    case "muted":
+      return "opacity-[0.72] saturate-[0.92]";
+  }
+}
+
+/** @deprecated Use commandCenterSectionEmphasisClasses */
 export function emphasisSectionClassName(e: CommandCenterSectionEmphasis): string {
-  if (e === "primary") return "";
-  if (e === "secondary") return "opacity-[0.96]";
-  return "opacity-[0.78] saturate-[0.95]";
+  return commandCenterSectionEmphasisClasses(e);
+}
+
+/** Short “why this section” copy for tooltips (controlled, non-technical). */
+export function buildCommandCenterSectionExplainHints(input: {
+  reasons: CommandCenterOrchestrationReason[];
+  blockerCount: number;
+  pendingRequestCount: number;
+  hasTopActions: boolean;
+}): Partial<Record<CommandCenterSectionKey, string>> {
+  const out: Partial<Record<CommandCenterSectionKey, string>> = {};
+  if (input.blockerCount > 0) {
+    out.blockers =
+      input.blockerCount === 1
+        ? "This item must be cleared before payroll and attendance can stay reliable."
+        : `${input.blockerCount} items must be cleared before today’s workflow is safe to continue.`;
+  }
+  if (input.hasTopActions) {
+    out.top_actions = input.reasons.includes("urgent_actions")
+      ? "Urgent next steps are surfaced here first — same signals are not repeated in Heads-up."
+      : "Suggested next steps built from attendance, tasks, and HR signals.";
+  }
+  out.heads_up =
+    "Heads-up is context only — it does not repeat Blockers or Top actions (see classification policy).";
+  if (input.reasons.includes("active_shift")) {
+    out.today_status = "You are in an active shift — times and actions below follow live status.";
+  }
+  if (input.reasons.includes("many_pending_requests")) {
+    out.requests_summary = `You have ${input.pendingRequestCount} pending items in the requests pipeline.`;
+  }
+  if (input.reasons.includes("blocked_mode")) {
+    out.command_header = "Blockers are prioritized — tools and history stay secondary until they clear.";
+  }
+  return out;
 }

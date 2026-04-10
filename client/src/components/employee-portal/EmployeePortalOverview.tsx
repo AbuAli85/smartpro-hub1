@@ -13,10 +13,15 @@ import type { CommandCenterSectionKey } from "@/lib/employeePortalPriorityProfil
 import { resolveEmployeePortalPriorityProfile } from "@/lib/employeePortalPriorityProfile";
 import { buildCommandCenterOrchestrationMeta, buildCommandCenterStateContext } from "@/lib/employeeCommandCenterState";
 import {
+  shouldShowComplianceHeadsUpStrip,
+  shouldShowDocumentsShortcutInHeadsUp,
+} from "@/lib/employeeCommandCenterClassification";
+import {
   buildCommandCenterOrchestrationSummary,
   getOrderedVisibleCommandCenterSections,
 } from "@/lib/employeeCommandCenterOrchestration";
-import { emphasisSectionClassName } from "@/lib/employeeCommandCenterPolicy";
+import { buildCommandCenterSectionExplainHints, commandCenterSectionEmphasisClasses } from "@/lib/employeeCommandCenterPolicy";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import type { ProductivitySnapshot } from "@/lib/employeePortalUtils";
 import { getDueUrgency, slaLabel } from "@/lib/taskSla";
@@ -36,6 +41,7 @@ import {
   Activity,
   UserCheck,
   ShieldAlert,
+  Info,
 } from "lucide-react";
 
 type TaskStatus = "pending" | "in_progress" | "completed" | "cancelled" | "blocked";
@@ -324,14 +330,16 @@ export function EmployeePortalOverview(props: EmployeePortalOverviewProps) {
   const complianceForHeadsUp =
     !workStatusLoading &&
     workStatusSummary &&
-    (workStatusSummary.overallStatus === "urgent" || workStatusSummary.overallStatus === "needs_attention");
+    shouldShowComplianceHeadsUpStrip(workStatusSummary.overallStatus, model.blockers);
 
   const commandCenterVisibility = useMemo(
     () => ({
       hasBlockers: model.blockers.length > 0,
       hasTopActions: focusItems.length > 0,
       hasHeadsUp:
-        model.attentionItems.length > 0 || !!complianceForHeadsUp || ((expiringDocs as any[])?.length ?? 0) > 0,
+        model.attentionItems.length > 0 ||
+        !!complianceForHeadsUp ||
+        shouldShowDocumentsShortcutInHeadsUp((expiringDocs as any[])?.length ?? 0, model.blockers),
       hasRecentActivity: model.recentTimeline.length > 0,
       collapseRecentForBlockers: model.blockers.length > 0,
     }),
@@ -402,8 +410,45 @@ export function EmployeePortalOverview(props: EmployeePortalOverviewProps) {
     [priorityProfile, ccState, ccMeta, requestHomeSummary.pendingCount, commandCenterVisibility],
   );
 
+  const explainHints = useMemo(
+    () =>
+      buildCommandCenterSectionExplainHints({
+        reasons: orchestrationSummary.reasons,
+        blockerCount: model.blockers.length,
+        pendingRequestCount: requestHomeSummary.pendingCount,
+        hasTopActions: commandCenterVisibility.hasTopActions,
+      }),
+    [
+      orchestrationSummary.reasons,
+      model.blockers.length,
+      requestHomeSummary.pendingCount,
+      commandCenterVisibility.hasTopActions,
+    ],
+  );
+
   const urgentNonBlocked = ccState.hasUrgentTopActions && !ccState.hasBlockers;
   const isBlocked = ccMeta.isBlocked;
+
+  const sectionWhyIcon = (sectionKey: CommandCenterSectionKey) => {
+    const text = explainHints[sectionKey];
+    if (!text) return null;
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            className="inline-flex shrink-0 rounded-full p-0.5 text-muted-foreground hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            aria-label={`Why ${sectionKey.replace(/_/g, " ")} is shown`}
+          >
+            <Info className="h-3.5 w-3.5" aria-hidden />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="top" className="max-w-xs text-xs leading-snug">
+          {text}
+        </TooltipContent>
+      </Tooltip>
+    );
+  };
 
   const renderSection = (key: CommandCenterSectionKey): React.ReactNode => {
     switch (key) {
@@ -411,7 +456,10 @@ export function EmployeePortalOverview(props: EmployeePortalOverviewProps) {
         return (
           <div className="space-y-1.5 px-0.5">
             <div className="flex items-center justify-between gap-2">
-              <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-primary">Command center</p>
+              <div className="flex min-w-0 items-center gap-1">
+                <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-primary">Command center</p>
+                {sectionWhyIcon("command_header")}
+              </div>
               <p className="text-[10px] text-muted-foreground">Today status and next steps</p>
             </div>
             {isBlocked && (
@@ -427,10 +475,13 @@ export function EmployeePortalOverview(props: EmployeePortalOverviewProps) {
             <CardContent className="space-y-2 p-3 sm:p-4 sm:space-y-3">
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0 flex-1">
-                  <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                    <span className="text-foreground/80">Today</span> ·{" "}
-                    {new Date().toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}
-                  </p>
+                  <div className="flex flex-wrap items-center gap-1">
+                    <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                      <span className="text-foreground/80">Today</span> ·{" "}
+                      {new Date().toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}
+                    </p>
+                    {sectionWhyIcon("today_status")}
+                  </div>
                   {todayAttendanceLoading ? (
                     <Skeleton className="mt-2 h-6 w-40" />
                   ) : myActiveSchedule?.isHoliday ? (
@@ -558,6 +609,7 @@ export function EmployeePortalOverview(props: EmployeePortalOverviewProps) {
             <p className="text-[10px] font-bold uppercase tracking-wide text-red-800 dark:text-red-200 px-0.5 flex items-center gap-1.5">
               <ShieldAlert className="h-3.5 w-3.5 shrink-0" aria-hidden />
               Blockers
+              {sectionWhyIcon("blockers")}
             </p>
             <div className="space-y-2">
               {model.blockers.map((b) => (
@@ -591,14 +643,19 @@ export function EmployeePortalOverview(props: EmployeePortalOverviewProps) {
             )}
           >
             <div className="px-0.5 pt-0.5">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                {primaryCtaDominant ? "More priorities" : "Top actions"}
-              </p>
-              <p className="text-[10px] text-muted-foreground leading-snug mt-0.5">
-                {primaryCtaDominant
-                  ? "After the urgent banner above — up to five next best steps."
-                  : "Priority queue — what to do next (up to five)."}
-              </p>
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    {primaryCtaDominant ? "More priorities" : "Top actions"}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground leading-snug mt-0.5">
+                    {primaryCtaDominant
+                      ? "After the urgent banner above — up to five next best steps."
+                      : "Priority queue — what to do next (up to five)."}
+                  </p>
+                </div>
+                {sectionWhyIcon("top_actions")}
+              </div>
             </div>
             <div className="space-y-2">
               {focusItems.map((a) => (
@@ -646,10 +703,18 @@ export function EmployeePortalOverview(props: EmployeePortalOverviewProps) {
         return (
           <div className="space-y-2">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="shrink-0 text-[10px] font-semibold uppercase text-muted-foreground">Heads-up</span>
+              <span className="flex shrink-0 items-center gap-1 text-[10px] font-semibold uppercase text-muted-foreground">
+                Heads-up
+                {sectionWhyIcon("heads_up")}
+              </span>
               <div className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 {model.attentionItems.map((x) => (
-                  <Badge key={x.key} variant="outline" className={`shrink-0 whitespace-nowrap ${attentionStateClasses(x.state)}`}>
+                  <Badge
+                    key={x.key}
+                    variant="outline"
+                    className={`shrink-0 whitespace-nowrap ${attentionStateClasses(x.state)}`}
+                    title={x.why}
+                  >
                     {x.label}
                   </Badge>
                 ))}
@@ -665,13 +730,14 @@ export function EmployeePortalOverview(props: EmployeePortalOverviewProps) {
                     Compliance: {workStatusSummary.overallStatus.replace("_", " ")}
                   </Badge>
                 )}
-                {expiringDocs.length > 0 && (
+                {shouldShowDocumentsShortcutInHeadsUp(expiringDocs.length, model.blockers) && (
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
                     className="h-7 shrink-0 gap-1 px-2 text-[10px]"
                     onClick={() => go("documents")}
+                    title="Expiring files — not shown as a blocker chip so you can still jump to Documents."
                   >
                     <AlertTriangle className="h-3.5 w-3.5 text-amber-600" aria-hidden />
                     Documents ({expiringDocs.length})
@@ -818,8 +884,13 @@ export function EmployeePortalOverview(props: EmployeePortalOverviewProps) {
         return (
           <Card className="border-border/60 bg-card/80">
             <CardHeader className="px-4 pb-1.5 pt-3">
-              <CardTitle className="text-sm font-semibold">Requests and approvals</CardTitle>
-              <p className="text-[10px] text-muted-foreground mt-0.5">Leave, shift, expenses, corrections — one status language</p>
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <CardTitle className="text-sm font-semibold">Requests and approvals</CardTitle>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">Leave, shift, expenses, corrections — one status language</p>
+                </div>
+                {sectionWhyIcon("requests_summary")}
+              </div>
             </CardHeader>
             <CardContent className="space-y-2 px-4 pb-3">
               <div className="flex flex-wrap gap-2 text-[11px]">
@@ -1135,21 +1206,43 @@ export function EmployeePortalOverview(props: EmployeePortalOverviewProps) {
   };
 
   return (
-    <div
-      className={cn(
-        "flex flex-col pb-2 transition-[gap]",
-        isBlocked ? "gap-2" : urgentNonBlocked ? "gap-2.5" : "gap-3",
-        isBlocked && "rounded-xl",
+    <>
+      <div
+        className={cn(
+          "flex flex-col pb-2 transition-[gap]",
+          isBlocked ? "gap-2" : urgentNonBlocked ? "gap-2.5" : "gap-3",
+          isBlocked && "rounded-xl",
+        )}
+      >
+        {orderedSectionKeys.map((key) => {
+          const emphasis = orchestrationSummary.emphasisBySection[key] ?? "secondary";
+          return (
+            <Fragment key={key}>
+              <div className={cn(commandCenterSectionEmphasisClasses(emphasis), "transition-[opacity,filter]")}>{renderSection(key)}</div>
+            </Fragment>
+          );
+        })}
+      </div>
+      {import.meta.env.DEV && (
+        <details className="mt-2 rounded-lg border border-dashed border-border/60 bg-muted/20 px-2 py-1 text-[10px] font-mono text-muted-foreground">
+          <summary className="cursor-pointer select-none font-sans text-[11px] font-medium text-foreground/80">
+            Command center orchestration (dev)
+          </summary>
+          <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap break-all text-[9px] leading-relaxed">
+            {JSON.stringify(
+              {
+                finalOrder: orchestrationSummary.finalOrder,
+                visibleOrder: orchestrationSummary.visibleOrder,
+                hiddenSections: orchestrationSummary.hiddenSections,
+                emphasis: orchestrationSummary.emphasisBySection,
+                reasons: orchestrationSummary.reasons,
+              },
+              null,
+              2,
+            )}
+          </pre>
+        </details>
       )}
-    >
-      {orderedSectionKeys.map((key) => {
-        const emphasis = orchestrationSummary.emphasisBySection[key] ?? "secondary";
-        return (
-          <Fragment key={key}>
-            <div className={cn(emphasisSectionClassName(emphasis), "transition-[opacity,filter]")}>{renderSection(key)}</div>
-          </Fragment>
-        );
-      })}
-    </div>
+    </>
   );
 }

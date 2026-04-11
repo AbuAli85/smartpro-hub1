@@ -23,7 +23,11 @@ import {
   Phone, CreditCard, Globe, AlertTriangle, ClipboardList, CheckCircle2, XCircle,
 } from "lucide-react";
 import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
-import { parseProfileRequestIdFromSearch } from "@shared/profileChangeRequestDeepLink";
+import {
+  parseProfileRequestIdFromSearch,
+  PROFILE_CHANGE_REQUEST_SCROLL_MARGIN_CLASS,
+  scheduleScrollToProfileChangeRequest,
+} from "@shared/profileChangeRequestDeepLink";
 import { cn } from "@/lib/utils";
 
 function statusColor(status: string) {
@@ -104,11 +108,7 @@ export default function WorkforceEmployeeDetailPage() {
 
   useEffect(() => {
     if (!highlightRequestId) return;
-    const t = window.setTimeout(() => {
-      const el = document.getElementById(`profile-change-request-${highlightRequestId}`);
-      el?.scrollIntoView({ behavior: "smooth", block: "center" });
-    }, 300);
-    return () => window.clearTimeout(t);
+    scheduleScrollToProfileChangeRequest(highlightRequestId);
   }, [highlightRequestId, employeeId, profileChangeRows]);
 
   if (isLoading) {
@@ -240,6 +240,7 @@ export default function WorkforceEmployeeDetailPage() {
                             key={r.id}
                             className={cn(
                               "rounded-md border border-border/60 bg-muted/20 px-3 py-2.5 text-sm transition-shadow",
+                              PROFILE_CHANGE_REQUEST_SCROLL_MARGIN_CLASS,
                               highlightRequestId === r.id &&
                                 "ring-2 ring-primary ring-offset-2 border-primary/40",
                             )}

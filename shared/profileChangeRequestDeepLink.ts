@@ -11,6 +11,42 @@ export function parseProfileRequestIdFromSearch(search: string): number | null {
   return Number.isFinite(id) && id > 0 ? id : null;
 }
 
+/** Tailwind-friendly scroll margin so sticky headers do not obscure the highlighted row. */
+export const PROFILE_CHANGE_REQUEST_SCROLL_MARGIN_CLASS = "scroll-mt-24";
+
+const DEFAULT_SCROLL_ATTEMPTS = 12;
+const RETRY_MS = 100;
+
+/**
+ * Scroll to `#profile-change-request-{id}` with retries (async list load / layout).
+ */
+/** Single-line preview for tables (full value in `title`). */
+export function previewProfileRequestValue(value: string, maxLen = 72): string {
+  const t = value.trim();
+  if (t.length <= maxLen) return t;
+  return `${t.slice(0, Math.max(0, maxLen - 1))}…`;
+}
+
+export function scheduleScrollToProfileChangeRequest(
+  requestId: number,
+  options?: { maxAttempts?: number },
+): void {
+  if (typeof document === "undefined") return;
+  const maxAttempts = options?.maxAttempts ?? DEFAULT_SCROLL_ATTEMPTS;
+  let attempt = 0;
+  const tryScroll = () => {
+    const el = document.getElementById(`profile-change-request-${requestId}`);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
+    if (attempt++ < maxAttempts) {
+      window.setTimeout(tryScroll, RETRY_MS);
+    }
+  };
+  window.setTimeout(tryScroll, 0);
+}
+
 /** Human-readable age for operational queue scanning. */
 export function formatProfileRequestAge(submittedAt: Date | string | null | undefined): string {
   if (submittedAt == null) return "—";

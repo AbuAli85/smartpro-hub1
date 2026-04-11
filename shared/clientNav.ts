@@ -42,6 +42,7 @@ export const GOVERNMENT_SERVICES_HREFS = new Set<string>([
   "/workforce/cases",
   "/workforce/documents",
   "/workforce/sync",
+  "/workforce/profile-change-requests",
 ]);
 
 /**

@@ -13,7 +13,8 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
-import { Link } from "wouter";
+import { Link, useSearch } from "wouter";
+import { parseEmployeePortalTabFromSearch } from "@shared/employeePortalDeepLink";
 import { getLoginUrl } from "@/const";
 import {
   User, Calendar, FileText, CheckSquare, Bell, BellRing,
@@ -1842,7 +1843,13 @@ function AttendanceTodayCard({
 export default function EmployeePortalPage() {
   const { user, isAuthenticated } = useAuth();
   const loginUrl = getLoginUrl();
+  const urlSearch = useSearch();
   const [activeTab, setActiveTab] = useState("overview");
+
+  useEffect(() => {
+    const tab = parseEmployeePortalTabFromSearch(urlSearch);
+    if (tab) setActiveTab(tab);
+  }, [urlSearch]);
 
   useEffect(() => {
     if (activeTab === "more") setActiveTab("profile");

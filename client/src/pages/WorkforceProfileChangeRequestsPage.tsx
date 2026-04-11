@@ -36,7 +36,14 @@ import {
   Clock,
 } from "lucide-react";
 import { fmtDateTime } from "@/lib/dateUtils";
-import { formatProfileRequestAge } from "@shared/profileChangeRequestDeepLink";
+import {
+  formatProfileRequestAge,
+  previewProfileRequestValue,
+} from "@shared/profileChangeRequestDeepLink";
+import {
+  PROFILE_REQUEST_AGE_BUCKET_OPTIONS,
+  type ProfileRequestAgeBucket,
+} from "@shared/profileChangeRequestQueueFilters";
 
 type Row = {
   id: number;
@@ -52,21 +59,53 @@ type Row = {
   employeeLastName: string | null;
 };
 
+function statusBadgeProps(status: Row["status"]) {
+  if (status === "pending") {
+    return {
+      variant: "default" as const,
+      className: "text-xs capitalize shadow-none",
+    };
+  }
+  if (status === "resolved") {
+    return {
+      variant: "outline" as const,
+      className:
+        "text-xs capitalize border-emerald-300 bg-emerald-50/60 text-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-100",
+    };
+  }
+  return {
+    variant: "outline" as const,
+    className: "text-xs capitalize border-border text-muted-foreground",
+  };
+}
+
 export default function WorkforceProfileChangeRequestsPage() {
   const [, navigate] = useLocation();
   const { activeCompanyId } = useActiveCompany();
   const [status, setStatus] = useState<"all" | "pending" | "resolved" | "rejected">("pending");
+  const [ageBucket, setAgeBucket] = useState<ProfileRequestAgeBucket>("any");
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
   const pageSize = 25;
 
   const debouncedQuery = useMemo(() => query.trim(), [query]);
 
+  const hasActiveFilters =
+    debouncedQuery.length > 0 || status !== "pending" || ageBucket !== "any";
+
+  const resetFilters = () => {
+    setQuery("");
+    setStatus("pending");
+    setAgeBucket("any");
+    setPage(1);
+  };
+
   const { data, isLoading, refetch } = trpc.workforce.profileChangeRequests.listCompany.useQuery(
     {
       companyId: activeCompanyId ?? undefined,
       status,
       query: debouncedQuery || undefined,
+      ageBucket,
       page,
       pageSize,
     },
@@ -129,10 +168,15 @@ export default function WorkforceProfileChangeRequestsPage() {
       </div>
 
       <Card>
-        <CardHeader className="pb-3">
+        <CardHeader className="pb-3 flex flex-row flex-wrap items-center justify-between gap-2">
           <CardTitle className="text-base">Filters</CardTitle>
+          {hasActiveFilters ? (
+            <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={resetFilters}>
+              Reset filters
+            </Button>
+          ) : null}
         </CardHeader>
-        <CardContent className="flex flex-wrap gap-3">
+        <CardContent className="flex flex-wrap gap-3 items-end">
           <div className="relative flex-1 min-w-[200px]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
@@ -162,6 +206,24 @@ export default function WorkforceProfileChangeRequestsPage() {
               <SelectItem value="rejected">Closed / rejected</SelectItem>
             </SelectContent>
           </Select>
+          <Select
+            value={ageBucket}
+            onValueChange={(v) => {
+              setAgeBucket(v as ProfileRequestAgeBucket);
+              setPage(1);
+            }}
+          >
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Age" />
+            </SelectTrigger>
+            <SelectContent>
+              {PROFILE_REQUEST_AGE_BUCKET_OPTIONS.map((o) => (
+                <SelectItem key={o.value} value={o.value}>
+                  {o.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </CardContent>
       </Card>
 
@@ -174,12 +236,27 @@ export default function WorkforceProfileChangeRequestsPage() {
               <Skeleton className="h-10 w-full" />
             </div>
           ) : items.length === 0 ? (
-            <p className="p-8 text-center text-sm text-muted-foreground">No requests match your filters.</p>
+            <div className="p-10 text-center space-y-3 max-w-lg mx-auto">
+              <ClipboardList className="h-10 w-10 mx-auto text-muted-foreground/40" />
+              <p className="text-sm font-medium text-foreground">
+                {hasActiveFilters ? "No matching requests" : "No profile change requests yet"}
+              </p>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                {hasActiveFilters
+                  ? "Try clearing search, changing status, or widening the age filter."
+                  : "When employees submit updates from My Portal, they will appear here for HR review."}
+              </p>
+              {hasActiveFilters ? (
+                <Button variant="outline" size="sm" onClick={resetFilters}>
+                  Reset filters
+                </Button>
+              ) : null}
+            </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b bg-muted/40 text-left">
+                  <tr className="border-b bg-muted/90 dark:bg-muted/50 text-left sticky top-0 z-10 backdrop-blur supports-[backdrop-filter]:bg-muted/75">
                     <th className="px-4 py-3 font-medium">Employee</th>
                     <th className="px-4 py-3 font-medium">Field</th>
                     <th className="px-4 py-3 font-medium max-w-[220px]">Requested value</th>
@@ -194,6 +271,8 @@ export default function WorkforceProfileChangeRequestsPage() {
                     const name =
                       [r.employeeFirstName, r.employeeLastName].filter(Boolean).join(" ") || `ID ${r.employeeId}`;
                     const pending = r.status === "pending";
+                    const sb = statusBadgeProps(r.status);
+                    const valuePreview = previewProfileRequestValue(r.requestedValue, 96);
                     return (
                       <tr
                         key={r.id}
@@ -203,71 +282,72 @@ export default function WorkforceProfileChangeRequestsPage() {
                             : "border-b hover:bg-muted/30"
                         }
                       >
-                        <td className="px-4 py-3 font-medium">{name}</td>
-                        <td className="px-4 py-3">{r.fieldLabel}</td>
-                        <td className="px-4 py-3 max-w-[220px] truncate" title={r.requestedValue}>
-                          {r.requestedValue}
+                        <td className="px-4 py-3 font-medium align-top">{name}</td>
+                        <td className="px-4 py-3 align-top">{r.fieldLabel}</td>
+                        <td className="px-4 py-3 max-w-[240px] align-top">
+                          <p className="line-clamp-2 break-words text-left" title={r.requestedValue}>
+                            {valuePreview}
+                          </p>
                         </td>
-                        <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
+                        <td className="px-4 py-3 text-muted-foreground whitespace-nowrap align-top">
                           {r.submittedAt ? fmtDateTime(r.submittedAt) : "—"}
                           <div className="text-[11px]">
                             {r.submitterName || r.submitterEmail || "—"}
                           </div>
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-4 py-3 align-top">
                           <span className="inline-flex items-center gap-1 text-muted-foreground">
-                            <Clock className="h-3.5 w-3.5" />
+                            <Clock className="h-3.5 w-3.5 shrink-0" />
                             {formatProfileRequestAge(r.submittedAt)}
                           </span>
                         </td>
-                        <td className="px-4 py-3">
-                          <Badge
-                            variant={pending ? "default" : "secondary"}
-                            className="text-xs capitalize"
-                          >
-                            {r.status}
+                        <td className="px-4 py-3 align-top">
+                          <Badge variant={sb.variant} className={sb.className}>
+                            {r.status === "rejected" ? "Closed" : r.status}
                           </Badge>
                         </td>
-                        <td className="px-4 py-3 text-right whitespace-nowrap">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 text-xs"
-                            onClick={() =>
-                              navigate(`/workforce/employees/${r.employeeId}?profileRequest=${r.id}`)
-                            }
-                          >
-                            <ExternalLink className="h-3.5 w-3.5 mr-1" />
-                            Open
-                          </Button>
-                          {pending && (
-                            <>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="h-8 text-xs ml-1"
-                                onClick={() => {
-                                  setActionNote("");
-                                  setDialog({ open: true, mode: "resolve", row: r });
-                                }}
-                              >
-                                <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
-                                Resolve
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-8 text-xs ml-1 text-muted-foreground"
-                                onClick={() => {
-                                  setActionNote("");
-                                  setDialog({ open: true, mode: "reject", row: r });
-                                }}
-                              >
-                                <XCircle className="h-3.5 w-3.5 mr-1" />
-                                Close
-                              </Button>
-                            </>
-                          )}
+                        <td className="px-4 py-3 text-right align-top">
+                          <div className="flex flex-col gap-1.5 items-stretch sm:flex-row sm:justify-end sm:items-center">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 text-xs justify-center sm:justify-end"
+                              onClick={() =>
+                                navigate(`/workforce/employees/${r.employeeId}?profileRequest=${r.id}`)
+                              }
+                            >
+                              <ExternalLink className="h-3.5 w-3.5 mr-1 shrink-0" />
+                              Open employee
+                            </Button>
+                            {pending ? (
+                              <>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-8 text-xs justify-center"
+                                  onClick={() => {
+                                    setActionNote("");
+                                    setDialog({ open: true, mode: "resolve", row: r });
+                                  }}
+                                >
+                                  <CheckCircle2 className="h-3.5 w-3.5 mr-1 shrink-0" />
+                                  Resolve
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-8 text-xs justify-center text-muted-foreground"
+                                  onClick={() => {
+                                    setActionNote("");
+                                    setDialog({ open: true, mode: "reject", row: r });
+                                  }}
+                                >
+                                  <XCircle className="h-3.5 w-3.5 mr-1 shrink-0" />
+                                  Close
+                                </Button>
+                              </>
+                            ) : null}
+                          </div>
                         </td>
                       </tr>
                     );
@@ -277,7 +357,7 @@ export default function WorkforceProfileChangeRequestsPage() {
             </div>
           )}
           {totalPages > 1 && (
-            <div className="flex items-center justify-between border-t px-4 py-3 text-sm text-muted-foreground">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-t px-4 py-3 text-sm text-muted-foreground">
               <span>
                 Page {page} of {totalPages} · {total} total
               </span>
@@ -320,8 +400,7 @@ export default function WorkforceProfileChangeRequestsPage() {
                 <>
                   <span className="font-medium text-foreground">{dialog.row.fieldLabel}</span>
                   {" — "}
-                  {dialog.row.requestedValue.slice(0, 120)}
-                  {dialog.row.requestedValue.length > 120 ? "…" : ""}
+                  {previewProfileRequestValue(dialog.row.requestedValue, 120)}
                 </>
               ) : null}
             </DialogDescription>

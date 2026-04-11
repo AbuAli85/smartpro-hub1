@@ -11,7 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import {
   Search, Users, AlertTriangle, Clock, CheckCircle2, XCircle,
-  ChevronRight, Filter, Download, RefreshCw, Eye
+  ChevronRight, Filter, Download, RefreshCw, Eye, ClipboardList,
 } from "lucide-react";
 
 const PERMIT_STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
@@ -50,6 +50,12 @@ export default function WorkforceEmployeesPage() {
     companyId: activeCompanyId ?? undefined,
   }, { enabled: activeCompanyId != null });
 
+  const { data: wfStats } = trpc.workforce.dashboardStats.useQuery(undefined, {
+    enabled: activeCompanyId != null,
+    staleTime: 60_000,
+  });
+  const pendingProfileRequests = wfStats?.pendingProfileChangeRequests ?? 0;
+
   const employees = data?.items ?? [];
 
   return (
@@ -70,6 +76,23 @@ export default function WorkforceEmployeesPage() {
           </Button>
         </div>
       </div>
+
+      {pendingProfileRequests > 0 ? (
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-indigo-200/80 bg-indigo-50/90 dark:bg-indigo-950/40 dark:border-indigo-800 px-4 py-3">
+          <ClipboardList className="h-5 w-5 text-indigo-600 dark:text-indigo-300 shrink-0" />
+          <div className="flex-1 min-w-[200px]">
+            <p className="text-sm font-medium text-indigo-950 dark:text-indigo-100">
+              {pendingProfileRequests} pending profile change request{pendingProfileRequests === 1 ? "" : "s"}
+            </p>
+            <p className="text-xs text-indigo-800/90 dark:text-indigo-200/80">
+              Open the company queue to review and resolve employee-submitted updates.
+            </p>
+          </div>
+          <Button size="sm" className="shrink-0" onClick={() => navigate("/workforce/profile-change-requests")}>
+            Open queue
+          </Button>
+        </div>
+      ) : null}
 
       {/* Filters */}
       <div className="flex flex-wrap gap-3">

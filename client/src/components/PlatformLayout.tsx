@@ -204,6 +204,7 @@ const navGroups = [
       { label: "Portal Sync", href: "/workforce/sync", icon: <RefreshCw size={18} /> },
       { label: "Workforce Dashboard", href: "/workforce", icon: <BarChart3 size={18} /> },
       { label: "Workforce Employees", href: "/workforce/employees", icon: <Briefcase size={18} /> },
+      { label: "Profile requests", href: "/workforce/profile-change-requests", icon: <ClipboardList size={18} /> },
       { label: "Document Vault", href: "/workforce/documents", icon: <FolderOpen size={18} /> },
     ],
   },
@@ -303,6 +304,7 @@ const NAV_ITEM_KEYS: Record<string, string> = {
   "KPI & Performance": "kpiPerformance",
   "Workforce Dashboard": "workforceDashboard",
   "Workforce Employees": "workforceEmployees",
+  "Profile requests": "profileChangeRequests",
   "Work Permits": "workPermits",
   "Government Cases": "governmentCases",
   "Expiry Dashboard": "expiryDashboard",
@@ -333,6 +335,10 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
     { companyId: activeCompanyId ?? undefined },
     { enabled: activeCompanyId != null },
   );
+  const { data: wfStats } = trpc.workforce.dashboardStats.useQuery(undefined, {
+    enabled: activeCompanyId != null && Boolean(myCompany?.company?.id),
+    staleTime: 60_000,
+  });
   const [navPrefsEpoch, setNavPrefsEpoch] = useState(0);
 
   useEffect(() => {
@@ -396,6 +402,10 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
             <div className="space-y-0.5">
               {group.items.map((item) => {
                 const isActive = location === item.href || location.startsWith(item.href + "/");
+                const pendingProfileReq =
+                  item.href === "/workforce/profile-change-requests"
+                    ? (wfStats?.pendingProfileChangeRequests ?? 0)
+                    : 0;
                 return (
                   <Link
                     key={`${group.label}-${item.href}`}
@@ -405,7 +415,15 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
                   >
                     {item.icon}
                     <span className="flex-1">{NAV_ITEM_KEYS[item.label] ? t(NAV_ITEM_KEYS[item.label], item.label) : item.label}</span>
-                    {isActive && <ChevronRight size={14} className="opacity-60" />}
+                    {pendingProfileReq > 0 ? (
+                      <Badge
+                        variant="secondary"
+                        className="text-[10px] px-1.5 py-0 h-5 min-w-[1.25rem] justify-center shrink-0 bg-white/15 text-white border-white/20"
+                      >
+                        {pendingProfileReq > 99 ? "99+" : pendingProfileReq}
+                      </Badge>
+                    ) : null}
+                    {isActive && <ChevronRight size={14} className="opacity-60 shrink-0" />}
                   </Link>
                 );
               })}

@@ -14,6 +14,7 @@ import {
   shiftTemplates,
   profileChangeRequests,
 } from "../../drizzle/schema";
+import { normalizeProfileFieldLabelForKey } from "@shared/profileChangeRequestFieldLabel";
 import { evaluateCheckoutOutcomeByShiftTimes } from "@shared/attendanceCheckoutPolicy";
 import { muscatCalendarYmdFromUtcInstant } from "@shared/attendanceMuscatTime";
 import { createNotification, getDb } from "../db";
@@ -178,7 +179,7 @@ export const employeePortalRouter = router({
       if (!myEmp) throw new TRPCError({ code: "NOT_FOUND", message: "Employee record not found" });
       const db = await requireDb();
 
-      const normalizedLabel = input.fieldLabel.trim().toLowerCase();
+      const normalizedLabel = normalizeProfileFieldLabelForKey(input.fieldLabel);
       const pendingSame = await db
         .select({ id: profileChangeRequests.id, fieldLabel: profileChangeRequests.fieldLabel })
         .from(profileChangeRequests)
@@ -190,7 +191,7 @@ export const employeePortalRouter = router({
           ),
         );
       for (const row of pendingSame) {
-        if (row.fieldLabel.trim().toLowerCase() === normalizedLabel) {
+        if (normalizeProfileFieldLabelForKey(row.fieldLabel) === normalizedLabel) {
           throw new TRPCError({
             code: "CONFLICT",
             message: "You already have a pending request for this field. HR will review it soon.",

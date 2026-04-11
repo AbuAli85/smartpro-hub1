@@ -534,6 +534,8 @@ export const workforceRouter = router({
           status: z.enum(["all", "pending", "resolved", "rejected"]).default("pending"),
           /** Search employee name, field label, or requested value (substring) */
           query: z.string().max(120).optional(),
+          /** Submitted-at window (server-side; uses DB `now()`). */
+          ageBucket: z.enum(["any", "lt_24h", "d1_7", "gt_7d"]).default("any"),
           page: z.number().min(1).default(1),
           pageSize: z.number().min(1).max(100).default(30),
         }),
@@ -571,6 +573,14 @@ export const workforceRouter = router({
               )!,
             );
           }
+        }
+        if (input.ageBucket === "lt_24h") {
+          conditions.push(sql`${profileChangeRequests.submittedAt} >= now() - interval '24 hours'`);
+        } else if (input.ageBucket === "d1_7") {
+          conditions.push(sql`${profileChangeRequests.submittedAt} < now() - interval '24 hours'`);
+          conditions.push(sql`${profileChangeRequests.submittedAt} >= now() - interval '7 days'`);
+        } else if (input.ageBucket === "gt_7d") {
+          conditions.push(sql`${profileChangeRequests.submittedAt} < now() - interval '7 days'`);
         }
 
         const whereClause = and(...conditions);
@@ -678,7 +688,7 @@ export const workforceRouter = router({
               type: "profile_change_resolved",
               title: "Profile update request handled",
               message: `Your request to update "${row.fieldLabel}" was marked resolved by HR.`,
-              link: "/my-portal",
+              link: "/my-portal?tab=profile",
               isRead: false,
             },
             { actorUserId: ctx.user.id },
@@ -748,7 +758,7 @@ export const workforceRouter = router({
               message: note
                 ? `Your request to update "${row.fieldLabel}" was closed. Note from HR: ${note}`
                 : `Your request to update "${row.fieldLabel}" was closed. Contact HR if you need more help.`,
-              link: "/my-portal",
+              link: "/my-portal?tab=profile",
               isRead: false,
             },
             { actorUserId: ctx.user.id },

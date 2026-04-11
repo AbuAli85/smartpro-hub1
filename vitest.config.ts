@@ -21,6 +21,9 @@ export default defineConfig({
       "client/**/*.test.ts",
       "client/**/*.test.tsx",
     ],
-    environmentMatchGlobs: [["client/**/*.test.tsx", "jsdom"]],
+    environmentMatchGlobs: [
+      ["client/**/*.test.tsx", "jsdom"],
+      ["shared/profileChangeRequestDeepLink.test.ts", "jsdom"],
+    ],
   },
 });

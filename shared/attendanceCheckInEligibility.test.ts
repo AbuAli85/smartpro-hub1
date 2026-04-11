@@ -20,11 +20,14 @@ const base = {
   assignedSiteId: 1 as number | null,
 };
 
+// All `now` dates use explicit UTC instants so tests are timezone-agnostic.
+// businessDate "2026-04-05", shift 09:00–17:00 Muscat (UTC+4):
+//   shiftStart = 2026-04-05T05:00Z, window opens = 2026-04-05T04:45Z, shiftEnd = 2026-04-05T13:00Z
 describe("evaluateSelfServiceCheckInEligibility", () => {
   it("CHECK_IN_TOO_EARLY before open window", () => {
     const r = evaluateSelfServiceCheckInEligibility({
       ...base,
-      now: new Date(2026, 3, 5, 8, 0, 0),
+      now: new Date("2026-04-05T04:00:00Z"), // Muscat 08:00 — before window opens at 08:45
       scannedSiteId: 1,
     });
     expect(r.canCheckIn).toBe(false);
@@ -34,7 +37,7 @@ describe("evaluateSelfServiceCheckInEligibility", () => {
   it("allows at opening boundary (start - grace)", () => {
     const r = evaluateSelfServiceCheckInEligibility({
       ...base,
-      now: new Date(2026, 3, 5, 8, 45, 0),
+      now: new Date("2026-04-05T04:45:00Z"), // Muscat 08:45 — exactly at window open
       scannedSiteId: 1,
     });
     expect(r.canCheckIn).toBe(true);
@@ -43,7 +46,7 @@ describe("evaluateSelfServiceCheckInEligibility", () => {
   it("allows mid window", () => {
     const r = evaluateSelfServiceCheckInEligibility({
       ...base,
-      now: new Date(2026, 3, 5, 12, 0, 0),
+      now: new Date("2026-04-05T08:00:00Z"), // Muscat 12:00 — mid window
       scannedSiteId: 1,
     });
     expect(r.canCheckIn).toBe(true);
@@ -52,7 +55,7 @@ describe("evaluateSelfServiceCheckInEligibility", () => {
   it("CHECK_IN_WINDOW_CLOSED after shift end", () => {
     const r = evaluateSelfServiceCheckInEligibility({
       ...base,
-      now: new Date(2026, 3, 5, 18, 0, 0),
+      now: new Date("2026-04-05T14:00:00Z"), // Muscat 18:00 — after shift ends at 17:00
       scannedSiteId: 1,
     });
     expect(r.canCheckIn).toBe(false);
@@ -62,8 +65,8 @@ describe("evaluateSelfServiceCheckInEligibility", () => {
   it("ALREADY_CHECKED_IN when open session", () => {
     const r = evaluateSelfServiceCheckInEligibility({
       ...base,
-      now: new Date(2026, 3, 5, 12, 0, 0),
-      checkIn: new Date(2026, 3, 5, 9, 0, 0),
+      now: new Date("2026-04-05T08:00:00Z"), // Muscat 12:00
+      checkIn: new Date("2026-04-05T05:00:00Z"), // Muscat 09:00
       checkOut: null,
       scannedSiteId: 1,
     });
@@ -74,7 +77,7 @@ describe("evaluateSelfServiceCheckInEligibility", () => {
   it("WRONG_CHECK_IN_SITE when scan != assigned", () => {
     const r = evaluateSelfServiceCheckInEligibility({
       ...base,
-      now: new Date(2026, 3, 5, 12, 0, 0),
+      now: new Date("2026-04-05T08:00:00Z"), // Muscat 12:00
       assignedSiteId: 1,
       scannedSiteId: 99,
     });
@@ -85,20 +88,21 @@ describe("evaluateSelfServiceCheckInEligibility", () => {
   it("ignores site match when scannedSiteId omitted (portal)", () => {
     const r = evaluateSelfServiceCheckInEligibility({
       ...base,
-      now: new Date(2026, 3, 5, 12, 0, 0),
+      now: new Date("2026-04-05T08:00:00Z"), // Muscat 12:00
       assignedSiteId: 1,
     });
     expect(r.canCheckIn).toBe(true);
   });
 
   it("does not treat day as complete when allShiftsHaveClosedAttendance is false (second shift same day)", () => {
+    // Second shift 18:00–22:00 Muscat = UTC 14:00–18:00; now = Muscat 19:00 = UTC 15:00
     const r = evaluateSelfServiceCheckInEligibility({
       ...base,
       startTime: "18:00",
       endTime: "22:00",
-      now: new Date(2026, 3, 5, 18, 30, 0),
-      checkIn: new Date(2026, 3, 5, 9, 0, 0),
-      checkOut: new Date(2026, 3, 5, 13, 0, 0),
+      now: new Date("2026-04-05T15:00:00Z"), // Muscat 19:00 — mid second-shift window
+      checkIn: new Date("2026-04-05T05:00:00Z"), // Muscat 09:00 — first shift check-in
+      checkOut: new Date("2026-04-05T09:00:00Z"), // Muscat 13:00 — first shift check-out
       allShiftsHaveClosedAttendance: false,
       scannedSiteId: 1,
     });

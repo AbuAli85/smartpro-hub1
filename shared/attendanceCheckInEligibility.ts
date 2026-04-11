@@ -1,4 +1,4 @@
-import { getShiftInstantBounds } from "./employeePortalShift";
+import { muscatWallDateTimeToUtc } from "./attendanceMuscatTime";
 
 /**
  * Machine-readable reasons for self-service check-in denial (API + logs).
@@ -49,8 +49,13 @@ export const ALL_CHECK_IN_DENIAL_REASON_CODES: CheckInDenialReasonCode[] = (
   Object.values(CheckInEligibilityReasonCode).filter((v): v is CheckInDenialReasonCode => v != null)
 );
 
-function formatHm(d: Date): string {
-  return d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false });
+function formatHm(utcMs: number): string {
+  return new Date(utcMs).toLocaleTimeString("en-GB", {
+    timeZone: "Asia/Muscat",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
 }
 
 export interface SelfServiceCheckInEvaluation {
@@ -167,11 +172,13 @@ export function evaluateSelfServiceCheckInEligibility(params: {
     );
   }
 
-  const { shiftStart, shiftEnd } = getShiftInstantBounds(params.startTime, params.endTime, params.now);
-  const openMs = shiftStart.getTime() - grace * 60_000;
+  // Interpret shift wall times as Asia/Muscat (UTC+4, no DST) — independent of server OS timezone.
+  const shiftStartMs = muscatWallDateTimeToUtc(params.businessDate, `${params.startTime}:00`).getTime();
+  let shiftEndMs = muscatWallDateTimeToUtc(params.businessDate, `${params.endTime}:00`).getTime();
+  if (shiftEndMs <= shiftStartMs) shiftEndMs += 86_400_000; // overnight shift spans midnight
+  const openMs = shiftStartMs - grace * 60_000;
   const t = params.now.getTime();
-  const openDate = new Date(openMs);
-  const checkInOpensAt = formatHm(openDate);
+  const checkInOpensAt = formatHm(openMs);
 
   if (t < openMs) {
     return fail(
@@ -180,7 +187,7 @@ export function evaluateSelfServiceCheckInEligibility(params: {
       checkInOpensAt
     );
   }
-  if (t > shiftEnd.getTime()) {
+  if (t > shiftEndMs) {
     return fail(
       CheckInEligibilityReasonCode.CHECK_IN_WINDOW_CLOSED,
       `Check-in is closed — your shift ended at ${params.endTime}. Submit a correction request if you worked.`,

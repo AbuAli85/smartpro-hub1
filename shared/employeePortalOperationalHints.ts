@@ -1,5 +1,6 @@
 import type { ShiftPhase } from "./employeePortalShift";
-import { getShiftOperationalState, getShiftInstantBounds } from "./employeePortalShift";
+import { getShiftOperationalState } from "./employeePortalShift";
+import { muscatWallDateTimeToUtc } from "./attendanceMuscatTime";
 import {
   evaluateSelfServiceCheckInEligibility,
   CheckInEligibilityReasonCode,
@@ -152,10 +153,8 @@ export function computePortalOperationalHints(params: {
 
   let minutesLateAfterGrace: number | null = null;
   if (hasIn && !hasOut && !inconsistent && params.startTime && params.endTime) {
-    const [yy, mm, dd] = params.businessDate.split("-").map((x) => parseInt(x, 10));
-    const dayAnchor = new Date(yy, mm - 1, dd, 12, 0, 0, 0);
-    const { shiftStart } = getShiftInstantBounds(params.startTime, params.endTime, dayAnchor);
-    const lateMin = arrivalDelayMinutesAfterGrace(params.checkIn!, shiftStart, grace);
+    const shiftStartDate = muscatWallDateTimeToUtc(params.businessDate, `${params.startTime}:00`);
+    const lateMin = arrivalDelayMinutesAfterGrace(params.checkIn!, shiftStartDate, grace);
     minutesLateAfterGrace = lateMin > 0 ? lateMin : null;
   }
 

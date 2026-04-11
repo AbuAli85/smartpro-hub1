@@ -388,8 +388,12 @@ function AttendanceTodayCard({
       void utils.scheduling.getTodayBoard.invalidate();
       void utils.attendance.listAttendanceAudit.invalidate();
       void utils.attendance.myManualCheckIns.invalidate();
+      void utils.attendance.myTodayShifts.invalidate();
     },
-    onError: (e) => toastAttendanceMutationError(e.message, () => handleCheckInRef.current()),
+    onError: (e) => {
+      void utils.attendance.myTodayShifts.invalidate();
+      toastAttendanceMutationError(e.message, () => handleCheckInRef.current());
+    },
   });
   const doCheckOut = trpc.attendance.checkOut.useMutation({
     onSuccess: async () => {
@@ -411,6 +415,7 @@ function AttendanceTodayCard({
       void utils.scheduling.getTodayBoard.invalidate();
       void utils.attendance.listAttendanceAudit.invalidate();
       void utils.attendance.myManualCheckIns.invalidate();
+      void utils.attendance.myTodayShifts.invalidate();
     },
     onError: (e) => toastAttendanceMutationError(e.message, () => handleCheckOutRef.current()),
   });

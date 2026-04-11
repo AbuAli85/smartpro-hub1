@@ -2369,7 +2369,7 @@ export const manualCheckinRequests = mysqlTable("manual_checkin_requests", {
   lat: decimal("lat", { precision: 10, scale: 7 }),
   lng: decimal("lng", { precision: 10, scale: 7 }),
   distanceMeters: int("distance_meters"),
-  status: mysqlEnum("mcr_status", ["pending", "approved", "rejected"]).notNull().default("pending"),
+  status: mysqlEnum("status", ["pending", "approved", "rejected"]).notNull().default("pending"),
   reviewedByUserId: int("reviewed_by_user_id"),
   reviewedAt: timestamp("reviewed_at"),
   adminNote: text("admin_note"),

@@ -23,6 +23,7 @@ export type ServerEligibilityHints = Pick<
   | "checkInOpensAt"
   | "allShiftsHaveClosedAttendance"
   | "minutesLateAfterGrace"
+  | "resolvedShiftPhase"
 >;
 
 export type WarningTone = "none" | "amber" | "red";

@@ -148,4 +148,27 @@ describe("computePortalOperationalHints", () => {
     expect(h.minutesLateAfterGrace).toBeGreaterThan(0);
     expect(h.allShiftsHaveClosedAttendance).toBe(false);
   });
+
+  it("after shift end, nudges check-out in banner text and eligibility while still clocked in", () => {
+    const now = new Date(2026, 3, 5, 18, 30, 0);
+    const h = computePortalOperationalHints({
+      now,
+      businessDate: "2026-04-05",
+      startTime: "09:00",
+      endTime: "17:00",
+      isHoliday: false,
+      isWorkingDay: true,
+      hasSchedule: true,
+      hasShift: true,
+      checkIn: new Date(2026, 3, 5, 9, 0, 0),
+      checkOut: null,
+      pendingCorrectionCount: 0,
+      gracePeriodMinutes: 15,
+    });
+    expect(h.resolvedShiftPhase).toBe("ended");
+    expect(h.canCheckOut).toBe(true);
+    expect(h.shiftDetailLine).toContain("Check out");
+    expect(h.eligibilityHeadline).toContain("check out");
+    expect(h.eligibilityDetail).toContain("ended");
+  });
 });

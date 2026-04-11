@@ -22,6 +22,7 @@ function elHints(
     checkInOpensAt: null,
     allShiftsHaveClosedAttendance: false,
     minutesLateAfterGrace: null,
+    resolvedShiftPhase: null,
     ...x,
   };
 }

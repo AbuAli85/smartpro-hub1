@@ -107,7 +107,7 @@ export function computePortalOperationalHints(params: {
       : null;
   const resolvedShiftPhase = operational?.phase ?? null;
   const shiftStatusLabel = operational?.statusLabel ?? null;
-  const shiftDetailLine = operational?.detailLine ?? null;
+  let shiftDetailLine = operational?.detailLine ?? null;
 
   const hasIn = !!params.checkIn;
   const hasOut = !!params.checkOut;
@@ -141,6 +141,11 @@ export function computePortalOperationalHints(params: {
     minutesLateAfterGrace = lateMin > 0 ? lateMin : null;
   }
 
+  /** After nominal shift end, nudge checkout (schedule banner + portal copy). */
+  if (resolvedShiftPhase === "ended" && hasIn && !hasOut && !inconsistent) {
+    shiftDetailLine = "Shift time ended — tap Check out to record your time.";
+  }
+
   let eligibilityHeadline: string;
   let eligibilityDetail: string;
   let checkInOpensAt: string | null;
@@ -151,11 +156,19 @@ export function computePortalOperationalHints(params: {
       "A check-out exists without a check-in. Open Correction so HR can fix the record.";
     checkInOpensAt = gate.checkInOpensAt;
   } else if (hasIn && !hasOut) {
-    eligibilityHeadline = "Checked in";
-    eligibilityDetail =
-      minutesLateAfterGrace != null
-        ? `You checked in ${minutesLateAfterGrace} min after the grace window — still check out when you finish.`
-        : "You can check out when you finish your shift.";
+    if (resolvedShiftPhase === "ended") {
+      eligibilityHeadline = "Shift ended — check out";
+      eligibilityDetail =
+        minutesLateAfterGrace != null
+          ? `You checked in ${minutesLateAfterGrace} min late after grace. Your shift window has ended — tap Check out to save your time.`
+          : "Your shift window has ended — tap Check out to save your leaving time.";
+    } else {
+      eligibilityHeadline = "Checked in";
+      eligibilityDetail =
+        minutesLateAfterGrace != null
+          ? `You checked in ${minutesLateAfterGrace} min after the grace window — still check out when you finish.`
+          : "You can check out when you finish your shift.";
+    }
     checkInOpensAt = gate.checkInOpensAt;
   } else if (hasIn && hasOut && effectiveAllShiftsClosed) {
     eligibilityHeadline = "Attendance complete";

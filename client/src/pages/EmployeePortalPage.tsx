@@ -462,7 +462,9 @@ function AttendanceTodayCard({
         ? attStrip.showCheckIn
           ? "Tap Check in for your next shift (or when the window opens)."
           : attStrip.showCheckOut
-            ? "Tap Check out above when you finish this block."
+            ? operationalHintsReady && operationalHints?.resolvedShiftPhase === "ended"
+              ? "Your shift window has ended — tap Check out to save your time."
+              : "Tap Check out above when you finish this block."
             : tooEarlyBlock
               ? "Check-in for your next shift opens below — wait for that time."
               : denialPresentation
@@ -476,7 +478,9 @@ function AttendanceTodayCard({
           : attStrip.showCheckIn
             ? "Tap Check in above to start your time."
             : attStrip.showCheckOut
-              ? "Tap Check out above when you leave."
+              ? operationalHintsReady && operationalHints?.resolvedShiftPhase === "ended"
+                ? "Your shift window has ended — tap Check out to save your time."
+                : "Tap Check out above when you leave."
               : tooEarlyBlock
                 ? "Check-in opens below — wait for that time."
                 : denialPresentation
@@ -671,6 +675,14 @@ function AttendanceTodayCard({
                               {checkOut.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                             </p>
                           </div>
+                        ) : operationalHintsReady && operationalHints?.resolvedShiftPhase === "ended" ? (
+                          <Badge
+                            variant="outline"
+                            className="border-amber-400 bg-amber-50 text-amber-950 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-100"
+                          >
+                            <span className="sr-only">Status: </span>
+                            Shift ended — check out
+                          </Badge>
                         ) : (
                           <Badge variant="outline" className="border-green-300 bg-green-50 text-green-700 dark:bg-green-900/20">
                             <span className="sr-only">Status: </span>
@@ -687,6 +699,16 @@ function AttendanceTodayCard({
                           </div>
                         )}
                       </div>
+                      {operationalHintsReady &&
+                        operationalHints?.resolvedShiftPhase === "ended" &&
+                        checkIn &&
+                        !checkOut &&
+                        !betweenShifts && (
+                          <p className="mt-1 text-xs font-semibold text-amber-950 dark:text-amber-100">
+                            {operationalHints.shiftDetailLine ??
+                              "Shift time ended — tap Check out to record your leaving time."}
+                          </p>
+                        )}
                       {operationalHintsReady &&
                         operationalHints?.minutesLateAfterGrace != null &&
                         checkIn &&

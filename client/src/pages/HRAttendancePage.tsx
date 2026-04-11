@@ -555,7 +555,7 @@ function TodayBoard({ companyId }: { companyId: number | null }) {
         <div className="rounded-lg border border-primary/20 bg-primary/[0.04] px-3 py-3 space-y-2">
           <p className="text-xs font-semibold text-foreground">Full day — same person, multiple shifts (Asia/Muscat)</p>
           <p className="text-[11px] text-muted-foreground leading-snug">
-            One calendar day can include a morning block and an evening block. The table below is still <span className="font-medium text-foreground">per shift</span> for status. If one clock session reaches the next shift&apos;s start without a separate morning checkout, the earlier shift is <span className="font-medium text-foreground">not</span> marked completed with a full-window duration; use checkout when it happens or split into two records.
+            One calendar day can include a morning block and an evening block. The table below is still <span className="font-medium text-foreground">per shift</span> for status. If one session runs into the next shift without a separate checkout for the first block, that row stays <span className="font-medium text-foreground">open</span> (not “Completed”): status still reflects <span className="font-medium text-foreground">real check‑in punctuality</span>, and duration is minutes <span className="font-medium text-foreground">inside this shift window</span> only (see open session note). Split into two clock rows when possible.
           </p>
           <ul className="space-y-2 text-sm">
             {(data.fullDaySummaries ?? []).map((fd) => (

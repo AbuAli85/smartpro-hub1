@@ -484,21 +484,31 @@ export const schedulingRouter = router({
            */
           punchCheckOutAt = record.checkOut;
           checkOutAt = null;
-          durationMinutes = null;
           const nowT = now.getTime();
           const deadline = shiftStart.getTime() + grace * 60_000;
           const cin = record.checkIn.getTime();
+          /** Minutes inside this shift window from actual check-in until min(now, session end, shift end) — not “full shift done”. */
+          const segEndMs = Math.min(nowT, coMs as number, shiftEndMs);
+          const segStartMs = Math.max(cin, thisStartMs);
+          durationMinutes =
+            segEndMs > segStartMs ? Math.max(0, Math.round((segEndMs - segStartMs) / 60000)) : null;
+
           if (nowT <= shiftEndMs) {
             status = cin <= deadline ? "checked_in_on_time" : "checked_in_late";
             if (status === "checked_in_late") {
               delayMinutes = arrivalDelayMinutesAfterGrace(record.checkIn, shiftStart, grace);
             }
-          } else if (nowT < coMs) {
-            status = "checked_in_late";
-            delayMinutes = null;
+          } else if (nowT < (coMs as number)) {
+            /** Past this shift’s wall end but global session still open — not “late arrival”; only late if check-in was late. */
+            status = cin <= deadline ? "checked_in_on_time" : "checked_in_late";
+            if (status === "checked_in_late") {
+              delayMinutes = arrivalDelayMinutesAfterGrace(record.checkIn, shiftStart, grace);
+            }
           } else {
+            /** Session closed in DB but this shift never had its own checkout — do not imply a closed segment with a duration. */
             status = "late_no_checkin";
             delayMinutes = null;
+            durationMinutes = null;
           }
         } else {
           status = computeAdminBoardRowStatus({

@@ -26,6 +26,9 @@ export interface PortalOperationalHints {
   canRequestCorrection: boolean;
   hasPendingCorrection: boolean;
   pendingCorrectionCount: number;
+  /** Pending manual check-in requests (e.g. geo-fence) awaiting HR review */
+  hasPendingManualCheckIn: boolean;
+  pendingManualCheckInCount: number;
   /** Short label for today’s shift timing row (e.g. "Active now") when shift times exist. */
   shiftStatusLabel: string | null;
   /** Secondary line (e.g. countdown) from shift state; null when not applicable. */
@@ -93,6 +96,7 @@ export function computePortalOperationalHints(params: {
   /** From server day context — drives multi-shift “day complete” vs next check-in window. */
   allShiftsHaveClosedAttendance?: boolean;
   pendingCorrectionCount: number;
+  pendingManualCheckInCount?: number;
   /** Minutes before shift start that check-in opens (temporary: same DB field as late grace target). */
   gracePeriodMinutes?: number;
   /** Today’s scheduled site id when known; portal omits scanned site so WRONG_SITE is not evaluated. */
@@ -184,6 +188,8 @@ export function computePortalOperationalHints(params: {
   const canCheckIn = gate.canCheckIn;
   const canCheckOut = hasIn && !hasOut && !inconsistent;
 
+  const pendingManualCount = params.pendingManualCheckInCount ?? 0;
+
   return {
     businessDate: params.businessDate,
     serverNowIso,
@@ -193,6 +199,8 @@ export function computePortalOperationalHints(params: {
     canRequestCorrection: true,
     hasPendingCorrection: params.pendingCorrectionCount > 0,
     pendingCorrectionCount: params.pendingCorrectionCount,
+    hasPendingManualCheckIn: pendingManualCount > 0,
+    pendingManualCheckInCount: pendingManualCount,
     shiftStatusLabel,
     shiftDetailLine,
     eligibilityHeadline,

@@ -892,9 +892,22 @@ export const attendanceRouter = router({
         .select({
           req: manualCheckinRequests,
           site: { id: attendanceSites.id, name: attendanceSites.name, siteType: attendanceSites.siteType, clientName: attendanceSites.clientName },
+          employee: {
+            id: employees.id,
+            firstName: employees.firstName,
+            lastName: employees.lastName,
+            email: employees.email,
+          },
         })
         .from(manualCheckinRequests)
         .leftJoin(attendanceSites, eq(manualCheckinRequests.siteId, attendanceSites.id))
+        .leftJoin(
+          employees,
+          and(
+            eq(employees.companyId, membership.company.id),
+            eq(employees.userId, manualCheckinRequests.employeeUserId),
+          ),
+        )
         .where(and(...conditions))
         .orderBy(desc(manualCheckinRequests.requestedAt))
         .limit(input.limit);

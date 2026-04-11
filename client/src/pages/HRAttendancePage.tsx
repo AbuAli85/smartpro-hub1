@@ -1,5 +1,5 @@
 import { trpc } from "@/lib/trpc";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import {
   Clock, Users, CheckCircle2, XCircle, AlertCircle, Calendar,
@@ -14,6 +14,16 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
@@ -356,6 +366,7 @@ function ClockInDialog({ employees, onSuccess, companyId }: { employees: { id: n
       utils.hr.listAttendance.invalidate();
       utils.hr.attendanceStats.invalidate();
       void utils.attendance.listAttendanceAudit.invalidate();
+      void utils.scheduling.getTodayBoard.invalidate();
       onSuccess();
     },
     onError: (e) => toast.error(e.message),
@@ -421,27 +432,47 @@ function EditAttendanceDialog({ record, onSuccess }: { record: { id: number; sta
   const [open, setOpen] = useState(false);
   const [status, setStatus] = useState(record.status as AttendanceStatus);
   const [notes, setNotes] = useState(record.notes ?? "");
+  const [auditNote, setAuditNote] = useState("");
+
+  useEffect(() => {
+    setStatus(record.status as AttendanceStatus);
+    setNotes(record.notes ?? "");
+    setAuditNote("");
+  }, [record.id, record.status, record.notes]);
+
+  const statusChanged = status !== record.status;
+  const notesChanged = notes.trim() !== (record.notes ?? "").trim();
+  const materialChange = statusChanged || notesChanged;
+  const auditOk = !materialChange || auditNote.trim().length >= 10;
 
   const utils = trpc.useUtils();
   const updateMutation = trpc.hr.updateAttendance.useMutation({
     onSuccess: () => {
       toast.success("Record updated");
       setOpen(false);
+      setAuditNote("");
       utils.hr.listAttendance.invalidate();
       utils.hr.attendanceStats.invalidate();
       void utils.attendance.listAttendanceAudit.invalidate();
+      void utils.scheduling.getTodayBoard.invalidate();
       onSuccess();
     },
     onError: (e) => toast.error(e.message),
   });
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        setOpen(o);
+        if (!o) setAuditNote("");
+      }}
+    >
       <DialogTrigger asChild>
         <Button size="sm" variant="ghost" className="h-7 w-7 p-0"><Pencil size={12} /></Button>
       </DialogTrigger>
       <DialogContent className="max-w-sm">
-        <DialogHeader><DialogTitle>Edit Attendance Record</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>Edit HR attendance record</DialogTitle></DialogHeader>
         <div className="space-y-4 mt-2">
           <div className="space-y-1.5">
             <Label>Status</Label>
@@ -457,11 +488,32 @@ function EditAttendanceDialog({ record, onSuccess }: { record: { id: number; sta
             </Select>
           </div>
           <div className="space-y-1.5">
-            <Label>Notes</Label>
+            <Label>Notes on record</Label>
             <Input value={notes} onChange={(e) => setNotes(e.target.value)} className="text-sm" />
           </div>
-          <Button className="w-full" disabled={updateMutation.isPending}
-            onClick={() => updateMutation.mutate({ id: record.id, status, notes: notes || undefined })}>
+          {materialChange ? (
+            <div className="space-y-1.5">
+              <Label>Audit note — why this change is justified *</Label>
+              <Textarea
+                placeholder="Required when status or notes change (min. 10 characters). Who asked, what evidence, or policy basis…"
+                value={auditNote}
+                onChange={(e) => setAuditNote(e.target.value)}
+                className="text-sm min-h-[72px]"
+              />
+              <p className="text-[11px] text-muted-foreground">Stored on the audit log with this update.</p>
+            </div>
+          ) : null}
+          <Button
+            className="w-full"
+            disabled={updateMutation.isPending || !auditOk}
+            onClick={() =>
+              updateMutation.mutate({
+                id: record.id,
+                status,
+                notes: notes || undefined,
+                changeAuditNote: materialChange ? auditNote.trim() : undefined,
+              })}
+          >
             {updateMutation.isPending ? "Saving..." : "Save Changes"}
           </Button>
         </div>
@@ -473,6 +525,66 @@ function EditAttendanceDialog({ record, onSuccess }: { record: { id: number; sta
 function boardStatusBadge(status: string) {
   const m = getAdminBoardRowStatusPresentation(status);
   return <Badge variant="outline" className={m.className}>{m.label}</Badge>;
+}
+
+/** Shift wall-clock end has passed but the row still shows an open check-in for that segment. */
+function countOverdueOpenCheckouts(
+  board: Array<{ checkInAt: string | Date | null; checkOutAt: string | Date | null; expectedEnd: string }>,
+  businessDateYmd: string,
+) {
+  const now = Date.now();
+  return board.filter((row) => {
+    if (!row.checkInAt || row.checkOutAt) return false;
+    const parts = row.expectedEnd.split(":").map((x) => parseInt(x, 10));
+    const h = parts[0] ?? 0;
+    const m = parts[1] ?? 0;
+    const end = new Date(`${businessDateYmd}T12:00:00`);
+    end.setHours(h, m, 0, 0);
+    return now > end.getTime();
+  }).length;
+}
+
+function HrAttendanceExceptionStrip({
+  companyId,
+  pendingCorrCount,
+  pendingManualCount,
+  scheduledShiftsToday,
+  overdueCheckoutCount,
+}: {
+  companyId: number | null;
+  pendingCorrCount: number;
+  pendingManualCount: number;
+  scheduledShiftsToday: number | null;
+  overdueCheckoutCount: number;
+}) {
+  if (companyId == null) return null;
+  const items = [
+    { label: "Pending corrections", value: pendingCorrCount, warn: pendingCorrCount > 0 },
+    { label: "Pending manual check-ins", value: pendingManualCount, warn: pendingManualCount > 0 },
+    { label: "Open check-outs past shift end", value: overdueCheckoutCount, warn: overdueCheckoutCount > 0 },
+    { label: "Scheduled shift rows today", value: scheduledShiftsToday, warn: false },
+  ];
+  return (
+    <div className="rounded-lg border bg-muted/30 px-3 py-3 sm:px-4">
+      <p className="text-xs font-semibold text-foreground mb-2">Exceptions &amp; coverage</p>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+        {items.map((it) => (
+          <div
+            key={it.label}
+            className={`rounded-md border px-2 py-2 ${
+              it.warn ? "border-amber-300/80 bg-amber-50/80 dark:bg-amber-950/20" : "border-border/80 bg-background/60"
+            }`}
+          >
+            <p className="text-[11px] text-muted-foreground leading-tight">{it.label}</p>
+            <p className="text-lg font-semibold tabular-nums mt-0.5">{it.value}</p>
+          </div>
+        ))}
+      </div>
+      <p className="text-[11px] text-muted-foreground mt-2 leading-snug">
+        “Open check-outs past shift end” counts scheduled rows where check-in exists, check-out is still missing, and the shift end time has passed (Asia/Muscat calendar day from the live board).
+      </p>
+    </div>
+  );
 }
 
 // ─── Today's Live Board ──────────────────────────────────────────────────────
@@ -863,12 +975,16 @@ function ManualCheckInRequests({ companyId }: { companyId: number | null }) {
         <div className="py-12 text-center text-muted-foreground">Select a company to review manual check-in requests.</div>
       ) : isLoading ? <div className="py-12 text-center text-muted-foreground">Loading…</div> : (
         <div className="space-y-3">
-          {(data ?? []).map(({ req, site }) => (
+          {(data ?? []).map(({ req, site, employee }) => (
             <Card key={req.id}><CardContent className="p-4">
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-medium">User #{req.employeeUserId}</span>
+                    <span className="font-medium">
+                      {employee?.firstName || employee?.lastName
+                        ? `${employee.firstName} ${employee.lastName}`.trim()
+                        : `User #${req.employeeUserId}`}
+                    </span>
                     {site?.name && <span className="text-xs text-muted-foreground">@ {site.name}</span>}
                     {req.status === "pending" ? <Badge variant="outline" className="border-yellow-300 text-yellow-700 bg-yellow-50">Pending</Badge>
                       : req.status === "approved" ? <Badge variant="outline" className="border-green-300 text-green-700 bg-green-50">Approved</Badge>
@@ -910,6 +1026,7 @@ function ManualCheckInRequests({ companyId }: { companyId: number | null }) {
 }
 
 export default function HRAttendancePage() {
+  const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
   const [attendanceTab, setAttendanceTab] = useState("today");
   const [monthFilter, setMonthFilter] = useState(() => {
     const now = new Date();
@@ -926,9 +1043,11 @@ export default function HRAttendancePage() {
   const deleteMutation = trpc.hr.deleteAttendance.useMutation({
     onSuccess: () => {
       toast.success("Record deleted");
+      setDeleteTargetId(null);
       utils.hr.listAttendance.invalidate();
       utils.hr.attendanceStats.invalidate();
       void utils.attendance.listAttendanceAudit.invalidate();
+      void utils.scheduling.getTodayBoard.invalidate();
     },
     onError: (e) => toast.error(e.message),
   });
@@ -937,6 +1056,23 @@ export default function HRAttendancePage() {
     const depts = new Set((employees ?? []).map((e) => e.department).filter(Boolean));
     return Array.from(depts) as string[];
   }, [employees]);
+
+  const empById = useMemo(() => {
+    const m = new Map<number, { firstName: string; lastName: string }>();
+    for (const e of employees ?? []) {
+      m.set(e.id, { firstName: e.firstName, lastName: e.lastName });
+    }
+    return m;
+  }, [employees]);
+
+  const { data: todayBoardData } = trpc.scheduling.getTodayBoard.useQuery(
+    { companyId: activeCompanyId ?? undefined },
+    { enabled: activeCompanyId != null, refetchInterval: 60_000 },
+  );
+  const overdueCheckoutCount = useMemo(() => {
+    if (!todayBoardData?.board || !todayBoardData.date) return 0;
+    return countOverdueOpenCheckouts(todayBoardData.board as any, todayBoardData.date);
+  }, [todayBoardData]);
 
   const total = (stats?.present ?? 0) + (stats?.absent ?? 0) + (stats?.late ?? 0) + (stats?.half_day ?? 0) + (stats?.remote ?? 0);
   const rate = total > 0 ? Math.round(((stats?.present ?? 0) / total) * 100) : 0;
@@ -948,15 +1084,17 @@ export default function HRAttendancePage() {
   });
 
   const { data: pendingCorrections } = trpc.attendance.listCorrections.useQuery(
-    { companyId: activeCompanyId ?? undefined, status: "pending", limit: 1 },
+    { companyId: activeCompanyId ?? undefined, status: "pending", limit: 200 },
     { enabled: activeCompanyId != null },
   );
   const { data: pendingManual } = trpc.attendance.listManualCheckIns.useQuery(
-    { companyId: activeCompanyId ?? undefined, status: "pending", limit: 1 },
+    { companyId: activeCompanyId ?? undefined, status: "pending", limit: 200 },
     { enabled: activeCompanyId != null },
   );
-  const pendingCorrDot = (pendingCorrections ?? []).length > 0;
-  const pendingManualDot = (pendingManual ?? []).length > 0;
+  const pendingCorrCount = (pendingCorrections ?? []).length;
+  const pendingManualCount = (pendingManual ?? []).length;
+  const pendingCorrDot = pendingCorrCount > 0;
+  const pendingManualDot = pendingManualCount > 0;
 
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
@@ -976,6 +1114,14 @@ export default function HRAttendancePage() {
           <ClockInDialog employees={(employees ?? []).map(e => ({ ...e, department: e.department ?? null }))} onSuccess={refetch} companyId={activeCompanyId} />
         </div>
       </div>
+
+      <HrAttendanceExceptionStrip
+        companyId={activeCompanyId}
+        pendingCorrCount={pendingCorrCount}
+        pendingManualCount={pendingManualCount}
+        scheduledShiftsToday={todayBoardData?.summary?.total ?? null}
+        overdueCheckoutCount={overdueCheckoutCount}
+      />
 
       {/* Tabs: Today Board | HR Records | Corrections | Manual Check-ins | Audit Log */}
       <Tabs value={attendanceTab} onValueChange={setAttendanceTab}>
@@ -1072,16 +1218,19 @@ export default function HRAttendancePage() {
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm flex items-center gap-2">
-              <Clock size={14} /> Today's Attendance
+              <Clock size={14} /> Today&apos;s HR attendance
               <Badge variant="outline" className="text-xs ml-auto">{todayRecords.length} records</Badge>
             </CardTitle>
           </CardHeader>
           <CardContent>
+            <p className="text-[11px] text-muted-foreground mb-3 leading-snug">
+              Legacy HR grid for today. Live punches appear on Today&apos;s Board and in employee records.
+            </p>
             {todayRecords.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
                 <Clock size={32} className="mx-auto mb-2 opacity-30" />
-                <p className="text-sm">No records for today</p>
-                <p className="text-xs mt-1">Use "Record Attendance" to add entries</p>
+                <p className="text-sm">No HR grid rows for today</p>
+                <p className="text-xs mt-1">Use Record Attendance to add entries, or rely on self check-in and corrections.</p>
               </div>
             ) : (
               <div className="space-y-2 max-h-64 overflow-y-auto">
@@ -1089,9 +1238,14 @@ export default function HRAttendancePage() {
                   <div key={r.id} className="flex items-center justify-between py-1.5 border-b last:border-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <div className="w-7 h-7 rounded-full bg-muted flex items-center justify-center text-xs font-bold">
-                        {String(r.employeeId ?? "?").slice(0, 1)}
+                        {(empById.get(r.employeeId ?? 0)?.firstName ?? "?").slice(0, 1)}
                       </div>
-                      <span className="text-sm font-medium">Emp #{r.employeeId}</span>
+                      <span className="text-sm font-medium">
+                        {(() => {
+                          const e = empById.get(r.employeeId ?? 0);
+                          return e ? `${e.firstName} ${e.lastName}`.trim() : `Employee #${r.employeeId}`;
+                        })()}
+                      </span>
                     </div>
                     <Badge className={`text-xs ${statusColors[r.status ?? "present"] ?? ""}`}>
                       {r.status}
@@ -1143,7 +1297,12 @@ export default function HRAttendancePage() {
                       : "—";
                     return (
                       <tr key={r.id} className="border-b hover:bg-muted/30 transition-colors">
-                        <td className="py-2 px-3 font-medium">Emp #{r.employeeId}</td>
+                        <td className="py-2 px-3 font-medium">
+                          {(() => {
+                            const e = empById.get(r.employeeId ?? 0);
+                            return e ? `${e.firstName} ${e.lastName}`.trim() : `Employee #${r.employeeId}`;
+                          })()}
+                        </td>
                         <td className="py-2 px-3 text-muted-foreground">
                           {r.date ? fmtDateLong(r.date) : "—"}
                         </td>
@@ -1164,11 +1323,8 @@ export default function HRAttendancePage() {
                             />
                             <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
                               disabled={deleteMutation.isPending}
-                              onClick={() => {
-                                if (confirm("Delete this attendance record?")) {
-                                  deleteMutation.mutate({ id: r.id });
-                                }
-                              }}>
+                              onClick={() => setDeleteTargetId(r.id)}
+                              aria-label="Delete attendance record">
                               <Trash2 size={12} />
                             </Button>
                           </div>
@@ -1185,6 +1341,28 @@ export default function HRAttendancePage() {
 
         </TabsContent>
       </Tabs>
+
+      <AlertDialog open={deleteTargetId != null} onOpenChange={(open) => !open && setDeleteTargetId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete HR attendance row?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This removes the legacy HR attendance record. Self-service clock rows and audit history are unchanged. This action is logged.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
+              onClick={() => {
+                if (deleteTargetId != null) deleteMutation.mutate({ id: deleteTargetId });
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

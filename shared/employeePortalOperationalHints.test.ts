@@ -24,6 +24,8 @@ describe("computePortalOperationalHints", () => {
     expect(h.canRequestCorrection).toBe(true);
     expect(h.hasPendingCorrection).toBe(false);
     expect(h.pendingCorrectionCount).toBe(0);
+    expect(h.hasPendingManualCheckIn).toBe(false);
+    expect(h.pendingManualCheckInCount).toBe(0);
     expect(h.businessDate).toBe("2026-04-05");
     expect(new Date(h.serverNowIso).getTime()).toBe(now.getTime());
     expect(h.eligibilityHeadline).toBe("Eligible to check in");
@@ -124,9 +126,32 @@ describe("computePortalOperationalHints", () => {
     expect(h.canCheckOut).toBe(false);
     expect(h.hasPendingCorrection).toBe(true);
     expect(h.pendingCorrectionCount).toBe(2);
+    expect(h.hasPendingManualCheckIn).toBe(false);
+    expect(h.pendingManualCheckInCount).toBe(0);
     expect(h.eligibilityHeadline).toBe("Attendance needs review");
     expect(h.allShiftsHaveClosedAttendance).toBe(false);
     expect(h.minutesLateAfterGrace).toBeNull();
+  });
+
+  it("surfaces pending manual check-in requests", () => {
+    const now = new Date(2026, 3, 5, 12, 0, 0);
+    const h = computePortalOperationalHints({
+      now,
+      businessDate: "2026-04-05",
+      startTime: "09:00",
+      endTime: "17:00",
+      isHoliday: false,
+      isWorkingDay: true,
+      hasSchedule: true,
+      hasShift: true,
+      checkIn: null,
+      checkOut: null,
+      pendingCorrectionCount: 0,
+      pendingManualCheckInCount: 1,
+      gracePeriodMinutes: 15,
+    });
+    expect(h.hasPendingManualCheckIn).toBe(true);
+    expect(h.pendingManualCheckInCount).toBe(1);
   });
 
   it("reports minutes late after grace when checked in without check-out", () => {

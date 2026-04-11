@@ -20,6 +20,8 @@ export type ServerEligibilityHints = Pick<
   | "shiftDetailLine"
   | "checkInDenialCode"
   | "hasPendingCorrection"
+  | "hasPendingManualCheckIn"
+  | "pendingManualCheckInCount"
   | "checkInOpensAt"
   | "allShiftsHaveClosedAttendance"
   | "minutesLateAfterGrace"

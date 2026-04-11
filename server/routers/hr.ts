@@ -637,15 +637,43 @@ export const hrRouter = router({
       checkIn: z.string().optional(),
       checkOut: z.string().optional(),
       notes: z.string().optional(),
+      /**
+       * Required when status or notes change vs stored row — appended to audit reason and row notes for traceability.
+       */
+      changeAuditNote: z.string().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const { id, checkIn, checkOut, ...rest } = input;
+      const { id, checkIn, checkOut, changeAuditNote } = input;
       const row = await getAttendanceRecordById(id);
       if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Attendance record not found" });
       await assertRowBelongsToActiveCompany(ctx.user, row.companyId, "Attendance record", row.companyId);
       const membership = await getActiveCompanyMembership(ctx.user.id, row.companyId);
       if (!membership) throw new TRPCError({ code: "FORBIDDEN", message: "No company membership" });
       requireNotAuditor(membership.role);
+      const nextStatus = input.status ?? row.status;
+      const nextNotesTrim = input.notes !== undefined ? input.notes.trim() : (row.notes ?? "").trim();
+      const statusChanged = input.status !== undefined && input.status !== row.status;
+      const notesChanged = input.notes !== undefined && nextNotesTrim !== (row.notes ?? "").trim();
+      if (statusChanged || notesChanged) {
+        const audit = (changeAuditNote ?? "").trim();
+        if (audit.length < 10) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message:
+              "Describe why you changed status or notes for the audit log (at least 10 characters).",
+          });
+        }
+      }
+      const mergedNotes =
+        statusChanged || notesChanged
+          ? (() => {
+              const base = input.notes !== undefined ? input.notes!.trim() : (row.notes ?? "").trim();
+              const stamp = `[HR edit ${new Date().toISOString()} userId=${ctx.user.id}] ${(changeAuditNote ?? "").trim()}`;
+              return base ? `${base}\n${stamp}` : stamp;
+            })()
+          : input.notes !== undefined
+            ? input.notes
+            : undefined;
       const beforePayload = attendancePayloadJson(row);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
@@ -653,12 +681,17 @@ export const hrRouter = router({
         await tx
           .update(attendance)
           .set({
-            ...rest,
-            checkIn: checkIn ? new Date(checkIn) : undefined,
-            checkOut: checkOut ? new Date(checkOut) : undefined,
+            status: nextStatus,
+            ...(mergedNotes !== undefined ? { notes: mergedNotes } : {}),
+            ...(checkIn ? { checkIn: new Date(checkIn) } : {}),
+            ...(checkOut ? { checkOut: new Date(checkOut) } : {}),
           })
           .where(eq(attendance.id, id));
         const [afterRow] = await tx.select().from(attendance).where(eq(attendance.id, id)).limit(1);
+        const auditReason =
+          statusChanged || notesChanged
+            ? (changeAuditNote ?? "").trim()
+            : input.notes?.trim();
         await insertAttendanceAuditRow(tx, {
           companyId: row.companyId,
           employeeId: row.employeeId,
@@ -670,7 +703,7 @@ export const hrRouter = router({
           entityId: id,
           beforePayload: beforePayload ?? undefined,
           afterPayload: attendancePayloadJson(afterRow) ?? undefined,
-          reason: input.notes?.trim(),
+          reason: auditReason,
           source: ATTENDANCE_AUDIT_SOURCE.HR_PANEL,
         });
       });

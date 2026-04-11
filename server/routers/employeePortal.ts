@@ -5,8 +5,9 @@ import { alias } from "drizzle-orm/mysql-core";
 import {
   employees, attendance, leaveRequests, payrollRecords,
   employeeDocuments, employeeTasks, announcements, announcementReads,
-  notifications, companyMembers, users, attendanceRecords,
+  notifications, companyMembers, users,   attendanceRecords,
   attendanceCorrections,
+  manualCheckinRequests,
   workPermits,
   companies,
 } from "../../drizzle/schema";
@@ -793,6 +794,16 @@ export const employeePortalRouter = router({
         .where(and(eq(attendanceCorrections.employeeUserId, ctx.user.id), eq(attendanceCorrections.status, "pending")));
       const pendingCorrectionCount = pendingRows.length;
 
+      const pendingManualRows = await db
+        .select({ id: manualCheckinRequests.id })
+        .from(manualCheckinRequests)
+        .where(and(
+          eq(manualCheckinRequests.employeeUserId, ctx.user.id),
+          eq(manualCheckinRequests.companyId, companyId),
+          eq(manualCheckinRequests.status, "pending"),
+        ));
+      const pendingManualCheckInCount = pendingManualRows.length;
+
       return computePortalOperationalHints({
         now,
         businessDate,
@@ -806,6 +817,7 @@ export const employeePortalRouter = router({
         checkOut: dayCtx.checkOut,
         allShiftsHaveClosedAttendance: dayCtx.allShiftsHaveClosedAttendance,
         pendingCorrectionCount,
+        pendingManualCheckInCount,
         gracePeriodMinutes: dayCtx.gracePeriodMinutes,
         assignedSiteId: dayCtx.assignedSiteId,
       });

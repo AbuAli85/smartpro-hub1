@@ -207,6 +207,10 @@ function AttendanceTodayCard({
     { companyId: companyId ?? undefined },
     { enabled: !!employeeId && companyId != null },
   );
+  const { data: myManualList } = trpc.attendance.myManualCheckIns.useQuery(
+    { limit: 15 },
+    { enabled: !!employeeId && companyId != null },
+  );
   const submitCorr = trpc.attendance.submitCorrection.useMutation({
     onSuccess: () => {
       toast.success("Correction request submitted — HR will review it");
@@ -217,6 +221,7 @@ function AttendanceTodayCard({
       utils.employeePortal.getMyOperationalHints.invalidate();
       void utils.attendance.listAttendanceAudit.invalidate();
       void utils.scheduling.getTodayBoard.invalidate();
+      void utils.attendance.myManualCheckIns.invalidate();
     },
     onError: (e) =>
       toast.error("Couldn’t submit correction", {
@@ -233,6 +238,7 @@ function AttendanceTodayCard({
       utils.employeePortal.getMyOperationalHints.invalidate();
       void utils.scheduling.getTodayBoard.invalidate();
       void utils.attendance.listAttendanceAudit.invalidate();
+      void utils.attendance.myManualCheckIns.invalidate();
     },
     onError: (e) => toastAttendanceMutationError(e.message, () => handleCheckInRef.current()),
   });
@@ -255,6 +261,7 @@ function AttendanceTodayCard({
       utils.employeePortal.getMyAttendanceSummary.invalidate();
       void utils.scheduling.getTodayBoard.invalidate();
       void utils.attendance.listAttendanceAudit.invalidate();
+      void utils.attendance.myManualCheckIns.invalidate();
     },
     onError: (e) => toastAttendanceMutationError(e.message, () => handleCheckOutRef.current()),
   });
@@ -616,12 +623,32 @@ function AttendanceTodayCard({
         </Card>
       ) : null}
 
-      {operationalHintsReady && operationalHints?.hasPendingCorrection && (
+      {operationalHintsReady &&
+        (operationalHints?.hasPendingCorrection ||
+          operationalHints?.hasPendingManualCheckIn ||
+          attStrip.attendanceInconsistent) && (
         <div
-          className="rounded-lg border border-amber-200/80 bg-amber-50/80 px-3 py-2 text-xs text-amber-900 dark:border-amber-800/60 dark:bg-amber-950/30 dark:text-amber-100"
+          className="rounded-lg border border-amber-200/80 bg-amber-50/80 px-3 py-2 text-xs text-amber-900 dark:border-amber-800/60 dark:bg-amber-950/30 dark:text-amber-100 space-y-1.5"
           role="status"
         >
-          Correction pending — HR will update your record.
+          <p className="font-semibold text-amber-950 dark:text-amber-50">Needs HR review</p>
+          <ul className="list-disc pl-4 space-y-0.5 leading-snug">
+            {operationalHints?.hasPendingCorrection ? (
+              <li>Correction request pending — HR will update your times when they decide.</li>
+            ) : null}
+            {operationalHints?.hasPendingManualCheckIn ? (
+              <li>
+                Manual check-in request pending
+                {operationalHints.pendingManualCheckInCount > 1
+                  ? ` (${operationalHints.pendingManualCheckInCount})`}
+                {" "}
+                — HR must approve before it counts as attendance.
+              </li>
+            ) : null}
+            {attStrip.attendanceInconsistent ? (
+              <li>Attendance data looks inconsistent — use Fix attendance so HR can correct the record.</li>
+            ) : null}
+          </ul>
         </div>
       )}
 
@@ -937,6 +964,51 @@ function AttendanceTodayCard({
                   : <Badge variant="outline" className="border-red-300 text-red-700 bg-red-50"><span className="sr-only">Status: </span>Rejected</Badge>}
               </div>
             ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {(myManualList ?? []).length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <FileText className="w-3.5 h-3.5" /> My Manual Check-in Requests
+            </CardTitle>
+            <p className="text-[11px] text-muted-foreground font-normal leading-snug">
+              When you could not use normal check-in (for example outside the geo-fence), HR reviews these before they count.
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {(myManualList as { req: any; site: { name?: string | null } | null }[]).slice(0, 8).map((row) => {
+              const req = row.req;
+              const site = row.site;
+              return (
+                <div key={req.id} className="flex items-center justify-between gap-2 text-sm border-b last:border-0 pb-2 last:pb-0">
+                  <div className="min-w-0">
+                    <p className="font-medium truncate">{site?.name ?? "Attendance site"}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{req.justification}</p>
+                    {req.requestedAt && (
+                      <p className="text-[11px] text-muted-foreground mt-1">
+                        {new Date(req.requestedAt).toLocaleString()}
+                      </p>
+                    )}
+                  </div>
+                  {req.status === "pending" ? (
+                    <Badge variant="outline" className="border-amber-300 text-amber-800 bg-amber-50 shrink-0">
+                      <span className="sr-only">Status: </span>Pending
+                    </Badge>
+                  ) : req.status === "approved" ? (
+                    <Badge variant="outline" className="border-green-300 text-green-700 bg-green-50 shrink-0">
+                      <span className="sr-only">Status: </span>Approved
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="border-red-300 text-red-700 bg-red-50 shrink-0">
+                      <span className="sr-only">Status: </span>Rejected
+                    </Badge>
+                  )}
+                </div>
+              );
+            })}
           </CardContent>
         </Card>
       )}
@@ -2047,7 +2119,9 @@ export default function EmployeePortalPage() {
                             const hours = cout ? ((cout.getTime() - cin.getTime()) / 3600000).toFixed(1) : null;
                             return (
                               <div key={`sel-${r.id}`} className="border-b border-border/60 pb-2 last:border-0 last:pb-0">
-                                <p className="font-medium text-foreground">Your check-in record</p>
+                                <p className="font-medium text-foreground">
+                                  Self-service clock
+                                </p>
                                 <p className="text-muted-foreground mt-0.5">
                                   In: {formatTime(r.checkIn)}
                                   {cout ? ` · Out: ${formatTime(r.checkOut)}` : " · Still active"}
@@ -2128,12 +2202,17 @@ export default function EmployeePortalPage() {
                       const cin = new Date(r.checkIn);
                       const cout = r.checkOut ? new Date(r.checkOut) : null;
                       const hours = cout ? ((cout.getTime() - cin.getTime()) / 3600000).toFixed(1) : null;
-                      return (
-                        <div key={`qr-${r.id}`} className="flex items-center justify-between py-2.5 border-b last:border-0 text-sm">
+                            return (
+                              <div key={`qr-${r.id}`} className="flex items-center justify-between py-2.5 border-b last:border-0 text-sm">
                           <div className="flex items-center gap-3">
                             <div className={`w-2 h-8 rounded-full shrink-0 ${cout ? "bg-green-500" : "bg-blue-400"}`} />
                             <div>
-                              <p className="font-medium">{cin.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}</p>
+                              <p className="font-medium">
+                                {cin.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}
+                                <span className="ml-3 text-[10px] font-normal text-muted-foreground uppercase tracking-wide">
+                                  Self-service clock
+                                </span>
+                              </p>
                               <p className="text-xs text-muted-foreground">
                                 In: {formatTime(r.checkIn)}
                                 {cout ? ` · Out: ${formatTime(r.checkOut)}` : " · Still working"}
@@ -2162,7 +2241,12 @@ export default function EmployeePortalPage() {
                             r.status === "remote" ? "bg-purple-500" : "bg-gray-400"
                           }`} />
                           <div>
-                            <p className="font-medium">{formatDate(r.date)}</p>
+                            <p className="font-medium">
+                              {formatDate(r.date)}
+                              <span className="ml-3 text-[10px] font-normal text-muted-foreground uppercase tracking-wide">
+                                HR record
+                              </span>
+                            </p>
                             <p className="text-xs text-muted-foreground">
                               {r.checkIn ? `In: ${formatTime(r.checkIn)}` : ""}
                               {r.checkOut ? ` · Out: ${formatTime(r.checkOut)}` : ""}

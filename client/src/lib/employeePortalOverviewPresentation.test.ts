@@ -19,6 +19,8 @@ function elHints(
     shiftDetailLine: null,
     checkInDenialCode: null,
     hasPendingCorrection: false,
+    hasPendingManualCheckIn: false,
+    pendingManualCheckInCount: 0,
     checkInOpensAt: null,
     allShiftsHaveClosedAttendance: false,
     minutesLateAfterGrace: null,

@@ -128,6 +128,11 @@ export default function AttendCheckInPage() {
       setDoneTime(new Date(record.checkIn));
       refetchToday();
       void utils.attendance.listAttendanceAudit.invalidate();
+      void utils.attendance.myManualCheckIns.invalidate();
+      void utils.scheduling.getTodayBoard.invalidate();
+      void utils.employeePortal.getMyOperationalHints.invalidate();
+      void utils.employeePortal.getMyAttendanceRecords.invalidate();
+      void utils.employeePortal.getMyAttendanceSummary.invalidate();
     },
     onError: (err) => toast.error(humanCheckInErrorMessage(err.message || "Check-in failed")),
   });
@@ -138,6 +143,11 @@ export default function AttendCheckInPage() {
       setDoneTime(new Date());
       refetchToday();
       void utils.attendance.listAttendanceAudit.invalidate();
+      void utils.attendance.myManualCheckIns.invalidate();
+      void utils.scheduling.getTodayBoard.invalidate();
+      void utils.employeePortal.getMyOperationalHints.invalidate();
+      void utils.employeePortal.getMyAttendanceRecords.invalidate();
+      void utils.employeePortal.getMyAttendanceSummary.invalidate();
     },
     onError: (err) => toast.error(err.message || "Check-out failed"),
   });
@@ -147,6 +157,9 @@ export default function AttendCheckInPage() {
       setDone("manual_submitted");
       setDoneTime(new Date());
       void utils.attendance.listAttendanceAudit.invalidate();
+      void utils.attendance.listManualCheckIns.invalidate();
+      void utils.attendance.myManualCheckIns.invalidate();
+      void utils.employeePortal.getMyOperationalHints.invalidate();
     },
     onError: (err) => toast.error(err.message || "Request submission failed"),
   });

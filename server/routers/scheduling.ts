@@ -335,15 +335,12 @@ export const schedulingRouter = router({
       const allRows = await db.select().from(employeeSchedules).where(and(...schedConds));
 
       // 3. Bulk-load referenced shift templates and sites
-      const templateIds = [...new Set(allRows.map((r) => r.shiftTemplateId))];
-      const siteIds = [...new Set([
-        ...groups.map((g) => g.siteId),
-        ...allRows.filter((r) => r.groupId == null).map((r) => r.siteId),
-      ])];
-      const empUserIds = [...new Set([
-        ...groups.map((g) => g.employeeUserId),
-        ...allRows.filter((r) => r.groupId == null).map((r) => r.employeeUserId),
-      ])];
+      const templateIds = Array.from(new Set(allRows.map((r) => r.shiftTemplateId)));
+      const siteIds = Array.from(new Set(
+        (groups.map((g) => g.siteId) as number[]).concat(
+          allRows.filter((r) => r.groupId == null).map((r) => r.siteId),
+        ),
+      ));
 
       const [shiftsAll, sitesAll, empsAll] = await Promise.all([
         templateIds.length ? db.select().from(shiftTemplates).where(inArray(shiftTemplates.id, templateIds)) : Promise.resolve([]),
@@ -746,11 +743,12 @@ export const schedulingRouter = router({
       const [yy, mm, dd] = today.split("-").map((x) => parseInt(x, 10));
       const dayAnchor = new Date(yy, mm - 1, dd, 12, 0, 0, 0);
 
+      type EmpRowFull = typeof empRows[number];
       type Draft = {
         schedule: (typeof todaySchedules)[number];
         shift: typeof shiftTemplates.$inferSelect | undefined;
         site: typeof attendanceSites.$inferSelect | undefined;
-        empRow: ReturnType<typeof employeeRowFromScheduleRef> | undefined;
+        empRow: EmpRowFull | undefined;
         emp: { id: number; name: string | null; email: string | null; avatarUrl: string | null } | null;
         startT: string;
         endT: string;
@@ -761,7 +759,7 @@ export const schedulingRouter = router({
         todaySchedules.map(async (s) => {
           const [shift] = await db.select().from(shiftTemplates).where(eq(shiftTemplates.id, s.shiftTemplateId)).limit(1);
           const [site] = await db.select().from(attendanceSites).where(eq(attendanceSites.id, s.siteId)).limit(1);
-          const empRow = employeeRowFromScheduleRef(s.employeeUserId, empById, empByLoginUserId);
+          const empRow = employeeRowFromScheduleRef(s.employeeUserId, empById, empByLoginUserId) as EmpRowFull | undefined;
           let emp: { id: number; name: string | null; email: string | null; avatarUrl: string | null } | null = null;
           if (empRow?.userId != null) {
             const [u] = await db
@@ -1002,7 +1000,7 @@ export const schedulingRouter = router({
         dayFullyComplete: boolean;
       }[] = [];
 
-      for (const [, rows] of byEmployeeId) {
+      for (const [, rows] of Array.from(byEmployeeId)) {
         if (rows.length < 2) continue;
         const sorted = [...rows].sort((a, b) => a.expectedStart.localeCompare(b.expectedStart));
         const shiftsCheckedOutCount = sorted.filter((r) => r.status === "checked_out").length;
@@ -1355,9 +1353,9 @@ export const schedulingRouter = router({
       if (workingToday.length === 0) return { date: today, overdueEmployees: [] };
 
       // Load related data in bulk
-      const shiftIds = [...new Set(workingToday.map((s) => s.shiftTemplateId))];
-      const siteIds = [...new Set(workingToday.map((s) => s.siteId).filter(Boolean) as number[])];
-      const empUserIds = [...new Set(workingToday.map((s) => s.employeeUserId))];
+      const shiftIds = Array.from(new Set(workingToday.map((s) => s.shiftTemplateId)));
+      const siteIds = Array.from(new Set(workingToday.map((s) => s.siteId).filter(Boolean) as number[]));
+      const empUserIds = Array.from(new Set(workingToday.map((s) => s.employeeUserId)));
 
       const [shiftsAll, sitesAll, empsAll, usersAll] = await Promise.all([
         shiftIds.length ? db.select().from(shiftTemplates).where(inArray(shiftTemplates.id, shiftIds)) : Promise.resolve([]),
@@ -1430,7 +1428,7 @@ export const schedulingRouter = router({
         });
       }
 
-      const overdueEmployees = [...overdueMap.values()].sort(
+      const overdueEmployees = Array.from(overdueMap.values()).sort(
         (a, b) => b.minutesOverdue - a.minutesOverdue
       );
       return { date: today, overdueEmployees };

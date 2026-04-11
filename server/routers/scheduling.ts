@@ -46,6 +46,18 @@ function timeToMinutes(t: string): number {
   return h * 60 + m;
 }
 
+function muscatShiftWallStartMs(ymd: string, hhmm: string): number {
+  return muscatWallDateTimeToUtc(ymd, `${hhmm}:00`).getTime();
+}
+
+/** Muscat wall end for this shift on `ymd` (overnight: end after midnight). */
+function muscatShiftWallEndMs(ymd: string, startHhmm: string, endHhmm: string): number {
+  const ss = muscatWallDateTimeToUtc(ymd, `${startHhmm}:00`).getTime();
+  let se = muscatWallDateTimeToUtc(ymd, `${endHhmm}:00`).getTime();
+  if (se <= ss) se += 86_400_000;
+  return se;
+}
+
 /**
  * `employee_schedules.employee_user_id` may store `employees.id` (legacy / no portal user yet)
  * or `employees.userId` (login id). Prefer primary-key match first — same order as
@@ -482,12 +494,38 @@ export const schedulingRouter = router({
                 : null;
 
         /**
-         * Show **stored** punch times (employee QR/manual/admin) — same as DB `check_in` / `check_out`.
-         * Do not clamp to the shift window here; that made early/late punches look “perfect” vs the schedule.
-         * `durationMinutes` still uses overlap within the shift window (see `attendanceOverlapShiftMinutes`).
+         * Check-in: always the stored punch (`check_in`).
+         * Check-out: stored punch unless one session spans past this shift’s end into a later same-day shift
+         * (e.g. morning row + single 10:00–22:00 record) — then show this shift’s **wall end** so the row does
+         * not display the evening’s checkout as “morning checkout”. `punchCheckOutAt` keeps the raw DB time when capped.
          */
         const checkInAt: Date | null = record?.checkIn ?? null;
-        const checkOutAt: Date | null = record?.checkOut ?? null;
+        let checkOutAt: Date | null = record?.checkOut ?? null;
+        let punchCheckOutAt: Date | null = null;
+        if (record?.checkOut != null && empRow != null) {
+          const co = record.checkOut.getTime();
+          const se = muscatShiftWallEndMs(today, startT, endT);
+          if (co > se) {
+            const sameEmpDrafts = drafts.filter((x) => x.empRow?.id === empRow.id);
+            const thisStartMs = muscatShiftWallStartMs(today, startT);
+            let nextShiftStartMs: number | null = null;
+            for (const o of sameEmpDrafts) {
+              const oms = muscatShiftWallStartMs(today, o.startT);
+              if (oms > thisStartMs && (nextShiftStartMs === null || oms < nextShiftStartMs)) {
+                nextShiftStartMs = oms;
+              }
+            }
+            const multiShiftDay = sameEmpDrafts.length >= 2;
+            const checkoutReachesOrPassesNextShiftStart =
+              nextShiftStartMs != null && co >= nextShiftStartMs;
+            const loneShiftButVeryLateCheckout =
+              sameEmpDrafts.length === 1 && nextShiftStartMs === null && co > se + 2 * 60 * 60 * 1000;
+            if ((multiShiftDay && checkoutReachesOrPassesNextShiftStart) || loneShiftButVeryLateCheckout) {
+              punchCheckOutAt = record.checkOut;
+              checkOutAt = new Date(se);
+            }
+          }
+        }
 
         return {
           scheduleId: s.id,
@@ -499,6 +537,7 @@ export const schedulingRouter = router({
           status,
           checkInAt,
           checkOutAt,
+          punchCheckOutAt,
           attendanceRecordId: record?.id ?? null,
           holiday,
           expectedStart: startT,
@@ -532,6 +571,7 @@ export const schedulingRouter = router({
           expectedEnd: string;
           checkInAt: Date | null;
           checkOutAt: Date | null;
+          punchCheckOutAt: Date | null;
           durationMinutes: number | null;
           status: string;
           methodLabel: string | null;
@@ -552,6 +592,7 @@ export const schedulingRouter = router({
           expectedEnd: r.expectedEnd,
           checkInAt: r.checkInAt,
           checkOutAt: r.checkOutAt,
+          punchCheckOutAt: r.punchCheckOutAt,
           durationMinutes: r.durationMinutes,
           status: r.status,
           methodLabel: r.methodLabel,

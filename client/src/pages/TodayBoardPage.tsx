@@ -263,6 +263,14 @@ export default function TodayBoardPage() {
                                 <span>{seg.checkInAt ? fmtTime(seg.checkInAt) : "—"}</span>
                                 <span> → </span>
                                 <span>{seg.checkOutAt ? fmtTime(seg.checkOutAt) : "—"}</span>
+                                {seg.punchCheckOutAt &&
+                                seg.checkOutAt &&
+                                new Date(seg.punchCheckOutAt).getTime() !== new Date(seg.checkOutAt).getTime() ? (
+                                  <span className="text-muted-foreground">
+                                    {" "}
+                                    (to {fmtTime(seg.punchCheckOutAt)})
+                                  </span>
+                                ) : null}
                                 {seg.durationMinutes != null && seg.checkInAt ? (
                                   <span className="text-muted-foreground"> ({seg.durationMinutes}m)</span>
                                 ) : null}
@@ -355,6 +363,12 @@ export default function TodayBoardPage() {
                                   <div className="text-muted-foreground">
                                     Out:{" "}
                                     <span className="font-medium text-foreground">{fmtTime(b.checkOutAt)}</span>
+                                    {b.punchCheckOutAt &&
+                                    new Date(b.punchCheckOutAt).getTime() !== new Date(b.checkOutAt).getTime() ? (
+                                      <span className="block text-[10px] font-normal">
+                                        Session {fmtTime(b.punchCheckOutAt)}
+                                      </span>
+                                    ) : null}
                                   </div>
                                 )}
                               </div>

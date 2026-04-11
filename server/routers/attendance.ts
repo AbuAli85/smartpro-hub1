@@ -1,8 +1,9 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { eq, and, desc, gte, lt, lte, isNull } from "drizzle-orm";
+import { eq, and, desc, gte, like, lt, lte, isNull, ne } from "drizzle-orm";
 import { randomBytes } from "crypto";
 import {
+  attendance,
   attendanceSites,
   attendanceRecords,
   attendanceCorrections,
@@ -10,7 +11,7 @@ import {
   manualCheckinRequests,
   attendanceAudit,
 } from "../../drizzle/schema";
-import { getDb } from "../db";
+import { createAttendanceRecordTx, getDb } from "../db";
 import { protectedProcedure, publicProcedure, router } from "../_core/trpc";
 import { getActiveCompanyMembership } from "../_core/membership";
 import {
@@ -46,6 +47,15 @@ async function requireAdminOrHR(userId: number, companyId?: number | null) {
     throw new TRPCError({ code: "FORBIDDEN", message: "HR Admin or Company Admin required" });
   }
   return { company: { id: m.companyId }, member: { role: m.role } };
+}
+
+/** DB stores `HH:MM:SS`; API may send `HH:MM` — normalize for {@link muscatWallDateTimeToUtc}. */
+function normalizeCorrectionHms(s: string | null | undefined): string {
+  if (!s) return "00:00:00";
+  const t = s.trim();
+  if (/^\d{2}:\d{2}:\d{2}$/.test(t)) return t;
+  if (/^\d{2}:\d{2}$/.test(t)) return `${t}:00`;
+  return t;
 }
 
 async function resolveMyEmployee(userId: number, userEmail: string, companyId: number) {
@@ -1228,30 +1238,89 @@ export const attendanceRouter = router({
         if (req.attendanceRecordId && (req.requestedCheckIn || req.requestedCheckOut)) {
           const updates: Record<string, Date | null> = {};
           if (req.requestedCheckIn) {
-            updates.checkIn = muscatWallDateTimeToUtc(req.requestedDate, req.requestedCheckIn);
+            updates.checkIn = muscatWallDateTimeToUtc(
+              req.requestedDate,
+              normalizeCorrectionHms(req.requestedCheckIn),
+            );
           }
           if (req.requestedCheckOut) {
-            updates.checkOut = muscatWallDateTimeToUtc(req.requestedDate, req.requestedCheckOut);
+            updates.checkOut = muscatWallDateTimeToUtc(
+              req.requestedDate,
+              normalizeCorrectionHms(req.requestedCheckOut),
+            );
           }
           await tx.update(attendanceRecords).set(updates).where(eq(attendanceRecords.id, req.attendanceRecordId));
         } else if (!req.attendanceRecordId && req.requestedCheckIn) {
-          const checkInDt = muscatWallDateTimeToUtc(req.requestedDate, req.requestedCheckIn);
+          const checkInDt = muscatWallDateTimeToUtc(
+            req.requestedDate,
+            normalizeCorrectionHms(req.requestedCheckIn),
+          );
           let checkOutDt: Date | undefined;
           if (req.requestedCheckOut) {
-            checkOutDt = muscatWallDateTimeToUtc(req.requestedDate, req.requestedCheckOut);
+            checkOutDt = muscatWallDateTimeToUtc(
+              req.requestedDate,
+              normalizeCorrectionHms(req.requestedCheckOut),
+            );
           }
-          const [ins] = await tx
-            .insert(attendanceRecords)
-            .values({
-              companyId: membership.company.id,
-              employeeId: req.employeeId,
+          const { startUtc, endExclusiveUtc } = muscatDayUtcRangeExclusiveEnd(req.requestedDate);
+          const [existing] = await tx
+            .select()
+            .from(attendanceRecords)
+            .where(
+              and(
+                eq(attendanceRecords.employeeId, req.employeeId),
+                eq(attendanceRecords.companyId, membership.company.id),
+                gte(attendanceRecords.checkIn, startUtc),
+                lt(attendanceRecords.checkIn, endExclusiveUtc),
+              ),
+            )
+            .orderBy(desc(attendanceRecords.checkIn))
+            .limit(1);
+
+          if (existing) {
+            const updates: { checkIn?: Date; checkOut?: Date; notes?: string } = {
               checkIn: checkInDt,
-              checkOut: checkOutDt,
-              method: "manual" as const,
-              notes: `Correction approved: ${req.reason}`,
-            })
-            .$returningId();
-          attendanceRecordIdForAudit = ins.id;
+            };
+            if (checkOutDt != null) {
+              updates.checkOut = checkOutDt;
+            }
+            const noteAdd = `Correction #${input.correctionId} approved: ${req.reason}`;
+            updates.notes = existing.notes ? `${existing.notes} · ${noteAdd}` : noteAdd;
+            await tx.update(attendanceRecords).set(updates).where(eq(attendanceRecords.id, existing.id));
+            attendanceRecordIdForAudit = existing.id;
+          } else {
+            const [ins] = await tx
+              .insert(attendanceRecords)
+              .values({
+                companyId: membership.company.id,
+                employeeId: req.employeeId,
+                checkIn: checkInDt,
+                checkOut: checkOutDt,
+                method: "manual" as const,
+                notes: `Correction approved: ${req.reason}`,
+              })
+              .$returningId();
+            const raw = ins as { insertId?: number; id?: number };
+            const newId = Number(raw.insertId ?? raw.id);
+            if (!Number.isFinite(newId) || newId <= 0) {
+              throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Attendance insert failed" });
+            }
+            attendanceRecordIdForAudit = newId;
+          }
+          /** Remove extra same-day manual “Correction approved” rows so a second approval updates one clock row. */
+          if (attendanceRecordIdForAudit != null) {
+            await tx.delete(attendanceRecords).where(
+              and(
+                eq(attendanceRecords.employeeId, req.employeeId),
+                eq(attendanceRecords.companyId, membership.company.id),
+                gte(attendanceRecords.checkIn, startUtc),
+                lt(attendanceRecords.checkIn, endExclusiveUtc),
+                ne(attendanceRecords.id, attendanceRecordIdForAudit),
+                eq(attendanceRecords.method, "manual"),
+                like(attendanceRecords.notes, "%Correction%"),
+              ),
+            );
+          }
         }
         await tx
           .update(attendanceCorrections)
@@ -1260,6 +1329,7 @@ export const attendanceRouter = router({
             reviewedByUserId: ctx.user.id,
             reviewedAt: new Date(),
             adminNote: input.adminNote ?? null,
+            attendanceRecordId: attendanceRecordIdForAudit ?? req.attendanceRecordId ?? null,
           })
           .where(eq(attendanceCorrections.id, input.correctionId));
 
@@ -1272,6 +1342,50 @@ export const attendanceRouter = router({
             .limit(1);
           afterArRow = ar2 ?? null;
         }
+
+        /** Legacy HR `attendance` month grid (`hr.listAttendance`) — keep in sync with approved clock row. */
+        let hrAttendanceIdForAudit: number | undefined;
+        if (afterArRow?.checkIn != null) {
+          const { startUtc: legDayStart, endExclusiveUtc: legDayEnd } = muscatDayUtcRangeExclusiveEnd(
+            req.requestedDate,
+          );
+          const [legacyRow] = await tx
+            .select()
+            .from(attendance)
+            .where(
+              and(
+                eq(attendance.employeeId, req.employeeId),
+                eq(attendance.companyId, membership.company.id),
+                gte(attendance.date, legDayStart),
+                lt(attendance.date, legDayEnd),
+              ),
+            )
+            .limit(1);
+          const legacyNote = `Clock row #${attendanceRecordIdForAudit} · correction #${input.correctionId}`;
+          if (legacyRow) {
+            await tx
+              .update(attendance)
+              .set({
+                checkIn: afterArRow.checkIn,
+                checkOut: afterArRow.checkOut ?? null,
+                status: "present",
+                notes: legacyRow.notes ? `${legacyRow.notes} · ${legacyNote}` : legacyNote,
+              })
+              .where(eq(attendance.id, legacyRow.id));
+            hrAttendanceIdForAudit = legacyRow.id;
+          } else {
+            hrAttendanceIdForAudit = await createAttendanceRecordTx(tx, {
+              companyId: membership.company.id,
+              employeeId: req.employeeId,
+              date: muscatWallDateTimeToUtc(req.requestedDate, "12:00:00"),
+              checkIn: afterArRow.checkIn,
+              checkOut: afterArRow.checkOut ?? undefined,
+              status: "present",
+              notes: legacyNote,
+            });
+          }
+        }
+
         const [corAfter] = await tx
           .select()
           .from(attendanceCorrections)
@@ -1281,6 +1395,7 @@ export const attendanceRouter = router({
         await insertAttendanceAuditRow(tx, {
           companyId: membership.company.id,
           employeeId: req.employeeId,
+          hrAttendanceId: hrAttendanceIdForAudit,
           attendanceRecordId: attendanceRecordIdForAudit,
           correctionId: input.correctionId,
           actorUserId: ctx.user.id,

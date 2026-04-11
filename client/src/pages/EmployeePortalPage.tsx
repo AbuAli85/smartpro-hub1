@@ -415,6 +415,46 @@ function AttendanceTodayCard({
     return shiftProgressPct !== null && shiftProgressPct > 0 && shiftProgressPct < 100;
   }, [shift, isWorkingDay, checkIn, checkOut, shiftProgressPct]);
 
+  // Live countdown: remaining seconds until shift end (ticks every second)
+  const [shiftSecondsLeft, setShiftSecondsLeft] = useState<number | null>(null);
+  useEffect(() => {
+    if (!shift?.startTime || !shift?.endTime || !isWorkingDay) {
+      setShiftSecondsLeft(null);
+      return;
+    }
+    const calcRemaining = () => {
+      const now = new Date();
+      const toWall = (hhmm: string): Date => {
+        const [h, m] = hhmm.split(":").map(Number);
+        const d = new Date(now);
+        d.setHours(h, m, 0, 0);
+        return d;
+      };
+      const start = toWall(shift.startTime);
+      let end = toWall(shift.endTime);
+      if (end <= start) end = new Date(end.getTime() + 86_400_000);
+      const remaining = Math.max(0, Math.floor((end.getTime() - now.getTime()) / 1000));
+      // Only show countdown when inside the shift window
+      if (now.getTime() < start.getTime() || now.getTime() >= end.getTime()) {
+        return null;
+      }
+      return remaining;
+    };
+    setShiftSecondsLeft(calcRemaining());
+    const id = setInterval(() => setShiftSecondsLeft(calcRemaining()), 1000);
+    return () => clearInterval(id);
+  }, [shift, isWorkingDay]);
+
+  const shiftCountdownLabel = useMemo(() => {
+    if (shiftSecondsLeft === null || shiftSecondsLeft <= 0) return null;
+    const h = Math.floor(shiftSecondsLeft / 3600);
+    const m = Math.floor((shiftSecondsLeft % 3600) / 60);
+    const s = shiftSecondsLeft % 60;
+    if (h > 0) return `${h}h ${String(m).padStart(2, "0")}m ${String(s).padStart(2, "0")}s`;
+    if (m > 0) return `${m}m ${String(s).padStart(2, "0")}s`;
+    return `${s}s`;
+  }, [shiftSecondsLeft]);
+
   const attendanceNextStepCaption =
     todayRecLoading || isHoliday
       ? null
@@ -528,24 +568,36 @@ function AttendanceTodayCard({
                 </Badge>
               </div>
             </div>
-            {/* Shift time-window progress bar — only shown during active window */}
+            {/* Shift time-window progress bar + countdown — only shown during active window */}
             {isWorkingDay && shiftProgressPct !== null && shiftProgressPct > 0 && shiftProgressPct < 100 && (
-              <div className="mt-3 space-y-1">
-                <div className="flex items-center justify-between text-[10px] text-muted-foreground">
-                  <span>{shift.startTime}</span>
-                  <span className={cn("font-medium", isShiftActive ? "text-green-700 dark:text-green-400" : "")}>
-                    {shiftProgressPct}% through shift
-                  </span>
-                  <span>{shift.endTime}</span>
-                </div>
-                <div className="relative h-1.5 w-full overflow-hidden rounded-full bg-muted">
-                  <div
-                    className={cn(
-                      "h-full rounded-full transition-all duration-1000",
-                      isShiftActive ? "bg-green-500" : "bg-primary/50"
-                    )}
-                    style={{ width: `${shiftProgressPct}%` }}
-                  />
+              <div className="mt-3 space-y-1.5">
+                {/* Countdown timer row */}
+                {isShiftActive && shiftCountdownLabel && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">Time remaining</span>
+                    <span className="font-mono text-sm font-bold tabular-nums text-green-700 dark:text-green-400">
+                      {shiftCountdownLabel}
+                    </span>
+                  </div>
+                )}
+                {/* Progress bar */}
+                <div className="space-y-0.5">
+                  <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                    <span>{shift.startTime}</span>
+                    <span className={cn("font-medium", isShiftActive ? "text-green-700 dark:text-green-400" : "")}>
+                      {shiftProgressPct}% through shift
+                    </span>
+                    <span>{shift.endTime}</span>
+                  </div>
+                  <div className="relative h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                    <div
+                      className={cn(
+                        "h-full rounded-full transition-all duration-1000",
+                        isShiftActive ? "bg-green-500" : "bg-primary/50"
+                      )}
+                      style={{ width: `${shiftProgressPct}%` }}
+                    />
+                  </div>
                 </div>
               </div>
             )}

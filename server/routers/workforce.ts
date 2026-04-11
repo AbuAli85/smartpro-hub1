@@ -21,7 +21,12 @@ import {
   workPermits,
 } from "../../drizzle/schema";
 import type { User } from "../../drizzle/schema";
-import { PROFILE_FIELD_KEY_FILTER_VALUES } from "@shared/profileChangeRequestFieldKey";
+import {
+  PROFILE_CHANGE_REQUEST_AUDIT_ACTION,
+  PROFILE_CHANGE_REQUEST_AUDIT_ENTITY_TYPE,
+  reclassifyFieldKeyIsNoOp,
+} from "@shared/profileChangeRequestReclassification";
+import { PROFILE_FIELD_KEY_FILTER_VALUES, PROFILE_FIELD_KEYS } from "@shared/profileChangeRequestFieldKey";
 import { isCompanyProvisioningAdmin, canAccessGlobalAdminProcedures } from "@shared/rbac";
 import {
   canReadHrPerformanceAuditSensitiveRows,
@@ -695,6 +700,72 @@ export const workforceRouter = router({
         oldestPendingSubmittedAt: oldestRow?.oldest ?? null,
       };
     }),
+
+    reclassifyFieldKey: protectedProcedure
+      .input(
+        z.object({
+          requestId: z.number(),
+          newFieldKey: z.enum(PROFILE_FIELD_KEYS as unknown as [string, ...string[]]),
+        }),
+      )
+      .mutation(async ({ ctx, input }) => {
+        const companyId = await getMemberCompanyId(ctx.user);
+        if (!companyId) throw new TRPCError({ code: "FORBIDDEN" });
+        if (!(await canManageEmployeeProfileRequests(ctx.user, companyId))) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "You do not have permission to reclassify profile change requests",
+          });
+        }
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+        const [row] = await db
+          .select()
+          .from(profileChangeRequests)
+          .where(
+            and(
+              eq(profileChangeRequests.id, input.requestId),
+              eq(profileChangeRequests.companyId, companyId),
+            ),
+          )
+          .limit(1);
+        if (!row) throw new TRPCError({ code: "NOT_FOUND" });
+        if (row.status !== "pending") {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Only open requests can be reclassified" });
+        }
+
+        const fromKey = String(row.fieldKey);
+        if (reclassifyFieldKeyIsNoOp(fromKey, input.newFieldKey)) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Category is already set to this value",
+          });
+        }
+
+        await db
+          .update(profileChangeRequests)
+          .set({ fieldKey: input.newFieldKey })
+          .where(eq(profileChangeRequests.id, row.id));
+
+        await db.insert(auditEvents).values({
+          companyId,
+          actorUserId: ctx.user.id,
+          entityType: PROFILE_CHANGE_REQUEST_AUDIT_ENTITY_TYPE,
+          entityId: row.id,
+          action: PROFILE_CHANGE_REQUEST_AUDIT_ACTION,
+          beforeState: { fieldKey: fromKey, fieldLabel: row.fieldLabel },
+          afterState: { fieldKey: input.newFieldKey },
+          metadata: {
+            requestId: row.id,
+            employeeId: row.employeeId,
+            fromFieldKey: fromKey,
+            toFieldKey: input.newFieldKey,
+          },
+        });
+
+        return { success: true as const, fieldKey: input.newFieldKey };
+      }),
 
     resolve: protectedProcedure
       .input(

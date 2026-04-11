@@ -36,6 +36,7 @@ import {
   Clock,
   Link2,
   Info,
+  Tags,
 } from "lucide-react";
 import { fmtDateTime } from "@/lib/dateUtils";
 import {
@@ -50,8 +51,14 @@ import {
   isProfileFieldKey,
   PROFILE_FIELD_KEY_FILTER_OPTIONS,
   PROFILE_FIELD_KEY_LABELS,
+  PROFILE_FIELD_KEYS,
+  type ProfileFieldKey,
   type ProfileFieldKeyFilterValue,
 } from "@shared/profileChangeRequestFieldKey";
+import {
+  defaultReclassifyTargetKey,
+  reclassifyFieldKeyIsNoOp,
+} from "@shared/profileChangeRequestReclassification";
 import {
   DEFAULT_PROFILE_CHANGE_QUEUE_STATE,
   parseProfileChangeQueueSearch,
@@ -178,6 +185,29 @@ export default function WorkforceProfileChangeRequestsPage() {
     void utils.workforce.profileChangeRequests.queueKpis.invalidate();
   }, [utils]);
 
+  const invalidateAfterReclassify = useCallback(
+    (employeeId: number) => {
+      void utils.workforce.profileChangeRequests.listCompany.invalidate();
+      void utils.workforce.profileChangeRequests.queueKpis.invalidate();
+      void utils.workforce.profileChangeRequests.listForEmployee.invalidate({ employeeId });
+      void utils.employeePortal.getMyProfileChangeRequests.invalidate();
+    },
+    [utils],
+  );
+
+  const [dialog, setDialog] = useState<{
+    open: boolean;
+    mode: "resolve" | "reject";
+    row: Row | null;
+  }>({ open: false, mode: "resolve", row: null });
+  const [actionNote, setActionNote] = useState("");
+
+  const [reclassifyDialog, setReclassifyDialog] = useState<{
+    open: boolean;
+    row: Row | null;
+    newKey: ProfileFieldKey;
+  }>({ open: false, row: null, newKey: "legal_name" });
+
   const resolveReq = trpc.workforce.profileChangeRequests.resolve.useMutation({
     onSuccess: () => {
       toast.success("Marked as resolved");
@@ -197,12 +227,9 @@ export default function WorkforceProfileChangeRequestsPage() {
     onError: (e) => toast.error(e.message),
   });
 
-  const [dialog, setDialog] = useState<{
-    open: boolean;
-    mode: "resolve" | "reject";
-    row: Row | null;
-  }>({ open: false, mode: "resolve", row: null });
-  const [actionNote, setActionNote] = useState("");
+  const reclassifyReq = trpc.workforce.profileChangeRequests.reclassifyFieldKey.useMutation({
+    onError: (e) => toast.error(e.message),
+  });
 
   const items = (data?.items ?? []) as Row[];
   const total = data?.total ?? 0;
@@ -396,7 +423,7 @@ export default function WorkforceProfileChangeRequestsPage() {
               </p>
               <p className="text-xs text-muted-foreground leading-relaxed">
                 {filters.fieldKey === "other"
-                  ? "“Other / custom” means the employee’s label did not match a standard category. Review the text in the Field column; you can tighten data quality later by reclassifying fieldKey (planned)."
+                  ? "“Other / custom” means the employee’s label did not match a standard category. Review the Field column; use “Set category” on a pending row to correct the classification without changing the label text."
                   : hasActiveFilters
                     ? "Try clearing search, changing status, or widening the age filter."
                     : "When employees submit updates from My Portal, they will appear here for HR review."}
@@ -482,6 +509,21 @@ export default function WorkforceProfileChangeRequestsPage() {
                             </Button>
                             {pending ? (
                               <>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-8 text-xs justify-center"
+                                  onClick={() =>
+                                    setReclassifyDialog({
+                                      open: true,
+                                      row: r,
+                                      newKey: defaultReclassifyTargetKey(r.fieldKey),
+                                    })
+                                  }
+                                >
+                                  <Tags className="h-3.5 w-3.5 mr-1 shrink-0" />
+                                  Set category
+                                </Button>
                                 <Button
                                   variant="outline"
                                   size="sm"
@@ -599,6 +641,87 @@ export default function WorkforceProfileChangeRequestsPage() {
               }}
             >
               {dialog.mode === "resolve" ? "Mark resolved" : "Close request"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={reclassifyDialog.open}
+        onOpenChange={(open) => {
+          if (!open) setReclassifyDialog({ open: false, row: null, newKey: "legal_name" });
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Set category</DialogTitle>
+            <DialogDescription>
+              Updates the internal field type only. The employee&apos;s field label below stays unchanged for the
+              record.
+            </DialogDescription>
+          </DialogHeader>
+          {reclassifyDialog.row ? (
+            <div className="space-y-3 py-1">
+              <p className="text-sm">
+                <span className="font-medium text-foreground">{reclassifyDialog.row.fieldLabel}</span>
+              </p>
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Category (fieldKey)</Label>
+                <Select
+                  value={reclassifyDialog.newKey}
+                  onValueChange={(v) =>
+                    setReclassifyDialog((d) =>
+                      d.row ? { ...d, newKey: v as ProfileFieldKey } : d,
+                    )
+                  }
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PROFILE_FIELD_KEYS.map((k) => (
+                      <SelectItem key={k} value={k}>
+                        {PROFILE_FIELD_KEY_LABELS[k]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          ) : null}
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setReclassifyDialog({ open: false, row: null, newKey: "legal_name" })}
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              disabled={
+                !reclassifyDialog.row ||
+                reclassifyReq.isPending ||
+                (reclassifyDialog.row
+                  ? reclassifyFieldKeyIsNoOp(reclassifyDialog.row.fieldKey, reclassifyDialog.newKey)
+                  : true)
+              }
+              onClick={() => {
+                const row = reclassifyDialog.row;
+                if (!row) return;
+                reclassifyReq.mutate(
+                  { requestId: row.id, newFieldKey: reclassifyDialog.newKey },
+                  {
+                    onSuccess: () => {
+                      toast.success("Category updated");
+                      invalidateAfterReclassify(row.employeeId);
+                      setReclassifyDialog({ open: false, row: null, newKey: "legal_name" });
+                    },
+                  },
+                );
+              }}
+            >
+              Apply
             </Button>
           </DialogFooter>
         </DialogContent>

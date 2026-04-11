@@ -62,6 +62,7 @@ import {
   getOverviewShiftCardPresentation,
   type ServerEligibilityHints,
 } from "@/lib/employeePortalOverviewPresentation";
+import { groupAttendanceRecords } from "@/lib/employeeAttendanceState";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -310,6 +311,165 @@ function TodayShiftRow({
           </Button>
         )}
       </div>
+    </div>
+  );
+}
+
+// â”€â”€ Attendance Log â€” grouped by shift â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+function AttendanceLogGrouped({
+  realAttRecords,
+  attRecords,
+}: {
+  realAttRecords: any[];
+  attRecords: any[];
+}) {
+  const [expandedGroups, setExpandedGroups] = React.useState<Set<string>>(new Set());
+
+  const toggleGroup = (key: string) => {
+    setExpandedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
+  const groups = groupAttendanceRecords(realAttRecords);
+
+  const canonicalCfg = (status: string): { label: string; cls: string; dotCls: string } => {
+    if (status === "in_progress") {
+      return { label: "Active", cls: "border-green-300 text-green-700 bg-green-50 dark:bg-green-900/15", dotCls: "bg-green-500" };
+    }
+    if (status === "completed" || status === "early_checkout" || status === "checked_out") {
+      return { label: "Completed", cls: "border-emerald-300 text-emerald-700 bg-emerald-50", dotCls: "bg-emerald-500" };
+    }
+    return { label: status, cls: "border-gray-300 text-gray-600 bg-gray-50", dotCls: "bg-gray-400" };
+  };
+
+  const renderRecord = (r: any, isSub = false) => {
+    const cout = r.checkOut ? new Date(r.checkOut) : null;
+    const cin = new Date(r.checkIn);
+    const dMin = cout ? Math.round((cout.getTime() - cin.getTime()) / 60_000) : null;
+    const dur = dMin != null ? (dMin >= 60 ? `${Math.floor(dMin / 60)}h ${dMin % 60}m` : `${dMin}m`) : null;
+    const status: string = r.completionStatus ?? (cout ? "checked_out" : "in_progress");
+    const cfg = canonicalCfg(status);
+
+    return (
+      <div
+        key={`rec-${r.id}`}
+        className={`flex items-start justify-between py-2 text-sm gap-2 ${isSub ? "pl-5 opacity-80" : ""}`}
+      >
+        <div className="flex items-start gap-3 min-w-0">
+          <div className={`w-2 h-7 rounded-full shrink-0 mt-0.5 ${cfg.dotCls}`} />
+          <div className="min-w-0">
+            {!isSub && (
+              <p className="font-medium">
+                {cin.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}
+                {r.shiftName && (
+                  <span className="ml-2 text-[10px] font-semibold text-primary/80">
+                    {r.shiftName}
+                    {r.shiftStart && r.shiftEnd ? ` ${r.shiftStart}â€“${r.shiftEnd}` : ""}
+                  </span>
+                )}
+              </p>
+            )}
+            <p className="text-xs text-muted-foreground">
+              In: {formatTime(r.checkIn)}
+              {cout ? ` Â· Out: ${formatTime(r.checkOut)}` : " Â· Open session"}
+              {r.siteName ? ` Â· ${r.siteName}` : ""}
+            </p>
+          </div>
+        </div>
+        <div className="text-right shrink-0 space-y-0.5">
+          {dur && <p className="text-sm font-semibold text-green-700">{dur}</p>}
+          <Badge variant="outline" className={`text-[10px] ${cfg.cls}`}>
+            {cfg.label}
+          </Badge>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="space-y-1">
+      {groups.map((group) => (
+        <div key={group.groupKey} className="border-b last:border-0">
+          {renderRecord(group.primary, false)}
+          {group.earlier.length > 0 && (
+            <div className="pb-1.5">
+              <button
+                type="button"
+                onClick={() => toggleGroup(group.groupKey)}
+                className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors pl-5"
+                aria-expanded={expandedGroups.has(group.groupKey)}
+              >
+                <ChevronRight
+                  className={cn(
+                    "w-3 h-3 shrink-0 transition-transform",
+                    expandedGroups.has(group.groupKey) && "rotate-90",
+                  )}
+                />
+                Earlier activity ({group.earlier.length})
+              </button>
+              {expandedGroups.has(group.groupKey) && (
+                <div className="mt-1 rounded-md border border-border/50 bg-muted/20 divide-y divide-border/40 mx-2">
+                  {group.earlier.map((r) => renderRecord(r, true))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      ))}
+      {attRecords.length > 0 && (
+        <div className="pt-3 mt-1 border-t">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground pb-2">
+            HR record â€” official status
+          </p>
+          {attRecords.map((r: any) => (
+            <div key={`hr-${r.id}`} className="flex items-center justify-between py-2.5 border-b last:border-0 text-sm">
+              <div className="flex items-center gap-3">
+                <div className={`w-2 h-8 rounded-full shrink-0 ${
+                  r.status === "present" ? "bg-green-500" :
+                  r.status === "late" ? "bg-amber-400" :
+                  r.status === "absent" ? "bg-red-500" :
+                  r.status === "half_day" ? "bg-blue-400" :
+                  r.status === "remote" ? "bg-purple-500" : "bg-gray-400"
+                }`} />
+                <div>
+                  <p className="font-medium">
+                    {formatDate(r.date)}
+                    <span className="ml-3 text-[10px] font-normal text-muted-foreground uppercase tracking-wide">HR record</span>
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {r.checkIn ? `In: ${formatTime(r.checkIn)}` : ""}
+                    {r.checkOut ? ` Â· Out: ${formatTime(r.checkOut)}` : ""}
+                    {!r.checkIn && !r.checkOut ? "No time recorded" : ""}
+                  </p>
+                </div>
+              </div>
+              <Badge
+                variant={r.status === "present" ? "default" : r.status === "absent" ? "destructive" : "secondary"}
+                className="capitalize text-xs"
+              >
+                {r.status?.replace("_", " ") ?? r.status}
+              </Badge>
+            </div>
+          ))}
+        </div>
+      )}
+      {realAttRecords.length > 0 && attRecords.length === 0 && (
+        <div className="pt-3 mt-1 border-t">
+          <div className="flex items-center gap-2">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">HR record</p>
+            <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-semibold text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
+              Pending HR posting
+            </span>
+          </div>
+          <p className="text-xs text-muted-foreground mt-1 leading-snug">
+            Your self-service records are saved. HR will post the official attendance result â€” usually by end of day.
+          </p>
+        </div>
+      )}
     </div>
   );
 }
@@ -731,6 +891,31 @@ function AttendanceTodayCard({
     return shiftProgressPct !== null && shiftProgressPct > 0 && shiftProgressPct < 100;
   }, [shift, isWorkingDay, checkIn, checkOut, shiftProgressPct]);
 
+  /**
+   * Canonical shift render mode — used to drive the banner into one of three
+   * mutually exclusive states so "Active Now" and "Upcoming" never appear together.
+   *
+   * Priority: server-resolved phase (most authoritative) > local isShiftActive heuristic.
+   */
+  const shiftRenderMode: "active" | "upcoming" | "no_shift" = (() => {
+    if (!hasSchedule || !shift || !isWorkingDay || isHoliday) return "no_shift";
+    if (isShiftActive) return "active";
+    if (operationalHintsReady && operationalHints?.resolvedShiftPhase === "active") return "active";
+    if (operationalHintsReady && operationalHints?.resolvedShiftPhase === "upcoming") return "upcoming";
+    // Local fallback: progress bar not yet started → upcoming; inside window → active
+    if (shiftProgressPct !== null && shiftProgressPct <= 0) return "upcoming";
+    if (shiftProgressPct !== null && shiftProgressPct > 0 && shiftProgressPct < 100) return "active";
+    return "upcoming"; // schedule exists but timing unknown yet
+  })();
+
+  /**
+   * If the primary shift is active, surface any upcoming shift from todayShifts so
+   * it can be shown in a separate "Next shift" card rather than mixed into the same banner.
+   */
+  const upcomingNextShift = shiftRenderMode === "active"
+    ? (todayShifts.find((s) => s.status === "upcoming") ?? null)
+    : null;
+
   // Live countdown: remaining seconds until shift end (ticks every second)
   const [shiftSecondsLeft, setShiftSecondsLeft] = useState<number | null>(null);
   useEffect(() => {
@@ -807,8 +992,9 @@ function AttendanceTodayCard({
 
   return (
     <div id="portal-attendance-today" className="scroll-mt-24 space-y-3">
-      {/* Shift / Schedule Banner */}
+      {/* ── Shift Banner — three distinct render modes (active / upcoming / no_shift) ── */}
       {isHoliday ? (
+        /* Holiday mode */
         <Card className="border-purple-200 bg-purple-50/60 dark:bg-purple-950/10">
           <CardContent className="p-4 flex items-center gap-3">
             <div className="w-9 h-9 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center shrink-0">
@@ -820,38 +1006,20 @@ function AttendanceTodayCard({
             </div>
           </CardContent>
         </Card>
-      ) : hasSchedule && shift ? (
-        <Card className={cn(
-          isWorkingDay ? "border-primary/20 bg-primary/5" : "border-muted bg-muted/30",
-          isShiftActive && "border-green-400/60 bg-green-50/40 dark:border-green-600/40 dark:bg-green-950/20"
-        )}>
+      ) : shiftRenderMode === "active" && shift ? (
+        /* Active shift mode — green card, single "Active" badge, progress bar */
+        <Card className="border-green-400/60 bg-green-50/40 dark:border-green-600/40 dark:bg-green-950/20">
           <CardContent className="p-4">
             <div className="flex items-center justify-between gap-3 flex-wrap">
               <div className="flex items-center gap-3">
-                {/* Shift icon — pulses green when active */}
                 <div
-                  className={cn(
-                    "w-9 h-9 rounded-full flex items-center justify-center shrink-0 transition-colors",
-                    isShiftActive && "ring-2 ring-green-400/60 ring-offset-1"
-                  )}
-                  style={{ backgroundColor: isShiftActive ? "#22c55e22" : (shift?.color ? `${shift.color}22` : "#6366f122") }}
+                  className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 ring-2 ring-green-400/60 ring-offset-1"
+                  style={{ backgroundColor: "#22c55e22" }}
                 >
-                  <Clock className="w-5 h-5" style={{ color: isShiftActive ? "#16a34a" : (shift?.color ?? "#6366f1") }} />
+                  <Clock className="w-5 h-5 text-green-700" />
                 </div>
                 <div>
-                  <div className="flex items-center gap-1.5">
-                    <p className="font-semibold text-sm">{formatShiftDisplayName(shift.name)}</p>
-                    {/* Active Now pulsing badge */}
-                    {isShiftActive && (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-1.5 py-0.5 text-[10px] font-semibold text-green-700 dark:bg-green-900/40 dark:text-green-300">
-                        <span className="relative flex h-1.5 w-1.5">
-                          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-500 opacity-75" />
-                          <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-green-600" />
-                        </span>
-                        Active Now
-                      </span>
-                    )}
-                  </div>
+                  <p className="font-semibold text-sm">{formatShiftDisplayName(shift.name)}</p>
                   <p className="text-xs text-muted-foreground">
                     {shift.startTime} – {shift.endTime}
                     {site ? ` · ${site.name}` : ""}
@@ -863,37 +1031,22 @@ function AttendanceTodayCard({
                 </div>
               </div>
               <div className="flex flex-col items-end gap-1.5 text-right shrink-0 max-w-[160px]">
-                {/* Single phase/state badge — prefers server-computed shiftStatusLabel when available
-                    to avoid rendering "On shift" (from hints) + "On Shift" (from local state) simultaneously. */}
+                {/* Canonical "Active" badge — single source of truth, no conflicting labels */}
                 <Badge
                   variant="outline"
-                  className={cn(
-                    "text-xs",
-                    isShiftActive
-                      ? "border-green-400 text-green-700 bg-green-50 dark:bg-green-900/20 dark:text-green-300"
-                      : isWorkingDay
-                        ? "border-green-300 text-green-700 bg-green-50"
-                        : "border-gray-300 text-gray-600 bg-gray-50"
-                  )}
+                  className="text-xs border-green-400 text-green-700 bg-green-50 dark:bg-green-900/20 dark:text-green-300"
                 >
-                  {(operationalHintsReady && operationalHints?.shiftStatusLabel)
-                    ? operationalHints.shiftStatusLabel
-                    : isShiftActive
-                      ? "On Shift"
-                      : isWorkingDay
-                        ? "Working Day"
-                        : "Day Off"}
+                  Active
                 </Badge>
                 {operationalHintsReady && operationalHints?.shiftDetailLine && (
                   <span className="text-[10px] text-muted-foreground leading-tight">{operationalHints.shiftDetailLine}</span>
                 )}
               </div>
             </div>
-            {/* Shift time-window progress bar + countdown — only shown during active window */}
-            {isWorkingDay && shiftProgressPct !== null && shiftProgressPct > 0 && shiftProgressPct < 100 && (
+            {/* Progress bar + countdown — active window only */}
+            {shiftProgressPct !== null && shiftProgressPct > 0 && shiftProgressPct < 100 && (
               <div className="mt-3 space-y-1.5">
-                {/* Countdown timer row */}
-                {isShiftActive && shiftCountdownLabel && (
+                {shiftCountdownLabel && (
                   <div className="flex items-center justify-between">
                     <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">Time remaining</span>
                     <span className="font-mono text-sm font-bold tabular-nums text-green-700 dark:text-green-400">
@@ -901,21 +1054,15 @@ function AttendanceTodayCard({
                     </span>
                   </div>
                 )}
-                {/* Progress bar */}
                 <div className="space-y-0.5">
                   <div className="flex items-center justify-between text-[10px] text-muted-foreground">
                     <span>{shift.startTime}</span>
-                    <span className={cn("font-medium", isShiftActive ? "text-green-700 dark:text-green-400" : "")}>
-                      {shiftProgressPct}% through shift
-                    </span>
+                    <span className="font-medium text-green-700 dark:text-green-400">{shiftProgressPct}% through shift</span>
                     <span>{shift.endTime}</span>
                   </div>
                   <div className="relative h-1.5 w-full overflow-hidden rounded-full bg-muted">
                     <div
-                      className={cn(
-                        "h-full rounded-full transition-all duration-1000",
-                        isShiftActive ? "bg-green-500" : "bg-primary/50"
-                      )}
+                      className="h-full rounded-full bg-green-500 transition-all duration-1000"
                       style={{ width: `${shiftProgressPct}%` }}
                     />
                   </div>
@@ -924,7 +1071,44 @@ function AttendanceTodayCard({
             )}
           </CardContent>
         </Card>
+      ) : shiftRenderMode === "upcoming" && shift ? (
+        /* Upcoming shift mode — neutral card, single "Upcoming" badge */
+        <Card className="border-primary/20 bg-primary/5">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex items-center gap-3">
+                <div
+                  className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
+                  style={{ backgroundColor: shift?.color ? `${shift.color}22` : "#6366f122" }}
+                >
+                  <Clock className="w-5 h-5" style={{ color: shift?.color ?? "#6366f1" }} />
+                </div>
+                <div>
+                  <p className="font-semibold text-sm">{formatShiftDisplayName(shift.name)}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {shift.startTime} – {shift.endTime}
+                    {site ? ` · ${site.name}` : ""}
+                    {shift.gracePeriodMinutes > 0 ? ` · ${shift.gracePeriodMinutes}min grace` : ""}
+                  </p>
+                  {workingDayNames && (
+                    <p className="text-xs text-muted-foreground mt-0.5">Working days: {workingDayNames}</p>
+                  )}
+                </div>
+              </div>
+              <div className="flex flex-col items-end gap-1.5 text-right shrink-0 max-w-[160px]">
+                {/* Canonical "Upcoming" badge */}
+                <Badge variant="outline" className="text-xs border-primary/30 text-primary bg-primary/5">
+                  Upcoming
+                </Badge>
+                {operationalHintsReady && operationalHints?.shiftDetailLine && (
+                  <span className="text-[10px] text-muted-foreground leading-tight">{operationalHints.shiftDetailLine}</span>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       ) : todaySchedule !== undefined && todaySchedule !== null && !todaySchedule.hasSchedule ? (
+        /* No shift mode */
         <Card className="border-muted">
           <CardContent className="p-4 flex items-center gap-3">
             <Info className="w-5 h-5 text-muted-foreground shrink-0" />
@@ -932,6 +1116,31 @@ function AttendanceTodayCard({
           </CardContent>
         </Card>
       ) : null}
+
+      {/* Next shift mini-card — shown only when primary banner is "active" AND an upcoming
+          shift exists. Keeps the two shift states on separate, clearly labelled cards. */}
+      {upcomingNextShift && (
+        <Card className="border-slate-200/80 bg-slate-50/40 dark:border-slate-700/40 dark:bg-slate-950/10">
+          <CardContent className="p-3 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-7 h-7 rounded-full bg-slate-100 dark:bg-slate-800/60 flex items-center justify-center shrink-0">
+                <Clock className="w-3.5 h-3.5 text-slate-500" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground leading-tight">Next shift</p>
+                <p className="text-sm font-medium truncate">{formatShiftDisplayName(upcomingNextShift.shiftName)}</p>
+                <p className="text-xs text-muted-foreground">
+                  {upcomingNextShift.shiftStart}–{upcomingNextShift.shiftEnd}
+                  {upcomingNextShift.siteName ? ` · ${upcomingNextShift.siteName}` : ""}
+                </p>
+              </div>
+            </div>
+            <Badge variant="outline" className="text-[10px] border-slate-300 text-slate-600 bg-slate-50 shrink-0">
+              Upcoming
+            </Badge>
+          </CardContent>
+        </Card>
+      )}
 
       {operationalHintsReady && (
         <div
@@ -1032,12 +1241,12 @@ function AttendanceTodayCard({
                             className="border-amber-400 bg-amber-50 text-amber-950 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-100"
                           >
                             <span className="sr-only">Status: </span>
-                            Shift ended — check out
+                            Active — check out to close
                           </Badge>
                         ) : (
                           <Badge variant="outline" className="border-green-300 bg-green-50 text-green-700 dark:bg-green-900/20">
                             <span className="sr-only">Status: </span>
-                            On shift
+                            Active
                           </Badge>
                         )}
                         {hoursToday && (
@@ -1057,7 +1266,7 @@ function AttendanceTodayCard({
                         !betweenShifts && (
                           <p className="mt-1 text-xs font-semibold text-amber-950 dark:text-amber-100">
                             {operationalHints.shiftDetailLine ??
-                              "Shift time ended — tap Check out to record your leaving time."}
+                              "Shift window has ended — tap Check out to save your time, or use Fix attendance if the times are wrong."}
                           </p>
                         )}
                       {operationalHintsReady &&
@@ -1065,14 +1274,19 @@ function AttendanceTodayCard({
                         checkIn &&
                         !checkOut && (
                           <p className="mt-1 text-xs font-medium text-amber-800 dark:text-amber-200">
-                            You checked in {operationalHints.minutesLateAfterGrace} min after the grace window — use Fix
-                            attendance if HR should adjust the record.
+                            You checked in {operationalHints.minutesLateAfterGrace} min after the grace window. If HR should adjust the time, tap Fix attendance to submit a correction.
                           </p>
                         )}
-                      {betweenShifts && shift && (
+                      {betweenShifts && upcomingNextShift && (
                         <p className="mt-1 text-xs leading-snug text-amber-900/90 dark:text-amber-100/90">
-                          Earlier block finished. Next shift on your schedule: {shift.startTime} – {shift.endTime}
-                          {site?.name ? ` · ${site.name}` : ""}. Check in again when that shift starts.
+                          This shift is complete. Your next shift starts at {upcomingNextShift.shiftStart}
+                          {upcomingNextShift.siteName ? ` · ${upcomingNextShift.siteName}` : ""}. Check in again when that window opens.
+                        </p>
+                      )}
+                      {betweenShifts && !upcomingNextShift && shift && (
+                        <p className="mt-1 text-xs leading-snug text-amber-900/90 dark:text-amber-100/90">
+                          Earlier block finished. Next shift: {shift.startTime} – {shift.endTime}
+                          {site?.name ? ` · ${site.name}` : ""}. Check in when that window opens.
                         </p>
                       )}
                       {denialPresentation && betweenShifts && (
@@ -1220,7 +1434,7 @@ function AttendanceTodayCard({
                     </Button>
                     {(attStrip.showCheckIn || attStrip.showCheckOut) && !correctionEmphasis && (
                       <p className="text-center text-[10px] text-muted-foreground sm:text-left">
-                        Wrong times? HR reviews corrections.
+                        Wrong times or missed check-in? Submit a correction — HR reviews and updates your record.
                       </p>
                     )}
                   </div>
@@ -2671,11 +2885,12 @@ export default function EmployeePortalPage() {
                             const dMin = cout ? Math.round((cout.getTime() - cin.getTime()) / 60_000) : null;
                             const dur = dMin != null ? (dMin >= 60 ? `${Math.floor(dMin/60)}h ${dMin%60}m` : `${dMin}m`) : null;
                             const status: string = r.completionStatus ?? (cout ? "checked_out" : "in_progress");
-                            const statusLabel: Record<string, string> = {
-                              in_progress: "In progress",
+                            // Canonical status labels for the calendar day panel
+                            const canonicalLabel: Record<string, string> = {
+                              in_progress: "Active",
                               completed: "Completed",
-                              early_checkout: "Checked out early",
-                              checked_out: "Checked out",
+                              early_checkout: "Completed",
+                              checked_out: "Completed",
                             };
                             return (
                               <div key={`sel-${r.id}`} className="border-b border-border/60 pb-2 last:border-0 last:pb-0">
@@ -2683,13 +2898,13 @@ export default function EmployeePortalPage() {
                                   {r.shiftName ?? "Shift"}
                                   {r.shiftStart && r.shiftEnd ? ` · ${r.shiftStart}–${r.shiftEnd}` : ""}
                                   {" "}
-                                  <span className={`text-[10px] font-normal ${status === "early_checkout" ? "text-orange-600" : status === "completed" ? "text-emerald-600" : "text-muted-foreground"}`}>
-                                    {statusLabel[status] ?? status}
+                                  <span className={`text-[10px] font-normal ${status === "in_progress" ? "text-green-600" : "text-emerald-600"}`}>
+                                    {canonicalLabel[status] ?? status}
                                   </span>
                                 </p>
                                 <p className="text-muted-foreground mt-0.5">
                                   In: {formatTime(r.checkIn)}
-                                  {cout ? ` · Out: ${formatTime(r.checkOut)}` : " · Still active"}
+                                  {cout ? ` · Out: ${formatTime(r.checkOut)}` : " · Open session"}
                                   {dur ? ` · ${dur}` : ""}
                                   {r.siteName ? ` · ${r.siteName}` : ""}
                                 </p>
@@ -2708,6 +2923,19 @@ export default function EmployeePortalPage() {
                                   {hrRec.checkOut ? ` · Out: ${formatTime(hrRec.checkOut)}` : ""}
                                 </p>
                               )}
+                            </div>
+                          ) : scanRecs.length > 0 ? (
+                            /* Pending HR posting — self-service data exists but HR hasn't posted yet */
+                            <div className="border-t border-border/60 pt-2">
+                              <div className="flex items-center gap-2">
+                                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">HR record</p>
+                                <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-semibold text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
+                                  Pending HR posting
+                                </span>
+                              </div>
+                              <p className="text-muted-foreground mt-1 leading-snug">
+                                Your self-service record is saved. HR will post the official status — usually by end of day.
+                              </p>
                             </div>
                           ) : null}
                         </div>
@@ -2768,102 +2996,10 @@ export default function EmployeePortalPage() {
                     </Button>
                   </div>
                 ) : (
-                  <div className="space-y-1">
-                    {/* Self-service clock records (with shift context + completion status) */}
-                    {realAttRecords.map((r: any) => {
-                      const cin = new Date(r.checkIn);
-                      const cout = r.checkOut ? new Date(r.checkOut) : null;
-                      const durationMin = cout ? Math.round((cout.getTime() - cin.getTime()) / 60_000) : null;
-                      const durationLabel = durationMin != null
-                        ? durationMin >= 60
-                          ? `${Math.floor(durationMin / 60)}h ${durationMin % 60}m`
-                          : `${durationMin}m`
-                        : null;
-
-                      const status: string = r.completionStatus ?? (cout ? "checked_out" : "in_progress");
-                      const statusCfg: Record<string, { label: string; cls: string; dotCls: string }> = {
-                        in_progress:   { label: "In progress",       cls: "border-blue-300 text-blue-700 bg-blue-50",    dotCls: "bg-blue-400" },
-                        completed:     { label: "Completed",         cls: "border-emerald-300 text-emerald-700 bg-emerald-50", dotCls: "bg-emerald-500" },
-                        early_checkout:{ label: "Checked out early", cls: "border-orange-300 text-orange-700 bg-orange-50", dotCls: "bg-orange-400" },
-                        checked_out:   { label: "Checked out",       cls: "border-gray-300 text-gray-700 bg-gray-50",    dotCls: "bg-gray-400" },
-                      };
-                      const sc = statusCfg[status] ?? statusCfg.checked_out!;
-
-                      return (
-                        <div key={`qr-${r.id}`} className="flex items-start justify-between py-2.5 border-b last:border-0 text-sm gap-2">
-                          <div className="flex items-start gap-3 min-w-0">
-                            <div className={`w-2 h-8 rounded-full shrink-0 mt-0.5 ${sc.dotCls}`} />
-                            <div className="min-w-0">
-                              <p className="font-medium">
-                                {cin.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}
-                                {r.shiftName && (
-                                  <span className="ml-2 text-[10px] font-semibold text-primary/80">
-                                    {r.shiftName}
-                                    {r.shiftStart && r.shiftEnd ? ` ${r.shiftStart}–${r.shiftEnd}` : ""}
-                                  </span>
-                                )}
-                              </p>
-                              <p className="text-xs text-muted-foreground">
-                                In: {formatTime(r.checkIn)}
-                                {cout ? ` · Out: ${formatTime(r.checkOut)}` : " · Still working"}
-                                {r.siteName ? ` · ${r.siteName}` : ""}
-                              </p>
-                            </div>
-                          </div>
-                          <div className="text-right shrink-0 space-y-0.5">
-                            {durationLabel && (
-                              <p className={`text-sm font-semibold ${status === "early_checkout" ? "text-orange-700" : "text-green-700"}`}>
-                                {durationLabel}
-                              </p>
-                            )}
-                            <Badge variant="outline" className={`text-[10px] ${sc.cls}`}>
-                              {sc.label}
-                            </Badge>
-                          </div>
-                        </div>
-                      );
-                    })}
-                    {/* HR-marked records — official attendance decisions */}
-                    {attRecords.length > 0 && (
-                      <div className="pt-3 mt-1 border-t">
-                        <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground pb-2">
-                          HR record — official status
-                        </p>
-                      </div>
-                    )}
-                    {attRecords.map((r: any) => (
-                      <div key={`hr-${r.id}`} className="flex items-center justify-between py-2.5 border-b last:border-0 text-sm">
-                        <div className="flex items-center gap-3">
-                          <div className={`w-2 h-8 rounded-full shrink-0 ${
-                            r.status === "present" ? "bg-green-500" :
-                            r.status === "late" ? "bg-amber-400" :
-                            r.status === "absent" ? "bg-red-500" :
-                            r.status === "half_day" ? "bg-blue-400" :
-                            r.status === "remote" ? "bg-purple-500" : "bg-gray-400"
-                          }`} />
-                          <div>
-                            <p className="font-medium">
-                              {formatDate(r.date)}
-                              <span className="ml-3 text-[10px] font-normal text-muted-foreground uppercase tracking-wide">
-                                HR record
-                              </span>
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              {r.checkIn ? `In: ${formatTime(r.checkIn)}` : ""}
-                              {r.checkOut ? ` · Out: ${formatTime(r.checkOut)}` : ""}
-                              {!r.checkIn && !r.checkOut ? "No time recorded" : ""}
-                            </p>
-                          </div>
-                        </div>
-                        <Badge
-                          variant={r.status === "present" ? "default" : r.status === "absent" ? "destructive" : "secondary"}
-                          className="capitalize text-xs"
-                        >
-                          {r.status?.replace("_", " ") ?? r.status}
-                        </Badge>
-                      </div>
-                    ))}
-                  </div>
+                  <AttendanceLogGrouped
+                    realAttRecords={realAttRecords}
+                    attRecords={attRecords}
+                  />
                 )}
               </CardContent>
             </Card>

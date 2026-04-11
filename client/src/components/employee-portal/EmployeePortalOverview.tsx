@@ -503,7 +503,10 @@ export function EmployeePortalOverview(props: EmployeePortalOverviewProps) {
                   )}
                 </div>
                 <div className="flex shrink-0 flex-col items-end gap-1.5">
-                  {shiftOverview.operational && (
+                  {/* Only show the shift-timing badge when the canonical hero badge is absent
+                      (e.g. while attendance data is still loading) to prevent two conflicting
+                      status labels — "Active" and "Upcoming" — appearing on the same card. */}
+                  {shiftOverview.operational && (todayAttendanceLoading || !model.hero) && (
                     <Badge variant="secondary" className="text-[10px] px-2 py-0.5 gap-1">
                       <span className="sr-only">Shift timing: </span>
                       <span className={`h-1.5 w-1.5 rounded-full ${shiftOverview.operational.statusDotClass}`} aria-hidden />

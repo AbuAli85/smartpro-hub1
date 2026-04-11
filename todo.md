@@ -1916,3 +1916,10 @@ Every company on SmartPRO Hub gets a complete, unified business operating area â
 - [x] Fix CompanySwitcher for long company names (truncate + overflow-hidden)
 - [x] Add visual indicator to attendance card showing which shift is currently active (active pulse badge, shift time window progress bar, and 'active now' label)
 - [x] Add live countdown timer to active shift card showing remaining time in HH:MM:SS format, updating every second
+- [x] Add tRPC procedure scheduling.getOverdueCheckouts returning employees clocked in after shift end
+- [x] Build OverdueCheckoutsPanel component and wire into TodayBoardPage and HRAttendancePage
+- [x] Add tRPC mutation scheduling.sendOverdueCheckoutReminder to push in-app notification to an employee
+- [x] Add Send Reminder button per employee row in OverdueCheckoutsPanel with loading/sent state
+- [x] Update sendOverdueCheckoutReminder mutation to accept optional customMessage field
+- [x] Add custom message dialog to ReminderButton with pre-filled default and editable textarea
+- [ ] Fix: attendance card shows "Day complete" with wrong shift's record when current shift has not been checked into yet â€” fix shift-to-record matching and allShiftsHaveClosedAttendance logic

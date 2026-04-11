@@ -820,6 +820,8 @@ export const employeePortalRouter = router({
         pendingManualCheckInCount,
         gracePeriodMinutes: dayCtx.gracePeriodMinutes,
         assignedSiteId: dayCtx.assignedSiteId,
+        shiftCheckIn: dayCtx.shiftCheckIn,
+        shiftCheckOut: dayCtx.shiftCheckOut,
       });
     }),
 });

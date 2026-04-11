@@ -48,6 +48,14 @@ export interface PortalOperationalHints {
   allShiftsHaveClosedAttendance: boolean;
   /** Minutes late after grace when checked in without check-out; null if on time or N/A. */
   minutesLateAfterGrace: number | null;
+  /**
+   * Shift-matched check-in time for the currently active/most-recent shift.
+   * Use this instead of `attendance.myToday.checkIn` to avoid showing the wrong
+   * shift's record when an employee has multiple shifts per day.
+   */
+  shiftCheckIn: Date | null;
+  /** Shift-matched check-out time for the currently active/most-recent shift. */
+  shiftCheckOut: Date | null;
 }
 
 function portalEligibilityFromEvaluation(
@@ -99,8 +107,12 @@ export function computePortalOperationalHints(params: {
   pendingManualCheckInCount?: number;
   /** Minutes before shift start that check-in opens (temporary: same DB field as late grace target). */
   gracePeriodMinutes?: number;
-  /** Today’s scheduled site id when known; portal omits scanned site so WRONG_SITE is not evaluated. */
+  /** Today's scheduled site id when known; portal omits scanned site so WRONG_SITE is not evaluated. */
   assignedSiteId?: number | null;
+  /** Shift-matched check-in timestamp to pass through to the client. */
+  shiftCheckIn?: Date | null;
+  /** Shift-matched check-out timestamp to pass through to the client. */
+  shiftCheckOut?: Date | null;
 }): PortalOperationalHints {
   const serverNowIso = params.now.toISOString();
   const grace = params.gracePeriodMinutes ?? 15;
@@ -209,5 +221,7 @@ export function computePortalOperationalHints(params: {
     checkInDenialCode: !gate.canCheckIn ? gate.reasonCode : null,
     allShiftsHaveClosedAttendance: effectiveAllShiftsClosed,
     minutesLateAfterGrace,
+    shiftCheckIn: params.shiftCheckIn ?? params.checkIn,
+    shiftCheckOut: params.shiftCheckOut ?? params.checkOut,
   };
 }

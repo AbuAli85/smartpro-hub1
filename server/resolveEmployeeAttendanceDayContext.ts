@@ -18,6 +18,7 @@ import {
 } from "../drizzle/schema";
 import { pickScheduleRowForNow } from "@shared/pickScheduleForAttendanceNow";
 import { allWorkingShiftRowsHaveClosedAttendance } from "@shared/assignAttendanceRecordsToShifts";
+import { pickAttendanceRecordForShift } from "@shared/pickAttendanceRecordForShift";
 import { muscatDayUtcRangeExclusiveEnd } from "@shared/attendanceMuscatTime";
 
 export interface EmployeeAttendanceDayContext {
@@ -38,6 +39,14 @@ export interface EmployeeAttendanceDayContext {
   checkOut: Date | null;
   /** Every scheduled shift row for today has a closed attendance record assigned to it. */
   allShiftsHaveClosedAttendance: boolean;
+  /**
+   * Shift-matched check-in for the currently active/most-recent shift.
+   * Unlike `checkIn` (which drives eligibility), this is always the record
+   * that belongs to the active shift — safe to display in the UI.
+   */
+  shiftCheckIn: Date | null;
+  /** Shift-matched check-out for the currently active/most-recent shift. */
+  shiftCheckOut: Date | null;
 }
 
 export async function resolveEmployeeAttendanceDayContext(
@@ -174,12 +183,41 @@ export async function resolveEmployeeAttendanceDayContext(
     checkIn = new Date(openSession.checkIn);
     checkOut = null;
   } else if (recordRow?.checkIn && recordRow.checkOut && !allShiftsHaveClosedAttendance) {
-    /** More shifts still need punches — do not treat the day as “fully recorded” for eligibility. */
+    /** More shifts still need punches — do not treat the day as "fully recorded" for eligibility. */
     checkIn = null;
     checkOut = null;
   } else if (recordRow?.checkIn) {
     checkIn = new Date(recordRow.checkIn);
     checkOut = recordRow.checkOut ? new Date(recordRow.checkOut) : null;
+  }
+
+  // Shift-matched record for UI display — uses the active shift's window to pick the
+  // correct punch, avoiding showing a different shift's record when multi-shift employees
+  // have a prior shift already closed.
+  let shiftCheckIn: Date | null = null;
+  let shiftCheckOut: Date | null = null;
+  if (openSession?.checkIn) {
+    // An open session is always the current shift's record
+    shiftCheckIn = new Date(openSession.checkIn);
+    shiftCheckOut = null;
+  } else if (shiftStart && shiftEnd && dayRecords.length > 0) {
+    const matchedRecord = pickAttendanceRecordForShift(
+      dayRecords,
+      assignedSiteId ?? 0,
+      businessDate,
+      shiftStart,
+      shiftEnd,
+      gracePeriodMinutes,
+      Date.now()
+    );
+    if (matchedRecord) {
+      shiftCheckIn = new Date(matchedRecord.checkIn);
+      shiftCheckOut = matchedRecord.checkOut ? new Date(matchedRecord.checkOut) : null;
+    }
+  } else if (recordRow?.checkIn) {
+    // Single shift or no shift info — fall back to most recent record
+    shiftCheckIn = new Date(recordRow.checkIn);
+    shiftCheckOut = recordRow.checkOut ? new Date(recordRow.checkOut) : null;
   }
 
   return {
@@ -195,5 +233,7 @@ export async function resolveEmployeeAttendanceDayContext(
     checkIn,
     checkOut,
     allShiftsHaveClosedAttendance,
+    shiftCheckIn,
+    shiftCheckOut,
   };
 }

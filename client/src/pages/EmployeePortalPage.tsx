@@ -267,8 +267,17 @@ function AttendanceTodayCard({
   });
 
   const todayStr = new Date().toISOString().split("T")[0];
-  const checkIn = todayRec?.checkIn ? new Date(todayRec.checkIn) : null;
-  const checkOut = todayRec?.checkOut ? new Date(todayRec.checkOut) : null;
+  // Prefer shift-matched times from operationalHints (server-side, uses active shift window)
+  // over myToday (which returns the most recent record regardless of which shift it belongs to).
+  // This prevents multi-shift employees from seeing a prior shift's punch on the active shift card.
+  const rawCheckIn = todayRec?.checkIn ? new Date(todayRec.checkIn) : null;
+  const rawCheckOut = todayRec?.checkOut ? new Date(todayRec.checkOut) : null;
+  const checkIn: Date | null = operationalHintsReady && operationalHints?.shiftCheckIn
+    ? new Date(operationalHints.shiftCheckIn)
+    : rawCheckIn;
+  const checkOut: Date | null = operationalHintsReady && operationalHints?.shiftCheckOut
+    ? new Date(operationalHints.shiftCheckOut)
+    : rawCheckOut;
   const pendingCorr = (myCorrList ?? []).filter((c: any) => c.status === "pending").length;
 
   const hoursToday = checkIn && checkOut

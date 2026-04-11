@@ -1,5 +1,6 @@
 import { trpc } from "@/lib/trpc";
 import { useState, useMemo, useEffect } from "react";
+import { OverdueCheckoutsPanel } from "@/components/attendance/OverdueCheckoutsPanel";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import {
   Clock, Users, CheckCircle2, XCircle, AlertCircle, Calendar,
@@ -663,6 +664,7 @@ function TodayBoard({ companyId }: { companyId: number | null }) {
           </div>
         ))}
       </div>
+      <OverdueCheckoutsPanel className="mt-2" />
       {(data.fullDaySummaries ?? []).length > 0 && (
         <div className="rounded-lg border border-primary/20 bg-primary/[0.04] px-3 py-3 space-y-2">
           <p className="text-xs font-semibold text-foreground">Full day — same person, multiple shifts (Asia/Muscat)</p>

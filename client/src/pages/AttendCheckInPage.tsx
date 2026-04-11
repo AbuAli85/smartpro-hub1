@@ -129,6 +129,7 @@ export default function AttendCheckInPage() {
       refetchToday();
       void utils.attendance.listAttendanceAudit.invalidate();
       void utils.attendance.myManualCheckIns.invalidate();
+      void utils.attendance.myToday.invalidate();
       void utils.scheduling.getTodayBoard.invalidate();
       void utils.employeePortal.getMyOperationalHints.invalidate();
       void utils.employeePortal.getMyAttendanceRecords.invalidate();
@@ -144,6 +145,7 @@ export default function AttendCheckInPage() {
       refetchToday();
       void utils.attendance.listAttendanceAudit.invalidate();
       void utils.attendance.myManualCheckIns.invalidate();
+      void utils.attendance.myToday.invalidate();
       void utils.scheduling.getTodayBoard.invalidate();
       void utils.employeePortal.getMyOperationalHints.invalidate();
       void utils.employeePortal.getMyAttendanceRecords.invalidate();
@@ -159,6 +161,7 @@ export default function AttendCheckInPage() {
       void utils.attendance.listAttendanceAudit.invalidate();
       void utils.attendance.listManualCheckIns.invalidate();
       void utils.attendance.myManualCheckIns.invalidate();
+      void utils.attendance.myToday.invalidate();
       void utils.employeePortal.getMyOperationalHints.invalidate();
     },
     onError: (err) => toast.error(err.message || "Request submission failed"),

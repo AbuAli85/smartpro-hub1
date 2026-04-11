@@ -791,7 +791,11 @@ export const employeePortalRouter = router({
       const pendingRows = await db
         .select({ id: attendanceCorrections.id })
         .from(attendanceCorrections)
-        .where(and(eq(attendanceCorrections.employeeUserId, ctx.user.id), eq(attendanceCorrections.status, "pending")));
+        .where(and(
+          eq(attendanceCorrections.employeeUserId, ctx.user.id),
+          eq(attendanceCorrections.companyId, companyId),
+          eq(attendanceCorrections.status, "pending"),
+        ));
       const pendingCorrectionCount = pendingRows.length;
 
       const pendingManualRows = await db

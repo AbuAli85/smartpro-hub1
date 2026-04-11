@@ -1914,3 +1914,4 @@ Every company on SmartPRO Hub gets a complete, unified business operating area â
 - [x] Expand compliance locale files (en-OM and ar-OM) with checkNames, checkDetails, attention, matrix, pasiStatus, wpsStatus keys
 - [x] Rewrite ComplianceDashboardPage.tsx with full localization (all hardcoded English removed)
 - [x] Fix CompanySwitcher for long company names (truncate + overflow-hidden)
+- [x] Add visual indicator to attendance card showing which shift is currently active (active pulse badge, shift time window progress bar, and 'active now' label)

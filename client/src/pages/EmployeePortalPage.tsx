@@ -390,6 +390,31 @@ function AttendanceTodayCard({
     !!operationalHints.checkInOpensAt &&
     (!checkIn || betweenShifts);
 
+  // --- Active shift indicator helpers ---
+  const shiftProgressPct = useMemo(() => {
+    if (!shift?.startTime || !shift?.endTime || !isWorkingDay) return null;
+    const now = new Date();
+    const toWall = (hhmm: string): Date => {
+      const [h, m] = hhmm.split(":").map(Number);
+      const d = new Date(now);
+      d.setHours(h, m, 0, 0);
+      return d;
+    };
+    const start = toWall(shift.startTime);
+    let end = toWall(shift.endTime);
+    if (end <= start) end = new Date(end.getTime() + 86_400_000); // overnight
+    const total = end.getTime() - start.getTime();
+    if (total <= 0) return null;
+    const elapsed = Math.max(0, Math.min(now.getTime() - start.getTime(), total));
+    return Math.round((elapsed / total) * 100);
+  }, [shift, isWorkingDay]);
+
+  // True when now is inside the shift window and employee is clocked in (not yet out)
+  const isShiftActive = useMemo(() => {
+    if (!shift?.startTime || !shift?.endTime || !isWorkingDay || !checkIn || !!checkOut) return false;
+    return shiftProgressPct !== null && shiftProgressPct > 0 && shiftProgressPct < 100;
+  }, [shift, isWorkingDay, checkIn, checkOut, shiftProgressPct]);
+
   const attendanceNextStepCaption =
     todayRecLoading || isHoliday
       ? null
@@ -436,18 +461,37 @@ function AttendanceTodayCard({
           </CardContent>
         </Card>
       ) : hasSchedule && shift ? (
-        <Card className={isWorkingDay ? "border-primary/20 bg-primary/5" : "border-muted bg-muted/30"}>
+        <Card className={cn(
+          isWorkingDay ? "border-primary/20 bg-primary/5" : "border-muted bg-muted/30",
+          isShiftActive && "border-green-400/60 bg-green-50/40 dark:border-green-600/40 dark:bg-green-950/20"
+        )}>
           <CardContent className="p-4">
             <div className="flex items-center justify-between gap-3 flex-wrap">
               <div className="flex items-center gap-3">
+                {/* Shift icon — pulses green when active */}
                 <div
-                  className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
-                  style={{ backgroundColor: shift?.color ? `${shift.color}22` : "#6366f122" }}
+                  className={cn(
+                    "w-9 h-9 rounded-full flex items-center justify-center shrink-0 transition-colors",
+                    isShiftActive && "ring-2 ring-green-400/60 ring-offset-1"
+                  )}
+                  style={{ backgroundColor: isShiftActive ? "#22c55e22" : (shift?.color ? `${shift.color}22` : "#6366f122") }}
                 >
-                  <Clock className="w-5 h-5" style={{ color: shift?.color ?? "#6366f1" }} />
+                  <Clock className="w-5 h-5" style={{ color: isShiftActive ? "#16a34a" : (shift?.color ?? "#6366f1") }} />
                 </div>
                 <div>
-                  <p className="font-semibold text-sm">{formatShiftDisplayName(shift.name)}</p>
+                  <div className="flex items-center gap-1.5">
+                    <p className="font-semibold text-sm">{formatShiftDisplayName(shift.name)}</p>
+                    {/* Active Now pulsing badge */}
+                    {isShiftActive && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-1.5 py-0.5 text-[10px] font-semibold text-green-700 dark:bg-green-900/40 dark:text-green-300">
+                        <span className="relative flex h-1.5 w-1.5">
+                          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-500 opacity-75" />
+                          <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-green-600" />
+                        </span>
+                        Active Now
+                      </span>
+                    )}
+                  </div>
                   <p className="text-xs text-muted-foreground">
                     {shift.startTime} – {shift.endTime}
                     {site ? ` · ${site.name}` : ""}
@@ -471,12 +515,40 @@ function AttendanceTodayCard({
                 )}
                 <Badge
                   variant="outline"
-                  className={`text-xs ${isWorkingDay ? "border-green-300 text-green-700 bg-green-50" : "border-gray-300 text-gray-600 bg-gray-50"}`}
+                  className={cn(
+                    "text-xs",
+                    isShiftActive
+                      ? "border-green-400 text-green-700 bg-green-50 dark:bg-green-900/20 dark:text-green-300"
+                      : isWorkingDay
+                        ? "border-green-300 text-green-700 bg-green-50"
+                        : "border-gray-300 text-gray-600 bg-gray-50"
+                  )}
                 >
-                  {isWorkingDay ? "Working Day" : "Day Off"}
+                  {isShiftActive ? "On Shift" : isWorkingDay ? "Working Day" : "Day Off"}
                 </Badge>
               </div>
             </div>
+            {/* Shift time-window progress bar — only shown during active window */}
+            {isWorkingDay && shiftProgressPct !== null && shiftProgressPct > 0 && shiftProgressPct < 100 && (
+              <div className="mt-3 space-y-1">
+                <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                  <span>{shift.startTime}</span>
+                  <span className={cn("font-medium", isShiftActive ? "text-green-700 dark:text-green-400" : "")}>
+                    {shiftProgressPct}% through shift
+                  </span>
+                  <span>{shift.endTime}</span>
+                </div>
+                <div className="relative h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                  <div
+                    className={cn(
+                      "h-full rounded-full transition-all duration-1000",
+                      isShiftActive ? "bg-green-500" : "bg-primary/50"
+                    )}
+                    style={{ width: `${shiftProgressPct}%` }}
+                  />
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       ) : todaySchedule !== undefined && todaySchedule !== null && !todaySchedule.hasSchedule ? (

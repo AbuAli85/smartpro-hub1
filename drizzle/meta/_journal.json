@@ -120,6 +120,13 @@
       "when": 1744920000000,
       "tag": "0034_attendance_sessions",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "5",
+      "when": 1744930000000,
+      "tag": "0036_profile_change_requests",
+      "breakpoints": true
     }
   ]
 }

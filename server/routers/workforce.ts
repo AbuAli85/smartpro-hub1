@@ -1,8 +1,9 @@
 import { TRPCError } from "@trpc/server";
 import { ENV } from "../_core/env";
 import { and, asc, desc, eq, gte, ilike, isNotNull, lt, lte, notInArray, or, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/mysql-core";
 import { z } from "zod";
-import { getDb, getUserCompany } from "../db";
+import { createNotification, getDb, getUserCompany } from "../db";
 import {
   auditEvents,
   caseTasks,
@@ -15,6 +16,8 @@ import {
   employees,
   governmentServiceCases,
   governmentSyncJobs,
+  profileChangeRequests,
+  users,
   workPermits,
 } from "../../drizzle/schema";
 import type { User } from "../../drizzle/schema";
@@ -108,6 +111,30 @@ async function hasPermission(
   // For other roles, check explicit permission list
   const perms: string[] = Array.isArray(member.permissions) ? member.permissions : [];
   return perms.includes(permission) || perms.includes("*");
+}
+
+/** HR / company admins may resolve employee profile change requests (employees.write or admin roles). */
+async function canManageEmployeeProfileRequests(
+  user: Pick<User, "id" | "role" | "platformRole">,
+  companyId: number,
+): Promise<boolean> {
+  if (canAccessGlobalAdminProcedures(user)) return true;
+  if (await hasPermission(user, companyId, "employees.write")) return true;
+  const db = await getDb();
+  if (!db) return false;
+  const [member] = await db
+    .select({ role: companyMembers.role })
+    .from(companyMembers)
+    .where(
+      and(
+        eq(companyMembers.userId, user.id),
+        eq(companyMembers.companyId, companyId),
+        eq(companyMembers.isActive, true),
+      ),
+    )
+    .limit(1);
+  if (!member) return false;
+  return member.role === "company_admin" || member.role === "hr_admin";
 }
 
 function normalizePermitStatus(raw?: string | null): "active" | "expiring_soon" | "expired" | "in_grace" | "cancelled" | "transferred" | "pending_update" | "unknown" {
@@ -443,6 +470,197 @@ export const workforceRouter = router({
             expiryDate: effectiveExpiry,
           },
         };
+      }),
+  }),
+
+  // ── Profile change requests (employee self-service → HR queue) ────────────
+  profileChangeRequests: router({
+    listForEmployee: protectedProcedure
+      .input(z.object({ employeeId: z.number() }))
+      .query(async ({ ctx, input }) => {
+        const companyId = await getMemberCompanyId(ctx.user);
+        if (!companyId) throw new TRPCError({ code: "FORBIDDEN" });
+        if (!(await hasPermission(ctx.user, companyId, "employees.read"))) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "You do not have permission to view employees" });
+        }
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+        const [emp] = await db
+          .select({ id: employees.id })
+          .from(employees)
+          .where(and(eq(employees.id, input.employeeId), eq(employees.companyId, companyId)))
+          .limit(1);
+        if (!emp) throw new TRPCError({ code: "NOT_FOUND" });
+
+        const submitter = alias(users, "pcr_submitter");
+        const resolver = alias(users, "pcr_resolver");
+
+        return db
+          .select({
+            id: profileChangeRequests.id,
+            companyId: profileChangeRequests.companyId,
+            employeeId: profileChangeRequests.employeeId,
+            submittedByUserId: profileChangeRequests.submittedByUserId,
+            fieldLabel: profileChangeRequests.fieldLabel,
+            requestedValue: profileChangeRequests.requestedValue,
+            notes: profileChangeRequests.notes,
+            status: profileChangeRequests.status,
+            submittedAt: profileChangeRequests.submittedAt,
+            resolvedAt: profileChangeRequests.resolvedAt,
+            resolvedByUserId: profileChangeRequests.resolvedByUserId,
+            resolutionNote: profileChangeRequests.resolutionNote,
+            submitterName: submitter.name,
+            submitterEmail: submitter.email,
+            resolverName: resolver.name,
+          })
+          .from(profileChangeRequests)
+          .leftJoin(submitter, eq(submitter.id, profileChangeRequests.submittedByUserId))
+          .leftJoin(resolver, eq(resolver.id, profileChangeRequests.resolvedByUserId))
+          .where(
+            and(
+              eq(profileChangeRequests.companyId, companyId),
+              eq(profileChangeRequests.employeeId, input.employeeId),
+            ),
+          )
+          .orderBy(desc(profileChangeRequests.submittedAt));
+      }),
+
+    resolve: protectedProcedure
+      .input(
+        z.object({
+          requestId: z.number(),
+          resolutionNote: z.string().trim().max(500).optional(),
+        }),
+      )
+      .mutation(async ({ ctx, input }) => {
+        const companyId = await getMemberCompanyId(ctx.user);
+        if (!companyId) throw new TRPCError({ code: "FORBIDDEN" });
+        if (!(await canManageEmployeeProfileRequests(ctx.user, companyId))) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "You do not have permission to resolve profile change requests",
+          });
+        }
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+        const [row] = await db
+          .select()
+          .from(profileChangeRequests)
+          .where(
+            and(
+              eq(profileChangeRequests.id, input.requestId),
+              eq(profileChangeRequests.companyId, companyId),
+            ),
+          )
+          .limit(1);
+        if (!row) throw new TRPCError({ code: "NOT_FOUND" });
+        if (row.status !== "pending") {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Request is already closed" });
+        }
+
+        await db
+          .update(profileChangeRequests)
+          .set({
+            status: "resolved",
+            resolvedAt: new Date(),
+            resolvedByUserId: ctx.user.id,
+            resolutionNote: input.resolutionNote?.trim() || null,
+          })
+          .where(eq(profileChangeRequests.id, row.id));
+
+        const [emp] = await db
+          .select({ userId: employees.userId })
+          .from(employees)
+          .where(eq(employees.id, row.employeeId))
+          .limit(1);
+        if (emp?.userId) {
+          await createNotification(
+            {
+              userId: emp.userId,
+              companyId,
+              type: "profile_change_resolved",
+              title: "Profile update request handled",
+              message: `Your request to update "${row.fieldLabel}" was marked resolved by HR.`,
+              link: "/my-portal",
+              isRead: false,
+            },
+            { actorUserId: ctx.user.id },
+          );
+        }
+
+        return { success: true };
+      }),
+
+    reject: protectedProcedure
+      .input(
+        z.object({
+          requestId: z.number(),
+          resolutionNote: z.string().trim().max(500).optional(),
+        }),
+      )
+      .mutation(async ({ ctx, input }) => {
+        const companyId = await getMemberCompanyId(ctx.user);
+        if (!companyId) throw new TRPCError({ code: "FORBIDDEN" });
+        if (!(await canManageEmployeeProfileRequests(ctx.user, companyId))) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "You do not have permission to reject profile change requests",
+          });
+        }
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+        const [row] = await db
+          .select()
+          .from(profileChangeRequests)
+          .where(
+            and(
+              eq(profileChangeRequests.id, input.requestId),
+              eq(profileChangeRequests.companyId, companyId),
+            ),
+          )
+          .limit(1);
+        if (!row) throw new TRPCError({ code: "NOT_FOUND" });
+        if (row.status !== "pending") {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Request is already closed" });
+        }
+
+        await db
+          .update(profileChangeRequests)
+          .set({
+            status: "rejected",
+            resolvedAt: new Date(),
+            resolvedByUserId: ctx.user.id,
+            resolutionNote: input.resolutionNote?.trim() || null,
+          })
+          .where(eq(profileChangeRequests.id, row.id));
+
+        const [emp] = await db
+          .select({ userId: employees.userId })
+          .from(employees)
+          .where(eq(employees.id, row.employeeId))
+          .limit(1);
+        if (emp?.userId) {
+          const note = input.resolutionNote?.trim();
+          await createNotification(
+            {
+              userId: emp.userId,
+              companyId,
+              type: "profile_change_rejected",
+              title: "Profile update request closed",
+              message: note
+                ? `Your request to update "${row.fieldLabel}" was closed. Note from HR: ${note}`
+                : `Your request to update "${row.fieldLabel}" was closed. Contact HR if you need more help.`,
+              link: "/my-portal",
+              isRead: false,
+            },
+            { actorUserId: ctx.user.id },
+          );
+        }
+
+        return { success: true };
       }),
   }),
 

@@ -15,6 +15,7 @@ import ProServicesPage from "./pages/ProServicesPage";
 import MarketplacePage from "./pages/MarketplacePage";
 import ContractsPage from "./pages/ContractsPage";
 import HREmployeesPage from "./pages/HREmployeesPage";
+import HrEmployeeDetailRedirect from "./pages/HrEmployeeDetailRedirect";
 import HRRecruitmentPage from "./pages/HRRecruitmentPage";
 import HRLeavePage from "./pages/HRLeavePage";
 import CRMPage from "./pages/CRMPage";
@@ -131,6 +132,7 @@ function AppRoutes() {
         <Route path="/pro" component={ProServicesPage} />
         <Route path="/marketplace" component={MarketplacePage} />
         <Route path="/contracts" component={ContractsPage} />
+        <Route path="/hr/employees/:id" component={HrEmployeeDetailRedirect} />
         <Route path="/hr/employees" component={HREmployeesPage} />
         <Route path="/hr/recruitment" component={HRRecruitmentPage} />
         <Route path="/hr/leave" component={HRLeavePage} />

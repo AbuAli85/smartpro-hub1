@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useLocation, useParams } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
@@ -6,9 +7,20 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { toast } from "sonner";
 import {
   ArrowLeft, User, FileText, Shield, Calendar, Building2,
-  Phone, Mail, MapPin, CreditCard, Globe, AlertTriangle
+  Phone, CreditCard, Globe, AlertTriangle, ClipboardList, CheckCircle2, XCircle,
 } from "lucide-react";
 import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
 
@@ -50,6 +62,39 @@ export default function WorkforceEmployeeDetailPage() {
     { employeeId },
     { enabled: employeeId > 0 }
   );
+
+  const { data: profileChangeRows, isLoading: profileChangeLoading } =
+    trpc.workforce.profileChangeRequests.listForEmployee.useQuery(
+      { employeeId },
+      { enabled: employeeId > 0 },
+    );
+
+  const utils = trpc.useUtils();
+  const resolveReq = trpc.workforce.profileChangeRequests.resolve.useMutation({
+    onSuccess: () => {
+      toast.success("Marked as resolved");
+      void utils.workforce.profileChangeRequests.listForEmployee.invalidate({ employeeId });
+      setActionDialog({ open: false, mode: "resolve", requestId: null });
+      setActionNote("");
+    },
+    onError: (e) => toast.error(e.message),
+  });
+  const rejectReq = trpc.workforce.profileChangeRequests.reject.useMutation({
+    onSuccess: () => {
+      toast.success("Request closed");
+      void utils.workforce.profileChangeRequests.listForEmployee.invalidate({ employeeId });
+      setActionDialog({ open: false, mode: "resolve", requestId: null });
+      setActionNote("");
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const [actionDialog, setActionDialog] = useState<{
+    open: boolean;
+    mode: "resolve" | "reject";
+    requestId: number | null;
+  }>({ open: false, mode: "resolve", requestId: null });
+  const [actionNote, setActionNote] = useState("");
 
   if (isLoading) {
     return (
@@ -146,6 +191,164 @@ export default function WorkforceEmployeeDetailPage() {
             </Card>
           ))}
         </div>
+
+        {/* Profile change requests (employee self-service → HR) */}
+        <Card className="shadow-sm border-primary/15">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <ClipboardList className="w-4 h-4 text-primary" />
+              Profile change requests
+            </CardTitle>
+            <p className="text-xs text-muted-foreground">
+              Requests submitted from the employee portal. Resolve or close after updating the employee record.
+            </p>
+          </CardHeader>
+          <CardContent className="pt-0">
+            {profileChangeLoading ? (
+              <Skeleton className="h-16 w-full rounded-md" />
+            ) : !profileChangeRows || profileChangeRows.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-2">No profile change requests on file.</p>
+            ) : (
+              <div className="space-y-3">
+                {(["pending", "resolved", "rejected"] as const).map((bucket) => {
+                  const rows = profileChangeRows.filter((r) => r.status === bucket);
+                  if (rows.length === 0) return null;
+                  return (
+                    <div key={bucket}>
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">
+                        {bucket === "pending" ? "Pending" : bucket === "resolved" ? "Resolved" : "Closed / rejected"}
+                      </p>
+                      <ul className="space-y-2">
+                        {rows.map((r) => (
+                          <li
+                            key={r.id}
+                            className="rounded-md border border-border/60 bg-muted/20 px-3 py-2.5 text-sm"
+                          >
+                            <div className="flex flex-wrap items-start justify-between gap-2">
+                              <div className="min-w-0 space-y-1">
+                                <p className="font-medium text-foreground">{r.fieldLabel}</p>
+                                <p className="text-xs text-muted-foreground break-words">
+                                  <span className="font-medium text-foreground/90">Requested value: </span>
+                                  {r.requestedValue}
+                                </p>
+                                {r.notes ? (
+                                  <p className="text-xs text-muted-foreground">
+                                    <span className="font-medium">Employee notes: </span>
+                                    {r.notes}
+                                  </p>
+                                ) : null}
+                                <p className="text-[11px] text-muted-foreground">
+                                  Submitted {r.submittedAt ? fmtDateTime(r.submittedAt as string | Date) : "—"}
+                                  {r.submitterName || r.submitterEmail
+                                    ? ` · by ${r.submitterName ?? r.submitterEmail ?? "employee"}`
+                                    : ""}
+                                </p>
+                                {r.status !== "pending" && r.resolvedAt ? (
+                                  <p className="text-[11px] text-muted-foreground">
+                                    {r.status === "resolved" ? "Resolved" : "Closed"}{" "}
+                                    {fmtDateTime(r.resolvedAt as string | Date)}
+                                    {r.resolverName ? ` · ${r.resolverName}` : ""}
+                                    {r.resolutionNote ? ` — ${r.resolutionNote}` : ""}
+                                  </p>
+                                ) : null}
+                              </div>
+                              {r.status === "pending" && (
+                                <div className="flex flex-wrap gap-1.5 shrink-0">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-7 text-xs gap-1"
+                                    onClick={() => {
+                                      setActionNote("");
+                                      setActionDialog({ open: true, mode: "resolve", requestId: r.id });
+                                    }}
+                                  >
+                                    <CheckCircle2 className="h-3.5 w-3.5" /> Resolve
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-7 text-xs gap-1 text-muted-foreground"
+                                    onClick={() => {
+                                      setActionNote("");
+                                      setActionDialog({ open: true, mode: "reject", requestId: r.id });
+                                    }}
+                                  >
+                                    <XCircle className="h-3.5 w-3.5" /> Close
+                                  </Button>
+                                </div>
+                              )}
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Dialog
+          open={actionDialog.open}
+          onOpenChange={(open) => {
+            if (!open) setActionDialog({ open: false, mode: "resolve", requestId: null });
+          }}
+        >
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>
+                {actionDialog.mode === "resolve" ? "Mark request resolved" : "Close request"}
+              </DialogTitle>
+              <DialogDescription>
+                {actionDialog.mode === "resolve"
+                  ? "Confirm after you have updated the employee record in the HR system."
+                  : "Use when the change cannot be applied or was handled another way. The employee will be notified."}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-2 py-2">
+              <Label className="text-xs">Note for audit trail (optional)</Label>
+              <Textarea
+                value={actionNote}
+                onChange={(e) => setActionNote(e.target.value)}
+                placeholder="e.g. Updated in payroll system…"
+                rows={3}
+                maxLength={500}
+                className="text-sm resize-none"
+              />
+            </div>
+            <DialogFooter className="gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setActionDialog({ open: false, mode: "resolve", requestId: null })}
+              >
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                disabled={
+                  !actionDialog.requestId ||
+                  resolveReq.isPending ||
+                  rejectReq.isPending
+                }
+                onClick={() => {
+                  const id = actionDialog.requestId;
+                  if (!id) return;
+                  const note = actionNote.trim() || undefined;
+                  if (actionDialog.mode === "resolve") {
+                    resolveReq.mutate({ requestId: id, resolutionNote: note });
+                  } else {
+                    rejectReq.mutate({ requestId: id, resolutionNote: note });
+                  }
+                }}
+              >
+                {actionDialog.mode === "resolve" ? "Mark resolved" : "Close request"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* Tabs */}
         <Tabs defaultValue="profile">

@@ -12,6 +12,7 @@ import {
   companies,
   employeeSchedules,
   shiftTemplates,
+  profileChangeRequests,
 } from "../../drizzle/schema";
 import { evaluateCheckoutOutcomeByShiftTimes } from "@shared/attendanceCheckoutPolicy";
 import { muscatCalendarYmdFromUtcInstant } from "@shared/attendanceMuscatTime";
@@ -177,10 +178,41 @@ export const employeePortalRouter = router({
       if (!myEmp) throw new TRPCError({ code: "NOT_FOUND", message: "Employee record not found" });
       const db = await requireDb();
 
+      const normalizedLabel = input.fieldLabel.trim().toLowerCase();
+      const pendingSame = await db
+        .select({ id: profileChangeRequests.id, fieldLabel: profileChangeRequests.fieldLabel })
+        .from(profileChangeRequests)
+        .where(
+          and(
+            eq(profileChangeRequests.companyId, m.companyId),
+            eq(profileChangeRequests.employeeId, myEmp.id),
+            eq(profileChangeRequests.status, "pending"),
+          ),
+        );
+      for (const row of pendingSame) {
+        if (row.fieldLabel.trim().toLowerCase() === normalizedLabel) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: "You already have a pending request for this field. HR will review it soon.",
+          });
+        }
+      }
+
+      const [insertResult] = await db.insert(profileChangeRequests).values({
+        companyId: m.companyId,
+        employeeId: myEmp.id,
+        submittedByUserId: ctx.user.id,
+        fieldLabel: input.fieldLabel.trim(),
+        requestedValue: input.requestedValue.trim(),
+        notes: input.reason?.trim() || null,
+        status: "pending",
+      });
+      const requestId = Number((insertResult as { insertId?: number }).insertId);
+
       const empName = [myEmp.firstName, myEmp.lastName].filter(Boolean).join(" ") || "Employee";
       const message = `${empName} requests update to "${input.fieldLabel}": ${input.requestedValue}${input.reason ? ` — Reason: ${input.reason}` : ""}`;
 
-      // Notify all company admins/HR so they can act on it
+      // Notify all company admins/HR so they can act on it (supplement to persisted queue)
       const admins = await db
         .select({ userId: companyMembers.userId })
         .from(companyMembers)
@@ -191,6 +223,7 @@ export const employeePortalRouter = router({
           ),
         );
 
+      const detailLink = `/workforce/employees/${myEmp.id}`;
       for (const admin of admins) {
         if (admin.userId) {
           await sendEmployeeNotification({
@@ -199,13 +232,44 @@ export const employeePortalRouter = router({
             type: "profile_change_request",
             title: "Profile change request",
             message,
-            link: `/hr/employees/${myEmp.id}`,
+            link: detailLink,
             actorUserId: ctx.user.id,
           });
         }
       }
 
-      return { success: true };
+      return { success: true, id: requestId };
+    }),
+
+  /** Pending profile change requests for the logged-in employee (self-service). */
+  getMyProfileChangeRequests: protectedProcedure
+    .input(z.object({ companyId: z.number().optional() }))
+    .query(async ({ ctx, input }) => {
+      const m = await getActiveCompanyMembership(ctx.user.id, input.companyId ?? undefined);
+      if (!m) return [];
+      const myEmp = await resolveMyEmployee(ctx.user.id, ctx.user.email ?? "", m.companyId);
+      if (!myEmp) return [];
+      const db = await requireDb();
+      return db
+        .select({
+          id: profileChangeRequests.id,
+          fieldLabel: profileChangeRequests.fieldLabel,
+          requestedValue: profileChangeRequests.requestedValue,
+          notes: profileChangeRequests.notes,
+          status: profileChangeRequests.status,
+          submittedAt: profileChangeRequests.submittedAt,
+          resolvedAt: profileChangeRequests.resolvedAt,
+          resolutionNote: profileChangeRequests.resolutionNote,
+        })
+        .from(profileChangeRequests)
+        .where(
+          and(
+            eq(profileChangeRequests.companyId, m.companyId),
+            eq(profileChangeRequests.employeeId, myEmp.id),
+          ),
+        )
+        .orderBy(desc(profileChangeRequests.submittedAt))
+        .limit(50);
     }),
 
   // ─── Get my attendance for a given month ──────────────────────────────────

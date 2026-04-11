@@ -685,6 +685,30 @@ export const employees = mysqlTable(
 
 export type Employee = typeof employees.$inferSelect;
 
+/** Employee self-service requests for HR-managed profile field corrections (system of record, not notifications-only). */
+export const profileChangeRequests = mysqlTable(
+  "profile_change_requests",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    companyId: int("companyId").notNull(),
+    employeeId: int("employeeId").notNull(),
+    submittedByUserId: int("submittedByUserId").notNull(),
+    fieldLabel: varchar("fieldLabel", { length: 100 }).notNull(),
+    requestedValue: varchar("requestedValue", { length: 500 }).notNull(),
+    notes: varchar("notes", { length: 500 }),
+    status: mysqlEnum("status", ["pending", "resolved", "rejected"]).default("pending").notNull(),
+    submittedAt: timestamp("submittedAt").defaultNow().notNull(),
+    resolvedAt: timestamp("resolvedAt"),
+    resolvedByUserId: int("resolvedByUserId"),
+    resolutionNote: varchar("resolutionNote", { length: 500 }),
+  },
+  (t) => [
+    index("idx_pcr_company_employee").on(t.companyId, t.employeeId),
+    index("idx_pcr_company_status").on(t.companyId, t.status),
+  ]
+);
+export type ProfileChangeRequest = typeof profileChangeRequests.$inferSelect;
+
 // ─── HR: JOB POSTINGS ─────────────────────────────────────────────────────────
 
 export const jobPostings = mysqlTable(

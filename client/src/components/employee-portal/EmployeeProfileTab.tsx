@@ -1015,8 +1015,10 @@ function ProfileChangeRequestDialog({
     }
   }, [state.open, state.fieldHint]);
 
+  const utils = trpc.useUtils();
   const submit = trpc.employeePortal.submitProfileChangeRequest.useMutation({
     onSuccess: () => {
+      void utils.employeePortal.getMyProfileChangeRequests.invalidate();
       toast.success("Request sent to HR", {
         description: "Your HR team will review and update the information.",
       });
@@ -1144,6 +1146,12 @@ export function EmployeeProfileTab({
     setChangeRequest({ open: true, fieldHint });
   }
 
+  const { data: myChangeRequests } = trpc.employeePortal.getMyProfileChangeRequests.useQuery(
+    { companyId: activeCompanyId ?? undefined },
+    { enabled: activeCompanyId != null },
+  );
+  const pendingChangeRequests = (myChangeRequests ?? []).filter((r) => r.status === "pending");
+
   const latestPayslip = payroll.length > 0 ? payroll[0] : null;
 
   const completeness = computeProfileCompleteness(emp, {
@@ -1152,6 +1160,21 @@ export function EmployeeProfileTab({
 
   return (
     <div className="space-y-4">
+      {pendingChangeRequests.length > 0 && (
+        <div
+          className="rounded-lg border border-sky-200/80 bg-sky-50/80 px-3 py-2.5 text-sm dark:border-sky-900/50 dark:bg-sky-950/30"
+          role="status"
+        >
+          <p className="font-medium text-sky-900 dark:text-sky-100">
+            {pendingChangeRequests.length === 1
+              ? "1 profile update request is pending HR review."
+              : `${pendingChangeRequests.length} profile update requests are pending HR review.`}
+          </p>
+          <p className="text-xs text-sky-800/90 dark:text-sky-300/90 mt-0.5">
+            You will be notified when HR marks your request resolved.
+          </p>
+        </div>
+      )}
       {/* 1. Identity header */}
       <ProfileHeader
         emp={emp}

@@ -410,7 +410,24 @@ export const schedulingRouter = router({
 
       const board = drafts.map((d) => {
         const { schedule: s, shift, site, empRow, emp, startT, endT, grace } = d;
-        const record = empRow ? recordByScheduleId.get(s.id) : undefined;
+        let record = empRow ? recordByScheduleId.get(s.id) : undefined;
+
+        if (record?.checkOut && record.checkOut.getTime() <= record.checkIn.getTime()) {
+          record = undefined;
+        }
+        if (record) {
+          const strictOverlap = attendanceOverlapShiftMinutes(
+            record.checkIn,
+            record.checkOut ?? null,
+            today,
+            startT,
+            endT,
+            now.getTime()
+          );
+          if (strictOverlap === 0 && record.checkOut) {
+            record = undefined;
+          }
+        }
 
         const status = computeAdminBoardRowStatus({
           now,

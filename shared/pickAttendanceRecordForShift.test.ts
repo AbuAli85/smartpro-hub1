@@ -1,6 +1,25 @@
 import { describe, it, expect } from "vitest";
 import { muscatWallDateTimeToUtc } from "./attendanceMuscatTime";
-import { pickAttendanceRecordForShift, shiftAttendanceWindowUtcMs } from "./pickAttendanceRecordForShift";
+import {
+  pickAttendanceRecordForShift,
+  shiftAttendanceWindowUtcMs,
+  isPositiveDurationAttendanceRecord,
+} from "./pickAttendanceRecordForShift";
+
+describe("isPositiveDurationAttendanceRecord", () => {
+  const day = "2026-04-11";
+  it("rejects same instant check-in and check-out", () => {
+    const t = muscatWallDateTimeToUtc(day, "18:00:00").getTime();
+    expect(
+      isPositiveDurationAttendanceRecord({
+        id: 1,
+        siteId: 1,
+        checkIn: new Date(t),
+        checkOut: new Date(t),
+      })
+    ).toBe(false);
+  });
+});
 
 describe("muscatWallDateTimeToUtc", () => {
   it("maps 10:00 Muscat on 2026-04-11 to 06:00 UTC same calendar day", () => {

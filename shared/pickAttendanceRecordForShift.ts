@@ -7,6 +7,12 @@ export type AttendanceRecordLike = {
   checkOut: Date | null;
 };
 
+/** Drop instant / inverted clock rows (bad imports or corrupt saves). Open sessions are kept. */
+export function isPositiveDurationAttendanceRecord(r: AttendanceRecordLike): boolean {
+  if (r.checkOut == null) return true;
+  return r.checkOut.getTime() > r.checkIn.getTime();
+}
+
 function overlapMs(a0: number, a1: number, b0: number, b1: number): number {
   return Math.max(0, Math.min(a1, b1) - Math.max(a0, b0));
 }
@@ -44,10 +50,11 @@ export function pickAttendanceRecordForShift<T extends AttendanceRecordLike>(
   gracePeriodMinutes: number,
   nowMs: number = Date.now()
 ): T | undefined {
-  if (!records.length) return undefined;
+  const valid = records.filter(isPositiveDurationAttendanceRecord);
+  if (!valid.length) return undefined;
 
-  const siteCandidates = records.filter((r) => r.siteId == null || r.siteId === scheduleSiteId);
-  const pool = siteCandidates.length ? siteCandidates : records;
+  const siteCandidates = valid.filter((r) => r.siteId == null || r.siteId === scheduleSiteId);
+  const pool = siteCandidates.length ? siteCandidates : valid;
 
   const { startMs, endMs } = shiftAttendanceWindowUtcMs(
     businessDate,

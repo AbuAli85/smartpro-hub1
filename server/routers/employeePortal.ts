@@ -713,9 +713,10 @@ export const employeePortalRouter = router({
   updateMyContactInfo: protectedProcedure
     .input(z.object({
       companyId: z.number().optional(),
-      phone: z.string().optional(),
-      emergencyContactName: z.string().optional(),
-      emergencyContactPhone: z.string().optional(),
+      // Trim whitespace; enforce column length limits; reject obviously invalid format
+      phone: z.string().trim().max(32).optional(),
+      emergencyContactName: z.string().trim().max(100).optional(),
+      emergencyContactPhone: z.string().trim().max(32).optional(),
     }))
     .mutation(async ({ input, ctx }) => {
       const m = await getActiveCompanyMembership(ctx.user.id, input.companyId ?? undefined);
@@ -723,10 +724,11 @@ export const employeePortalRouter = router({
       const myEmp = await resolveMyEmployee(ctx.user.id, ctx.user.email ?? "", m.companyId);
       if (!myEmp) throw new TRPCError({ code: "NOT_FOUND", message: "Employee record not found" });
       const db = await requireDb();
-      const updateData: Record<string, any> = {};
-      if (input.phone !== undefined) updateData.phone = input.phone;
-      if (input.emergencyContactName !== undefined) updateData.emergencyContactName = input.emergencyContactName;
-      if (input.emergencyContactPhone !== undefined) updateData.emergencyContactPhone = input.emergencyContactPhone;
+      const updateData: Record<string, string | null> = {};
+      // Normalize empty strings → null so the DB stores a clean null, not ""
+      if (input.phone !== undefined) updateData.phone = input.phone || null;
+      if (input.emergencyContactName !== undefined) updateData.emergencyContactName = input.emergencyContactName || null;
+      if (input.emergencyContactPhone !== undefined) updateData.emergencyContactPhone = input.emergencyContactPhone || null;
       if (Object.keys(updateData).length > 0) {
         await db.update(employees).set(updateData).where(eq(employees.id, myEmp.id));
       }

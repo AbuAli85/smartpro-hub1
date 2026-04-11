@@ -20,7 +20,7 @@ import {
   Clock, AlertCircle, ChevronRight, Megaphone,
   DollarSign, LogIn, Plus, Check, X, Building2, Briefcase,
   Phone, Mail, MapPin, Shield, ChevronLeft, ChevronRight as ChevronRightIcon,
-  CreditCard, UserCheck, Edit2, Save, Download, QrCode,
+  UserCheck, Save, Download, QrCode,
   AlertTriangle, Info, Wallet, Timer, BarChart2, CalendarCheck,
   FileCheck, FilePlus, ExternalLink, RefreshCw, Star, ArrowLeftRight, Repeat,
   Target, Activity, Award, ListChecks, PieChart, TrendingDown, Flame, Trophy,
@@ -75,6 +75,8 @@ import { EmployeePortalOverview } from "@/components/employee-portal/EmployeePor
 import { EmployeePortalMoreHub } from "@/components/employee-portal/EmployeePortalMoreHub";
 import { EmployeePortalBottomNav } from "@/components/employee-portal/EmployeePortalBottomNav";
 import { EmployeePortalTaskCard } from "@/components/employee-portal/EmployeePortalTaskCard";
+import { EmployeeProfileTab } from "@/components/employee-portal/EmployeeProfileTab";
+import { deriveProfileBooleans, type ProfileEmpData } from "@/lib/employeeProfileUtils";
 import { CheckInEligibilityReasonCode } from "@shared/attendanceCheckInEligibility";
 import { buildEmployeeTodayAttendanceStatus } from "@shared/employeeTodayAttendanceStatus";
 import { shouldOfferManualAttendanceFallback } from "@shared/manualAttendanceFallback";
@@ -1911,11 +1913,6 @@ export default function EmployeePortalPage() {
   const [shiftReqAttachmentName, setShiftReqAttachmentName] = useState<string | null>(null);
   const [uploadingAttachment, setUploadingAttachment] = useState(false);
 
-  // Profile edit state
-  const [editingContact, setEditingContact] = useState(false);
-  const [editPhone, setEditPhone] = useState("");
-  const [editEmergencyName, setEditEmergencyName] = useState("");
-  const [editEmergencyPhone, setEditEmergencyPhone] = useState("");
   const [portalClock, setPortalClock] = useState(0);
 
   // â”€â”€ Queries â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -2121,15 +2118,6 @@ export default function EmployeePortalPage() {
     onSuccess: () => {
       toast.success("Leave request cancelled");
       utils.employeePortal.getMyLeave.invalidate();
-    },
-    onError: (err) => toast.error(err.message),
-  });
-
-  const updateContact = trpc.employeePortal.updateMyContactInfo.useMutation({
-    onSuccess: () => {
-      toast.success("Contact information updated");
-      setEditingContact(false);
-      refetchProfile();
     },
     onError: (err) => toast.error(err.message),
   });
@@ -2541,15 +2529,9 @@ export default function EmployeePortalPage() {
     );
   }
 
-  const emp = profile as any;
-  const fullName = [emp.firstName, emp.lastName].filter(Boolean).join(" ") || "Employee";
-  const arabicFullName =
-    emp.firstNameAr || emp.lastNameAr
-      ? [emp.firstNameAr, emp.lastNameAr].filter(Boolean).join(" ")
-      : null;
-  const payrollReady = !!(emp.bankName || emp.bankAccountNumber || emp.bankIban);
-  const hasPhone = !!emp.phone;
-  const hasEmergencyContact = !!(emp.emergencyContactName || emp.emergencyContactPhone);
+  const emp = profile as ProfileEmpData;
+  const { fullName, arabicFullName, payrollReady, hasPhone, hasEmergencyContact } =
+    deriveProfileBooleans(emp);
 
   // â”€â”€ Main Portal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   return (
@@ -3582,416 +3564,24 @@ export default function EmployeePortalPage() {
           </TabsContent>
 
           {/* â•â• PROFILE TAB â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
-          <TabsContent value="profile" className="mt-0 space-y-4 focus-visible:outline-none">
-
-            {/* ── 1. PROFILE SUMMARY HEADER ─────────────────────────── */}
-            <Card className="overflow-hidden">
-              <div className="h-1.5 w-full bg-gradient-to-r from-primary/60 via-primary to-primary/60" />
-              <CardContent className="p-5">
-                <div className="flex items-start gap-4">
-                  <div className="relative shrink-0">
-                    <div className="w-[4.5rem] h-[4.5rem] rounded-full bg-primary/10 ring-2 ring-primary/20 flex items-center justify-center overflow-hidden">
-                      {emp.avatarUrl
-                        ? <img src={emp.avatarUrl} alt={fullName} className="w-full h-full object-cover" />
-                        : <User className="w-9 h-9 text-primary" />}
-                    </div>
-                    {emp.status === "active" && (
-                      <span className="absolute bottom-0.5 right-0.5 h-3.5 w-3.5 rounded-full border-2 border-card bg-green-500" aria-label="Active" />
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0 space-y-1">
-                    <div className="space-y-0.5">
-                      <h2 className="text-lg font-bold leading-tight break-words">{fullName}</h2>
-                      {arabicFullName && (
-                        <p className="text-sm text-muted-foreground leading-snug" dir="rtl" lang="ar">{arabicFullName}</p>
-                      )}
-                    </div>
-                    <p className="text-sm text-muted-foreground">
-                      {[emp.position ?? "Employee", emp.department, companyInfo?.name].filter(Boolean).join(" \u00b7 ")}
-                    </p>
-                    <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-                      {emp.employeeNumber && (
-                        <Badge variant="outline" className="text-xs font-mono">#{emp.employeeNumber}</Badge>
-                      )}
-                      <Badge
-                        variant={emp.status === "active" ? "default" : "secondary"}
-                        className={cn("capitalize text-xs", emp.status === "active" && "bg-green-600 hover:bg-green-700")}
-                      >
-                        {emp.status ?? "Unknown"}
-                      </Badge>
-                      {emp.employmentType && (
-                        <Badge variant="outline" className="text-xs capitalize">
-                          {emp.employmentType.replace(/_/g, " ")}
-                        </Badge>
-                      )}
-                      <Badge
-                        variant="outline"
-                        className={cn(
-                          "text-xs gap-1",
-                          payrollReady
-                            ? "border-green-300 bg-green-50 text-green-700 dark:border-green-700 dark:bg-green-950/30 dark:text-green-400"
-                            : "border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-400"
-                        )}
-                      >
-                        {payrollReady
-                          ? <><Check className="h-3 w-3" /> Payroll Ready</>
-                          : <><AlertTriangle className="h-3 w-3" /> Bank Not Set</>}
-                      </Badge>
-                      {expiringDocs.length > 0 && (
-                        <Badge
-                          variant="outline"
-                          className="text-xs gap-1 cursor-pointer border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-400"
-                          onClick={() => setActiveTab("documents")}
-                        >
-                          <AlertTriangle className="h-3 w-3" />
-                          {expiringDocs.length} Doc{expiringDocs.length > 1 ? "s" : ""} Expiring
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* ── 2. ALERTS / REQUIRED ACTIONS ─────────────────────── */}
-            {(() => {
-              const alerts: { key: string; icon: React.ReactNode; title: string; desc: string; action?: () => void; actionLabel?: string }[] = [];
-              if (!payrollReady)
-                alerts.push({
-                  key: "bank",
-                  icon: <CreditCard className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />,
-                  title: "Bank details not on file",
-                  desc: "Your salary cannot be processed until bank info is added. Contact HR.",
-                });
-              if (!hasPhone)
-                alerts.push({
-                  key: "phone",
-                  icon: <Phone className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />,
-                  title: "Phone number missing",
-                  desc: "Add your phone number so HR and your team can reach you.",
-                  action: () => { setEditPhone(""); setEditEmergencyName(emp.emergencyContactName ?? ""); setEditEmergencyPhone(emp.emergencyContactPhone ?? ""); setEditingContact(true); },
-                  actionLabel: "Add phone",
-                });
-              if (!hasEmergencyContact)
-                alerts.push({
-                  key: "emergency",
-                  icon: <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />,
-                  title: "Emergency contact not on file",
-                  desc: "Providing an emergency contact is strongly recommended.",
-                  action: () => { setEditPhone(emp.phone ?? ""); setEditEmergencyName(""); setEditEmergencyPhone(""); setEditingContact(true); },
-                  actionLabel: "Add contact",
-                });
-              if (expiringDocs.length > 0)
-                alerts.push({
-                  key: "docs",
-                  icon: <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />,
-                  title: `${expiringDocs.length} document${expiringDocs.length > 1 ? "s" : ""} expiring soon`,
-                  desc: "Contact HR to renew before the expiry date.",
-                  action: () => setActiveTab("documents"),
-                  actionLabel: "View docs",
-                });
-              if (alerts.length === 0) return null;
-              return (
-                <div className="space-y-2">
-                  <p className="px-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Action Required</p>
-                  <div className="space-y-2">
-                    {alerts.map((a) => (
-                      <div key={a.key} className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50/60 px-3.5 py-3 dark:border-amber-800 dark:bg-amber-950/20">
-                        {a.icon}
-                        <div className="flex-1 min-w-0 space-y-0.5">
-                          <p className="text-sm font-semibold text-amber-900 dark:text-amber-200">{a.title}</p>
-                          <p className="text-xs text-amber-700 dark:text-amber-400 leading-snug">{a.desc}</p>
-                        </div>
-                        {a.action && a.actionLabel && (
-                          <Button size="sm" variant="outline" className="h-7 text-xs shrink-0 border-amber-300 hover:bg-amber-100 dark:border-amber-700" onClick={a.action}>
-                            {a.actionLabel}
-                          </Button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              );
-            })()}
-
-            {/* ── 3. CONTACT INFORMATION ────────────────────────────── */}
-            <Card>
-              <CardHeader className="pb-2">
-                <div className="flex items-center justify-between gap-2 flex-wrap">
-                  <CardTitle className="text-sm flex items-center gap-2">
-                    <Phone className="w-4 h-4 text-muted-foreground" /> Contact Information
-                  </CardTitle>
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline" className="text-[10px] font-normal text-green-700 border-green-300 bg-green-50 dark:text-green-400 dark:border-green-700 dark:bg-green-950/30 gap-1 py-0">
-                      <Edit2 className="h-2.5 w-2.5" /> You can edit
-                    </Badge>
-                    {!editingContact ? (
-                      <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => { setEditPhone(emp.phone ?? ""); setEditEmergencyName(emp.emergencyContactName ?? ""); setEditEmergencyPhone(emp.emergencyContactPhone ?? ""); setEditingContact(true); }}>
-                        <Edit2 className="w-3 h-3" /> Edit
-                      </Button>
-                    ) : (
-                      <div className="flex gap-2">
-                        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setEditingContact(false)}>Cancel</Button>
-                        <Button size="sm" className="h-7 text-xs gap-1" disabled={updateContact.isPending}
-                          onClick={() => activeCompanyId != null && updateContact.mutate({ companyId: activeCompanyId, phone: editPhone || undefined, emergencyContactName: editEmergencyName || undefined, emergencyContactPhone: editEmergencyPhone || undefined })}>
-                          <Save className="w-3 h-3" /> {updateContact.isPending ? "Saving..." : "Save"}
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {editingContact ? (
-                  <div className="space-y-4">
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">Phone Number</Label>
-                      <Input value={editPhone} onChange={(e) => setEditPhone(e.target.value)} placeholder="+968 XXXX XXXX" type="tel" autoComplete="tel" />
-                    </div>
-                    <Separator />
-                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Emergency Contact</p>
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">Name</Label>
-                      <Input value={editEmergencyName} onChange={(e) => setEditEmergencyName(e.target.value)} placeholder="Full name" />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">Phone</Label>
-                      <Input value={editEmergencyPhone} onChange={(e) => setEditEmergencyPhone(e.target.value)} placeholder="+968 XXXX XXXX" type="tel" autoComplete="tel" />
-                    </div>
-                    <p className="text-[11px] text-muted-foreground">Name, email, and nationality are HR-managed and cannot be changed here.</p>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {/* HR-managed identity fields */}
-                    <div>
-                      <div className="flex items-center gap-1.5 mb-2.5">
-                        <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Identity</p>
-                        <Badge variant="outline" className="text-[10px] font-normal text-muted-foreground gap-1 py-0 h-4 leading-none">
-                          <Shield className="h-2.5 w-2.5" /> HR-managed
-                        </Badge>
-                      </div>
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        {[
-                          { label: "Email", value: emp.email, Icon: Mail },
-                          { label: "Nationality", value: emp.nationality, Icon: MapPin },
-                          { label: "Date of Birth", value: emp.dateOfBirth ? formatDate(emp.dateOfBirth) : null, Icon: Calendar },
-                        ].filter((f) => f.value).map(({ label, value, Icon }) => (
-                          <div key={label} className="space-y-0.5">
-                            <p className="text-xs text-muted-foreground">{label}</p>
-                            <p className="text-sm font-medium flex items-center gap-1.5">
-                              <Icon className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-                              <span className="break-all">{value}</span>
-                            </p>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                    {/* Employee-editable: phone */}
-                    <div>
-                      <div className="flex items-center gap-1.5 mb-2.5">
-                        <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Your details</p>
-                        <Badge variant="outline" className="text-[10px] font-normal text-green-700 border-green-300 bg-green-50 dark:text-green-400 dark:border-green-700 dark:bg-green-950/20 gap-1 py-0 h-4 leading-none">
-                          <Edit2 className="h-2.5 w-2.5" /> Editable
-                        </Badge>
-                      </div>
-                      <div className="space-y-0.5">
-                        <p className="text-xs text-muted-foreground">Phone</p>
-                        {emp.phone ? (
-                          <p className="text-sm font-medium flex items-center gap-1.5">
-                            <Phone className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-                            <a href={`tel:${emp.phone}`} className="hover:underline">{emp.phone}</a>
-                          </p>
-                        ) : (
-                          <p className="text-sm text-muted-foreground italic">Not provided — tap Edit to add</p>
-                        )}
-                      </div>
-                    </div>
-                    {/* Emergency contact */}
-                    <div>
-                      <div className="flex items-center gap-1.5 mb-2.5">
-                        <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Emergency Contact</p>
-                        <Badge variant="outline" className="text-[10px] font-normal text-green-700 border-green-300 bg-green-50 dark:text-green-400 dark:border-green-700 dark:bg-green-950/20 gap-1 py-0 h-4 leading-none">
-                          <Edit2 className="h-2.5 w-2.5" /> Editable
-                        </Badge>
-                      </div>
-                      {hasEmergencyContact ? (
-                        <div className="grid gap-3 sm:grid-cols-2">
-                          {emp.emergencyContactName && (
-                            <div className="space-y-0.5">
-                              <p className="text-xs text-muted-foreground">Name</p>
-                              <p className="text-sm font-medium">{emp.emergencyContactName}</p>
-                            </div>
-                          )}
-                          {emp.emergencyContactPhone && (
-                            <div className="space-y-0.5">
-                              <p className="text-xs text-muted-foreground">Phone</p>
-                              <p className="text-sm font-medium">
-                                <a href={`tel:${emp.emergencyContactPhone}`} className="inline-flex items-center gap-1.5 hover:underline">
-                                  <Phone className="h-3.5 w-3.5 text-muted-foreground" />
-                                  {emp.emergencyContactPhone}
-                                </a>
-                              </p>
-                            </div>
-                          )}
-                        </div>
-                      ) : (
-                        <div className="flex items-center justify-between gap-3 rounded-lg bg-muted/40 px-3 py-2.5">
-                          <p className="text-xs text-muted-foreground">No emergency contact on file.</p>
-                          <Button size="sm" variant="outline" className="h-7 text-xs shrink-0" onClick={() => { setEditPhone(emp.phone ?? ""); setEditEmergencyName(""); setEditEmergencyPhone(""); setEditingContact(true); }}>
-                            Add
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* ── 4. EMPLOYMENT SUMMARY ─────────────────────────────── */}
-            <Card>
-              <CardHeader className="pb-2">
-                <div className="flex items-center justify-between gap-2">
-                  <CardTitle className="text-sm flex items-center gap-2">
-                    <Briefcase className="w-4 h-4 text-muted-foreground" /> Employment
-                  </CardTitle>
-                  <Badge variant="outline" className="text-[10px] font-normal text-muted-foreground gap-1 py-0">
-                    <Shield className="h-3 w-3" /> HR-managed
-                  </Badge>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid gap-3 sm:grid-cols-2 sm:gap-4">
-                  {[
-                    { label: "Company", value: companyInfo?.name, Icon: Building2 },
-                    { label: "Department", value: emp.department, Icon: Briefcase },
-                    { label: "Position / Title", value: emp.position, Icon: null },
-                    {
-                      label: "Employment Type",
-                      value: emp.employmentType
-                        ? emp.employmentType.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase())
-                        : null,
-                      Icon: null,
-                    },
-                    { label: "Hire Date", value: emp.hireDate ? formatDate(emp.hireDate) : null, Icon: Calendar },
-                    { label: "Status", value: emp.status ? emp.status.replace(/\b\w/g, (c: string) => c.toUpperCase()) : null, Icon: null },
-                  ].filter((f) => f.value).map(({ label, value, Icon }) => (
-                    <div key={label} className="space-y-0.5">
-                      <p className="text-xs text-muted-foreground">{label}</p>
-                      <p className="text-sm font-medium flex items-center gap-1.5">
-                        {Icon && <Icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
-                        <span className="break-words">{value}</span>
-                      </p>
-                    </div>
-                  ))}
-                </div>
-                <p className="text-[11px] text-muted-foreground border-t border-border/50 pt-3">
-                  Employment details are managed by HR. To request a correction, contact your HR team.
-                </p>
-              </CardContent>
-            </Card>
-
-            {/* ── 5. PAYROLL SETUP ──────────────────────────────────── */}
-            <Card className={cn(payrollReady ? "border-green-200/70 dark:border-green-800/40" : "border-amber-200/70 dark:border-amber-800/40")}>
-              <CardHeader className="pb-2">
-                <div className="flex items-center justify-between gap-2">
-                  <CardTitle className="text-sm flex items-center gap-2">
-                    <CreditCard className="w-4 h-4 text-muted-foreground" /> Payroll Setup
-                  </CardTitle>
-                  <Badge variant="outline" className={cn("text-xs gap-1", payrollReady ? "border-green-300 bg-green-50 text-green-700 dark:border-green-700 dark:bg-green-950/30 dark:text-green-400" : "border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-400")}>
-                    {payrollReady ? <><Check className="h-3 w-3" /> Ready</> : <><AlertTriangle className="h-3 w-3" /> Setup Needed</>}
-                  </Badge>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {payrollReady ? (
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    {emp.bankName && <div className="space-y-0.5"><p className="text-xs text-muted-foreground">Bank</p><p className="text-sm font-medium">{emp.bankName}</p></div>}
-                    {emp.bankAccountNumber && <div className="space-y-0.5"><p className="text-xs text-muted-foreground">Account Number</p><p className="text-sm font-medium font-mono">{emp.bankAccountNumber}</p></div>}
-                    {emp.bankIban && <div className="space-y-0.5 sm:col-span-2"><p className="text-xs text-muted-foreground">IBAN</p><p className="text-sm font-medium font-mono break-all">{emp.bankIban}</p></div>}
-                  </div>
-                ) : (
-                  <div className="flex items-start gap-3 rounded-lg bg-amber-50/60 p-3 dark:bg-amber-950/20">
-                    <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5 dark:text-amber-400" />
-                    <div>
-                      <p className="text-sm font-medium text-amber-900 dark:text-amber-200">Bank details not on file</p>
-                      <p className="text-xs text-amber-700 dark:text-amber-400 mt-0.5">Your salary cannot be processed until HR adds your bank information. Contact HR or your payroll coordinator.</p>
-                    </div>
-                  </div>
-                )}
-                <div className="flex items-center justify-between pt-1 border-t border-border/50">
-                  <p className="text-[11px] text-muted-foreground">Bank details are managed by HR only.</p>
-                  <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 text-primary" onClick={() => setActiveTab("payroll")}>
-                    <DollarSign className="h-3 w-3" /> View payslips
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* ── 6. DOCUMENTS & VISA NUMBERS ───────────────────────── */}
-            {(() => {
-              const docFields = [
-                { label: "Passport", value: emp.passportNumber, Icon: Shield, expiry: null as string | null },
-                { label: "National ID", value: emp.nationalId, Icon: User, expiry: null as string | null },
-                { label: "Visa Number", value: emp.visaNumber, Icon: FileCheck, expiry: emp.visaExpiryDate as string | null },
-                { label: "Visa Expiry", value: emp.visaExpiryDate ? formatDate(emp.visaExpiryDate) : null, Icon: Calendar, expiry: emp.visaExpiryDate as string | null },
-                { label: "Work Permit", value: emp.workPermitNumber, Icon: Briefcase, expiry: null as string | null },
-                { label: "Work Permit Expiry", value: emp.workPermitExpiryDate ? formatDate(emp.workPermitExpiryDate) : null, Icon: Calendar, expiry: emp.workPermitExpiryDate as string | null },
-                { label: "PASI Number", value: emp.pasiNumber, Icon: FileText, expiry: null as string | null },
-              ].filter((f) => f.value);
-              if (docFields.length === 0) return null;
-              const hasAnyExpiringHere = docFields.some(({ expiry }) => {
-                if (!expiry) return false;
-                const d = daysUntilExpiry(expiry);
-                return d !== null && d <= 90;
-              });
-              return (
-                <details className="group rounded-xl border border-border/80 bg-card shadow-sm open:shadow-md" open={hasAnyExpiringHere}>
-                  <summary className="flex cursor-pointer list-none items-center justify-between gap-2 p-4 text-sm font-semibold [&::-webkit-details-marker]:hidden">
-                    <span className="flex items-center gap-2">
-                      <Shield className="h-4 w-4 text-muted-foreground" /> Documents &amp; Visa
-                      {hasAnyExpiringHere && <Badge className="text-[10px] bg-amber-500 hover:bg-amber-600">Attention</Badge>}
-                    </span>
-                    <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-90" aria-hidden />
-                  </summary>
-                  <div className="border-t border-border/60 px-4 pb-4 pt-3 space-y-4">
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      {docFields.map(({ label, value, Icon, expiry }) => {
-                        const days = expiry ? daysUntilExpiry(expiry) : null;
-                        const isExpired = days !== null && days < 0;
-                        const isExpiring = days !== null && days >= 0 && days <= 90;
-                        return (
-                          <div key={label} className="space-y-0.5">
-                            <p className="text-xs text-muted-foreground">{label}</p>
-                            <p className={cn("flex items-center gap-1.5 text-sm font-medium", isExpired ? "text-red-600 dark:text-red-400" : isExpiring ? "text-amber-600 dark:text-amber-400" : "")}>
-                              {Icon && <Icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />}
-                              <span className="break-all">{value}</span>
-                              {isExpired && <Badge variant="destructive" className="ml-1 text-[10px]">Expired</Badge>}
-                              {isExpiring && !isExpired && (
-                                <Badge className={cn("ml-1 text-[10px]", days! <= 30 ? "bg-red-500 hover:bg-red-600" : "bg-amber-500 hover:bg-amber-600")}>
-                                  {days}d left
-                                </Badge>
-                              )}
-                            </p>
-                          </div>
-                        );
-                      })}
-                    </div>
-                    <p className="text-[11px] text-muted-foreground pt-1 border-t border-border/50">
-                      These fields are managed by HR. Contact your HR team to update or report errors.
-                    </p>
-                  </div>
-                </details>
-              );
-            })()}
-
-            <EmployeePortalMoreHub
+          <TabsContent value="profile" className="mt-0 focus-visible:outline-none">
+            <EmployeeProfileTab
+              emp={emp}
+              companyInfo={companyInfo}
+              payroll={(payroll as any[]) ?? []}
+              expiringDocs={expiringDocs}
+              docs={(docs as any[]) ?? []}
               setActiveTab={setActiveTab}
+              activeCompanyId={activeCompanyId}
+              payrollReady={payrollReady}
+              hasPhone={hasPhone}
+              hasEmergencyContact={hasEmergencyContact}
+              fullName={fullName}
+              arabicFullName={arabicFullName}
               pendingLeave={pendingLeave}
-              expiringDocsCount={expiringDocs.length}
               trainingAttentionCount={trainingAttentionCount}
-              pendingExpenses={pendingExpensesCount}
-              pendingShiftRequests={pendingShiftRequestsCount}
+              pendingExpensesCount={pendingExpensesCount}
+              pendingShiftRequestsCount={pendingShiftRequestsCount}
             />
           </TabsContent>
 

@@ -24,6 +24,7 @@ import {
 } from "@shared/attendanceBoardStatus";
 import { getShiftInstantBounds } from "@shared/employeePortalShift";
 import { pickScheduleRowForNow } from "@shared/pickScheduleForAttendanceNow";
+import { pickAttendanceRecordForShift } from "@shared/pickAttendanceRecordForShift";
 
 async function requireDb() {
   const db = await getDb();
@@ -359,11 +360,18 @@ export const schedulingRouter = router({
             .limit(1);
           emp = u ?? null;
         }
-        /** Prefer any same-day record for this employee (avoids false “absent” when siteId differs). */
+        /** Match a punch to this shift row (multi-shift days: do not reuse one clock for every row). */
+        const empDayRecords = empRow ? allRecords.filter((r) => r.employeeId === empRow.id) : [];
         const record = empRow
-          ? allRecords
-            .filter((r) => r.employeeId === empRow.id)
-            .sort((a, b) => b.checkIn.getTime() - a.checkIn.getTime())[0]
+          ? pickAttendanceRecordForShift(
+              empDayRecords,
+              s.siteId,
+              today,
+              shift?.startTime ?? "09:00",
+              shift?.endTime ?? "17:00",
+              shift?.gracePeriodMinutes ?? 15,
+              now.getTime(),
+            )
           : undefined;
 
         const startT = shift?.startTime ?? "09:00";

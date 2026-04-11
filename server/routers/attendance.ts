@@ -26,6 +26,7 @@ import {
 } from "@shared/attendanceAuditTaxonomy";
 import { resolveEmployeeAttendanceDayContext } from "../resolveEmployeeAttendanceDayContext";
 import { attendancePayloadJson, insertAttendanceAuditRow, logAttendanceAuditSafe } from "../attendanceAudit";
+import { muscatWallDateTimeToUtc } from "@shared/attendanceMuscatTime";
 
 async function requireDb() {
   const db = await getDb();
@@ -1213,27 +1214,17 @@ export const attendanceRouter = router({
         if (req.attendanceRecordId && (req.requestedCheckIn || req.requestedCheckOut)) {
           const updates: Record<string, Date | null> = {};
           if (req.requestedCheckIn) {
-            const [h, m] = req.requestedCheckIn.split(":").map(Number);
-            const dt = new Date(req.requestedDate + "T00:00:00");
-            dt.setHours(h, m, 0, 0);
-            updates.checkIn = dt;
+            updates.checkIn = muscatWallDateTimeToUtc(req.requestedDate, req.requestedCheckIn);
           }
           if (req.requestedCheckOut) {
-            const [h, m] = req.requestedCheckOut.split(":").map(Number);
-            const dt = new Date(req.requestedDate + "T00:00:00");
-            dt.setHours(h, m, 0, 0);
-            updates.checkOut = dt;
+            updates.checkOut = muscatWallDateTimeToUtc(req.requestedDate, req.requestedCheckOut);
           }
           await tx.update(attendanceRecords).set(updates).where(eq(attendanceRecords.id, req.attendanceRecordId));
         } else if (!req.attendanceRecordId && req.requestedCheckIn) {
-          const [h, m] = req.requestedCheckIn.split(":").map(Number);
-          const checkInDt = new Date(req.requestedDate + "T00:00:00");
-          checkInDt.setHours(h, m, 0, 0);
+          const checkInDt = muscatWallDateTimeToUtc(req.requestedDate, req.requestedCheckIn);
           let checkOutDt: Date | undefined;
           if (req.requestedCheckOut) {
-            const [ho, mo] = req.requestedCheckOut.split(":").map(Number);
-            checkOutDt = new Date(req.requestedDate + "T00:00:00");
-            checkOutDt.setHours(ho, mo, 0, 0);
+            checkOutDt = muscatWallDateTimeToUtc(req.requestedDate, req.requestedCheckOut);
           }
           const [ins] = await tx
             .insert(attendanceRecords)

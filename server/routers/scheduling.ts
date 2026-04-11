@@ -19,6 +19,7 @@ import { protectedProcedure, router } from "../_core/trpc";
 import { requireActiveCompanyId } from "../_core/tenant";
 import {
   computeAdminBoardRowStatus,
+  type AdminBoardRowStatus,
   arrivalDelayMinutesAfterGrace,
   minutesPastExpectedCheckIn,
 } from "@shared/attendanceBoardStatus";
@@ -446,37 +447,104 @@ export const schedulingRouter = router({
           }
         }
 
-        const status = computeAdminBoardRowStatus({
-          now,
-          businessDate: today,
-          holiday: !!holiday,
-          shiftStartTime: startT,
-          shiftEndTime: endT,
-          gracePeriodMinutes: grace,
-          record: record
-            ? { checkIn: record.checkIn, checkOut: record.checkOut ?? null }
-            : null,
-        });
-
         const { shiftStart } = getShiftInstantBounds(startT, endT, dayAnchor);
-
-        let delayMinutes: number | null = null;
-        if (status === "checked_in_late" && record) {
-          delayMinutes = arrivalDelayMinutesAfterGrace(record.checkIn, shiftStart, grace);
-        } else if (status === "late_no_checkin") {
-          delayMinutes = minutesPastExpectedCheckIn(now, shiftStart, grace);
+        const shiftEndMs = muscatShiftWallEndMs(today, startT, endT);
+        const sameEmpDrafts = empRow ? drafts.filter((x) => x.empRow?.id === empRow.id) : [];
+        const thisStartMs = muscatShiftWallStartMs(today, startT);
+        let nextShiftStartMs: number | null = null;
+        for (const o of sameEmpDrafts) {
+          const oms = muscatShiftWallStartMs(today, o.startT);
+          if (oms > thisStartMs && (nextShiftStartMs === null || oms < nextShiftStartMs)) {
+            nextShiftStartMs = oms;
+          }
         }
+        const coMs = record?.checkOut?.getTime() ?? null;
+        const longSessionSpansNextShift =
+          !!record?.checkOut &&
+          empRow != null &&
+          sameEmpDrafts.length >= 2 &&
+          nextShiftStartMs != null &&
+          coMs != null &&
+          coMs > shiftEndMs &&
+          coMs >= nextShiftStartMs;
 
+        let status: AdminBoardRowStatus;
+        let delayMinutes: number | null = null;
         let durationMinutes: number | null = null;
-        if (record) {
-          durationMinutes = attendanceOverlapShiftMinutes(
-            record.checkIn,
-            record.checkOut ?? null,
-            today,
-            startT,
-            endT,
-            now.getTime()
-          );
+        const checkInAt: Date | null = record?.checkIn ?? null;
+        let checkOutAt: Date | null = record?.checkOut ?? null;
+        let punchCheckOutAt: Date | null = null;
+
+        if (longSessionSpansNextShift && record?.checkOut) {
+          /**
+           * One physical row runs from before/through this shift into the next block (e.g. 10:00–22:00 with
+           * morning 10–13 and evening 18–22). Do **not** mark this shift “Completed” with full overlap minutes:
+           * there was no separate checkout for this segment. Show segment checkout as empty; keep full session
+           * end on `punchCheckOutAt` for HR visibility.
+           */
+          punchCheckOutAt = record.checkOut;
+          checkOutAt = null;
+          durationMinutes = null;
+          const nowT = now.getTime();
+          const deadline = shiftStart.getTime() + grace * 60_000;
+          const cin = record.checkIn.getTime();
+          if (nowT <= shiftEndMs) {
+            status = cin <= deadline ? "checked_in_on_time" : "checked_in_late";
+            if (status === "checked_in_late") {
+              delayMinutes = arrivalDelayMinutesAfterGrace(record.checkIn, shiftStart, grace);
+            }
+          } else if (nowT < coMs) {
+            status = "checked_in_late";
+            delayMinutes = null;
+          } else {
+            status = "late_no_checkin";
+            delayMinutes = null;
+          }
+        } else {
+          status = computeAdminBoardRowStatus({
+            now,
+            businessDate: today,
+            holiday: !!holiday,
+            shiftStartTime: startT,
+            shiftEndTime: endT,
+            gracePeriodMinutes: grace,
+            record: record
+              ? { checkIn: record.checkIn, checkOut: record.checkOut ?? null }
+              : null,
+          });
+
+          if (status === "checked_in_late" && record) {
+            delayMinutes = arrivalDelayMinutesAfterGrace(record.checkIn, shiftStart, grace);
+          } else if (status === "late_no_checkin") {
+            delayMinutes = minutesPastExpectedCheckIn(now, shiftStart, grace);
+          }
+
+          if (record) {
+            durationMinutes = attendanceOverlapShiftMinutes(
+              record.checkIn,
+              record.checkOut ?? null,
+              today,
+              startT,
+              endT,
+              now.getTime()
+            );
+          }
+
+          if (record?.checkOut != null && empRow != null) {
+            const co = record.checkOut.getTime();
+            const se = shiftEndMs;
+            if (co > se) {
+              const multiShiftDay = sameEmpDrafts.length >= 2;
+              const checkoutReachesOrPassesNextShiftStart =
+                nextShiftStartMs != null && co >= nextShiftStartMs;
+              const loneShiftButVeryLateCheckout =
+                sameEmpDrafts.length === 1 && nextShiftStartMs === null && co > se + 2 * 60 * 60 * 1000;
+              if ((multiShiftDay && checkoutReachesOrPassesNextShiftStart) || loneShiftButVeryLateCheckout) {
+                punchCheckOutAt = record.checkOut;
+                checkOutAt = new Date(se);
+              }
+            }
+          }
         }
 
         const employeeDisplayName =
@@ -492,40 +560,6 @@ export const schedulingRouter = router({
               : record
                 ? "QR / app"
                 : null;
-
-        /**
-         * Check-in: always the stored punch (`check_in`).
-         * Check-out: stored punch unless one session spans past this shift’s end into a later same-day shift
-         * (e.g. morning row + single 10:00–22:00 record) — then show this shift’s **wall end** so the row does
-         * not display the evening’s checkout as “morning checkout”. `punchCheckOutAt` keeps the raw DB time when capped.
-         */
-        const checkInAt: Date | null = record?.checkIn ?? null;
-        let checkOutAt: Date | null = record?.checkOut ?? null;
-        let punchCheckOutAt: Date | null = null;
-        if (record?.checkOut != null && empRow != null) {
-          const co = record.checkOut.getTime();
-          const se = muscatShiftWallEndMs(today, startT, endT);
-          if (co > se) {
-            const sameEmpDrafts = drafts.filter((x) => x.empRow?.id === empRow.id);
-            const thisStartMs = muscatShiftWallStartMs(today, startT);
-            let nextShiftStartMs: number | null = null;
-            for (const o of sameEmpDrafts) {
-              const oms = muscatShiftWallStartMs(today, o.startT);
-              if (oms > thisStartMs && (nextShiftStartMs === null || oms < nextShiftStartMs)) {
-                nextShiftStartMs = oms;
-              }
-            }
-            const multiShiftDay = sameEmpDrafts.length >= 2;
-            const checkoutReachesOrPassesNextShiftStart =
-              nextShiftStartMs != null && co >= nextShiftStartMs;
-            const loneShiftButVeryLateCheckout =
-              sameEmpDrafts.length === 1 && nextShiftStartMs === null && co > se + 2 * 60 * 60 * 1000;
-            if ((multiShiftDay && checkoutReachesOrPassesNextShiftStart) || loneShiftButVeryLateCheckout) {
-              punchCheckOutAt = record.checkOut;
-              checkOutAt = new Date(se);
-            }
-          }
-        }
 
         return {
           scheduleId: s.id,

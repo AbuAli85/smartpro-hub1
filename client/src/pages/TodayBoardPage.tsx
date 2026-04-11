@@ -263,13 +263,12 @@ export default function TodayBoardPage() {
                                 <span>{seg.checkInAt ? fmtTime(seg.checkInAt) : "—"}</span>
                                 <span> → </span>
                                 <span>{seg.checkOutAt ? fmtTime(seg.checkOutAt) : "—"}</span>
-                                {seg.punchCheckOutAt &&
-                                seg.checkOutAt &&
-                                new Date(seg.punchCheckOutAt).getTime() !== new Date(seg.checkOutAt).getTime() ? (
-                                  <span className="text-muted-foreground">
-                                    {" "}
-                                    (to {fmtTime(seg.punchCheckOutAt)})
-                                  </span>
+                                {!seg.checkOutAt && seg.punchCheckOutAt ? (
+                                  <span className="text-muted-foreground"> (open to {fmtTime(seg.punchCheckOutAt)})</span>
+                                ) : seg.checkOutAt &&
+                                  seg.punchCheckOutAt &&
+                                  new Date(seg.punchCheckOutAt).getTime() !== new Date(seg.checkOutAt).getTime() ? (
+                                  <span className="text-muted-foreground"> (to {fmtTime(seg.punchCheckOutAt)})</span>
                                 ) : null}
                                 {seg.durationMinutes != null && seg.checkInAt ? (
                                   <span className="text-muted-foreground"> ({seg.durationMinutes}m)</span>
@@ -359,12 +358,19 @@ export default function TodayBoardPage() {
                                     <span className="font-medium text-foreground">{fmtTime(b.checkInAt)}</span>
                                   </div>
                                 )}
-                                {b.checkOutAt && (
+                                {(b.checkOutAt || b.punchCheckOutAt) && (
                                   <div className="text-muted-foreground">
                                     Out:{" "}
-                                    <span className="font-medium text-foreground">{fmtTime(b.checkOutAt)}</span>
-                                    {b.punchCheckOutAt &&
-                                    new Date(b.punchCheckOutAt).getTime() !== new Date(b.checkOutAt).getTime() ? (
+                                    <span className="font-medium text-foreground">
+                                      {b.checkOutAt ? fmtTime(b.checkOutAt) : "—"}
+                                    </span>
+                                    {!b.checkOutAt && b.punchCheckOutAt ? (
+                                      <span className="block text-[10px] font-normal">
+                                        Open session {fmtTime(b.punchCheckOutAt)}
+                                      </span>
+                                    ) : b.punchCheckOutAt &&
+                                      b.checkOutAt &&
+                                      new Date(b.punchCheckOutAt).getTime() !== new Date(b.checkOutAt).getTime() ? (
                                       <span className="block text-[10px] font-normal">
                                         Session {fmtTime(b.punchCheckOutAt)}
                                       </span>

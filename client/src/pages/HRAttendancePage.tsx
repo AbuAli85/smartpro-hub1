@@ -555,7 +555,7 @@ function TodayBoard({ companyId }: { companyId: number | null }) {
         <div className="rounded-lg border border-primary/20 bg-primary/[0.04] px-3 py-3 space-y-2">
           <p className="text-xs font-semibold text-foreground">Full day — same person, multiple shifts (Asia/Muscat)</p>
           <p className="text-[11px] text-muted-foreground leading-snug">
-            One calendar day can include a morning block and an evening block. The table below is still <span className="font-medium text-foreground">per shift</span> for status. Check-in is always the stored punch. If one long session runs past the next shift&apos;s start, checkout on the earlier row shows that shift&apos;s end time, with the real session end noted when applicable.
+            One calendar day can include a morning block and an evening block. The table below is still <span className="font-medium text-foreground">per shift</span> for status. If one clock session reaches the next shift&apos;s start without a separate morning checkout, the earlier shift is <span className="font-medium text-foreground">not</span> marked completed with a full-window duration; use checkout when it happens or split into two records.
           </p>
           <ul className="space-y-2 text-sm">
             {(data.fullDaySummaries ?? []).map((fd) => (
@@ -599,9 +599,14 @@ function TodayBoard({ companyId }: { companyId: number | null }) {
                           <span>{seg.checkInAt ? fmtTime(seg.checkInAt) : "—"}</span>
                           <span> → </span>
                           <span>{seg.checkOutAt ? fmtTime(seg.checkOutAt) : "—"}</span>
-                          {seg.punchCheckOutAt &&
-                          seg.checkOutAt &&
-                          new Date(seg.punchCheckOutAt).getTime() !== new Date(seg.checkOutAt).getTime() ? (
+                          {!seg.checkOutAt && seg.punchCheckOutAt ? (
+                            <span className="text-muted-foreground">
+                              {" "}
+                              (open session to {fmtTime(seg.punchCheckOutAt)})
+                            </span>
+                          ) : seg.checkOutAt &&
+                            seg.punchCheckOutAt &&
+                            new Date(seg.punchCheckOutAt).getTime() !== new Date(seg.checkOutAt).getTime() ? (
                             <span className="text-muted-foreground">
                               {" "}
                               (session to {fmtTime(seg.punchCheckOutAt)})
@@ -656,9 +661,13 @@ function TodayBoard({ companyId }: { companyId: number | null }) {
                 <td className="px-3 py-2.5 whitespace-nowrap">{row.checkInAt ? fmtTime(row.checkInAt) : "—"}</td>
                 <td className="px-3 py-2.5 whitespace-nowrap">
                   {row.checkOutAt ? fmtTime(row.checkOutAt) : "—"}
-                  {row.punchCheckOutAt &&
-                  row.checkOutAt &&
-                  new Date(row.punchCheckOutAt).getTime() !== new Date(row.checkOutAt).getTime() ? (
+                  {!row.checkOutAt && row.punchCheckOutAt ? (
+                    <div className="text-[10px] text-muted-foreground leading-tight mt-0.5">
+                      Open session to {fmtTime(row.punchCheckOutAt)}
+                    </div>
+                  ) : row.checkOutAt &&
+                    row.punchCheckOutAt &&
+                    new Date(row.punchCheckOutAt).getTime() !== new Date(row.checkOutAt).getTime() ? (
                     <div className="text-[10px] text-muted-foreground leading-tight mt-0.5">
                       Session to {fmtTime(row.punchCheckOutAt)}
                     </div>

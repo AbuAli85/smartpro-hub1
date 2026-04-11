@@ -2392,8 +2392,39 @@ export const shiftTemplates = mysqlTable("shift_templates", {
 export type ShiftTemplate = typeof shiftTemplates.$inferSelect;
 export type InsertShiftTemplate = typeof shiftTemplates.$inferInsert;
 
+// ─── Employee Schedule Groups ─────────────────────────────────────────────────
+// Parent record for a multi-shift roster assignment.
+// Holds the shared metadata (employee, site, working days, date range) while
+// each child employee_schedules row carries an individual shift template.
+// Legacy employee_schedules rows where group_id IS NULL remain fully supported.
+export const employeeScheduleGroups = mysqlTable(
+  "employee_schedule_groups",
+  {
+    id: int("id").primaryKey().autoincrement(),
+    companyId: int("company_id").notNull(),
+    employeeUserId: int("employee_user_id").notNull(),
+    siteId: int("site_id").notNull(),
+    workingDays: varchar("working_days", { length: 20 }).notNull().default("0,1,2,3,4"),
+    startDate: date("start_date", { mode: "string" }).notNull(),
+    endDate: date("end_date", { mode: "string" }),
+    isActive: boolean("is_active").notNull().default(true),
+    notes: text("notes"),
+    createdByUserId: int("created_by_user_id").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  },
+  (t) => [
+    index("idx_esg_company_emp_active").on(t.companyId, t.employeeUserId, t.isActive),
+    index("idx_esg_company_active_dates").on(t.companyId, t.isActive, t.startDate, t.endDate),
+  ]
+);
+export type EmployeeScheduleGroup = typeof employeeScheduleGroups.$inferSelect;
+export type InsertEmployeeScheduleGroup = typeof employeeScheduleGroups.$inferInsert;
+
 // ─── Employee Schedules ───────────────────────────────────────────────────────
-// Assigns a shift template to an employee for specific days at a specific site
+// Assigns a shift template to an employee for specific days at a specific site.
+// group_id links to employee_schedule_groups for multi-shift assignments;
+// NULL means a standalone legacy row.
 export const employeeSchedules = mysqlTable(
   "employee_schedules",
   {
@@ -2402,6 +2433,8 @@ export const employeeSchedules = mysqlTable(
     employeeUserId: int("employee_user_id").notNull(),
     siteId: int("site_id").notNull(),
     shiftTemplateId: int("shift_template_id").notNull(),
+    /** FK to employee_schedule_groups.id — null for legacy ungrouped rows. */
+    groupId: int("group_id"),
     workingDays: varchar("working_days", { length: 20 }).notNull().default("0,1,2,3,4"),
     startDate: date("start_date", { mode: "string" }).notNull(),
     endDate: date("end_date", { mode: "string" }),
@@ -2414,6 +2447,7 @@ export const employeeSchedules = mysqlTable(
   (t) => [
     index("idx_emp_sched_company_emp_active").on(t.companyId, t.employeeUserId, t.isActive),
     index("idx_emp_sched_company_active_dates").on(t.companyId, t.isActive, t.startDate, t.endDate),
+    index("idx_emp_sched_group_id").on(t.groupId),
   ]
 );
 export type EmployeeSchedule = typeof employeeSchedules.$inferSelect;

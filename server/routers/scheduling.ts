@@ -9,6 +9,7 @@ import { getDb, getUserCompany } from "../db";
 import {
   shiftTemplates,
   employeeSchedules,
+  employeeScheduleGroups,
   companyHolidays,
   attendanceSites,
   attendanceRecords,
@@ -71,6 +72,70 @@ function todayStr(): string {
 
 function todayDow(): number {
   return muscatCalendarWeekdaySun0();
+}
+
+// ─── Shift-overlap helpers ────────────────────────────────────────────────────
+
+/** Convert "HH:MM" → minutes since midnight. */
+function hhmm(t: string): number {
+  const [h, m] = t.split(":").map(Number);
+  return (h || 0) * 60 + (m || 0);
+}
+
+/**
+ * Returns true when two shift windows overlap.
+ * Overnight shifts (endTime < startTime) are treated as ending +24 h.
+ * A window that merely touches at a boundary (A ends when B starts) is NOT
+ * considered an overlap so back-to-back shifts are allowed.
+ */
+function shiftsOverlap(
+  a: { startTime: string; endTime: string },
+  b: { startTime: string; endTime: string },
+): boolean {
+  let aS = hhmm(a.startTime);
+  let aE = hhmm(a.endTime);
+  let bS = hhmm(b.startTime);
+  let bE = hhmm(b.endTime);
+  if (aE <= aS) aE += 1440;
+  if (bE <= bS) bE += 1440;
+  return aS < bE && bS < aE;
+}
+
+/**
+ * Validates a list of shift-template ids for within-group overlap / duplicates.
+ * Returns a string error message, or null when valid.
+ */
+async function validateShiftSegments(
+  db: Awaited<ReturnType<typeof requireDb>>,
+  shiftTemplateIds: number[],
+): Promise<string | null> {
+  if (shiftTemplateIds.length === 0) return "At least one shift segment is required.";
+
+  // Duplicate template ids
+  const seen = new Set<number>();
+  for (const id of shiftTemplateIds) {
+    if (seen.has(id)) return "Duplicate shift template selected in the same roster assignment.";
+    seen.add(id);
+  }
+
+  // Load times for all selected templates
+  const rows = await db
+    .select({ id: shiftTemplates.id, startTime: shiftTemplates.startTime, endTime: shiftTemplates.endTime, name: shiftTemplates.name })
+    .from(shiftTemplates)
+    .where(inArray(shiftTemplates.id, shiftTemplateIds));
+
+  if (rows.length !== shiftTemplateIds.length) return "One or more shift templates not found.";
+
+  // Check every pair for overlap
+  for (let i = 0; i < rows.length; i++) {
+    for (let j = i + 1; j < rows.length; j++) {
+      if (shiftsOverlap(rows[i]!, rows[j]!)) {
+        return `Shifts "${rows[i]!.name}" (${rows[i]!.startTime}–${rows[i]!.endTime}) and "${rows[j]!.name}" (${rows[j]!.startTime}–${rows[j]!.endTime}) overlap.`;
+      }
+    }
+  }
+
+  return null;
 }
 
 export const schedulingRouter = router({
@@ -165,7 +230,13 @@ export const schedulingRouter = router({
         const [empByUserId] = empById ? [empById] : await db.select({ id: employees.id, userId: employees.userId, firstName: employees.firstName, lastName: employees.lastName, email: employees.email, avatarUrl: employees.avatarUrl })
           .from(employees).where(and(eq(employees.companyId, companyId), eq(employees.userId, s.employeeUserId))).limit(1);
         const emp = empById ?? empByUserId ?? null;
-        return { ...s, shift: shift ?? null, site: site ?? null, employee: emp ? { ...emp, name: `${emp.firstName} ${emp.lastName}`.trim() } : null };
+        return {
+          ...s,
+          groupId: s.groupId ?? null,
+          shift: shift ?? null,
+          site: site ?? null,
+          employee: emp ? { ...emp, name: `${emp.firstName} ${emp.lastName}`.trim() } : null,
+        };
       }));
     }),
 
@@ -228,6 +299,319 @@ export const schedulingRouter = router({
       const db = await requireDb();
       await db.update(employeeSchedules).set({ isActive: false })
         .where(and(eq(employeeSchedules.id, input.id), eq(employeeSchedules.companyId, companyId)));
+      return { success: true };
+    }),
+
+  // ── Multi-shift group procedures ──────────────────────────────────────────
+
+  /**
+   * List all active schedule groups with their child shift rows.
+   * Also surfaces legacy ungrouped rows as single-shift "pseudo-groups" so the
+   * frontend has one unified data source.
+   */
+  listScheduleGroups: protectedProcedure
+    .input(z.object({
+      companyId: z.number().optional(),
+      employeeUserId: z.number().optional(),
+    }))
+    .query(async ({ ctx, input }) => {
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      const db = await requireDb();
+
+      // 1. Load all active groups
+      const groupConds = [
+        eq(employeeScheduleGroups.companyId, companyId),
+        eq(employeeScheduleGroups.isActive, true),
+      ] as Parameters<typeof and>;
+      if (input.employeeUserId) groupConds.push(eq(employeeScheduleGroups.employeeUserId, input.employeeUserId));
+      const groups = await db.select().from(employeeScheduleGroups).where(and(...groupConds));
+
+      // 2. Load all active schedule rows (includes ungrouped)
+      const schedConds = [
+        eq(employeeSchedules.companyId, companyId),
+        eq(employeeSchedules.isActive, true),
+      ] as Parameters<typeof and>;
+      if (input.employeeUserId) schedConds.push(eq(employeeSchedules.employeeUserId, input.employeeUserId));
+      const allRows = await db.select().from(employeeSchedules).where(and(...schedConds));
+
+      // 3. Bulk-load referenced shift templates and sites
+      const templateIds = [...new Set(allRows.map((r) => r.shiftTemplateId))];
+      const siteIds = [...new Set([
+        ...groups.map((g) => g.siteId),
+        ...allRows.filter((r) => r.groupId == null).map((r) => r.siteId),
+      ])];
+      const empUserIds = [...new Set([
+        ...groups.map((g) => g.employeeUserId),
+        ...allRows.filter((r) => r.groupId == null).map((r) => r.employeeUserId),
+      ])];
+
+      const [shiftsAll, sitesAll, empsAll] = await Promise.all([
+        templateIds.length ? db.select().from(shiftTemplates).where(inArray(shiftTemplates.id, templateIds)) : Promise.resolve([]),
+        siteIds.length ? db.select().from(attendanceSites).where(inArray(attendanceSites.id, siteIds)) : Promise.resolve([]),
+        db.select({ id: employees.id, userId: employees.userId, firstName: employees.firstName, lastName: employees.lastName, email: employees.email, avatarUrl: employees.avatarUrl })
+          .from(employees).where(and(eq(employees.companyId, companyId))),
+      ]);
+      const shiftById = new Map(shiftsAll.map((s) => [s.id, s]));
+      const siteById = new Map(sitesAll.map((s) => [s.id, s]));
+      const empById = new Map(empsAll.map((e) => [e.id, e]));
+      const empByUserId = new Map(empsAll.filter((e) => e.userId != null).map((e) => [e.userId as number, e]));
+
+      function resolveEmp(empUserId: number) {
+        const e = empById.get(empUserId) ?? empByUserId.get(empUserId);
+        if (!e) return null;
+        return { id: e.id, userId: e.userId, name: `${e.firstName} ${e.lastName}`.trim(), email: e.email ?? null, avatarUrl: e.avatarUrl ?? null };
+      }
+
+      // 4. Build group entries (rows with groupId != null)
+      const rowsByGroupId = new Map<number, typeof allRows>();
+      for (const r of allRows) {
+        if (r.groupId == null) continue;
+        const arr = rowsByGroupId.get(r.groupId) ?? [];
+        arr.push(r);
+        rowsByGroupId.set(r.groupId, arr);
+      }
+
+      const groupEntries = groups.map((g) => {
+        const rows = (rowsByGroupId.get(g.id) ?? [])
+          .filter((r) => r.isActive)
+          .sort((a, b) => {
+            const ta = shiftById.get(a.shiftTemplateId)?.startTime ?? "";
+            const tb = shiftById.get(b.shiftTemplateId)?.startTime ?? "";
+            return ta.localeCompare(tb);
+          });
+        const shifts = rows.map((r) => ({
+          scheduleId: r.id,
+          shiftTemplateId: r.shiftTemplateId,
+          shift: shiftById.get(r.shiftTemplateId) ?? null,
+        }));
+        return {
+          type: "group" as const,
+          groupId: g.id,
+          companyId: g.companyId,
+          employeeUserId: g.employeeUserId,
+          employee: resolveEmp(g.employeeUserId),
+          siteId: g.siteId,
+          site: siteById.get(g.siteId) ?? null,
+          workingDays: g.workingDays,
+          startDate: g.startDate,
+          endDate: g.endDate ?? null,
+          notes: g.notes ?? null,
+          isActive: g.isActive,
+          shifts,
+        };
+      });
+
+      // 5. Build ungrouped legacy entries
+      const ungroupedRows = allRows.filter((r) => r.groupId == null);
+      const legacyEntries = ungroupedRows.map((r) => ({
+        type: "legacy" as const,
+        groupId: null,
+        scheduleId: r.id,
+        companyId: r.companyId,
+        employeeUserId: r.employeeUserId,
+        employee: resolveEmp(r.employeeUserId),
+        siteId: r.siteId,
+        site: siteById.get(r.siteId) ?? null,
+        workingDays: r.workingDays,
+        startDate: r.startDate,
+        endDate: r.endDate ?? null,
+        notes: r.notes ?? null,
+        isActive: r.isActive,
+        shifts: [{
+          scheduleId: r.id,
+          shiftTemplateId: r.shiftTemplateId,
+          shift: shiftById.get(r.shiftTemplateId) ?? null,
+        }],
+      }));
+
+      const allEntries = [...groupEntries, ...legacyEntries];
+      // Sort by employee name
+      allEntries.sort((a, b) =>
+        (a.employee?.name ?? "").localeCompare(b.employee?.name ?? "", undefined, { sensitivity: "base" })
+      );
+      return allEntries;
+    }),
+
+  /**
+   * Create a grouped multi-shift roster assignment.
+   * Validates shift segments for overlap/duplicates before inserting.
+   */
+  assignScheduleGroup: protectedProcedure
+    .input(z.object({
+      companyId: z.number().optional(),
+      employeeUserId: z.number(),
+      siteId: z.number(),
+      shiftTemplateIds: z.array(z.number()).min(1).max(10),
+      workingDays: z.array(z.number().min(0).max(6)).min(1),
+      startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+      notes: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      const db = await requireDb();
+
+      const overlapErr = await validateShiftSegments(db, input.shiftTemplateIds);
+      if (overlapErr) throw new TRPCError({ code: "BAD_REQUEST", message: overlapErr });
+
+      const workingDaysStr = [...input.workingDays].sort().join(",");
+
+      const [groupResult] = await db.insert(employeeScheduleGroups).values({
+        companyId,
+        employeeUserId: input.employeeUserId,
+        siteId: input.siteId,
+        workingDays: workingDaysStr,
+        startDate: input.startDate,
+        endDate: input.endDate ?? null,
+        isActive: true,
+        notes: input.notes ?? null,
+        createdByUserId: ctx.user.id,
+      });
+      const groupId = (groupResult as { insertId: number }).insertId;
+
+      const scheduleIds: number[] = [];
+      for (const templateId of input.shiftTemplateIds) {
+        const [r] = await db.insert(employeeSchedules).values({
+          companyId,
+          employeeUserId: input.employeeUserId,
+          siteId: input.siteId,
+          shiftTemplateId: templateId,
+          groupId,
+          workingDays: workingDaysStr,
+          startDate: input.startDate,
+          endDate: input.endDate ?? null,
+          isActive: true,
+          notes: input.notes ?? null,
+          createdByUserId: ctx.user.id,
+        });
+        scheduleIds.push((r as { insertId: number }).insertId);
+      }
+
+      return { groupId, scheduleIds };
+    }),
+
+  /**
+   * Update a schedule group: metadata (site, working days, dates, notes) + reconcile
+   * the shift-template list. Old rows not in the new set are deactivated; new
+   * templates get fresh rows inserted; unchanged rows keep their id (preserving
+   * attendance attribution).
+   */
+  updateScheduleGroup: protectedProcedure
+    .input(z.object({
+      groupId: z.number(),
+      companyId: z.number().optional(),
+      employeeUserId: z.number().optional(),
+      siteId: z.number().optional(),
+      shiftTemplateIds: z.array(z.number()).min(1).max(10).optional(),
+      workingDays: z.array(z.number().min(0).max(6)).min(1).optional(),
+      startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+      endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+      notes: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      const db = await requireDb();
+
+      // Load existing group
+      const [group] = await db.select().from(employeeScheduleGroups)
+        .where(and(eq(employeeScheduleGroups.id, input.groupId), eq(employeeScheduleGroups.companyId, companyId)))
+        .limit(1);
+      if (!group) throw new TRPCError({ code: "NOT_FOUND", message: "Schedule group not found." });
+
+      if (input.shiftTemplateIds) {
+        const overlapErr = await validateShiftSegments(db, input.shiftTemplateIds);
+        if (overlapErr) throw new TRPCError({ code: "BAD_REQUEST", message: overlapErr });
+      }
+
+      const workingDaysStr = input.workingDays ? [...input.workingDays].sort().join(",") : undefined;
+
+      // Update group-level metadata
+      const groupUpdates: Partial<typeof employeeScheduleGroups.$inferInsert> = {};
+      if (input.siteId !== undefined) groupUpdates.siteId = input.siteId;
+      if (workingDaysStr !== undefined) groupUpdates.workingDays = workingDaysStr;
+      if (input.startDate !== undefined) groupUpdates.startDate = input.startDate;
+      if (input.endDate !== undefined) groupUpdates.endDate = input.endDate ?? null;
+      if (input.notes !== undefined) groupUpdates.notes = input.notes;
+      if (input.employeeUserId !== undefined) groupUpdates.employeeUserId = input.employeeUserId;
+
+      if (Object.keys(groupUpdates).length > 0) {
+        await db.update(employeeScheduleGroups).set(groupUpdates)
+          .where(and(eq(employeeScheduleGroups.id, input.groupId), eq(employeeScheduleGroups.companyId, companyId)));
+      }
+
+      if (input.shiftTemplateIds) {
+        // Reconcile child rows
+        const existingRows = await db.select()
+          .from(employeeSchedules)
+          .where(and(eq(employeeSchedules.groupId, input.groupId), eq(employeeSchedules.companyId, companyId), eq(employeeSchedules.isActive, true)));
+
+        const existingTemplateIds = new Set(existingRows.map((r) => r.shiftTemplateId));
+        const desiredTemplateIds = new Set(input.shiftTemplateIds);
+
+        // Deactivate removed rows
+        for (const row of existingRows) {
+          if (!desiredTemplateIds.has(row.shiftTemplateId)) {
+            await db.update(employeeSchedules).set({ isActive: false })
+              .where(and(eq(employeeSchedules.id, row.id), eq(employeeSchedules.companyId, companyId)));
+          }
+        }
+
+        // Effective values after update
+        const effectiveSiteId = input.siteId ?? group.siteId;
+        const effectiveWorkingDays = workingDaysStr ?? group.workingDays;
+        const effectiveStartDate = input.startDate ?? group.startDate;
+        const effectiveEndDate = input.endDate !== undefined ? (input.endDate ?? null) : group.endDate;
+        const effectiveEmployeeUserId = input.employeeUserId ?? group.employeeUserId;
+
+        // Update shared fields on kept rows
+        for (const row of existingRows) {
+          if (desiredTemplateIds.has(row.shiftTemplateId)) {
+            await db.update(employeeSchedules).set({
+              siteId: effectiveSiteId,
+              workingDays: effectiveWorkingDays,
+              startDate: effectiveStartDate,
+              endDate: effectiveEndDate ?? null,
+              employeeUserId: effectiveEmployeeUserId,
+              notes: input.notes ?? row.notes,
+            }).where(and(eq(employeeSchedules.id, row.id), eq(employeeSchedules.companyId, companyId)));
+          }
+        }
+
+        // Insert new rows
+        for (const templateId of input.shiftTemplateIds) {
+          if (!existingTemplateIds.has(templateId)) {
+            await db.insert(employeeSchedules).values({
+              companyId,
+              employeeUserId: effectiveEmployeeUserId,
+              siteId: effectiveSiteId,
+              shiftTemplateId: templateId,
+              groupId: input.groupId,
+              workingDays: effectiveWorkingDays,
+              startDate: effectiveStartDate,
+              endDate: effectiveEndDate ?? null,
+              isActive: true,
+              notes: input.notes ?? group.notes ?? null,
+              createdByUserId: ctx.user.id,
+            });
+          }
+        }
+      }
+
+      return { success: true };
+    }),
+
+  /**
+   * Soft-delete a schedule group and all its child rows.
+   */
+  deleteScheduleGroup: protectedProcedure
+    .input(z.object({ groupId: z.number(), companyId: z.number().optional() }))
+    .mutation(async ({ ctx, input }) => {
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      const db = await requireDb();
+      await db.update(employeeScheduleGroups).set({ isActive: false })
+        .where(and(eq(employeeScheduleGroups.id, input.groupId), eq(employeeScheduleGroups.companyId, companyId)));
+      await db.update(employeeSchedules).set({ isActive: false })
+        .where(and(eq(employeeSchedules.groupId, input.groupId), eq(employeeSchedules.companyId, companyId)));
       return { success: true };
     }),
 
@@ -997,11 +1381,11 @@ export const schedulingRouter = router({
           lte(attendanceRecords.checkIn, new Date(dayEndUtcMs)),
           isNull(attendanceRecords.checkOut),
         ));
-      // Keep the latest open record per user
-      const openByUserId = new Map<number, typeof openRecords[number]>();
+      // Keep the latest open record per employee (keyed by employeeId)
+      const openByEmployeeId = new Map<number, typeof openRecords[number]>();
       for (const r of openRecords) {
-        const existing = openByUserId.get(r.userId);
-        if (!existing || r.checkIn > existing.checkIn) openByUserId.set(r.userId, r);
+        const existing = openByEmployeeId.get(r.employeeId);
+        if (!existing || r.checkIn > existing.checkIn) openByEmployeeId.set(r.employeeId, r);
       }
 
       // Build overdue list: shift ended + employee still open
@@ -1022,10 +1406,12 @@ export const schedulingRouter = router({
         if (!shift) continue;
         const shiftEndMs = muscatShiftWallEndMs(today, shift.startTime, shift.endTime);
         if (nowMs <= shiftEndMs) continue; // shift not yet ended
-        const record = openByUserId.get(s.employeeUserId);
+        // Resolve the employee row to get the canonical employee.id for the attendance lookup
+        const empRow = empByUserId.get(s.employeeUserId);
+        const resolvedEmpId = empRow?.id;
+        const record = resolvedEmpId != null ? openByEmployeeId.get(resolvedEmpId) : undefined;
         if (!record) continue; // already checked out or never checked in
         if (overdueMap.has(s.employeeUserId)) continue; // already captured
-        const empRow = empByUserId.get(s.employeeUserId);
         const user = userById.get(s.employeeUserId);
         const site = s.siteId ? siteById.get(s.siteId) : null;
         const displayName =

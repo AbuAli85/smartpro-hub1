@@ -77,6 +77,10 @@ import { EmployeePortalTaskCard } from "@/components/employee-portal/EmployeePor
 import { CheckInEligibilityReasonCode } from "@shared/attendanceCheckInEligibility";
 import { buildEmployeeTodayAttendanceStatus } from "@shared/employeeTodayAttendanceStatus";
 import { shouldOfferManualAttendanceFallback } from "@shared/manualAttendanceFallback";
+import {
+  SHIFT_STATUS_LABEL,
+  type TodayShiftEntry,
+} from "@shared/employeeDayShiftStatus";
 
 const LEAVE_TYPE_LABEL: Record<string, string> = {
   annual: "Annual Leave",
@@ -174,6 +178,117 @@ function Skeleton({ className = "" }: { className?: string }) {
   return <div className={`bg-muted animate-pulse rounded-lg ${className}`} />;
 }
 
+// ── Per-shift row used inside AttendanceTodayCard multi-shift panel ──────
+function TodayShiftRow({
+  shift,
+  onCheckIn,
+  onCheckOut,
+  mutating,
+}: {
+  shift: TodayShiftEntry & { isActiveShift?: boolean };
+  onCheckIn: () => void;
+  onCheckOut: () => void;
+  mutating: boolean;
+}) {
+  const cfg = SHIFT_STATUS_LABEL[shift.status];
+  const fmt = (d: Date) =>
+    new Date(d).toLocaleTimeString("en-GB", {
+      hour: "2-digit",
+      minute: "2-digit",
+      timeZone: "Asia/Muscat",
+    });
+  return (
+    <div className="flex items-start justify-between gap-3 rounded-md border border-border/70 bg-background/60 px-3 py-2.5">
+      <div className="min-w-0 flex-1 space-y-1">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-sm font-medium">{shift.shiftName ?? "Shift"}</span>
+          <span className="text-xs text-muted-foreground">
+            {shift.shiftStart}–{shift.shiftEnd}
+          </span>
+          <Badge
+            variant="outline"
+            className={`h-5 border py-0 text-[10px] font-semibold ${cfg.badgeClass}`}
+          >
+            {cfg.label}
+          </Badge>
+        </div>
+        {shift.checkIn && (
+          <div className="flex flex-wrap gap-x-3 text-xs text-muted-foreground">
+            <span>
+              In:{" "}
+              <span className="font-medium text-foreground">{fmt(new Date(shift.checkIn))}</span>
+            </span>
+            {shift.checkOut ? (
+              <span>
+                Out:{" "}
+                <span className="font-medium text-foreground">{fmt(new Date(shift.checkOut))}</span>
+              </span>
+            ) : (
+              <span className="font-medium text-amber-700 dark:text-amber-300">Not checked out</span>
+            )}
+            {shift.durationMinutes != null && (
+              <span>{shift.durationMinutes}m</span>
+            )}
+          </div>
+        )}
+        {!shift.checkIn && shift.status === "upcoming" && (
+          <p className="text-xs text-muted-foreground">
+            Window opens{" "}
+            {(() => {
+              try {
+                const [h, m] = shift.shiftStart.split(":").map(Number);
+                const graceM = shift.gracePeriodMinutes;
+                const totalM = (h ?? 0) * 60 + (m ?? 0) - graceM;
+                const oh = Math.floor(((totalM % 1440) + 1440) % 1440 / 60);
+                const om = ((totalM % 1440) + 1440) % 1440 % 60;
+                return `${String(oh).padStart(2, "0")}:${String(om).padStart(2, "0")}`;
+              } catch {
+                return shift.shiftStart;
+              }
+            })()}
+          </p>
+        )}
+        {shift.siteName && (
+          <p className="flex items-center gap-1 text-xs text-muted-foreground">
+            <MapPin className="h-3 w-3 shrink-0" />
+            {shift.siteName}
+          </p>
+        )}
+      </div>
+      <div className="flex shrink-0 flex-col gap-1.5">
+        {shift.canCheckIn && (
+          <Button
+            size="sm"
+            className="min-h-8 gap-1.5 bg-green-600 text-xs font-semibold text-white hover:bg-green-700 touch-manipulation"
+            disabled={mutating}
+            onClick={onCheckIn}
+          >
+            <UserCheck className="h-3.5 w-3.5" />
+            Check in
+          </Button>
+        )}
+        {shift.canCheckOut && (
+          <Button
+            size="sm"
+            variant="destructive"
+            className="min-h-8 text-xs font-semibold touch-manipulation"
+            disabled={mutating}
+            onClick={onCheckOut}
+          >
+            <LogIn className="h-3.5 w-3.5 rotate-180" aria-hidden />
+            Check out
+          </Button>
+        )}
+        {shift.status === "window_open" && !shift.canCheckIn && !shift.checkIn && (
+          <span className="text-[10px] text-amber-700 dark:text-amber-300">
+            Finish current shift first
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Attendance Today Card ──────────────────────────────────────────────────
 function AttendanceTodayCard({
   employeeId,
@@ -214,6 +329,14 @@ function AttendanceTodayCard({
   const { data: myManualList } = trpc.attendance.myManualCheckIns.useQuery(
     { limit: 15 },
     { enabled: !!employeeId && companyId != null },
+  );
+  const { data: todayShiftsData } = trpc.attendance.myTodayShifts.useQuery(
+    { companyId: companyId ?? undefined },
+    {
+      enabled: !!employeeId && companyId != null,
+      refetchInterval: 60_000,
+      refetchOnWindowFocus: true,
+    },
   );
   const submitCorr = trpc.attendance.submitCorrection.useMutation({
     onSuccess: () => {
@@ -331,22 +454,27 @@ function AttendanceTodayCard({
 
   const attendanceMutating = doCheckIn.isPending || doCheckOut.isPending;
 
-  function handleCheckIn() {
+  function handleCheckIn(overrideSiteToken?: string) {
     if (attendanceMutating) return;
-    if (!siteToken) {
-      toast.error("No site on your schedule — contact HR.");
+    const token = overrideSiteToken ?? siteToken;
+    if (!token) {
+      toast.error("No site on your schedule - contact HR.");
       return;
     }
-    if (site?.enforceGeofence) {
+    // For primary schedule site (no override): apply client-side geo enforcement.
+    // For multi-shift override tokens: always collect GPS if available; server enforces.
+    const enforceGeo = overrideSiteToken ? false : !!site?.enforceGeofence;
+    const collectGps = enforceGeo || !!overrideSiteToken;
+    if (collectGps) {
       if (!navigator.geolocation) {
-        toast.warning("This device can’t share location.");
-        doCheckIn.mutate({ siteToken: siteToken! });
+        toast.warning("This device can't share location.");
+        doCheckIn.mutate({ siteToken: token });
         return;
       }
       navigator.geolocation.getCurrentPosition(
         (pos) =>
           doCheckIn.mutate({
-            siteToken: siteToken!,
+            siteToken: token,
             lat: pos.coords.latitude,
             lng: pos.coords.longitude,
           }),
@@ -354,12 +482,12 @@ function AttendanceTodayCard({
           toast.message("Location not shared", {
             description: "Trying without GPS. Enable Location if check-in fails.",
           });
-          doCheckIn.mutate({ siteToken: siteToken! });
+          doCheckIn.mutate({ siteToken: token });
         },
         { enableHighAccuracy: true, maximumAge: 60_000, timeout: 12_000 },
       );
     } else {
-      doCheckIn.mutate({ siteToken: siteToken! });
+      doCheckIn.mutate({ siteToken: token });
     }
   }
 
@@ -396,6 +524,10 @@ function AttendanceTodayCard({
   handleCheckOutRef.current = handleCheckOut;
 
   const betweenShifts = attStrip.betweenShiftsPendingNext;
+
+  // Multi-shift panel: show when the employee has 2+ scheduled shifts today.
+  const todayShifts = todayShiftsData?.shifts ?? [];
+  const showMultiShiftPanel = todayShifts.length >= 2;
 
   const denialPresentation =
     operationalHintsReady &&
@@ -931,7 +1063,7 @@ function AttendanceTodayCard({
                   <Button
                     className="min-h-12 gap-2 bg-green-600 px-6 text-base font-semibold text-white hover:bg-green-700 touch-manipulation disabled:opacity-60"
                     disabled={attendanceMutating}
-                    onClick={handleCheckIn}
+                    onClick={() => handleCheckIn()}
                   >
                     <UserCheck className="h-5 w-5 shrink-0" />
                     {doCheckIn.isPending ? "Checking in…" : "Check in now"}
@@ -1021,6 +1153,34 @@ function AttendanceTodayCard({
                 Times use your schedule and company rules.
               </p>
             )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Multi-shift panel — shown when 2+ shifts are scheduled today */}
+      {showMultiShiftPanel && (
+        <Card>
+          <CardHeader className="pb-2 pt-4">
+            <CardTitle className="flex items-center justify-between text-sm">
+              <span className="flex items-center gap-2">
+                <CalendarCheck className="h-3.5 w-3.5" />
+                Today&apos;s shifts
+              </span>
+              <span className="text-xs font-normal text-muted-foreground">
+                {todayShifts.filter((s) => s.status === "checked_out").length}/{todayShifts.length} completed
+              </span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 pb-4">
+            {todayShifts.map((shift) => (
+              <TodayShiftRow
+                key={shift.scheduleId}
+                shift={shift}
+                onCheckIn={() => handleCheckIn(shift.siteToken ?? undefined)}
+                onCheckOut={handleCheckOut}
+                mutating={attendanceMutating}
+              />
+            ))}
           </CardContent>
         </Card>
       )}

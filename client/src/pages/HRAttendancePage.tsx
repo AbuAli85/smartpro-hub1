@@ -1,4 +1,4 @@
-import { trpc } from "@/lib/trpc";
+﻿import { trpc } from "@/lib/trpc";
 import { useState, useMemo, useEffect } from "react";
 import { OverdueCheckoutsPanel } from "@/components/attendance/OverdueCheckoutsPanel";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
@@ -534,24 +534,27 @@ function HrAttendanceExceptionStrip({
   pendingManualCount,
   scheduledShiftsToday,
   overdueCheckoutCount,
+  missedShiftsCount,
 }: {
   companyId: number | null;
   pendingCorrCount: number;
   pendingManualCount: number;
   scheduledShiftsToday: number | null;
   overdueCheckoutCount: number;
+  missedShiftsCount: number;
 }) {
   if (companyId == null) return null;
   const items = [
     { label: "Pending corrections", value: pendingCorrCount, warn: pendingCorrCount > 0 },
     { label: "Pending manual check-ins", value: pendingManualCount, warn: pendingManualCount > 0 },
     { label: "Open check-outs past shift end", value: overdueCheckoutCount, warn: overdueCheckoutCount > 0 },
+    { label: "Missed shifts (absent)", value: missedShiftsCount, warn: missedShiftsCount > 0 },
     { label: "Scheduled shift rows today", value: scheduledShiftsToday, warn: false },
   ];
   return (
     <div className="rounded-lg border bg-muted/30 px-3 py-3 sm:px-4">
       <p className="text-xs font-semibold text-foreground mb-2">Exceptions &amp; coverage</p>
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 text-xs">
         {items.map((it) => (
           <div
             key={it.label}
@@ -565,7 +568,7 @@ function HrAttendanceExceptionStrip({
         ))}
       </div>
       <p className="text-[11px] text-muted-foreground mt-2 leading-snug">
-        “Open check-outs past shift end” is computed on the server with the same Muscat shift boundaries and clock as the live board (not your browser timezone).
+        “Open check-outs past shift end” and “Missed shifts” are computed server-side using Muscat wall-clock shift boundaries, consistent with the live board.
       </p>
     </div>
   );
@@ -1103,6 +1106,7 @@ export default function HRAttendancePage() {
         pendingManualCount={pendingManualCount}
         scheduledShiftsToday={todayBoardData?.summary?.total ?? null}
         overdueCheckoutCount={overdueCheckoutCount}
+        missedShiftsCount={todayBoardData?.summary?.absent ?? 0}
       />
 
       {/* Tabs: Today Board | HR Records | Corrections | Manual Check-ins | Audit Log */}

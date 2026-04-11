@@ -2210,6 +2210,12 @@ export const attendanceRecords = mysqlTable(
     id: int("id").autoincrement().primaryKey(),
     companyId: int("company_id").notNull(),
     employeeId: int("employee_id").notNull(),
+    /**
+     * Nullable FK to employee_schedules.id — set by self-service checkIn from the active schedule row.
+     * Null for legacy records, admin-inserted rows, and approved manual check-ins (they inherit siteId instead).
+     * Used for explicit shift attribution; board/report assignment still uses time-overlap for null rows.
+     */
+    scheduleId: int("schedule_id"),
     siteId: int("site_id"),
     siteName: varchar("site_name", { length: 128 }),
     checkIn: timestamp("check_in").notNull(),

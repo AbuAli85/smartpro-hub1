@@ -1,6 +1,6 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { eq, and, desc, gte, like, lt, lte, isNull, ne } from "drizzle-orm";
+import { eq, and, desc, gte, like, lt, lte, isNull, ne, inArray, or } from "drizzle-orm";
 import { randomBytes } from "crypto";
 import {
   attendance,
@@ -10,7 +10,11 @@ import {
   employees,
   manualCheckinRequests,
   attendanceAudit,
+  shiftTemplates,
+  employeeSchedules,
 } from "../../drizzle/schema";
+import { buildEmployeeDayShiftStatuses } from "@shared/employeeDayShiftStatus";
+import { pickScheduleRowForNow } from "@shared/pickScheduleForAttendanceNow";
 import { createAttendanceRecordTx, getDb } from "../db";
 import { protectedProcedure, publicProcedure, router } from "../_core/trpc";
 import { getActiveCompanyMembership } from "../_core/membership";
@@ -550,6 +554,7 @@ export const attendanceRouter = router({
         const [result] = await tx.insert(attendanceRecords).values({
           companyId: site.companyId,
           employeeId: emp.id,
+          scheduleId: dayCtx.activeScheduleId ?? undefined,
           siteId: site.id,
           siteName: site.name,
           checkIn: new Date(),
@@ -685,6 +690,146 @@ export const attendanceRouter = router({
         .limit(1);
     return record ?? null;
   }),
+
+  // ─── Employee: Get all today's shifts with per-shift attendance status ───
+  /**
+   * Returns every scheduled shift for the employee's Muscat calendar today,
+   * with per-shift status derived from the same record-to-shift assignment used by the HR board.
+   * Used by the employee portal to show a shift-level attendance list.
+   */
+  myTodayShifts: protectedProcedure
+    .input(z.object({ companyId: z.number().optional() }))
+    .query(async ({ ctx, input }) => {
+      const db = await requireDb();
+      const membership = await getActiveCompanyMembership(ctx.user.id, input.companyId ?? undefined);
+      if (!membership) return null;
+      const emp = await resolveMyEmployee(ctx.user.id, ctx.user.email ?? "", membership.companyId);
+      if (!emp) return null;
+
+      const businessDate = muscatCalendarYmdNow();
+      const now = new Date();
+      const dow = new Date(businessDate + "T12:00:00").getDay();
+
+      // ── Load schedules (same dual-lookup as resolveEmployeeAttendanceDayContext) ──
+      const querySchedules = (empUserId: number) =>
+        db
+          .select()
+          .from(employeeSchedules)
+          .where(
+            and(
+              eq(employeeSchedules.companyId, membership.companyId),
+              eq(employeeSchedules.employeeUserId, empUserId),
+              eq(employeeSchedules.isActive, true),
+              lte(employeeSchedules.startDate, businessDate),
+              or(isNull(employeeSchedules.endDate), gte(employeeSchedules.endDate, businessDate))
+            )
+          );
+
+      let allMySchedules = await querySchedules(ctx.user.id);
+      if (allMySchedules.length === 0) {
+        allMySchedules = await querySchedules(emp.id);
+      }
+
+      const workingToday = allMySchedules.filter((s) =>
+        s.workingDays.split(",").map(Number).includes(dow)
+      );
+
+      if (workingToday.length === 0) {
+        return { businessDate, activeScheduleId: null, shifts: [] };
+      }
+
+      // ── Load shift templates ────────────────────────────────────────────────
+      const templateIds = [...new Set(workingToday.map((s) => s.shiftTemplateId))];
+      const shiftRows =
+        templateIds.length > 0
+          ? await db.select().from(shiftTemplates).where(inArray(shiftTemplates.id, templateIds))
+          : [];
+      const shiftById = new Map(shiftRows.map((st) => [st.id, st]));
+
+      // ── Load sites ─────────────────────────────────────────────────────────
+      const siteIds = [
+        ...new Set(
+          workingToday.map((s) => s.siteId).filter((id): id is number => id != null)
+        ),
+      ];
+      const siteRows =
+        siteIds.length > 0
+          ? await db.select().from(attendanceSites).where(inArray(attendanceSites.id, siteIds))
+          : [];
+      const siteById = new Map(siteRows.map((s) => [s.id, s]));
+
+      // ── Active schedule row (for isActiveShift flag) ───────────────────────
+      const activeScheduleRow = pickScheduleRowForNow({
+        now,
+        businessDate,
+        dow,
+        isHoliday: false,
+        scheduleRows: workingToday,
+        getShift: (tid) => shiftById.get(tid),
+      });
+
+      // ── Today's attendance records ─────────────────────────────────────────
+      const { startUtc: dayStart, endExclusiveUtc: dayEndExclusive } =
+        muscatDayUtcRangeExclusiveEnd(businessDate);
+      const dayRecords = await db
+        .select()
+        .from(attendanceRecords)
+        .where(
+          and(
+            eq(attendanceRecords.employeeId, emp.id),
+            gte(attendanceRecords.checkIn, dayStart),
+            lt(attendanceRecords.checkIn, dayEndExclusive)
+          )
+        );
+
+      // ── Build per-shift input rows sorted by shift start ───────────────────
+      const inputShifts = workingToday
+        .slice()
+        .sort((a, b) => {
+          const stA = shiftById.get(a.shiftTemplateId);
+          const stB = shiftById.get(b.shiftTemplateId);
+          if (!stA || !stB) return 0;
+          return stA.startTime.localeCompare(stB.startTime);
+        })
+        .map((s) => {
+          const st = shiftById.get(s.shiftTemplateId);
+          const site = s.siteId != null ? siteById.get(s.siteId) : undefined;
+          return {
+            scheduleId: s.id,
+            shiftName: st?.name ?? null,
+            shiftStart: st?.startTime ?? "09:00",
+            shiftEnd: st?.endTime ?? "17:00",
+            siteId: s.siteId ?? null,
+            siteName: site?.name ?? null,
+            siteToken: site?.qrToken ?? null,
+            gracePeriodMinutes: st?.gracePeriodMinutes ?? 15,
+          };
+        });
+
+      const statuses = buildEmployeeDayShiftStatuses({
+        shifts: inputShifts,
+        records: dayRecords.map((r) => ({
+          id: r.id,
+          siteId: r.siteId ?? null,
+          checkIn: new Date(r.checkIn),
+          checkOut: r.checkOut ? new Date(r.checkOut) : null,
+        })),
+        businessDate,
+        nowMs: now.getTime(),
+        employeeId: emp.id,
+      });
+
+      const activeScheduleId = activeScheduleRow?.id ?? null;
+
+      return {
+        businessDate,
+        activeScheduleId,
+        shifts: statuses.map((s) => ({
+          ...s,
+          isActiveShift: s.scheduleId === activeScheduleId,
+        })),
+      };
+    }),
 
   // ─── Employee: Get attendance history ────────────────────────────────────
   myHistory: protectedProcedure

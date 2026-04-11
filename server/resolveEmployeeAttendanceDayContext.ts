@@ -49,6 +49,12 @@ export interface EmployeeAttendanceDayContext {
   shiftCheckOut: Date | null;
   /** Distinct site ids from every schedule row that applies today (working day). For manual check-in site validation. */
   scheduledSiteIdsToday: number[];
+  /**
+   * The employee_schedules.id row that `pickScheduleRowForNow` selected for the current instant.
+   * Written to `attendance_records.schedule_id` on self-service check-in.
+   * Null when holiday, no working schedule, or no shift times.
+   */
+  activeScheduleId: number | null;
 }
 
 export async function resolveEmployeeAttendanceDayContext(
@@ -102,6 +108,7 @@ export async function resolveEmployeeAttendanceDayContext(
   let shiftEnd: string | null = null;
   let gracePeriodMinutes = 15;
   let assignedSiteId: number | null = null;
+  let activeScheduleId: number | null = null;
   let workingToday: typeof allMySchedules = [];
   let shiftById = new Map<number, (typeof shiftTemplates.$inferSelect)>();
 
@@ -126,6 +133,7 @@ export async function resolveEmployeeAttendanceDayContext(
     workingToday = allMySchedules.filter((s) => s.workingDays.split(",").map(Number).includes(dow));
     isWorkingDay = workingToday.length > 0 && !holiday;
     if (mySchedule) {
+      activeScheduleId = mySchedule.id;
       assignedSiteId = mySchedule.siteId ?? null;
       const st = shiftById.get(mySchedule.shiftTemplateId);
       if (st) {
@@ -234,6 +242,7 @@ export async function resolveEmployeeAttendanceDayContext(
     shiftEnd,
     gracePeriodMinutes,
     assignedSiteId,
+    activeScheduleId,
     checkIn,
     checkOut,
     allShiftsHaveClosedAttendance,

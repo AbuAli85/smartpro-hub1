@@ -181,26 +181,61 @@ function Skeleton({ className = "" }: { className?: string }) {
 // ── Per-shift row used inside AttendanceTodayCard multi-shift panel ──────
 function TodayShiftRow({
   shift,
+  openShiftName,
   onCheckIn,
   onCheckOut,
   mutating,
 }: {
   shift: TodayShiftEntry & { isActiveShift?: boolean };
+  /**
+   * Name of the currently-open (unchecked-out) shift, used to render a
+   * precise "check out from X first" message on any window_open sibling row.
+   */
+  openShiftName: string | null;
   onCheckIn: () => void;
   onCheckOut: () => void;
   mutating: boolean;
 }) {
   const cfg = SHIFT_STATUS_LABEL[shift.status];
+  const isActive = !!shift.isActiveShift;
   const fmt = (d: Date) =>
     new Date(d).toLocaleTimeString("en-GB", {
       hour: "2-digit",
       minute: "2-digit",
       timeZone: "Asia/Muscat",
     });
+
+  const windowOpensAt = (() => {
+    try {
+      const [h, m] = shift.shiftStart.split(":").map(Number);
+      const totalM = (h ?? 0) * 60 + (m ?? 0) - shift.gracePeriodMinutes;
+      const adj = ((totalM % 1440) + 1440) % 1440;
+      return `${String(Math.floor(adj / 60)).padStart(2, "0")}:${String(adj % 60).padStart(2, "0")}`;
+    } catch {
+      return shift.shiftStart;
+    }
+  })();
+
+  const blockedByOpenShift =
+    shift.status === "window_open" && !shift.canCheckIn && !shift.checkIn && !!openShiftName;
+
   return (
-    <div className="flex items-start justify-between gap-3 rounded-md border border-border/70 bg-background/60 px-3 py-2.5">
+    <div
+      className={[
+        "flex items-start justify-between gap-3 rounded-md border px-3 py-2.5 transition-colors",
+        isActive
+          ? "border-green-400/60 bg-green-50/60 dark:border-green-700/50 dark:bg-green-950/20"
+          : "border-border/70 bg-background/60",
+      ].join(" ")}
+    >
       <div className="min-w-0 flex-1 space-y-1">
         <div className="flex flex-wrap items-center gap-1.5">
+          {isActive && (
+            <span
+              aria-label="Currently active shift"
+              className="inline-block h-2 w-2 shrink-0 rounded-full bg-green-500"
+            />
+          )}
           <span className="text-sm font-medium">{shift.shiftName ?? "Shift"}</span>
           <span className="text-xs text-muted-foreground">
             {shift.shiftStart}–{shift.shiftEnd}
@@ -226,26 +261,15 @@ function TodayShiftRow({
             ) : (
               <span className="font-medium text-amber-700 dark:text-amber-300">Not checked out</span>
             )}
-            {shift.durationMinutes != null && (
-              <span>{shift.durationMinutes}m</span>
-            )}
+            {shift.durationMinutes != null && <span>{shift.durationMinutes}m</span>}
           </div>
         )}
         {!shift.checkIn && shift.status === "upcoming" && (
-          <p className="text-xs text-muted-foreground">
-            Window opens{" "}
-            {(() => {
-              try {
-                const [h, m] = shift.shiftStart.split(":").map(Number);
-                const graceM = shift.gracePeriodMinutes;
-                const totalM = (h ?? 0) * 60 + (m ?? 0) - graceM;
-                const oh = Math.floor(((totalM % 1440) + 1440) % 1440 / 60);
-                const om = ((totalM % 1440) + 1440) % 1440 % 60;
-                return `${String(oh).padStart(2, "0")}:${String(om).padStart(2, "0")}`;
-              } catch {
-                return shift.shiftStart;
-              }
-            })()}
+          <p className="text-xs text-muted-foreground">Window opens {windowOpensAt}</p>
+        )}
+        {blockedByOpenShift && (
+          <p className="text-[11px] font-medium text-amber-800 dark:text-amber-200">
+            Check out from <span className="font-semibold">{openShiftName}</span> first
           </p>
         )}
         {shift.siteName && (
@@ -278,11 +302,6 @@ function TodayShiftRow({
             <LogIn className="h-3.5 w-3.5 rotate-180" aria-hidden />
             Check out
           </Button>
-        )}
-        {shift.status === "window_open" && !shift.canCheckIn && !shift.checkIn && (
-          <span className="text-[10px] text-amber-700 dark:text-amber-300">
-            Finish current shift first
-          </span>
         )}
       </div>
     </div>
@@ -1172,15 +1191,20 @@ function AttendanceTodayCard({
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 pb-4">
-            {todayShifts.map((shift) => (
-              <TodayShiftRow
-                key={shift.scheduleId}
-                shift={shift}
-                onCheckIn={() => handleCheckIn(shift.siteToken ?? undefined)}
-                onCheckOut={handleCheckOut}
-                mutating={attendanceMutating}
-              />
-            ))}
+            {(() => {
+              const openShift = todayShifts.find((s) => s.status === "checked_in");
+              const openShiftName = openShift?.shiftName ?? openShift?.shiftStart ?? null;
+              return todayShifts.map((shift) => (
+                <TodayShiftRow
+                  key={shift.scheduleId}
+                  shift={shift}
+                  openShiftName={openShiftName}
+                  onCheckIn={() => handleCheckIn(shift.siteToken ?? undefined)}
+                  onCheckOut={handleCheckOut}
+                  mutating={attendanceMutating}
+                />
+              ));
+            })()}
           </CardContent>
         </Card>
       )}

@@ -33,6 +33,7 @@ import { resolveEmployeeAttendanceDayContext } from "../resolveEmployeeAttendanc
 import { attendancePayloadJson, insertAttendanceAuditRow, logAttendanceAuditSafe } from "../attendanceAudit";
 import {
   muscatCalendarYmdNow,
+  muscatCalendarYmdFromUtcInstant,
   muscatDayUtcRangeExclusiveEnd,
   muscatWallDateTimeToUtc,
 } from "@shared/attendanceMuscatTime";
@@ -41,6 +42,56 @@ async function requireDb() {
   const db = await getDb();
   if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
   return db;
+}
+
+/**
+ * Infer which `employee_schedules.id` a given timestamp belongs to, so manually-approved
+ * attendance records get the same explicit shift attribution as self-service check-ins.
+ *
+ * Uses `pickScheduleRowForNow` at `requestedAt` against all active schedules on that day —
+ * the same logic used by the self-service check-in gate.  Returns `null` when no working
+ * schedule is found (holiday, off-day, no schedule) so the record stays unattributed.
+ */
+async function inferScheduleIdForTimestamp(
+  db: Awaited<ReturnType<typeof requireDb>>,
+  opts: { companyId: number; employeeUserId: number; requestedAt: Date }
+): Promise<number | null> {
+  const { companyId, employeeUserId, requestedAt } = opts;
+  const businessDate = muscatCalendarYmdFromUtcInstant(requestedAt);
+  const dow = new Date(businessDate + "T12:00:00").getDay();
+
+  const schedules = await db
+    .select()
+    .from(employeeSchedules)
+    .where(
+      and(
+        eq(employeeSchedules.companyId, companyId),
+        eq(employeeSchedules.employeeUserId, employeeUserId),
+        eq(employeeSchedules.isActive, true),
+        lte(employeeSchedules.startDate, businessDate),
+        or(isNull(employeeSchedules.endDate), gte(employeeSchedules.endDate, businessDate))
+      )
+    );
+
+  if (schedules.length === 0) return null;
+
+  const templateIds = [...new Set(schedules.map((s) => s.shiftTemplateId))];
+  const shiftRows =
+    templateIds.length > 0
+      ? await db.select().from(shiftTemplates).where(inArray(shiftTemplates.id, templateIds))
+      : [];
+  const shiftById = new Map(shiftRows.map((st) => [st.id, st]));
+
+  const picked = pickScheduleRowForNow({
+    now: requestedAt,
+    businessDate,
+    dow,
+    isHoliday: false,
+    scheduleRows: schedules,
+    getShift: (tid) => shiftById.get(tid),
+  });
+
+  return picked?.id ?? null;
 }
 
 /** HR/company admin for the active or explicitly selected company (never arbitrary first membership). */
@@ -1151,6 +1202,15 @@ export const attendanceRouter = router({
         });
       }
 
+      // Infer the schedule row that owns req.requestedAt so the created
+      // attendance_record carries the same explicit shift attribution as
+      // a self-service check-in.  Runs outside the transaction (read-only).
+      const inferredScheduleId = await inferScheduleIdForTimestamp(db, {
+        companyId: membership.company.id,
+        employeeUserId: req.employeeUserId,
+        requestedAt: req.requestedAt,
+      });
+
       let recordIdOut = 0;
       await db.transaction(async (tx) => {
         const [record] = await tx
@@ -1158,6 +1218,7 @@ export const attendanceRouter = router({
           .values({
             companyId: membership.company.id,
             employeeId: empRow.id,
+            scheduleId: inferredScheduleId ?? undefined,
             siteId: req.siteId,
             checkIn: req.requestedAt,
             checkInLat: req.lat ?? undefined,

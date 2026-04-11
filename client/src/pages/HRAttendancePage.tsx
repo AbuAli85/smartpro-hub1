@@ -1,4 +1,4 @@
-import { trpc } from "@/lib/trpc";
+import { trpc, type RouterOutputs } from "@/lib/trpc";
 import { useState, useMemo } from "react";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import {
@@ -47,6 +47,9 @@ const AUDIT_SOURCE_LABELS: Record<string, string> = {
   [ATTENDANCE_AUDIT_SOURCE.ADMIN_PANEL]: "Admin / HR",
   [ATTENDANCE_AUDIT_SOURCE.SYSTEM]: "System",
 };
+
+type GetTodayBoardOutput = RouterOutputs["scheduling"]["getTodayBoard"];
+type FullDaySummary = NonNullable<GetTodayBoardOutput["fullDaySummaries"]>[number];
 
 function auditActionLabel(actionType: string) {
   return AUDIT_ACTION_LABELS[actionType] ?? actionType.replace(/_/g, " ");
@@ -560,6 +563,51 @@ function TodayBoard({ companyId }: { companyId: number | null }) {
           </div>
         ))}
       </div>
+      {(data.fullDaySummaries ?? []).length > 0 && (
+        <div className="rounded-lg border border-primary/20 bg-primary/[0.04] px-3 py-3 space-y-2">
+          <p className="text-xs font-semibold text-foreground">Full day — same person, multiple shifts (Asia/Muscat)</p>
+          <p className="text-[11px] text-muted-foreground leading-snug">
+            One calendar day can include a morning block and an evening block. The table below is still <span className="font-medium text-foreground">per shift</span> for status; this section ties the person&apos;s shifts together with the actual check-in / check-out times shown on each row.
+          </p>
+          <ul className="space-y-2 text-sm">
+            {(data.fullDaySummaries as FullDaySummary[]).map((fd) => (
+              <li key={fd.employeeId} className="rounded-md bg-background/80 border px-2.5 py-2">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <span className="font-medium">{fd.employeeDisplayName}</span>
+                  <span className="text-xs text-muted-foreground">({fd.shiftCount} shifts)</span>
+                  {fd.dayFullyComplete ? (
+                    <Badge variant="outline" className="border-emerald-300 text-emerald-800 bg-emerald-50 text-[10px]">
+                      Day complete
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="border-amber-300 text-amber-900 bg-amber-50 text-[10px]">
+                      In progress
+                    </Badge>
+                  )}
+                  {fd.totalAttributedMinutes > 0 && (
+                    <span className="text-xs text-muted-foreground">Total on shifts shown: {fd.totalAttributedMinutes}m</span>
+                  )}
+                </div>
+                <ol className="mt-1.5 space-y-1 text-xs text-foreground/90 list-decimal list-inside">
+                  {fd.segments.map((seg) => (
+                    <li key={seg.scheduleId}>
+                      <span className="font-medium">{seg.shiftName ?? "Shift"}</span>
+                      <span className="text-muted-foreground"> ({seg.expectedStart}–{seg.expectedEnd})</span>
+                      {": "}
+                      <span>{seg.checkInAt ? fmtTime(seg.checkInAt) : "—"}</span>
+                      <span> → </span>
+                      <span>{seg.checkOutAt ? fmtTime(seg.checkOutAt) : "—"}</span>
+                      {seg.durationMinutes != null && seg.checkInAt ? (
+                        <span className="text-muted-foreground"> ({seg.durationMinutes}m)</span>
+                      ) : null}
+                    </li>
+                  ))}
+                </ol>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       <div className="rounded-lg border overflow-x-auto">
         <table className="w-full text-sm min-w-[860px]">
           <thead className="bg-muted/50">

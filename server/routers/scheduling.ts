@@ -491,6 +491,7 @@ export const schedulingRouter = router({
 
         return {
           scheduleId: s.id,
+          employeeId: empRow?.id ?? null,
           employee: emp ?? null,
           employeeDisplayName,
           site: site ?? null,
@@ -508,6 +509,59 @@ export const schedulingRouter = router({
           siteName: record?.siteName ?? site?.name ?? null,
         };
       });
+
+      type BoardRow = (typeof board)[number];
+      const byEmployeeId = new Map<number, BoardRow[]>();
+      for (const row of board) {
+        if (row.employeeId == null) continue;
+        const arr = byEmployeeId.get(row.employeeId) ?? [];
+        arr.push(row);
+        byEmployeeId.set(row.employeeId, arr);
+      }
+
+      const fullDaySummaries: {
+        employeeId: number;
+        employeeDisplayName: string;
+        shiftCount: number;
+        segments: {
+          scheduleId: number;
+          shiftName: string | null;
+          expectedStart: string;
+          expectedEnd: string;
+          checkInAt: Date | null;
+          checkOutAt: Date | null;
+          durationMinutes: number | null;
+          status: string;
+        }[];
+        totalAttributedMinutes: number;
+        dayFullyComplete: boolean;
+      }[] = [];
+
+      for (const [, rows] of byEmployeeId) {
+        if (rows.length < 2) continue;
+        const sorted = [...rows].sort((a, b) => a.expectedStart.localeCompare(b.expectedStart));
+        const segments = sorted.map((r) => ({
+          scheduleId: r.scheduleId,
+          shiftName: (r.shift as { name?: string | null } | null)?.name ?? null,
+          expectedStart: r.expectedStart,
+          expectedEnd: r.expectedEnd,
+          checkInAt: r.checkInAt,
+          checkOutAt: r.checkOutAt,
+          durationMinutes: r.durationMinutes,
+          status: r.status,
+        }));
+        const totalAttributedMinutes = sorted.reduce((acc, r) => acc + (r.durationMinutes ?? 0), 0);
+        const dayFullyComplete = sorted.every((r) => r.status === "checked_out");
+        fullDaySummaries.push({
+          employeeId: sorted[0]!.employeeId!,
+          employeeDisplayName: sorted[0]!.employeeDisplayName,
+          shiftCount: sorted.length,
+          segments,
+          totalAttributedMinutes,
+          dayFullyComplete,
+        });
+      }
+      fullDaySummaries.sort((a, b) => a.employeeDisplayName.localeCompare(b.employeeDisplayName));
 
       const summary = {
         total: board.length,
@@ -533,6 +587,7 @@ export const schedulingRouter = router({
         isHoliday: !!holiday,
         holidayName: holiday?.name ?? null,
         board,
+        fullDaySummaries,
         summary,
       };
     }),

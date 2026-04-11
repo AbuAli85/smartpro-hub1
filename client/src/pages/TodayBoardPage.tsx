@@ -1,4 +1,5 @@
-import { trpc } from "@/lib/trpc";
+import { trpc, type RouterOutputs } from "@/lib/trpc";
+import { fmtTime } from "@/lib/dateUtils";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -92,11 +93,8 @@ function getInitials(name: string) {
     .slice(0, 2);
 }
 
-function formatTime(d: Date | string | null) {
-  if (!d) return "—";
-  const dt = new Date(d);
-  return dt.toLocaleTimeString("en", { hour: "2-digit", minute: "2-digit", hour12: true });
-}
+type GetTodayBoardOutput = RouterOutputs["scheduling"]["getTodayBoard"];
+type FullDaySummary = NonNullable<GetTodayBoardOutput["fullDaySummaries"]>[number];
 
 export default function TodayBoardPage() {
   const { activeCompanyId } = useActiveCompany();
@@ -218,6 +216,51 @@ export default function TodayBoardPage() {
             </div>
           )}
 
+          {(data.fullDaySummaries ?? []).length > 0 && (
+            <Card className="border-primary/25 bg-primary/[0.04]">
+              <CardContent className="p-4 space-y-2">
+                <p className="text-sm font-semibold">Full day (multiple shifts, Muscat time)</p>
+                <p className="text-xs text-muted-foreground leading-snug">
+                  Cards below are grouped by status per shift. This list is the same person&apos;s shifts in order for the calendar day, with actual check-in and check-out times.
+                </p>
+                <ul className="space-y-2 text-sm">
+                  {(data.fullDaySummaries as FullDaySummary[]).map((fd) => (
+                    <li key={fd.employeeId} className="rounded-md border bg-background/90 px-3 py-2">
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <span className="font-medium">{fd.employeeDisplayName}</span>
+                        <span className="text-xs text-muted-foreground">({fd.shiftCount} shifts)</span>
+                        {fd.dayFullyComplete ? (
+                          <Badge variant="outline" className="border-emerald-300 text-emerald-800 bg-emerald-50 text-[10px]">
+                            Day complete
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="border-amber-300 text-amber-900 bg-amber-50 text-[10px]">
+                            In progress
+                          </Badge>
+                        )}
+                      </div>
+                      <ol className="mt-1.5 space-y-1 text-xs text-foreground/90 list-decimal list-inside">
+                        {fd.segments.map((seg) => (
+                          <li key={seg.scheduleId}>
+                            <span className="font-medium">{seg.shiftName ?? "Shift"}</span>
+                            <span className="text-muted-foreground"> ({seg.expectedStart}–{seg.expectedEnd})</span>
+                            {": "}
+                            <span>{seg.checkInAt ? fmtTime(seg.checkInAt) : "—"}</span>
+                            <span> → </span>
+                            <span>{seg.checkOutAt ? fmtTime(seg.checkOutAt) : "—"}</span>
+                            {seg.durationMinutes != null && seg.checkInAt ? (
+                              <span className="text-muted-foreground"> ({seg.durationMinutes}m)</span>
+                            ) : null}
+                          </li>
+                        ))}
+                      </ol>
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          )}
+
           {!data?.board?.length ? (
             <Card className="border-dashed">
               <CardContent className="flex flex-col items-center justify-center py-16 gap-3 text-muted-foreground">
@@ -285,13 +328,13 @@ export default function TodayBoardPage() {
                                 {b.checkInAt && (
                                   <div className="text-muted-foreground">
                                     In:{" "}
-                                    <span className="font-medium text-foreground">{formatTime(b.checkInAt)}</span>
+                                    <span className="font-medium text-foreground">{fmtTime(b.checkInAt)}</span>
                                   </div>
                                 )}
                                 {b.checkOutAt && (
                                   <div className="text-muted-foreground">
                                     Out:{" "}
-                                    <span className="font-medium text-foreground">{formatTime(b.checkOutAt)}</span>
+                                    <span className="font-medium text-foreground">{fmtTime(b.checkOutAt)}</span>
                                   </div>
                                 )}
                               </div>

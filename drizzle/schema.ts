@@ -2237,6 +2237,61 @@ export const attendanceRecords = mysqlTable(
 export type AttendanceRecord = typeof attendanceRecords.$inferSelect;
 export type InsertAttendanceRecord = typeof attendanceRecords.$inferInsert;
 
+// ─── ATTENDANCE SESSIONS ──────────────────────────────────────────────────────
+/**
+ * Authoritative session model introduced in migration 0034.
+ * Each row represents one uninterrupted work session (check-in → check-out).
+ * Written in parallel with `attendance_records` during the dual-write transition
+ * period; will become the primary source of truth once all read paths migrate.
+ *
+ * `business_date` (YYYY-MM-DD) is the Asia/Muscat calendar date stored
+ * explicitly so queries never re-derive it from UTC timestamps.
+ *
+ * `open_key` is a virtual generated column (not mapped here — managed by DDL
+ * in 0034_attendance_sessions.sql) that emulates a partial unique index in MySQL:
+ * non-null only when status='open' AND schedule_id IS NOT NULL, preventing
+ * two concurrent open sessions for the same employee+shift.
+ */
+export const attendanceSessions = mysqlTable(
+  "attendance_sessions",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    companyId: int("company_id").notNull(),
+    employeeId: int("employee_id").notNull(),
+    /** FK to employee_schedules.id; null for legacy / unattributed sessions */
+    scheduleId: int("schedule_id"),
+    /** Muscat calendar date YYYY-MM-DD — stored explicitly for efficient queries */
+    businessDate: varchar("business_date", { length: 10 }).notNull(),
+    status: mysqlEnum("status", ["open", "closed"] as const).notNull().default("open"),
+    checkInAt: timestamp("check_in_at").notNull(),
+    checkOutAt: timestamp("check_out_at"),
+    siteId: int("site_id"),
+    siteName: varchar("site_name", { length: 128 }),
+    method: mysqlEnum("method", ["qr_scan", "manual", "admin"] as const).notNull().default("qr_scan"),
+    source: mysqlEnum("source", ["employee_portal", "admin_panel", "system"] as const)
+      .notNull()
+      .default("employee_portal"),
+    checkInLat: decimal("check_in_lat", { precision: 10, scale: 7 }),
+    checkInLng: decimal("check_in_lng", { precision: 10, scale: 7 }),
+    checkOutLat: decimal("check_out_lat", { precision: 10, scale: 7 }),
+    checkOutLng: decimal("check_out_lng", { precision: 10, scale: 7 }),
+    notes: text("notes"),
+    /** Back-link to the attendance_records row that spawned this session (dual-write era) */
+    sourceRecordId: int("source_record_id"),
+    // open_key virtual generated column is NOT declared here; it is DB-managed DDL.
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  },
+  (t) => [
+    index("idx_att_sess_company_date").on(t.companyId, t.businessDate),
+    index("idx_att_sess_employee_date").on(t.employeeId, t.businessDate),
+    index("idx_att_sess_schedule").on(t.scheduleId),
+    index("idx_att_sess_source_record").on(t.sourceRecordId),
+  ]
+);
+export type AttendanceSession = typeof attendanceSessions.$inferSelect;
+export type InsertAttendanceSession = typeof attendanceSessions.$inferInsert;
+
 // ─── EMPLOYEE REQUESTS ────────────────────────────────────────────────────────
 export const employeeRequests = mysqlTable("employee_requests", {
   id: int("id").autoincrement().primaryKey(),

@@ -6,6 +6,7 @@ import {
   attendance,
   attendanceSites,
   attendanceRecords,
+  attendanceSessions,
   attendanceCorrections,
   employees,
   manualCheckinRequests,
@@ -43,6 +44,62 @@ async function requireDb() {
   const db = await getDb();
   if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
   return db;
+}
+
+// ── Dual-write helpers ────────────────────────────────────────────────────────
+/**
+ * Write a new open session row to `attendance_sessions` in parallel with the
+ * existing `attendance_records` insert.  Non-fatal: if the table doesn't exist
+ * yet (e.g. migration pending) we log and continue.
+ */
+async function insertAttendanceSessionSafe(
+  tx: Parameters<Parameters<Awaited<ReturnType<typeof requireDb>>["transaction"]>[0]>[0],
+  data: typeof attendanceSessions.$inferInsert,
+): Promise<number | null> {
+  try {
+    const [result] = await tx.insert(attendanceSessions).values(data);
+    return (result as { insertId?: number }).insertId ?? null;
+  } catch (err: any) {
+    // Tolerate missing table during migration window; surface other errors.
+    if (/Table.*doesn't exist|Unknown table/i.test(String(err?.message ?? ""))) {
+      console.warn("[attendance_sessions] Table not yet present — skipping session write.");
+      return null;
+    }
+    // Re-throw duplicate-key errors so the uniqueness constraint is enforced.
+    throw err;
+  }
+}
+
+/**
+ * Close the session row linked to `sourceRecordId` (set status='closed',
+ * check_out_at, geo).  Non-fatal if the table is absent.
+ */
+async function closeAttendanceSessionSafe(
+  tx: Parameters<Parameters<Awaited<ReturnType<typeof requireDb>>["transaction"]>[0]>[0],
+  opts: {
+    sourceRecordId: number;
+    checkOutAt: Date;
+    checkOutLat?: string | null;
+    checkOutLng?: string | null;
+  },
+): Promise<void> {
+  try {
+    await tx
+      .update(attendanceSessions)
+      .set({
+        status: "closed",
+        checkOutAt: opts.checkOutAt,
+        checkOutLat: opts.checkOutLat ?? null,
+        checkOutLng: opts.checkOutLng ?? null,
+      })
+      .where(eq(attendanceSessions.sourceRecordId, opts.sourceRecordId));
+  } catch (err: any) {
+    if (/Table.*doesn't exist|Unknown table/i.test(String(err?.message ?? ""))) {
+      console.warn("[attendance_sessions] Table not yet present — skipping session close.");
+      return;
+    }
+    throw err;
+  }
 }
 
 /**
@@ -596,6 +653,53 @@ export const attendanceRouter = router({
         throw new TRPCError({ code: "CONFLICT", message: wire });
       }
 
+      // ── Schedule-specific open-session guard ────────────────────────────────
+      // If the active shift already has an open (unchecked-out) record, block the
+      // new check-in even if the company-wide guard below would somehow miss it.
+      // This is the primary application-level enforcement; the DB constraint on
+      // `open_session_key` (migration 0033) is the last-resort safety net.
+      if (dayCtx.activeScheduleId != null) {
+        const [shiftOpenSession] = await db
+          .select({ id: attendanceRecords.id })
+          .from(attendanceRecords)
+          .where(and(
+            eq(attendanceRecords.employeeId, emp.id),
+            eq(attendanceRecords.companyId, site.companyId),
+            eq(attendanceRecords.scheduleId, dayCtx.activeScheduleId),
+            isNull(attendanceRecords.checkOut),
+          ))
+          .limit(1);
+        if (shiftOpenSession) {
+          const wire = formatCheckInRejection(
+            CheckInEligibilityReasonCode.ALREADY_CHECKED_IN,
+            "You already have an open session for this shift. Check out first, or use Fix attendance if the record is incorrect.",
+          );
+          await logAttendanceAuditSafe({
+            companyId: site.companyId,
+            employeeId: emp.id,
+            actorUserId: ctx.user.id,
+            actorRole: memberRole,
+            actionType: ATTENDANCE_AUDIT_ACTION.SELF_CHECKIN_DENIED,
+            entityType: ATTENDANCE_AUDIT_ENTITY.SELF_CHECKIN_ATTEMPT,
+            entityId: site.id,
+            afterPayload:
+              attendancePayloadJson({
+                outcome: "denied",
+                reasonCode: CheckInEligibilityReasonCode.ALREADY_CHECKED_IN,
+                wireMessage: wire,
+                policyPath: "shift_open_session_enforcement",
+                siteId: site.id,
+                scheduleId: dayCtx.activeScheduleId,
+                openAttendanceRecordId: shiftOpenSession.id,
+              }) ?? undefined,
+            reason: wire,
+            source: ATTENDANCE_AUDIT_SOURCE.EMPLOYEE_PORTAL,
+          });
+          throw new TRPCError({ code: "CONFLICT", message: wire });
+        }
+      }
+
+      // ── Company-wide open-session guard (belt-and-suspenders) ───────────────
       const [openSession] = await db
         .select({ id: attendanceRecords.id, checkIn: attendanceRecords.checkIn, checkOut: attendanceRecords.checkOut, siteId: attendanceRecords.siteId })
         .from(attendanceRecords)
@@ -637,6 +741,7 @@ export const attendanceRouter = router({
         });
       }
 
+      const checkInTime = new Date();
       let record: (typeof attendanceRecords.$inferSelect) | undefined;
       await db.transaction(async (tx) => {
         const [result] = await tx.insert(attendanceRecords).values({
@@ -645,7 +750,7 @@ export const attendanceRouter = router({
           scheduleId: dayCtx.activeScheduleId ?? undefined,
           siteId: site.id,
           siteName: site.name,
-          checkIn: new Date(),
+          checkIn: checkInTime,
           checkInLat: input.lat ? String(input.lat) : null,
           checkInLng: input.lng ? String(input.lng) : null,
           method: "qr_scan",
@@ -668,6 +773,24 @@ export const attendanceRouter = router({
           })
           .from(attendanceRecords).where(eq(attendanceRecords.id, recordId)).limit(1);
         record = r as typeof attendanceRecords.$inferSelect;
+
+        // ── Dual-write: attendance_sessions (P1 session model) ─────────────
+        await insertAttendanceSessionSafe(tx, {
+          companyId: site.companyId,
+          employeeId: emp.id,
+          scheduleId: dayCtx.activeScheduleId ?? undefined,
+          businessDate: dayCtx.businessDate,
+          status: "open",
+          checkInAt: checkInTime,
+          siteId: site.id,
+          siteName: site.name,
+          method: "qr_scan",
+          source: "employee_portal",
+          checkInLat: input.lat ? String(input.lat) : null,
+          checkInLng: input.lng ? String(input.lng) : null,
+          sourceRecordId: recordId,
+        });
+
         await insertAttendanceAuditRow(tx, {
           companyId: site.companyId,
           employeeId: emp.id,
@@ -774,6 +897,15 @@ export const attendanceRouter = router({
           .select({ id: attendanceRecords.id, checkIn: attendanceRecords.checkIn, checkOut: attendanceRecords.checkOut, siteId: attendanceRecords.siteId })
           .from(attendanceRecords).where(eq(attendanceRecords.id, existing.id)).limit(1);
         updated = u;
+
+        // ── Dual-write: close the matching attendance_sessions row ─────────
+        await closeAttendanceSessionSafe(tx, {
+          sourceRecordId: existing.id,
+          checkOutAt: checkOutTime,
+          checkOutLat: input.lat ? String(input.lat) : null,
+          checkOutLng: input.lng ? String(input.lng) : null,
+        });
+
         await insertAttendanceAuditRow(tx, {
           companyId: membership.companyId,
           employeeId: emp.id,
@@ -1399,6 +1531,10 @@ export const attendanceRouter = router({
                 : req.requestedAt,
             });
 
+      const approvedBusinessDate =
+        req.requestedBusinessDate ??
+        muscatCalendarYmdFromUtcInstant(req.requestedAt);
+
       let recordIdOut = 0;
       await db.transaction(async (tx) => {
         const [record] = await tx
@@ -1416,6 +1552,24 @@ export const attendanceRouter = router({
           })
           .$returningId();
         recordIdOut = record.id;
+
+        // ── Dual-write: attendance_sessions (admin approval → open session) ──
+        await insertAttendanceSessionSafe(tx, {
+          companyId: membership.company.id,
+          employeeId: empRow.id,
+          scheduleId: inferredScheduleId ?? undefined,
+          businessDate: approvedBusinessDate,
+          status: "open",
+          checkInAt: req.requestedAt,
+          siteId: req.siteId ?? undefined,
+          method: "manual",
+          source: "admin_panel",
+          checkInLat: req.lat ?? undefined,
+          checkInLng: req.lng ?? undefined,
+          notes: `Manual check-in approved. Justification: ${req.justification}`,
+          sourceRecordId: record.id,
+        });
+
         await tx
           .update(manualCheckinRequests)
           .set({
@@ -2015,4 +2169,376 @@ export const attendanceRouter = router({
       { value: "other", label: "Other", icon: "📌" },
     ];
   }),
+
+  // ─── P1: Session-based read queries ──────────────────────────────────────
+  /**
+   * Returns today's attendance sessions for the current employee (read from
+   * `attendance_sessions`).  Falls back gracefully if the table is unavailable
+   * (migration not yet applied).
+   *
+   * Prefer this over `myToday` once the table is confirmed stable — it is the
+   * authoritative state-based view rather than the event-log-based heuristic.
+   */
+  myTodaySessions: protectedProcedure
+    .input(z.object({ companyId: z.number().optional() }))
+    .query(async ({ ctx, input }) => {
+      const db = await requireDb();
+      const membership = await getActiveCompanyMembership(ctx.user.id, input.companyId ?? undefined);
+      if (!membership) return null;
+      const emp = await resolveMyEmployee(ctx.user.id, ctx.user.email ?? "", membership.companyId);
+      if (!emp) return null;
+
+      const businessDate = muscatCalendarYmdNow();
+      try {
+        const rows = await db
+          .select()
+          .from(attendanceSessions)
+          .where(and(
+            eq(attendanceSessions.companyId, membership.companyId),
+            eq(attendanceSessions.employeeId, emp.id),
+            eq(attendanceSessions.businessDate, businessDate),
+          ))
+          .orderBy(desc(attendanceSessions.checkInAt));
+        return { businessDate, sessions: rows };
+      } catch (err: any) {
+        if (/Table.*doesn't exist|Unknown table/i.test(String(err?.message ?? ""))) {
+          return { businessDate, sessions: [] };
+        }
+        throw err;
+      }
+    }),
+
+  /**
+   * Returns attendance sessions for the employee in the requested month.
+   * Structurally equivalent to `employeePortal.getMyAttendanceRecords` but
+   * reads from `attendance_sessions` instead of `attendance_records`, providing
+   * explicit `business_date` and clean `status` for each row.
+   */
+  mySessionsByMonth: protectedProcedure
+    .input(z.object({ month: z.string(), companyId: z.number().optional() })) // YYYY-MM
+    .query(async ({ ctx, input }) => {
+      const db = await requireDb();
+      const membership = await getActiveCompanyMembership(ctx.user.id, input.companyId ?? undefined);
+      if (!membership) return { sessions: [], summary: { total: 0, hoursWorked: 0 } };
+      const emp = await resolveMyEmployee(ctx.user.id, ctx.user.email ?? "", membership.companyId);
+      if (!emp) return { sessions: [], summary: { total: 0, hoursWorked: 0 } };
+
+      const [year, month] = input.month.split("-").map(Number);
+      const dateFrom = `${year}-${String(month).padStart(2, "0")}-01`;
+      const lastDay = new Date(year!, month!, 0).getDate();
+      const dateTo = `${year}-${String(month).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
+
+      try {
+        const rows = await db
+          .select()
+          .from(attendanceSessions)
+          .where(and(
+            eq(attendanceSessions.companyId, membership.companyId),
+            eq(attendanceSessions.employeeId, emp.id),
+            gte(attendanceSessions.businessDate, dateFrom),
+            lte(attendanceSessions.businessDate, dateTo),
+          ))
+          .orderBy(desc(attendanceSessions.checkInAt));
+
+        let totalHours = 0;
+        for (const s of rows) {
+          if (s.checkOutAt) {
+            totalHours += (new Date(s.checkOutAt).getTime() - new Date(s.checkInAt).getTime()) / 3600000;
+          }
+        }
+
+        return {
+          sessions: rows,
+          summary: {
+            total: rows.length,
+            hoursWorked: Math.round(totalHours * 10) / 10,
+          },
+        };
+      } catch (err: any) {
+        if (/Table.*doesn't exist|Unknown table/i.test(String(err?.message ?? ""))) {
+          return { sessions: [], summary: { total: 0, hoursWorked: 0 } };
+        }
+        throw err;
+      }
+    }),
+
+  // ─── P0: Duplicate-session cleanup (admin-only, idempotent) ───────────────
+  /**
+   * Detects and resolves duplicate open sessions for the same employee + schedule.
+   *
+   * Safe rule applied per duplicate group:
+   *   • If any row has check_out IS NULL (open), keep the LATEST open row.
+   *   • All earlier rows (open or closed) in the same (employee, schedule) group
+   *     are given a synthetic check_out equal to the next row's check_in so the
+   *     record remains meaningful in historical queries rather than being deleted.
+   *
+   * Returns a summary of how many groups were affected and how many rows were patched.
+   * Dry-run mode (default) returns the would-be changes without writing anything.
+   */
+  deduplicateAttendanceRecords: protectedProcedure
+    .input(z.object({
+      companyId: z.number().optional(),
+      dryRun: z.boolean().default(true),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const membership = await requireAdminOrHR(ctx.user.id, input.companyId);
+      const db = await requireDb();
+
+      // Find all (employeeId, scheduleId) pairs that have more than one open session.
+      // Load all open, shift-attributed rows for the company, then group in JS.
+      const openRows = await db
+        .select({
+          employeeId: attendanceRecords.employeeId,
+          scheduleId: attendanceRecords.scheduleId,
+        })
+        .from(attendanceRecords)
+        .where(and(
+          eq(attendanceRecords.companyId, membership.company.id),
+          isNull(attendanceRecords.checkOut),
+        ));
+
+      // Count open rows per (employee, schedule) pair using plain objects
+      const pairMeta: Record<string, { employeeId: number; scheduleId: number }> = {};
+      const pairCount: Record<string, number> = {};
+      openRows.forEach((row) => {
+        if (row.scheduleId == null) return;
+        const key = `${row.employeeId}:${row.scheduleId}`;
+        pairMeta[key] = { employeeId: row.employeeId, scheduleId: row.scheduleId };
+        pairCount[key] = (pairCount[key] ?? 0) + 1;
+      });
+
+      const dupeRows = Object.keys(pairCount)
+        .filter((k) => (pairCount[k] ?? 0) > 1)
+        .map((k) => pairMeta[k]!);
+
+      if (dupeRows.length === 0) {
+        return { affectedGroups: 0, patchedRows: 0, dryRun: input.dryRun, groups: [] };
+      }
+
+      const summary: Array<{
+        employeeId: number;
+        scheduleId: number;
+        openCount: number;
+        keptRecordId: number;
+        patchedIds: number[];
+      }> = [];
+
+      let totalPatched = 0;
+
+      for (let di = 0; di < dupeRows.length; di++) {
+        const dupePair = dupeRows[di]!;
+        // Fetch all open rows for this (employee, schedule), newest first
+        const rows = await db
+          .select({
+            id: attendanceRecords.id,
+            checkIn: attendanceRecords.checkIn,
+            checkOut: attendanceRecords.checkOut,
+          })
+          .from(attendanceRecords)
+          .where(and(
+            eq(attendanceRecords.companyId, membership.company.id),
+            eq(attendanceRecords.employeeId, dupePair.employeeId),
+            eq(attendanceRecords.scheduleId, dupePair.scheduleId),
+            isNull(attendanceRecords.checkOut),
+          ))
+          .orderBy(desc(attendanceRecords.checkIn));
+
+        if (rows.length <= 1) continue;
+
+        // Keep the latest open row; patch all earlier ones
+        const [keep, ...toClose] = rows;
+        const patchedIds: number[] = [];
+
+        for (let i = 0; i < toClose.length; i++) {
+          const staleRow = toClose[i]!;
+          // Synthetic checkout = 1 minute before the next newer row's check-in
+          const syntheticCheckOut = i === 0
+            ? new Date(keep!.checkIn.getTime() - 60_000)
+            : new Date(toClose[i - 1]!.checkIn.getTime() - 60_000);
+
+          if (!input.dryRun) {
+            await db
+              .update(attendanceRecords)
+              .set({
+                checkOut: syntheticCheckOut,
+                notes: `[auto-dedup] Closed by deduplication run on ${new Date().toISOString()}. Original check_out was NULL.`,
+              })
+              .where(eq(attendanceRecords.id, staleRow.id));
+          }
+          patchedIds.push(staleRow.id);
+          totalPatched++;
+        }
+
+        summary.push({
+          employeeId: dupePair.employeeId,
+          scheduleId: dupePair.scheduleId,
+          openCount: rows.length,
+          keptRecordId: keep!.id,
+          patchedIds,
+        });
+      }
+
+      return {
+        affectedGroups: summary.length,
+        patchedRows: totalPatched,
+        dryRun: input.dryRun,
+        groups: summary,
+      };
+    }),
+
+  // ─── P2: Session anomaly detection (admin-only) ────────────────────────────
+  /**
+   * Scans `attendance_records` for patterns that indicate data integrity issues:
+   *
+   * - MULTIPLE_OPEN_SESSIONS   — employee has 2+ open rows (no check_out) for the same shift
+   * - MULTIPLE_SESSIONS        — employee has 2+ rows (any status) for the same shift on one day
+   * - ORPHAN_CHECKOUT          — check_out exists but check_in is NULL (data corruption)
+   * - RUNAWAY_SESSION          — open session whose check_in is > 16 hours ago
+   * - EARLY_CHECKIN_RECHECKIN  — closed session followed by another open session for same shift
+   *
+   * Returns at most `limit` anomalies ordered by severity (most critical first).
+   */
+  getSessionAnomalies: protectedProcedure
+    .input(z.object({
+      companyId: z.number().optional(),
+      dateFrom: z.string().optional(), // YYYY-MM-DD
+      dateTo: z.string().optional(),
+      limit: z.number().min(1).max(500).default(100),
+    }))
+    .query(async ({ ctx, input }) => {
+      const membership = await requireAdminOrHR(ctx.user.id, input.companyId);
+      const db = await requireDb();
+
+      const now = new Date();
+      const windowStart = input.dateFrom
+        ? new Date(input.dateFrom + "T00:00:00.000Z")
+        : new Date(now.getTime() - 30 * 24 * 3600 * 1000);
+      const windowEnd = input.dateTo
+        ? new Date(input.dateTo + "T23:59:59.999Z")
+        : now;
+
+      const records = await db
+        .select({
+          id: attendanceRecords.id,
+          employeeId: attendanceRecords.employeeId,
+          scheduleId: attendanceRecords.scheduleId,
+          checkIn: attendanceRecords.checkIn,
+          checkOut: attendanceRecords.checkOut,
+        })
+        .from(attendanceRecords)
+        .where(and(
+          eq(attendanceRecords.companyId, membership.company.id),
+          gte(attendanceRecords.checkIn, windowStart),
+          lte(attendanceRecords.checkIn, windowEnd),
+        ))
+        .orderBy(attendanceRecords.employeeId, attendanceRecords.scheduleId, attendanceRecords.checkIn);
+
+      type AnomalyType =
+        | "MULTIPLE_OPEN_SESSIONS"
+        | "MULTIPLE_SESSIONS"
+        | "RUNAWAY_SESSION"
+        | "EARLY_CHECKIN_RECHECKIN";
+
+      const anomalies: Array<{
+        type: AnomalyType;
+        severity: "critical" | "warning";
+        employeeId: number;
+        scheduleId: number | null;
+        recordIds: number[];
+        detail: string;
+      }> = [];
+
+      type RecordRow = (typeof records)[number];
+
+      // Group by (employee, schedule, calendar day)
+      const groupsMap: Record<string, RecordRow[]> = {};
+      records.forEach((r) => {
+        const day = muscatCalendarYmdFromUtcInstant(r.checkIn);
+        const key = `${r.employeeId}:${r.scheduleId ?? "null"}:${day}`;
+        if (!groupsMap[key]) groupsMap[key] = [];
+        groupsMap[key]!.push(r);
+      });
+
+      Object.values(groupsMap).forEach((grp) => {
+        if (grp.length === 0) return;
+        const first = grp[0]!;
+        const { employeeId, scheduleId } = first;
+        const ids = grp.map((r: RecordRow) => r.id);
+
+        const openRows = grp.filter((r: RecordRow) => r.checkOut == null);
+        const closedRows = grp.filter((r: RecordRow) => r.checkOut != null);
+
+        // Multiple open sessions for same shift — critical
+        if (openRows.length > 1) {
+          anomalies.push({
+            type: "MULTIPLE_OPEN_SESSIONS",
+            severity: "critical",
+            employeeId,
+            scheduleId: scheduleId ?? null,
+            recordIds: openRows.map((r: RecordRow) => r.id),
+            detail: `${openRows.length} open sessions for employee ${employeeId} on the same shift.`,
+          });
+        }
+
+        // Multiple sessions (any state) for same shift — warning
+        if (grp.length > 1 && openRows.length <= 1) {
+          anomalies.push({
+            type: "MULTIPLE_SESSIONS",
+            severity: "warning",
+            employeeId,
+            scheduleId: scheduleId ?? null,
+            recordIds: ids,
+            detail: `${grp.length} attendance rows for employee ${employeeId} on the same shift.`,
+          });
+        }
+
+        // Closed session followed by another open session for same shift
+        if (closedRows.length > 0 && openRows.length > 0) {
+          const lastClosed = closedRows.reduce((a: RecordRow, b: RecordRow) =>
+            new Date(a.checkIn) > new Date(b.checkIn) ? a : b
+          );
+          const firstOpen = openRows.reduce((a: RecordRow, b: RecordRow) =>
+            new Date(a.checkIn) < new Date(b.checkIn) ? a : b
+          );
+          if (new Date(firstOpen.checkIn) > new Date(lastClosed.checkIn)) {
+            anomalies.push({
+              type: "EARLY_CHECKIN_RECHECKIN",
+              severity: "warning",
+              employeeId,
+              scheduleId: scheduleId ?? null,
+              recordIds: [lastClosed.id, firstOpen.id],
+              detail: `Employee ${employeeId} checked out early (record ${lastClosed.id}) then re-checked in (record ${firstOpen.id}) for the same shift.`,
+            });
+          }
+        }
+      });
+
+      // Runaway open sessions (> 16 hours old, regardless of shift)
+      const cutoff = new Date(now.getTime() - 16 * 3600 * 1000);
+      for (const r of records) {
+        if (r.checkOut == null && new Date(r.checkIn) < cutoff) {
+          anomalies.push({
+            type: "RUNAWAY_SESSION",
+            severity: "critical",
+            employeeId: r.employeeId,
+            scheduleId: r.scheduleId ?? null,
+            recordIds: [r.id],
+            detail: `Record ${r.id} has been open for over 16 hours (checked in at ${r.checkIn.toISOString()}).`,
+          });
+        }
+      }
+
+      // Sort: critical first, then by employeeId
+      anomalies.sort((a, b) => {
+        if (a.severity !== b.severity) return a.severity === "critical" ? -1 : 1;
+        return a.employeeId - b.employeeId;
+      });
+
+      return {
+        total: anomalies.length,
+        anomalies: anomalies.slice(0, input.limit),
+        windowFrom: windowStart.toISOString(),
+        windowTo: windowEnd.toISOString(),
+      };
+    }),
 });

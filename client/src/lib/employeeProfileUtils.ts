@@ -30,6 +30,8 @@ export interface ProfileEmpData {
   position?: string | null;
   department?: string | null;
   managerId?: number | null;
+  /** Resolved from a manager join — not a raw DB column on this row */
+  managerName?: string | null;
   hireDate?: string | Date | null;
   avatarUrl?: string | null;
   // Payroll
@@ -247,4 +249,31 @@ export function hasAnyExpiringDocField(fields: ProfileDocField[]): boolean {
     const d = daysUntilExpiry(f.expiryDate);
     return d !== null && d <= 90;
   });
+}
+
+// ─── Overview reminder ───────────────────────────────────────────────────────
+
+/**
+ * Generates a short actionable reminder string for the overview/home screen
+ * when the employee's self-service profile fields are incomplete.
+ *
+ * Uses the correct DB field names (`emergencyContactName`, `emergencyContactPhone`)
+ * so it can be shared between the profile tab and the overview model safely.
+ *
+ * Returns null when no actionable fields are missing (no prompt needed).
+ */
+export function computeProfileReminderText(emp: {
+  phone?: string | null;
+  emergencyContactName?: string | null;
+  emergencyContactPhone?: string | null;
+} | null | undefined): string | null {
+  if (!emp) return null;
+  const missing: string[] = [];
+  if (!emp.phone?.trim()) missing.push("phone number");
+  if (!emp.emergencyContactName?.trim() || !emp.emergencyContactPhone?.trim()) {
+    missing.push("emergency contact");
+  }
+  if (missing.length === 0) return null;
+  if (missing.length === 1) return `Complete your profile — add your ${missing[0]}.`;
+  return `Complete your profile — add your ${missing.join(" and ")}.`;
 }

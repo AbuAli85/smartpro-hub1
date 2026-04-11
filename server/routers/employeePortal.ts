@@ -140,7 +140,72 @@ export const employeePortalRouter = router({
       const m = await getActiveCompanyMembership(ctx.user.id, input.companyId ?? undefined);
       if (!m) return null;
       const emp = await resolveMyEmployee(ctx.user.id, ctx.user.email ?? "", m.companyId);
-      return emp ?? null;
+      if (!emp) return null;
+
+      // Resolve manager display name (one extra query, conditional on managerId being set)
+      let managerName: string | null = null;
+      if (emp.managerId) {
+        const db = await requireDb();
+        const [mgr] = await db
+          .select({ firstName: employees.firstName, lastName: employees.lastName })
+          .from(employees)
+          .where(eq(employees.id, emp.managerId))
+          .limit(1);
+        if (mgr) {
+          managerName = [mgr.firstName, mgr.lastName].filter(Boolean).join(" ") || null;
+        }
+      }
+
+      return { ...emp, managerName };
+    }),
+
+  // ─── Submit a profile change request to HR ───────────────────────────────
+  submitProfileChangeRequest: protectedProcedure
+    .input(z.object({
+      companyId: z.number().optional(),
+      /** Human-readable label of the field to update, e.g. "Legal name" */
+      fieldLabel: z.string().trim().min(1).max(100),
+      /** What the employee wants it changed to */
+      requestedValue: z.string().trim().min(1).max(500),
+      /** Optional context/reason */
+      reason: z.string().trim().max(500).optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const m = await getActiveCompanyMembership(ctx.user.id, input.companyId ?? undefined);
+      if (!m) throw new TRPCError({ code: "FORBIDDEN" });
+      const myEmp = await resolveMyEmployee(ctx.user.id, ctx.user.email ?? "", m.companyId);
+      if (!myEmp) throw new TRPCError({ code: "NOT_FOUND", message: "Employee record not found" });
+      const db = await requireDb();
+
+      const empName = [myEmp.firstName, myEmp.lastName].filter(Boolean).join(" ") || "Employee";
+      const message = `${empName} requests update to "${input.fieldLabel}": ${input.requestedValue}${input.reason ? ` — Reason: ${input.reason}` : ""}`;
+
+      // Notify all company admins/HR so they can act on it
+      const admins = await db
+        .select({ userId: companyMembers.userId })
+        .from(companyMembers)
+        .where(
+          and(
+            eq(companyMembers.companyId, m.companyId),
+            inArray(companyMembers.role, ["company_admin", "hr_admin"]),
+          ),
+        );
+
+      for (const admin of admins) {
+        if (admin.userId) {
+          await sendEmployeeNotification({
+            toUserId: admin.userId,
+            companyId: m.companyId,
+            type: "profile_change_request",
+            title: "Profile change request",
+            message,
+            link: `/hr/employees/${myEmp.id}`,
+            actorUserId: ctx.user.id,
+          });
+        }
+      }
+
+      return { success: true };
     }),
 
   // ─── Get my attendance for a given month ──────────────────────────────────

@@ -16,6 +16,7 @@ import {
 import { buildEmployeeBlockers, type EmployeeBlocker } from "@/lib/employeeBlockersModel";
 import { buildCommandCenterClassification } from "@/lib/employeeCommandCenterClassification";
 import { isOnApprovedLeaveToday } from "@/lib/employeeRequestsPresentation";
+import { computeProfileReminderText } from "@/lib/employeeProfileUtils";
 
 /** Max priority rows in the home “Top actions” queue (EOS command center). */
 export const EMPLOYEE_PORTAL_TOP_ACTIONS_MAX = 5;
@@ -403,16 +404,10 @@ export function buildShiftTimingExtras(input: {
 
 export function profileCompletenessReminder(emp: {
   phone?: string | null;
-  emergencyContact?: string | null;
-  emergencyPhone?: string | null;
+  emergencyContactName?: string | null;
+  emergencyContactPhone?: string | null;
 } | null | undefined): string | null {
-  if (!emp) return null;
-  const missing: string[] = [];
-  if (!emp.phone?.trim()) missing.push("phone");
-  if (!emp.emergencyContact?.trim()) missing.push("emergency contact name");
-  if (!emp.emergencyPhone?.trim()) missing.push("emergency phone");
-  if (missing.length === 0) return null;
-  return `Complete your profile: add ${missing.join(", ")}.`;
+  return computeProfileReminderText(emp);
 }
 
 /**

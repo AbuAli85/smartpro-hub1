@@ -159,7 +159,7 @@ export interface EmployeePortalOverviewProps {
 
   myTraining: any[] | undefined;
   mySelfReviews: any[] | undefined;
-  emp: { phone?: string | null; emergencyContact?: string | null; emergencyPhone?: string | null; department?: string | null };
+  emp: { phone?: string | null; emergencyContactName?: string | null; emergencyContactPhone?: string | null; department?: string | null };
 
   pendingShiftRequests: number;
   pendingExpenses: number;

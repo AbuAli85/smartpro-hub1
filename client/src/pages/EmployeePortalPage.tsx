@@ -2680,8 +2680,8 @@ export default function EmployeePortalPage() {
               mySelfReviews={mySelfReviews as any[] | undefined}
               emp={{
                 phone: emp?.phone,
-                emergencyContact: emp?.emergencyContactName,
-                emergencyPhone: emp?.emergencyContactPhone,
+                emergencyContactName: emp?.emergencyContactName,
+                emergencyContactPhone: emp?.emergencyContactPhone,
                 department: emp?.department ?? null,
               }}
               pendingShiftRequests={pendingShiftRequestsCount}

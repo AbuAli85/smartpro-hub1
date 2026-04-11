@@ -13,6 +13,15 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Progress } from "@/components/ui/progress";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { toast } from "sonner";
 import {
   User,
@@ -33,6 +42,9 @@ import {
   DollarSign,
   Wallet,
   Info,
+  SendHorizonal,
+  UserCheck,
+  ExternalLink,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { fmtDateLong, daysUntilExpiry } from "@/lib/dateUtils";
@@ -673,9 +685,11 @@ function ContactCard({
 function EmploymentCard({
   emp,
   companyInfo,
+  onRequestChange,
 }: {
   emp: ProfileEmpData;
   companyInfo: { name: string } | null | undefined;
+  onRequestChange: (fieldHint: string) => void;
 }) {
   const rows = [
     { label: "Company", value: companyInfo?.name, Icon: Building2 },
@@ -685,10 +699,13 @@ function EmploymentCard({
     { label: "Hire Date", value: emp.hireDate ? fmtDateLong(emp.hireDate) : null, Icon: Calendar },
     {
       label: "Status",
-      value: emp.status
-        ? emp.status.replace(/\b\w/g, (c) => c.toUpperCase())
-        : null,
+      value: emp.status ? emp.status.replace(/\b\w/g, (c) => c.toUpperCase()) : null,
       Icon: null,
+    },
+    {
+      label: "Manager",
+      value: emp.managerName ?? null,
+      Icon: UserCheck,
     },
   ].filter((r) => r.value);
 
@@ -721,9 +738,19 @@ function EmploymentCard({
             Employment details not yet available.
           </p>
         )}
-        <p className="text-[11px] text-muted-foreground border-t border-border/50 pt-3">
-          Employment details are managed by HR. To request a correction, contact your HR team.
-        </p>
+        <div className="flex items-center justify-between gap-3 border-t border-border/50 pt-3">
+          <p className="text-[11px] text-muted-foreground">
+            Managed by HR — contact HR to update these details.
+          </p>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 text-xs gap-1 text-primary shrink-0"
+            onClick={() => onRequestChange("employment details")}
+          >
+            <SendHorizonal className="h-3 w-3" /> Request correction
+          </Button>
+        </div>
       </CardContent>
     </Card>
   );
@@ -736,11 +763,13 @@ function PayrollCard({
   payrollReady,
   latestPayslip,
   setActiveTab,
+  onRequestChange,
 }: {
   emp: ProfileEmpData;
   payrollReady: boolean;
   latestPayslip: any | null;
   setActiveTab: (tab: string) => void;
+  onRequestChange: (fieldHint: string) => void;
 }) {
   return (
     <Card
@@ -832,8 +861,7 @@ function PayrollCard({
           </>
         )}
 
-        <div className="flex items-center justify-between pt-1 border-t border-border/50">
-          <p className="text-[11px] text-muted-foreground">Bank details are managed by HR.</p>
+        <div className="flex items-center justify-between pt-1 border-t border-border/50 gap-2 flex-wrap">
           <Button
             size="sm"
             variant="ghost"
@@ -843,6 +871,14 @@ function PayrollCard({
             <DollarSign className="h-3 w-3" />
             {latestPayslip ? "All payslips" : "View payroll"}
           </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 text-xs gap-1 text-muted-foreground hover:text-primary"
+            onClick={() => onRequestChange("bank details for payroll")}
+          >
+            <SendHorizonal className="h-3 w-3" /> Request update
+          </Button>
         </div>
       </CardContent>
     </Card>
@@ -851,7 +887,13 @@ function PayrollCard({
 
 // ─── Sub-section: Documents & Visa card ──────────────────────────────────────
 
-function DocumentsCard({ emp }: { emp: ProfileEmpData }) {
+function DocumentsCard({
+  emp,
+  setActiveTab,
+}: {
+  emp: ProfileEmpData;
+  setActiveTab: (tab: string) => void;
+}) {
   const docFields = getProfileDocFields(emp);
   const hasExpiring = hasAnyExpiringDocField(docFields);
 
@@ -926,11 +968,147 @@ function DocumentsCard({ emp }: { emp: ProfileEmpData }) {
             );
           })}
         </div>
-        <p className="text-[11px] text-muted-foreground pt-1 border-t border-border/50">
-          These fields are managed by HR. Contact your HR team to update or report errors.
-        </p>
+        <div className="flex items-center justify-between gap-2 pt-1 border-t border-border/50">
+          <p className="text-[11px] text-muted-foreground">
+            Managed by HR — contact HR to update or report errors.
+          </p>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 text-xs gap-1 text-primary shrink-0"
+            onClick={() => setActiveTab("documents")}
+          >
+            <ExternalLink className="h-3 w-3" /> All documents
+          </Button>
+        </div>
       </div>
     </details>
+  );
+}
+
+// ─── Profile change request dialog ───────────────────────────────────────────
+
+interface ProfileChangeRequestState {
+  open: boolean;
+  fieldHint: string;
+}
+
+function ProfileChangeRequestDialog({
+  state,
+  onClose,
+  activeCompanyId,
+}: {
+  state: ProfileChangeRequestState;
+  onClose: () => void;
+  activeCompanyId: number | null | undefined;
+}) {
+  const [fieldLabel, setFieldLabel] = useState(state.fieldHint);
+  const [requestedValue, setRequestedValue] = useState("");
+  const [reason, setReason] = useState("");
+
+  // Reset form when dialog opens with a new hint
+  React.useEffect(() => {
+    if (state.open) {
+      setFieldLabel(state.fieldHint);
+      setRequestedValue("");
+      setReason("");
+    }
+  }, [state.open, state.fieldHint]);
+
+  const submit = trpc.employeePortal.submitProfileChangeRequest.useMutation({
+    onSuccess: () => {
+      toast.success("Request sent to HR", {
+        description: "Your HR team will review and update the information.",
+      });
+      onClose();
+    },
+    onError: (err) => {
+      toast.error("Failed to send request", { description: err.message });
+    },
+  });
+
+  function handleSubmit() {
+    if (!fieldLabel.trim() || !requestedValue.trim()) return;
+    if (activeCompanyId == null) return;
+    submit.mutate({
+      companyId: activeCompanyId,
+      fieldLabel: fieldLabel.trim(),
+      requestedValue: requestedValue.trim(),
+      reason: reason.trim() || undefined,
+    });
+  }
+
+  return (
+    <Dialog open={state.open} onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <SendHorizonal className="h-4 w-4 text-primary" />
+            Request profile correction
+          </DialogTitle>
+          <DialogDescription>
+            HR will be notified and will update your record directly.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4 py-2">
+          <div className="space-y-1.5">
+            <Label className="text-xs">
+              What needs to change? <span className="text-red-500">*</span>
+            </Label>
+            <Input
+              value={fieldLabel}
+              onChange={(e) => setFieldLabel(e.target.value)}
+              placeholder="e.g. Legal name, Department, Bank IBAN…"
+              maxLength={100}
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs">
+              Correct / requested value <span className="text-red-500">*</span>
+            </Label>
+            <Textarea
+              value={requestedValue}
+              onChange={(e) => setRequestedValue(e.target.value)}
+              placeholder="Enter the correct value or details"
+              rows={3}
+              maxLength={500}
+              className="resize-none text-sm"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs">
+              Additional notes <span className="text-muted-foreground font-normal">(optional)</span>
+            </Label>
+            <Textarea
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="Any supporting context for HR…"
+              rows={2}
+              maxLength={500}
+              className="resize-none text-sm"
+            />
+          </div>
+        </div>
+
+        <DialogFooter className="gap-2">
+          <Button variant="outline" size="sm" onClick={onClose} disabled={submit.isPending}>
+            Cancel
+          </Button>
+          <Button
+            size="sm"
+            className="gap-1"
+            disabled={!fieldLabel.trim() || !requestedValue.trim() || submit.isPending || activeCompanyId == null}
+            onClick={handleSubmit}
+          >
+            <SendHorizonal className="h-3.5 w-3.5" />
+            {submit.isPending ? "Sending…" : "Send to HR"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -956,6 +1134,15 @@ export function EmployeeProfileTab({
 }: EmployeeProfileTabProps) {
   // Track whether an alert CTA has requested contact edit to open
   const [openContactEdit, setOpenContactEdit] = useState(false);
+  // Track HR change-request dialog state
+  const [changeRequest, setChangeRequest] = useState<ProfileChangeRequestState>({
+    open: false,
+    fieldHint: "",
+  });
+
+  function openRequestChange(fieldHint: string) {
+    setChangeRequest({ open: true, fieldHint });
+  }
 
   const latestPayslip = payroll.length > 0 ? payroll[0] : null;
 
@@ -998,14 +1185,18 @@ export function EmployeeProfileTab({
         activeCompanyId={activeCompanyId}
         hasEmergencyContact={hasEmergencyContact}
         onContactUpdated={() => {
-          /* parent can pass a refetch callback if needed */
+          /* profile query is invalidated inside ContactCard via trpc.useUtils() */
         }}
         forceEdit={openContactEdit}
         onForceEditCleared={() => setOpenContactEdit(false)}
       />
 
       {/* 5. Employment */}
-      <EmploymentCard emp={emp} companyInfo={companyInfo} />
+      <EmploymentCard
+        emp={emp}
+        companyInfo={companyInfo}
+        onRequestChange={openRequestChange}
+      />
 
       {/* 6. Payroll */}
       <PayrollCard
@@ -1013,10 +1204,11 @@ export function EmployeeProfileTab({
         payrollReady={payrollReady}
         latestPayslip={latestPayslip}
         setActiveTab={setActiveTab}
+        onRequestChange={openRequestChange}
       />
 
       {/* 7. Documents & visa (collapsed unless expiring) */}
-      <DocumentsCard emp={emp} />
+      <DocumentsCard emp={emp} setActiveTab={setActiveTab} />
 
       {/* 8. Self-service actions */}
       <EmployeePortalMoreHub
@@ -1026,6 +1218,13 @@ export function EmployeeProfileTab({
         trainingAttentionCount={trainingAttentionCount}
         pendingExpenses={pendingExpensesCount}
         pendingShiftRequests={pendingShiftRequestsCount}
+      />
+
+      {/* HR change-request dialog (portal-level, shown above all cards) */}
+      <ProfileChangeRequestDialog
+        state={changeRequest}
+        onClose={() => setChangeRequest((s) => ({ ...s, open: false }))}
+        activeCompanyId={activeCompanyId}
       />
     </div>
   );

@@ -1,8 +1,13 @@
 /**
  * Shared resolution of “today’s” schedule + attendance record for an employee.
- * Keeps employeePortal hints and attendance.checkIn aligned on businessDate and schedule rules.
+ * Keeps employeePortal hints and `attendance.checkIn` aligned on **Muscat** `businessDate` and schedule rules.
+ *
+ * **Clock rows:** `attendance_records.check_in` / `check_out` are the employee’s real action times (UTC in DB).
+ * **This file:** loads all punches whose check-in falls in the Muscat calendar day `businessDate`, then
+ * `allWorkingShiftRowsHaveClosedAttendance` decides if every scheduled shift has a closed row assigned to it
+ * (multi-shift: morning checkout does not block evening check-in).
  */
-import { and, desc, eq, gte, inArray, isNull, lte, or } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNull, lt, lte, or } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import {
   attendanceRecords,
@@ -13,6 +18,7 @@ import {
 } from "../drizzle/schema";
 import { pickScheduleRowForNow } from "@shared/pickScheduleForAttendanceNow";
 import { allWorkingShiftRowsHaveClosedAttendance } from "@shared/assignAttendanceRecordsToShifts";
+import { muscatDayUtcRangeExclusiveEnd } from "@shared/attendanceMuscatTime";
 
 export interface EmployeeAttendanceDayContext {
   businessDate: string;
@@ -119,8 +125,7 @@ export async function resolveEmployeeAttendanceDayContext(
     }
   }
 
-  const dayStart = new Date(businessDate + "T00:00:00.000Z");
-  const dayEnd = new Date(businessDate + "T23:59:59.999Z");
+  const { startUtc: dayStart, endExclusiveUtc: dayEndExclusive } = muscatDayUtcRangeExclusiveEnd(businessDate);
 
   const [openSession] = await db
     .select()
@@ -136,7 +141,7 @@ export async function resolveEmployeeAttendanceDayContext(
       and(
         eq(attendanceRecords.employeeId, employeeId),
         gte(attendanceRecords.checkIn, dayStart),
-        lte(attendanceRecords.checkIn, dayEnd)
+        lt(attendanceRecords.checkIn, dayEndExclusive)
       )
     )
     .orderBy(desc(attendanceRecords.checkIn));

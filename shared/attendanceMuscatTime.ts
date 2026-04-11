@@ -20,3 +20,44 @@ export function muscatWallDateTimeToUtc(dateYmd: string, hhmmss: string): Date {
   const se = parseInt((ssPart ?? "0").replace(/\D/g, "") || "0", 10);
   return new Date(Date.UTC(y, mo - 1, d, h, mi, se, 0) - MUSCAT_UTC_OFFSET_MS);
 }
+
+/** Muscat calendar date for an instant (`YYYY-MM-DD`), same basis as the client `fmtDate`. */
+export function muscatCalendarYmdFromUtcInstant(d: Date): string {
+  return d.toLocaleDateString("en-CA", { timeZone: "Asia/Muscat" });
+}
+
+/** Today’s Muscat calendar date (`YYYY-MM-DD`). */
+export function muscatCalendarYmdNow(now: Date = new Date()): string {
+  return muscatCalendarYmdFromUtcInstant(now);
+}
+
+/**
+ * Muscat weekday for `now`: `0` = Sunday … `6` = Saturday (matches JS `Date#getDay` and typical `workingDays` CSV).
+ */
+export function muscatCalendarWeekdaySun0(now: Date = new Date()): number {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Muscat",
+    weekday: "short",
+  }).formatToParts(now);
+  const w = parts.find((p) => p.type === "weekday")?.value ?? "Sun";
+  const map: Record<string, number> = {
+    Sun: 0,
+    Mon: 1,
+    Tue: 2,
+    Wed: 3,
+    Thu: 4,
+    Fri: 5,
+    Sat: 6,
+  };
+  return map[w] ?? 0;
+}
+
+/**
+ * UTC instants spanning one Muscat calendar day `ymd` (inclusive start, exclusive end).
+ * Use with `checkIn >= startUtc && checkIn < endExclusiveUtc` so punches stay aligned to Muscat “today”.
+ */
+export function muscatDayUtcRangeExclusiveEnd(ymd: string): { startUtc: Date; endExclusiveUtc: Date } {
+  const startUtc = muscatWallDateTimeToUtc(ymd, "00:00:00");
+  const endExclusiveUtc = new Date(startUtc.getTime() + 24 * 60 * 60 * 1000);
+  return { startUtc, endExclusiveUtc };
+}

@@ -19,6 +19,7 @@ import { OMAN_LEAVE_PORTAL_DEFAULTS } from "@shared/omanLeavePolicyDefaults";
 import { mergeLeavePolicyCaps } from "@shared/leavePolicyCaps";
 import { resolveEmployeeAttendanceDayContext } from "../resolveEmployeeAttendanceDayContext";
 import { buildEmployeeWorkStatusSummary } from "@shared/employeePortalWorkStatusSummary";
+import { muscatCalendarYmdNow } from "@shared/attendanceMuscatTime";
 
 /** @deprecated Use OMAN_LEAVE_PORTAL_DEFAULTS from @shared/omanLeavePolicyDefaults — re-exported for callers. */
 export const DEFAULT_LEAVE_ENTITLEMENTS = OMAN_LEAVE_PORTAL_DEFAULTS;
@@ -777,7 +778,7 @@ export const employeePortalRouter = router({
       if (!myEmp) return null;
 
       const now = new Date();
-      const businessDate = now.toISOString().slice(0, 10);
+      const businessDate = muscatCalendarYmdNow(now);
 
       const dayCtx = await resolveEmployeeAttendanceDayContext(db, {
         companyId,

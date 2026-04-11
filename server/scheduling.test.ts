@@ -3,19 +3,12 @@
  * These tests cover the pure utility functions used in the scheduling module.
  */
 import { describe, it, expect } from "vitest";
+import { muscatCalendarWeekdaySun0, muscatCalendarYmdNow } from "../shared/attendanceMuscatTime";
 
 // ── Pure helpers duplicated here for isolated testing ─────────────────────
 function timeToMinutes(t: string): number {
   const [h, m] = t.split(":").map(Number);
   return h * 60 + m;
-}
-
-function todayStr(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function todayDow(): number {
-  return new Date().getDay();
 }
 
 function isLateCheckIn(checkInTime: string, shiftStart: string, gracePeriodMinutes: number): boolean {
@@ -130,27 +123,40 @@ describe("buildDateRange", () => {
   });
 });
 
-describe("todayStr", () => {
-  it("returns a string in YYYY-MM-DD format", () => {
-    const result = todayStr();
-    expect(result).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+describe("Muscat calendar today (scheduling router parity)", () => {
+  it("returns YYYY-MM-DD", () => {
+    expect(muscatCalendarYmdNow()).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });
-  it("matches the current date", () => {
-    const result = todayStr();
-    const expected = new Date().toISOString().slice(0, 10);
-    expect(result).toBe(expected);
+  it("matches Intl Asia/Muscat calendar date", () => {
+    const expected = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Muscat" });
+    expect(muscatCalendarYmdNow()).toBe(expected);
   });
 });
 
-describe("todayDow", () => {
+describe("Muscat weekday Sun0 (scheduling router parity)", () => {
   it("returns a number between 0 and 6", () => {
-    const result = todayDow();
+    const result = muscatCalendarWeekdaySun0();
     expect(result).toBeGreaterThanOrEqual(0);
     expect(result).toBeLessThanOrEqual(6);
   });
-  it("matches the current day of week", () => {
-    const result = todayDow();
-    expect(result).toBe(new Date().getDay());
+  it("matches weekday derived in Asia/Muscat", () => {
+    const now = new Date();
+    const result = muscatCalendarWeekdaySun0(now);
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: "Asia/Muscat",
+      weekday: "short",
+    }).formatToParts(now);
+    const w = parts.find((p) => p.type === "weekday")?.value ?? "Sun";
+    const map: Record<string, number> = {
+      Sun: 0,
+      Mon: 1,
+      Tue: 2,
+      Wed: 3,
+      Thu: 4,
+      Fri: 5,
+      Sat: 6,
+    };
+    expect(result).toBe(map[w] ?? 0);
   });
 });
 

@@ -28,7 +28,12 @@ import {
   assignAttendanceRecordsToShiftRows,
   attendanceOverlapShiftMinutes,
 } from "@shared/assignAttendanceRecordsToShifts";
-import { muscatWallDateTimeToUtc } from "@shared/attendanceMuscatTime";
+import {
+  muscatCalendarYmdFromUtcInstant,
+  muscatCalendarWeekdaySun0,
+  muscatCalendarYmdNow,
+  muscatWallDateTimeToUtc,
+} from "@shared/attendanceMuscatTime";
 
 async function requireDb() {
   const db = await getDb();
@@ -55,11 +60,11 @@ function employeeRowFromScheduleRef<E extends { id: number; userId: number | nul
 }
 
 function todayStr(): string {
-  return new Date().toISOString().slice(0, 10);
+  return muscatCalendarYmdNow();
 }
 
 function todayDow(): number {
-  return new Date().getDay();
+  return muscatCalendarWeekdaySun0();
 }
 
 export const schedulingRouter = router({
@@ -776,7 +781,7 @@ export const schedulingRouter = router({
 
       const recordMap = new Map<string, typeof records[0]>();
       for (const r of records) {
-        const dateStr = r.checkIn.toISOString().slice(0, 10);
+        const dateStr = muscatCalendarYmdFromUtcInstant(new Date(r.checkIn));
         recordMap.set(`${r.employeeId}-${dateStr}`, r);
       }
 

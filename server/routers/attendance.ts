@@ -1,6 +1,6 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { eq, and, desc, gte, lte, isNull } from "drizzle-orm";
+import { eq, and, desc, gte, lt, lte, isNull } from "drizzle-orm";
 import { randomBytes } from "crypto";
 import {
   attendanceSites,
@@ -26,7 +26,11 @@ import {
 } from "@shared/attendanceAuditTaxonomy";
 import { resolveEmployeeAttendanceDayContext } from "../resolveEmployeeAttendanceDayContext";
 import { attendancePayloadJson, insertAttendanceAuditRow, logAttendanceAuditSafe } from "../attendanceAudit";
-import { muscatWallDateTimeToUtc } from "@shared/attendanceMuscatTime";
+import {
+  muscatCalendarYmdNow,
+  muscatDayUtcRangeExclusiveEnd,
+  muscatWallDateTimeToUtc,
+} from "@shared/attendanceMuscatTime";
 
 async function requireDb() {
   const db = await getDb();
@@ -255,6 +259,16 @@ export const attendanceRouter = router({
       };
     }),
 
+  /**
+   * Self-service clock (authoritative write path):
+   * - Inserts one `attendance_records` row per check-in with `check_in` / `check_out` = **actual action time**
+   *   (UTC in DB; UI shows Asia/Muscat).
+   * - `businessDate` for eligibility is the **Muscat calendar date** so midnight near UTC does not split a Muscat day.
+   * - Multi-shift days: after checkout, a new row is created on the next scan; board / hints map rows onto shift
+   *   windows via overlap + check-in anchor (`assignAttendanceRecordsToShifts`).
+   * - `siteId` / geo are stored for the scanning site (future client/site attestation can extend payloads without
+   *   replacing this path). HR corrections and audit rows reference the same record ids.
+   */
   // ─── Employee: Check in via QR scan ──────────────────────────────────────
   checkIn: protectedProcedure
     .input(z.object({
@@ -423,7 +437,7 @@ export const attendanceRouter = router({
         throw new TRPCError({ code: "NOT_FOUND", message: "Employee record not found. Please contact HR." });
       }
 
-      const businessDate = new Date().toISOString().slice(0, 10);
+      const businessDate = muscatCalendarYmdNow();
       const dayCtx = await resolveEmployeeAttendanceDayContext(db, {
         companyId: site.companyId,
         userId: ctx.user.id,
@@ -647,16 +661,15 @@ export const attendanceRouter = router({
       .limit(1);
     if (open) return open;
 
-    const businessDate = new Date().toISOString().slice(0, 10);
-    const dayStart = new Date(businessDate + "T00:00:00.000Z");
-    const dayEnd = new Date(businessDate + "T23:59:59.999Z");
+    const businessDate = muscatCalendarYmdNow();
+    const { startUtc: dayStart, endExclusiveUtc } = muscatDayUtcRangeExclusiveEnd(businessDate);
     const [record] = await db
       .select()
       .from(attendanceRecords)
       .where(and(
         eq(attendanceRecords.employeeId, emp.id),
         gte(attendanceRecords.checkIn, dayStart),
-        lte(attendanceRecords.checkIn, dayEnd),
+        lt(attendanceRecords.checkIn, endExclusiveUtc),
       ))
       .orderBy(desc(attendanceRecords.checkIn))
         .limit(1);

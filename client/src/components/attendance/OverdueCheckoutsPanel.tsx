@@ -2,7 +2,8 @@
  * OverdueCheckoutsPanel
  * Manager / HR summary of employees who are still clocked in after their shift ended.
  * Refreshes automatically every 60 seconds. Each row has a "Send Reminder" button
- * that pushes an in-app notification to the employee.
+ * that opens a dialog where the manager can write a custom message before sending
+ * an in-app notification to the employee.
  */
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
@@ -11,7 +12,17 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { AlertTriangle, Bell, BellRing, Check, Clock, MapPin, RefreshCw } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { AlertTriangle, Bell, BellRing, Check, Clock, MapPin, RefreshCw, Send } from "lucide-react";
 import { fmtTime } from "@/lib/dateUtils";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -38,6 +49,19 @@ function overdueSeverity(minutes: number): "low" | "medium" | "high" {
   return "low";
 }
 
+function buildDefaultMessage(
+  shiftName: string | null,
+  expectedEnd: string,
+  minutesOverdue: number
+): string {
+  const overdueStr =
+    minutesOverdue >= 60
+      ? `${Math.floor(minutesOverdue / 60)}h ${minutesOverdue % 60}m`
+      : `${minutesOverdue}m`;
+  const shiftLabel = shiftName ? ` (${shiftName})` : "";
+  return `Your shift${shiftLabel} ended at ${expectedEnd} — you are ${overdueStr} past the scheduled end time. Please check out when you are done.`;
+}
+
 const SEVERITY_BADGE: Record<string, string> = {
   low: "border-amber-300 bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300",
   medium: "border-orange-300 bg-orange-50 text-orange-700 dark:bg-orange-900/20 dark:text-orange-300",
@@ -50,7 +74,7 @@ const SEVERITY_AVATAR: Record<string, string> = {
   high: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300",
 };
 
-/** Per-employee reminder button — tracks its own loading + sent state. */
+/** Per-employee reminder button — opens a dialog for custom message before sending. */
 function ReminderButton({
   employeeUserId,
   employeeDisplayName,
@@ -66,17 +90,39 @@ function ReminderButton({
   minutesOverdue: number;
   companyId: number | undefined;
 }) {
+  const [open, setOpen] = useState(false);
   const [sent, setSent] = useState(false);
+  const [message, setMessage] = useState("");
+
+  const defaultMessage = buildDefaultMessage(shiftName, expectedEnd, minutesOverdue);
 
   const remind = trpc.scheduling.sendOverdueCheckoutReminder.useMutation({
     onSuccess: () => {
       setSent(true);
+      setOpen(false);
       toast.success(`Reminder sent to ${employeeDisplayName}`);
     },
     onError: (err) => {
       toast.error(`Failed to send reminder: ${err.message}`);
     },
   });
+
+  function handleOpen() {
+    // Pre-fill with default message each time dialog opens (unless already customised)
+    setMessage(defaultMessage);
+    setOpen(true);
+  }
+
+  function handleSend() {
+    remind.mutate({
+      companyId,
+      employeeUserId,
+      shiftName,
+      expectedEnd,
+      minutesOverdue,
+      customMessage: message.trim() || undefined,
+    });
+  }
 
   if (sent) {
     return (
@@ -93,29 +139,107 @@ function ReminderButton({
   }
 
   return (
-    <Button
-      size="sm"
-      variant="outline"
-      disabled={remind.isPending}
-      onClick={() =>
-        remind.mutate({
-          companyId,
-          employeeUserId,
-          shiftName,
-          expectedEnd,
-          minutesOverdue,
-        })
-      }
-      className="h-7 px-2.5 text-[11px] gap-1 shrink-0"
-      title={`Send check-out reminder to ${employeeDisplayName}`}
-    >
-      {remind.isPending ? (
-        <RefreshCw className="w-3 h-3 animate-spin" />
-      ) : (
+    <>
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={handleOpen}
+        className="h-7 px-2.5 text-[11px] gap-1 shrink-0"
+        title={`Send check-out reminder to ${employeeDisplayName}`}
+      >
         <BellRing className="w-3 h-3" />
-      )}
-      {remind.isPending ? "Sending…" : "Remind"}
-    </Button>
+        Remind
+      </Button>
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <Bell className="w-4 h-4 text-orange-500" />
+              Send Reminder
+            </DialogTitle>
+            <DialogDescription className="text-sm">
+              Sending an in-app notification to{" "}
+              <span className="font-semibold text-foreground">{employeeDisplayName}</span>.
+              Edit the message below before sending.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 py-1">
+            {/* Employee context strip */}
+            <div className="flex items-center gap-2 rounded-lg border border-border/60 bg-muted/40 px-3 py-2">
+              <Avatar className="h-7 w-7 shrink-0">
+                <AvatarFallback className="text-[11px] font-semibold bg-orange-100 text-orange-700">
+                  {initials(employeeDisplayName)}
+                </AvatarFallback>
+              </Avatar>
+              <div className="min-w-0">
+                <p className="text-sm font-medium truncate leading-tight">{employeeDisplayName}</p>
+                <p className="text-[11px] text-muted-foreground truncate">
+                  {shiftName ? `${shiftName} · ` : ""}End: {expectedEnd} ·{" "}
+                  <span className="text-orange-600 font-medium">{overdueLabel(minutesOverdue)}</span>
+                </p>
+              </div>
+            </div>
+
+            {/* Message editor */}
+            <div className="space-y-1.5">
+              <Label htmlFor="reminder-message" className="text-xs font-medium">
+                Message
+                <span className="ml-1 text-muted-foreground font-normal">(shown in employee notification)</span>
+              </Label>
+              <Textarea
+                id="reminder-message"
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                rows={4}
+                maxLength={1000}
+                placeholder="Write your reminder message…"
+                className="text-sm resize-none"
+              />
+              <p className="text-[10px] text-muted-foreground text-right">
+                {message.length} / 1000
+              </p>
+            </div>
+
+            {/* Reset to default hint */}
+            {message !== defaultMessage && (
+              <button
+                type="button"
+                onClick={() => setMessage(defaultMessage)}
+                className="text-[11px] text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
+              >
+                Reset to default message
+              </button>
+            )}
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setOpen(false)}
+              disabled={remind.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleSend}
+              disabled={remind.isPending || message.trim().length === 0}
+              className="gap-1.5"
+            >
+              {remind.isPending ? (
+                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Send className="w-3.5 h-3.5" />
+              )}
+              {remind.isPending ? "Sending…" : "Send Reminder"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
@@ -195,7 +319,7 @@ export function OverdueCheckoutsPanel({ className }: { className?: string }) {
             Updated {updatedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
             {overdue.length > 0 && (
               <span className="ml-2 text-muted-foreground/70">
-                · Use <Bell className="w-2.5 h-2.5 inline-block mx-0.5" /> to send an in-app reminder
+                · Click <Bell className="w-2.5 h-2.5 inline-block mx-0.5" /> Remind to send a custom message
               </span>
             )}
           </p>

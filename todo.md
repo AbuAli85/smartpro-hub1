@@ -1920,3 +1920,5 @@ Every company on SmartPRO Hub gets a complete, unified business operating area â
 - [x] Build OverdueCheckoutsPanel component and wire into TodayBoardPage and HRAttendancePage
 - [x] Add tRPC mutation scheduling.sendOverdueCheckoutReminder to push in-app notification to an employee
 - [x] Add Send Reminder button per employee row in OverdueCheckoutsPanel with loading/sent state
+- [x] Update sendOverdueCheckoutReminder mutation to accept optional customMessage field
+- [x] Add custom message dialog to ReminderButton with pre-filled default and editable textarea

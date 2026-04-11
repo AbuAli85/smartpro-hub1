@@ -1055,6 +1055,7 @@ export const schedulingRouter = router({
       shiftName: z.string().nullable(),
       expectedEnd: z.string(),
       minutesOverdue: z.number(),
+      customMessage: z.string().max(1000).optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
@@ -1081,6 +1082,9 @@ export const schedulingRouter = router({
 
       const shiftLabel = input.shiftName ? ` (${input.shiftName})` : "";
 
+      const defaultMessage = `Your shift${shiftLabel} ended at ${input.expectedEnd} — you are ${overdueLabel} past the scheduled end time. Please check out when you are done.`;
+      const finalMessage = input.customMessage?.trim() ? input.customMessage.trim() : defaultMessage;
+
       const { createNotification } = await import("../db");
       await createNotification(
         {
@@ -1088,7 +1092,7 @@ export const schedulingRouter = router({
           companyId,
           type: "overdue_checkout_reminder",
           title: "Reminder: Please check out",
-          message: `Your shift${shiftLabel} ended at ${input.expectedEnd} — you are ${overdueLabel} past the scheduled end time. Please check out when you are done.`,
+          message: finalMessage,
           isRead: false,
           link: "/employee-portal",
         },

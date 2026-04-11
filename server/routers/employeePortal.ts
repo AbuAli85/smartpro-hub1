@@ -14,6 +14,10 @@ import {
   shiftTemplates,
   profileChangeRequests,
 } from "../../drizzle/schema";
+import {
+  isPendingDuplicateProfileRequest,
+  resolveProfileFieldKeyFromLabel,
+} from "@shared/profileChangeRequestFieldKey";
 import { normalizeProfileFieldLabelForKey } from "@shared/profileChangeRequestFieldLabel";
 import { evaluateCheckoutOutcomeByShiftTimes } from "@shared/attendanceCheckoutPolicy";
 import { muscatCalendarYmdFromUtcInstant } from "@shared/attendanceMuscatTime";
@@ -179,9 +183,15 @@ export const employeePortalRouter = router({
       if (!myEmp) throw new TRPCError({ code: "NOT_FOUND", message: "Employee record not found" });
       const db = await requireDb();
 
-      const normalizedLabel = normalizeProfileFieldLabelForKey(input.fieldLabel);
+      const trimmedLabel = input.fieldLabel.trim();
+      const incomingKey = resolveProfileFieldKeyFromLabel(trimmedLabel);
+      const normalizedLabel = normalizeProfileFieldLabelForKey(trimmedLabel);
       const pendingSame = await db
-        .select({ id: profileChangeRequests.id, fieldLabel: profileChangeRequests.fieldLabel })
+        .select({
+          id: profileChangeRequests.id,
+          fieldLabel: profileChangeRequests.fieldLabel,
+          fieldKey: profileChangeRequests.fieldKey,
+        })
         .from(profileChangeRequests)
         .where(
           and(
@@ -191,7 +201,12 @@ export const employeePortalRouter = router({
           ),
         );
       for (const row of pendingSame) {
-        if (normalizeProfileFieldLabelForKey(row.fieldLabel) === normalizedLabel) {
+        if (
+          isPendingDuplicateProfileRequest(incomingKey, normalizedLabel, {
+            fieldKey: row.fieldKey,
+            fieldLabel: row.fieldLabel,
+          })
+        ) {
           throw new TRPCError({
             code: "CONFLICT",
             message: "You already have a pending request for this field. HR will review it soon.",
@@ -203,7 +218,8 @@ export const employeePortalRouter = router({
         companyId: m.companyId,
         employeeId: myEmp.id,
         submittedByUserId: ctx.user.id,
-        fieldLabel: input.fieldLabel.trim(),
+        fieldLabel: trimmedLabel,
+        fieldKey: incomingKey,
         requestedValue: input.requestedValue.trim(),
         notes: input.reason?.trim() || null,
         status: "pending",
@@ -255,6 +271,7 @@ export const employeePortalRouter = router({
         .select({
           id: profileChangeRequests.id,
           fieldLabel: profileChangeRequests.fieldLabel,
+          fieldKey: profileChangeRequests.fieldKey,
           requestedValue: profileChangeRequests.requestedValue,
           notes: profileChangeRequests.notes,
           status: profileChangeRequests.status,

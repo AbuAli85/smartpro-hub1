@@ -44,11 +44,18 @@ import {
   PROFILE_REQUEST_AGE_BUCKET_OPTIONS,
   type ProfileRequestAgeBucket,
 } from "@shared/profileChangeRequestQueueFilters";
+import {
+  isProfileFieldKey,
+  PROFILE_FIELD_KEY_FILTER_OPTIONS,
+  PROFILE_FIELD_KEY_LABELS,
+  type ProfileFieldKeyFilterValue,
+} from "@shared/profileChangeRequestFieldKey";
 
 type Row = {
   id: number;
   employeeId: number;
   fieldLabel: string;
+  fieldKey: string;
   requestedValue: string;
   notes: string | null;
   status: "pending" | "resolved" | "rejected";
@@ -84,6 +91,7 @@ export default function WorkforceProfileChangeRequestsPage() {
   const { activeCompanyId } = useActiveCompany();
   const [status, setStatus] = useState<"all" | "pending" | "resolved" | "rejected">("pending");
   const [ageBucket, setAgeBucket] = useState<ProfileRequestAgeBucket>("any");
+  const [fieldKeyFilter, setFieldKeyFilter] = useState<ProfileFieldKeyFilterValue>("all");
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
   const pageSize = 25;
@@ -91,12 +99,16 @@ export default function WorkforceProfileChangeRequestsPage() {
   const debouncedQuery = useMemo(() => query.trim(), [query]);
 
   const hasActiveFilters =
-    debouncedQuery.length > 0 || status !== "pending" || ageBucket !== "any";
+    debouncedQuery.length > 0 ||
+    status !== "pending" ||
+    ageBucket !== "any" ||
+    fieldKeyFilter !== "all";
 
   const resetFilters = () => {
     setQuery("");
     setStatus("pending");
     setAgeBucket("any");
+    setFieldKeyFilter("all");
     setPage(1);
   };
 
@@ -106,6 +118,7 @@ export default function WorkforceProfileChangeRequestsPage() {
       status,
       query: debouncedQuery || undefined,
       ageBucket,
+      fieldKey: fieldKeyFilter,
       page,
       pageSize,
     },
@@ -224,6 +237,24 @@ export default function WorkforceProfileChangeRequestsPage() {
               ))}
             </SelectContent>
           </Select>
+          <Select
+            value={fieldKeyFilter}
+            onValueChange={(v) => {
+              setFieldKeyFilter(v as ProfileFieldKeyFilterValue);
+              setPage(1);
+            }}
+          >
+            <SelectTrigger className="w-[200px]">
+              <SelectValue placeholder="Field type" />
+            </SelectTrigger>
+            <SelectContent>
+              {PROFILE_FIELD_KEY_FILTER_OPTIONS.map((o) => (
+                <SelectItem key={o.value} value={o.value}>
+                  {o.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </CardContent>
       </Card>
 
@@ -273,6 +304,7 @@ export default function WorkforceProfileChangeRequestsPage() {
                     const pending = r.status === "pending";
                     const sb = statusBadgeProps(r.status);
                     const valuePreview = previewProfileRequestValue(r.requestedValue, 96);
+                    const keyLabel = isProfileFieldKey(r.fieldKey) ? PROFILE_FIELD_KEY_LABELS[r.fieldKey] : null;
                     return (
                       <tr
                         key={r.id}
@@ -283,7 +315,12 @@ export default function WorkforceProfileChangeRequestsPage() {
                         }
                       >
                         <td className="px-4 py-3 font-medium align-top">{name}</td>
-                        <td className="px-4 py-3 align-top">{r.fieldLabel}</td>
+                        <td className="px-4 py-3 align-top">
+                          <span className="font-medium text-foreground">{r.fieldLabel}</span>
+                          {keyLabel ? (
+                            <p className="text-[11px] text-muted-foreground mt-0.5">{keyLabel}</p>
+                          ) : null}
+                        </td>
                         <td className="px-4 py-3 max-w-[240px] align-top">
                           <p className="line-clamp-2 break-words text-left" title={r.requestedValue}>
                             {valuePreview}

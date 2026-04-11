@@ -21,6 +21,7 @@ import {
   workPermits,
 } from "../../drizzle/schema";
 import type { User } from "../../drizzle/schema";
+import { PROFILE_FIELD_KEY_FILTER_VALUES } from "@shared/profileChangeRequestFieldKey";
 import { isCompanyProvisioningAdmin, canAccessGlobalAdminProcedures } from "@shared/rbac";
 import {
   canReadHrPerformanceAuditSensitiveRows,
@@ -503,6 +504,7 @@ export const workforceRouter = router({
             employeeId: profileChangeRequests.employeeId,
             submittedByUserId: profileChangeRequests.submittedByUserId,
             fieldLabel: profileChangeRequests.fieldLabel,
+            fieldKey: profileChangeRequests.fieldKey,
             requestedValue: profileChangeRequests.requestedValue,
             notes: profileChangeRequests.notes,
             status: profileChangeRequests.status,
@@ -536,6 +538,9 @@ export const workforceRouter = router({
           query: z.string().max(120).optional(),
           /** Submitted-at window (server-side; uses DB `now()`). */
           ageBucket: z.enum(["any", "lt_24h", "d1_7", "gt_7d"]).default("any"),
+          fieldKey: z
+            .enum(PROFILE_FIELD_KEY_FILTER_VALUES as unknown as [string, ...string[]])
+            .default("all"),
           page: z.number().min(1).default(1),
           pageSize: z.number().min(1).max(100).default(30),
         }),
@@ -559,6 +564,9 @@ export const workforceRouter = router({
         if (input.status !== "all") {
           conditions.push(eq(profileChangeRequests.status, input.status));
         }
+        if (input.fieldKey !== "all") {
+          conditions.push(eq(profileChangeRequests.fieldKey, input.fieldKey));
+        }
         const q = input.query?.trim();
         if (q) {
           const clean = q.replace(/[%_\\]/g, "").trim();
@@ -569,6 +577,7 @@ export const workforceRouter = router({
                 like(employees.firstName, p),
                 like(employees.lastName, p),
                 like(profileChangeRequests.fieldLabel, p),
+                like(profileChangeRequests.fieldKey, p),
                 like(profileChangeRequests.requestedValue, p),
               )!,
             );
@@ -601,6 +610,7 @@ export const workforceRouter = router({
             employeeId: profileChangeRequests.employeeId,
             submittedByUserId: profileChangeRequests.submittedByUserId,
             fieldLabel: profileChangeRequests.fieldLabel,
+            fieldKey: profileChangeRequests.fieldKey,
             requestedValue: profileChangeRequests.requestedValue,
             notes: profileChangeRequests.notes,
             status: profileChangeRequests.status,

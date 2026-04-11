@@ -694,6 +694,8 @@ export const profileChangeRequests = mysqlTable(
     employeeId: int("employeeId").notNull(),
     submittedByUserId: int("submittedByUserId").notNull(),
     fieldLabel: varchar("fieldLabel", { length: 100 }).notNull(),
+    /** Canonical field identity (see shared/profileChangeRequestFieldKey.ts); `fieldLabel` stays display-only. */
+    fieldKey: varchar("fieldKey", { length: 64 }).notNull().default("other"),
     requestedValue: varchar("requestedValue", { length: 500 }).notNull(),
     notes: varchar("notes", { length: 500 }),
     status: mysqlEnum("status", ["pending", "resolved", "rejected"]).default("pending").notNull(),
@@ -705,6 +707,7 @@ export const profileChangeRequests = mysqlTable(
   (t) => [
     index("idx_pcr_company_employee").on(t.companyId, t.employeeId),
     index("idx_pcr_company_status").on(t.companyId, t.status),
+    index("idx_pcr_employee_status_fieldkey").on(t.employeeId, t.status, t.fieldKey),
   ]
 );
 export type ProfileChangeRequest = typeof profileChangeRequests.$inferSelect;

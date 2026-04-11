@@ -785,29 +785,83 @@ export const attendanceRouter = router({
 
   // ─── Manual Check-in Requests ──────────────────────────────────────────────
   /**
-   * Employee submits a manual check-in request when outside the geo-fence.
+   * Employee submits a manual check-in request when outside the geo-fence or otherwise blocked from self-service check-in.
    * Requires a justification note. HR admin must approve for attendance to be recorded.
+   *
+   * Provide either `siteToken` (QR flow) or `companyId` + `siteId` (employee portal — site must match today’s schedule).
    */
   submitManualCheckIn: protectedProcedure
     .input(z.object({
-      siteToken: z.string(),
+      siteToken: z.string().optional(),
+      companyId: z.number().optional(),
+      siteId: z.number().optional(),
       justification: z.string().min(10, "Please provide at least 10 characters of justification"),
       lat: z.number().optional(),
       lng: z.number().optional(),
       distanceMeters: z.number().optional(),
+    }).superRefine((data, ctx) => {
+      const hasToken = !!data.siteToken?.trim();
+      const hasPair = data.companyId != null && data.siteId != null;
+      if (hasToken === hasPair) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Provide either siteToken or both companyId and siteId",
+        });
+      }
     }))
     .mutation(async ({ ctx, input }) => {
       const db = await requireDb();
-      // Resolve site first — company scope follows the site
-      const [site] = await db
-        .select()
-        .from(attendanceSites)
-        .where(and(
-          eq(attendanceSites.qrToken, input.siteToken),
-          eq(attendanceSites.isActive, true),
-        ))
-        .limit(1);
-      if (!site) throw new TRPCError({ code: "NOT_FOUND", message: "Invalid or inactive site" });
+
+      let site: typeof attendanceSites.$inferSelect;
+
+      if (input.siteToken?.trim()) {
+        const [s] = await db
+          .select()
+          .from(attendanceSites)
+          .where(and(
+            eq(attendanceSites.qrToken, input.siteToken.trim()),
+            eq(attendanceSites.isActive, true),
+          ))
+          .limit(1);
+        if (!s) throw new TRPCError({ code: "NOT_FOUND", message: "Invalid or inactive site" });
+        site = s;
+      } else {
+        const cid = input.companyId!;
+        const sid = input.siteId!;
+        const [s] = await db
+          .select()
+          .from(attendanceSites)
+          .where(and(
+            eq(attendanceSites.id, sid),
+            eq(attendanceSites.companyId, cid),
+            eq(attendanceSites.isActive, true),
+          ))
+          .limit(1);
+        if (!s) throw new TRPCError({ code: "NOT_FOUND", message: "Invalid or inactive site" });
+
+        const membership = await getActiveCompanyMembership(ctx.user.id, cid);
+        if (!membership || membership.companyId !== s.companyId) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "No company membership" });
+        }
+
+        const emp = await resolveMyEmployee(ctx.user.id, ctx.user.email ?? "", cid);
+        if (!emp) throw new TRPCError({ code: "NOT_FOUND", message: "Employee record not found" });
+
+        const businessDate = muscatCalendarYmdNow();
+        const dayCtx = await resolveEmployeeAttendanceDayContext(db, {
+          companyId: cid,
+          userId: ctx.user.id,
+          employeeId: emp.id,
+          businessDate,
+        });
+        if (!dayCtx.scheduledSiteIdsToday.includes(s.id)) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "That site does not match your schedule for today — contact HR if this is wrong.",
+          });
+        }
+        site = s;
+      }
 
       const membership = await getActiveCompanyMembership(ctx.user.id, site.companyId);
       if (!membership) throw new TRPCError({ code: "FORBIDDEN", message: "No company membership" });

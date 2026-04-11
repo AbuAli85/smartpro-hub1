@@ -44,6 +44,8 @@ export interface PortalOperationalHints {
   checkInOpensAt: string | null;
   /** When check-in is denied by policy, matches attendance.checkIn enforcement. */
   checkInDenialCode: string | null;
+  /** Today's scheduled attendance site id when known (`attendance_sites.id`). */
+  assignedSiteId: number | null;
   /** True when every scheduled shift row for today has a closed punch (see resolveEmployeeAttendanceDayContext). */
   allShiftsHaveClosedAttendance: boolean;
   /** Minutes late after grace when checked in without check-out; null if on time or N/A. */
@@ -219,6 +221,7 @@ export function computePortalOperationalHints(params: {
     eligibilityDetail,
     checkInOpensAt,
     checkInDenialCode: !gate.canCheckIn ? gate.reasonCode : null,
+    assignedSiteId: params.assignedSiteId ?? null,
     allShiftsHaveClosedAttendance: effectiveAllShiftsClosed,
     minutesLateAfterGrace,
     shiftCheckIn: params.shiftCheckIn ?? params.checkIn,

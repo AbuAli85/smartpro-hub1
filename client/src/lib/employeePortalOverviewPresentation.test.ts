@@ -13,12 +13,15 @@ function elHints(
     Partial<Omit<ServerEligibilityHints, "canCheckIn" | "canCheckOut" | "canRequestCorrection">>
 ): ServerEligibilityHints {
   return {
+    businessDate: "2026-04-05",
     eligibilityHeadline: "Eligible to check in",
     eligibilityDetail: "Within the check-in window.",
     shiftStatusLabel: "Active now",
     shiftDetailLine: null,
     checkInDenialCode: null,
+    assignedSiteId: null,
     hasPendingCorrection: false,
+    pendingCorrectionCount: 0,
     hasPendingManualCheckIn: false,
     pendingManualCheckInCount: 0,
     checkInOpensAt: null,

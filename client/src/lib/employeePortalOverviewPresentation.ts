@@ -11,6 +11,7 @@ import {
 
 export type ServerEligibilityHints = Pick<
   PortalOperationalHints,
+  | "businessDate"
   | "canCheckIn"
   | "canCheckOut"
   | "canRequestCorrection"
@@ -20,6 +21,7 @@ export type ServerEligibilityHints = Pick<
   | "shiftDetailLine"
   | "checkInDenialCode"
   | "hasPendingCorrection"
+  | "pendingCorrectionCount"
   | "hasPendingManualCheckIn"
   | "pendingManualCheckInCount"
   | "checkInOpensAt"
@@ -28,6 +30,7 @@ export type ServerEligibilityHints = Pick<
   | "resolvedShiftPhase"
   | "shiftCheckIn"
   | "shiftCheckOut"
+  | "assignedSiteId"
 >;
 
 export type WarningTone = "none" | "amber" | "red";

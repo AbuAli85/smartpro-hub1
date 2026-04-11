@@ -35,6 +35,7 @@ import {
   muscatCalendarYmdNow,
   muscatWallDateTimeToUtc,
 } from "@shared/attendanceMuscatTime";
+import { countOverdueOpenCheckoutsOnBoard, muscatShiftWallEndMs } from "@shared/attendanceBoardOverdue";
 
 async function requireDb() {
   const db = await getDb();
@@ -49,14 +50,6 @@ function timeToMinutes(t: string): number {
 
 function muscatShiftWallStartMs(ymd: string, hhmm: string): number {
   return muscatWallDateTimeToUtc(ymd, `${hhmm}:00`).getTime();
-}
-
-/** Muscat wall end for this shift on `ymd` (overnight: end after midnight). */
-function muscatShiftWallEndMs(ymd: string, startHhmm: string, endHhmm: string): number {
-  const ss = muscatWallDateTimeToUtc(ymd, `${startHhmm}:00`).getTime();
-  let se = muscatWallDateTimeToUtc(ymd, `${endHhmm}:00`).getTime();
-  if (se <= ss) se += 86_400_000;
-  return se;
 }
 
 /**
@@ -655,6 +648,17 @@ export const schedulingRouter = router({
       }
       fullDaySummaries.sort((a, b) => a.employeeDisplayName.localeCompare(b.employeeDisplayName));
 
+      const overdueOpenCheckoutCount = countOverdueOpenCheckoutsOnBoard(
+        board.map((r) => ({
+          checkInAt: r.checkInAt,
+          checkOutAt: r.checkOutAt,
+          expectedStart: r.expectedStart,
+          expectedEnd: r.expectedEnd,
+        })),
+        today,
+        now.getTime()
+      );
+
       const summary = {
         total: board.length,
         holiday: board.filter((b) => b.status === "holiday").length,
@@ -672,6 +676,8 @@ export const schedulingRouter = router({
         /** Legacy-style rollups for charts/widgets */
         onTime: board.filter((b) => b.status === "checked_in_on_time" || b.status === "checked_out").length,
         late: board.filter((b) => b.status === "checked_in_late" || b.status === "late_no_checkin").length,
+        /** Muscat wall clock vs server `now` — matches board row open check-outs past shift end */
+        overdueOpenCheckoutCount,
       };
 
       return {

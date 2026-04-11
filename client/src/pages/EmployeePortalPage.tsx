@@ -75,6 +75,8 @@ import { EmployeePortalMoreHub } from "@/components/employee-portal/EmployeePort
 import { EmployeePortalBottomNav } from "@/components/employee-portal/EmployeePortalBottomNav";
 import { EmployeePortalTaskCard } from "@/components/employee-portal/EmployeePortalTaskCard";
 import { CheckInEligibilityReasonCode } from "@shared/attendanceCheckInEligibility";
+import { buildEmployeeTodayAttendanceStatus } from "@shared/employeeTodayAttendanceStatus";
+import { shouldOfferManualAttendanceFallback } from "@shared/manualAttendanceFallback";
 
 const LEAVE_TYPE_LABEL: Record<string, string> = {
   annual: "Annual Leave",
@@ -190,6 +192,8 @@ function AttendanceTodayCard({
   const handleCheckInRef = useRef<() => void>(() => {});
   const handleCheckOutRef = useRef<() => void>(() => {});
   const [showCorrForm, setShowCorrForm] = useState(false);
+  const [showManualDialog, setShowManualDialog] = useState(false);
+  const [manualJustification, setManualJustification] = useState("");
   const [corrDate, setCorrDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [corrCheckIn, setCorrCheckIn] = useState("");
   const [corrCheckOut, setCorrCheckOut] = useState("");
@@ -264,6 +268,22 @@ function AttendanceTodayCard({
       void utils.attendance.myManualCheckIns.invalidate();
     },
     onError: (e) => toastAttendanceMutationError(e.message, () => handleCheckOutRef.current()),
+  });
+
+  const manualCheckInMutation = trpc.attendance.submitManualCheckIn.useMutation({
+    onSuccess: () => {
+      toast.success("Request sent — HR will review your manual attendance");
+      setShowManualDialog(false);
+      setManualJustification("");
+      refetchToday();
+      utils.employeePortal.getMyOperationalHints.invalidate();
+      void utils.attendance.myManualCheckIns.invalidate();
+      void utils.attendance.listAttendanceAudit.invalidate();
+      void utils.scheduling.getTodayBoard.invalidate();
+      void utils.attendance.myToday.invalidate();
+    },
+    onError: (e) =>
+      toast.error("Couldn’t submit manual request", { description: e.message || "Try again or contact HR." }),
   });
 
   const todayStr = new Date().toISOString().split("T")[0];
@@ -405,6 +425,56 @@ function AttendanceTodayCard({
     operationalHints?.checkInDenialCode === CheckInEligibilityReasonCode.CHECK_IN_TOO_EARLY &&
     !!operationalHints.checkInOpensAt &&
     (!checkIn || betweenShifts);
+
+  const todayStatus = buildEmployeeTodayAttendanceStatus({
+    hints: operationalHints,
+    hintsReady: operationalHintsReady,
+    attendanceInconsistent: attStrip.attendanceInconsistent,
+    checkIn,
+    checkOut,
+    isHoliday,
+    hasSchedule,
+    isWorkingDay,
+  });
+
+  const resolvedAttendanceSiteId = site?.id ?? operationalHints?.assignedSiteId ?? undefined;
+
+  const manualFallbackCta =
+    operationalHintsReady &&
+    !isHoliday &&
+    shouldOfferManualAttendanceFallback({
+      denialCode: operationalHints?.checkInDenialCode,
+      hasPendingManualCheckIn: !!operationalHints?.hasPendingManualCheckIn,
+      canCheckIn: !!operationalHints?.canCheckIn,
+      siteId: resolvedAttendanceSiteId,
+    }) &&
+    !tooEarlyBlock &&
+    !attStrip.attendanceInconsistent &&
+    !!companyId &&
+    resolvedAttendanceSiteId != null;
+
+  function openManualDialog() {
+    if (operationalHints) {
+      const pre = `${operationalHints.businessDate} · ${site?.name ?? "Site"} · ${operationalHints.eligibilityHeadline}. ${operationalHints.eligibilityDetail}`;
+      setManualJustification((prev) => (prev.trim() ? prev : pre));
+    }
+    setShowManualDialog(true);
+  }
+
+  function submitManualFromPortal() {
+    const sid = site?.id ?? operationalHints?.assignedSiteId;
+    if (!companyId || sid == null) return;
+    const j = manualJustification.trim();
+    if (j.length < 10) {
+      toast.error("Please enter at least 10 characters explaining why you need manual attendance.");
+      return;
+    }
+    if (siteToken) {
+      manualCheckInMutation.mutate({ siteToken, justification: j });
+    } else {
+      manualCheckInMutation.mutate({ companyId, siteId: sid, justification: j });
+    }
+  }
 
   // --- Active shift indicator helpers ---
   const shiftProgressPct = useMemo(() => {
@@ -631,6 +701,20 @@ function AttendanceTodayCard({
           </CardContent>
         </Card>
       ) : null}
+
+      {operationalHintsReady && (
+        <div
+          className="rounded-lg border border-border/80 bg-background/80 px-3 py-2.5 shadow-sm"
+          role="status"
+          aria-live="polite"
+        >
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Today status</p>
+          <p className="text-sm font-medium text-foreground mt-0.5 leading-snug">{todayStatus.primaryLine}</p>
+          {todayStatus.secondaryLine ? (
+            <p className="text-xs text-muted-foreground mt-1 leading-snug">{todayStatus.secondaryLine}</p>
+          ) : null}
+        </div>
+      )}
 
       {operationalHintsReady &&
         (operationalHints?.hasPendingCorrection ||
@@ -910,6 +994,17 @@ function AttendanceTodayCard({
                     )}
                   </div>
                 )}
+                {manualFallbackCta && (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="min-h-11 w-full touch-manipulation border-dashed border-primary/30 bg-background text-sm font-semibold"
+                    disabled={attendanceMutating || manualCheckInMutation.isPending}
+                    onClick={openManualDialog}
+                  >
+                    Can&apos;t check in? Request manual attendance
+                  </Button>
+                )}
               </div>
             </div>
             {checkoutUnavailableExplain && (
@@ -1021,6 +1116,60 @@ function AttendanceTodayCard({
           </CardContent>
         </Card>
       )}
+
+      <Dialog open={showManualDialog} onOpenChange={setShowManualDialog}>
+        <DialogContent aria-describedby="manual-attendance-dialog-desc">
+          <DialogHeader>
+            <DialogTitle>Request manual attendance</DialogTitle>
+            <DialogDescription id="manual-attendance-dialog-desc">
+              HR reviews every manual request before it counts as attendance. Explain what blocked normal check-in — include date and site if relevant.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            {operationalHints ? (
+              <div className="rounded-md border bg-muted/40 px-3 py-2 text-xs text-muted-foreground space-y-1">
+                <p>
+                  <span className="font-medium text-foreground">Date (Asia/Muscat):</span> {operationalHints.businessDate}
+                </p>
+                {site?.name ? (
+                  <p>
+                    <span className="font-medium text-foreground">Site:</span> {site.name}
+                  </p>
+                ) : null}
+                {shift?.startTime && shift?.endTime ? (
+                  <p>
+                    <span className="font-medium text-foreground">Shift:</span> {shift.startTime}–{shift.endTime}
+                  </p>
+                ) : null}
+                <p>
+                  <span className="font-medium text-foreground">System message:</span> {operationalHints.eligibilityHeadline} — {operationalHints.eligibilityDetail}
+                </p>
+              </div>
+            ) : null}
+            <div className="space-y-1.5">
+              <Label htmlFor="manualJustification">Your explanation (required, min. 10 characters)</Label>
+              <Textarea
+                id="manualJustification"
+                value={manualJustification}
+                onChange={(e) => setManualJustification(e.target.value)}
+                rows={4}
+                placeholder="Why you could not check in normally…"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowManualDialog(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={submitManualFromPortal}
+              disabled={manualCheckInMutation.isPending || manualJustification.trim().length < 10}
+            >
+              {manualCheckInMutation.isPending ? "Sending…" : "Submit request"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Correction request dialog */}
       <Dialog open={showCorrForm} onOpenChange={setShowCorrForm}>

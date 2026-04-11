@@ -47,6 +47,8 @@ export interface EmployeeAttendanceDayContext {
   shiftCheckIn: Date | null;
   /** Shift-matched check-out for the currently active/most-recent shift. */
   shiftCheckOut: Date | null;
+  /** Distinct site ids from every schedule row that applies today (working day). For manual check-in site validation. */
+  scheduledSiteIdsToday: number[];
 }
 
 export async function resolveEmployeeAttendanceDayContext(
@@ -220,6 +222,8 @@ export async function resolveEmployeeAttendanceDayContext(
     shiftCheckOut = recordRow.checkOut ? new Date(recordRow.checkOut) : null;
   }
 
+  const scheduledSiteIdsToday = Array.from(new Set(workingToday.map((s) => s.siteId)));
+
   return {
     businessDate,
     dow,
@@ -235,5 +239,6 @@ export async function resolveEmployeeAttendanceDayContext(
     allShiftsHaveClosedAttendance,
     shiftCheckIn,
     shiftCheckOut,
+    scheduledSiteIdsToday,
   };
 }

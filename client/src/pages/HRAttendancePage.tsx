@@ -528,23 +528,6 @@ function boardStatusBadge(status: string) {
   return <Badge variant="outline" className={m.className}>{m.label}</Badge>;
 }
 
-/** Shift wall-clock end has passed but the row still shows an open check-in for that segment. */
-function countOverdueOpenCheckouts(
-  board: Array<{ checkInAt: string | Date | null; checkOutAt: string | Date | null; expectedEnd: string }>,
-  businessDateYmd: string,
-) {
-  const now = Date.now();
-  return board.filter((row) => {
-    if (!row.checkInAt || row.checkOutAt) return false;
-    const parts = row.expectedEnd.split(":").map((x) => parseInt(x, 10));
-    const h = parts[0] ?? 0;
-    const m = parts[1] ?? 0;
-    const end = new Date(`${businessDateYmd}T12:00:00`);
-    end.setHours(h, m, 0, 0);
-    return now > end.getTime();
-  }).length;
-}
-
 function HrAttendanceExceptionStrip({
   companyId,
   pendingCorrCount,
@@ -582,7 +565,7 @@ function HrAttendanceExceptionStrip({
         ))}
       </div>
       <p className="text-[11px] text-muted-foreground mt-2 leading-snug">
-        “Open check-outs past shift end” counts scheduled rows where check-in exists, check-out is still missing, and the shift end time has passed (Asia/Muscat calendar day from the live board).
+        “Open check-outs past shift end” is computed on the server with the same Muscat shift boundaries and clock as the live board (not your browser timezone).
       </p>
     </div>
   );
@@ -1071,10 +1054,7 @@ export default function HRAttendancePage() {
     { companyId: activeCompanyId ?? undefined },
     { enabled: activeCompanyId != null, refetchInterval: 60_000 },
   );
-  const overdueCheckoutCount = useMemo(() => {
-    if (!todayBoardData?.board || !todayBoardData.date) return 0;
-    return countOverdueOpenCheckouts(todayBoardData.board as any, todayBoardData.date);
-  }, [todayBoardData]);
+  const overdueCheckoutCount = todayBoardData?.summary?.overdueOpenCheckoutCount ?? 0;
 
   const total = (stats?.present ?? 0) + (stats?.absent ?? 0) + (stats?.late ?? 0) + (stats?.half_day ?? 0) + (stats?.remote ?? 0);
   const rate = total > 0 ? Math.round(((stats?.present ?? 0) / total) * 100) : 0;

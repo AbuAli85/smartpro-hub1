@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useLocation, useParams } from "wouter";
+import { useEffect, useMemo, useState } from "react";
+import { useLocation, useParams, useSearch } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,6 +23,8 @@ import {
   Phone, CreditCard, Globe, AlertTriangle, ClipboardList, CheckCircle2, XCircle,
 } from "lucide-react";
 import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
+import { parseProfileRequestIdFromSearch } from "@shared/profileChangeRequestDeepLink";
+import { cn } from "@/lib/utils";
 
 function statusColor(status: string) {
   const s = status?.toLowerCase();
@@ -46,7 +48,9 @@ function InfoRow({ label, value }: { label: string; value?: string | null }) {
 export default function WorkforceEmployeeDetailPage() {
   const params = useParams<{ id: string }>();
   const [, navigate] = useLocation();
+  const urlSearch = useSearch();
   const employeeId = parseInt(params.id || "0");
+  const highlightRequestId = useMemo(() => parseProfileRequestIdFromSearch(urlSearch), [urlSearch]);
 
   const { data: detail, isLoading } = trpc.workforce.employees.getById.useQuery(
     { employeeId },
@@ -74,6 +78,7 @@ export default function WorkforceEmployeeDetailPage() {
     onSuccess: () => {
       toast.success("Marked as resolved");
       void utils.workforce.profileChangeRequests.listForEmployee.invalidate({ employeeId });
+      void utils.workforce.profileChangeRequests.listCompany.invalidate();
       setActionDialog({ open: false, mode: "resolve", requestId: null });
       setActionNote("");
     },
@@ -83,6 +88,7 @@ export default function WorkforceEmployeeDetailPage() {
     onSuccess: () => {
       toast.success("Request closed");
       void utils.workforce.profileChangeRequests.listForEmployee.invalidate({ employeeId });
+      void utils.workforce.profileChangeRequests.listCompany.invalidate();
       setActionDialog({ open: false, mode: "resolve", requestId: null });
       setActionNote("");
     },
@@ -95,6 +101,15 @@ export default function WorkforceEmployeeDetailPage() {
     requestId: number | null;
   }>({ open: false, mode: "resolve", requestId: null });
   const [actionNote, setActionNote] = useState("");
+
+  useEffect(() => {
+    if (!highlightRequestId) return;
+    const t = window.setTimeout(() => {
+      const el = document.getElementById(`profile-change-request-${highlightRequestId}`);
+      el?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 300);
+    return () => window.clearTimeout(t);
+  }, [highlightRequestId, employeeId, profileChangeRows]);
 
   if (isLoading) {
     return (
@@ -221,8 +236,13 @@ export default function WorkforceEmployeeDetailPage() {
                       <ul className="space-y-2">
                         {rows.map((r) => (
                           <li
+                            id={`profile-change-request-${r.id}`}
                             key={r.id}
-                            className="rounded-md border border-border/60 bg-muted/20 px-3 py-2.5 text-sm"
+                            className={cn(
+                              "rounded-md border border-border/60 bg-muted/20 px-3 py-2.5 text-sm transition-shadow",
+                              highlightRequestId === r.id &&
+                                "ring-2 ring-primary ring-offset-2 border-primary/40",
+                            )}
                           >
                             <div className="flex flex-wrap items-start justify-between gap-2">
                               <div className="min-w-0 space-y-1">

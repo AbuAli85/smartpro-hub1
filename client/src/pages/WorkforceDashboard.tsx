@@ -7,7 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   Users, FileText, AlertTriangle, Clock, CheckCircle2,
   RefreshCw, Plus, ChevronRight, Building2, Shield, TrendingUp,
-  AlertCircle, Calendar, FolderOpen
+  AlertCircle, Calendar, FolderOpen, ClipboardList,
 } from "lucide-react";
 
 export default function WorkforceDashboard() {
@@ -64,6 +64,15 @@ export default function WorkforceDashboard() {
       bg: "bg-rose-50",
       href: "/workforce/documents",
     },
+    {
+      title: "Profile change requests",
+      value: stats?.pendingProfileChangeRequests ?? 0,
+      icon: ClipboardList,
+      color: "text-indigo-600",
+      bg: "bg-indigo-50",
+      href: "/workforce/profile-change-requests",
+      urgent: (stats?.pendingProfileChangeRequests ?? 0) > 0,
+    },
   ];
 
   const quickActions = [
@@ -72,6 +81,7 @@ export default function WorkforceDashboard() {
     { label: "View Employees", icon: Users, href: "/workforce/employees" },
     { label: "Sync with MOL", icon: RefreshCw, href: "/workforce/sync" },
     { label: "Document Vault", icon: Shield, href: "/workforce/documents" },
+    { label: "Profile requests", icon: ClipboardList, href: "/workforce/profile-change-requests" },
     { label: "Audit Log", icon: FileText, href: "/workforce/audit" },
   ];
 

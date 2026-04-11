@@ -223,7 +223,7 @@ export const employeePortalRouter = router({
           ),
         );
 
-      const detailLink = `/workforce/employees/${myEmp.id}`;
+      const detailLink = `/workforce/employees/${myEmp.id}?profileRequest=${requestId}`;
       for (const admin of admins) {
         if (admin.userId) {
           await sendEmployeeNotification({

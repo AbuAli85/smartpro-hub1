@@ -1,6 +1,6 @@
 import { TRPCError } from "@trpc/server";
 import { ENV } from "../_core/env";
-import { and, asc, desc, eq, gte, ilike, isNotNull, lt, lte, notInArray, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, ilike, isNotNull, like, lt, lte, notInArray, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/mysql-core";
 import { z } from "zod";
 import { createNotification, getDb, getUserCompany } from "../db";
@@ -524,6 +524,101 @@ export const workforceRouter = router({
             ),
           )
           .orderBy(desc(profileChangeRequests.submittedAt));
+      }),
+
+    /** Company-wide queue for HR — pending first, then by recency. */
+    listCompany: protectedProcedure
+      .input(
+        z.object({
+          companyId: z.number().optional(),
+          status: z.enum(["all", "pending", "resolved", "rejected"]).default("pending"),
+          /** Search employee name, field label, or requested value (substring) */
+          query: z.string().max(120).optional(),
+          page: z.number().min(1).default(1),
+          pageSize: z.number().min(1).max(100).default(30),
+        }),
+      )
+      .query(async ({ ctx, input }) => {
+        const companyId = input.companyId ?? (await getMemberCompanyId(ctx.user));
+        if (!companyId) throw new TRPCError({ code: "FORBIDDEN" });
+        if (!(await hasPermission(ctx.user, companyId, "employees.read"))) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "You do not have permission to view profile change requests" });
+        }
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+        const submitter = alias(users, "pcr_submitter_co");
+        const resolver = alias(users, "pcr_resolver_co");
+
+        const conditions = [
+          eq(profileChangeRequests.companyId, companyId),
+          eq(employees.companyId, companyId),
+        ];
+        if (input.status !== "all") {
+          conditions.push(eq(profileChangeRequests.status, input.status));
+        }
+        const q = input.query?.trim();
+        if (q) {
+          const clean = q.replace(/[%_\\]/g, "").trim();
+          if (clean.length > 0) {
+            const p = `%${clean}%`;
+            conditions.push(
+              or(
+                like(employees.firstName, p),
+                like(employees.lastName, p),
+                like(profileChangeRequests.fieldLabel, p),
+                like(profileChangeRequests.requestedValue, p),
+              )!,
+            );
+          }
+        }
+
+        const whereClause = and(...conditions);
+
+        const [countRow] = await db
+          .select({ count: sql<number>`count(*)` })
+          .from(profileChangeRequests)
+          .innerJoin(employees, eq(employees.id, profileChangeRequests.employeeId))
+          .where(whereClause);
+
+        const total = Number(countRow?.count ?? 0);
+        const offset = (input.page - 1) * input.pageSize;
+
+        const rows = await db
+          .select({
+            id: profileChangeRequests.id,
+            companyId: profileChangeRequests.companyId,
+            employeeId: profileChangeRequests.employeeId,
+            submittedByUserId: profileChangeRequests.submittedByUserId,
+            fieldLabel: profileChangeRequests.fieldLabel,
+            requestedValue: profileChangeRequests.requestedValue,
+            notes: profileChangeRequests.notes,
+            status: profileChangeRequests.status,
+            submittedAt: profileChangeRequests.submittedAt,
+            resolvedAt: profileChangeRequests.resolvedAt,
+            resolvedByUserId: profileChangeRequests.resolvedByUserId,
+            resolutionNote: profileChangeRequests.resolutionNote,
+            submitterName: submitter.name,
+            submitterEmail: submitter.email,
+            resolverName: resolver.name,
+            employeeFirstName: employees.firstName,
+            employeeLastName: employees.lastName,
+            employeeDepartment: employees.department,
+            employeePosition: employees.position,
+          })
+          .from(profileChangeRequests)
+          .innerJoin(employees, eq(employees.id, profileChangeRequests.employeeId))
+          .leftJoin(submitter, eq(submitter.id, profileChangeRequests.submittedByUserId))
+          .leftJoin(resolver, eq(resolver.id, profileChangeRequests.resolvedByUserId))
+          .where(whereClause)
+          .orderBy(
+            desc(sql`(CASE WHEN ${profileChangeRequests.status} = ${"pending"} THEN 1 ELSE 0 END)`),
+            desc(profileChangeRequests.submittedAt),
+          )
+          .limit(input.pageSize)
+          .offset(offset);
+
+        return { items: rows, total, page: input.page, pageSize: input.pageSize };
       }),
 
     resolve: protectedProcedure
@@ -1875,6 +1970,10 @@ Return ONLY valid JSON matching the schema, no extra text.`,
     const [expiring90] = await db.select({ count: sql<number>`COUNT(*)` }).from(workPermits).where(and(eq(workPermits.companyId, companyId), gte(workPermits.expiryDate, now), lte(workPermits.expiryDate, ninetyDays)));
     const [openCases] = await db.select({ count: sql<number>`COUNT(*)` }).from(governmentServiceCases).where(and(eq(governmentServiceCases.companyId, companyId), sql`caseStatus NOT IN ('completed','cancelled')`));
     const [pendingDocs] = await db.select({ count: sql<number>`COUNT(*)` }).from(employeeDocuments).where(and(eq(employeeDocuments.companyId, companyId), eq(employeeDocuments.verificationStatus, "pending")));
+    const [pendingProfileChanges] = await db
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(profileChangeRequests)
+      .where(and(eq(profileChangeRequests.companyId, companyId), eq(profileChangeRequests.status, "pending")));
 
     return {
       totalActiveEmployees: Number(totalEmployees?.count ?? 0),
@@ -1883,6 +1982,7 @@ Return ONLY valid JSON matching the schema, no extra text.`,
       permitsExpiring90Days: Number(expiring90?.count ?? 0),
       openGovernmentCases: Number(openCases?.count ?? 0),
       pendingDocumentVerifications: Number(pendingDocs?.count ?? 0),
+      pendingProfileChangeRequests: Number(pendingProfileChanges?.count ?? 0),
     };
   }),
 });

@@ -1151,6 +1151,9 @@ export function EmployeeProfileTab({
     { enabled: activeCompanyId != null },
   );
   const pendingChangeRequests = (myChangeRequests ?? []).filter((r) => r.status === "pending");
+  const recentHandledChangeRequests = (myChangeRequests ?? [])
+    .filter((r) => r.status === "resolved" || r.status === "rejected")
+    .slice(0, 5);
 
   const latestPayslip = payroll.length > 0 ? payroll[0] : null;
 
@@ -1174,6 +1177,32 @@ export function EmployeeProfileTab({
             You will be notified when HR marks your request resolved.
           </p>
         </div>
+      )}
+      {recentHandledChangeRequests.length > 0 && (
+        <details className="rounded-lg border border-border/60 bg-muted/20 px-3 py-2 text-sm">
+          <summary className="cursor-pointer font-medium text-foreground list-none [&::-webkit-details-marker]:hidden flex items-center justify-between gap-2">
+            <span>Recent profile request updates</span>
+            <span className="text-xs text-muted-foreground font-normal">
+              {recentHandledChangeRequests.length} shown
+            </span>
+          </summary>
+          <ul className="mt-2 space-y-2 text-xs border-t border-border/50 pt-2">
+            {recentHandledChangeRequests.map((r) => (
+              <li key={r.id} className="rounded-md bg-background/80 px-2 py-1.5 border border-border/40">
+                <p className="font-medium text-foreground">{r.fieldLabel}</p>
+                <p className="text-muted-foreground mt-0.5">
+                  <span className={r.status === "resolved" ? "text-emerald-700 dark:text-emerald-400" : "text-amber-800 dark:text-amber-300"}>
+                    {r.status === "resolved" ? "Resolved" : "Closed"}
+                  </span>
+                  {r.resolvedAt ? ` · ${fmtDateLong(r.resolvedAt)}` : ""}
+                </p>
+                {r.resolutionNote ? (
+                  <p className="text-muted-foreground mt-1 italic">HR note: {r.resolutionNote}</p>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        </details>
       )}
       {/* 1. Identity header */}
       <ProfileHeader

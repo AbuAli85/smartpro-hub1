@@ -35,6 +35,7 @@ import WorkforceSyncPage from "./pages/WorkforceSyncPage";
 import WorkforcePermitUploadPage from "./pages/WorkforcePermitUploadPage";
 import WorkforcePermitDetailPage from "./pages/WorkforcePermitDetailPage";
 import WorkforceEmployeeDetailPage from "./pages/WorkforceEmployeeDetailPage";
+import WorkforceProfileChangeRequestsPage from "./pages/WorkforceProfileChangeRequestsPage";
 import WorkforceCaseNewPage from "./pages/WorkforceCaseNewPage";
 import CompanyAdminPage from "./pages/CompanyAdminPage";
 import CreateCompanyPage from "./pages/CreateCompanyPage";
@@ -163,6 +164,7 @@ function AppRoutes() {
         <Route path="/workforce/permits" component={WorkforcePermitsPage} />
         <Route path="/workforce/cases/new" component={WorkforceCaseNewPage} />
         <Route path="/workforce/cases" component={WorkforceCasesPage} />
+        <Route path="/workforce/profile-change-requests" component={WorkforceProfileChangeRequestsPage} />
         <Route path="/workforce/employees/:id" component={WorkforceEmployeeDetailPage} />
         <Route path="/workforce/documents" component={WorkforceDocumentsPage} />
         <Route path="/workforce/sync" component={WorkforceSyncPage} />

@@ -1922,3 +1922,4 @@ Every company on SmartPRO Hub gets a complete, unified business operating area â
 - [x] Add Send Reminder button per employee row in OverdueCheckoutsPanel with loading/sent state
 - [x] Update sendOverdueCheckoutReminder mutation to accept optional customMessage field
 - [x] Add custom message dialog to ReminderButton with pre-filled default and editable textarea
+- [ ] Fix: attendance card shows "Day complete" with wrong shift's record when current shift has not been checked into yet â€” fix shift-to-record matching and allShiftsHaveClosedAttendance logic

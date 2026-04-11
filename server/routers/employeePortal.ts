@@ -808,6 +808,8 @@ export const employeePortalRouter = router({
         pendingCorrectionCount,
         gracePeriodMinutes: dayCtx.gracePeriodMinutes,
         assignedSiteId: dayCtx.assignedSiteId,
+        shiftCheckIn: dayCtx.shiftCheckIn,
+        shiftCheckOut: dayCtx.shiftCheckOut,
       });
     }),
 });

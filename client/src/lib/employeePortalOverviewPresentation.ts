@@ -24,6 +24,8 @@ export type ServerEligibilityHints = Pick<
   | "allShiftsHaveClosedAttendance"
   | "minutesLateAfterGrace"
   | "resolvedShiftPhase"
+  | "shiftCheckIn"
+  | "shiftCheckOut"
 >;
 
 export type WarningTone = "none" | "amber" | "red";

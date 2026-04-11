@@ -798,15 +798,22 @@ export const employeePortalRouter = router({
         ));
       const pendingCorrectionCount = pendingRows.length;
 
-      const pendingManualRows = await db
-        .select({ id: manualCheckinRequests.id })
-        .from(manualCheckinRequests)
-        .where(and(
-          eq(manualCheckinRequests.employeeUserId, ctx.user.id),
-          eq(manualCheckinRequests.companyId, companyId),
-          eq(manualCheckinRequests.status, "pending"),
-        ));
-      const pendingManualCheckInCount = pendingManualRows.length;
+      let pendingManualCheckInCount = 0;
+      try {
+        const pendingManualRows = await db
+          .select({ id: manualCheckinRequests.id })
+          .from(manualCheckinRequests)
+          .where(and(
+            eq(manualCheckinRequests.employeeUserId, ctx.user.id),
+            eq(manualCheckinRequests.companyId, companyId),
+            eq(manualCheckinRequests.status, "pending"),
+          ));
+        pendingManualCheckInCount = pendingManualRows.length;
+      } catch (e) {
+        // If the manual_checkin_requests table is unavailable (e.g. mid-migration),
+        // degrade gracefully rather than failing the whole hints response.
+        console.warn("[getMyOperationalHints] Could not read pendingManualRows:", e);
+      }
 
       return computePortalOperationalHints({
         now,

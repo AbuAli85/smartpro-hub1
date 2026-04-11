@@ -146,15 +146,25 @@ export async function resolveEmployeeAttendanceDayContext(
 
   const { startUtc: dayStart, endExclusiveUtc: dayEndExclusive } = muscatDayUtcRangeExclusiveEnd(businessDate);
 
+  // Select only the stable columns used by eligibility + shift-matching logic.
+  // This avoids breaking if new columns (e.g. schedule_id) have not yet been
+  // applied to the DB via migration.
+  const arCols = {
+    id: attendanceRecords.id,
+    siteId: attendanceRecords.siteId,
+    checkIn: attendanceRecords.checkIn,
+    checkOut: attendanceRecords.checkOut,
+  } as const;
+
   const [openSession] = await db
-    .select()
+    .select(arCols)
     .from(attendanceRecords)
     .where(and(eq(attendanceRecords.employeeId, employeeId), isNull(attendanceRecords.checkOut)))
     .orderBy(desc(attendanceRecords.checkIn))
     .limit(1);
 
   const dayRecords = await db
-    .select()
+    .select(arCols)
     .from(attendanceRecords)
     .where(
       and(

@@ -560,7 +560,7 @@ export const attendanceRouter = router({
       }
 
       const [openSession] = await db
-        .select()
+        .select({ id: attendanceRecords.id, checkIn: attendanceRecords.checkIn, checkOut: attendanceRecords.checkOut, siteId: attendanceRecords.siteId })
         .from(attendanceRecords)
         .where(and(
           eq(attendanceRecords.employeeId, emp.id),
@@ -823,7 +823,7 @@ export const attendanceRouter = router({
       const { startUtc: dayStart, endExclusiveUtc: dayEndExclusive } =
         muscatDayUtcRangeExclusiveEnd(businessDate);
       const dayRecords = await db
-        .select()
+        .select({ id: attendanceRecords.id, siteId: attendanceRecords.siteId, checkIn: attendanceRecords.checkIn, checkOut: attendanceRecords.checkOut })
         .from(attendanceRecords)
         .where(
           and(
@@ -1073,7 +1073,7 @@ export const attendanceRouter = router({
       const todayStart = new Date();
       todayStart.setHours(0, 0, 0, 0);
       const [existing] = await db
-        .select()
+        .select({ id: manualCheckinRequests.id })
         .from(manualCheckinRequests)
         .where(and(
           eq(manualCheckinRequests.employeeUserId, ctx.user.id),
@@ -1087,21 +1087,44 @@ export const attendanceRouter = router({
       const emp = await resolveMyEmployee(ctx.user.id, ctx.user.email ?? "", membership.companyId);
       let newReqId = 0;
       await db.transaction(async (tx) => {
-        const [req] = await tx
-          .insert(manualCheckinRequests)
-          .values({
-            companyId: membership.companyId,
-            employeeUserId: ctx.user.id,
-            siteId: site.id,
-            requestedBusinessDate: input.requestedBusinessDate ?? undefined,
-            requestedScheduleId: input.requestedScheduleId ?? undefined,
-            justification: input.justification,
-            lat: input.lat != null ? String(input.lat) : undefined,
-            lng: input.lng != null ? String(input.lng) : undefined,
-            distanceMeters: input.distanceMeters,
-            status: "pending",
-          })
-          .$returningId();
+        // Attempt to insert with new shift-intent columns; fall back without them if the
+        // migration adding those columns has not yet been applied to this environment.
+        let req: { id: number };
+        try {
+          [req] = await tx
+            .insert(manualCheckinRequests)
+            .values({
+              companyId: membership.companyId,
+              employeeUserId: ctx.user.id,
+              siteId: site.id,
+              requestedBusinessDate: input.requestedBusinessDate ?? undefined,
+              requestedScheduleId: input.requestedScheduleId ?? undefined,
+              justification: input.justification,
+              lat: input.lat != null ? String(input.lat) : undefined,
+              lng: input.lng != null ? String(input.lng) : undefined,
+              distanceMeters: input.distanceMeters,
+              status: "pending",
+            })
+            .$returningId();
+        } catch (insertErr: any) {
+          if (String(insertErr?.message ?? "").includes("Unknown column")) {
+            [req] = await tx
+              .insert(manualCheckinRequests)
+              .values({
+                companyId: membership.companyId,
+                employeeUserId: ctx.user.id,
+                siteId: site.id,
+                justification: input.justification,
+                lat: input.lat != null ? String(input.lat) : undefined,
+                lng: input.lng != null ? String(input.lng) : undefined,
+                distanceMeters: input.distanceMeters,
+                status: "pending",
+              })
+              .$returningId();
+          } else {
+            throw insertErr;
+          }
+        }
         newReqId = req.id;
         await insertAttendanceAuditRow(tx, {
           companyId: membership.companyId,
@@ -1151,7 +1174,24 @@ export const attendanceRouter = router({
 
       const rows = await db
         .select({
-          req: manualCheckinRequests,
+          req: {
+            id: manualCheckinRequests.id,
+            companyId: manualCheckinRequests.companyId,
+            employeeUserId: manualCheckinRequests.employeeUserId,
+            siteId: manualCheckinRequests.siteId,
+            requestedAt: manualCheckinRequests.requestedAt,
+            justification: manualCheckinRequests.justification,
+            lat: manualCheckinRequests.lat,
+            lng: manualCheckinRequests.lng,
+            distanceMeters: manualCheckinRequests.distanceMeters,
+            status: manualCheckinRequests.status,
+            reviewedByUserId: manualCheckinRequests.reviewedByUserId,
+            reviewedAt: manualCheckinRequests.reviewedAt,
+            adminNote: manualCheckinRequests.adminNote,
+            attendanceRecordId: manualCheckinRequests.attendanceRecordId,
+            createdAt: manualCheckinRequests.createdAt,
+            updatedAt: manualCheckinRequests.updatedAt,
+          },
           site: { id: attendanceSites.id, name: attendanceSites.name, siteType: attendanceSites.siteType, clientName: attendanceSites.clientName },
           employee: {
             id: employees.id,
@@ -1190,15 +1230,54 @@ export const attendanceRouter = router({
       const membership = await requireAdminOrHR(ctx.user.id, input.companyId);
       const db = await requireDb();
 
-      const [req] = await db
-        .select()
-        .from(manualCheckinRequests)
-        .where(and(
-          eq(manualCheckinRequests.id, input.requestId),
-          eq(manualCheckinRequests.companyId, membership.company.id),
-          eq(manualCheckinRequests.status, "pending"),
-        ))
-        .limit(1);
+      // Try full select first; fall back to base columns if migration is pending.
+      let req: (typeof manualCheckinRequests.$inferSelect) | undefined;
+      try {
+        const [r] = await db
+          .select()
+          .from(manualCheckinRequests)
+          .where(and(
+            eq(manualCheckinRequests.id, input.requestId),
+            eq(manualCheckinRequests.companyId, membership.company.id),
+            eq(manualCheckinRequests.status, "pending"),
+          ))
+          .limit(1);
+        req = r;
+      } catch (selErr: any) {
+        if (String(selErr?.message ?? "").includes("Unknown column")) {
+          const [r] = await db
+            .select({
+              id: manualCheckinRequests.id,
+              companyId: manualCheckinRequests.companyId,
+              employeeUserId: manualCheckinRequests.employeeUserId,
+              siteId: manualCheckinRequests.siteId,
+              requestedAt: manualCheckinRequests.requestedAt,
+              requestedBusinessDate: null as null,
+              requestedScheduleId: null as null,
+              justification: manualCheckinRequests.justification,
+              lat: manualCheckinRequests.lat,
+              lng: manualCheckinRequests.lng,
+              distanceMeters: manualCheckinRequests.distanceMeters,
+              status: manualCheckinRequests.status,
+              reviewedByUserId: manualCheckinRequests.reviewedByUserId,
+              reviewedAt: manualCheckinRequests.reviewedAt,
+              adminNote: manualCheckinRequests.adminNote,
+              attendanceRecordId: manualCheckinRequests.attendanceRecordId,
+              createdAt: manualCheckinRequests.createdAt,
+              updatedAt: manualCheckinRequests.updatedAt,
+            })
+            .from(manualCheckinRequests)
+            .where(and(
+              eq(manualCheckinRequests.id, input.requestId),
+              eq(manualCheckinRequests.companyId, membership.company.id),
+              eq(manualCheckinRequests.status, "pending"),
+            ))
+            .limit(1);
+          req = r as typeof manualCheckinRequests.$inferSelect;
+        } else {
+          throw selErr;
+        }
+      }
       if (!req) throw new TRPCError({ code: "NOT_FOUND", message: "Request not found or already reviewed" });
 
       const [empRow] = await db
@@ -1353,9 +1432,29 @@ export const attendanceRouter = router({
     .input(z.object({ limit: z.number().min(1).max(50).default(10) }))
     .query(async ({ ctx, input }) => {
       const db = await requireDb();
+      // Explicitly list columns to avoid selecting new nullable columns
+      // (requestedBusinessDate, requestedScheduleId) that may not yet exist in the DB.
+      // Once the pending migration has been applied these columns can be added back.
       return db
         .select({
-          req: manualCheckinRequests,
+          req: {
+            id: manualCheckinRequests.id,
+            companyId: manualCheckinRequests.companyId,
+            employeeUserId: manualCheckinRequests.employeeUserId,
+            siteId: manualCheckinRequests.siteId,
+            requestedAt: manualCheckinRequests.requestedAt,
+            justification: manualCheckinRequests.justification,
+            lat: manualCheckinRequests.lat,
+            lng: manualCheckinRequests.lng,
+            distanceMeters: manualCheckinRequests.distanceMeters,
+            status: manualCheckinRequests.status,
+            reviewedByUserId: manualCheckinRequests.reviewedByUserId,
+            reviewedAt: manualCheckinRequests.reviewedAt,
+            adminNote: manualCheckinRequests.adminNote,
+            attendanceRecordId: manualCheckinRequests.attendanceRecordId,
+            createdAt: manualCheckinRequests.createdAt,
+            updatedAt: manualCheckinRequests.updatedAt,
+          },
           site: { id: attendanceSites.id, name: attendanceSites.name, siteType: attendanceSites.siteType },
         })
         .from(manualCheckinRequests)

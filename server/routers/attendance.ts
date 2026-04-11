@@ -995,6 +995,13 @@ export const attendanceRouter = router({
       lat: z.number().optional(),
       lng: z.number().optional(),
       distanceMeters: z.number().optional(),
+      /**
+       * Explicit shift intent — supplied by the employee portal shift selector.
+       * When present on approval, used directly as `attendance_records.schedule_id`
+       * instead of inferring from timestamp proximity.
+       */
+      requestedBusinessDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+      requestedScheduleId: z.number().int().positive().optional(),
     }).superRefine((data, ctx) => {
       const hasToken = !!data.siteToken?.trim();
       const hasPair = data.companyId != null && data.siteId != null;
@@ -1086,6 +1093,8 @@ export const attendanceRouter = router({
             companyId: membership.companyId,
             employeeUserId: ctx.user.id,
             siteId: site.id,
+            requestedBusinessDate: input.requestedBusinessDate ?? undefined,
+            requestedScheduleId: input.requestedScheduleId ?? undefined,
             justification: input.justification,
             lat: input.lat != null ? String(input.lat) : undefined,
             lng: input.lng != null ? String(input.lng) : undefined,
@@ -1108,6 +1117,8 @@ export const attendanceRouter = router({
               siteId: site.id,
               siteName: site.name,
               status: "pending",
+              requestedBusinessDate: input.requestedBusinessDate ?? null,
+              requestedScheduleId: input.requestedScheduleId ?? null,
               lat: input.lat ?? null,
               lng: input.lng ?? null,
               distanceMeters: input.distanceMeters ?? null,
@@ -1202,14 +1213,21 @@ export const attendanceRouter = router({
         });
       }
 
-      // Infer the schedule row that owns req.requestedAt so the created
-      // attendance_record carries the same explicit shift attribution as
-      // a self-service check-in.  Runs outside the transaction (read-only).
-      const inferredScheduleId = await inferScheduleIdForTimestamp(db, {
-        companyId: membership.company.id,
-        employeeUserId: req.employeeUserId,
-        requestedAt: req.requestedAt,
-      });
+      // Resolve shift attribution for the attendance record:
+      // 1) If the employee explicitly selected a schedule row (shift selector in portal), use it directly.
+      // 2) Otherwise fall back to timestamp inference so legacy requests are still attributed.
+      const inferredScheduleId: number | null =
+        req.requestedScheduleId != null
+          ? req.requestedScheduleId
+          : await inferScheduleIdForTimestamp(db, {
+              companyId: membership.company.id,
+              employeeUserId: req.employeeUserId,
+              // Prefer the explicit business date if the employee provided it (more accurate for
+              // late submissions where requestedAt is the submission time, not the shift time).
+              requestedAt: req.requestedBusinessDate
+                ? new Date(`${req.requestedBusinessDate}T12:00:00`)
+                : req.requestedAt,
+            });
 
       let recordIdOut = 0;
       await db.transaction(async (tx) => {

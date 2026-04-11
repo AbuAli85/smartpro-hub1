@@ -328,6 +328,9 @@ function AttendanceTodayCard({
   const [showCorrForm, setShowCorrForm] = useState(false);
   const [showManualDialog, setShowManualDialog] = useState(false);
   const [manualJustification, setManualJustification] = useState("");
+  // Explicit shift selection — set in the dialog when employee has multiple shifts today.
+  // Passed to submitManualCheckIn so HR approval uses it directly as scheduleId.
+  const [manualScheduleId, setManualScheduleId] = useState<number | null>(null);
   const [corrDate, setCorrDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [corrCheckIn, setCorrCheckIn] = useState("");
   const [corrCheckOut, setCorrCheckOut] = useState("");
@@ -609,6 +612,13 @@ function AttendanceTodayCard({
       const pre = `${operationalHints.businessDate} · ${site?.name ?? "Site"} · ${operationalHints.eligibilityHeadline}. ${operationalHints.eligibilityDetail}`;
       setManualJustification((prev) => (prev.trim() ? prev : pre));
     }
+    // Pre-select the currently active shift so employees don't have to pick manually.
+    if (todayShiftsData?.shifts && todayShiftsData.shifts.length >= 2) {
+      const active = todayShiftsData.shifts.find((s) => s.isActiveShift) ?? todayShiftsData.shifts[0];
+      setManualScheduleId(active?.scheduleId ?? null);
+    } else {
+      setManualScheduleId(null);
+    }
     setShowManualDialog(true);
   }
 
@@ -620,10 +630,14 @@ function AttendanceTodayCard({
       toast.error("Please enter at least 10 characters explaining why you need manual attendance.");
       return;
     }
+    const shiftIntent =
+      operationalHints?.businessDate && manualScheduleId != null
+        ? { requestedBusinessDate: operationalHints.businessDate, requestedScheduleId: manualScheduleId }
+        : {};
     if (siteToken) {
-      manualCheckInMutation.mutate({ siteToken, justification: j });
+      manualCheckInMutation.mutate({ siteToken, justification: j, ...shiftIntent });
     } else {
-      manualCheckInMutation.mutate({ companyId, siteId: sid, justification: j });
+      manualCheckInMutation.mutate({ companyId, siteId: sid, justification: j, ...shiftIntent });
     }
   }
 
@@ -1301,7 +1315,13 @@ function AttendanceTodayCard({
         </Card>
       )}
 
-      <Dialog open={showManualDialog} onOpenChange={setShowManualDialog}>
+      <Dialog
+        open={showManualDialog}
+        onOpenChange={(open) => {
+          setShowManualDialog(open);
+          if (!open) setManualScheduleId(null);
+        }}
+      >
         <DialogContent aria-describedby="manual-attendance-dialog-desc">
           <DialogHeader>
             <DialogTitle>Request manual attendance</DialogTitle>
@@ -1313,23 +1333,50 @@ function AttendanceTodayCard({
             {operationalHints ? (
               <div className="rounded-md border bg-muted/40 px-3 py-2 text-xs text-muted-foreground space-y-1">
                 <p>
-                  <span className="font-medium text-foreground">Date (Asia/Muscat):</span> {operationalHints.businessDate}
+                  <span className="font-medium text-foreground">Date (Asia/Muscat):</span>{" "}
+                  {operationalHints.businessDate}
                 </p>
                 {site?.name ? (
                   <p>
                     <span className="font-medium text-foreground">Site:</span> {site.name}
                   </p>
                 ) : null}
-                {shift?.startTime && shift?.endTime ? (
-                  <p>
-                    <span className="font-medium text-foreground">Shift:</span> {shift.startTime}–{shift.endTime}
-                  </p>
-                ) : null}
                 <p>
-                  <span className="font-medium text-foreground">System message:</span> {operationalHints.eligibilityHeadline} — {operationalHints.eligibilityDetail}
+                  <span className="font-medium text-foreground">System message:</span>{" "}
+                  {operationalHints.eligibilityHeadline} — {operationalHints.eligibilityDetail}
                 </p>
               </div>
             ) : null}
+
+            {/* Shift selector — shown only when 2+ shifts are scheduled today */}
+            {todayShiftsData && todayShiftsData.shifts.length >= 2 && (
+              <div className="space-y-1.5">
+                <Label htmlFor="manualShiftSelect">
+                  Which shift is this request for?{" "}
+                  <span className="text-muted-foreground font-normal">(required)</span>
+                </Label>
+                <select
+                  id="manualShiftSelect"
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                  value={manualScheduleId ?? ""}
+                  onChange={(e) =>
+                    setManualScheduleId(e.target.value ? Number(e.target.value) : null)
+                  }
+                >
+                  <option value="">— Select a shift —</option>
+                  {todayShiftsData.shifts.map((s) => (
+                    <option key={s.scheduleId} value={s.scheduleId}>
+                      {s.shiftName ?? "Shift"} · {s.shiftStart}–{s.shiftEnd}
+                      {s.siteName ? ` · ${s.siteName}` : ""}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[11px] text-muted-foreground leading-snug">
+                  HR uses your selection to attribute this request to the correct shift row.
+                </p>
+              </div>
+            )}
+
             <div className="space-y-1.5">
               <Label htmlFor="manualJustification">Your explanation (required, min. 10 characters)</Label>
               <Textarea
@@ -1347,7 +1394,14 @@ function AttendanceTodayCard({
             </Button>
             <Button
               onClick={submitManualFromPortal}
-              disabled={manualCheckInMutation.isPending || manualJustification.trim().length < 10}
+              disabled={
+                manualCheckInMutation.isPending ||
+                manualJustification.trim().length < 10 ||
+                // If shift selector is shown, a selection is required before submission.
+                (todayShiftsData != null &&
+                  todayShiftsData.shifts.length >= 2 &&
+                  manualScheduleId == null)
+              }
             >
               {manualCheckInMutation.isPending ? "Sending…" : "Submit request"}
             </Button>

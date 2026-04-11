@@ -2271,6 +2271,18 @@ export const manualCheckinRequests = mysqlTable("manual_checkin_requests", {
   employeeUserId: int("employee_user_id").notNull(),
   siteId: int("site_id").notNull(),
   requestedAt: timestamp("requested_at").defaultNow().notNull(),
+  /**
+   * Muscat calendar date (YYYY-MM-DD) the employee intends this attendance for.
+   * Supplied explicitly by the employee when submitting from the portal.
+   * Null for legacy requests and QR-flow fallbacks.
+   */
+  requestedBusinessDate: varchar("requested_business_date", { length: 10 }),
+  /**
+   * employee_schedules.id the employee selected as the intended shift.
+   * When present, `approveManualCheckIn` uses it directly as `attendance_records.schedule_id`
+   * instead of inferring from timestamp proximity.
+   */
+  requestedScheduleId: int("requested_schedule_id"),
   justification: text("justification").notNull(),
   lat: decimal("lat", { precision: 10, scale: 7 }),
   lng: decimal("lng", { precision: 10, scale: 7 }),

@@ -649,7 +649,7 @@ function AttendanceTodayCard({
               <li>
                 Manual check-in request pending
                 {operationalHints.pendingManualCheckInCount > 1
-                  ? ` (${operationalHints.pendingManualCheckInCount})`}
+                  ? ` (${operationalHints.pendingManualCheckInCount})` : ""}
                 {" "}
                 — HR must approve before it counts as attendance.
               </li>

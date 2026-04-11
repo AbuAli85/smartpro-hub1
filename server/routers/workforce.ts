@@ -641,6 +641,61 @@ export const workforceRouter = router({
         return { items: rows, total, page: input.page, pageSize: input.pageSize };
       }),
 
+    /**
+     * Pending-queue operational metrics grouped by `fieldKey` (not raw labels).
+     * Future reclassification would UPDATE `fieldKey` only; `fieldLabel` stays immutable for audit.
+     */
+    queueKpis: protectedProcedure.query(async ({ ctx }) => {
+      const companyId = await getMemberCompanyId(ctx.user);
+      if (!companyId) return null;
+      if (!(await hasPermission(ctx.user, companyId, "employees.read"))) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "You do not have permission to view profile change request metrics",
+        });
+      }
+      const db = await getDb();
+      if (!db) return null;
+
+      const pendingExpr = and(
+        eq(profileChangeRequests.companyId, companyId),
+        eq(profileChangeRequests.status, "pending"),
+      );
+
+      const byKeyRows = await db
+        .select({
+          fieldKey: profileChangeRequests.fieldKey,
+          count: sql<number>`count(*)`,
+        })
+        .from(profileChangeRequests)
+        .where(pendingExpr)
+        .groupBy(profileChangeRequests.fieldKey);
+
+      const [totalRow] = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(profileChangeRequests)
+        .where(pendingExpr);
+
+      const [oldestRow] = await db
+        .select({ oldest: sql<Date | null>`min(${profileChangeRequests.submittedAt})` })
+        .from(profileChangeRequests)
+        .where(pendingExpr);
+
+      const pendingByFieldKey = byKeyRows.map((r) => ({
+        fieldKey: String(r.fieldKey),
+        count: Number(r.count ?? 0),
+      }));
+
+      const pendingOther = pendingByFieldKey.find((r) => r.fieldKey === "other")?.count ?? 0;
+
+      return {
+        pendingTotal: Number(totalRow?.count ?? 0),
+        pendingOther,
+        pendingByFieldKey,
+        oldestPendingSubmittedAt: oldestRow?.oldest ?? null,
+      };
+    }),
+
     resolve: protectedProcedure
       .input(
         z.object({

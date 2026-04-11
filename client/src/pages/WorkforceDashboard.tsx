@@ -1,5 +1,6 @@
 import { trpc } from "@/lib/trpc";
 import { useLocation } from "wouter";
+import { buildProfileChangeQueueHref } from "@shared/profileChangeRequestQueueUrl";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,6 +14,9 @@ import {
 export default function WorkforceDashboard() {
   const [, navigate] = useLocation();
   const { data: stats, isLoading } = trpc.workforce.dashboardStats.useQuery();
+  const { data: pcrQueueKpis } = trpc.workforce.profileChangeRequests.queueKpis.useQuery(undefined, {
+    staleTime: 60_000,
+  });
 
   const statCards = [
     {
@@ -70,7 +74,7 @@ export default function WorkforceDashboard() {
       icon: ClipboardList,
       color: "text-indigo-600",
       bg: "bg-indigo-50",
-      href: "/workforce/profile-change-requests",
+      href: buildProfileChangeQueueHref({ status: "pending" }),
       urgent: (stats?.pendingProfileChangeRequests ?? 0) > 0,
     },
   ];
@@ -81,7 +85,7 @@ export default function WorkforceDashboard() {
     { label: "View Employees", icon: Users, href: "/workforce/employees" },
     { label: "Sync with MOL", icon: RefreshCw, href: "/workforce/sync" },
     { label: "Document Vault", icon: Shield, href: "/workforce/documents" },
-    { label: "Profile requests", icon: ClipboardList, href: "/workforce/profile-change-requests" },
+    { label: "Profile requests", icon: ClipboardList, href: buildProfileChangeQueueHref({ status: "pending" }) },
     { label: "Audit Log", icon: FileText, href: "/workforce/audit" },
   ];
 
@@ -122,6 +126,31 @@ export default function WorkforceDashboard() {
           </Button>
         </div>
       )}
+
+      {!isLoading && pcrQueueKpis != null && pcrQueueKpis.pendingTotal > 0 ? (
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-indigo-200/80 bg-indigo-50/60 px-4 py-2.5 text-sm dark:bg-indigo-950/25 dark:border-indigo-900/60">
+          <ClipboardList className="h-4 w-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
+          <div className="min-w-0 flex-1">
+            <span className="font-medium text-indigo-950 dark:text-indigo-100">
+              {pcrQueueKpis.pendingTotal} pending profile request{pcrQueueKpis.pendingTotal === 1 ? "" : "s"}
+            </span>
+            {pcrQueueKpis.pendingOther > 0 ? (
+              <span className="text-indigo-800/85 dark:text-indigo-200/80">
+                {" "}
+                · {pcrQueueKpis.pendingOther} uncategorized (field: Other / custom)
+              </span>
+            ) : null}
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 text-xs shrink-0 border-indigo-300 text-indigo-800 hover:bg-indigo-100 dark:border-indigo-800 dark:text-indigo-100 dark:hover:bg-indigo-950/50"
+            onClick={() => navigate(buildProfileChangeQueueHref({ status: "pending" }))}
+          >
+            Open queue
+          </Button>
+        </div>
+      ) : null}
 
       {/* Stats Grid */}
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">

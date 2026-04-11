@@ -13,6 +13,7 @@ import {
   Search, Users, AlertTriangle, Clock, CheckCircle2, XCircle,
   ChevronRight, Filter, Download, RefreshCw, Eye, ClipboardList,
 } from "lucide-react";
+import { buildProfileChangeQueueHref } from "@shared/profileChangeRequestQueueUrl";
 
 const PERMIT_STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
   active: { label: "Active", color: "text-emerald-700", bg: "bg-emerald-100" },
@@ -88,7 +89,11 @@ export default function WorkforceEmployeesPage() {
               Open the company queue to review and resolve employee-submitted updates.
             </p>
           </div>
-          <Button size="sm" className="shrink-0" onClick={() => navigate("/workforce/profile-change-requests")}>
+          <Button
+            size="sm"
+            className="shrink-0"
+            onClick={() => navigate(buildProfileChangeQueueHref({ status: "pending" }))}
+          >
             Open queue
           </Button>
         </div>

@@ -166,6 +166,11 @@ export interface AttendanceTodayStripPresentation {
   inconsistentHeadline: string;
   inconsistentSubline: string;
   usePositiveCardStyle: boolean;
+  /**
+   * `myToday` shows a closed punch pair, but another scheduled shift still needs in/out today.
+   * UI should not read this as “day finished” (green card / “Day complete”).
+   */
+  betweenShiftsPendingNext: boolean;
 }
 
 /**
@@ -191,6 +196,14 @@ export function getAttendanceTodayStripPresentation(input: {
 
   const serverActive = input.serverHintsReady === true && input.serverHints != null;
   const hints = serverActive ? input.serverHints : null;
+
+  const betweenShiftsPendingNext =
+    serverActive &&
+    hints != null &&
+    !hints.allShiftsHaveClosedAttendance &&
+    hasIn &&
+    hasOut &&
+    !attendanceInconsistent;
 
   let showCheckIn: boolean;
   let showCheckOut: boolean;
@@ -237,7 +250,8 @@ export function getAttendanceTodayStripPresentation(input: {
     inconsistentHeadline: "Attendance needs review",
     inconsistentSubline:
       "A check-out exists without a check-in — open Correction so HR can fix the record.",
-    usePositiveCardStyle: hasIn && !attendanceInconsistent,
+    usePositiveCardStyle: betweenShiftsPendingNext ? false : hasIn && !attendanceInconsistent,
+    betweenShiftsPendingNext,
   };
 }
 

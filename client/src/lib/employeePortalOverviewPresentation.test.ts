@@ -371,6 +371,31 @@ describe("getAttendanceTodayStripPresentation", () => {
     expect(r.showCheckIn).toBe(true);
     expect(r.notCheckedInHeadline).toBe("Eligible to check in");
     expect(r.notCheckedInSubline).toContain("next shift");
+    expect(r.betweenShiftsPendingNext).toBe(true);
+    expect(r.usePositiveCardStyle).toBe(false);
+  });
+
+  it("server hints: single closed block when all shifts done stays green-style", () => {
+    const r = getAttendanceTodayStripPresentation({
+      hasSchedule: true,
+      isWorkingDay: true,
+      hasShift: true,
+      checkIn: fixed(2026, 4, 5, 9, 0),
+      checkOut: fixed(2026, 4, 5, 17, 0),
+      shiftStartTime: "09:00",
+      shiftEndTime: "17:00",
+      serverHintsReady: true,
+      serverHints: elHints({
+        canCheckIn: false,
+        canCheckOut: false,
+        canRequestCorrection: true,
+        allShiftsHaveClosedAttendance: true,
+        eligibilityHeadline: "Attendance complete",
+        eligibilityDetail: "Recorded.",
+      }),
+    });
+    expect(r.betweenShiftsPendingNext).toBe(false);
+    expect(r.usePositiveCardStyle).toBe(true);
   });
 });
 

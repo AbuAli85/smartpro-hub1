@@ -237,12 +237,22 @@ function AttendanceTodayCard({
     onError: (e) => toastAttendanceMutationError(e.message, () => handleCheckInRef.current()),
   });
   const doCheckOut = trpc.attendance.checkOut.useMutation({
-    onSuccess: () => {
-      toast.success("Checked out", { description: "Your time is saved for today." });
-      refetchToday();
+    onSuccess: async () => {
+      await refetchToday();
+      await utils.employeePortal.getMyOperationalHints.invalidate();
+      const hints = await utils.employeePortal.getMyOperationalHints.fetch({
+        companyId: companyId ?? undefined,
+      });
+      if (hints && !hints.allShiftsHaveClosedAttendance) {
+        toast.success("Checked out", {
+          description:
+            "You have another shift today — check in again when it starts (or when the check-in window opens).",
+        });
+      } else {
+        toast.success("Checked out", { description: "Your time is saved for today." });
+      }
       utils.employeePortal.getMyAttendanceRecords.invalidate();
       utils.employeePortal.getMyAttendanceSummary.invalidate();
-      utils.employeePortal.getMyOperationalHints.invalidate();
       void utils.scheduling.getTodayBoard.invalidate();
       void utils.attendance.listAttendanceAudit.invalidate();
     },
@@ -349,12 +359,14 @@ function AttendanceTodayCard({
   handleCheckInRef.current = handleCheckIn;
   handleCheckOutRef.current = handleCheckOut;
 
+  const betweenShifts = attStrip.betweenShiftsPendingNext;
+
   const denialPresentation =
     operationalHintsReady &&
     operationalHints?.checkInDenialCode &&
-    !checkIn &&
     !attStrip.attendanceInconsistent &&
-    !attStrip.showCheckIn
+    !attStrip.showCheckIn &&
+    (!checkIn || betweenShifts)
       ? getCheckInDenialPresentation(operationalHints.checkInDenialCode)
       : null;
 
@@ -373,27 +385,40 @@ function AttendanceTodayCard({
 
   const tooEarlyBlock =
     !attStrip.showCheckIn &&
-    !checkIn &&
     operationalHintsReady &&
     operationalHints?.checkInDenialCode === CheckInEligibilityReasonCode.CHECK_IN_TOO_EARLY &&
-    !!operationalHints.checkInOpensAt;
+    !!operationalHints.checkInOpensAt &&
+    (!checkIn || betweenShifts);
 
   const attendanceNextStepCaption =
     todayRecLoading || isHoliday
       ? null
-      : checkIn && checkOut
-        ? "Day complete — checked in and out."
-        : attStrip.showCheckIn
-          ? "Tap Check in above to start your time."
+      : betweenShifts
+        ? attStrip.showCheckIn
+          ? "Tap Check in for your next shift (or when the window opens)."
           : attStrip.showCheckOut
-            ? "Tap Check out above when you leave."
+            ? "Tap Check out above when you finish this block."
             : tooEarlyBlock
-              ? "Check-in opens below — wait for that time."
+              ? "Check-in for your next shift opens below — wait for that time."
               : denialPresentation
                 ? denialPresentation.nextStep
-                : checkIn && !checkOut
-                  ? "Still clocked in — check out when you finish."
-                  : null;
+                : operationalHints?.eligibilityDetail ??
+                  "You have another shift today — check in when it starts."
+        : checkIn && checkOut
+          ? operationalHintsReady && operationalHints?.allShiftsHaveClosedAttendance
+            ? "Day complete — checked in and out for every shift."
+            : null
+          : attStrip.showCheckIn
+            ? "Tap Check in above to start your time."
+            : attStrip.showCheckOut
+              ? "Tap Check out above when you leave."
+              : tooEarlyBlock
+                ? "Check-in opens below — wait for that time."
+                : denialPresentation
+                  ? denialPresentation.nextStep
+                  : checkIn && !checkOut
+                    ? "Still clocked in — check out when you finish."
+                    : null;
 
   return (
     <div id="portal-attendance-today" className="scroll-mt-24 space-y-3">
@@ -538,6 +563,49 @@ function AttendanceTodayCard({
                           </div>
                         )}
                       </div>
+                      {operationalHintsReady &&
+                        operationalHints?.minutesLateAfterGrace != null &&
+                        checkIn &&
+                        !checkOut && (
+                          <p className="mt-1 text-xs font-medium text-amber-800 dark:text-amber-200">
+                            You checked in {operationalHints.minutesLateAfterGrace} min after the grace window — use Fix
+                            attendance if HR should adjust the record.
+                          </p>
+                        )}
+                      {betweenShifts && shift && (
+                        <p className="mt-1 text-xs leading-snug text-amber-900/90 dark:text-amber-100/90">
+                          Earlier block finished. Next shift on your schedule: {shift.startTime} – {shift.endTime}
+                          {site?.name ? ` · ${site.name}` : ""}. Check in again when that shift starts.
+                        </p>
+                      )}
+                      {denialPresentation && betweenShifts && (
+                        <div
+                          role="status"
+                          aria-live="polite"
+                          className="mt-2 rounded-md border border-border/70 bg-background/60 px-2.5 py-2"
+                        >
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Badge
+                              variant="outline"
+                              className={cn(
+                                "text-[10px] font-semibold",
+                                checkInDenialInlineBadgeClass(denialPresentation.severity),
+                              )}
+                            >
+                              <span className="sr-only">
+                                {checkInDenialSeverityPlainLabel(denialPresentation.severity)}:{" "}
+                              </span>
+                              {denialPresentation.shortLabel}
+                            </Badge>
+                            <span className="text-[10px] font-medium text-muted-foreground">
+                              {checkInDenialSeverityPlainLabel(denialPresentation.severity)}
+                            </span>
+                          </div>
+                          <p className="mt-1 text-xs font-medium leading-snug text-foreground">
+                            {denialPresentation.nextStep}
+                          </p>
+                        </div>
+                      )}
                       {todayRec?.siteName && (
                         <p className="flex items-center gap-1 text-xs text-muted-foreground">
                           <MapPin className="h-3 w-3 shrink-0" /> {todayRec.siteName}
@@ -604,7 +672,7 @@ function AttendanceTodayCard({
                   </Button>
                 )}
                 {!attStrip.showCheckIn &&
-                  !checkIn &&
+                  (!checkIn || betweenShifts) &&
                   operationalHintsReady &&
                   operationalHints?.checkInDenialCode === CheckInEligibilityReasonCode.CHECK_IN_TOO_EARLY &&
                   operationalHints.checkInOpensAt && (

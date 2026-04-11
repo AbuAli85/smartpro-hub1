@@ -1,11 +1,14 @@
 import { getShiftInstantBounds } from "./employeePortalShift";
+import { evaluateCheckoutOutcome } from "./attendanceCheckoutPolicy";
 
 /**
- * Admin “today board” row status — phase-based, avoids marking Absent before shift ends.
+ * Admin "today board" row status — phase-based, avoids marking Absent before shift ends.
  */
 export type AdminBoardRowStatus =
   | "holiday"
-  | "checked_out"
+  | "completed"
+  | "early_checkout"
+  | "checked_out"      // Legacy fallback (shift time context unavailable)
   | "checked_in_on_time"
   | "checked_in_late"
   | "upcoming"
@@ -39,7 +42,16 @@ export function computeAdminBoardRowStatus(params: {
 
   if (params.record) {
     const { checkIn, checkOut } = params.record;
-    if (checkOut) return "checked_out";
+    if (checkOut) {
+      // Apply the same completion policy used on the employee portal.
+      const policy = evaluateCheckoutOutcome({
+        checkIn,
+        checkOut,
+        shiftStartMs: shiftStart.getTime(),
+        shiftEndMs: shiftEnd.getTime(),
+      });
+      return policy.outcome; // "completed" | "early_checkout"
+    }
     const deadline = shiftStart.getTime() + graceMs;
     return checkIn.getTime() <= deadline ? "checked_in_on_time" : "checked_in_late";
   }

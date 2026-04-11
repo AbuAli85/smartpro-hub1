@@ -82,7 +82,8 @@ describe("computeAdminBoardRowStatus", () => {
     expect(st).toBe("checked_in_on_time");
   });
 
-  it("checked_out when checkout exists", () => {
+  it("completed when employee works full shift (meets 80% threshold)", () => {
+    // 09:00–17:00 = 480 min; 09:00–17:00 = full → completed
     const st = computeAdminBoardRowStatus({
       now: new Date(2026, 3, 5, 18, 0, 0),
       businessDate: biz,
@@ -95,6 +96,41 @@ describe("computeAdminBoardRowStatus", () => {
         checkOut: new Date(2026, 3, 5, 17, 0, 0),
       },
     });
-    expect(st).toBe("checked_out");
+    expect(st).toBe("completed");
+  });
+
+  it("early_checkout when employee works only a fraction of shift", () => {
+    // 09:00–17:00 = 480 min; only 30 min worked → early_checkout
+    const st = computeAdminBoardRowStatus({
+      now: new Date(2026, 3, 5, 18, 0, 0),
+      businessDate: biz,
+      holiday: false,
+      shiftStartTime: "09:00",
+      shiftEndTime: "17:00",
+      gracePeriodMinutes: 15,
+      record: {
+        checkIn: new Date(2026, 3, 5, 9, 0, 0),
+        checkOut: new Date(2026, 3, 5, 9, 30, 0),
+      },
+    });
+    expect(st).toBe("early_checkout");
+  });
+
+  it("early_checkout for the observed 19:14–19:31 scenario (16 min on 3h shift)", () => {
+    // Shift 19:00–22:00 = 180 min; 80% = 144 min; 17 min worked → early_checkout
+    const st = computeAdminBoardRowStatus({
+      now: new Date(2026, 3, 5, 22, 0, 0),
+      businessDate: biz,
+      holiday: false,
+      shiftStartTime: "19:00",
+      shiftEndTime: "22:00",
+      gracePeriodMinutes: 15,
+      record: {
+        checkIn: new Date(2026, 3, 5, 19, 14, 0),
+        checkOut: new Date(2026, 3, 5, 19, 31, 0),
+      },
+    });
+    expect(st).toBe("early_checkout");
   });
 });
+

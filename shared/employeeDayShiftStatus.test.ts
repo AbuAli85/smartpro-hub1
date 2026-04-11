@@ -77,8 +77,9 @@ describe("buildEmployeeDayShiftStatuses — single shift", () => {
     expect(s.attendanceRecordId).toBe(101);
   });
 
-  it("checked_out when full punch recorded", () => {
+  it("completed when full shift worked (meets 80% threshold)", () => {
     const nowMs = msAt("14:00");
+    // MORNING: 09:00–13:00 = 240 min; 80% = 192 min; 09:05–13:10 = 245 min → completed
     const checkIn = new Date(msAt("09:05"));
     const checkOut = new Date(msAt("13:10"));
     const [s] = buildEmployeeDayShiftStatuses({
@@ -88,10 +89,29 @@ describe("buildEmployeeDayShiftStatuses — single shift", () => {
       nowMs,
       employeeId: EMP,
     });
-    expect(s.status).toBe("checked_out");
+    expect(s.status).toBe("completed");
     expect(s.canCheckIn).toBe(false);
     expect(s.canCheckOut).toBe(false);
     expect(s.durationMinutes).toBeGreaterThan(0);
+    expect(s.earlyMinutes).toBeNull();
+    expect(s.completionPercent).toBeGreaterThanOrEqual(80);
+  });
+
+  it("early_checkout when worked less than 80% of shift", () => {
+    const nowMs = msAt("14:00");
+    // MORNING: 09:00–13:00 = 240 min; 80% = 192 min; only 30 min worked → early_checkout
+    const checkIn = new Date(msAt("09:00"));
+    const checkOut = new Date(msAt("09:30"));
+    const [s] = buildEmployeeDayShiftStatuses({
+      shifts: [MORNING],
+      records: [{ id: 102, siteId: 10, checkIn, checkOut }],
+      businessDate: BD,
+      nowMs,
+      employeeId: EMP,
+    });
+    expect(s.status).toBe("early_checkout");
+    expect(s.earlyMinutes).toBeGreaterThan(0);
+    expect(s.completionPercent).toBeLessThan(80);
   });
 
   it("missed when shift ended with no record", () => {
@@ -109,8 +129,9 @@ describe("buildEmployeeDayShiftStatuses — single shift", () => {
 });
 
 describe("buildEmployeeDayShiftStatuses — two shifts", () => {
-  it("morning done, evening upcoming", () => {
+  it("morning done (completed), evening upcoming", () => {
     const nowMs = msAt("14:00");
+    // 09:05–13:10 = 245 min on a 240-min shift → completed
     const checkIn = new Date(msAt("09:05"));
     const checkOut = new Date(msAt("13:10"));
     const [morning, evening] = buildEmployeeDayShiftStatuses({
@@ -120,13 +141,13 @@ describe("buildEmployeeDayShiftStatuses — two shifts", () => {
       nowMs,
       employeeId: EMP,
     });
-    expect(morning.status).toBe("checked_out");
+    expect(morning.status).toBe("completed");
     expect(evening.status).toBe("upcoming");
     // No open session so evening canCheckIn depends on window
     expect(evening.canCheckIn).toBe(false); // not in evening window yet
   });
 
-  it("morning done, evening window open — canCheckIn for evening", () => {
+  it("morning done (completed), evening window open — canCheckIn for evening", () => {
     const nowMs = msAt("16:50"); // 17:00 - 15m grace = 16:45 → window open
     const checkIn = new Date(msAt("09:05"));
     const checkOut = new Date(msAt("13:10"));
@@ -137,7 +158,7 @@ describe("buildEmployeeDayShiftStatuses — two shifts", () => {
       nowMs,
       employeeId: EMP,
     });
-    expect(morning.status).toBe("checked_out");
+    expect(morning.status).toBe("completed");
     expect(evening.status).toBe("window_open");
     expect(evening.canCheckIn).toBe(true); // no open session, window open
   });

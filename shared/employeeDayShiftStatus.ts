@@ -10,21 +10,26 @@ import {
 import type { AttendanceRecordLike } from "./pickAttendanceRecordForShift";
 import { muscatShiftWallEndMs } from "./attendanceBoardOverdue";
 import { muscatWallDateTimeToUtc } from "./attendanceMuscatTime";
+import { evaluateCheckoutOutcomeByShiftTimes } from "./attendanceCheckoutPolicy";
 
 /**
  * Machine-readable status for one scheduled shift on a given calendar day.
  *
- * - `upcoming`    — shift window has not opened yet
- * - `window_open` — inside check-in window but employee has not scanned yet
- * - `checked_in`  — open session (no check-out)
- * - `checked_out` — closed session (full punch recorded)
- * - `missed`      — shift window ended with no attendance record
+ * - `upcoming`       — shift window has not opened yet
+ * - `window_open`    — inside check-in window but employee has not scanned yet
+ * - `checked_in`     — open session (no check-out)
+ * - `checked_out`    — closed session; policy outcome not yet determined (fallback / legacy)
+ * - `completed`      — closed session that meets the shift completion threshold (≥ 80% worked)
+ * - `early_checkout` — closed session that does NOT meet the completion threshold
+ * - `missed`         — shift window ended with no attendance record
  */
 export type ShiftStatusCode =
   | "upcoming"
   | "window_open"
   | "checked_in"
   | "checked_out"
+  | "completed"
+  | "early_checkout"
   | "missed";
 
 /** Human-readable label + intent colour for `ShiftStatusCode`. */
@@ -45,8 +50,19 @@ export const SHIFT_STATUS_LABEL: Record<
     badgeClass: "border-green-300 text-green-800 bg-green-50",
   },
   checked_out: {
+    // Neutral fallback — used when shift time context is unavailable.
+    label: "Checked out",
+    badgeClass: "border-gray-300 text-gray-600 bg-gray-50",
+  },
+  completed: {
+    // Shift met the completion threshold.
     label: "Completed",
-    badgeClass: "border-gray-300 text-gray-700 bg-gray-50",
+    badgeClass: "border-emerald-300 text-emerald-700 bg-emerald-50",
+  },
+  early_checkout: {
+    // Employee checked out before meeting the completion threshold.
+    label: "Checked out early",
+    badgeClass: "border-orange-300 text-orange-700 bg-orange-50",
   },
   missed: {
     label: "Missed",
@@ -77,6 +93,16 @@ export interface TodayShiftEntry {
   canCheckIn: boolean;
   /** True when there is an open check-in that can be closed. */
   canCheckOut: boolean;
+  /**
+   * For `status === "early_checkout"`: how many minutes short of the completion threshold.
+   * Null for all other statuses.
+   */
+  earlyMinutes: number | null;
+  /**
+   * Completion percentage (workedMinutes / shiftMinutes * 100) when a checkout exists.
+   * Null when no checkout recorded.
+   */
+  completionPercent: number | null;
 }
 
 interface InputShiftRow {
@@ -150,8 +176,21 @@ export function buildEmployeeDayShiftStatuses(params: {
     const checkOut = record?.checkOut ?? null;
 
     let status: ShiftStatusCode;
+    let earlyMinutes: number | null = null;
+    let completionPercent: number | null = null;
+
     if (checkIn && checkOut) {
-      status = "checked_out";
+      // Apply checkout completion policy to distinguish "completed" from "early_checkout".
+      const policy = evaluateCheckoutOutcomeByShiftTimes({
+        checkIn,
+        checkOut,
+        businessDate,
+        shiftStartTime: shift.shiftStart,
+        shiftEndTime: shift.shiftEnd,
+      });
+      status = policy.outcome; // "completed" | "early_checkout"
+      earlyMinutes = policy.earlyMinutes > 0 ? policy.earlyMinutes : null;
+      completionPercent = policy.completionPercent;
     } else if (checkIn && !checkOut) {
       status = "checked_in";
     } else if (hasShiftEnded) {
@@ -194,6 +233,8 @@ export function buildEmployeeDayShiftStatuses(params: {
       isActiveWindow,
       canCheckIn,
       canCheckOut,
+      earlyMinutes,
+      completionPercent,
     };
   });
 }

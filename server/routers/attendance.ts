@@ -15,6 +15,7 @@ import {
 } from "../../drizzle/schema";
 import { buildEmployeeDayShiftStatuses } from "@shared/employeeDayShiftStatus";
 import { pickScheduleRowForNow } from "@shared/pickScheduleForAttendanceNow";
+import { evaluateCheckoutOutcomeByShiftTimes } from "@shared/attendanceCheckoutPolicy";
 import { createAttendanceRecordTx, getDb } from "../db";
 import { protectedProcedure, publicProcedure, router } from "../_core/trpc";
 import { getActiveCompanyMembership } from "../_core/membership";
@@ -650,6 +651,11 @@ export const attendanceRouter = router({
       siteToken: z.string().optional(),
       lat: z.number().optional(),
       lng: z.number().optional(),
+      /**
+       * Free-text reason when checking out early (before the shift completion threshold).
+       * Stored in the audit log; does NOT block the checkout.
+       */
+      earlyCheckoutReason: z.string().max(500).optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const db = await requireDb();
@@ -659,7 +665,7 @@ export const attendanceRouter = router({
       if (!emp) throw new TRPCError({ code: "NOT_FOUND", message: "Employee record not found" });
 
       const [existing] = await db
-        .select()
+        .select({ id: attendanceRecords.id, checkIn: attendanceRecords.checkIn, checkOut: attendanceRecords.checkOut, siteId: attendanceRecords.siteId })
         .from(attendanceRecords)
         .where(and(
           eq(attendanceRecords.employeeId, emp.id),
@@ -672,17 +678,51 @@ export const attendanceRouter = router({
         throw new TRPCError({ code: "NOT_FOUND", message: "No active check-in found for today" });
       }
 
-      let updated: (typeof attendanceRecords.$inferSelect) | undefined;
+      const checkOutTime = new Date();
+
+      // Best-effort checkout policy evaluation — stored in audit; does not block checkout.
+      let checkoutPolicyMeta: Record<string, unknown> | null = null;
+      try {
+        const dayCtx = await resolveEmployeeAttendanceDayContext(db, {
+          companyId: membership.companyId,
+          userId: ctx.user.id,
+          employeeId: emp.id,
+          businessDate: muscatCalendarYmdNow(),
+        });
+        if (dayCtx.shiftStart && dayCtx.shiftEnd) {
+          const policy = evaluateCheckoutOutcomeByShiftTimes({
+            checkIn: existing.checkIn,
+            checkOut: checkOutTime,
+            businessDate: dayCtx.businessDate,
+            shiftStartTime: dayCtx.shiftStart,
+            shiftEndTime: dayCtx.shiftEnd,
+          });
+          checkoutPolicyMeta = {
+            outcome: policy.outcome,
+            workedMinutes: policy.workedMinutes,
+            shiftMinutes: policy.shiftMinutes,
+            completionPercent: policy.completionPercent,
+            earlyMinutes: policy.earlyMinutes,
+            earlyCheckoutReason: input.earlyCheckoutReason ?? null,
+          };
+        }
+      } catch {
+        // Non-fatal — checkout proceeds regardless of policy evaluation failures.
+      }
+
+      let updated: { id: number; checkIn: Date; checkOut: Date | null; siteId: number | null } | undefined;
       await db.transaction(async (tx) => {
         await tx
           .update(attendanceRecords)
           .set({
-            checkOut: new Date(),
+            checkOut: checkOutTime,
             checkOutLat: input.lat ? String(input.lat) : null,
             checkOutLng: input.lng ? String(input.lng) : null,
           })
           .where(eq(attendanceRecords.id, existing.id));
-        const [u] = await tx.select().from(attendanceRecords).where(eq(attendanceRecords.id, existing.id)).limit(1);
+        const [u] = await tx
+          .select({ id: attendanceRecords.id, checkIn: attendanceRecords.checkIn, checkOut: attendanceRecords.checkOut, siteId: attendanceRecords.siteId })
+          .from(attendanceRecords).where(eq(attendanceRecords.id, existing.id)).limit(1);
         updated = u;
         await insertAttendanceAuditRow(tx, {
           companyId: membership.companyId,
@@ -697,6 +737,7 @@ export const attendanceRouter = router({
           afterPayload:
             attendancePayloadJson({
               record: u,
+              checkoutPolicy: checkoutPolicyMeta,
               clientMeta: {
                 checkOutLat: input.lat ?? null,
                 checkOutLng: input.lng ?? null,

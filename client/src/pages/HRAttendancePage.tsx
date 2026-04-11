@@ -590,8 +590,8 @@ function TodayBoard({ companyId }: { companyId: number | null }) {
                     <div className="text-[11px]">{row.expectedStart}–{row.expectedEnd}</div>
                   ) : null}
                 </td>
-                <td className="px-3 py-2.5 whitespace-nowrap">{row.checkInAt ? new Date(row.checkInAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : "—"}</td>
-                <td className="px-3 py-2.5 whitespace-nowrap">{row.checkOutAt ? new Date(row.checkOutAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : "—"}</td>
+                <td className="px-3 py-2.5 whitespace-nowrap">{row.checkInAt ? fmtTime(row.checkInAt) : "—"}</td>
+                <td className="px-3 py-2.5 whitespace-nowrap">{row.checkOutAt ? fmtTime(row.checkOutAt) : "—"}</td>
                 <td className="px-3 py-2.5 text-xs whitespace-nowrap">
                   {row.delayMinutes != null && row.delayMinutes > 0 ? `${row.delayMinutes}m` : "—"}
                 </td>
@@ -624,7 +624,11 @@ function CorrectionRequests({ companyId }: { companyId: number | null }) {
     onSuccess: () => {
       toast.success("Correction approved");
       setReviewTarget(null);
-      refetch();
+      void refetch();
+      void utils.attendance.listCorrections.invalidate();
+      void utils.scheduling.getTodayBoard.invalidate();
+      void utils.hr.listAttendance.invalidate();
+      void utils.hr.attendanceStats.invalidate();
       void utils.attendance.listAttendanceAudit.invalidate();
     },
     onError: (e) => toast.error(e.message),
@@ -633,7 +637,11 @@ function CorrectionRequests({ companyId }: { companyId: number | null }) {
     onSuccess: () => {
       toast.success("Correction rejected");
       setReviewTarget(null);
-      refetch();
+      void refetch();
+      void utils.attendance.listCorrections.invalidate();
+      void utils.scheduling.getTodayBoard.invalidate();
+      void utils.hr.listAttendance.invalidate();
+      void utils.hr.attendanceStats.invalidate();
       void utils.attendance.listAttendanceAudit.invalidate();
     },
     onError: (e) => toast.error(e.message),
@@ -725,7 +733,11 @@ function ManualCheckInRequests({ companyId }: { companyId: number | null }) {
     onSuccess: () => {
       toast.success("Check-in approved");
       setReviewTarget(null);
-      refetch();
+      void refetch();
+      void utils.attendance.listManualCheckIns.invalidate();
+      void utils.scheduling.getTodayBoard.invalidate();
+      void utils.hr.listAttendance.invalidate();
+      void utils.hr.attendanceStats.invalidate();
       void utils.attendance.listAttendanceAudit.invalidate();
     },
     onError: (e) => toast.error(e.message),
@@ -734,7 +746,11 @@ function ManualCheckInRequests({ companyId }: { companyId: number | null }) {
     onSuccess: () => {
       toast.success("Check-in rejected");
       setReviewTarget(null);
-      refetch();
+      void refetch();
+      void utils.attendance.listManualCheckIns.invalidate();
+      void utils.scheduling.getTodayBoard.invalidate();
+      void utils.hr.listAttendance.invalidate();
+      void utils.hr.attendanceStats.invalidate();
       void utils.attendance.listAttendanceAudit.invalidate();
     },
     onError: (e) => toast.error(e.message),

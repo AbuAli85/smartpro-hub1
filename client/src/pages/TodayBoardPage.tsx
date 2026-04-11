@@ -219,7 +219,7 @@ export default function TodayBoardPage() {
               <CardContent className="p-4 space-y-2">
                 <p className="text-sm font-semibold">Full day (multiple shifts, Muscat time)</p>
                 <p className="text-xs text-muted-foreground leading-snug">
-                  Cards below are grouped by status per shift. This list is the same person&apos;s shifts in order for the calendar day, with actual check-in and check-out times.
+                  Cards below are grouped by status per shift. Times are stored punches (Muscat), not the shift bar only; duration still follows each shift window.
                 </p>
                 <ul className="space-y-2 text-sm">
                   {(data.fullDaySummaries ?? []).map((fd) => (

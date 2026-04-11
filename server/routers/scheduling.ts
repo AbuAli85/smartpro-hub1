@@ -481,18 +481,13 @@ export const schedulingRouter = router({
                 ? "QR / app"
                 : null;
 
-        /** Board columns show time attributed to this shift (not the full punch if it spans other shifts). */
-        let checkInAt: Date | null = record?.checkIn ?? null;
-        let checkOutAt: Date | null = record?.checkOut ?? null;
-        if (record) {
-          const ss = muscatWallDateTimeToUtc(today, `${startT}:00`).getTime();
-          let se = muscatWallDateTimeToUtc(today, `${endT}:00`).getTime();
-          if (se <= ss) se += 86_400_000;
-          checkInAt = new Date(Math.max(record.checkIn.getTime(), ss));
-          if (record.checkOut) {
-            checkOutAt = new Date(Math.min(record.checkOut.getTime(), se));
-          }
-        }
+        /**
+         * Show **stored** punch times (employee QR/manual/admin) — same as DB `check_in` / `check_out`.
+         * Do not clamp to the shift window here; that made early/late punches look “perfect” vs the schedule.
+         * `durationMinutes` still uses overlap within the shift window (see `attendanceOverlapShiftMinutes`).
+         */
+        const checkInAt: Date | null = record?.checkIn ?? null;
+        const checkOutAt: Date | null = record?.checkOut ?? null;
 
         return {
           scheduleId: s.id,

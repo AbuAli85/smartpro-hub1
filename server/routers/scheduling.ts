@@ -931,4 +931,116 @@ export const schedulingRouter = router({
 
       return { year, month, holidays, report };
     }),
+
+  /**
+   * Returns every employee who is currently clocked in (no check-out) but whose
+   * scheduled shift end time has already passed for today.
+   * Intended for manager / HR summary views.
+   */
+  getOverdueCheckouts: protectedProcedure
+    .input(z.object({ companyId: z.number().optional() }))
+    .query(async ({ ctx, input }) => {
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      const db = await requireDb();
+      const today = muscatCalendarYmdNow();
+      const dow = muscatCalendarWeekdaySun0();
+      const nowMs = Date.now();
+
+      // Check for holiday — no overdue entries on holidays
+      const holidays = await db.select().from(companyHolidays)
+        .where(and(eq(companyHolidays.companyId, companyId), eq(companyHolidays.holidayDate, today)));
+      if (holidays.length > 0) return { date: today, overdueEmployees: [] };
+
+      // Load all active schedules working today
+      const allSchedules = await db.select().from(employeeSchedules)
+        .where(and(
+          eq(employeeSchedules.companyId, companyId),
+          eq(employeeSchedules.isActive, true),
+          lte(employeeSchedules.startDate, today),
+          or(isNull(employeeSchedules.endDate), gte(employeeSchedules.endDate, today)),
+        ));
+      const workingToday = allSchedules.filter((s) =>
+        s.workingDays.split(",").map(Number).includes(dow)
+      );
+      if (workingToday.length === 0) return { date: today, overdueEmployees: [] };
+
+      // Load related data in bulk
+      const shiftIds = [...new Set(workingToday.map((s) => s.shiftTemplateId))];
+      const siteIds = [...new Set(workingToday.map((s) => s.siteId).filter(Boolean) as number[])];
+      const empUserIds = [...new Set(workingToday.map((s) => s.employeeUserId))];
+
+      const [shiftsAll, sitesAll, empsAll, usersAll] = await Promise.all([
+        shiftIds.length ? db.select().from(shiftTemplates).where(inArray(shiftTemplates.id, shiftIds)) : Promise.resolve([]),
+        siteIds.length ? db.select().from(attendanceSites).where(inArray(attendanceSites.id, siteIds)) : Promise.resolve([]),
+        db.select().from(employees).where(and(eq(employees.companyId, companyId), inArray(employees.userId, empUserIds))),
+        db.select().from(users).where(inArray(users.id, empUserIds)),
+      ]);
+      const shiftById = new Map(shiftsAll.map((s) => [s.id, s]));
+      const siteById = new Map(sitesAll.map((s) => [s.id, s]));
+      const empByUserId = new Map(empsAll.map((e) => [e.userId ?? -1, e]));
+      const userById = new Map(usersAll.map((u) => [u.id, u]));
+
+      // Load today's open attendance records (no check-out) scoped to Muscat day
+      const [y, mo, d] = today.split("-").map(Number);
+      const dayStartUtcMs = Date.UTC(y, mo - 1, d) - 4 * 3600_000; // 00:00 Muscat = 20:00 prev UTC
+      const dayEndUtcMs = dayStartUtcMs + 24 * 3600_000;
+      const openRecords = await db.select().from(attendanceRecords)
+        .where(and(
+          eq(attendanceRecords.companyId, companyId),
+          gte(attendanceRecords.checkIn, new Date(dayStartUtcMs)),
+          lte(attendanceRecords.checkIn, new Date(dayEndUtcMs)),
+          isNull(attendanceRecords.checkOut),
+        ));
+      // Keep the latest open record per user
+      const openByUserId = new Map<number, typeof openRecords[number]>();
+      for (const r of openRecords) {
+        const existing = openByUserId.get(r.userId);
+        if (!existing || r.checkIn > existing.checkIn) openByUserId.set(r.userId, r);
+      }
+
+      // Build overdue list: shift ended + employee still open
+      type OverdueEntry = {
+        employeeId: number | null;
+        employeeUserId: number;
+        employeeDisplayName: string;
+        shiftName: string | null;
+        siteName: string | null;
+        expectedEnd: string;
+        checkInAt: Date;
+        minutesOverdue: number;
+      };
+      const overdueMap = new Map<number, OverdueEntry>();
+
+      for (const s of workingToday) {
+        const shift = shiftById.get(s.shiftTemplateId);
+        if (!shift) continue;
+        const shiftEndMs = muscatShiftWallEndMs(today, shift.startTime, shift.endTime);
+        if (nowMs <= shiftEndMs) continue; // shift not yet ended
+        const record = openByUserId.get(s.employeeUserId);
+        if (!record) continue; // already checked out or never checked in
+        if (overdueMap.has(s.employeeUserId)) continue; // already captured
+        const empRow = empByUserId.get(s.employeeUserId);
+        const user = userById.get(s.employeeUserId);
+        const site = s.siteId ? siteById.get(s.siteId) : null;
+        const displayName =
+          user?.name?.trim() ||
+          (empRow ? `${empRow.firstName} ${empRow.lastName}`.trim() : "") ||
+          `Employee #${s.employeeUserId}`;
+        overdueMap.set(s.employeeUserId, {
+          employeeId: empRow?.id ?? null,
+          employeeUserId: s.employeeUserId,
+          employeeDisplayName: displayName,
+          shiftName: shift.name,
+          siteName: site?.name ?? null,
+          expectedEnd: shift.endTime,
+          checkInAt: record.checkIn,
+          minutesOverdue: Math.floor((nowMs - shiftEndMs) / 60_000),
+        });
+      }
+
+      const overdueEmployees = [...overdueMap.values()].sort(
+        (a, b) => b.minutesOverdue - a.minutesOverdue
+      );
+      return { date: today, overdueEmployees };
+    }),
 });

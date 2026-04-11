@@ -1,5 +1,6 @@
 import { trpc } from "@/lib/trpc";
 import { fmtTime } from "@/lib/dateUtils";
+import { OverdueCheckoutsPanel } from "@/components/attendance/OverdueCheckoutsPanel";
 import { getAdminBoardRowStatusPresentation } from "@/lib/adminBoardRowStatus";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { Card, CardContent } from "@/components/ui/card";
@@ -214,6 +215,7 @@ export default function TodayBoardPage() {
             </div>
           )}
 
+          <OverdueCheckoutsPanel />
           {data && (data.fullDaySummaries ?? []).length > 0 && (
             <Card className="border-primary/25 bg-primary/[0.04]">
               <CardContent className="p-4 space-y-2">

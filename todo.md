@@ -1918,3 +1918,5 @@ Every company on SmartPRO Hub gets a complete, unified business operating area â
 - [x] Add live countdown timer to active shift card showing remaining time in HH:MM:SS format, updating every second
 - [x] Add tRPC procedure scheduling.getOverdueCheckouts returning employees clocked in after shift end
 - [x] Build OverdueCheckoutsPanel component and wire into TodayBoardPage and HRAttendancePage
+- [x] Add tRPC mutation scheduling.sendOverdueCheckoutReminder to push in-app notification to an employee
+- [x] Add Send Reminder button per employee row in OverdueCheckoutsPanel with loading/sent state

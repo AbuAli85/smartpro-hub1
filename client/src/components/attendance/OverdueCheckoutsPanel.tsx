@@ -1,16 +1,20 @@
 /**
  * OverdueCheckoutsPanel
  * Manager / HR summary of employees who are still clocked in after their shift ended.
- * Refreshes automatically every 60 seconds.
+ * Refreshes automatically every 60 seconds. Each row has a "Send Reminder" button
+ * that pushes an in-app notification to the employee.
  */
+import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { AlertTriangle, Clock, MapPin, RefreshCw } from "lucide-react";
+import { AlertTriangle, Bell, BellRing, Check, Clock, MapPin, RefreshCw } from "lucide-react";
 import { fmtTime } from "@/lib/dateUtils";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 function initials(name: string): string {
   return name
@@ -45,6 +49,75 @@ const SEVERITY_AVATAR: Record<string, string> = {
   medium: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300",
   high: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300",
 };
+
+/** Per-employee reminder button — tracks its own loading + sent state. */
+function ReminderButton({
+  employeeUserId,
+  employeeDisplayName,
+  shiftName,
+  expectedEnd,
+  minutesOverdue,
+  companyId,
+}: {
+  employeeUserId: number;
+  employeeDisplayName: string;
+  shiftName: string | null;
+  expectedEnd: string;
+  minutesOverdue: number;
+  companyId: number | undefined;
+}) {
+  const [sent, setSent] = useState(false);
+
+  const remind = trpc.scheduling.sendOverdueCheckoutReminder.useMutation({
+    onSuccess: () => {
+      setSent(true);
+      toast.success(`Reminder sent to ${employeeDisplayName}`);
+    },
+    onError: (err) => {
+      toast.error(`Failed to send reminder: ${err.message}`);
+    },
+  });
+
+  if (sent) {
+    return (
+      <Button
+        size="sm"
+        variant="outline"
+        disabled
+        className="h-7 px-2.5 text-[11px] gap-1 border-emerald-300 bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300 shrink-0"
+      >
+        <Check className="w-3 h-3" />
+        Sent
+      </Button>
+    );
+  }
+
+  return (
+    <Button
+      size="sm"
+      variant="outline"
+      disabled={remind.isPending}
+      onClick={() =>
+        remind.mutate({
+          companyId,
+          employeeUserId,
+          shiftName,
+          expectedEnd,
+          minutesOverdue,
+        })
+      }
+      className="h-7 px-2.5 text-[11px] gap-1 shrink-0"
+      title={`Send check-out reminder to ${employeeDisplayName}`}
+    >
+      {remind.isPending ? (
+        <RefreshCw className="w-3 h-3 animate-spin" />
+      ) : (
+        <BellRing className="w-3 h-3" />
+      )}
+      {remind.isPending ? "Sending…" : "Remind"}
+    </Button>
+  );
+}
 
 export function OverdueCheckoutsPanel({ className }: { className?: string }) {
   const { activeCompanyId } = useActiveCompany();
@@ -120,6 +193,11 @@ export function OverdueCheckoutsPanel({ className }: { className?: string }) {
         {updatedAt && (
           <p className="text-[10px] text-muted-foreground mt-0.5">
             Updated {updatedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+            {overdue.length > 0 && (
+              <span className="ml-2 text-muted-foreground/70">
+                · Use <Bell className="w-2.5 h-2.5 inline-block mx-0.5" /> to send an in-app reminder
+              </span>
+            )}
           </p>
         )}
       </CardHeader>
@@ -171,12 +249,22 @@ export function OverdueCheckoutsPanel({ className }: { className?: string }) {
                     </div>
                   </div>
 
-                  <Badge
-                    variant="outline"
-                    className={cn("text-[10px] font-semibold shrink-0 whitespace-nowrap", SEVERITY_BADGE[sev])}
-                  >
-                    {overdueLabel(emp.minutesOverdue)}
-                  </Badge>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Badge
+                      variant="outline"
+                      className={cn("text-[10px] font-semibold whitespace-nowrap hidden sm:inline-flex", SEVERITY_BADGE[sev])}
+                    >
+                      {overdueLabel(emp.minutesOverdue)}
+                    </Badge>
+                    <ReminderButton
+                      employeeUserId={emp.employeeUserId}
+                      employeeDisplayName={emp.employeeDisplayName}
+                      shiftName={emp.shiftName}
+                      expectedEnd={emp.expectedEnd}
+                      minutesOverdue={emp.minutesOverdue}
+                      companyId={activeCompanyId ?? undefined}
+                    />
+                  </div>
                 </div>
               );
             })}

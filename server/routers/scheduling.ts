@@ -1043,4 +1043,58 @@ export const schedulingRouter = router({
       );
       return { date: today, overdueEmployees };
     }),
+
+  /**
+   * Sends an in-app check-out reminder notification to a specific employee
+   * who is still clocked in after their shift ended.
+   */
+  sendOverdueCheckoutReminder: protectedProcedure
+    .input(z.object({
+      companyId: z.number().optional(),
+      employeeUserId: z.number(),
+      shiftName: z.string().nullable(),
+      expectedEnd: z.string(),
+      minutesOverdue: z.number(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      const db = await requireDb();
+
+      // Verify the employee belongs to this company
+      const [emp] = await db.select({ id: employees.id, userId: employees.userId })
+        .from(employees)
+        .where(and(
+          eq(employees.companyId, companyId),
+          or(
+            eq(employees.id, input.employeeUserId),
+            eq(employees.userId, input.employeeUserId),
+          ),
+        ))
+        .limit(1);
+
+      // Resolve the actual login userId for the notification
+      const targetUserId = emp?.userId ?? input.employeeUserId;
+
+      const overdueLabel = input.minutesOverdue >= 60
+        ? `${Math.floor(input.minutesOverdue / 60)}h ${input.minutesOverdue % 60}m`
+        : `${input.minutesOverdue}m`;
+
+      const shiftLabel = input.shiftName ? ` (${input.shiftName})` : "";
+
+      const { createNotification } = await import("../db");
+      await createNotification(
+        {
+          userId: targetUserId,
+          companyId,
+          type: "overdue_checkout_reminder",
+          title: "Reminder: Please check out",
+          message: `Your shift${shiftLabel} ended at ${input.expectedEnd} — you are ${overdueLabel} past the scheduled end time. Please check out when you are done.`,
+          isRead: false,
+          link: "/employee-portal",
+        },
+        { actorUserId: ctx.user.id },
+      );
+
+      return { sent: true, targetUserId };
+    }),
 });

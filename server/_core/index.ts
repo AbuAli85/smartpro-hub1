@@ -10,6 +10,7 @@ import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { applySecurityMiddleware } from "./security";
 import { validateProductionEnvironment } from "./env";
+import { runPendingMigrations } from "../runPendingMigrations";
 import { runEmployeeTaskOverdueNotifications } from "../jobs/employeeTaskOverdue";
 import { runSyncExpiredContracts } from "../jobs/syncExpiredContracts";
 import { registerSentryExpressErrorHandler } from "./sentry";
@@ -35,6 +36,7 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 
 async function startServer() {
   validateProductionEnvironment();
+  await runPendingMigrations();
   const app = express();
   app.set("trust proxy", 1); // Trust first proxy — required for rate-limiter behind reverse proxy
   const server = createServer(app);

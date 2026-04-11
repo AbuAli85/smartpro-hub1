@@ -365,7 +365,12 @@ function AttendanceTodayCard({
   );
   const { data: myManualList } = trpc.attendance.myManualCheckIns.useQuery(
     { limit: 15 },
-    { enabled: !!employeeId && companyId != null },
+    {
+      enabled: !!employeeId && companyId != null,
+      // Do not retry on failure — the server returns [] gracefully on schema mismatch,
+      // so a real error here is unlikely to self-heal on retry.
+      retry: false,
+    },
   );
   const { data: todayShiftsData } = trpc.attendance.myTodayShifts.useQuery(
     { companyId: companyId ?? undefined },
@@ -858,16 +863,8 @@ function AttendanceTodayCard({
                 </div>
               </div>
               <div className="flex flex-col items-end gap-1.5 text-right shrink-0 max-w-[160px]">
-                {operationalHintsReady && operationalHints?.shiftStatusLabel && (
-                  <>
-                    <Badge variant="secondary" className="text-[10px] px-2 py-0 font-medium">
-                      {operationalHints.shiftStatusLabel}
-                    </Badge>
-                    {operationalHints.shiftDetailLine ? (
-                      <span className="text-[10px] text-muted-foreground leading-tight">{operationalHints.shiftDetailLine}</span>
-                    ) : null}
-                  </>
-                )}
+                {/* Single phase/state badge — prefers server-computed shiftStatusLabel when available
+                    to avoid rendering "On shift" (from hints) + "On Shift" (from local state) simultaneously. */}
                 <Badge
                   variant="outline"
                   className={cn(
@@ -879,8 +876,17 @@ function AttendanceTodayCard({
                         : "border-gray-300 text-gray-600 bg-gray-50"
                   )}
                 >
-                  {isShiftActive ? "On Shift" : isWorkingDay ? "Working Day" : "Day Off"}
+                  {(operationalHintsReady && operationalHints?.shiftStatusLabel)
+                    ? operationalHints.shiftStatusLabel
+                    : isShiftActive
+                      ? "On Shift"
+                      : isWorkingDay
+                        ? "Working Day"
+                        : "Day Off"}
                 </Badge>
+                {operationalHintsReady && operationalHints?.shiftDetailLine && (
+                  <span className="text-[10px] text-muted-foreground leading-tight">{operationalHints.shiftDetailLine}</span>
+                )}
               </div>
             </div>
             {/* Shift time-window progress bar + countdown — only shown during active window */}
@@ -2558,8 +2564,11 @@ export default function EmployeePortalPage() {
               </CardHeader>
               <CardContent className="px-3 pb-4 sm:px-6">
                 {/* HR-marked attendance summary pills */}
-                <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                  HR-marked attendance
+                <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  Official HR attendance status
+                </p>
+                <p className="mb-2 text-[10px] text-muted-foreground leading-tight">
+                  Counts are set by HR and may not yet reflect today&apos;s self-service clock activity.
                 </p>
                 <div className="flex flex-wrap gap-2 mb-4">
                   {[

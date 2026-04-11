@@ -560,6 +560,42 @@ export const attendanceRouter = router({
         });
       }
 
+      // Belt-and-suspenders: if the active shift already has a closed attendance record
+      // (e.g. the employee checked out early and is trying to re-check-in), block explicitly.
+      // This catches edge cases where evaluateSelfServiceCheckInEligibility's allShiftsHaveClosedAttendance
+      // might be false for unrelated reasons (e.g. cross-midnight assignment not matched).
+      if (dayCtx.shiftCheckIn && dayCtx.shiftCheckOut) {
+        const fmtHm = (d: Date) =>
+          d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Muscat", hour12: false });
+        const wire = formatCheckInRejection(
+          CheckInEligibilityReasonCode.DAY_ALREADY_RECORDED,
+          `This shift already has a check-out recorded at ${fmtHm(new Date(dayCtx.shiftCheckOut))}. Use "Fix attendance" if this record is incorrect.`,
+        );
+        await logAttendanceAuditSafe({
+          companyId: site.companyId,
+          employeeId: emp.id,
+          actorUserId: ctx.user.id,
+          actorRole: memberRole,
+          actionType: ATTENDANCE_AUDIT_ACTION.SELF_CHECKIN_DENIED,
+          entityType: ATTENDANCE_AUDIT_ENTITY.SELF_CHECKIN_ATTEMPT,
+          entityId: site.id,
+          afterPayload:
+            attendancePayloadJson({
+              outcome: "denied",
+              reasonCode: CheckInEligibilityReasonCode.DAY_ALREADY_RECORDED,
+              wireMessage: wire,
+              policyPath: "shift_already_recorded",
+              siteId: site.id,
+              businessDate: dayCtx.businessDate,
+              shiftCheckIn: dayCtx.shiftCheckIn,
+              shiftCheckOut: dayCtx.shiftCheckOut,
+            }) ?? undefined,
+          reason: wire,
+          source: ATTENDANCE_AUDIT_SOURCE.EMPLOYEE_PORTAL,
+        });
+        throw new TRPCError({ code: "CONFLICT", message: wire });
+      }
+
       const [openSession] = await db
         .select({ id: attendanceRecords.id, checkIn: attendanceRecords.checkIn, checkOut: attendanceRecords.checkOut, siteId: attendanceRecords.siteId })
         .from(attendanceRecords)
@@ -1482,41 +1518,52 @@ export const attendanceRouter = router({
 
   /**
    * Employee: get their own manual check-in requests (today and recent).
+   *
+   * Uses explicit column list (no requestedBusinessDate / requestedScheduleId) so the query
+   * succeeds even when the pending migration that adds those columns has not yet been applied.
+   * Wrapped in try/catch so a schema mismatch returns an empty list instead of a 500 that
+   * crashes the attendance tab and causes repeated retry noise in the client console.
    */
   myManualCheckIns: protectedProcedure
     .input(z.object({ limit: z.number().min(1).max(50).default(10) }))
     .query(async ({ ctx, input }) => {
       const db = await requireDb();
-      // Explicitly list columns to avoid selecting new nullable columns
-      // (requestedBusinessDate, requestedScheduleId) that may not yet exist in the DB.
-      // Once the pending migration has been applied these columns can be added back.
-      return db
-        .select({
-          req: {
-            id: manualCheckinRequests.id,
-            companyId: manualCheckinRequests.companyId,
-            employeeUserId: manualCheckinRequests.employeeUserId,
-            siteId: manualCheckinRequests.siteId,
-            requestedAt: manualCheckinRequests.requestedAt,
-            justification: manualCheckinRequests.justification,
-            lat: manualCheckinRequests.lat,
-            lng: manualCheckinRequests.lng,
-            distanceMeters: manualCheckinRequests.distanceMeters,
-            status: manualCheckinRequests.status,
-            reviewedByUserId: manualCheckinRequests.reviewedByUserId,
-            reviewedAt: manualCheckinRequests.reviewedAt,
-            adminNote: manualCheckinRequests.adminNote,
-            attendanceRecordId: manualCheckinRequests.attendanceRecordId,
-            createdAt: manualCheckinRequests.createdAt,
-            updatedAt: manualCheckinRequests.updatedAt,
-          },
-          site: { id: attendanceSites.id, name: attendanceSites.name, siteType: attendanceSites.siteType },
-        })
-        .from(manualCheckinRequests)
-        .leftJoin(attendanceSites, eq(manualCheckinRequests.siteId, attendanceSites.id))
-        .where(eq(manualCheckinRequests.employeeUserId, ctx.user.id))
-        .orderBy(desc(manualCheckinRequests.requestedAt))
-        .limit(input.limit);
+      try {
+        return await db
+          .select({
+            req: {
+              id: manualCheckinRequests.id,
+              companyId: manualCheckinRequests.companyId,
+              employeeUserId: manualCheckinRequests.employeeUserId,
+              siteId: manualCheckinRequests.siteId,
+              requestedAt: manualCheckinRequests.requestedAt,
+              justification: manualCheckinRequests.justification,
+              lat: manualCheckinRequests.lat,
+              lng: manualCheckinRequests.lng,
+              distanceMeters: manualCheckinRequests.distanceMeters,
+              status: manualCheckinRequests.status,
+              reviewedByUserId: manualCheckinRequests.reviewedByUserId,
+              reviewedAt: manualCheckinRequests.reviewedAt,
+              adminNote: manualCheckinRequests.adminNote,
+              attendanceRecordId: manualCheckinRequests.attendanceRecordId,
+              createdAt: manualCheckinRequests.createdAt,
+              updatedAt: manualCheckinRequests.updatedAt,
+            },
+            // Only select core site columns — siteType is omitted intentionally to avoid
+            // a query failure if that column does not yet exist in the target DB.
+            site: { id: attendanceSites.id, name: attendanceSites.name },
+          })
+          .from(manualCheckinRequests)
+          .leftJoin(attendanceSites, eq(manualCheckinRequests.siteId, attendanceSites.id))
+          .where(eq(manualCheckinRequests.employeeUserId, ctx.user.id))
+          .orderBy(desc(manualCheckinRequests.requestedAt))
+          .limit(input.limit);
+      } catch (err) {
+        // Non-fatal: return empty list so the attendance tab stays usable.
+        // Likely cause: pending DB migration has not been applied yet.
+        console.error("[myManualCheckIns] query failed (schema mismatch?):", (err as any)?.message ?? err);
+        return [];
+      }
     }),
 
   // ─── Employee: Submit a time correction request ─────────────────────────────

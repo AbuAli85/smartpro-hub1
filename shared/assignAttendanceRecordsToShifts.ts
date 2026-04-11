@@ -42,8 +42,16 @@ export type ShiftRowForAssignment = {
 };
 
 /**
- * Prefer a punch whose Muscat check-in falls inside this shift’s wall window (with grace + small pre-buffer).
- * Resolves “one long correction” vs two shift rows: check-in anchors to the intended shift (e.g. morning 10:00).
+ * Prefer a punch whose Muscat check-in falls inside this shift's wall window (with grace + small pre-buffer).
+ * Resolves "one long correction" vs two shift rows: check-in anchors to the intended shift (e.g. morning 10:00).
+ *
+ * Priority order within the window:
+ *  1. Open sessions (checkOut == null) — represents the employee's *current* activity.
+ *  2. Closed sessions, earliest check-in first — stable attribution for completed punches.
+ *
+ * This prevents a contradictory state where a re-entry after an early checkout is overshadowed
+ * by the older closed record, which would make the shift appear "Checked out early" while the
+ * employee is still clocked in.
  */
 function pickRecordByCheckInAnchor<T extends AttendanceRecordLike>(
   records: T[],
@@ -67,7 +75,10 @@ function pickRecordByCheckInAnchor<T extends AttendanceRecordLike>(
     if (cinM == null) continue;
     if (cinM >= lo && cinM <= hi) {
       const t = r.checkIn.getTime();
-      if (t < bestCheckIn) {
+      const isOpen = r.checkOut == null;
+      const bestIsOpen = best?.checkOut == null;
+      // Open sessions take priority; among same open/closed, prefer earliest check-in.
+      if (!best || (isOpen && !bestIsOpen) || (isOpen === bestIsOpen && t < bestCheckIn)) {
         bestCheckIn = t;
         best = r;
       }
@@ -142,7 +153,7 @@ export function assignAttendanceRecordsToShiftRows<T extends AttendanceRecordLik
 
 /**
  * True when every working schedule row for the employee has a closed attendance punch
- * assigned to it (same rules as Today’s Board assignment).
+ * assigned to it (same rules as Today's Board assignment).
  */
 export function allWorkingShiftRowsHaveClosedAttendance<T extends AttendanceRecordLike>(
   shiftRows: ShiftRowForAssignment[],

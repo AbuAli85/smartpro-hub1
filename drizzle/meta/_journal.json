@@ -99,6 +99,13 @@
       "when": 1744800000000,
       "tag": "0031_company_leave_policy_caps",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "5",
+      "when": 1744900000000,
+      "tag": "0032_multi_shift_attendance_columns",
+      "breakpoints": true
     }
   ]
 }

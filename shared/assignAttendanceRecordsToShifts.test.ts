@@ -3,6 +3,7 @@ import { muscatWallDateTimeToUtc } from "./attendanceMuscatTime";
 import {
   assignAttendanceRecordsToShiftRows,
   attendanceOverlapShiftMinutes,
+  allWorkingShiftRowsHaveClosedAttendance,
 } from "./assignAttendanceRecordsToShifts";
 
 describe("assignAttendanceRecordsToShiftRows", () => {
@@ -46,6 +47,42 @@ describe("assignAttendanceRecordsToShiftRows", () => {
     const m = assignAttendanceRecordsToShiftRows(shifts, recordsByEmp, day, muscatWallDateTimeToUtc(day, "23:00:00").getTime());
     expect(m.get(1)?.id).toBe(1);
     expect(m.get(2)?.id).toBe(2);
+  });
+});
+
+describe("allWorkingShiftRowsHaveClosedAttendance", () => {
+  const day = "2026-04-11";
+  it("is false when only one of two shifts has a closed punch", () => {
+    const long = {
+      id: 99,
+      siteId: 1,
+      checkIn: muscatWallDateTimeToUtc(day, "10:00:00"),
+      checkOut: muscatWallDateTimeToUtc(day, "13:00:00"),
+    };
+    const shifts = [
+      { scheduleId: 1, siteId: 1, employeeId: 1, shiftStartTime: "10:00", shiftEndTime: "13:00", gracePeriodMinutes: 15 },
+      { scheduleId: 2, siteId: 1, employeeId: 1, shiftStartTime: "18:00", shiftEndTime: "22:00", gracePeriodMinutes: 15 },
+    ];
+    expect(allWorkingShiftRowsHaveClosedAttendance(shifts, 1, [long], day, muscatWallDateTimeToUtc(day, "23:00:00").getTime())).toBe(false);
+  });
+  it("is true when each shift has its own closed punch", () => {
+    const a = {
+      id: 1,
+      siteId: 1,
+      checkIn: muscatWallDateTimeToUtc(day, "10:00:00"),
+      checkOut: muscatWallDateTimeToUtc(day, "13:00:00"),
+    };
+    const b = {
+      id: 2,
+      siteId: 1,
+      checkIn: muscatWallDateTimeToUtc(day, "18:00:00"),
+      checkOut: muscatWallDateTimeToUtc(day, "22:00:00"),
+    };
+    const shifts = [
+      { scheduleId: 1, siteId: 1, employeeId: 1, shiftStartTime: "10:00", shiftEndTime: "13:00", gracePeriodMinutes: 15 },
+      { scheduleId: 2, siteId: 1, employeeId: 1, shiftStartTime: "18:00", shiftEndTime: "22:00", gracePeriodMinutes: 15 },
+    ];
+    expect(allWorkingShiftRowsHaveClosedAttendance(shifts, 1, [a, b], day, muscatWallDateTimeToUtc(day, "23:00:00").getTime())).toBe(true);
   });
 });
 

@@ -21,6 +21,8 @@ export type ServerEligibilityHints = Pick<
   | "checkInDenialCode"
   | "hasPendingCorrection"
   | "checkInOpensAt"
+  | "allShiftsHaveClosedAttendance"
+  | "minutesLateAfterGrace"
 >;
 
 export type WarningTone = "none" | "amber" | "red";
@@ -55,8 +57,9 @@ function applyServerEligibilityToOverviewCta(params: {
   const sh = params.serverHintsReady && params.serverHints != null ? params.serverHints : null;
   let label = params.heuristicLabel;
   if (sh) {
-    // Prefer direct actions whenever the server says they are allowed (e.g. late check-in after shift end).
-    if (sh.canCheckIn && !params.hasIn && !params.attendancePending) {
+    // Prefer direct actions whenever the server says they are allowed (e.g. second shift same day).
+    const dayFullyDone = !!(params.hasIn && params.hasOut && sh.allShiftsHaveClosedAttendance);
+    if (sh.canCheckIn && !params.attendancePending && !dayFullyDone) {
       label = "Check in now";
     } else if (sh.canCheckOut && params.hasIn && !params.hasOut && !params.attendancePending) {
       label = "Check out now";
@@ -219,7 +222,7 @@ export function getAttendanceTodayStripPresentation(input: {
       : "No shift today";
   }
 
-  if (hints && !hasIn) {
+  if (hints && (!hasIn || hints.canCheckIn)) {
     notCheckedInHeadline = hints.eligibilityHeadline;
     notCheckedInSubline = hints.eligibilityDetail;
   }

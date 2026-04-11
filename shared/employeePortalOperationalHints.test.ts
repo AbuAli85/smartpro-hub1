@@ -29,6 +29,8 @@ describe("computePortalOperationalHints", () => {
     expect(h.eligibilityHeadline).toBe("Eligible to check in");
     expect(h.shiftStatusLabel).toBe("Active now");
     expect(h.checkInDenialCode).toBeNull();
+    expect(h.allShiftsHaveClosedAttendance).toBe(false);
+    expect(h.minutesLateAfterGrace).toBeNull();
   });
 
   it("blocks check-in before early-open window (grace before start)", () => {
@@ -53,6 +55,8 @@ describe("computePortalOperationalHints", () => {
     expect(h.checkInOpensAt).toBe("14:45");
     expect(h.eligibilityDetail).toContain("14:45");
     expect(h.checkInDenialCode).toBe("CHECK_IN_TOO_EARLY");
+    expect(h.allShiftsHaveClosedAttendance).toBe(false);
+    expect(h.minutesLateAfterGrace).toBeNull();
   });
 
   it("allows check-in inside early-open window before nominal start", () => {
@@ -73,6 +77,8 @@ describe("computePortalOperationalHints", () => {
     });
     expect(h.canCheckIn).toBe(true);
     expect(h.eligibilityHeadline).toBe("Eligible to check in");
+    expect(h.allShiftsHaveClosedAttendance).toBe(false);
+    expect(h.minutesLateAfterGrace).toBeNull();
   });
 
   it("closes check-in after shift end when still not checked in", () => {
@@ -94,6 +100,8 @@ describe("computePortalOperationalHints", () => {
     expect(h.resolvedShiftPhase).toBe("ended");
     expect(h.canCheckIn).toBe(false);
     expect(h.eligibilityHeadline).toBe("Check-in closed");
+    expect(h.allShiftsHaveClosedAttendance).toBe(false);
+    expect(h.minutesLateAfterGrace).toBeNull();
   });
 
   it("detects pending correction and blocks check-in when inconsistent", () => {
@@ -117,5 +125,27 @@ describe("computePortalOperationalHints", () => {
     expect(h.hasPendingCorrection).toBe(true);
     expect(h.pendingCorrectionCount).toBe(2);
     expect(h.eligibilityHeadline).toBe("Attendance needs review");
+    expect(h.allShiftsHaveClosedAttendance).toBe(false);
+    expect(h.minutesLateAfterGrace).toBeNull();
+  });
+
+  it("reports minutes late after grace when checked in without check-out", () => {
+    const now = new Date(2026, 3, 5, 9, 30, 0);
+    const h = computePortalOperationalHints({
+      now,
+      businessDate: "2026-04-05",
+      startTime: "09:00",
+      endTime: "17:00",
+      isHoliday: false,
+      isWorkingDay: true,
+      hasSchedule: true,
+      hasShift: true,
+      checkIn: new Date(2026, 3, 5, 9, 20, 0),
+      checkOut: null,
+      pendingCorrectionCount: 0,
+      gracePeriodMinutes: 15,
+    });
+    expect(h.minutesLateAfterGrace).toBeGreaterThan(0);
+    expect(h.allShiftsHaveClosedAttendance).toBe(false);
   });
 });

@@ -12,6 +12,7 @@ import {
   shiftTemplates,
 } from "../drizzle/schema";
 import { pickScheduleRowForNow } from "@shared/pickScheduleForAttendanceNow";
+import { allWorkingShiftRowsHaveClosedAttendance } from "@shared/assignAttendanceRecordsToShifts";
 
 export interface EmployeeAttendanceDayContext {
   businessDate: string;
@@ -23,8 +24,14 @@ export interface EmployeeAttendanceDayContext {
   shiftEnd: string | null;
   gracePeriodMinutes: number;
   assignedSiteId: number | null;
+  /**
+   * Punches used for self-service eligibility (multi-shift: may be cleared while a prior shift
+   * is closed so the next shift can still check in).
+   */
   checkIn: Date | null;
   checkOut: Date | null;
+  /** Every scheduled shift row for today has a closed attendance record assigned to it. */
+  allShiftsHaveClosedAttendance: boolean;
 }
 
 export async function resolveEmployeeAttendanceDayContext(
@@ -78,6 +85,8 @@ export async function resolveEmployeeAttendanceDayContext(
   let shiftEnd: string | null = null;
   let gracePeriodMinutes = 15;
   let assignedSiteId: number | null = null;
+  let workingToday: typeof allMySchedules = [];
+  let shiftById = new Map<number, (typeof shiftTemplates.$inferSelect)>();
 
   if (allMySchedules.length > 0) {
     hasSchedule = true;
@@ -86,7 +95,7 @@ export async function resolveEmployeeAttendanceDayContext(
       templateIds.length > 0
         ? await db.select().from(shiftTemplates).where(inArray(shiftTemplates.id, templateIds))
         : [];
-    const shiftById = new Map(shiftRows.map((st) => [st.id, st]));
+    shiftById = new Map(shiftRows.map((st) => [st.id, st]));
 
     const now = new Date();
     const mySchedule = pickScheduleRowForNow({
@@ -97,9 +106,7 @@ export async function resolveEmployeeAttendanceDayContext(
       scheduleRows: allMySchedules,
       getShift: (tid) => shiftById.get(tid),
     });
-    const workingToday = allMySchedules.filter((s) =>
-      s.workingDays.split(",").map(Number).includes(dow)
-    );
+    workingToday = allMySchedules.filter((s) => s.workingDays.split(",").map(Number).includes(dow));
     isWorkingDay = workingToday.length > 0 && !holiday;
     if (mySchedule) {
       assignedSiteId = mySchedule.siteId ?? null;
@@ -118,13 +125,11 @@ export async function resolveEmployeeAttendanceDayContext(
   const [openSession] = await db
     .select()
     .from(attendanceRecords)
-    .where(
-      and(eq(attendanceRecords.employeeId, employeeId), isNull(attendanceRecords.checkOut))
-    )
+    .where(and(eq(attendanceRecords.employeeId, employeeId), isNull(attendanceRecords.checkOut)))
     .orderBy(desc(attendanceRecords.checkIn))
     .limit(1);
 
-  const [recordRow] = await db
+  const dayRecords = await db
     .select()
     .from(attendanceRecords)
     .where(
@@ -134,16 +139,43 @@ export async function resolveEmployeeAttendanceDayContext(
         lte(attendanceRecords.checkIn, dayEnd)
       )
     )
-    .orderBy(desc(attendanceRecords.checkIn))
-    .limit(1);
+    .orderBy(desc(attendanceRecords.checkIn));
 
-  /** Any open check-out wins for eligibility (includes cross-day forgot-checkout). */
-  const checkIn = openSession?.checkIn
-    ? new Date(openSession.checkIn)
-    : recordRow?.checkIn
-      ? new Date(recordRow.checkIn)
-      : null;
-  const checkOut = openSession ? null : recordRow?.checkOut ? new Date(recordRow.checkOut) : null;
+  const recordRow = dayRecords[0] ?? null;
+
+  const shiftRowsForCoverage =
+    workingToday.length > 0
+      ? workingToday.map((s) => {
+          const st = shiftById.get(s.shiftTemplateId);
+          return {
+            scheduleId: s.id,
+            siteId: s.siteId,
+            employeeId,
+            shiftStartTime: st?.startTime ?? "09:00",
+            shiftEndTime: st?.endTime ?? "17:00",
+            gracePeriodMinutes: st?.gracePeriodMinutes ?? 15,
+          };
+        })
+      : [];
+
+  const allShiftsHaveClosedAttendance =
+    shiftRowsForCoverage.length > 0
+      ? allWorkingShiftRowsHaveClosedAttendance(shiftRowsForCoverage, employeeId, dayRecords, businessDate, Date.now())
+      : false;
+
+  let checkIn: Date | null = null;
+  let checkOut: Date | null = null;
+  if (openSession?.checkIn) {
+    checkIn = new Date(openSession.checkIn);
+    checkOut = null;
+  } else if (recordRow?.checkIn && recordRow.checkOut && !allShiftsHaveClosedAttendance) {
+    /** More shifts still need punches — do not treat the day as “fully recorded” for eligibility. */
+    checkIn = null;
+    checkOut = null;
+  } else if (recordRow?.checkIn) {
+    checkIn = new Date(recordRow.checkIn);
+    checkOut = recordRow.checkOut ? new Date(recordRow.checkOut) : null;
+  }
 
   return {
     businessDate,
@@ -157,5 +189,6 @@ export async function resolveEmployeeAttendanceDayContext(
     assignedSiteId,
     checkIn,
     checkOut,
+    allShiftsHaveClosedAttendance,
   };
 }

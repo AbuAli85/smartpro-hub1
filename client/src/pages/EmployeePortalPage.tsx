@@ -216,6 +216,7 @@ function AttendanceTodayCard({
       refetchCorr();
       utils.employeePortal.getMyOperationalHints.invalidate();
       void utils.attendance.listAttendanceAudit.invalidate();
+      void utils.scheduling.getTodayBoard.invalidate();
     },
     onError: (e) =>
       toast.error("Couldn’t submit correction", {
@@ -230,6 +231,7 @@ function AttendanceTodayCard({
       utils.employeePortal.getMyAttendanceRecords.invalidate();
       utils.employeePortal.getMyAttendanceSummary.invalidate();
       utils.employeePortal.getMyOperationalHints.invalidate();
+      void utils.scheduling.getTodayBoard.invalidate();
       void utils.attendance.listAttendanceAudit.invalidate();
     },
     onError: (e) => toastAttendanceMutationError(e.message, () => handleCheckInRef.current()),
@@ -241,6 +243,7 @@ function AttendanceTodayCard({
       utils.employeePortal.getMyAttendanceRecords.invalidate();
       utils.employeePortal.getMyAttendanceSummary.invalidate();
       utils.employeePortal.getMyOperationalHints.invalidate();
+      void utils.scheduling.getTodayBoard.invalidate();
       void utils.attendance.listAttendanceAudit.invalidate();
     },
     onError: (e) => toastAttendanceMutationError(e.message, () => handleCheckOutRef.current()),
@@ -690,9 +693,27 @@ function AttendanceTodayCard({
               <div key={c.id} className="flex items-center justify-between text-sm border-b last:border-0 pb-2 last:pb-0">
                 <div>
                   <p className="font-medium">{c.requestedDate}</p>
-                  <p className="text-xs text-muted-foreground">{c.reason}</p>
-                  {c.adminNote && (
-                    <p className="text-xs text-blue-600 dark:text-blue-400 mt-0.5">HR: {c.adminNote}</p>
+                  {(c.requestedCheckIn || c.requestedCheckOut) && (
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {c.requestedCheckIn && <span>In {String(c.requestedCheckIn).slice(0, 5)}</span>}
+                      {c.requestedCheckIn && c.requestedCheckOut && <span> · </span>}
+                      {c.requestedCheckOut && <span>Out {String(c.requestedCheckOut).slice(0, 5)}</span>}
+                      <span className="text-[10px]"> (Asia/Muscat)</span>
+                    </p>
+                  )}
+                  <p className="text-xs text-muted-foreground mt-0.5">{c.reason}</p>
+                  {c.status === "pending" && (
+                    <p className="text-[11px] text-muted-foreground mt-1">With HR for review — you&apos;ll see the result here.</p>
+                  )}
+                  {c.status === "approved" && (
+                    <p className="text-[11px] text-emerald-800 dark:text-emerald-200/90 mt-1">
+                      Approved{c.adminNote ? ` — HR note: ${c.adminNote}` : " — times updated when HR saved the decision."}
+                    </p>
+                  )}
+                  {c.status === "rejected" && (
+                    <p className="text-[11px] text-red-800 dark:text-red-200/90 mt-1">
+                      Not approved{c.adminNote ? ` — HR: ${c.adminNote}` : "."} Contact HR if you disagree.
+                    </p>
                   )}
                 </div>
                 {c.status === "pending"
@@ -719,7 +740,7 @@ function AttendanceTodayCard({
           <DialogHeader>
             <DialogTitle>Request Attendance Correction</DialogTitle>
             <DialogDescription id="attendance-correction-dialog-desc">
-              Wrong or missing times? HR reviews — track status in the list below after you send.
+              Wrong or missing times? This request does not change your live check-in / check-out buttons — HR reviews it separately. Track status in the list below after you send.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">

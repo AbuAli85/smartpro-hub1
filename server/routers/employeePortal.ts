@@ -803,6 +803,7 @@ export const employeePortalRouter = router({
         hasShift: !!(dayCtx.shiftStart && dayCtx.shiftEnd),
         checkIn: dayCtx.checkIn,
         checkOut: dayCtx.checkOut,
+        allShiftsHaveClosedAttendance: dayCtx.allShiftsHaveClosedAttendance,
         pendingCorrectionCount,
         gracePeriodMinutes: dayCtx.gracePeriodMinutes,
         assignedSiteId: dayCtx.assignedSiteId,

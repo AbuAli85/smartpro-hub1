@@ -86,6 +86,11 @@ export function evaluateSelfServiceCheckInEligibility(params: {
   hasShift: boolean;
   checkIn: Date | null;
   checkOut: Date | null;
+  /**
+   * When false, a closed punch today does not block another check-in (e.g. second shift same day).
+   * When true or omitted with both punches present, {@link CheckInEligibilityReasonCode.DAY_ALREADY_RECORDED} applies.
+   */
+  allShiftsHaveClosedAttendance?: boolean;
   /** From today’s schedule row; null if unknown */
   assignedSiteId: number | null;
   /**
@@ -122,7 +127,7 @@ export function evaluateSelfServiceCheckInEligibility(params: {
       "You are already checked in. Check out before starting a new session."
     );
   }
-  if (hasIn && hasOut) {
+  if (hasIn && hasOut && (params.allShiftsHaveClosedAttendance ?? true)) {
     return fail(
       CheckInEligibilityReasonCode.DAY_ALREADY_RECORDED,
       "Check-in and check-out are already recorded for today."

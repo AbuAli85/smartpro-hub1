@@ -91,6 +91,20 @@ describe("evaluateSelfServiceCheckInEligibility", () => {
     expect(r.canCheckIn).toBe(true);
   });
 
+  it("does not treat day as complete when allShiftsHaveClosedAttendance is false (second shift same day)", () => {
+    const r = evaluateSelfServiceCheckInEligibility({
+      ...base,
+      startTime: "18:00",
+      endTime: "22:00",
+      now: new Date(2026, 3, 5, 18, 30, 0),
+      checkIn: new Date(2026, 3, 5, 9, 0, 0),
+      checkOut: new Date(2026, 3, 5, 13, 0, 0),
+      allShiftsHaveClosedAttendance: false,
+      scannedSiteId: 1,
+    });
+    expect(r.canCheckIn).toBe(true);
+  });
+
   it("NO_SHIFT_ASSIGNED", () => {
     const r = evaluateSelfServiceCheckInEligibility({
       ...base,

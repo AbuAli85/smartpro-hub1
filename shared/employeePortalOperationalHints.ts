@@ -1,10 +1,11 @@
 import type { ShiftPhase } from "./employeePortalShift";
-import { getShiftOperationalState } from "./employeePortalShift";
+import { getShiftOperationalState, getShiftInstantBounds } from "./employeePortalShift";
 import {
   evaluateSelfServiceCheckInEligibility,
   CheckInEligibilityReasonCode,
   type SelfServiceCheckInEvaluationResult,
 } from "./attendanceCheckInEligibility";
+import { arrivalDelayMinutesAfterGrace } from "./attendanceBoardStatus";
 
 /**
  * Thin operational hints for employee portal presentation — not HR policy.
@@ -40,6 +41,10 @@ export interface PortalOperationalHints {
   checkInOpensAt: string | null;
   /** When check-in is denied by policy, matches attendance.checkIn enforcement. */
   checkInDenialCode: string | null;
+  /** True when every scheduled shift row for today has a closed punch (see resolveEmployeeAttendanceDayContext). */
+  allShiftsHaveClosedAttendance: boolean;
+  /** Minutes late after grace when checked in without check-out; null if on time or N/A. */
+  minutesLateAfterGrace: number | null;
 }
 
 function portalEligibilityFromEvaluation(
@@ -85,6 +90,8 @@ export function computePortalOperationalHints(params: {
   hasShift: boolean;
   checkIn: Date | null;
   checkOut: Date | null;
+  /** From server day context — drives multi-shift “day complete” vs next check-in window. */
+  allShiftsHaveClosedAttendance?: boolean;
   pendingCorrectionCount: number;
   /** Minutes before shift start that check-in opens (temporary: same DB field as late grace target). */
   gracePeriodMinutes?: number;
@@ -106,6 +113,9 @@ export function computePortalOperationalHints(params: {
   const hasOut = !!params.checkOut;
   const inconsistent = !hasIn && hasOut;
 
+  const effectiveAllShiftsClosed =
+    params.allShiftsHaveClosedAttendance ?? (hasIn && hasOut);
+
   const gate = evaluateSelfServiceCheckInEligibility({
     now: params.now,
     businessDate: params.businessDate,
@@ -118,8 +128,18 @@ export function computePortalOperationalHints(params: {
     hasShift: params.hasShift,
     checkIn: params.checkIn,
     checkOut: params.checkOut,
+    allShiftsHaveClosedAttendance: effectiveAllShiftsClosed,
     assignedSiteId: params.assignedSiteId ?? null,
   });
+
+  let minutesLateAfterGrace: number | null = null;
+  if (hasIn && !hasOut && !inconsistent && params.startTime && params.endTime) {
+    const [yy, mm, dd] = params.businessDate.split("-").map((x) => parseInt(x, 10));
+    const dayAnchor = new Date(yy, mm - 1, dd, 12, 0, 0, 0);
+    const { shiftStart } = getShiftInstantBounds(params.startTime, params.endTime, dayAnchor);
+    const lateMin = arrivalDelayMinutesAfterGrace(params.checkIn!, shiftStart, grace);
+    minutesLateAfterGrace = lateMin > 0 ? lateMin : null;
+  }
 
   let eligibilityHeadline: string;
   let eligibilityDetail: string;
@@ -132,11 +152,14 @@ export function computePortalOperationalHints(params: {
     checkInOpensAt = gate.checkInOpensAt;
   } else if (hasIn && !hasOut) {
     eligibilityHeadline = "Checked in";
-    eligibilityDetail = "You can check out when you finish your shift.";
+    eligibilityDetail =
+      minutesLateAfterGrace != null
+        ? `You checked in ${minutesLateAfterGrace} min after the grace window — still check out when you finish.`
+        : "You can check out when you finish your shift.";
     checkInOpensAt = gate.checkInOpensAt;
-  } else if (hasIn && hasOut) {
+  } else if (hasIn && hasOut && effectiveAllShiftsClosed) {
     eligibilityHeadline = "Attendance complete";
-    eligibilityDetail = "Check-in and check-out are recorded for today.";
+    eligibilityDetail = "Check-in and check-out are recorded for every shift today.";
     checkInOpensAt = gate.checkInOpensAt;
   } else {
     const pe = portalEligibilityFromEvaluation(gate);
@@ -163,5 +186,7 @@ export function computePortalOperationalHints(params: {
     eligibilityDetail,
     checkInOpensAt,
     checkInDenialCode: !gate.canCheckIn ? gate.reasonCode : null,
+    allShiftsHaveClosedAttendance: effectiveAllShiftsClosed,
+    minutesLateAfterGrace,
   };
 }

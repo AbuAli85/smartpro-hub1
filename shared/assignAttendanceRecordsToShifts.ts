@@ -136,6 +136,27 @@ export function assignAttendanceRecordsToShiftRows<T extends AttendanceRecordLik
 }
 
 /** Minutes of overlap between the attendance interval and the nominal shift window (Muscat, same calendar day). */
+/**
+ * True when every working schedule row for the employee has a closed attendance punch
+ * assigned to it (same rules as Today’s Board assignment).
+ */
+export function allWorkingShiftRowsHaveClosedAttendance<T extends AttendanceRecordLike>(
+  shiftRows: ShiftRowForAssignment[],
+  employeeId: number,
+  dayRecords: T[],
+  businessDate: string,
+  nowMs: number
+): boolean {
+  if (shiftRows.length === 0) return false;
+  const byEmp = new Map<number, T[]>([[employeeId, dayRecords]]);
+  const m = assignAttendanceRecordsToShiftRows(shiftRows, byEmp, businessDate, nowMs);
+  for (const s of shiftRows) {
+    const r = m.get(s.scheduleId);
+    if (!r?.checkOut) return false;
+  }
+  return true;
+}
+
 export function attendanceOverlapShiftMinutes(
   checkIn: Date,
   checkOut: Date | null,

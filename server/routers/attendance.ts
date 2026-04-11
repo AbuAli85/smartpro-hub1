@@ -443,6 +443,7 @@ export const attendanceRouter = router({
         hasShift: !!(dayCtx.shiftStart && dayCtx.shiftEnd),
         checkIn: dayCtx.checkIn,
         checkOut: dayCtx.checkOut,
+        allShiftsHaveClosedAttendance: dayCtx.allShiftsHaveClosedAttendance,
         assignedSiteId: dayCtx.assignedSiteId,
         scannedSiteId: site.id,
       });

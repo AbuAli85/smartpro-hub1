@@ -20,6 +20,8 @@ function elHints(
     checkInDenialCode: null,
     hasPendingCorrection: false,
     checkInOpensAt: null,
+    allShiftsHaveClosedAttendance: false,
+    minutesLateAfterGrace: null,
     ...x,
   };
 }
@@ -345,6 +347,30 @@ describe("getAttendanceTodayStripPresentation", () => {
       serverHints: elHints({ canCheckIn: true, canCheckOut: false, canRequestCorrection: false }),
     });
     expect(r.showCorrectionButton).toBe(false);
+  });
+
+  it("server hints: second-shift check-in still shows eligibility copy when myToday shows a prior punch", () => {
+    const r = getAttendanceTodayStripPresentation({
+      hasSchedule: true,
+      isWorkingDay: true,
+      hasShift: true,
+      checkIn: fixed(2026, 4, 5, 9, 0),
+      checkOut: fixed(2026, 4, 5, 13, 0),
+      shiftStartTime: "18:00",
+      shiftEndTime: "22:00",
+      serverHintsReady: true,
+      serverHints: elHints({
+        canCheckIn: true,
+        canCheckOut: false,
+        canRequestCorrection: true,
+        allShiftsHaveClosedAttendance: false,
+        eligibilityHeadline: "Eligible to check in",
+        eligibilityDetail: "Within the check-in window for your next shift.",
+      }),
+    });
+    expect(r.showCheckIn).toBe(true);
+    expect(r.notCheckedInHeadline).toBe("Eligible to check in");
+    expect(r.notCheckedInSubline).toContain("next shift");
   });
 });
 

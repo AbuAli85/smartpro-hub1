@@ -523,6 +523,8 @@ export const schedulingRouter = router({
         employeeId: number;
         employeeDisplayName: string;
         shiftCount: number;
+        /** Shifts on this day that are fully checked out (matches table "Completed"). */
+        shiftsCheckedOutCount: number;
         segments: {
           scheduleId: number;
           shiftName: string | null;
@@ -532,7 +534,9 @@ export const schedulingRouter = router({
           checkOutAt: Date | null;
           durationMinutes: number | null;
           status: string;
+          methodLabel: string | null;
         }[];
+        /** Sum of per-shift attributed minutes (0 for shifts not started; partial while checked in). */
         totalAttributedMinutes: number;
         dayFullyComplete: boolean;
       }[] = [];
@@ -540,6 +544,7 @@ export const schedulingRouter = router({
       for (const [, rows] of byEmployeeId) {
         if (rows.length < 2) continue;
         const sorted = [...rows].sort((a, b) => a.expectedStart.localeCompare(b.expectedStart));
+        const shiftsCheckedOutCount = sorted.filter((r) => r.status === "checked_out").length;
         const segments = sorted.map((r) => ({
           scheduleId: r.scheduleId,
           shiftName: (r.shift as { name?: string | null } | null)?.name ?? null,
@@ -549,6 +554,7 @@ export const schedulingRouter = router({
           checkOutAt: r.checkOutAt,
           durationMinutes: r.durationMinutes,
           status: r.status,
+          methodLabel: r.methodLabel,
         }));
         const totalAttributedMinutes = sorted.reduce((acc, r) => acc + (r.durationMinutes ?? 0), 0);
         const dayFullyComplete = sorted.every((r) => r.status === "checked_out");
@@ -556,6 +562,7 @@ export const schedulingRouter = router({
           employeeId: sorted[0]!.employeeId!,
           employeeDisplayName: sorted[0]!.employeeDisplayName,
           shiftCount: sorted.length,
+          shiftsCheckedOutCount,
           segments,
           totalAttributedMinutes,
           dayFullyComplete,

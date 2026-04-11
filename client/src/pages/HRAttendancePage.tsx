@@ -1,4 +1,4 @@
-import { trpc, type RouterOutputs } from "@/lib/trpc";
+import { trpc } from "@/lib/trpc";
 import { useState, useMemo } from "react";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import {
@@ -25,6 +25,7 @@ import {
   ATTENDANCE_AUDIT_ACTION,
   ATTENDANCE_AUDIT_SOURCE,
 } from "@shared/attendanceAuditTaxonomy";
+import { getAdminBoardRowStatusPresentation } from "@/lib/adminBoardRowStatus";
 
 const AUDIT_ACTION_LABELS: Record<string, string> = {
   [ATTENDANCE_AUDIT_ACTION.HR_ATTENDANCE_CREATE]: "HR attendance · created",
@@ -47,9 +48,6 @@ const AUDIT_SOURCE_LABELS: Record<string, string> = {
   [ATTENDANCE_AUDIT_SOURCE.ADMIN_PANEL]: "Admin / HR",
   [ATTENDANCE_AUDIT_SOURCE.SYSTEM]: "System",
 };
-
-type GetTodayBoardOutput = RouterOutputs["scheduling"]["getTodayBoard"];
-type FullDaySummary = NonNullable<GetTodayBoardOutput["fullDaySummaries"]>[number];
 
 function auditActionLabel(actionType: string) {
   return AUDIT_ACTION_LABELS[actionType] ?? actionType.replace(/_/g, " ");
@@ -473,17 +471,7 @@ function EditAttendanceDialog({ record, onSuccess }: { record: { id: number; sta
 }
 
 function boardStatusBadge(status: string) {
-  const map: Record<string, { label: string; className: string }> = {
-    holiday: { label: "Holiday", className: "border-blue-300 text-blue-700 bg-blue-50" },
-    upcoming: { label: "Upcoming", className: "border-slate-300 text-slate-700 bg-slate-50" },
-    not_checked_in: { label: "Not checked in", className: "border-amber-300 text-amber-800 bg-amber-50" },
-    late_no_checkin: { label: "Late · no arrival", className: "border-orange-300 text-orange-800 bg-orange-50" },
-    absent: { label: "Absent", className: "border-red-300 text-red-700 bg-red-50" },
-    checked_in_on_time: { label: "Checked in", className: "border-emerald-300 text-emerald-800 bg-emerald-50" },
-    checked_in_late: { label: "Checked in · late", className: "border-yellow-300 text-yellow-800 bg-yellow-50" },
-    checked_out: { label: "Completed", className: "border-gray-300 text-gray-700 bg-gray-50" },
-  };
-  const m = map[status] ?? { label: status, className: "text-muted-foreground" };
+  const m = getAdminBoardRowStatusPresentation(status);
   return <Badge variant="outline" className={m.className}>{m.label}</Badge>;
 }
 
@@ -570,7 +558,7 @@ function TodayBoard({ companyId }: { companyId: number | null }) {
             One calendar day can include a morning block and an evening block. The table below is still <span className="font-medium text-foreground">per shift</span> for status; this section ties the person&apos;s shifts together with the actual check-in / check-out times shown on each row.
           </p>
           <ul className="space-y-2 text-sm">
-            {(data.fullDaySummaries as FullDaySummary[]).map((fd) => (
+            {(data.fullDaySummaries ?? []).map((fd) => (
               <li key={fd.employeeId} className="rounded-md bg-background/80 border px-2.5 py-2">
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                   <span className="font-medium">{fd.employeeDisplayName}</span>
@@ -584,24 +572,43 @@ function TodayBoard({ companyId }: { companyId: number | null }) {
                       In progress
                     </Badge>
                   )}
-                  {fd.totalAttributedMinutes > 0 && (
-                    <span className="text-xs text-muted-foreground">Total on shifts shown: {fd.totalAttributedMinutes}m</span>
-                  )}
+                  <span className="w-full basis-full text-xs text-muted-foreground leading-snug">
+                    {fd.shiftsCheckedOutCount}/{fd.shiftCount} shifts completed
+                    {fd.totalAttributedMinutes > 0 ? (
+                      <> · {fd.totalAttributedMinutes}m attributed (minutes clamped to each shift window)</>
+                    ) : null}
+                    {fd.shiftsCheckedOutCount < fd.shiftCount ? (
+                      <> · open or upcoming shifts show 0m until check-in.</>
+                    ) : null}
+                  </span>
                 </div>
-                <ol className="mt-1.5 space-y-1 text-xs text-foreground/90 list-decimal list-inside">
-                  {fd.segments.map((seg) => (
-                    <li key={seg.scheduleId}>
-                      <span className="font-medium">{seg.shiftName ?? "Shift"}</span>
-                      <span className="text-muted-foreground"> ({seg.expectedStart}–{seg.expectedEnd})</span>
-                      {": "}
-                      <span>{seg.checkInAt ? fmtTime(seg.checkInAt) : "—"}</span>
-                      <span> → </span>
-                      <span>{seg.checkOutAt ? fmtTime(seg.checkOutAt) : "—"}</span>
-                      {seg.durationMinutes != null && seg.checkInAt ? (
-                        <span className="text-muted-foreground"> ({seg.durationMinutes}m)</span>
-                      ) : null}
-                    </li>
-                  ))}
+                <ol className="mt-1.5 space-y-2 text-xs text-foreground/90 list-decimal list-outside ml-4 pl-1">
+                  {fd.segments.map((seg) => {
+                    const st = getAdminBoardRowStatusPresentation(seg.status);
+                    return (
+                      <li key={seg.scheduleId}>
+                        <span className="inline-flex flex-wrap items-center gap-x-1.5 gap-y-1">
+                          <span className="font-medium">{seg.shiftName ?? "Shift"}</span>
+                          <span className="text-muted-foreground">({seg.expectedStart}–{seg.expectedEnd})</span>
+                          <Badge variant="outline" className={`text-[10px] py-0 h-5 shrink-0 ${st.className}`}>
+                            {st.label}
+                          </Badge>
+                        </span>
+                        <span className="block mt-0.5 text-foreground/90">
+                          <span className="text-muted-foreground">In → out: </span>
+                          <span>{seg.checkInAt ? fmtTime(seg.checkInAt) : "—"}</span>
+                          <span> → </span>
+                          <span>{seg.checkOutAt ? fmtTime(seg.checkOutAt) : "—"}</span>
+                          {seg.durationMinutes != null && seg.checkInAt ? (
+                            <span className="text-muted-foreground"> ({seg.durationMinutes}m)</span>
+                          ) : null}
+                          {seg.methodLabel ? (
+                            <span className="text-muted-foreground"> · {seg.methodLabel}</span>
+                          ) : null}
+                        </span>
+                      </li>
+                    );
+                  })}
                 </ol>
               </li>
             ))}

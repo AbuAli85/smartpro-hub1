@@ -1,5 +1,6 @@
-import { trpc, type RouterOutputs } from "@/lib/trpc";
+import { trpc } from "@/lib/trpc";
 import { fmtTime } from "@/lib/dateUtils";
+import { getAdminBoardRowStatusPresentation } from "@/lib/adminBoardRowStatus";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -92,9 +93,6 @@ function getInitials(name: string) {
     .toUpperCase()
     .slice(0, 2);
 }
-
-type GetTodayBoardOutput = RouterOutputs["scheduling"]["getTodayBoard"];
-type FullDaySummary = NonNullable<GetTodayBoardOutput["fullDaySummaries"]>[number];
 
 export default function TodayBoardPage() {
   const { activeCompanyId } = useActiveCompany();
@@ -216,7 +214,7 @@ export default function TodayBoardPage() {
             </div>
           )}
 
-          {(data.fullDaySummaries ?? []).length > 0 && (
+          {data && (data.fullDaySummaries ?? []).length > 0 && (
             <Card className="border-primary/25 bg-primary/[0.04]">
               <CardContent className="p-4 space-y-2">
                 <p className="text-sm font-semibold">Full day (multiple shifts, Muscat time)</p>
@@ -224,7 +222,7 @@ export default function TodayBoardPage() {
                   Cards below are grouped by status per shift. This list is the same person&apos;s shifts in order for the calendar day, with actual check-in and check-out times.
                 </p>
                 <ul className="space-y-2 text-sm">
-                  {(data.fullDaySummaries as FullDaySummary[]).map((fd) => (
+                  {(data.fullDaySummaries ?? []).map((fd) => (
                     <li key={fd.employeeId} className="rounded-md border bg-background/90 px-3 py-2">
                       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                         <span className="font-medium">{fd.employeeDisplayName}</span>
@@ -238,21 +236,43 @@ export default function TodayBoardPage() {
                             In progress
                           </Badge>
                         )}
+                        <span className="text-[11px] text-muted-foreground leading-snug w-full">
+                          {fd.shiftsCheckedOutCount}/{fd.shiftCount} shifts completed
+                          {fd.totalAttributedMinutes > 0 ? (
+                            <> · {fd.totalAttributedMinutes}m attributed (per shift window)</>
+                          ) : null}
+                          {fd.shiftsCheckedOutCount < fd.shiftCount ? (
+                            <> · upcoming shifts add 0m until check-in.</>
+                          ) : null}
+                        </span>
                       </div>
-                      <ol className="mt-1.5 space-y-1 text-xs text-foreground/90 list-decimal list-inside">
-                        {fd.segments.map((seg) => (
-                          <li key={seg.scheduleId}>
-                            <span className="font-medium">{seg.shiftName ?? "Shift"}</span>
-                            <span className="text-muted-foreground"> ({seg.expectedStart}–{seg.expectedEnd})</span>
-                            {": "}
-                            <span>{seg.checkInAt ? fmtTime(seg.checkInAt) : "—"}</span>
-                            <span> → </span>
-                            <span>{seg.checkOutAt ? fmtTime(seg.checkOutAt) : "—"}</span>
-                            {seg.durationMinutes != null && seg.checkInAt ? (
-                              <span className="text-muted-foreground"> ({seg.durationMinutes}m)</span>
-                            ) : null}
-                          </li>
-                        ))}
+                      <ol className="mt-1.5 space-y-2 text-xs text-foreground/90 list-decimal list-outside ml-4 pl-1">
+                        {fd.segments.map((seg) => {
+                          const st = getAdminBoardRowStatusPresentation(seg.status);
+                          return (
+                            <li key={seg.scheduleId}>
+                              <span className="inline-flex flex-wrap items-center gap-x-1.5 gap-y-1">
+                                <span className="font-medium">{seg.shiftName ?? "Shift"}</span>
+                                <span className="text-muted-foreground">({seg.expectedStart}–{seg.expectedEnd})</span>
+                                <Badge variant="outline" className={`text-[10px] py-0 h-5 shrink-0 ${st.className}`}>
+                                  {st.label}
+                                </Badge>
+                              </span>
+                              <span className="block mt-0.5">
+                                <span className="text-muted-foreground">In → out: </span>
+                                <span>{seg.checkInAt ? fmtTime(seg.checkInAt) : "—"}</span>
+                                <span> → </span>
+                                <span>{seg.checkOutAt ? fmtTime(seg.checkOutAt) : "—"}</span>
+                                {seg.durationMinutes != null && seg.checkInAt ? (
+                                  <span className="text-muted-foreground"> ({seg.durationMinutes}m)</span>
+                                ) : null}
+                                {seg.methodLabel ? (
+                                  <span className="text-muted-foreground"> · {seg.methodLabel}</span>
+                                ) : null}
+                              </span>
+                            </li>
+                          );
+                        })}
                       </ol>
                     </li>
                   ))}

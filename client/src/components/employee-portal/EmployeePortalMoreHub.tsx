@@ -1,5 +1,5 @@
 import React from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -28,7 +28,7 @@ type HubItem = {
   tab: string;
   label: string;
   Icon: React.ComponentType<{ className?: string }>;
-  badge?: number;
+  badge?: number | null;
 };
 
 function HubSection({ title, items, setActiveTab }: { title: string; items: HubItem[]; setActiveTab: (tab: string) => void }) {
@@ -68,37 +68,34 @@ export function EmployeePortalMoreHub({
   pendingShiftRequests,
 }: EmployeePortalMoreHubProps) {
   const work: HubItem[] = [
-    { tab: "requests", label: "Requests", Icon: ArrowLeftRight, badge: pendingShiftRequests },
-    { tab: "worklog", label: "Work log", Icon: Timer },
+    { tab: "requests", label: "Leave & HR Requests", Icon: ArrowLeftRight, badge: (pendingShiftRequests ?? 0) + (pendingLeave ?? 0) > 0 ? (pendingShiftRequests ?? 0) + (pendingLeave ?? 0) : undefined },
+    { tab: "worklog", label: "Work Log", Icon: Timer },
     { tab: "expenses", label: "Expenses", Icon: Wallet, badge: pendingExpenses },
   ];
 
   const hr: HubItem[] = [
-    { tab: "leave", label: "Leave", Icon: Calendar, badge: pendingLeave },
     { tab: "payroll", label: "Payslips", Icon: DollarSign },
-    { tab: "documents", label: "Documents", Icon: FileText, badge: expiringDocsCount },
+    { tab: "documents", label: "My Documents", Icon: FileText, badge: expiringDocsCount },
+    { tab: "attendance", label: "Attendance", Icon: Calendar },
   ];
 
-  const performance: HubItem[] = [
-    { tab: "kpi", label: "KPI", Icon: Target },
+  const growth: HubItem[] = [
+    { tab: "kpi", label: "KPI & Targets", Icon: Target },
     { tab: "training", label: "Training", Icon: Award, badge: trainingAttentionCount },
-    { tab: "reviews", label: "Reviews", Icon: Star },
+    { tab: "reviews", label: "Self Reviews", Icon: Star },
   ];
 
   return (
-    <div className="mt-3 space-y-3">
+    <div className="space-y-2">
+      <p className="px-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Self-Service</p>
       <Card className="border-border/60">
-        <CardHeader className="pb-1.5 pt-3">
-          <CardTitle className="text-sm font-semibold">Tools</CardTitle>
-          <p className="text-[11px] font-normal text-muted-foreground">Same pages as desktop.</p>
-        </CardHeader>
-        <CardContent className="space-y-4 pb-3 pt-0">
-          <HubSection title="Work" items={work} setActiveTab={setActiveTab} />
-          <div className="border-t border-border/50 pt-3">
-            <HubSection title="HR & pay" items={hr} setActiveTab={setActiveTab} />
+        <CardContent className="space-y-4 pb-4 pt-4">
+          <HubSection title="Requests & Work" items={work} setActiveTab={setActiveTab} />
+          <div className="border-t border-border/50 pt-4">
+            <HubSection title="HR & Pay" items={hr} setActiveTab={setActiveTab} />
           </div>
-          <div className="border-t border-border/50 pt-3">
-            <HubSection title="Growth" items={performance} setActiveTab={setActiveTab} />
+          <div className="border-t border-border/50 pt-4">
+            <HubSection title="Growth & Performance" items={growth} setActiveTab={setActiveTab} />
           </div>
         </CardContent>
       </Card>

@@ -24,7 +24,11 @@ import {
 } from "@shared/attendanceBoardStatus";
 import { getShiftInstantBounds } from "@shared/employeePortalShift";
 import { pickScheduleRowForNow } from "@shared/pickScheduleForAttendanceNow";
-import { pickAttendanceRecordForShift } from "@shared/pickAttendanceRecordForShift";
+import {
+  assignAttendanceRecordsToShiftRows,
+  attendanceOverlapShiftMinutes,
+} from "@shared/assignAttendanceRecordsToShifts";
+import { muscatWallDateTimeToUtc } from "@shared/attendanceMuscatTime";
 
 async function requireDb() {
   const db = await getDb();
@@ -347,36 +351,66 @@ export const schedulingRouter = router({
       const [yy, mm, dd] = today.split("-").map((x) => parseInt(x, 10));
       const dayAnchor = new Date(yy, mm - 1, dd, 12, 0, 0, 0);
 
-      const board = await Promise.all(todaySchedules.map(async (s) => {
-        const [shift] = await db.select().from(shiftTemplates).where(eq(shiftTemplates.id, s.shiftTemplateId)).limit(1);
-        const [site] = await db.select().from(attendanceSites).where(eq(attendanceSites.id, s.siteId)).limit(1);
-        const empRow = employeeRowFromScheduleRef(s.employeeUserId, empById, empByLoginUserId);
-        let emp: { id: number; name: string | null; email: string | null; avatarUrl: string | null } | null = null;
-        if (empRow?.userId != null) {
-          const [u] = await db
-            .select({ id: users.id, name: users.name, email: users.email, avatarUrl: users.avatarUrl })
-            .from(users)
-            .where(eq(users.id, empRow.userId))
-            .limit(1);
-          emp = u ?? null;
-        }
-        /** Match a punch to this shift row (multi-shift days: do not reuse one clock for every row). */
-        const empDayRecords = empRow ? allRecords.filter((r) => r.employeeId === empRow.id) : [];
-        const record = empRow
-          ? pickAttendanceRecordForShift(
-              empDayRecords,
-              s.siteId,
-              today,
-              shift?.startTime ?? "09:00",
-              shift?.endTime ?? "17:00",
-              shift?.gracePeriodMinutes ?? 15,
-              now.getTime(),
-            )
-          : undefined;
+      type Draft = {
+        schedule: (typeof todaySchedules)[number];
+        shift: typeof shiftTemplates.$inferSelect | undefined;
+        site: typeof attendanceSites.$inferSelect | undefined;
+        empRow: ReturnType<typeof employeeRowFromScheduleRef> | undefined;
+        emp: { id: number; name: string | null; email: string | null; avatarUrl: string | null } | null;
+        startT: string;
+        endT: string;
+        grace: number;
+      };
 
-        const startT = shift?.startTime ?? "09:00";
-        const endT = shift?.endTime ?? "17:00";
-        const grace = shift?.gracePeriodMinutes ?? 15;
+      const drafts: Draft[] = await Promise.all(
+        todaySchedules.map(async (s) => {
+          const [shift] = await db.select().from(shiftTemplates).where(eq(shiftTemplates.id, s.shiftTemplateId)).limit(1);
+          const [site] = await db.select().from(attendanceSites).where(eq(attendanceSites.id, s.siteId)).limit(1);
+          const empRow = employeeRowFromScheduleRef(s.employeeUserId, empById, empByLoginUserId);
+          let emp: { id: number; name: string | null; email: string | null; avatarUrl: string | null } | null = null;
+          if (empRow?.userId != null) {
+            const [u] = await db
+              .select({ id: users.id, name: users.name, email: users.email, avatarUrl: users.avatarUrl })
+              .from(users)
+              .where(eq(users.id, empRow.userId))
+              .limit(1);
+            emp = u ?? null;
+          }
+          const startT = shift?.startTime ?? "09:00";
+          const endT = shift?.endTime ?? "17:00";
+          const grace = shift?.gracePeriodMinutes ?? 15;
+          return { schedule: s, shift, site, empRow, emp, startT, endT, grace };
+        })
+      );
+
+      const recordsByEmployeeId = new Map<number, (typeof allRecords)[number][]>();
+      for (const r of allRecords) {
+        const arr = recordsByEmployeeId.get(r.employeeId) ?? [];
+        arr.push(r);
+        recordsByEmployeeId.set(r.employeeId, arr);
+      }
+
+      const shiftRowsForAssign = drafts
+        .filter((d) => d.empRow != null)
+        .map((d) => ({
+          scheduleId: d.schedule.id,
+          siteId: d.schedule.siteId,
+          employeeId: d.empRow!.id,
+          shiftStartTime: d.startT,
+          shiftEndTime: d.endT,
+          gracePeriodMinutes: d.grace,
+        }));
+
+      const recordByScheduleId = assignAttendanceRecordsToShiftRows(
+        shiftRowsForAssign,
+        recordsByEmployeeId,
+        today,
+        now.getTime()
+      );
+
+      const board = drafts.map((d) => {
+        const { schedule: s, shift, site, empRow, emp, startT, endT, grace } = d;
+        const record = empRow ? recordByScheduleId.get(s.id) : undefined;
 
         const status = computeAdminBoardRowStatus({
           now,
@@ -401,8 +435,14 @@ export const schedulingRouter = router({
 
         let durationMinutes: number | null = null;
         if (record) {
-          const endMs = record.checkOut ? record.checkOut.getTime() : now.getTime();
-          durationMinutes = Math.max(0, Math.round((endMs - record.checkIn.getTime()) / 60000));
+          durationMinutes = attendanceOverlapShiftMinutes(
+            record.checkIn,
+            record.checkOut ?? null,
+            today,
+            startT,
+            endT,
+            now.getTime()
+          );
         }
 
         const employeeDisplayName =
@@ -419,6 +459,19 @@ export const schedulingRouter = router({
                 ? "QR / app"
                 : null;
 
+        /** Board columns show time attributed to this shift (not the full punch if it spans other shifts). */
+        let checkInAt: Date | null = record?.checkIn ?? null;
+        let checkOutAt: Date | null = record?.checkOut ?? null;
+        if (record) {
+          const ss = muscatWallDateTimeToUtc(today, `${startT}:00`).getTime();
+          let se = muscatWallDateTimeToUtc(today, `${endT}:00`).getTime();
+          if (se <= ss) se += 86_400_000;
+          checkInAt = new Date(Math.max(record.checkIn.getTime(), ss));
+          if (record.checkOut) {
+            checkOutAt = new Date(Math.min(record.checkOut.getTime(), se));
+          }
+        }
+
         return {
           scheduleId: s.id,
           employee: emp ?? null,
@@ -426,8 +479,8 @@ export const schedulingRouter = router({
           site: site ?? null,
           shift: shift ?? null,
           status,
-          checkInAt: record?.checkIn ?? null,
-          checkOutAt: record?.checkOut ?? null,
+          checkInAt,
+          checkOutAt,
           attendanceRecordId: record?.id ?? null,
           holiday,
           expectedStart: startT,
@@ -437,7 +490,7 @@ export const schedulingRouter = router({
           methodLabel,
           siteName: record?.siteName ?? site?.name ?? null,
         };
-      }));
+      });
 
       const summary = {
         total: board.length,

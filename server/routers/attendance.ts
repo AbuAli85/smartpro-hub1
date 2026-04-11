@@ -616,8 +616,22 @@ export const attendanceRouter = router({
         });
         const recordId = (result as { insertId?: number }).insertId;
         if (!recordId) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Check-in insert failed" });
-        const [r] = await tx.select().from(attendanceRecords).where(eq(attendanceRecords.id, recordId)).limit(1);
-        record = r;
+        // Explicit columns to avoid selecting schedule_id which may not yet be in the DB.
+        const [r] = await tx
+          .select({
+            id: attendanceRecords.id,
+            companyId: attendanceRecords.companyId,
+            employeeId: attendanceRecords.employeeId,
+            siteId: attendanceRecords.siteId,
+            siteName: attendanceRecords.siteName,
+            checkIn: attendanceRecords.checkIn,
+            checkOut: attendanceRecords.checkOut,
+            method: attendanceRecords.method,
+            notes: attendanceRecords.notes,
+            createdAt: attendanceRecords.createdAt,
+          })
+          .from(attendanceRecords).where(eq(attendanceRecords.id, recordId)).limit(1);
+        record = r as typeof attendanceRecords.$inferSelect;
         await insertAttendanceAuditRow(tx, {
           companyId: site.companyId,
           employeeId: emp.id,

@@ -25,11 +25,23 @@ const redirectToLoginIfUnauthorized = (error: unknown) => {
   window.location.href = getLoginUrl();
 };
 
+/** Returns true for errors that are expected/intentional and should not appear in the console. */
+function isSilentError(error: unknown): boolean {
+  if (!error) return false;
+  const code = (error as any)?.data?.code;
+  // FORBIDDEN errors are expected for users who lack optional permissions (e.g. KPI leaderboard).
+  // UNAUTHORIZED is handled separately by redirectToLoginIfUnauthorized.
+  if (code === "FORBIDDEN") return true;
+  return false;
+}
+
 queryClient.getQueryCache().subscribe(event => {
   if (event.type === "updated" && event.action.type === "error") {
     const error = event.query.state.error;
     redirectToLoginIfUnauthorized(error);
-    console.error("[API Query Error]", error);
+    if (!isSilentError(error)) {
+      console.error("[API Query Error]", error);
+    }
   }
 });
 
@@ -37,7 +49,9 @@ queryClient.getMutationCache().subscribe(event => {
   if (event.type === "updated" && event.action.type === "error") {
     const error = event.mutation.state.error;
     redirectToLoginIfUnauthorized(error);
-    console.error("[API Mutation Error]", error);
+    if (!isSilentError(error)) {
+      console.error("[API Mutation Error]", error);
+    }
   }
 });
 

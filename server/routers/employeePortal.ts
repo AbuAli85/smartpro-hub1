@@ -5,12 +5,16 @@ import { alias } from "drizzle-orm/mysql-core";
 import {
   employees, attendance, leaveRequests, payrollRecords,
   employeeDocuments, employeeTasks, announcements, announcementReads,
-  notifications, companyMembers, users,   attendanceRecords,
+  notifications, companyMembers, users, attendanceRecords,
   attendanceCorrections,
   manualCheckinRequests,
   workPermits,
   companies,
+  employeeSchedules,
+  shiftTemplates,
 } from "../../drizzle/schema";
+import { evaluateCheckoutOutcomeByShiftTimes } from "@shared/attendanceCheckoutPolicy";
+import { muscatCalendarYmdFromUtcInstant } from "@shared/attendanceMuscatTime";
 import { createNotification, getDb } from "../db";
 import { protectedProcedure, router } from "../_core/trpc";
 import { getActiveCompanyMembership } from "../_core/membership";
@@ -734,15 +738,32 @@ export const employeePortalRouter = router({
     .input(z.object({ month: z.string(), companyId: z.number().optional() })) // YYYY-MM
     .query(async ({ input, ctx }) => {
       const m = await getActiveCompanyMembership(ctx.user.id, input.companyId ?? undefined);
-      if (!m) return { records: [], summary: { present: 0, late: 0, total: 0, hoursWorked: 0 } };
+      if (!m) return { records: [], summary: { total: 0, hoursWorked: 0 } };
       const myEmp = await resolveMyEmployee(ctx.user.id, ctx.user.email ?? "", m.companyId);
-      if (!myEmp) return { records: [], summary: { present: 0, late: 0, total: 0, hoursWorked: 0 } };
+      if (!myEmp) return { records: [], summary: { total: 0, hoursWorked: 0 } };
       const db = await requireDb();
       const [year, month] = input.month.split("-").map(Number);
       const start = new Date(year, month - 1, 1);
       const end = new Date(year, month, 1);
-      const records = await db
-        .select()
+
+      // Explicit column list to avoid selecting columns that may not yet be
+      // present in the DB (e.g. schedule_id added by a pending migration).
+      const safeColumns = {
+        id: attendanceRecords.id,
+        companyId: attendanceRecords.companyId,
+        employeeId: attendanceRecords.employeeId,
+        siteId: attendanceRecords.siteId,
+        siteName: attendanceRecords.siteName,
+        checkIn: attendanceRecords.checkIn,
+        checkOut: attendanceRecords.checkOut,
+        method: attendanceRecords.method,
+        notes: attendanceRecords.notes,
+        createdAt: attendanceRecords.createdAt,
+        updatedAt: attendanceRecords.updatedAt,
+      } as const;
+
+      const rawRecords = await db
+        .select(safeColumns)
         .from(attendanceRecords)
         .where(and(
           eq(attendanceRecords.companyId, m.companyId),
@@ -751,12 +772,104 @@ export const employeePortalRouter = router({
           lte(attendanceRecords.checkIn, end),
         ))
         .orderBy(desc(attendanceRecords.checkIn));
-      let totalHours = 0;
-      records.forEach((r) => {
-        if (r.checkOut && r.checkIn) {
-          totalHours += (new Date(r.checkOut).getTime() - new Date(r.checkIn).getTime()) / 3600000;
+
+      // Best-effort: load the employee's shift templates for this month
+      // so we can annotate each record with shift name, times, and completion status.
+      let shiftMap: Map<string, { shiftName: string; shiftStart: string; shiftEnd: string }[]> = new Map();
+      try {
+        const scheduleRows = await db
+          .select({
+            scheduleId: employeeSchedules.id,
+            startDate: employeeSchedules.startDate,
+            endDate: employeeSchedules.endDate,
+            workingDays: employeeSchedules.workingDays,
+            shiftName: shiftTemplates.name,
+            shiftStart: shiftTemplates.startTime,
+            shiftEnd: shiftTemplates.endTime,
+            gracePeriodMinutes: shiftTemplates.gracePeriodMinutes,
+          })
+          .from(employeeSchedules)
+          .innerJoin(shiftTemplates, eq(employeeSchedules.shiftTemplateId, shiftTemplates.id))
+          .where(and(
+            eq(employeeSchedules.companyId, m.companyId),
+            eq(employeeSchedules.employeeUserId, ctx.user.id),
+            eq(employeeSchedules.isActive, true),
+          ));
+
+        // Build a map: date (YYYY-MM-DD) → applicable shifts for that day
+        const monthEnd = new Date(end.getTime() - 1); // last ms of month
+        for (let d = new Date(start); d <= monthEnd; d.setDate(d.getDate() + 1)) {
+          const ymd = d.toISOString().split("T")[0]!;
+          const dayOfWeek = d.getDay(); // 0=Sun, 1=Mon, ...
+          const applicable = scheduleRows.filter((s) => {
+            if (s.startDate > ymd) return false;
+            if (s.endDate && s.endDate < ymd) return false;
+            const days = s.workingDays.split(",").map(Number);
+            return days.includes(dayOfWeek);
+          });
+          if (applicable.length > 0) {
+            shiftMap.set(ymd, applicable.map((s) => ({
+              shiftName: s.shiftName,
+              shiftStart: s.shiftStart,
+              shiftEnd: s.shiftEnd,
+            })));
+          }
         }
+      } catch {
+        // Non-fatal — proceed without shift context.
+      }
+
+      let totalHours = 0;
+      const records = rawRecords.map((r) => {
+        const checkIn = new Date(r.checkIn);
+        const checkOut = r.checkOut ? new Date(r.checkOut) : null;
+        if (checkOut) {
+          totalHours += (checkOut.getTime() - checkIn.getTime()) / 3600000;
+        }
+
+        // Find the best-matching shift for this record by time proximity.
+        const businessDate = muscatCalendarYmdFromUtcInstant(checkIn);
+        const dayShifts = shiftMap.get(businessDate) ?? [];
+        let matchedShift: { shiftName: string; shiftStart: string; shiftEnd: string } | null = null;
+        let minDist = Infinity;
+        for (const s of dayShifts) {
+          // Convert shiftStart to a millisecond offset within the day for rough comparison.
+          const [sh, sm] = s.shiftStart.split(":").map(Number);
+          const checkInHm = checkIn.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Muscat" });
+          const [ch, cm] = checkInHm.split(":").map(Number);
+          const shiftMin = (sh ?? 0) * 60 + (sm ?? 0);
+          const checkInMin = (ch ?? 0) * 60 + (cm ?? 0);
+          let dist = Math.abs(checkInMin - shiftMin);
+          if (dist > 720) dist = 1440 - dist; // wrap for overnight
+          if (dist < minDist) { minDist = dist; matchedShift = s; }
+        }
+
+        let completionStatus: "in_progress" | "completed" | "early_checkout" | "checked_out" = "in_progress";
+        if (checkOut) {
+          if (matchedShift) {
+            const policy = evaluateCheckoutOutcomeByShiftTimes({
+              checkIn,
+              checkOut,
+              businessDate,
+              shiftStartTime: matchedShift.shiftStart,
+              shiftEndTime: matchedShift.shiftEnd,
+            });
+            completionStatus = policy.outcome; // "completed" | "early_checkout"
+          } else {
+            completionStatus = "checked_out"; // no shift context, neutral
+          }
+        }
+
+        return {
+          ...r,
+          businessDate,
+          shiftName: matchedShift?.shiftName ?? null,
+          shiftStart: matchedShift?.shiftStart ?? null,
+          shiftEnd: matchedShift?.shiftEnd ?? null,
+          completionStatus,
+        };
       });
+
       return {
         records,
         summary: {

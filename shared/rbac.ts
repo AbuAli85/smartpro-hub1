@@ -44,7 +44,10 @@ export function isCompanyProvisioningAdmin(user: {
 export function mapMemberRoleToPlatformRole(
   memberRole: string,
 ): "company_admin" | "company_member" | "client" | "external_auditor" {
-  switch (memberRole) {
+  // Normalize so DB/driver quirks (whitespace, casing) never fall through to "client"
+  // for real membership roles like company_member.
+  const r = (memberRole ?? "").trim().toLowerCase();
+  switch (r) {
     case "company_admin":
     case "hr_admin":
     case "finance_admin":
@@ -54,6 +57,8 @@ export function mapMemberRoleToPlatformRole(
       return "company_member";
     case "external_auditor":
       return "external_auditor";
+    case "client":
+      return "client";
     default:
       return "client";
   }

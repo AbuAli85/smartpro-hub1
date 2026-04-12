@@ -619,8 +619,25 @@ export const companiesRouter = router({
         .where(and(eq(companyMembers.userId, ctx.user.id), eq(companyMembers.companyId, invite.companyId)))
         .limit(1);
       if (existing?.isActive) throw new TRPCError({ code: "CONFLICT", message: "You are already a member of this company." });
-      // invite.role is varchar in schema; cast to the companyMembers enum type
-      const memberRole = invite.role as "company_admin" | "company_member" | "reviewer" | "client" | "external_auditor";
+      const validMemberRoles = [
+        "company_admin",
+        "company_member",
+        "finance_admin",
+        "hr_admin",
+        "reviewer",
+        "client",
+        "external_auditor",
+      ] as const;
+      const normalizedRole = (invite.role ?? "").trim().toLowerCase();
+      const memberRole = (validMemberRoles as readonly string[]).includes(normalizedRole)
+        ? (normalizedRole as (typeof validMemberRoles)[number])
+        : null;
+      if (!memberRole) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "This invitation has invalid role data. Ask your admin to revoke it and send a new invite.",
+        });
+      }
       if (existing && !existing.isActive) {
         await db.update(companyMembers).set({ isActive: true, role: memberRole }).where(eq(companyMembers.id, existing.id));
       } else {

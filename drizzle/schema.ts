@@ -2103,6 +2103,8 @@ export const hrLetters = mysqlTable("hr_letters", {
   //      promotion_letter | salary_transfer_letter | leave_approval | warning_letter
   language: varchar("language", { length: 8 }).notNull().default("en"),
   // "en" | "ar" | "both"
+  letterStatus: mysqlEnum("letter_status", ["draft", "issued", "voided"]).notNull().default("issued"),
+  templateVersion: varchar("template_version", { length: 32 }).notNull().default("v1"),
   referenceNumber: varchar("reference_number", { length: 64 }),
   subject: varchar("subject", { length: 512 }),
   bodyEn: text("body_en"),   // English letter body (HTML)
@@ -2110,6 +2112,13 @@ export const hrLetters = mysqlTable("hr_letters", {
   issuedTo: varchar("issued_to", { length: 255 }),  // addressee name
   purpose: text("purpose"),
   additionalNotes: text("additional_notes"),
+  fieldPayload: json("field_payload").$type<Record<string, unknown> | null>(),
+  dataSnapshot: json("data_snapshot").$type<Record<string, unknown> | null>(),
+  issuedAt: timestamp("issued_at"),
+  issuedByUserId: int("issued_by_user_id"),
+  signatoryId: int("signatory_id"),
+  exportCount: int("export_count").notNull().default(0),
+  emailSentAt: timestamp("email_sent_at"),
   isDeleted: boolean("is_deleted").notNull().default(false),
   createdBy: int("created_by"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -2117,6 +2126,26 @@ export const hrLetters = mysqlTable("hr_letters", {
 });
 export type HrLetter = typeof hrLetters.$inferSelect;
 export type InsertHrLetter = typeof hrLetters.$inferInsert;
+
+// ─── COMPANY SIGNATORIES (HR letters) ───────────────────────────────────────
+export const companySignatories = mysqlTable(
+  "company_signatories",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    companyId: int("company_id").notNull(),
+    nameEn: varchar("name_en", { length: 255 }).notNull(),
+    nameAr: varchar("name_ar", { length: 255 }),
+    titleEn: varchar("title_en", { length: 255 }).notNull(),
+    titleAr: varchar("title_ar", { length: 255 }),
+    isDefault: boolean("is_default").notNull().default(false),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  },
+  (t) => [index("idx_company_signatories_company").on(t.companyId)]
+);
+export type CompanySignatory = typeof companySignatories.$inferSelect;
+export type InsertCompanySignatory = typeof companySignatories.$inferInsert;
 
 // ─── DEPARTMENTS ──────────────────────────────────────────────────────────────
 export const departments = mysqlTable("departments", {

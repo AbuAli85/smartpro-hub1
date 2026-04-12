@@ -253,7 +253,7 @@ export default function QuestionRenderer({
 
       {/* Rating */}
       {question.type === "rating" && (
-        <div className="flex gap-1.5 py-1">
+        <div className="flex flex-wrap gap-1 py-1 sm:gap-1.5">
           {Array.from({ length: (question.settings as { max?: number })?.max ?? 5 }, (_, i) => i + 1).map(
             (star) => {
               const filled = Number(answer.answerValue) >= star;
@@ -264,7 +264,7 @@ export default function QuestionRenderer({
                   onClick={() =>
                     onChange({ answerValue: star.toString(), selectedOptions: [] })
                   }
-                  className="rounded-md p-1 transition-transform hover:scale-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+                  className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md transition-transform hover:scale-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 sm:min-h-0 sm:min-w-0 sm:p-1"
                 >
                   <Star
                     size={32}

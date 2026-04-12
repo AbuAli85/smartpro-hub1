@@ -5,12 +5,12 @@ import { AlertCircle, BookmarkCheck, ChevronLeft, ChevronRight, Copy, Loader2, L
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import QuestionRenderer from "@/components/survey/QuestionRenderer";
+import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 
 type AnswerState = {
   answerValue: string | null;
@@ -494,25 +494,23 @@ export default function SurveyRespondPage() {
         {/* Title row */}
         <div className="mx-auto max-w-2xl px-4 pt-3 pb-1.5 sm:px-5 sm:pt-3.5">
           <div className="flex items-center justify-between gap-2 sm:gap-3">
-            <div className="flex min-w-0 items-center gap-2">
+            <div className="flex min-w-0 flex-1 items-center gap-2">
               <Sparkles className="h-4 w-4 shrink-0 text-amber-200/90" aria-hidden />
               <h1 className="truncate text-sm font-semibold leading-tight text-white sm:text-base">
                 {isAr ? surveyData.survey.titleAr : surveyData.survey.titleEn}
               </h1>
             </div>
-            <Badge
-              variant="secondary"
-              className="shrink-0 border border-white/25 bg-white/15 text-[10px] font-semibold uppercase tracking-wide text-white backdrop-blur"
-            >
-              {surveyLanguage.toUpperCase()}
-            </Badge>
+            <LanguageSwitcher
+              compact
+              className="shrink-0 text-white/90 hover:bg-white/10 hover:text-white sm:min-h-8 [&_svg]:text-white/80"
+            />
           </div>
         </div>
 
         {/* Progress row */}
         <div className="mx-auto max-w-2xl px-4 pb-3.5 sm:px-5 sm:pb-4">
           <div className="mb-2 flex flex-col gap-1.5 sm:flex-row sm:items-baseline sm:justify-between sm:gap-3">
-            <span className="min-w-0 text-[12px] font-medium leading-snug text-white sm:text-[13px]">
+            <span className="min-w-0 text-[13px] font-medium leading-snug text-white sm:text-[13px]">
               {sectionTitle}
             </span>
             <span className="shrink-0 text-[11px] tabular-nums text-white/90 sm:text-xs">
@@ -578,7 +576,7 @@ export default function SurveyRespondPage() {
         </Card>
 
         {/* Navigation — row; primary actions grouped and right-aligned */}
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-3">
+        <div className="flex w-full flex-wrap items-center gap-x-2 gap-y-3">
           <Button
             type="button"
             variant="ghost"
@@ -680,10 +678,16 @@ export default function SurveyRespondPage() {
                   {isAr ? "رمز الاستئناف الخاص بك" : "Your Resume Token"}
                 </p>
                 <div className="flex items-center gap-2">
-                  <code className="flex-1 rounded bg-background border px-2 py-1.5 text-xs font-mono truncate">
+                  <code className="min-w-0 flex-1 break-all rounded border bg-background px-2 py-1.5 font-mono text-xs">
                     {sessionToken}
                   </code>
-                  <Button type="button" variant="outline" size="sm" onClick={handleCopyToken}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="min-h-[44px] min-w-[44px] shrink-0 sm:min-h-9 sm:min-w-9"
+                    onClick={handleCopyToken}
+                  >
                     <Copy className="h-3.5 w-3.5" />
                   </Button>
                 </div>

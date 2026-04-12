@@ -4,6 +4,7 @@ import { Link, useRoute } from "wouter";
 import { toast } from "sonner";
 import { ArrowRight, CheckCircle2, ChevronDown, ChevronUp, Copy, Loader2, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { surveyResumeStorageKey } from "@/pages/SurveyStartPage";
 
 export default function SurveyCompletePage() {
@@ -50,16 +51,22 @@ export default function SurveyCompletePage() {
       dir={isRtl ? "rtl" : "ltr"}
     >
       <header className="sticky top-0 z-10 border-b border-white/10 bg-black/25 pt-[env(safe-area-inset-top)] backdrop-blur-md">
-        <div className="mx-auto flex max-w-2xl items-center justify-between px-4 py-3 sm:px-5">
+        <div className="mx-auto flex max-w-2xl flex-wrap items-center justify-between gap-2 px-4 py-3 sm:px-5">
           <Link
             href="/survey"
             className="-m-1 inline-flex min-h-[44px] min-w-[44px] items-center rounded-md px-1 py-2 text-sm font-medium text-white/75 transition-colors hover:text-white sm:min-h-0 sm:min-w-0 sm:py-1"
           >
             {t("backToSurvey")}
           </Link>
-          <div className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-white backdrop-blur sm:text-xs">
-            <Sparkles className="h-3.5 w-3.5 text-amber-200/90" aria-hidden />
-            {t("title")}
+          <div className="flex flex-1 items-center justify-end gap-2 sm:flex-initial">
+            <LanguageSwitcher
+              compact
+              className="text-white/90 hover:bg-white/10 hover:text-white sm:min-h-8 [&_svg]:text-white/80"
+            />
+            <div className="inline-flex max-w-[min(100%,11rem)] items-center gap-1.5 truncate rounded-lg border border-white/10 bg-white/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-white backdrop-blur sm:max-w-none sm:text-xs">
+              <Sparkles className="h-3.5 w-3.5 shrink-0 text-amber-200/90" aria-hidden />
+              {t("title")}
+            </div>
           </div>
         </div>
       </header>
@@ -114,7 +121,7 @@ export default function SurveyCompletePage() {
                   className="border-t border-slate-100/80 px-5 pb-4 pt-2 sm:px-6"
                 >
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                    <code className="min-h-[44px] flex-1 rounded-lg border border-slate-200 bg-white px-2.5 py-2 font-mono text-xs text-slate-600 sm:min-h-0 sm:py-1.5">
+                    <code className="min-h-[44px] min-w-0 flex-1 break-all rounded-lg border border-slate-200 bg-white px-2.5 py-2 font-mono text-xs text-slate-600 sm:min-h-0 sm:py-1.5">
                       {resumeToken}
                     </code>
                     <Button

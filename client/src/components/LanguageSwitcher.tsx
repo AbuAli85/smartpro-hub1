@@ -27,7 +27,12 @@ export function LanguageSwitcher({ compact = false, className }: LanguageSwitche
           <Button
             variant="ghost"
             size="sm"
-            className={cn("gap-1.5 h-8 px-2 text-xs font-medium", className)}
+            type="button"
+            aria-label="Switch language"
+            className={cn(
+              "gap-1.5 min-h-[44px] min-w-[44px] px-2.5 text-xs font-medium sm:min-h-8 sm:min-w-0 sm:px-2",
+              className,
+            )}
             title="Switch language"
           >
             <Languages size={14} />

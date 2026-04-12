@@ -18,6 +18,7 @@ import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 
 const SURVEY_SLUG = "oman-business-sector-2026";
 
@@ -87,16 +88,22 @@ export default function SurveyStartPage() {
     >
       {/* Minimal header */}
       <header className="sticky top-0 z-10 border-b border-white/10 bg-black/25 pt-[env(safe-area-inset-top)] backdrop-blur-md">
-        <div className="mx-auto flex max-w-2xl items-center justify-between px-4 py-3 sm:px-5">
+        <div className="mx-auto flex max-w-2xl flex-wrap items-center justify-between gap-2 px-4 py-3 sm:px-5">
           <Link href="/" className="-m-1 inline-flex min-h-[44px] min-w-[44px] items-center rounded-md px-1 py-2 text-sm font-medium text-white/75 transition-colors hover:text-white sm:min-h-0 sm:min-w-0 sm:py-1">
             {t("backToHome")}
           </Link>
-          <Badge
-            variant="secondary"
-            className="border border-white/10 bg-white/10 text-xs text-white backdrop-blur"
-          >
-            {t("subtitle")}
-          </Badge>
+          <div className="flex flex-1 items-center justify-end gap-2 sm:flex-initial">
+            <LanguageSwitcher
+              compact
+              className="text-white/90 hover:bg-white/10 hover:text-white sm:min-h-8 [&_svg]:text-white/80"
+            />
+            <Badge
+              variant="secondary"
+              className="max-w-[min(100%,12rem)] truncate border border-white/10 bg-white/10 text-[10px] text-white backdrop-blur sm:max-w-none sm:text-xs"
+            >
+              {t("subtitle")}
+            </Badge>
+          </div>
         </div>
       </header>
 
@@ -289,7 +296,7 @@ export default function SurveyStartPage() {
                         onChange={(e) => setResumeTokenInput(e.target.value)}
                         placeholder={t("resumeTokenLabel")}
                         autoComplete="off"
-                        className="h-9 min-h-[44px] flex-1 font-mono text-xs sm:min-h-0 sm:h-8"
+                        className="h-9 min-h-[44px] min-w-0 flex-1 font-mono text-xs sm:min-h-0 sm:h-8"
                       />
                       <Button
                         type="button"

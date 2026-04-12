@@ -395,13 +395,14 @@ export default function HRLettersPage() {
   type LetterItem = NonNullable<typeof letters>[number];
   const [emailDialogLetter, setEmailDialogLetter] = useState<LetterItem | null>(null);
   const [emailTo, setEmailTo] = useState("");
+  const [emailCc, setEmailCc] = useState("");
   const [isSendingEmail, setIsSendingEmail] = useState(false);
+  const [emailSentSuccess, setEmailSentSuccess] = useState(false);
   const sendEmailMutation = trpc.hrLetters.sendLetterByEmail.useMutation({
     onSuccess: () => {
-      toast.success("Letter sent by email successfully");
-      setEmailDialogLetter(null);
-      setEmailTo("");
+      setEmailSentSuccess(true);
       setIsSendingEmail(false);
+      trpc.useUtils().hrLetters.listLetters.invalidate();
     },
     onError: (err) => {
       toast.error("Failed to send email: " + err.message);
@@ -863,14 +864,20 @@ export default function HRLettersPage() {
                           <Button
                             size="sm"
                             variant="outline"
-                            className="gap-1 text-xs h-7 px-2"
+                            className={cn("gap-1 text-xs h-7 px-2", "emailSentAt" in letter && letter.emailSentAt ? "text-emerald-600 border-emerald-300" : "")}
+                            title={"emailSentAt" in letter && letter.emailSentAt ? `Last sent: ${new Date(letter.emailSentAt as string).toLocaleString()}` : "Send by email"}
                             onClick={() => {
                               const emp = employees?.find(e => e.id === letter.employeeId);
                               setEmailTo(emp?.email ?? "");
+                              setEmailCc("");
+                              setEmailSentSuccess(false);
                               setEmailDialogLetter(letter);
                             }}
                           >
                             <Mail size={12} />
+                            {"emailSendCount" in letter && (letter.emailSendCount as number) > 0 && (
+                              <span className="text-[9px] font-bold">{letter.emailSendCount as number}</span>
+                            )}
                           </Button>
                           <Button
                             size="sm"
@@ -918,36 +925,113 @@ export default function HRLettersPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!emailDialogLetter} onOpenChange={(o) => { if (!o) { setEmailDialogLetter(null); setEmailTo(""); } }}>
-        <DialogContent className="max-w-md">
+      <Dialog open={!!emailDialogLetter} onOpenChange={(o) => { if (!o) { setEmailDialogLetter(null); setEmailTo(""); setEmailCc(""); setEmailSentSuccess(false); } }}>
+        <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Mail size={16} /> Send Letter by Email
             </DialogTitle>
             <DialogDescription>
-              The email includes a time-limited secure link to view and print the letter when possible, or a SmartPRO sign-in link as a fallback.
+              A secure, 7-day expiring link to view the letter will be embedded in the email.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="email-to">Recipient Email</Label>
-              <Input id="email-to" type="email" value={emailTo} onChange={(e) => setEmailTo(e.target.value)} />
+
+          {emailSentSuccess ? (
+            <div className="py-8 flex flex-col items-center gap-3 text-center">
+              <div className="w-14 h-14 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center">
+                <CheckCircle2 size={28} className="text-emerald-600" />
+              </div>
+              <p className="font-semibold text-base">Email Sent Successfully</p>
+              <p className="text-sm text-muted-foreground">
+                The letter was sent to <strong>{emailTo}</strong>
+                {emailCc.trim() ? <> with a copy to <strong>{emailCc}</strong></> : ""}
+              </p>
+              <Button className="mt-2" onClick={() => { setEmailDialogLetter(null); setEmailTo(""); setEmailCc(""); setEmailSentSuccess(false); }}>
+                Done
+              </Button>
             </div>
-          </div>
-          <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" onClick={() => { setEmailDialogLetter(null); setEmailTo(""); }}>Cancel</Button>
-            <Button
-              disabled={!emailTo || isSendingEmail}
-              onClick={() => {
-                if (!emailDialogLetter) return;
-                setIsSendingEmail(true);
-                sendEmailMutation.mutate({ id: emailDialogLetter.id, employeeEmail: emailTo, companyId: activeCompanyId ?? undefined });
-              }}
-            >
-              {isSendingEmail ? <Loader2 size={14} className="animate-spin mr-1" /> : <Mail size={14} className="mr-1" />}
-              Send Email
-            </Button>
-          </div>
+          ) : (
+            <>
+              {emailDialogLetter && (
+                <div className="rounded-lg border border-border bg-muted/30 px-4 py-3 flex items-start gap-3">
+                  <FileText size={16} className="mt-0.5 text-muted-foreground shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium">{letterTypeLabel(emailDialogLetter.letterType)}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {(() => {
+                        const emp = employees?.find(e => e.id === emailDialogLetter.employeeId);
+                        return emp ? `${emp.firstName} ${emp.lastName}` : `Employee #${emailDialogLetter.employeeId}`;
+                      })()}
+                      {emailDialogLetter.referenceNumber && <span className="ml-2 font-mono">{emailDialogLetter.referenceNumber}</span>}
+                    </p>
+                    {"emailSentAt" in emailDialogLetter && emailDialogLetter.emailSentAt && (
+                      <p className="text-xs text-emerald-600 mt-1 flex items-center gap-1">
+                        <CheckCircle2 size={11} />
+                        Previously sent {new Date(emailDialogLetter.emailSentAt as string).toLocaleString()}
+                        {"emailSendCount" in emailDialogLetter && (emailDialogLetter.emailSendCount as number) > 1 && (
+                          <span className="ml-1 text-muted-foreground">({emailDialogLetter.emailSendCount as number}x total)</span>
+                        )}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-4 py-1">
+                <div className="space-y-1.5">
+                  <Label htmlFor="email-to">Recipient Email <span className="text-destructive">*</span></Label>
+                  <Input
+                    id="email-to"
+                    type="email"
+                    placeholder="employee@example.com"
+                    value={emailTo}
+                    onChange={(e) => setEmailTo(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="email-cc">
+                    CC <span className="text-xs text-muted-foreground">(optional, comma-separated, max 5)</span>
+                  </Label>
+                  <Input
+                    id="email-cc"
+                    type="text"
+                    placeholder="manager@example.com, hr@example.com"
+                    value={emailCc}
+                    onChange={(e) => setEmailCc(e.target.value)}
+                  />
+                </div>
+                <div className="rounded-md bg-blue-50 border border-blue-100 px-3 py-2 flex items-start gap-2">
+                  <ShieldCheck size={14} className="text-blue-600 mt-0.5 shrink-0" />
+                  <p className="text-xs text-blue-700">
+                    The email contains a secure, 7-day expiring link. The employee does not need to log in to view the letter.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-1">
+                <Button variant="outline" onClick={() => { setEmailDialogLetter(null); setEmailTo(""); setEmailCc(""); setEmailSentSuccess(false); }}>Cancel</Button>
+                <Button
+                  disabled={!emailTo || isSendingEmail}
+                  onClick={() => {
+                    if (!emailDialogLetter) return;
+                    const ccList = emailCc.trim()
+                      ? emailCc.split(",").map(s => s.trim()).filter(Boolean).slice(0, 5)
+                      : undefined;
+                    setIsSendingEmail(true);
+                    sendEmailMutation.mutate({
+                      id: emailDialogLetter.id,
+                      employeeEmail: emailTo,
+                      cc: ccList,
+                      companyId: activeCompanyId ?? undefined,
+                    });
+                  }}
+                >
+                  {isSendingEmail ? <Loader2 size={14} className="animate-spin mr-1" /> : <Mail size={14} className="mr-1" />}
+                  Send Email
+                </Button>
+              </div>
+            </>
+          )}
         </DialogContent>
       </Dialog>
 

@@ -2119,6 +2119,8 @@ export const hrLetters = mysqlTable("hr_letters", {
   signatoryId: int("signatory_id"),
   exportCount: int("export_count").notNull().default(0),
   emailSentAt: timestamp("email_sent_at"),
+  emailSendCount: int("email_send_count").notNull().default(0),
+  emailLastSentTo: varchar("email_last_sent_to", { length: 255 }),
   isDeleted: boolean("is_deleted").notNull().default(false),
   createdBy: int("created_by"),
   createdAt: timestamp("created_at").defaultNow().notNull(),

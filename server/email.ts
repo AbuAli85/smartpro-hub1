@@ -272,6 +272,8 @@ const DEFAULT_HR_LETTER_APP_BASE = "https://smartprohub-q4qjnxjv.manus.space";
 
 export interface HRLetterEmailParams {
   to: string;
+  /** Optional CC recipients (max 5). */
+  cc?: string[];
   employeeName: string;
   letterType: string;
   companyName: string;
@@ -280,9 +282,8 @@ export interface HRLetterEmailParams {
   /** Used for the "Log in to SmartPRO" button when `pdfUrl` is omitted (set from `PUBLIC_APP_URL` or request host). */
   appBaseUrl?: string;
 }
-
 export async function sendHRLetterEmail(params: HRLetterEmailParams): Promise<{ success: boolean; error?: string }> {
-  const { to, employeeName, letterType, companyName, issuedBy, pdfUrl, appBaseUrl } = params;
+  const { to, cc, employeeName, letterType, companyName, issuedBy, pdfUrl, appBaseUrl } = params;
   const loginOrigin = (appBaseUrl?.trim().replace(/\/+$/, "") || DEFAULT_HR_LETTER_APP_BASE).replace(/\/+$/, "");
   const loginHref = `${loginOrigin}/`;
   const letterLabel = letterType.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
@@ -337,6 +338,7 @@ export async function sendHRLetterEmail(params: HRLetterEmailParams): Promise<{ 
     const result = await resend.emails.send({
       from: FROM_ADDRESS,
       to: [to],
+      ...(cc && cc.length > 0 ? { cc: cc.slice(0, 5) } : {}),
       subject: `Your ${letterLabel} from ${companyName} — SmartPRO`,
       html: baseLayout(
         `${letterLabel} — ${companyName}`,

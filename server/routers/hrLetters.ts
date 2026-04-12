@@ -530,7 +530,13 @@ export const hrLettersRouter = router({
     }),
 
   sendLetterByEmail: protectedProcedure
-    .input(z.object({ id: z.number(), employeeEmail: z.string().email(), pdfUrl: z.string().url().optional(), companyId: z.number().optional() }))
+    .input(z.object({
+      id: z.number(),
+      employeeEmail: z.string().email(),
+      cc: z.array(z.string().email()).max(5).optional(),
+      pdfUrl: z.string().url().optional(),
+      companyId: z.number().optional(),
+    }))
     .mutation(async ({ input, ctx }) => {
       const membership = await getActiveCompanyMembership(ctx.user.id, input.companyId);
       if (!membership) throw new TRPCError({ code: "FORBIDDEN" });
@@ -547,6 +553,16 @@ export const hrLettersRouter = router({
         .where(and(eq(hrLetters.id, input.id), eq(hrLetters.companyId, membership.companyId)))
         .limit(1);
       if (!letter) throw new TRPCError({ code: "NOT_FOUND", message: "Letter not found" });
+      // Resend cooldown guard — prevent accidental spam (60s minimum between sends)
+      if (letter.emailSentAt) {
+        const secondsSinceLast = (Date.now() - new Date(letter.emailSentAt).getTime()) / 1000;
+        if (secondsSinceLast < 60) {
+          throw new TRPCError({
+            code: "TOO_MANY_REQUESTS",
+            message: `Please wait ${Math.ceil(60 - secondsSinceLast)} seconds before resending.`,
+          });
+        }
+      }
       const employee = await getEmployeeById(letter.employeeId);
       const company = await getCompanyById(membership.companyId);
       const baseUrl = resolvePublicAppBaseUrl(ctx.req);
@@ -555,6 +571,7 @@ export const hrLettersRouter = router({
         !input.pdfUrl && baseUrl && viewToken ? `${baseUrl}/api/hr-letters/view?token=${encodeURIComponent(viewToken)}` : undefined;
       const result = await sendHRLetterEmail({
         to: input.employeeEmail,
+        cc: input.cc,
         employeeName: employee ? `${employee.firstName} ${employee.lastName}`.trim() : "Employee",
         letterType: letter.letterType,
         companyName: company?.name ?? "SmartPRO",
@@ -565,8 +582,32 @@ export const hrLettersRouter = router({
       if (!result.success) {
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: result.error ?? "Failed to send email" });
       }
-      await db.update(hrLetters).set({ emailSentAt: new Date() }).where(eq(hrLetters.id, letter.id));
-      return { success: true };
+      await db.update(hrLetters).set({
+        emailSentAt: new Date(),
+        emailSendCount: (letter.emailSendCount ?? 0) + 1,
+        emailLastSentTo: input.employeeEmail,
+      }).where(eq(hrLetters.id, letter.id));
+      return { success: true, sendCount: (letter.emailSendCount ?? 0) + 1 };
+    }),
+
+  getEmailStatus: protectedProcedure
+    .input(z.object({ id: z.number(), companyId: z.number().optional() }))
+    .query(async ({ input, ctx }) => {
+      const membership = await getActiveCompanyMembership(ctx.user.id, input.companyId);
+      if (!membership) throw new TRPCError({ code: "FORBIDDEN" });
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const [row] = await db
+        .select({
+          emailSentAt: hrLetters.emailSentAt,
+          emailSendCount: hrLetters.emailSendCount,
+          emailLastSentTo: hrLetters.emailLastSentTo,
+        })
+        .from(hrLetters)
+        .where(and(eq(hrLetters.id, input.id), eq(hrLetters.companyId, membership.companyId)))
+        .limit(1);
+      if (!row) throw new TRPCError({ code: "NOT_FOUND" });
+      return row;
     }),
 
   deleteLetter: protectedProcedure.input(z.object({ id: z.number(), companyId: z.number().optional() })).mutation(async ({ input, ctx }) => {

@@ -1923,3 +1923,11 @@ Every company on SmartPRO Hub gets a complete, unified business operating area �
 - [x] Update sendOverdueCheckoutReminder mutation to accept optional customMessage field
 - [x] Add custom message dialog to ReminderButton with pre-filled default and editable textarea
 - [x] Fix: attendance card shows "Day complete" with wrong shift's record when current shift has not been checked into yet — fix shift-to-record matching and allShiftsHaveClosedAttendance logic
+
+## HR Letter Email Feature Enhancement
+- [x] Backend: add CC recipients support to sendLetterByEmail procedure and sendHRLetterEmail
+- [x] Backend: add getEmailStatus procedure to return email_sent_at + sent count per letter
+- [x] Backend: add resend cooldown guard (prevent spam — min 60s between sends)
+- [x] Frontend: polished email dialog — letter summary card, auto-filled recipient, CC field, security note, email history badge
+- [x] Frontend: "Already emailed" badge on letter cards showing last sent timestamp (green mail icon + send count)
+- [x] Frontend: success confirmation state in dialog after send

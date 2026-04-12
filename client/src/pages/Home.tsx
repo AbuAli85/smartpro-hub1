@@ -319,8 +319,7 @@ export default function Home() {
                   <span className="text-white/95">one platform</span>
                 </h1>
                 <p className="text-lg text-white/80 mb-8 leading-relaxed">
-                  Built for Oman and the GCC: Sanad centres, PRO services, workforce compliance, contracts,
-                  billing, and analytics — with security, audit trails, and role-based access throughout.
+                  SmartPRO helps you manage your business operations and gives you better ways to attract, convert, and retain clients.
                 </p>
                 <div className="flex flex-wrap gap-3 mb-10">
                   <Button

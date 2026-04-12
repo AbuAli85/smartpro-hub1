@@ -49,7 +49,7 @@
     "inProgress": "قيد التنفيذ",
     "completionRate": "معدل الإكمال",
     "avgScores": "متوسط الدرجات",
-    "avgScoresDesc": "عبر الاستجابات المكتملة (مقياس 0–100)",
+    "avgScoresDesc": "بناءً على {{count}} مكتملة · مقياس 0–100",
     "sectorBreakdown": "الاستجابات حسب القطاع",
     "sizeBreakdown": "الاستجابات حسب حجم الشركة",
     "governorateBreakdown": "الاستجابات حسب المحافظة",

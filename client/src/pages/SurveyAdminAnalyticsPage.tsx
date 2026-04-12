@@ -38,9 +38,33 @@ const SCORE_COLORS: Record<(typeof SCORE_KEYS)[number], string> = {
 
 function EmptyState({ label }: { label: string }) {
   return (
-    <div className="flex h-48 items-center justify-center rounded-lg border border-dashed">
+    <div className="flex h-36 items-center justify-center rounded-lg border border-dashed">
       <p className="text-muted-foreground text-sm">{label}</p>
     </div>
+  );
+}
+
+function barChartHeight(itemCount: number): number {
+  if (itemCount <= 0) return 0;
+  if (itemCount === 1) return 72;
+  if (itemCount === 2) return 110;
+  return Math.min(480, itemCount * 42 + 24);
+}
+
+function CompletedContext({
+  completed,
+  t,
+}: {
+  completed: number;
+  t: (key: string, opts?: Record<string, unknown>) => string;
+}) {
+  if (completed <= 0) return null;
+  return (
+    <CardDescription>
+      {completed === 1
+        ? t("admin.lowSampleNote", { count: 1 }).split("—")[0].trim()
+        : `${completed} ${t("admin.completed").toLowerCase()}`}
+    </CardDescription>
   );
 }
 
@@ -86,6 +110,13 @@ export default function SurveyAdminAnalyticsPage() {
     if (!data?.topTags?.length) return 1;
     return Math.max(1, data.topTags[0].count);
   }, [data?.topTags]);
+
+  const topTagMin = useMemo(() => {
+    if (!data?.topTags?.length) return 0;
+    return data.topTags[data.topTags.length - 1].count;
+  }, [data?.topTags]);
+
+  const tagsAllEqual = topTagMax === topTagMin;
 
   return (
     <div className="mx-auto max-w-6xl space-y-6 p-4 md:p-6">
@@ -148,7 +179,7 @@ export default function SurveyAdminAnalyticsPage() {
       <Card>
         <CardHeader>
           <CardTitle>{t("admin.avgScores")}</CardTitle>
-          <CardDescription>{t("admin.avgScoresDesc")}</CardDescription>
+          <CardDescription>{t("admin.avgScoresDesc", { count: completed })}</CardDescription>
         </CardHeader>
         <CardContent>
           {isLoading || !data ? (
@@ -196,28 +227,20 @@ export default function SurveyAdminAnalyticsPage() {
         <Card>
           <CardHeader>
             <CardTitle>{t("admin.sectorBreakdown")}</CardTitle>
-            {sectorChartData.length > 0 && (
-              <CardDescription>
-                {completed === 1
-                  ? t("admin.lowSampleNote", { count: 1 }).split("—")[0].trim()
-                  : `${completed} ${t("admin.completed").toLowerCase()}`}
-              </CardDescription>
-            )}
+            {sectorChartData.length > 0 && <CompletedContext completed={completed} t={t} />}
           </CardHeader>
           <CardContent>
             {isLoading || !data ? (
-              <Skeleton className="h-60 w-full rounded-lg" />
+              <Skeleton className="h-48 w-full rounded-lg" />
             ) : sectorChartData.length === 0 ? (
               <EmptyState label={t("admin.noDataYet")} />
             ) : (
-              <ResponsiveContainer
-                width="100%"
-                height={Math.min(480, Math.max(200, sectorChartData.length * 42))}
-              >
+              <ResponsiveContainer width="100%" height={barChartHeight(sectorChartData.length)}>
                 <BarChart
                   data={sectorChartData}
                   layout="vertical"
                   margin={{ left: 8, right: 24, top: 4, bottom: 4 }}
+                  barCategoryGap={sectorChartData.length <= 2 ? "30%" : "20%"}
                 >
                   <XAxis type="number" allowDecimals={false} fontSize={11} />
                   <YAxis
@@ -231,7 +254,7 @@ export default function SurveyAdminAnalyticsPage() {
                     formatter={(v: number) => [v, "Responses"]}
                     contentStyle={{ borderRadius: 8, fontSize: 12 }}
                   />
-                  <Bar dataKey="count" radius={[0, 6, 6, 0]} maxBarSize={28}>
+                  <Bar dataKey="count" radius={[0, 6, 6, 0]} maxBarSize={28} barSize={sectorChartData.length === 1 ? 24 : undefined}>
                     {sectorChartData.map((entry, index) => (
                       <Cell key={`sector-${index}`} fill={entry.fill} />
                     ))}
@@ -242,35 +265,45 @@ export default function SurveyAdminAnalyticsPage() {
           </CardContent>
         </Card>
 
-        {/* Company Size — donut with legend instead of inline labels */}
+        {/* Company Size */}
         <Card>
           <CardHeader>
             <CardTitle>{t("admin.sizeBreakdown")}</CardTitle>
-            {sizePieData.length > 0 && (
-              <CardDescription>
-                {completed === 1
-                  ? t("admin.lowSampleNote", { count: 1 }).split("—")[0].trim()
-                  : `${completed} ${t("admin.completed").toLowerCase()}`}
-              </CardDescription>
-            )}
+            {sizePieData.length > 0 && <CompletedContext completed={completed} t={t} />}
           </CardHeader>
           <CardContent>
             {isLoading || !data ? (
-              <Skeleton className="h-60 w-full rounded-lg" />
+              <Skeleton className="h-48 w-full rounded-lg" />
             ) : sizePieData.length === 0 ? (
               <EmptyState label={t("admin.noDataYet")} />
+            ) : sizePieData.length === 1 ? (
+              /* Single category — show a clean stat instead of a full-circle donut */
+              <div className="flex flex-col items-center justify-center gap-3 py-6">
+                <div
+                  className="flex h-24 w-24 items-center justify-center rounded-full text-white text-lg font-bold"
+                  style={{ backgroundColor: sizePieData[0].fill }}
+                >
+                  100%
+                </div>
+                <div className="text-center">
+                  <p className="text-sm font-semibold">{sizePieData[0].name}</p>
+                  <p className="text-muted-foreground text-xs mt-0.5">
+                    {sizePieData[0].value} {t("admin.completed").toLowerCase()}
+                  </p>
+                </div>
+              </div>
             ) : (
-              <ResponsiveContainer width="100%" height={300}>
+              <ResponsiveContainer width="100%" height={280}>
                 <PieChart>
                   <Pie
                     data={sizePieData}
                     dataKey="value"
                     nameKey="name"
                     cx="50%"
-                    cy="45%"
-                    innerRadius={50}
-                    outerRadius={88}
-                    paddingAngle={sizePieData.length > 1 ? 3 : 0}
+                    cy="42%"
+                    innerRadius={46}
+                    outerRadius={82}
+                    paddingAngle={3}
                     label={({ percent }: { percent?: number }) =>
                       `${Math.round((percent ?? 0) * 100)}%`
                     }
@@ -306,28 +339,20 @@ export default function SurveyAdminAnalyticsPage() {
       <Card>
         <CardHeader>
           <CardTitle>{t("admin.governorateBreakdown")}</CardTitle>
-          {governorateChartData.length > 0 && (
-            <CardDescription>
-              {completed === 1
-                ? t("admin.lowSampleNote", { count: 1 }).split("—")[0].trim()
-                : `${completed} ${t("admin.completed").toLowerCase()}`}
-            </CardDescription>
-          )}
+          {governorateChartData.length > 0 && <CompletedContext completed={completed} t={t} />}
         </CardHeader>
         <CardContent>
           {isLoading || !data ? (
-            <Skeleton className="h-60 w-full rounded-lg" />
+            <Skeleton className="h-48 w-full rounded-lg" />
           ) : governorateChartData.length === 0 ? (
             <EmptyState label={t("admin.noDataYet")} />
           ) : (
-            <ResponsiveContainer
-              width="100%"
-              height={Math.min(480, Math.max(200, governorateChartData.length * 42))}
-            >
+            <ResponsiveContainer width="100%" height={barChartHeight(governorateChartData.length)}>
               <BarChart
                 data={governorateChartData}
                 layout="vertical"
                 margin={{ left: 8, right: 24, top: 4, bottom: 4 }}
+                barCategoryGap={governorateChartData.length <= 2 ? "30%" : "20%"}
               >
                 <XAxis type="number" allowDecimals={false} fontSize={11} />
                 <YAxis
@@ -341,7 +366,7 @@ export default function SurveyAdminAnalyticsPage() {
                   formatter={(v: number) => [v, "Responses"]}
                   contentStyle={{ borderRadius: 8, fontSize: 12 }}
                 />
-                <Bar dataKey="count" radius={[0, 6, 6, 0]} maxBarSize={28}>
+                <Bar dataKey="count" radius={[0, 6, 6, 0]} maxBarSize={28} barSize={governorateChartData.length === 1 ? 24 : undefined}>
                   {governorateChartData.map((entry, index) => (
                     <Cell key={`gov-${index}`} fill={entry.fill} />
                   ))}
@@ -374,12 +399,26 @@ export default function SurveyAdminAnalyticsPage() {
             </div>
           ) : data.topTags.length === 0 ? (
             <EmptyState label={t("admin.noDataYet")} />
+          ) : tagsAllEqual ? (
+            /* All counts identical — show flat badges, no misleading bars */
+            <div className="flex flex-wrap gap-2">
+              {data.topTags.map((row) => (
+                <Badge
+                  key={row.tagSlug}
+                  variant="secondary"
+                  className="gap-1.5 px-3 py-1.5 text-sm"
+                >
+                  {row.tagLabel}
+                  <span className="text-muted-foreground/70 tabular-nums text-xs">×{row.count}</span>
+                </Badge>
+              ))}
+            </div>
           ) : (
             <ul className="space-y-2.5">
               {data.topTags.map((row, idx) => {
                 const pct = Math.round((row.count / topTagMax) * 100);
                 return (
-                  <li key={row.tagSlug} className="group">
+                  <li key={row.tagSlug}>
                     <div className="flex items-center gap-3">
                       <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-muted text-[10px] font-bold tabular-nums text-muted-foreground">
                         {idx + 1}

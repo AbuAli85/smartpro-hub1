@@ -49,7 +49,7 @@
     "inProgress": "In Progress",
     "completionRate": "Completion Rate",
     "avgScores": "Average Scores",
-    "avgScoresDesc": "Across completed responses (0–100 scale)",
+    "avgScoresDesc": "Based on {{count}} completed · 0–100 scale",
     "sectorBreakdown": "Responses by Sector",
     "sizeBreakdown": "Responses by Company Size",
     "governorateBreakdown": "Responses by Governorate",

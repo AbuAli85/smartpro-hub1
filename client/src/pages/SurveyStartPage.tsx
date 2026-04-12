@@ -86,8 +86,8 @@ export default function SurveyStartPage() {
       dir={isRtl ? "rtl" : "ltr"}
     >
       {/* Minimal header */}
-      <header className="border-b border-white/10 bg-black/20 backdrop-blur-md">
-        <div className="mx-auto flex max-w-2xl items-center justify-between px-4 py-3">
+      <header className="sticky top-0 z-10 border-b border-white/10 bg-black/25 backdrop-blur-md">
+        <div className="mx-auto flex max-w-2xl items-center justify-between px-4 py-3 sm:px-5">
           <Link href="/">
             <span className="text-sm font-medium text-white/70 hover:text-white transition-colors">
               {t("backToHome")}
@@ -102,7 +102,7 @@ export default function SurveyStartPage() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-2xl px-4 py-12 sm:py-16">
+      <main className="mx-auto max-w-2xl px-4 pb-12 pt-6 sm:px-5 sm:pb-16 sm:pt-8">
         {/* Loading */}
         {isLoading && (
           <div className="flex flex-col items-center justify-center gap-3 py-24 text-white/80">
@@ -134,30 +134,30 @@ export default function SurveyStartPage() {
 
         {/* Main content */}
         {!isLoading && !notFound && data?.survey && (
-          <div className="space-y-6">
+          <div className="space-y-4 sm:space-y-5">
             {/* Hero */}
-            <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-r from-indigo-600/80 to-violet-600/70 px-8 py-10 shadow-2xl">
+            <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-r from-indigo-600/80 to-violet-600/70 px-5 py-7 shadow-2xl sm:px-8 sm:py-9">
               <div className="pointer-events-none absolute -bottom-16 -right-16 h-52 w-52 rounded-full bg-white/10 blur-3xl" />
-              <div className="relative space-y-4">
-                <div className="inline-flex items-center gap-2.5 rounded-xl bg-white/15 px-3 py-2 ring-1 ring-white/20">
-                  <Sparkles className="h-5 w-5 text-amber-200" aria-hidden />
-                  <span className="text-xs font-semibold uppercase tracking-widest text-white/90">
+              <div className="relative space-y-3 sm:space-y-4">
+                <div className="inline-flex items-center gap-2 rounded-lg bg-white/15 px-2.5 py-1.5 ring-1 ring-white/20 sm:rounded-xl sm:px-3 sm:py-2">
+                  <Sparkles className="h-4 w-4 text-amber-200 sm:h-5 sm:w-5" aria-hidden />
+                  <span className="text-[10px] font-semibold uppercase tracking-widest text-white/90 sm:text-xs">
                     {t("title")}
                   </span>
                 </div>
-                <h1 className="text-2xl font-bold tracking-tight text-white sm:text-3xl">
+                <h1 className="text-xl font-bold tracking-tight text-white sm:text-2xl md:text-3xl">
                   {data.survey.titleEn}
                 </h1>
-                <p className="text-lg text-white/80" dir="rtl">
+                <p className="text-base text-white/85 sm:text-lg" dir="rtl">
                   {data.survey.titleAr}
                 </p>
               </div>
             </div>
 
             {/* Survey card */}
-            <div className="rounded-2xl border border-white/10 bg-white text-slate-900 shadow-xl">
+            <div className="rounded-2xl border border-white/10 bg-white text-slate-900 shadow-xl ring-1 ring-black/5">
               {/* Meta badges */}
-              <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 px-6 py-4">
+              <div className="flex flex-wrap items-center gap-1.5 border-b border-slate-100 px-4 py-3 sm:gap-2 sm:px-6 sm:py-3.5">
                 <Badge variant="secondary" className="gap-1.5 text-xs font-medium">
                   <Clock className="h-3.5 w-3.5" aria-hidden />
                   {t("estimatedTime", { minutes: data.survey.estimatedMinutes })}
@@ -173,7 +173,7 @@ export default function SurveyStartPage() {
               </div>
 
               {/* Description + CTA */}
-              <div className="px-6 py-6 space-y-5">
+              <div className="space-y-4 px-4 py-5 sm:px-6 sm:py-6">
                 <div className="space-y-2">
                   <p className="text-sm leading-relaxed text-slate-600">
                     {data.survey.descriptionEn}
@@ -186,7 +186,7 @@ export default function SurveyStartPage() {
                 {/* Primary CTA */}
                 <Button
                   size="lg"
-                  className="w-full gap-2.5 bg-indigo-600 text-base font-semibold hover:bg-indigo-700 sm:w-auto"
+                  className="h-12 w-full min-h-[44px] gap-2.5 bg-indigo-600 text-base font-semibold shadow-sm hover:bg-indigo-700 sm:h-11 sm:w-auto sm:min-h-0"
                   disabled={startMutation.isPending}
                   onClick={handleStart}
                 >
@@ -199,93 +199,98 @@ export default function SurveyStartPage() {
                 </Button>
 
                 {/* Trust signal */}
-                <p className="flex items-center gap-1.5 text-xs text-slate-400">
-                  <Lock className="h-3 w-3" aria-hidden />
+                <p className="flex items-start gap-1.5 text-[11px] leading-snug text-slate-400 sm:text-xs">
+                  <Lock className="mt-0.5 h-3 w-3 shrink-0" aria-hidden />
                   {t("confidentialNote")}
                 </p>
               </div>
 
-              {/* Optional details — compact expandable */}
-              <div className="border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setShowDetails((v) => !v)}
-                  className="flex w-full items-center justify-between px-6 py-2.5 text-xs font-medium text-slate-400 hover:text-slate-600 transition-colors"
-                >
-                  <span>{showDetails ? t("hideDetails") : t("addDetails")}</span>
-                  {showDetails ? (
-                    <ChevronUp className="h-3.5 w-3.5" aria-hidden />
-                  ) : (
-                    <ChevronDown className="h-3.5 w-3.5" aria-hidden />
-                  )}
-                </button>
+              {/* Secondary flows — shared subtle surface */}
+              <div className="rounded-b-2xl border-t border-slate-100 bg-slate-50/60">
+                {/* Optional details */}
+                <div>
+                  <button
+                    type="button"
+                    aria-expanded={showDetails}
+                    onClick={() => setShowDetails((v) => !v)}
+                    className="flex w-full min-h-[40px] items-center justify-between px-4 py-2 text-left text-xs font-medium text-slate-500 transition-colors hover:bg-slate-100/80 hover:text-slate-700 sm:px-6"
+                  >
+                    <span>{showDetails ? t("hideDetails") : t("addDetails")}</span>
+                    {showDetails ? (
+                      <ChevronUp className="h-3.5 w-3.5 shrink-0 opacity-60" aria-hidden />
+                    ) : (
+                      <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-60" aria-hidden />
+                    )}
+                  </button>
 
-                {showDetails && (
-                  <div className="px-6 pb-3">
-                    <div className="grid gap-2 sm:grid-cols-3">
-                      <Input
-                        value={respondentName}
-                        onChange={(e) => setRespondentName(e.target.value)}
-                        placeholder={t("yourName")}
-                        autoComplete="name"
-                        className="h-8 text-xs"
-                      />
-                      <Input
-                        type="email"
-                        value={respondentEmail}
-                        onChange={(e) => setRespondentEmail(e.target.value)}
-                        placeholder={t("yourEmail")}
-                        autoComplete="email"
-                        className="h-8 text-xs"
-                      />
-                      <Input
-                        type="tel"
-                        value={respondentPhone}
-                        onChange={(e) => setRespondentPhone(e.target.value)}
-                        placeholder={t("yourPhone")}
-                        autoComplete="tel"
-                        className="h-8 text-xs"
-                      />
+                  {showDetails && (
+                    <div className="border-t border-slate-100/80 px-4 pb-3 pt-1 sm:px-6">
+                      <div className="grid gap-2 sm:grid-cols-3">
+                        <Input
+                          value={respondentName}
+                          onChange={(e) => setRespondentName(e.target.value)}
+                          placeholder={t("yourName")}
+                          autoComplete="name"
+                          className="h-9 border-slate-200/80 bg-white text-xs shadow-none"
+                        />
+                        <Input
+                          type="email"
+                          value={respondentEmail}
+                          onChange={(e) => setRespondentEmail(e.target.value)}
+                          placeholder={t("yourEmail")}
+                          autoComplete="email"
+                          className="h-9 border-slate-200/80 bg-white text-xs shadow-none"
+                        />
+                        <Input
+                          type="tel"
+                          value={respondentPhone}
+                          onChange={(e) => setRespondentPhone(e.target.value)}
+                          placeholder={t("yourPhone")}
+                          autoComplete="tel"
+                          className="h-9 border-slate-200/80 bg-white text-xs shadow-none"
+                        />
+                      </div>
                     </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Resume — ultra-compact, tertiary visual weight */}
-              <div className="border-t border-slate-50">
-                <button
-                  type="button"
-                  onClick={() => setShowResume((v) => !v)}
-                  className="flex w-full items-center justify-between px-6 py-2 text-[11px] text-slate-400/80 hover:text-slate-500 transition-colors"
-                >
-                  <span>{t("resumePrompt")}</span>
-                  {showResume ? (
-                    <ChevronUp className="h-3 w-3" aria-hidden />
-                  ) : (
-                    <ChevronDown className="h-3 w-3" aria-hidden />
                   )}
-                </button>
+                </div>
 
-                {showResume && (
-                  <div className="flex items-center gap-2 px-6 pb-3">
-                    <Input
-                      value={resumeTokenInput}
-                      onChange={(e) => setResumeTokenInput(e.target.value)}
-                      placeholder={t("resumeTokenLabel")}
-                      autoComplete="off"
-                      className="h-7 flex-1 font-mono text-xs"
-                    />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={handleResume}
-                      className="shrink-0 h-7 px-3 text-xs text-slate-500 hover:text-slate-700"
-                    >
-                      {t("resume")}
-                    </Button>
-                  </div>
-                )}
+                {/* Resume */}
+                <div className="border-t border-slate-100/80">
+                  <button
+                    type="button"
+                    aria-expanded={showResume}
+                    onClick={() => setShowResume((v) => !v)}
+                    className="flex w-full min-h-[36px] items-center justify-between px-4 py-1.5 text-left text-[11px] text-slate-400 transition-colors hover:bg-slate-100/60 hover:text-slate-600 sm:px-6"
+                  >
+                    <span>{t("resumePrompt")}</span>
+                    {showResume ? (
+                      <ChevronUp className="h-3 w-3 shrink-0 opacity-50" aria-hidden />
+                    ) : (
+                      <ChevronDown className="h-3 w-3 shrink-0 opacity-50" aria-hidden />
+                    )}
+                  </button>
+
+                  {showResume && (
+                    <div className="flex flex-col gap-2 border-t border-slate-100/80 px-4 pb-3 pt-2 sm:flex-row sm:items-center sm:px-6">
+                      <Input
+                        value={resumeTokenInput}
+                        onChange={(e) => setResumeTokenInput(e.target.value)}
+                        placeholder={t("resumeTokenLabel")}
+                        autoComplete="off"
+                        className="h-9 min-h-[44px] flex-1 font-mono text-xs sm:min-h-0 sm:h-8"
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleResume}
+                        className="h-9 shrink-0 px-4 text-xs text-slate-500 hover:bg-slate-200/80 hover:text-slate-800 sm:h-8"
+                      >
+                        {t("resume")}
+                      </Button>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>

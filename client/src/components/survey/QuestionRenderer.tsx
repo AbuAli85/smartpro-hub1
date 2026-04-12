@@ -107,10 +107,10 @@ export default function QuestionRenderer({
                 onClick={() =>
                   onChange({ answerValue: opt.value, selectedOptions: [opt.id] })
                 }
-                className={`flex w-full items-center gap-3 rounded-xl border-2 px-4 py-3 text-start transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 ${
+                className={`flex w-full items-center gap-3 rounded-xl border-2 px-4 py-3 text-start transition-[border-color,background-color,box-shadow,transform] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35 focus-visible:ring-offset-2 focus-visible:ring-offset-background active:scale-[0.995] ${
                   selected
-                    ? "border-primary bg-primary/10 shadow-sm ring-2 ring-primary/15"
-                    : "border-transparent bg-muted/40 hover:bg-muted/60 hover:border-muted-foreground/15"
+                    ? "border-primary bg-primary/[0.11] shadow-[0_1px_0_0_rgba(0,0,0,0.04)] ring-1 ring-primary/25"
+                    : "border-transparent bg-muted/35 hover:border-muted-foreground/20 hover:bg-muted/55"
                 }`}
               >
                 <span
@@ -153,10 +153,10 @@ export default function QuestionRenderer({
                     .join(",");
                   onChange({ answerValue: values || null, selectedOptions: next });
                 }}
-                className={`flex w-full items-center gap-3 rounded-xl border-2 px-4 py-3 text-start transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 ${
+                className={`flex w-full items-center gap-3 rounded-xl border-2 px-4 py-3 text-start transition-[border-color,background-color,box-shadow,transform] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35 focus-visible:ring-offset-2 focus-visible:ring-offset-background active:scale-[0.995] ${
                   checked
-                    ? "border-primary bg-primary/10 shadow-sm ring-2 ring-primary/15"
-                    : "border-transparent bg-muted/40 hover:bg-muted/60 hover:border-muted-foreground/15"
+                    ? "border-primary bg-primary/[0.11] shadow-[0_1px_0_0_rgba(0,0,0,0.04)] ring-1 ring-primary/25"
+                    : "border-transparent bg-muted/35 hover:border-muted-foreground/20 hover:bg-muted/55"
                 }`}
               >
                 <span
@@ -193,10 +193,10 @@ export default function QuestionRenderer({
             }}
           >
             <SelectTrigger
-              className={`w-full h-10 rounded-xl transition-all ${
+              className={`h-11 w-full rounded-xl transition-[border-color,background-color,box-shadow] duration-150 focus-visible:ring-2 focus-visible:ring-primary/35 focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:h-10 ${
                 hasValue
-                  ? "border-primary/50 bg-primary/5 ring-1 ring-primary/15"
-                  : ""
+                  ? "border-primary/55 bg-primary/[0.08] font-medium text-foreground shadow-sm ring-1 ring-primary/25"
+                  : "border-input bg-background hover:bg-muted/30"
               }`}
             >
               <SelectValue placeholder={t("selectOption")} />
@@ -225,10 +225,10 @@ export default function QuestionRenderer({
                 key={opt.value}
                 type="button"
                 onClick={() => onChange({ answerValue: opt.value, selectedOptions: [] })}
-                className={`flex-1 rounded-xl border-2 py-3 text-sm font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 ${
+                className={`flex-1 rounded-xl border-2 py-3 text-sm font-semibold transition-[border-color,background-color,box-shadow,transform] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35 focus-visible:ring-offset-2 focus-visible:ring-offset-background active:scale-[0.99] ${
                   active
-                    ? "border-primary bg-primary/10 text-primary shadow-sm ring-2 ring-primary/15"
-                    : "border-transparent bg-muted/40 text-foreground/70 hover:bg-muted/60 hover:border-muted-foreground/15"
+                    ? "border-primary bg-primary/[0.11] text-primary shadow-[0_1px_0_0_rgba(0,0,0,0.04)] ring-1 ring-primary/25"
+                    : "border-transparent bg-muted/35 text-foreground/75 hover:border-muted-foreground/20 hover:bg-muted/55"
                 }`}
               >
                 {opt.label}

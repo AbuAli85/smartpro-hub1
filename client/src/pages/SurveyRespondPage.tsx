@@ -432,7 +432,7 @@ export default function SurveyRespondPage() {
   if (showPageSkeleton) {
     return (
       <div className="min-h-screen bg-slate-50">
-        <div className="h-16 bg-gradient-to-r from-indigo-600 to-violet-600" />
+        <div className="h-20 bg-gradient-to-r from-indigo-600 via-violet-600 to-indigo-700 shadow-inner" />
         <div className="mx-auto max-w-2xl px-4 py-8 space-y-6">
           <Skeleton className="h-10 w-full max-w-md" />
           <Skeleton className="h-3 w-full rounded-full" />
@@ -488,21 +488,21 @@ export default function SurveyRespondPage() {
   const sectionAnswered = sectionQuestions.filter((q) => isQuestionAnswered(q, getAnswer(q.id))).length;
 
   return (
-    <div className="min-h-screen bg-slate-50" dir={isAr ? "rtl" : "ltr"}>
-      {/* Integrated branded shell header */}
-      <div className="bg-gradient-to-r from-indigo-600 to-violet-600 shadow-md">
+    <div className="min-h-screen bg-slate-50 pb-[env(safe-area-inset-bottom)]" dir={isAr ? "rtl" : "ltr"}>
+      {/* Integrated branded shell header — matches landing gradient family */}
+      <div className="bg-gradient-to-r from-indigo-600 via-violet-600 to-indigo-700 shadow-md">
         {/* Title row */}
-        <div className="mx-auto max-w-2xl px-4 pt-3.5 pb-2">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2 min-w-0">
-              <Sparkles className="h-4 w-4 shrink-0 text-amber-200/80" aria-hidden />
-              <h1 className="truncate text-sm font-semibold text-white/90 sm:text-base">
+        <div className="mx-auto max-w-2xl px-4 pt-3 pb-1.5 sm:px-5 sm:pt-3.5">
+          <div className="flex items-center justify-between gap-2 sm:gap-3">
+            <div className="flex min-w-0 items-center gap-2">
+              <Sparkles className="h-4 w-4 shrink-0 text-amber-200/90" aria-hidden />
+              <h1 className="truncate text-sm font-semibold leading-tight text-white sm:text-base">
                 {isAr ? surveyData.survey.titleAr : surveyData.survey.titleEn}
               </h1>
             </div>
             <Badge
               variant="secondary"
-              className="shrink-0 border border-white/20 bg-white/15 text-[10px] font-medium text-white backdrop-blur"
+              className="shrink-0 border border-white/25 bg-white/15 text-[10px] font-semibold uppercase tracking-wide text-white backdrop-blur"
             >
               {surveyLanguage.toUpperCase()}
             </Badge>
@@ -510,29 +510,30 @@ export default function SurveyRespondPage() {
         </div>
 
         {/* Progress row */}
-        <div className="mx-auto max-w-2xl px-4 pb-4">
-          <div className="flex items-center justify-between text-[11px] text-white/70 mb-1.5">
-            <span className="font-medium truncate">{sectionTitle}</span>
-            <span className="shrink-0 ms-2">
+        <div className="mx-auto max-w-2xl px-4 pb-3.5 sm:px-5 sm:pb-4">
+          <div className="mb-2 flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
+            <span className="min-w-0 text-[12px] font-medium leading-snug text-white/95 sm:text-[13px]">
+              {sectionTitle}
+            </span>
+            <span className="shrink-0 text-[11px] tabular-nums text-white/80 sm:text-xs sm:text-white/85">
               {t("progress", { current: currentSectionIndex + 1, total: sections.length })} · {pct}%
             </span>
           </div>
-          <div className="h-1.5 w-full rounded-full bg-white/15 overflow-hidden">
+          <div className="h-2 w-full overflow-hidden rounded-full bg-black/20 shadow-[inset_0_1px_2px_rgba(0,0,0,0.15)]">
             <div
-              className="h-full rounded-full bg-white/80 transition-all duration-500 ease-out"
+              className="h-full rounded-full bg-white shadow-[0_0_12px_rgba(255,255,255,0.35)] transition-all duration-500 ease-out"
               style={{ width: `${pct}%` }}
             />
           </div>
-          {/* Step dots */}
           {sections.length > 1 && sections.length <= 10 && (
-            <div className="flex items-center justify-center gap-1 mt-2.5">
+            <div className="mt-2.5 flex items-center justify-center gap-1 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {sections.map((_, i) => (
                 <div
                   key={i}
-                  className={`h-1 rounded-full transition-all duration-300 ${
+                  className={`h-1 shrink-0 rounded-full transition-all duration-300 ${
                     i <= currentSectionIndex
-                      ? "w-3.5 bg-white/70"
-                      : "w-1 bg-white/20"
+                      ? "w-3.5 bg-white/85"
+                      : "w-1 bg-white/25"
                   }`}
                 />
               ))}
@@ -542,22 +543,22 @@ export default function SurveyRespondPage() {
       </div>
 
       {/* Main content */}
-      <div className="mx-auto max-w-2xl px-4 py-5 space-y-5">
+      <div className="mx-auto max-w-2xl space-y-4 px-4 py-4 sm:space-y-5 sm:px-5 sm:py-5">
         {/* Section card */}
-        <Card className="overflow-hidden border-0 shadow-md ring-1 ring-black/5">
-          <div className="h-1 bg-gradient-to-r from-indigo-500 to-violet-500" />
-          <CardHeader className="border-b border-slate-100 bg-slate-50/60 pb-3.5 pt-4">
-            <div className="flex items-center justify-between gap-2">
-              <CardTitle className="text-lg">{sectionTitle}</CardTitle>
-              <span className="shrink-0 rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-500">
+        <Card className="overflow-hidden border-0 shadow-md ring-1 ring-black/[0.06]">
+          <div className="h-1 bg-gradient-to-r from-indigo-500 via-violet-500 to-indigo-600" />
+          <CardHeader className="border-b border-slate-100 bg-slate-50/70 pb-3 pt-3.5 sm:pb-3.5 sm:pt-4">
+            <div className="flex items-start justify-between gap-2 sm:items-center">
+              <CardTitle className="text-base leading-snug sm:text-lg">{sectionTitle}</CardTitle>
+              <span className="shrink-0 rounded-md border border-slate-200/80 bg-white px-2 py-0.5 text-[11px] font-medium tabular-nums text-slate-600">
                 {sectionAnswered}/{sectionQCount}
               </span>
             </div>
             {sectionDescription && (
-              <p className="text-sm text-muted-foreground leading-relaxed">{sectionDescription}</p>
+              <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{sectionDescription}</p>
             )}
           </CardHeader>
-          <CardContent className="space-y-8 py-6">
+          <CardContent className="space-y-7 py-5 sm:space-y-8 sm:py-6">
             {sectionQuestions.map((q) => {
               const qOptions = sortSections(
                 (options as SurveyOption[]).filter((o) => o.questionId === q.id),
@@ -576,28 +577,28 @@ export default function SurveyRespondPage() {
           </CardContent>
         </Card>
 
-        {/* Navigation bar */}
-        <div className="flex items-center justify-between gap-3">
+        {/* Navigation — row; primary actions grouped and right-aligned */}
+        <div className="flex flex-wrap items-center gap-2">
           <Button
             type="button"
             variant="ghost"
             size="sm"
             onClick={handlePrevious}
             disabled={currentSectionIndex <= 0}
-            className="gap-1 text-muted-foreground hover:text-foreground"
+            className="gap-1 text-muted-foreground hover:text-foreground min-h-[44px] px-3 sm:min-h-9"
           >
             <ChevronLeft className="h-4 w-4" />
             {t("previous")}
           </Button>
 
-          <div className="flex items-center gap-2">
+          <div className="ml-auto flex min-w-0 items-center gap-2 sm:gap-2.5">
             <Button
               type="button"
               variant="ghost"
               size="sm"
               onClick={handleSaveProgress}
               disabled={!sessionToken}
-              className="gap-1.5 text-muted-foreground/70 hover:text-foreground"
+              className="gap-1.5 text-muted-foreground/75 hover:text-foreground min-h-[44px] shrink-0 sm:min-h-9"
             >
               <BookmarkCheck className="h-3.5 w-3.5" />
               {isAr ? "حفظ" : "Save"}
@@ -607,7 +608,7 @@ export default function SurveyRespondPage() {
               type="button"
               onClick={() => void handleNextOrSubmit()}
               disabled={isBusy}
-              className="gap-1.5 bg-indigo-600 hover:bg-indigo-700 px-6 shadow-sm"
+              className="min-h-[44px] min-w-[7.5rem] gap-1.5 bg-indigo-600 px-5 shadow-sm hover:bg-indigo-700 sm:min-h-9 sm:min-w-0 sm:px-6"
             >
               {isBusy ? (
                 <>
@@ -629,10 +630,9 @@ export default function SurveyRespondPage() {
           </div>
         </div>
 
-        {/* Confidential note */}
-        <div className="flex items-center justify-center gap-1.5 py-4 text-[11px] text-muted-foreground/60">
-          <Lock className="h-3 w-3" />
-          {t("confidentialNote")}
+        <div className="flex items-center justify-center gap-1.5 px-1 pb-2 text-center text-[11px] leading-snug text-muted-foreground/55 sm:pb-0">
+          <Lock className="h-3 w-3 shrink-0" aria-hidden />
+          <span>{t("confidentialNote")}</span>
         </div>
       </div>
 

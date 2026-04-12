@@ -35,7 +35,8 @@ export function computeAdminBoardRowStatus(params: {
   const { shiftStart, shiftEnd } = getShiftInstantBounds(
     params.shiftStartTime,
     params.shiftEndTime,
-    dayAnchor
+    dayAnchor,
+    params.businessDate
   );
   const graceMs = params.gracePeriodMinutes * 60_000;
   const nowMs = params.now.getTime();

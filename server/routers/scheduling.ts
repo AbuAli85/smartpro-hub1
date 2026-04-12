@@ -822,7 +822,7 @@ export const schedulingRouter = router({
           }
         }
 
-        const { shiftStart } = getShiftInstantBounds(startT, endT, dayAnchor);
+        const { shiftStart } = getShiftInstantBounds(startT, endT, dayAnchor, today);
         const shiftEndMs = muscatShiftWallEndMs(today, startT, endT);
         const sameEmpDrafts = empRow ? drafts.filter((x) => x.empRow?.id === empRow.id) : [];
         const thisStartMs = muscatShiftWallStartMs(today, startT);

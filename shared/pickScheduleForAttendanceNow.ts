@@ -57,7 +57,7 @@ export function pickScheduleRowForNow<T extends SchedulePickRow>(params: {
     const st = getShift(row.shiftTemplateId);
     if (!st?.startTime || !st?.endTime) continue;
     const grace = st.gracePeriodMinutes ?? 15;
-    const { shiftStart, shiftEnd } = getShiftInstantBounds(st.startTime, st.endTime, dayAnchor);
+    const { shiftStart, shiftEnd } = getShiftInstantBounds(st.startTime, st.endTime, dayAnchor, businessDate);
     enriched.push({ row, shiftStart, shiftEnd, graceMs: grace * 60_000 });
   }
 

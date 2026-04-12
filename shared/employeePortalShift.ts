@@ -1,7 +1,10 @@
 /**
  * Shared shift clock helpers for employee portal — used by client UI and server hints.
- * Business date / policy remain server concerns; this only compares wall times to a given `now`.
+ * Wall times are interpreted in Asia/Muscat (same as {@link evaluateSelfServiceCheckInEligibility}),
+ * not the host OS timezone — CI and servers may run in UTC.
  */
+
+import { muscatCalendarYmdFromUtcInstant, muscatWallDateTimeToUtc } from "./attendanceMuscatTime";
 
 export type ShiftPhase = "upcoming" | "active" | "ended";
 
@@ -22,9 +25,23 @@ export function formatCountdownMs(ms: number): string {
   return `${m}m`;
 }
 
+function muscatShiftBoundsMs(
+  businessDateYmd: string,
+  startTime: string,
+  endTime: string
+): { startMs: number; endMs: number } {
+  let shiftStartMs = muscatWallDateTimeToUtc(businessDateYmd, `${startTime}:00`).getTime();
+  let shiftEndMs = muscatWallDateTimeToUtc(businessDateYmd, `${endTime}:00`).getTime();
+  if (shiftEndMs <= shiftStartMs) shiftEndMs += 86_400_000;
+  return { startMs: shiftStartMs, endMs: shiftEndMs };
+}
+
 /**
- * Compare wall-clock times (HH:mm) to `now` for today’s shift row.
+ * Compare Muscat wall-clock shift times to `now` for a calendar row.
  * Handles overnight shifts when end <= start on the clock.
+ *
+ * @param businessDateYmd When set, shift bounds use this `YYYY-MM-DD` (same as attendance day).
+ *   Otherwise uses the Muscat calendar date of `now`.
  *
  * Limitation: early morning after an overnight shift before today’s parsed start time
  * is treated as **upcoming** — authoritative business date / shift assignment belongs on the server.
@@ -32,37 +49,26 @@ export function formatCountdownMs(ms: number): string {
 export function getShiftOperationalState(
   startTime: string,
   endTime: string,
-  now: Date = new Date()
+  now: Date = new Date(),
+  businessDateYmd?: string
 ): ShiftOperationalState {
-  const parse = (t: string) => {
-    const [h, m] = t.split(":").map((x) => parseInt(x, 10));
-    return { h: h || 0, m: Number.isFinite(m) ? m : 0 };
-  };
-  const a = parse(startTime);
-  const b = parse(endTime);
-  const start = new Date(now);
-  start.setHours(a.h, a.m, 0, 0);
-  let end = new Date(now);
-  end.setHours(b.h, b.m, 0, 0);
-  if (end.getTime() <= start.getTime()) {
-    end = new Date(end.getTime() + 86400000);
-  }
-
+  const ymd = businessDateYmd ?? muscatCalendarYmdFromUtcInstant(now);
+  const { startMs, endMs } = muscatShiftBoundsMs(ymd, startTime, endTime);
   const t = now.getTime();
-  if (t < start.getTime()) {
+  if (t < startMs) {
     return {
       phase: "upcoming",
       statusLabel: "Upcoming",
       statusDotClass: "bg-amber-500",
-      detailLine: `Starts in ${formatCountdownMs(start.getTime() - t)}`,
+      detailLine: `Starts in ${formatCountdownMs(startMs - t)}`,
     };
   }
-  if (t <= end.getTime()) {
+  if (t <= endMs) {
     return {
       phase: "active",
       statusLabel: "Active now",
       statusDotClass: "bg-emerald-500",
-      detailLine: `Ends in ${formatCountdownMs(end.getTime() - t)}`,
+      detailLine: `Ends in ${formatCountdownMs(endMs - t)}`,
     };
   }
   return {
@@ -74,26 +80,18 @@ export function getShiftOperationalState(
 }
 
 /**
- * Wall-clock shift start/end as Date objects anchored to `now`'s calendar day,
- * with overnight shifts extending `shiftEnd` into the next day (same rules as {@link getShiftOperationalState}).
+ * Muscat wall-clock shift start/end as UTC `Date` instants for `businessDateYmd`.
+ * With overnight shifts, `shiftEnd` is the next calendar day in Muscat (same rules as {@link getShiftOperationalState}).
+ *
+ * @param businessDateYmd When set, uses this `YYYY-MM-DD`; otherwise the Muscat calendar date of `now`.
  */
 export function getShiftInstantBounds(
   startTime: string,
   endTime: string,
-  now: Date = new Date()
+  now: Date = new Date(),
+  businessDateYmd?: string
 ): { shiftStart: Date; shiftEnd: Date } {
-  const parse = (t: string) => {
-    const [h, m] = t.split(":").map((x) => parseInt(x, 10));
-    return { h: h || 0, m: Number.isFinite(m) ? m : 0 };
-  };
-  const a = parse(startTime);
-  const b = parse(endTime);
-  const shiftStart = new Date(now);
-  shiftStart.setHours(a.h, a.m, 0, 0);
-  let shiftEnd = new Date(now);
-  shiftEnd.setHours(b.h, b.m, 0, 0);
-  if (shiftEnd.getTime() <= shiftStart.getTime()) {
-    shiftEnd = new Date(shiftEnd.getTime() + 86400000);
-  }
-  return { shiftStart, shiftEnd };
+  const ymd = businessDateYmd ?? muscatCalendarYmdFromUtcInstant(now);
+  const { startMs, endMs } = muscatShiftBoundsMs(ymd, startTime, endTime);
+  return { shiftStart: new Date(startMs), shiftEnd: new Date(endMs) };
 }

@@ -6,6 +6,7 @@ import type { OverviewShiftCardPresentation } from "@/lib/employeePortalOverview
 import type { ProductivitySnapshot } from "@/lib/employeePortalUtils";
 import { getDueUrgency } from "@/lib/taskSla";
 import { employeePortalConfig } from "@/config/employeePortalConfig";
+import { muscatCalendarYmdFromUtcInstant } from "@shared/attendanceMuscatTime";
 import { getShiftInstantBounds } from "@shared/employeePortalShift";
 import type { EmployeeWorkStatusSummary } from "@shared/employeePortalWorkStatusSummary";
 import {
@@ -366,7 +367,8 @@ export function buildShiftTimingExtras(input: {
   const { shift, isWorkingDay, hasHoliday, now, checkIn, checkOut, shiftOverview, primaryCtaLabel, siteName } = input;
   if (hasHoliday || !shift?.startTime || !shift?.endTime) return null;
 
-  const { shiftStart, shiftEnd } = getShiftInstantBounds(shift.startTime, shift.endTime, now);
+  const ymd = muscatCalendarYmdFromUtcInstant(now);
+  const { shiftStart, shiftEnd } = getShiftInstantBounds(shift.startTime, shift.endTime, now, ymd);
   const graceMs = Math.max(0, (shift.gracePeriodMinutes ?? 0) * 60_000);
   const lateThreshold = shiftStart.getTime() + graceMs;
   const isLateNoCheckIn =

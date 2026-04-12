@@ -122,7 +122,7 @@ export function computePortalOperationalHints(params: {
 
   const operational =
     params.startTime && params.endTime
-      ? getShiftOperationalState(params.startTime, params.endTime, params.now)
+      ? getShiftOperationalState(params.startTime, params.endTime, params.now, params.businessDate)
       : null;
   const resolvedShiftPhase = operational?.phase ?? null;
   const shiftStatusLabel = operational?.statusLabel ?? null;

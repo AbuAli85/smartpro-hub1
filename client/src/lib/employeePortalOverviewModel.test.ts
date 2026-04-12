@@ -50,8 +50,8 @@ describe("profileCompletenessReminder", () => {
     expect(
       profileCompletenessReminder({
         phone: "1",
-        emergencyContact: "x",
-        emergencyPhone: "2",
+        emergencyContactName: "x",
+        emergencyContactPhone: "2",
       }),
     ).toBeNull();
   });

@@ -19,17 +19,18 @@ describe("formatCountdownMs", () => {
 });
 
 describe("getShiftOperationalState", () => {
-  it("same-day shift: upcoming then active then ended", () => {
-    const d = new Date(2026, 3, 5, 8, 0, 0);
+  it("same-day shift: upcoming then active then ended (Muscat wall times)", () => {
+    // Instants chosen so Asia/Muscat local time is 08:00 / 12:00 / 18:00 on 2026-04-05 (UTC+4).
+    const d = new Date(Date.UTC(2026, 3, 5, 4, 0, 0));
     expect(getShiftOperationalState("09:00", "17:00", d).phase).toBe("upcoming");
-    const noon = new Date(2026, 3, 5, 12, 0, 0);
+    const noon = new Date(Date.UTC(2026, 3, 5, 8, 0, 0));
     expect(getShiftOperationalState("09:00", "17:00", noon).phase).toBe("active");
-    const evening = new Date(2026, 3, 5, 18, 0, 0);
+    const evening = new Date(Date.UTC(2026, 3, 5, 14, 0, 0));
     expect(getShiftOperationalState("09:00", "17:00", evening).phase).toBe("ended");
   });
 
-  it("overnight shift: evening is active when end rolls to next calendar day", () => {
-    const late = new Date(2026, 3, 5, 23, 30, 0);
+  it("overnight shift: late evening Muscat is active when end rolls to next calendar day", () => {
+    const late = new Date(Date.UTC(2026, 3, 5, 19, 30, 0)); // 23:30 Asia/Muscat on 2026-04-05
     const s = getShiftOperationalState("22:00", "06:00", late);
     expect(s.phase).toBe("active");
   });

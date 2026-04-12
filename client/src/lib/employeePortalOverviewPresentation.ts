@@ -3,6 +3,7 @@
  * Defaults and labels only — HR policy, entitlements, and business date stay server-owned.
  */
 import type { PortalOperationalHints } from "@shared/employeePortalOperationalHints";
+import { muscatCalendarYmdFromUtcInstant } from "@shared/attendanceMuscatTime";
 import {
   getShiftOperationalState,
   type ShiftOperationalState,
@@ -84,6 +85,8 @@ export function getOverviewShiftCardPresentation(input: {
   startTime?: string | null;
   endTime?: string | null;
   now: Date;
+  /** Muscat calendar date for this row (`YYYY-MM-DD`); defaults to Muscat “today” for `now`. */
+  businessDateYmd?: string;
   attendanceLoading: boolean;
   checkIn?: Date | string | null;
   checkOut?: Date | string | null;
@@ -98,7 +101,12 @@ export function getOverviewShiftCardPresentation(input: {
   const pendingCorrectionCount = input.pendingCorrectionCount ?? 0;
   const operational =
     input.startTime && input.endTime
-      ? getShiftOperationalState(input.startTime, input.endTime, input.now)
+      ? getShiftOperationalState(
+          input.startTime,
+          input.endTime,
+          input.now,
+          input.businessDateYmd ?? muscatCalendarYmdFromUtcInstant(input.now)
+        )
       : null;
   const phase = operational?.phase ?? null;
 

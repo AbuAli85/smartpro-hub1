@@ -604,6 +604,15 @@ export const companiesRouter = router({
       if (invite.revokedAt) throw new TRPCError({ code: "FORBIDDEN", message: "This invite has been revoked." });
       if (invite.acceptedAt) throw new TRPCError({ code: "CONFLICT", message: "This invite has already been accepted." });
       if (new Date() > invite.expiresAt) throw new TRPCError({ code: "FORBIDDEN", message: "This invite has expired. Please ask your admin to resend it." });
+      const inviteEmailNorm = invite.email.trim().toLowerCase();
+      const userEmailNorm = ctx.user.email?.trim().toLowerCase() ?? "";
+      if (!userEmailNorm || userEmailNorm !== inviteEmailNorm) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message:
+            "Sign in with the same email address this invitation was sent to. If you use Google or Microsoft, pick the account that matches the invite email.",
+        });
+      }
       const [existing] = await db
         .select({ id: companyMembers.id, isActive: companyMembers.isActive })
         .from(companyMembers)

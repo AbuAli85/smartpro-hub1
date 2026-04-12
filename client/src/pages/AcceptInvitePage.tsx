@@ -26,7 +26,7 @@ const ROLE_LABELS: Record<string, string> = {
 export default function AcceptInvitePage() {
   const { token } = useParams<{ token: string }>();
   const [, navigate] = useLocation();
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, logout } = useAuth();
   const [accepted, setAccepted] = useState(false);
 
   // Bug Fix 1: getInviteInfo is now a publicProcedure — works without login
@@ -237,7 +237,12 @@ export default function AcceptInvitePage() {
     );
   }
 
-  // Logged in — show one-click accept button
+  const emailMismatch =
+    !!user.email &&
+    !!invite.email &&
+    user.email.trim().toLowerCase() !== invite.email.trim().toLowerCase();
+
+  // Logged in — match invite email before accepting (server enforces the same rule)
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
@@ -270,27 +275,46 @@ export default function AcceptInvitePage() {
             </div>
           </div>
 
-          {user.email?.toLowerCase() !== invite.email.toLowerCase() && (
-            <div className="flex items-start gap-2 text-xs text-muted-foreground bg-yellow-500/5 border border-yellow-500/20 rounded-lg p-3">
-              <AlertTriangle className="w-4 h-4 text-yellow-500 shrink-0 mt-0.5" />
+          {emailMismatch && (
+            <div className="flex items-start gap-2 text-sm text-muted-foreground bg-destructive/5 border border-destructive/20 rounded-lg p-3">
+              <AlertTriangle className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
               <span>
-                You are signed in as <strong>{user.email}</strong>, but this invite was sent to <strong>{invite.email}</strong>.
-                You can still accept, but make sure this is the correct account.
+                You are signed in as <strong className="text-foreground">{user.email}</strong>, but this invite was sent to{" "}
+                <strong className="text-foreground">{invite.email}</strong>. For security, you cannot accept with this account.
+                Sign out, then sign in with the invited email (choose the correct Google or Microsoft profile).
               </span>
             </div>
           )}
 
-          <Button
-            className="w-full bg-red-600 hover:bg-red-700 text-white"
-            disabled={acceptMutation.isPending}
-            onClick={() => acceptMutation.mutate({ token: token ?? "" })}
-          >
-            {acceptMutation.isPending ? (
-              <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Accepting…</>
-            ) : (
-              <><CheckCircle2 className="w-4 h-4 mr-2" /> Accept Invitation & Join Team</>
-            )}
-          </Button>
+          {emailMismatch ? (
+            <Button
+              className="w-full bg-red-600 hover:bg-red-700 text-white"
+              disabled={acceptMutation.isPending}
+              onClick={async () => {
+                await logout();
+                window.location.href = getLoginUrl(`/invite/${token ?? ""}`);
+              }}
+            >
+              Sign out and sign in with {invite.email}
+            </Button>
+          ) : (
+            <Button
+              className="w-full bg-red-600 hover:bg-red-700 text-white"
+              disabled={acceptMutation.isPending || !user.email}
+              onClick={() => acceptMutation.mutate({ token: token ?? "" })}
+            >
+              {acceptMutation.isPending ? (
+                <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Accepting…</>
+              ) : (
+                <><CheckCircle2 className="w-4 h-4 mr-2" /> Accept Invitation & Join Team</>
+              )}
+            </Button>
+          )}
+          {!emailMismatch && !user.email && (
+            <p className="text-xs text-center text-muted-foreground">
+              Your account has no email on file. Contact support or sign in with a provider that shares your email.
+            </p>
+          )}
           <Button variant="ghost" className="w-full" onClick={() => navigate("/dashboard")}>
             Maybe later
           </Button>

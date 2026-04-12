@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRoute, useLocation } from "wouter";
 import { useTranslation } from "react-i18next";
-import { AlertCircle, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
+import { AlertCircle, BookmarkCheck, ChevronLeft, ChevronRight, Copy, Loader2, Mail } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import QuestionRenderer from "@/components/survey/QuestionRenderer";
 import SurveyProgress from "@/components/survey/SurveyProgress";
 
@@ -89,7 +91,18 @@ export default function SurveyRespondPage() {
   const storageKey = slug ? `survey_resume_${slug}` : null;
 
   const readResumeToken = useCallback((): string | null => {
-    if (!storageKey || typeof window === "undefined") return null;
+    if (typeof window === "undefined") return null;
+    // Prefer ?resume=TOKEN from URL (email link deep-link)
+    const urlToken = new URLSearchParams(window.location.search).get("resume");
+    if (urlToken) {
+      if (storageKey) localStorage.setItem(storageKey, urlToken);
+      // Remove the query param from URL without re-render
+      const url = new URL(window.location.href);
+      url.searchParams.delete("resume");
+      window.history.replaceState({}, "", url.toString());
+      return urlToken;
+    }
+    if (!storageKey) return null;
     return localStorage.getItem(storageKey);
   }, [storageKey]);
 
@@ -270,6 +283,35 @@ export default function SurveyRespondPage() {
   }, [currentSection, sectionQuestions, getAnswer]);
 
   const isLastSection = sections.length > 0 && currentSectionIndex >= sections.length - 1;
+
+  // ── Save Progress dialog ─────────────────────────────────────────────
+  const [saveDialogOpen, setSaveDialogOpen] = useState(false);
+  const [saveEmail, setSaveEmail] = useState("");
+  const [saveEmailSent, setSaveEmailSent] = useState(false);
+  const sendResumeEmailMutation = trpc.survey.sendResumeEmail.useMutation({
+    onSuccess: () => setSaveEmailSent(true),
+    onError: (e) => toast.error(e.message),
+  });
+  const handleSaveProgress = () => {
+    if (!sessionToken) return;
+    setSaveEmailSent(false);
+    setSaveEmail("");
+    setSaveDialogOpen(true);
+  };
+  const handleSendResumeEmail = () => {
+    if (!sessionToken || !saveEmail.trim()) return;
+    sendResumeEmailMutation.mutate({
+      resumeToken: sessionToken,
+      email: saveEmail.trim(),
+      origin: window.location.origin,
+    });
+  };
+  const handleCopyToken = () => {
+    if (!sessionToken) return;
+    navigator.clipboard.writeText(sessionToken).then(() =>
+      toast.success(isAr ? "تم نسخ رمز الاستئناف" : "Resume token copied to clipboard"),
+    );
+  };
 
   const handlePrevious = () => {
     setCurrentSectionIndex((i) => Math.max(0, i - 1));
@@ -479,29 +521,142 @@ export default function SurveyRespondPage() {
           <ChevronLeft className="h-4 w-4 me-1" />
           {t("previous")}
         </Button>
-        <Button
-          type="button"
-          onClick={() => void handleNextOrSubmit()}
-          disabled={submitSectionMutation.isPending || completeMutation.isPending}
-        >
-          {submitSectionMutation.isPending || completeMutation.isPending ? (
-            <>
-              <Loader2 className="h-4 w-4 animate-spin me-2" />
-              {isLastSection ? t("submitting") : t("saving")}
-            </>
-          ) : isLastSection ? (
-            <>
-              {t("submit")}
-              <ChevronRight className="h-4 w-4 ms-1" />
-            </>
-          ) : (
-            <>
-              {t("next")}
-              <ChevronRight className="h-4 w-4 ms-1" />
-            </>
-          )}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={handleSaveProgress}
+            disabled={!sessionToken}
+            title={isAr ? "حفظ التقدم والمتابعة لاحقاً" : "Save progress and resume later"}
+          >
+            <BookmarkCheck className="h-4 w-4 me-1" />
+            {isAr ? "حفظ التقدم" : "Save Progress"}
+          </Button>
+          <Button
+            type="button"
+            onClick={() => void handleNextOrSubmit()}
+            disabled={submitSectionMutation.isPending || completeMutation.isPending}
+          >
+            {submitSectionMutation.isPending || completeMutation.isPending ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin me-2" />
+                {isLastSection ? t("submitting") : t("saving")}
+              </>
+            ) : isLastSection ? (
+              <>
+                {t("submit")}
+                <ChevronRight className="h-4 w-4 ms-1" />
+              </>
+            ) : (
+              <>
+                {t("next")}
+                <ChevronRight className="h-4 w-4 ms-1" />
+              </>
+            )}
+          </Button>
+        </div>
       </div>
+
+      {/* ── Save Progress Dialog ──────────────────────────────────────────── */}
+      <Dialog
+        open={saveDialogOpen}
+        onOpenChange={(open) => {
+          setSaveDialogOpen(open);
+          if (!open) setSaveEmailSent(false);
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <BookmarkCheck className="h-5 w-5 text-primary" />
+              {isAr ? "حفظ التقدم" : "Save Your Progress"}
+            </DialogTitle>
+            <DialogDescription>
+              {isAr
+                ? "يمكنك المتابعة من حيث توقفت في أي وقت باستخدام رمز الاستئناف أو رابط البريد الإلكتروني."
+                : "You can continue where you left off at any time using your resume token or the email link."}
+            </DialogDescription>
+          </DialogHeader>
+
+          {saveEmailSent ? (
+            <div className="flex flex-col items-center gap-3 py-4 text-center">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-green-100">
+                <Mail className="h-6 w-6 text-green-600" />
+              </div>
+              <p className="font-medium text-sm">{isAr ? "تم إرسال الرابط!" : "Link sent!"}</p>
+              <p className="text-xs text-muted-foreground">
+                {isAr
+                  ? `تحقق من بريدك الإلكتروني ${saveEmail} للحصول على رابط الاستئناف.`
+                  : `Check ${saveEmail} for your resume link.`}
+              </p>
+              <Button variant="outline" size="sm" onClick={() => setSaveDialogOpen(false)}>
+                {isAr ? "إغلاق" : "Close"}
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {/* Resume token copy */}
+              <div className="rounded-lg border bg-muted/40 p-3 space-y-2">
+                <p className="text-xs font-medium text-muted-foreground">
+                  {isAr ? "رمز الاستئناف الخاص بك" : "Your Resume Token"}
+                </p>
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 rounded bg-background border px-2 py-1 text-xs font-mono truncate">
+                    {sessionToken}
+                  </code>
+                  <Button type="button" variant="outline" size="sm" onClick={handleCopyToken}>
+                    <Copy className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {isAr
+                    ? "احتفظ بهذا الرمز. يمكنك إدخاله في صفحة الاستبيان للمتابعة."
+                    : "Keep this token safe. Enter it on the survey start page to resume."}
+                </p>
+              </div>
+
+              {/* Email option */}
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-muted-foreground">
+                  {isAr ? "أو أرسل رابط الاستئناف إلى بريدك الإلكتروني" : "Or email yourself a resume link"}
+                </p>
+                <div className="flex gap-2">
+                  <Input
+                    type="email"
+                    placeholder={isAr ? "بريدك الإلكتروني" : "your@email.com"}
+                    value={saveEmail}
+                    onChange={(e) => setSaveEmail(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handleSendResumeEmail();
+                    }}
+                    className="flex-1 text-sm"
+                  />
+                  <Button
+                    type="button"
+                    onClick={handleSendResumeEmail}
+                    disabled={!saveEmail.trim() || sendResumeEmailMutation.isPending}
+                    size="sm"
+                  >
+                    {sendResumeEmailMutation.isPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Mail className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {!saveEmailSent && (
+            <DialogFooter>
+              <Button variant="ghost" size="sm" onClick={() => setSaveDialogOpen(false)}>
+                {isAr ? "إغلاق" : "Close"}
+              </Button>
+            </DialogFooter>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

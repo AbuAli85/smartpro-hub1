@@ -446,3 +446,82 @@ export async function sendContractSigningEmail(params: ContractSigningEmailParam
     return { success: false, error: err?.message ?? "Unknown error" };
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Survey Resume Email
+// ─────────────────────────────────────────────────────────────────────────────
+export interface SurveyResumeEmailParams {
+  to: string;
+  respondentName?: string;
+  surveyTitle: string;
+  resumeUrl: string;
+  resumeToken: string;
+  sectionsCompleted: number;
+  totalSections: number;
+}
+
+export async function sendSurveyResumeEmail(
+  params: SurveyResumeEmailParams,
+): Promise<{ success: boolean; error?: string }> {
+  const { to, respondentName, surveyTitle, resumeUrl, resumeToken, sectionsCompleted, totalSections } = params;
+  const greeting = respondentName ? `Dear <strong>${respondentName}</strong>,` : "Hello,";
+  const progress = totalSections > 0 ? Math.round((sectionsCompleted / totalSections) * 100) : 0;
+
+  const body = `
+    <div style="text-align:center;margin-bottom:28px;">
+      <div style="display:inline-block;background:linear-gradient(135deg,${C.primary},${C.accent});border-radius:50%;width:64px;height:64px;line-height:64px;font-size:28px;color:${C.white};text-align:center;">&#128203;</div>
+    </div>
+    <h1 style="color:${C.text};font-size:24px;font-weight:800;margin:0 0 6px;text-align:center;letter-spacing:-0.5px;">Resume Your Survey</h1>
+    <p style="color:${C.textMuted};font-size:14px;text-align:center;margin:0 0 28px;">${surveyTitle}</p>
+    <p style="color:${C.textMuted};font-size:15px;line-height:1.7;margin:0 0 20px;">${greeting}</p>
+    <p style="color:${C.textMuted};font-size:15px;line-height:1.7;margin:0 0 24px;">
+      You requested a link to resume your survey response. Your progress has been saved and is ready for you to continue.
+    </p>
+    <div style="background:${C.cardBg};border-radius:12px;border:1px solid ${C.border};padding:4px 20px;margin:0 0 20px;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+        ${infoRow("Survey", surveyTitle, true)}
+        ${infoRow("Progress", `${sectionsCompleted} of ${totalSections} sections completed (${progress}%)`)}
+        ${infoRow("Your Resume Token", resumeToken)}
+      </table>
+    </div>
+    <div style="background:#e5e7eb;border-radius:99px;height:8px;margin:0 0 24px;overflow:hidden;">
+      <div style="background:${C.primary};height:8px;width:${progress}%;border-radius:99px;"></div>
+    </div>
+    <p style="color:${C.textMuted};font-size:14px;text-align:center;margin:0 0 4px;">Click the button below to continue where you left off:</p>
+    <div style="text-align:center;">
+      ${ctaButton(resumeUrl, "Continue Survey")}
+    </div>
+    <div style="background:${C.cardBg};border-radius:8px;border:1px solid ${C.border};padding:12px 16px;margin:8px 0 24px;word-break:break-all;">
+      <p style="color:${C.textMuted};font-size:12px;margin:0 0 4px;">Or copy this link into your browser:</p>
+      <a href="${resumeUrl}" style="color:${C.primary};font-size:12px;word-break:break-all;">${resumeUrl}</a>
+    </div>
+    ${trustStrip()}
+    <hr style="border:none;border-top:1px solid ${C.border};margin:28px 0 20px;" />
+    <p style="color:${C.textLight};font-size:12px;margin:0;text-align:center;line-height:1.6;">
+      This link is unique to your response. Do not share it with others.<br/>
+      You can also use your resume token directly on the survey page: <strong>${resumeToken}</strong>
+    </p>
+  `;
+
+  try {
+    const resend = getResend();
+    const result = await resend.emails.send({
+      from: FROM_ADDRESS,
+      to: [to],
+      subject: `Resume Your Survey: ${surveyTitle}`,
+      html: baseLayout(
+        `Resume Survey — ${surveyTitle}`,
+        `Your survey progress has been saved. Click to continue where you left off.`,
+        body,
+      ),
+    });
+    if (result.error) {
+      console.error("[Email] Survey resume email error:", result.error);
+      return { success: false, error: result.error.message };
+    }
+    return { success: true };
+  } catch (err: any) {
+    console.error("[Email] sendSurveyResumeEmail failed:", err);
+    return { success: false, error: err?.message ?? "Unknown error" };
+  }
+}

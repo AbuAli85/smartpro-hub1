@@ -1942,3 +1942,11 @@ Every company on SmartPRO Hub gets a complete, unified business operating area �
 
 ## Home Page Redirect Bug
 - [x] Fix Home page auto-redirecting authenticated users to control-tower — replaced with contextual Dashboard/Go to app buttons in nav
+
+## Survey Save & Resume Feature
+- [x] Backend: add sendResumeEmail procedure to survey router — sends branded email with progress bar, resume URL, and token
+- [x] Backend: resume URL uses frontend-supplied origin; token lookup via resumeToken field
+- [x] Frontend: Save Progress button in SurveyRespondPage navigation bar (BookmarkCheck icon)
+- [x] Frontend: Save Progress dialog — shows resume token with copy button + optional email field with success state
+- [x] Frontend: ?resume=TOKEN URL deep-link handling — clicking email link auto-resumes without manual token entry
+- [x] Frontend: Resume banner on SurveyStartPage already existed (manual token entry input)

@@ -25,6 +25,8 @@ import {
   getResponseDetailInput,
 } from "../modules/survey/types";
 import { computeSurveyScores, collectResponseTags } from "../modules/survey/scoring";
+import { sendSurveyResumeEmail } from "../email";
+import { resolvePublicAppBaseUrl } from "../_core/publicAppUrl";
 import crypto from "crypto";
 
 const surveyAdminProcedure = protectedProcedure.use(
@@ -504,4 +506,74 @@ export const surveyRouter = router({
       topTags,
     };
   }),
+
+  // ── Send resume link via email ─────────────────────────────────────────────
+  sendResumeEmail: publicProcedure
+    .input(
+      z.object({
+        resumeToken: z.string().min(1),
+        email: z.string().email(),
+        origin: z.string().url().optional(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+
+      // Look up the response by token
+      const [response] = await db
+        .select()
+        .from(surveyResponses)
+        .where(eq(surveyResponses.resumeToken, input.resumeToken))
+        .limit(1);
+      if (!response) throw new TRPCError({ code: "NOT_FOUND", message: "Response not found. Please check your resume token." });
+      if (response.status === "completed") {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "This survey response is already completed." });
+      }
+
+      // Get survey info
+      const [survey] = await db
+        .select()
+        .from(surveys)
+        .where(eq(surveys.id, response.surveyId))
+        .limit(1);
+      if (!survey) throw new TRPCError({ code: "NOT_FOUND", message: "Survey not found" });
+
+      // Count sections for progress display
+      const sections = await db
+        .select({ id: surveySections.id })
+        .from(surveySections)
+        .where(eq(surveySections.surveyId, survey.id))
+        .orderBy(surveySections.sortOrder);
+      const totalSections = sections.length;
+
+      // Estimate completed sections based on currentSectionId
+      const currentIdx = response.currentSectionId
+        ? sections.findIndex((s) => s.id === response.currentSectionId)
+        : 0;
+      const sectionsCompleted = Math.max(0, currentIdx);
+
+      // Build resume URL
+      const baseUrl = input.origin ?? resolvePublicAppBaseUrl();
+      const resumeUrl = `${baseUrl}/survey/${survey.slug}?resume=${input.resumeToken}`;
+
+      const result = await sendSurveyResumeEmail({
+        to: input.email,
+        respondentName: response.respondentName ?? undefined,
+        surveyTitle: survey.titleEn,
+        resumeUrl,
+        resumeToken: input.resumeToken,
+        sectionsCompleted,
+        totalSections,
+      });
+
+      if (!result.success) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: result.error ?? "Failed to send email. Please try again.",
+        });
+      }
+
+      return { sent: true };
+    }),
 });

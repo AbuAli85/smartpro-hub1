@@ -46,15 +46,16 @@ export default function SurveyCompletePage() {
 
   return (
     <div
-      className="min-h-screen bg-gradient-to-br from-slate-950 via-indigo-950 to-slate-900 text-slate-50"
+      className="min-h-screen bg-gradient-to-br from-slate-950 via-indigo-950 to-slate-900 pb-[env(safe-area-inset-bottom)] text-slate-50"
       dir={isRtl ? "rtl" : "ltr"}
     >
-      <header className="sticky top-0 z-10 border-b border-white/10 bg-black/25 backdrop-blur-md">
+      <header className="sticky top-0 z-10 border-b border-white/10 bg-black/25 pt-[env(safe-area-inset-top)] backdrop-blur-md">
         <div className="mx-auto flex max-w-2xl items-center justify-between px-4 py-3 sm:px-5">
-          <Link href="/survey">
-            <span className="text-sm font-medium text-white/75 hover:text-white transition-colors">
-              {t("backToSurvey")}
-            </span>
+          <Link
+            href="/survey"
+            className="-m-1 inline-flex min-h-[44px] min-w-[44px] items-center rounded-md px-1 py-2 text-sm font-medium text-white/75 transition-colors hover:text-white sm:min-h-0 sm:min-w-0 sm:py-1"
+          >
+            {t("backToSurvey")}
           </Link>
           <div className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-white backdrop-blur sm:text-xs">
             <Sparkles className="h-3.5 w-3.5 text-amber-200/90" aria-hidden />
@@ -92,8 +93,10 @@ export default function SurveyCompletePage() {
               <button
                 type="button"
                 aria-expanded={showToken}
+                id="survey-complete-token"
+                aria-controls="survey-complete-token-panel"
                 onClick={() => setShowToken((v) => !v)}
-                className="flex w-full min-h-[40px] items-center justify-between px-5 py-2.5 text-left text-xs font-medium text-slate-500 transition-colors hover:bg-slate-100/60 hover:text-slate-700 sm:px-6"
+                className="flex w-full min-h-[44px] items-center justify-between px-5 py-2.5 text-left text-xs font-medium text-slate-500 transition-colors hover:bg-slate-100/60 hover:text-slate-700 sm:min-h-10 sm:px-6"
               >
                 <span>{t("resumeTokenSaved")}</span>
                 {showToken ? (
@@ -104,7 +107,12 @@ export default function SurveyCompletePage() {
               </button>
 
               {showToken && (
-                <div className="border-t border-slate-100/80 px-5 pb-4 pt-2 sm:px-6">
+                <div
+                  id="survey-complete-token-panel"
+                  role="region"
+                  aria-labelledby="survey-complete-token"
+                  className="border-t border-slate-100/80 px-5 pb-4 pt-2 sm:px-6"
+                >
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                     <code className="min-h-[44px] flex-1 rounded-lg border border-slate-200 bg-white px-2.5 py-2 font-mono text-xs text-slate-600 sm:min-h-0 sm:py-1.5">
                       {resumeToken}

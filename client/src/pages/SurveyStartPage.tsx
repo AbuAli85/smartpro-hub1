@@ -82,16 +82,14 @@ export default function SurveyStartPage() {
 
   return (
     <div
-      className="min-h-screen bg-gradient-to-br from-slate-950 via-indigo-950 to-slate-900 text-slate-50"
+      className="min-h-screen bg-gradient-to-br from-slate-950 via-indigo-950 to-slate-900 pb-[env(safe-area-inset-bottom)] text-slate-50"
       dir={isRtl ? "rtl" : "ltr"}
     >
       {/* Minimal header */}
-      <header className="sticky top-0 z-10 border-b border-white/10 bg-black/25 backdrop-blur-md">
+      <header className="sticky top-0 z-10 border-b border-white/10 bg-black/25 pt-[env(safe-area-inset-top)] backdrop-blur-md">
         <div className="mx-auto flex max-w-2xl items-center justify-between px-4 py-3 sm:px-5">
-          <Link href="/">
-            <span className="text-sm font-medium text-white/70 hover:text-white transition-colors">
-              {t("backToHome")}
-            </span>
+          <Link href="/" className="-m-1 inline-flex min-h-[44px] min-w-[44px] items-center rounded-md px-1 py-2 text-sm font-medium text-white/75 transition-colors hover:text-white sm:min-h-0 sm:min-w-0 sm:py-1">
+            {t("backToHome")}
           </Link>
           <Badge
             variant="secondary"
@@ -212,8 +210,10 @@ export default function SurveyStartPage() {
                   <button
                     type="button"
                     aria-expanded={showDetails}
+                    id="survey-start-details"
+                    aria-controls="survey-start-details-panel"
                     onClick={() => setShowDetails((v) => !v)}
-                    className="flex w-full min-h-[40px] items-center justify-between px-4 py-2 text-left text-xs font-medium text-slate-500 transition-colors hover:bg-slate-100/80 hover:text-slate-700 sm:px-6"
+                    className="flex w-full min-h-[44px] items-center justify-between px-4 py-2 text-left text-xs font-medium text-slate-500 transition-colors hover:bg-slate-100/80 hover:text-slate-700 sm:min-h-10 sm:px-6"
                   >
                     <span>{showDetails ? t("hideDetails") : t("addDetails")}</span>
                     {showDetails ? (
@@ -224,7 +224,12 @@ export default function SurveyStartPage() {
                   </button>
 
                   {showDetails && (
-                    <div className="border-t border-slate-100/80 px-4 pb-3 pt-1 sm:px-6">
+                    <div
+                      id="survey-start-details-panel"
+                      role="region"
+                      aria-labelledby="survey-start-details"
+                      className="border-t border-slate-100/80 px-4 pb-3 pt-1 sm:px-6"
+                    >
                       <div className="grid gap-2 sm:grid-cols-3">
                         <Input
                           value={respondentName}
@@ -259,8 +264,10 @@ export default function SurveyStartPage() {
                   <button
                     type="button"
                     aria-expanded={showResume}
+                    id="survey-start-resume"
+                    aria-controls="survey-start-resume-panel"
                     onClick={() => setShowResume((v) => !v)}
-                    className="flex w-full min-h-[36px] items-center justify-between px-4 py-1.5 text-left text-[11px] text-slate-400 transition-colors hover:bg-slate-100/60 hover:text-slate-600 sm:px-6"
+                    className="flex w-full min-h-[44px] items-center justify-between px-4 py-2 text-left text-[11px] text-slate-400 transition-colors hover:bg-slate-100/60 hover:text-slate-600 sm:min-h-9 sm:px-6 sm:py-1.5"
                   >
                     <span>{t("resumePrompt")}</span>
                     {showResume ? (
@@ -271,7 +278,12 @@ export default function SurveyStartPage() {
                   </button>
 
                   {showResume && (
-                    <div className="flex flex-col gap-2 border-t border-slate-100/80 px-4 pb-3 pt-2 sm:flex-row sm:items-center sm:px-6">
+                    <div
+                      id="survey-start-resume-panel"
+                      role="region"
+                      aria-labelledby="survey-start-resume"
+                      className="flex flex-col gap-2 border-t border-slate-100/80 px-4 pb-3 pt-2 sm:flex-row sm:items-center sm:px-6"
+                    >
                       <Input
                         value={resumeTokenInput}
                         onChange={(e) => setResumeTokenInput(e.target.value)}

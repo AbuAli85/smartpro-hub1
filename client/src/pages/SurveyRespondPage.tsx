@@ -490,7 +490,7 @@ export default function SurveyRespondPage() {
   return (
     <div className="min-h-screen bg-slate-50 pb-[env(safe-area-inset-bottom)]" dir={isAr ? "rtl" : "ltr"}>
       {/* Integrated branded shell header — matches landing gradient family */}
-      <div className="bg-gradient-to-r from-indigo-600 via-violet-600 to-indigo-700 shadow-md">
+      <div className="bg-gradient-to-r from-indigo-600 via-violet-600 to-indigo-700 pt-[env(safe-area-inset-top)] shadow-md">
         {/* Title row */}
         <div className="mx-auto max-w-2xl px-4 pt-3 pb-1.5 sm:px-5 sm:pt-3.5">
           <div className="flex items-center justify-between gap-2 sm:gap-3">
@@ -511,11 +511,11 @@ export default function SurveyRespondPage() {
 
         {/* Progress row */}
         <div className="mx-auto max-w-2xl px-4 pb-3.5 sm:px-5 sm:pb-4">
-          <div className="mb-2 flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
-            <span className="min-w-0 text-[12px] font-medium leading-snug text-white/95 sm:text-[13px]">
+          <div className="mb-2 flex flex-col gap-1.5 sm:flex-row sm:items-baseline sm:justify-between sm:gap-3">
+            <span className="min-w-0 text-[12px] font-medium leading-snug text-white sm:text-[13px]">
               {sectionTitle}
             </span>
-            <span className="shrink-0 text-[11px] tabular-nums text-white/80 sm:text-xs sm:text-white/85">
+            <span className="shrink-0 text-[11px] tabular-nums text-white/90 sm:text-xs">
               {t("progress", { current: currentSectionIndex + 1, total: sections.length })} · {pct}%
             </span>
           </div>
@@ -578,7 +578,7 @@ export default function SurveyRespondPage() {
         </Card>
 
         {/* Navigation — row; primary actions grouped and right-aligned */}
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-3">
           <Button
             type="button"
             variant="ghost"

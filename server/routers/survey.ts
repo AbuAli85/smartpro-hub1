@@ -286,7 +286,7 @@ export const surveyRouter = router({
       if (!q) return null;
       const a = answerMap.get(q.id);
       if (!a) return null;
-      if (a.selectedOptions?.length) {
+      if (Array.isArray(a.selectedOptions) && a.selectedOptions.length > 0) {
         const opt = optMap.get(a.selectedOptions[0]);
         if (opt) return opt.labelEn;
       }
@@ -420,6 +420,75 @@ export const surveyRouter = router({
   adminGetAnalytics: surveyAdminProcedure.query(async () => {
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+
+    // Self-heal: backfill completed responses that have null company fields
+    const stale = await db
+      .select({ id: surveyResponses.id, surveyId: surveyResponses.surveyId })
+      .from(surveyResponses)
+      .where(
+        and(
+          eq(surveyResponses.status, "completed"),
+          sql`${surveyResponses.companySector} IS NULL`,
+        ),
+      );
+
+    if (stale.length > 0) {
+      const surveyId = stale[0].surveyId;
+      const secs = await db.select().from(surveySections).where(eq(surveySections.surveyId, surveyId));
+      const secIds = secs.map((s) => s.id);
+
+      if (secIds.length > 0) {
+        const qs = await db
+          .select()
+          .from(surveyQuestions)
+          .where(sql`${surveyQuestions.sectionId} IN (${sql.join(secIds.map((id) => sql`${id}`), sql`, `)})`);
+        const qIds = qs.map((q) => q.id);
+        const opts =
+          qIds.length > 0
+            ? await db
+                .select()
+                .from(surveyOptions)
+                .where(sql`${surveyOptions.questionId} IN (${sql.join(qIds.map((id) => sql`${id}`), sql`, `)})`)
+            : [];
+
+        const qByKey = new Map(qs.map((q) => [q.questionKey, q]));
+        const optById = new Map(opts.map((o) => [o.id, o]));
+
+        for (const resp of stale) {
+          const ans = await db.select().from(surveyAnswers).where(eq(surveyAnswers.responseId, resp.id));
+          const aMap = new Map(ans.map((a) => [a.questionId, a]));
+
+          const resolve = (key: string): string | null => {
+            const q = qByKey.get(key);
+            if (!q) return null;
+            const a = aMap.get(q.id);
+            if (!a) return null;
+            if (Array.isArray(a.selectedOptions) && a.selectedOptions.length > 0) {
+              const opt = optById.get(a.selectedOptions[0]);
+              if (opt) return opt.labelEn;
+            }
+            return a.answerValue?.trim() || null;
+          };
+
+          const sector = resolve("cp_sector");
+          const size = resolve("cp_size");
+          const gov = resolve("cp_governorate");
+          const name = resolve("cp_company_name");
+
+          if (sector || size || gov || name) {
+            await db
+              .update(surveyResponses)
+              .set({
+                ...(sector ? { companySector: sector } : {}),
+                ...(size ? { companySize: size } : {}),
+                ...(gov ? { companyGovernorate: gov } : {}),
+                ...(name ? { companyName: name } : {}),
+              })
+              .where(eq(surveyResponses.id, resp.id));
+          }
+        }
+      }
+    }
 
     const [totalResp] = await db
       .select({ count: sql<number>`count(*)` })

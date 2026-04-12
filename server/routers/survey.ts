@@ -275,16 +275,32 @@ export const surveyRouter = router({
       })),
     );
 
+    const qByKey = new Map(allQuestions.map((q) => [q.questionKey, q]));
+    const answerMap = new Map(answers.map((a) => [a.questionId, a]));
+    const optMap = new Map(allOptions.map((o) => [o.id, o]));
+
+    function resolveField(key: string): string | null {
+      const q = qByKey.get(key);
+      if (!q) return null;
+      const a = answerMap.get(q.id);
+      if (!a) return null;
+      if (a.selectedOptions?.length) {
+        const opt = optMap.get(a.selectedOptions[0]);
+        if (opt) return opt.labelEn;
+      }
+      return a.answerValue?.trim() || null;
+    }
+
     await db
       .update(surveyResponses)
       .set({
         status: "completed",
         completedAt: new Date(),
         scores,
-        companyName: input.companyName ?? response.companyName,
-        companySector: input.companySector ?? response.companySector,
-        companySize: input.companySize ?? response.companySize,
-        companyGovernorate: input.companyGovernorate ?? response.companyGovernorate,
+        companyName: input.companyName ?? resolveField("cp_company_name") ?? response.companyName,
+        companySector: input.companySector ?? resolveField("cp_sector") ?? response.companySector,
+        companySize: input.companySize ?? resolveField("cp_size") ?? response.companySize,
+        companyGovernorate: input.companyGovernorate ?? resolveField("cp_governorate") ?? response.companyGovernorate,
       })
       .where(eq(surveyResponses.id, response.id));
 

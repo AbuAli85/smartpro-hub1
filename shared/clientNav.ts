@@ -16,6 +16,8 @@ export const PLATFORM_ONLY_HREFS = new Set<string>([
   "/audit-log",
   "/admin",
   "/user-roles",
+  "/survey/admin/responses",
+  "/survey/admin/analytics",
 ]);
 
 /** Owner-style configuration — company_admin only */

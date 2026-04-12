@@ -3524,3 +3524,194 @@ export const userOnboardingProgress = mysqlTable(
   ],
 );
 export type UserOnboardingProgress = typeof userOnboardingProgress.$inferSelect;
+
+// ─── Business Sector Survey ───────────────────────────────────────────────────
+
+export const surveys = mysqlTable(
+  "surveys",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    slug: varchar("slug", { length: 100 }).notNull().unique(),
+    titleEn: varchar("title_en", { length: 255 }).notNull(),
+    titleAr: varchar("title_ar", { length: 255 }).notNull(),
+    descriptionEn: text("description_en"),
+    descriptionAr: text("description_ar"),
+    status: mysqlEnum("status", ["draft", "active", "paused", "closed"])
+      .default("draft")
+      .notNull(),
+    welcomeMessageEn: text("welcome_message_en"),
+    welcomeMessageAr: text("welcome_message_ar"),
+    thankYouMessageEn: text("thank_you_message_en"),
+    thankYouMessageAr: text("thank_you_message_ar"),
+    allowAnonymous: boolean("allow_anonymous").default(true).notNull(),
+    estimatedMinutes: int("estimated_minutes").default(12).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow(),
+  },
+  (t) => [
+    index("idx_surveys_status").on(t.status),
+  ],
+);
+export type Survey = typeof surveys.$inferSelect;
+
+export const surveySections = mysqlTable(
+  "survey_sections",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    surveyId: int("survey_id")
+      .notNull()
+      .references(() => surveys.id, { onDelete: "cascade" }),
+    slug: varchar("slug", { length: 100 }).notNull(),
+    titleEn: varchar("title_en", { length: 255 }).notNull(),
+    titleAr: varchar("title_ar", { length: 255 }).notNull(),
+    descriptionEn: text("description_en"),
+    descriptionAr: text("description_ar"),
+    sortOrder: int("sort_order").notNull().default(0),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("idx_survey_sections_survey").on(t.surveyId),
+    unique("uq_survey_sections_survey_slug").on(t.surveyId, t.slug),
+  ],
+);
+export type SurveySection = typeof surveySections.$inferSelect;
+
+export const surveyQuestions = mysqlTable(
+  "survey_questions",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    sectionId: int("section_id")
+      .notNull()
+      .references(() => surveySections.id, { onDelete: "cascade" }),
+    questionKey: varchar("question_key", { length: 100 }).notNull(),
+    type: mysqlEnum("type", [
+      "text",
+      "textarea",
+      "single_choice",
+      "multi_choice",
+      "rating",
+      "number",
+      "dropdown",
+      "yes_no",
+    ]).notNull(),
+    labelEn: text("label_en").notNull(),
+    labelAr: text("label_ar").notNull(),
+    hintEn: text("hint_en"),
+    hintAr: text("hint_ar"),
+    isRequired: boolean("is_required").default(true).notNull(),
+    sortOrder: int("sort_order").notNull().default(0),
+    settings: json("settings").$type<Record<string, unknown>>(),
+    scoringRule: json("scoring_rule").$type<Record<string, unknown>>(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("idx_survey_questions_section").on(t.sectionId),
+  ],
+);
+export type SurveyQuestion = typeof surveyQuestions.$inferSelect;
+
+export const surveyOptions = mysqlTable(
+  "survey_options",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    questionId: int("question_id")
+      .notNull()
+      .references(() => surveyQuestions.id, { onDelete: "cascade" }),
+    value: varchar("value", { length: 100 }).notNull(),
+    labelEn: varchar("label_en", { length: 500 }).notNull(),
+    labelAr: varchar("label_ar", { length: 500 }).notNull(),
+    score: int("score").default(0).notNull(),
+    sortOrder: int("sort_order").notNull().default(0),
+    tags: json("tags").$type<string[]>(),
+  },
+  (t) => [
+    index("idx_survey_options_question").on(t.questionId),
+  ],
+);
+export type SurveyOption = typeof surveyOptions.$inferSelect;
+
+export const surveyTags = mysqlTable(
+  "survey_tags",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    slug: varchar("slug", { length: 100 }).notNull().unique(),
+    labelEn: varchar("label_en", { length: 255 }).notNull(),
+    labelAr: varchar("label_ar", { length: 255 }).notNull(),
+    category: varchar("category", { length: 64 }).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+);
+export type SurveyTag = typeof surveyTags.$inferSelect;
+
+export const surveyResponses = mysqlTable(
+  "survey_responses",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    surveyId: int("survey_id")
+      .notNull()
+      .references(() => surveys.id, { onDelete: "cascade" }),
+    resumeToken: varchar("resume_token", { length: 64 }).notNull().unique(),
+    language: mysqlEnum("language", ["en", "ar"]).default("en").notNull(),
+    status: mysqlEnum("status", ["in_progress", "completed", "abandoned"])
+      .default("in_progress")
+      .notNull(),
+    currentSectionId: int("current_section_id"),
+    respondentName: varchar("respondent_name", { length: 255 }),
+    respondentEmail: varchar("respondent_email", { length: 320 }),
+    respondentPhone: varchar("respondent_phone", { length: 32 }),
+    companyName: varchar("company_name", { length: 255 }),
+    companySector: varchar("company_sector", { length: 128 }),
+    companySize: varchar("company_size", { length: 64 }),
+    companyGovernorate: varchar("company_governorate", { length: 128 }),
+    scores: json("scores").$type<Record<string, number>>(),
+    completedAt: timestamp("completed_at"),
+    startedAt: timestamp("started_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow(),
+  },
+  (t) => [
+    index("idx_survey_responses_survey").on(t.surveyId),
+    index("idx_survey_responses_status").on(t.status),
+  ],
+);
+export type SurveyResponse = typeof surveyResponses.$inferSelect;
+
+export const surveyAnswers = mysqlTable(
+  "survey_answers",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    responseId: int("response_id")
+      .notNull()
+      .references(() => surveyResponses.id, { onDelete: "cascade" }),
+    questionId: int("question_id")
+      .notNull()
+      .references(() => surveyQuestions.id, { onDelete: "cascade" }),
+    answerValue: text("answer_value"),
+    selectedOptions: json("selected_options").$type<number[]>(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow(),
+  },
+  (t) => [
+    unique("uq_survey_answers_response_question").on(t.responseId, t.questionId),
+    index("idx_survey_answers_response").on(t.responseId),
+  ],
+);
+export type SurveyAnswer = typeof surveyAnswers.$inferSelect;
+
+export const surveyResponseTags = mysqlTable(
+  "survey_response_tags",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    responseId: int("response_id")
+      .notNull()
+      .references(() => surveyResponses.id, { onDelete: "cascade" }),
+    tagId: int("tag_id")
+      .notNull()
+      .references(() => surveyTags.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    unique("uq_survey_response_tags").on(t.responseId, t.tagId),
+    index("idx_survey_response_tags_response").on(t.responseId),
+  ],
+);
+export type SurveyResponseTag = typeof surveyResponseTags.$inferSelect;

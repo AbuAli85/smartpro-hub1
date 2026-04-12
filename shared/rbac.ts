@@ -65,6 +65,19 @@ export function mapMemberRoleToPlatformRole(
 }
 
 /**
+ * Users who may access survey admin (response list, detail, analytics).
+ * Platform operators + regional_manager + client_services.
+ */
+export function canAccessSurveyAdmin(user: {
+  role?: string | null;
+  platformRole?: string | null;
+}): boolean {
+  if (canAccessGlobalAdminProcedures(user)) return true;
+  const pr = user.platformRole;
+  return pr === "regional_manager" || pr === "client_services" || pr === "company_admin";
+}
+
+/**
  * Returns true when the user's company membership role is external_auditor.
  * Call this with the membership row, not the platform-level user object.
  */

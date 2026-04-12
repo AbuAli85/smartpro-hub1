@@ -92,6 +92,14 @@ const MODULES = [
     desc: "Dashboards, expiry alerts, officer payouts, workforce analytics, and exportable compliance reports.",
     tag: "Insights",
   },
+  {
+    icon: <ClipboardList size={24} />,
+    color: "bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-200",
+    title: "Business Sector Survey",
+    desc: "Oman-specific survey to capture sector pain points, digital maturity, staffing needs, and compliance burden.",
+    tag: "Survey",
+    href: "/survey",
+  },
 ];
 
 const CAPABILITY_GROUPS = [

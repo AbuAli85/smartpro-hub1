@@ -51,6 +51,7 @@ import { contractManagementRouter } from "./routers/contractManagement";
 import { accountabilityPerformanceRouter } from "./routers/accountabilityPerformance";
 import { workspaceRouter } from "./routers/workspace";
 import { onboardingRouter } from "./routers/onboarding";
+import { surveyRouter } from "./routers/survey";
 
 export const appRouter = router({
   system: systemRouter,
@@ -126,6 +127,7 @@ export const appRouter = router({
   accountabilityPerformance: accountabilityPerformanceRouter,
   workspace: workspaceRouter,
   onboarding: onboardingRouter,
+  survey: surveyRouter,
 });
 
 export type AppRouter = typeof appRouter;

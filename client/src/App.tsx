@@ -110,6 +110,12 @@ import EmailPreviewPage from "./pages/EmailPreviewPage";
 import UserRolesPage from "./pages/UserRolesPage";
 import ExecutiveDashboardPage from "./pages/ExecutiveDashboardPage";
 import ControlTowerPage from "./pages/ControlTowerPage";
+import SurveyStartPage from "./pages/SurveyStartPage";
+import SurveyRespondPage from "./pages/SurveyRespondPage";
+import SurveyCompletePage from "./pages/SurveyCompletePage";
+import SurveyAdminResponsesPage from "./pages/SurveyAdminResponsesPage";
+import SurveyAdminResponseDetailPage from "./pages/SurveyAdminResponseDetailPage";
+import SurveyAdminAnalyticsPage from "./pages/SurveyAdminAnalyticsPage";
 function PublicRoutes() {
   return (
     <Switch>
@@ -117,6 +123,10 @@ function PublicRoutes() {
       <Route path="/contracts/:id/sign" component={ContractSignPage} />
       <Route path="/attend/:token" component={AttendCheckInPage} />
       <Route path="/sanad/join" component={SanadJoinInvitePage} />
+      {/* ── Business Sector Survey (public) ────────────────────────────── */}
+      <Route path="/survey/:slug/complete" component={SurveyCompletePage} />
+      <Route path="/survey/:slug" component={SurveyRespondPage} />
+      <Route path="/survey" component={SurveyStartPage} />
       <Route path="/" component={Home} />
       <Route component={AppRoutes} />
     </Switch>
@@ -234,6 +244,10 @@ function AppRoutes() {
         <Route path="/onboarding-guide" component={OnboardingGuidePage} />
         <Route path="/invite/:token" component={AcceptInvitePage} />
         <Route path="/sanad/centre/:id" component={SanadCentreProfilePage} />
+        {/* ── Business Sector Survey (admin) ───────────────────────────── */}
+        <Route path="/survey/admin/responses/:id" component={SurveyAdminResponseDetailPage} />
+        <Route path="/survey/admin/responses" component={SurveyAdminResponsesPage} />
+        <Route path="/survey/admin/analytics" component={SurveyAdminAnalyticsPage} />
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />
       </Switch>

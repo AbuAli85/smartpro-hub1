@@ -19,6 +19,10 @@ export type LetterFieldPayload = {
   effectiveDate?: string;
   bankName?: string;
   destination?: string;
+  /** NOC: institution or authority (e.g. Embassy of …). */
+  destinationInstitution?: string;
+  /** NOC: concrete purpose (visa processing, bank submission, etc.) — not the letter type name. */
+  purposeOfIssuance?: string;
   validityUntil?: string;
   previousTitle?: string;
   newTitle?: string;

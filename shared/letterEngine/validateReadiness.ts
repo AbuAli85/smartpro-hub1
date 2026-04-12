@@ -1,4 +1,5 @@
 import { HR_LETTERS, memberHasHrLetterPermission } from "../hrLetterPermissions";
+import { isPlaceholderNocPurpose } from "./displayFormat";
 import { isSensitiveLetter } from "./meta";
 import type { LetterFieldPayload, LetterLanguageMode, OfficialLetterType } from "./types";
 
@@ -82,13 +83,18 @@ export function validateLetterReadiness(input: ReadinessInput): { ok: boolean; m
     case "employment_verification":
       if (forOfficialIssue && !employee.hireDate) missing.push("Employee hire date");
       break;
-    case "noc":
+    case "noc": {
       if (forOfficialIssue) {
-        if (!purpose.trim()) missing.push("Purpose of certificate");
-        if (!nonEmpty(fields.destination)) missing.push("Destination / purpose detail");
+        const pis = (fields.purposeOfIssuance?.trim() || purpose.trim());
+        if (!pis || isPlaceholderNocPurpose(pis)) {
+          missing.push("Purpose of issuance (e.g. visa processing, embassy submission)");
+        }
+        const dest = fields.destination?.trim() || fields.destinationInstitution?.trim();
+        if (!nonEmpty(dest)) missing.push("Destination / institution");
         if (!nonEmpty(fields.validityUntil)) missing.push("Validity period end date");
       }
       break;
+    }
     case "experience_letter": {
       if (forOfficialIssue) {
         if (!employee.hireDate) missing.push("Employment start date");

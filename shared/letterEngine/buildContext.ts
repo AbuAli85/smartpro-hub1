@@ -1,4 +1,5 @@
 import type { LetterFieldPayload, LetterLanguageMode, OfficialLetterType } from "./types";
+import { formatEnglishPersonName, formatEnglishProperName, formatEnglishTitleLine } from "./displayFormat";
 
 /** Runtime values used to fill approved templates (all strings escaped at render time). */
 export type LetterRenderContext = {
@@ -85,11 +86,23 @@ export function buildLetterRenderContext(params: {
   additionalNotes: string;
   fields: LetterFieldPayload;
 }): LetterRenderContext {
-  const { company, employee, signatory, issueDate, refNo, fields, letterType, language } = params;
+  const { company, employee, signatory, issueDate, refNo, letterType, language } = params;
+  const mergedFields: LetterFieldPayload = { ...params.fields };
+  if (letterType === "noc") {
+    const dest =
+      mergedFields.destination?.trim() ||
+      mergedFields.destinationInstitution?.trim() ||
+      "";
+    if (dest) mergedFields.destination = dest;
+  }
+  const mergedPurpose =
+    letterType === "noc"
+      ? (mergedFields.purposeOfIssuance?.trim() || params.purpose.trim())
+      : params.purpose.trim();
   const companyNameEn = company.name?.trim() || "";
   const companyNameAr = (company.nameAr ?? "").trim() || companyNameEn;
   const addressEn = [company.address, company.city].filter(Boolean).join(", ") || "";
-  const empEn = `${employee.firstName} ${employee.lastName}`.trim();
+  const empEn = formatEnglishPersonName(employee.firstName, employee.lastName);
   const empAr =
     employee.firstNameAr && employee.lastNameAr
       ? `${employee.firstNameAr} ${employee.lastNameAr}`.trim()
@@ -118,8 +131,8 @@ export function buildLetterRenderContext(params: {
     email: (company.email ?? "").trim(),
     employeeNameEn: empEn,
     employeeNameAr: empAr,
-    position: (employee.position ?? "").trim() || "—",
-    department: (employee.department ?? "").trim() || "—",
+    position: formatEnglishTitleLine((employee.position ?? "").trim()) || "—",
+    department: formatEnglishTitleLine((employee.department ?? "").trim()) || "—",
     salaryFormatted,
     currency: employee.currency ?? "OMR",
     hireDateEn: hd ? fmtDateEn(hd) : "—",
@@ -128,12 +141,12 @@ export function buildLetterRenderContext(params: {
     passportNumber: (employee.passportNumber ?? "").trim(),
     employmentStatus: employee.status ?? "active",
     issuedTo: params.issuedTo.trim(),
-    purpose: params.purpose.trim(),
+    purpose: mergedPurpose,
     additionalNotes: params.additionalNotes.trim(),
-    signatoryNameEn: signatory?.nameEn?.trim() ?? "",
-    signatoryNameAr: (signatory?.nameAr ?? "").trim() || signatory?.nameEn?.trim() || "",
-    signatoryTitleEn: signatory?.titleEn?.trim() ?? "",
-    signatoryTitleAr: (signatory?.titleAr ?? "").trim() || signatory?.titleEn?.trim() || "",
-    fields: { ...fields },
+    signatoryNameEn: signatory ? formatEnglishProperName(signatory.nameEn) : "",
+    signatoryNameAr: (signatory?.nameAr ?? "").trim() || (signatory ? formatEnglishProperName(signatory.nameEn) : ""),
+    signatoryTitleEn: signatory ? formatEnglishTitleLine(signatory.titleEn) : "",
+    signatoryTitleAr: (signatory?.titleAr ?? "").trim() || (signatory ? formatEnglishTitleLine(signatory.titleEn) : ""),
+    fields: mergedFields,
   };
 }

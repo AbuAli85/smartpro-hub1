@@ -1,5 +1,6 @@
 import { LETTER_TEMPLATE_META } from "./meta";
 import type { LetterRenderContext } from "./buildContext";
+import { formatEnglishTitleLine } from "./displayFormat";
 import type { LetterLanguageMode } from "./types";
 
 function esc(s: string): string {
@@ -10,8 +11,22 @@ function esc(s: string): string {
     .replace(/"/g, "&quot;");
 }
 
+function addresseeEn(ctx: LetterRenderContext): string {
+  const t = ctx.issuedTo.trim();
+  if (!t || /^to whom it may concern$/i.test(t)) return "To Whom It May Concern";
+  return t;
+}
+
+/** Arabic block: never show English “To Whom It May Concern”. */
+function addresseeAr(ctx: LetterRenderContext): string {
+  const t = ctx.issuedTo.trim();
+  if (!t || /^to whom it may concern$/i.test(t)) return "إلى من يهمه الأمر";
+  if (/[\u0600-\u06FF]/.test(t)) return t;
+  return t;
+}
+
 function metaBlockEn(ctx: LetterRenderContext, subject: string): string {
-  const addressee = ctx.issuedTo.trim() || "To Whom It May Concern";
+  const addressee = addresseeEn(ctx);
   return `
 <p style="text-align:right"><strong>${esc(ctx.referenceLabelEn)}</strong></p>
 <p style="text-align:right">${esc(ctx.dateLineEn)}</p>
@@ -21,7 +36,7 @@ function metaBlockEn(ctx: LetterRenderContext, subject: string): string {
 }
 
 function metaBlockAr(ctx: LetterRenderContext, subjectAr: string): string {
-  const addressee = ctx.issuedTo.trim() || "إلى من يهمه الأمر";
+  const addressee = addresseeAr(ctx);
   return `
 <p dir="rtl" style="text-align:right"><strong>${esc(ctx.referenceLabelAr)}</strong></p>
 <p dir="rtl" style="text-align:right">${esc(ctx.dateLineAr)}</p>
@@ -46,6 +61,16 @@ function signatoryAr(ctx: LetterRenderContext): string {
 
 function f(d?: string): string {
   return d?.trim() ? esc(d.trim()) : "—";
+}
+
+function ft(d?: string): string {
+  return d?.trim() ? esc(formatEnglishTitleLine(d.trim())) : "—";
+}
+
+function employeeHonorificEn(displayName: string): string {
+  const n = displayName.trim();
+  if (/^(mr|mrs|ms|miss|dr|prof)\b/i.test(n)) return "";
+  return "Mr./Ms. ";
 }
 
 export function renderOfficialLetter(ctx: LetterRenderContext): {
@@ -129,19 +154,29 @@ ${signatoryAr(ctx)}
 }
 
 function renderNoc(ctx: LetterRenderContext, subjectEn: string, subjectAr: string) {
-  const dest = f(ctx.fields.destination);
+  const destRaw =
+    ctx.fields.destination?.trim() ||
+    ctx.fields.destinationInstitution?.trim() ||
+    "";
+  const dest = destRaw ? esc(destRaw) : "—";
   const until = f(ctx.fields.validityUntil);
+  const purposeLine = esc(ctx.purpose.trim() || "—");
+  const hon = employeeHonorificEn(ctx.employeeNameEn);
+  const destClause =
+    destRaw.trim().length > 0 ? ` in connection with <strong>${dest}</strong>` : "";
   const bodyEn = `
 ${metaBlockEn(ctx, subjectEn)}
 <p>Dear Sir/Madam,</p>
-<p>This is to confirm that <strong>${esc(ctx.companyNameEn)}</strong> has no objection to <strong>${esc(ctx.employeeNameEn)}</strong> undertaking the following purpose: <strong>${esc(ctx.purpose)}</strong>, in relation to: <strong>${dest}</strong>.</p>
-<p>This certificate is valid, unless revoked in writing, until <strong>${until}</strong>. The company expects the employee to comply with all applicable laws and internal policies.</p>
+<p>This is to certify that <strong>${esc(ctx.companyNameEn)}</strong> has no objection to <strong>${esc(hon + ctx.employeeNameEn)}</strong> for the purpose of <strong>${purposeLine}</strong>${destClause}.</p>
+<p>This certificate is issued at the employee’s request. It remains valid until <strong>${until}</strong>, unless revoked in writing earlier. The employee is expected to comply with all applicable laws and company policies.</p>
 ${signatoryEn(ctx)}
 `.trim();
+  const destAr = destRaw ? esc(destRaw) : "—";
   const bodyAr = `
 ${metaBlockAr(ctx, subjectAr)}
-<p dir="rtl">نؤكد أن <strong>${esc(ctx.companyNameAr)}</strong> لا تمانع من قيام <strong>${esc(ctx.employeeNameAr)}</strong> بـ<strong>${esc(ctx.purpose)}</strong> فيما يتعلق بـ <strong>${dest}</strong>.</p>
-<p dir="rtl">تُعد هذه الشهادة سارية مالم يُلغَ خطياً حتى تاريخ <strong>${until}</strong>، ويُتوقع من الموظف الالتزام بالأنظمة المعمول بها.</p>
+<p dir="rtl">السلام عليكم ورحمة الله وبركاته،</p>
+<p dir="rtl">نشهد بموجب هذا أن <strong>${esc(ctx.companyNameAr)}</strong> لا تمانع لموظفها <strong>${esc(ctx.employeeNameAr)}</strong> لغرض <strong>${purposeLine}</strong>، وذلك فيما يتعلق بـ <strong>${destAr}</strong>.</p>
+<p dir="rtl">وقد أُصدرت هذه الشهادة بناءً على طلب الموظف لتقديمها إلى الجهة المعنية، وتظل سارية حتى تاريخ <strong>${until}</strong> ما لم يُلغَ خطياً. ويُتوقع من الموظف الالتزام بالأنظمة واللوائح المعمول بها.</p>
 ${signatoryAr(ctx)}
 `.trim();
   return { subject: pickSubject(ctx.language, subjectEn, subjectAr), bodyEn, bodyAr };
@@ -173,7 +208,7 @@ function renderPromotion(ctx: LetterRenderContext, subjectEn: string, subjectAr:
   const bodyEn = `
 ${metaBlockEn(ctx, subjectEn)}
 <p>Dear <strong>${esc(ctx.employeeNameEn)}</strong>,</p>
-<p>Further to internal approval reference <strong>${f(ctx.fields.approvalReference)}</strong>, you are hereby notified of your promotion from <strong>${f(ctx.fields.previousTitle)}</strong> to <strong>${f(ctx.fields.newTitle)}</strong>, effective <strong>${f(ctx.fields.promotionEffectiveDate)}</strong>.</p>
+<p>Further to internal approval reference <strong>${f(ctx.fields.approvalReference)}</strong>, you are hereby notified of your promotion from <strong>${ft(ctx.fields.previousTitle)}</strong> to <strong>${ft(ctx.fields.newTitle)}</strong>, effective <strong>${f(ctx.fields.promotionEffectiveDate)}</strong>.</p>
 <p>All other terms and conditions remain subject to your employment contract and company policies.</p>
 ${signatoryEn(ctx)}
 `.trim();

@@ -54,6 +54,14 @@ function parseFieldPayload(raw: unknown): LetterFieldPayload {
   return o as LetterFieldPayload;
 }
 
+/** NOC purpose lives in fieldPayload.purposeOfIssuance; merge for validation and storage. */
+function mergeLetterPurpose(letterType: OfficialLetterType, purpose: string | undefined, fields: LetterFieldPayload): string {
+  if (letterType === "noc") {
+    return (fields.purposeOfIssuance?.trim() || purpose?.trim() || "");
+  }
+  return purpose ?? "";
+}
+
 const letterTypeEnum = z.enum([
   "salary_certificate",
   "employment_verification",
@@ -163,6 +171,7 @@ export const hrLettersRouter = router({
       }
       const fields = parseFieldPayload(input.fieldPayload);
       if (input.recipientPreset) fields.recipientPreset = input.recipientPreset;
+      const purposeMerged = mergeLetterPurpose(input.letterType as OfficialLetterType, input.purpose, fields);
       let issuedTo = input.issuedTo?.trim() ?? "";
       if (input.recipientPreset === "twimc") issuedTo = "To Whom It May Concern";
       const issueDate = fields.issueDate?.trim() ? new Date(fields.issueDate) : new Date();
@@ -182,7 +191,7 @@ export const hrLettersRouter = router({
         language: input.language,
         fields,
         issuedTo,
-        purpose: input.purpose ?? "",
+        purpose: purposeMerged,
         company: {
           name: company.name,
           nameAr: company.nameAr,
@@ -232,6 +241,7 @@ export const hrLettersRouter = router({
         .limit(1);
       const fields = parseFieldPayload(input.fieldPayload);
       if (input.recipientPreset) fields.recipientPreset = input.recipientPreset;
+      const purposeMerged = mergeLetterPurpose(input.letterType as OfficialLetterType, input.purpose, fields);
       let issuedTo = input.issuedTo?.trim() ?? "";
       if (input.recipientPreset === "twimc") issuedTo = "To Whom It May Concern";
       const issueDate = fields.issueDate?.trim() ? new Date(fields.issueDate) : new Date();
@@ -249,7 +259,7 @@ export const hrLettersRouter = router({
         language: input.language,
         fields,
         issuedTo,
-        purpose: input.purpose ?? "",
+        purpose: purposeMerged,
         company: {
           name: company.name,
           nameAr: company.nameAr,
@@ -283,7 +293,7 @@ export const hrLettersRouter = router({
         employee,
         signatory,
         issuedTo,
-        purpose: input.purpose ?? "",
+        purpose: purposeMerged,
         additionalNotes: input.additionalNotes ?? "",
         fields,
       });
@@ -369,6 +379,7 @@ export const hrLettersRouter = router({
 
     const fields = parseFieldPayload(input.fieldPayload);
     if (input.recipientPreset) fields.recipientPreset = input.recipientPreset;
+    const purposeMerged = mergeLetterPurpose(input.letterType as OfficialLetterType, input.purpose, fields);
     let issuedTo = input.issuedTo?.trim() ?? "";
     if (input.recipientPreset === "twimc") issuedTo = "To Whom It May Concern";
     const issueDate = fields.issueDate?.trim() ? new Date(fields.issueDate) : new Date();
@@ -388,7 +399,7 @@ export const hrLettersRouter = router({
       language: input.language,
       fields,
       issuedTo,
-      purpose: input.purpose ?? "",
+      purpose: purposeMerged,
       company: {
         name: company.name,
         nameAr: company.nameAr,
@@ -429,7 +440,7 @@ export const hrLettersRouter = router({
       employee,
       signatory,
       issuedTo,
-      purpose: input.purpose ?? "",
+      purpose: purposeMerged,
       additionalNotes: input.additionalNotes ?? "",
       fields,
     });
@@ -464,7 +475,7 @@ export const hrLettersRouter = router({
       bodyEn,
       bodyAr,
       issuedTo: issuedTo || null,
-      purpose: input.purpose ?? null,
+      purpose: purposeMerged || null,
       additionalNotes: input.additionalNotes ?? null,
       fieldPayload: fields as unknown as Record<string, unknown>,
       dataSnapshot: dataSnapshot as unknown as Record<string, unknown>,
@@ -492,7 +503,7 @@ export const hrLettersRouter = router({
       bodyEn,
       bodyAr,
       issuedTo: issuedTo || null,
-      purpose: input.purpose ?? null,
+      purpose: purposeMerged || null,
       additionalNotes: input.additionalNotes ?? null,
       fieldPayload: fields as unknown as Record<string, unknown>,
       dataSnapshot: dataSnapshot as unknown as Record<string, unknown>,

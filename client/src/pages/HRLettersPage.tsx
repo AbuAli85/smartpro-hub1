@@ -23,6 +23,7 @@ import { toast } from "sonner";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { fmtDateLong } from "@/lib/dateUtils";
 import { cn } from "@/lib/utils";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 const LETTER_TYPES = [
   { value: "salary_certificate", labelEn: "Salary Certificate", labelAr: "شهادة راتب", icon: "💰", color: "bg-emerald-50 border-emerald-200 text-emerald-800" },
@@ -82,7 +83,7 @@ function LetterPreview({
             .company-meta { font-size: 9pt; color: #555; margin-top: 4px; }
             .letter-body p { margin: 8px 0; }
             .letter-ar { direction: rtl; text-align: right; font-family: "Arial", sans-serif; }
-            .divider { border-top: 1px solid #ccc; margin: 20px 0; }
+            .divider { border-top: 2px solid #1a365d; margin: 24px 0; padding-top: 8px; text-align: center; font-size: 9pt; color: #666; letter-spacing: 0.15em; text-transform: uppercase; }
             @media print { body { margin: 0; } }
           </style>
         </head>
@@ -154,7 +155,13 @@ function LetterPreview({
             {letter.bodyEn && (
               <div className="mb-8" dangerouslySetInnerHTML={{ __html: letter.bodyEn }} />
             )}
-            {letter.bodyEn && letter.bodyAr && <hr className="border-muted my-6" />}
+            {letter.bodyEn && letter.bodyAr && (
+              <div className="relative my-8 flex items-center gap-3 select-none" aria-hidden>
+                <div className="h-px flex-1 bg-gradient-to-r from-transparent via-border to-border" />
+                <span className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground font-medium">Arabic</span>
+                <div className="h-px flex-1 bg-gradient-to-r from-border via-border to-transparent" />
+              </div>
+            )}
             {letter.bodyAr && (
               <div
                 dir="rtl"
@@ -210,7 +217,8 @@ function DynamicFields({
     case "noc":
       return (
         <div className="space-y-3">
-          {row("Destination / detail *", "destination")}
+          {row("Purpose of issuance *", "purposeOfIssuance", "e.g. visa processing, bank account opening")}
+          {row("Destination / institution *", "destination")}
           {row("Validity until *", "validityUntil", "YYYY-MM-DD")}
         </div>
       );
@@ -310,6 +318,7 @@ export default function HRLettersPage() {
   const [signatoryId, setSignatoryId] = useState<number | null>(null);
   const [dynamicFields, setDynamicFields] = useState<Record<string, string>>({});
   const [generatedLetter, setGeneratedLetter] = useState<any | null>(null);
+  const [issuedSummary, setIssuedSummary] = useState<{ id: number; referenceNumber: string } | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [historySearch, setHistorySearch] = useState("");
   const [viewLetter, setViewLetter] = useState<any | null>(null);
@@ -327,6 +336,11 @@ export default function HRLettersPage() {
   const { data: signatories, refetch: refetchSignatories } = trpc.hrLetters.listSignatories.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
   const { data: templateMeta } = trpc.hrLetters.letterTemplateMeta.useQuery(undefined, { enabled: activeCompanyId != null });
 
+  const effectivePurpose = useMemo(() => {
+    if (selectedType === "noc") return (dynamicFields.purposeOfIssuance ?? "").trim();
+    return purpose.trim();
+  }, [selectedType, dynamicFields.purposeOfIssuance, purpose]);
+
   const fieldPayload = useMemo(() => {
     const base: Record<string, unknown> = { ...dynamicFields, issueDate };
     if (recipientPreset) base.recipientPreset = recipientPreset;
@@ -343,14 +357,14 @@ export default function HRLettersPage() {
       language,
       signatoryId,
       issuedTo: recipientPreset === "twimc" ? "To Whom It May Concern" : issuedTo,
-      purpose,
+      purpose: effectivePurpose,
       additionalNotes,
       fieldPayload,
       recipientPreset: recipientPreset || undefined,
       companyId: activeCompanyId,
       forOfficialIssue: true,
     };
-  }, [activeCompanyId, selectedType, selectedEmployeeId, signatoryId, language, issuedTo, purpose, additionalNotes, fieldPayload, recipientPreset]);
+  }, [activeCompanyId, selectedType, selectedEmployeeId, signatoryId, language, issuedTo, effectivePurpose, additionalNotes, fieldPayload, recipientPreset]);
 
   const { data: readiness } = trpc.hrLetters.validateReadiness.useQuery(readinessInput!, {
     enabled: readinessInput != null,
@@ -373,6 +387,10 @@ export default function HRLettersPage() {
   const generateMutation = trpc.hrLetters.generateLetter.useMutation({
     onSuccess: (data) => {
       setGeneratedLetter(data);
+      setIssuedSummary({
+        id: data.id,
+        referenceNumber: data.referenceNumber ?? "",
+      });
       setIsGenerating(false);
       refetchLetters();
       toast.success("Official letter issued and saved");
@@ -431,13 +449,14 @@ export default function HRLettersPage() {
     }
     setIsGenerating(true);
     setGeneratedLetter(null);
+    setIssuedSummary(null);
     generateMutation.mutate({
       employeeId: selectedEmployeeId,
       letterType: selectedType as any,
       language,
       signatoryId,
       issuedTo: recipientPreset === "twimc" ? "To Whom It May Concern" : issuedTo,
-      purpose: purpose || undefined,
+      purpose: effectivePurpose || undefined,
       additionalNotes: additionalNotes || undefined,
       fieldPayload,
       recipientPreset: recipientPreset || undefined,
@@ -505,8 +524,8 @@ export default function HRLettersPage() {
         </TabsList>
 
         <TabsContent value="generate" className="mt-4">
-          <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-            <div className="lg:col-span-2 space-y-5">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <div className="lg:col-span-5 space-y-5">
               <Card>
                 <CardHeader className="pb-3">
                   <CardTitle className="text-sm font-semibold flex items-center gap-2">
@@ -519,7 +538,7 @@ export default function HRLettersPage() {
                     <button
                       key={type.value}
                       type="button"
-                      onClick={() => { setSelectedType(type.value); setDynamicFields({}); }}
+                      onClick={() => { setSelectedType(type.value); setDynamicFields({}); setIssuedSummary(null); setGeneratedLetter(null); }}
                       className={cn(
                         "w-full text-left px-3 py-2.5 rounded-lg border transition-all text-sm",
                         selectedType === type.value
@@ -672,20 +691,31 @@ export default function HRLettersPage() {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Addressee</Label>
-                    <Input
-                      className="text-sm"
-                      value={issuedTo}
-                      onChange={(e) => setIssuedTo(e.target.value)}
-                      disabled={recipientPreset === "twimc"}
-                      placeholder={recipientPreset === "twimc" ? "To Whom It May Concern" : "Bank / authority / custom…"}
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Purpose</Label>
-                    <Input className="text-sm" value={purpose} onChange={(e) => setPurpose(e.target.value)} />
-                  </div>
+                  {recipientPreset === "twimc" ? (
+                    <Alert className="py-2">
+                      <AlertTitle className="text-sm">Addressee</AlertTitle>
+                      <AlertDescription className="text-xs">
+                        This letter will use the standard salutation <strong>To Whom It May Concern</strong> in English and
+                        <span dir="rtl"> إلى من يهمه الأمر</span> in Arabic.
+                      </AlertDescription>
+                    </Alert>
+                  ) : (
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Addressee</Label>
+                      <Input
+                        className="text-sm"
+                        value={issuedTo}
+                        onChange={(e) => setIssuedTo(e.target.value)}
+                        placeholder="Bank / authority / embassy name…"
+                      />
+                    </div>
+                  )}
+                  {selectedType !== "noc" && (
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Purpose</Label>
+                      <Input className="text-sm" value={purpose} onChange={(e) => setPurpose(e.target.value)} />
+                    </div>
+                  )}
                   <div className="space-y-1.5">
                     <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Additional notes</Label>
                     <Textarea className="text-sm resize-none" rows={2} value={additionalNotes} onChange={(e) => setAdditionalNotes(e.target.value)} />
@@ -725,6 +755,19 @@ export default function HRLettersPage() {
                       </div>
                     </div>
                   )}
+                  {issuedSummary && generatedLetter && (
+                    <div className="rounded-lg border border-emerald-200 bg-emerald-500/5 px-3 py-2.5 text-sm space-y-1">
+                      <div className="font-semibold text-emerald-900 dark:text-emerald-100 flex items-center gap-2">
+                        <CheckCircle2 size={16} className="shrink-0" />
+                        Letter issued successfully
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Reference <span className="font-mono font-semibold text-foreground">{issuedSummary.referenceNumber}</span>
+                        {" · "}
+                        Saved to the issuance log. Use Print or Copy below for this record.
+                      </p>
+                    </div>
+                  )}
                   <Button
                     className="w-full gap-2 h-11 text-base"
                     onClick={handleIssue}
@@ -740,7 +783,7 @@ export default function HRLettersPage() {
               </Card>
             </div>
 
-            <div className="lg:col-span-3 flex flex-col gap-3">
+            <div className="lg:col-span-7 flex flex-col gap-3 min-w-0">
               <div className="flex gap-2 border-b border-border pb-2">
                 <Button type="button" variant={previewTab === "preview" ? "secondary" : "ghost"} size="sm" onClick={() => setPreviewTab("preview")}>
                   Preview

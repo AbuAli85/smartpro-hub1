@@ -205,107 +205,85 @@ export default function SurveyStartPage() {
                 </p>
               </div>
 
-              {/* Optional details expansion */}
+              {/* Optional details — compact expandable */}
               <div className="border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setShowDetails((v) => !v)}
-                  className="flex w-full items-center justify-between px-6 py-3.5 text-sm font-medium text-slate-500 hover:text-slate-700 transition-colors"
+                  className="flex w-full items-center justify-between px-6 py-2.5 text-xs font-medium text-slate-400 hover:text-slate-600 transition-colors"
                 >
                   <span>{showDetails ? t("hideDetails") : t("addDetails")}</span>
                   {showDetails ? (
-                    <ChevronUp className="h-4 w-4" aria-hidden />
+                    <ChevronUp className="h-3.5 w-3.5" aria-hidden />
                   ) : (
-                    <ChevronDown className="h-4 w-4" aria-hidden />
+                    <ChevronDown className="h-3.5 w-3.5" aria-hidden />
                   )}
                 </button>
 
                 {showDetails && (
-                  <div className="border-t border-slate-50 px-6 pb-5 pt-3">
-                    <div className="grid gap-3 sm:grid-cols-3">
-                      <div className="space-y-1">
-                        <label className="text-xs font-medium text-slate-500">
-                          {t("yourName")}
-                        </label>
-                        <Input
-                          value={respondentName}
-                          onChange={(e) => setRespondentName(e.target.value)}
-                          placeholder={t("yourName")}
-                          autoComplete="name"
-                          className="h-9 text-sm"
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-xs font-medium text-slate-500">
-                          {t("yourEmail")}
-                        </label>
-                        <Input
-                          type="email"
-                          value={respondentEmail}
-                          onChange={(e) => setRespondentEmail(e.target.value)}
-                          placeholder={t("yourEmail")}
-                          autoComplete="email"
-                          className="h-9 text-sm"
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-xs font-medium text-slate-500">
-                          {t("yourPhone")}
-                        </label>
-                        <Input
-                          type="tel"
-                          value={respondentPhone}
-                          onChange={(e) => setRespondentPhone(e.target.value)}
-                          placeholder={t("yourPhone")}
-                          autoComplete="tel"
-                          className="h-9 text-sm"
-                        />
-                      </div>
+                  <div className="px-6 pb-3">
+                    <div className="grid gap-2 sm:grid-cols-3">
+                      <Input
+                        value={respondentName}
+                        onChange={(e) => setRespondentName(e.target.value)}
+                        placeholder={t("yourName")}
+                        autoComplete="name"
+                        className="h-8 text-xs"
+                      />
+                      <Input
+                        type="email"
+                        value={respondentEmail}
+                        onChange={(e) => setRespondentEmail(e.target.value)}
+                        placeholder={t("yourEmail")}
+                        autoComplete="email"
+                        className="h-8 text-xs"
+                      />
+                      <Input
+                        type="tel"
+                        value={respondentPhone}
+                        onChange={(e) => setRespondentPhone(e.target.value)}
+                        placeholder={t("yourPhone")}
+                        autoComplete="tel"
+                        className="h-8 text-xs"
+                      />
                     </div>
                   </div>
                 )}
               </div>
 
-              {/* Resume section — collapsed by default */}
-              <div className="border-t border-slate-100">
+              {/* Resume — ultra-compact, tertiary visual weight */}
+              <div className="border-t border-slate-50">
                 <button
                   type="button"
                   onClick={() => setShowResume((v) => !v)}
-                  className="flex w-full items-center justify-between px-6 py-3.5 text-sm text-slate-400 hover:text-slate-600 transition-colors"
+                  className="flex w-full items-center justify-between px-6 py-2 text-[11px] text-slate-400/80 hover:text-slate-500 transition-colors"
                 >
                   <span>{t("resumePrompt")}</span>
                   {showResume ? (
-                    <ChevronUp className="h-4 w-4" aria-hidden />
+                    <ChevronUp className="h-3 w-3" aria-hidden />
                   ) : (
-                    <ChevronDown className="h-4 w-4" aria-hidden />
+                    <ChevronDown className="h-3 w-3" aria-hidden />
                   )}
                 </button>
 
                 {showResume && (
-                  <div className="border-t border-slate-50 px-6 pb-5 pt-3">
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-                      <div className="flex-1 space-y-1">
-                        <label className="text-xs font-medium text-slate-500">
-                          {t("resumeTokenLabel")}
-                        </label>
-                        <Input
-                          value={resumeTokenInput}
-                          onChange={(e) => setResumeTokenInput(e.target.value)}
-                          placeholder={t("resumeTokenLabel")}
-                          autoComplete="off"
-                          className="h-9 font-mono text-sm"
-                        />
-                      </div>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={handleResume}
-                        className="shrink-0"
-                      >
-                        {t("resume")}
-                      </Button>
-                    </div>
+                  <div className="flex items-center gap-2 px-6 pb-3">
+                    <Input
+                      value={resumeTokenInput}
+                      onChange={(e) => setResumeTokenInput(e.target.value)}
+                      placeholder={t("resumeTokenLabel")}
+                      autoComplete="off"
+                      className="h-7 flex-1 font-mono text-xs"
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleResume}
+                      className="shrink-0 h-7 px-3 text-xs text-slate-500 hover:text-slate-700"
+                    >
+                      {t("resume")}
+                    </Button>
                   </div>
                 )}
               </div>

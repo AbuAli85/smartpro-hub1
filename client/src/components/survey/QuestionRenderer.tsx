@@ -69,14 +69,14 @@ export default function QuestionRenderer({
           value={answer.answerValue ?? ""}
           onChange={(e) => onChange({ ...answer, answerValue: e.target.value })}
           placeholder={t("typeAnswer")}
-          className="h-10"
+          className="h-10 rounded-xl"
         />
       )}
 
       {/* Textarea */}
       {question.type === "textarea" && (
         <textarea
-          className="flex min-h-[88px] w-full rounded-lg border border-input bg-transparent px-3 py-2.5 text-sm shadow-xs placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] outline-none disabled:opacity-50 transition-colors"
+          className="flex min-h-[88px] w-full rounded-xl border border-input bg-transparent px-3.5 py-2.5 text-sm shadow-xs placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] outline-none disabled:opacity-50 transition-colors"
           value={answer.answerValue ?? ""}
           onChange={(e) => onChange({ ...answer, answerValue: e.target.value })}
           placeholder={t("typeAnswer")}
@@ -91,7 +91,7 @@ export default function QuestionRenderer({
           value={answer.answerValue ?? ""}
           onChange={(e) => onChange({ ...answer, answerValue: e.target.value })}
           placeholder="0"
-          className="h-10 max-w-[200px]"
+          className="h-10 max-w-[200px] rounded-xl"
         />
       )}
 
@@ -107,24 +107,24 @@ export default function QuestionRenderer({
                 onClick={() =>
                   onChange({ answerValue: opt.value, selectedOptions: [opt.id] })
                 }
-                className={`flex w-full items-center gap-3 rounded-lg border-2 px-4 py-3 text-start transition-all ${
+                className={`flex w-full items-center gap-3 rounded-xl border-2 px-4 py-3 text-start transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 ${
                   selected
-                    ? "border-primary bg-primary/8 shadow-sm"
-                    : "border-transparent bg-muted/40 hover:bg-muted/70 hover:border-muted-foreground/20"
+                    ? "border-primary bg-primary/10 shadow-sm ring-2 ring-primary/15"
+                    : "border-transparent bg-muted/40 hover:bg-muted/60 hover:border-muted-foreground/15"
                 }`}
               >
                 <span
-                  className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-all ${
+                  className={`flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full border-2 transition-all ${
                     selected
-                      ? "border-primary bg-primary"
-                      : "border-muted-foreground/30"
+                      ? "border-primary bg-primary shadow-sm"
+                      : "border-muted-foreground/25"
                   }`}
                 >
                   {selected && (
                     <span className="h-2 w-2 rounded-full bg-white" />
                   )}
                 </span>
-                <span className={`text-sm ${selected ? "font-medium text-foreground" : "text-foreground/80"}`}>
+                <span className={`text-sm leading-snug ${selected ? "font-medium text-foreground" : "text-foreground/80"}`}>
                   {getOptionLabel(opt)}
                 </span>
               </button>
@@ -153,22 +153,22 @@ export default function QuestionRenderer({
                     .join(",");
                   onChange({ answerValue: values || null, selectedOptions: next });
                 }}
-                className={`flex w-full items-center gap-3 rounded-lg border-2 px-4 py-3 text-start transition-all ${
+                className={`flex w-full items-center gap-3 rounded-xl border-2 px-4 py-3 text-start transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 ${
                   checked
-                    ? "border-primary bg-primary/8 shadow-sm"
-                    : "border-transparent bg-muted/40 hover:bg-muted/70 hover:border-muted-foreground/20"
+                    ? "border-primary bg-primary/10 shadow-sm ring-2 ring-primary/15"
+                    : "border-transparent bg-muted/40 hover:bg-muted/60 hover:border-muted-foreground/15"
                 }`}
               >
                 <span
-                  className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2 transition-all ${
+                  className={`flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-[5px] border-2 transition-all ${
                     checked
-                      ? "border-primary bg-primary"
-                      : "border-muted-foreground/30"
+                      ? "border-primary bg-primary shadow-sm"
+                      : "border-muted-foreground/25"
                   }`}
                 >
                   {checked && <Check className="h-3 w-3 text-white" strokeWidth={3} />}
                 </span>
-                <span className={`text-sm ${checked ? "font-medium text-foreground" : "text-foreground/80"}`}>
+                <span className={`text-sm leading-snug ${checked ? "font-medium text-foreground" : "text-foreground/80"}`}>
                   {getOptionLabel(opt)}
                 </span>
               </button>
@@ -178,30 +178,39 @@ export default function QuestionRenderer({
       )}
 
       {/* Dropdown */}
-      {question.type === "dropdown" && (
-        <Select
-          value={answer.selectedOptions[0]?.toString() ?? ""}
-          onValueChange={(val) => {
-            const optId = Number(val);
-            const opt = options.find((o) => o.id === optId);
-            onChange({
-              answerValue: opt?.value ?? null,
-              selectedOptions: [optId],
-            });
-          }}
-        >
-          <SelectTrigger className="w-full h-10">
-            <SelectValue placeholder={t("selectOption")} />
-          </SelectTrigger>
-          <SelectContent>
-            {sortedOptions.map((opt) => (
-              <SelectItem key={opt.id} value={opt.id.toString()}>
-                {getOptionLabel(opt)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      )}
+      {question.type === "dropdown" && (() => {
+        const hasValue = answer.selectedOptions.length > 0;
+        return (
+          <Select
+            value={answer.selectedOptions[0]?.toString() ?? ""}
+            onValueChange={(val) => {
+              const optId = Number(val);
+              const opt = options.find((o) => o.id === optId);
+              onChange({
+                answerValue: opt?.value ?? null,
+                selectedOptions: [optId],
+              });
+            }}
+          >
+            <SelectTrigger
+              className={`w-full h-10 rounded-xl transition-all ${
+                hasValue
+                  ? "border-primary/50 bg-primary/5 ring-1 ring-primary/15"
+                  : ""
+              }`}
+            >
+              <SelectValue placeholder={t("selectOption")} />
+            </SelectTrigger>
+            <SelectContent>
+              {sortedOptions.map((opt) => (
+                <SelectItem key={opt.id} value={opt.id.toString()}>
+                  {getOptionLabel(opt)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        );
+      })()}
 
       {/* Yes / No */}
       {question.type === "yes_no" && (
@@ -216,10 +225,10 @@ export default function QuestionRenderer({
                 key={opt.value}
                 type="button"
                 onClick={() => onChange({ answerValue: opt.value, selectedOptions: [] })}
-                className={`flex-1 rounded-lg border-2 py-3 text-sm font-semibold transition-all ${
+                className={`flex-1 rounded-xl border-2 py-3 text-sm font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 ${
                   active
-                    ? "border-primary bg-primary/10 text-primary shadow-sm"
-                    : "border-transparent bg-muted/40 text-foreground/70 hover:bg-muted/70 hover:border-muted-foreground/20"
+                    ? "border-primary bg-primary/10 text-primary shadow-sm ring-2 ring-primary/15"
+                    : "border-transparent bg-muted/40 text-foreground/70 hover:bg-muted/60 hover:border-muted-foreground/15"
                 }`}
               >
                 {opt.label}

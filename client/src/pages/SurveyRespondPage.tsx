@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRoute, useLocation } from "wouter";
 import { useTranslation } from "react-i18next";
-import { AlertCircle, BookmarkCheck, ChevronLeft, ChevronRight, Copy, Loader2, Lock, Mail } from "lucide-react";
+import { AlertCircle, BookmarkCheck, ChevronLeft, ChevronRight, Copy, Loader2, Lock, Mail, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import QuestionRenderer from "@/components/survey/QuestionRenderer";
-import SurveyProgress from "@/components/survey/SurveyProgress";
 
 type AnswerState = {
   answerValue: string | null;
@@ -484,42 +483,74 @@ export default function SurveyRespondPage() {
   const sectionTitle = isAr ? currentSection.titleAr : currentSection.titleEn;
   const sectionDescription = isAr ? currentSection.descriptionAr : currentSection.descriptionEn;
   const isBusy = submitSectionMutation.isPending || completeMutation.isPending;
+  const pct = sections.length > 0 ? Math.round(((currentSectionIndex + 1) / sections.length) * 100) : 0;
+  const sectionQCount = sectionQuestions.length;
+  const sectionAnswered = sectionQuestions.filter((q) => isQuestionAnswered(q, getAnswer(q.id))).length;
 
   return (
     <div className="min-h-screen bg-slate-50" dir={isAr ? "rtl" : "ltr"}>
-      {/* Themed header bar */}
-      <div className="bg-gradient-to-r from-indigo-600 to-violet-600 px-4 py-4 shadow-sm">
-        <div className="mx-auto flex max-w-2xl items-center justify-between gap-3">
-          <div className="min-w-0">
-            <h1 className="truncate text-base font-semibold text-white sm:text-lg">
-              {isAr ? surveyData.survey.titleAr : surveyData.survey.titleEn}
-            </h1>
+      {/* Integrated branded shell header */}
+      <div className="bg-gradient-to-r from-indigo-600 to-violet-600 shadow-md">
+        {/* Title row */}
+        <div className="mx-auto max-w-2xl px-4 pt-3.5 pb-2">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 min-w-0">
+              <Sparkles className="h-4 w-4 shrink-0 text-amber-200/80" aria-hidden />
+              <h1 className="truncate text-sm font-semibold text-white/90 sm:text-base">
+                {isAr ? surveyData.survey.titleAr : surveyData.survey.titleEn}
+              </h1>
+            </div>
+            <Badge
+              variant="secondary"
+              className="shrink-0 border border-white/20 bg-white/15 text-[10px] font-medium text-white backdrop-blur"
+            >
+              {surveyLanguage.toUpperCase()}
+            </Badge>
           </div>
-          <Badge
-            variant="secondary"
-            className="shrink-0 border border-white/20 bg-white/15 text-xs font-medium text-white backdrop-blur"
-          >
-            {surveyLanguage.toUpperCase()}
-          </Badge>
+        </div>
+
+        {/* Progress row */}
+        <div className="mx-auto max-w-2xl px-4 pb-4">
+          <div className="flex items-center justify-between text-[11px] text-white/70 mb-1.5">
+            <span className="font-medium truncate">{sectionTitle}</span>
+            <span className="shrink-0 ms-2">
+              {t("progress", { current: currentSectionIndex + 1, total: sections.length })} · {pct}%
+            </span>
+          </div>
+          <div className="h-1.5 w-full rounded-full bg-white/15 overflow-hidden">
+            <div
+              className="h-full rounded-full bg-white/80 transition-all duration-500 ease-out"
+              style={{ width: `${pct}%` }}
+            />
+          </div>
+          {/* Step dots */}
+          {sections.length > 1 && sections.length <= 10 && (
+            <div className="flex items-center justify-center gap-1 mt-2.5">
+              {sections.map((_, i) => (
+                <div
+                  key={i}
+                  className={`h-1 rounded-full transition-all duration-300 ${
+                    i <= currentSectionIndex
+                      ? "w-3.5 bg-white/70"
+                      : "w-1 bg-white/20"
+                  }`}
+                />
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
       {/* Main content */}
-      <div className="mx-auto max-w-2xl px-4 py-6 space-y-6">
-        {/* Progress */}
-        <SurveyProgress
-          currentIndex={currentSectionIndex}
-          totalSections={sections.length}
-          sectionTitle={sectionTitle}
-        />
-
+      <div className="mx-auto max-w-2xl px-4 py-5 space-y-5">
         {/* Section card */}
-        <Card className="overflow-hidden border-0 shadow-md">
-          <CardHeader className="border-b border-slate-100 bg-slate-50/50 pb-4">
+        <Card className="overflow-hidden border-0 shadow-md ring-1 ring-black/5">
+          <div className="h-1 bg-gradient-to-r from-indigo-500 to-violet-500" />
+          <CardHeader className="border-b border-slate-100 bg-slate-50/60 pb-3.5 pt-4">
             <div className="flex items-center justify-between gap-2">
               <CardTitle className="text-lg">{sectionTitle}</CardTitle>
-              <span className="shrink-0 text-xs font-medium text-muted-foreground">
-                {t("progress", { current: currentSectionIndex + 1, total: sections.length })}
+              <span className="shrink-0 rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-500">
+                {sectionAnswered}/{sectionQCount}
               </span>
             </div>
             {sectionDescription && (
@@ -546,8 +577,7 @@ export default function SurveyRespondPage() {
         </Card>
 
         {/* Navigation bar */}
-        <div className="flex items-center justify-between gap-3 pb-8">
-          {/* Previous — ghost style */}
+        <div className="flex items-center justify-between gap-3">
           <Button
             type="button"
             variant="ghost"
@@ -561,25 +591,23 @@ export default function SurveyRespondPage() {
           </Button>
 
           <div className="flex items-center gap-2">
-            {/* Save Progress — outline subtle */}
             <Button
               type="button"
-              variant="outline"
+              variant="ghost"
               size="sm"
               onClick={handleSaveProgress}
               disabled={!sessionToken}
-              className="gap-1.5 text-muted-foreground hover:text-foreground"
+              className="gap-1.5 text-muted-foreground/70 hover:text-foreground"
             >
-              <BookmarkCheck className="h-4 w-4" />
+              <BookmarkCheck className="h-3.5 w-3.5" />
               {isAr ? "حفظ" : "Save"}
             </Button>
 
-            {/* Next / Submit — primary prominent */}
             <Button
               type="button"
               onClick={() => void handleNextOrSubmit()}
               disabled={isBusy}
-              className="gap-1.5 bg-indigo-600 hover:bg-indigo-700 px-5"
+              className="gap-1.5 bg-indigo-600 hover:bg-indigo-700 px-6 shadow-sm"
             >
               {isBusy ? (
                 <>
@@ -602,7 +630,7 @@ export default function SurveyRespondPage() {
         </div>
 
         {/* Confidential note */}
-        <div className="flex items-center justify-center gap-1.5 pb-6 text-xs text-muted-foreground/70">
+        <div className="flex items-center justify-center gap-1.5 py-4 text-[11px] text-muted-foreground/60">
           <Lock className="h-3 w-3" />
           {t("confidentialNote")}
         </div>

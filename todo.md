@@ -1936,3 +1936,6 @@ Every company on SmartPRO Hub gets a complete, unified business operating area â
 - [x] Add Preview button next to each letter template card in the Generate tab
 - [x] Wire Preview button to existing previewLetter tRPC procedure with current form state
 - [x] Show generated letter in a preview dialog before official issue
+
+## Letter Preview Realistic Placeholders
+- [x] Replace generic placeholder text in Quick Preview dialog with realistic per-type Omani sample data

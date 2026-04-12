@@ -1175,41 +1175,164 @@ export default function HRLettersPage() {
                     )}
                   </div>
                 </div>
-                <div className="rounded-lg border border-border bg-white px-6 py-5">
+                <div className="rounded-lg border border-border bg-white px-6 py-5 text-[#1a1a1a]">
+                  {/* Letterhead */}
                   <div className="border-b-2 border-[#1a365d] pb-4 mb-5">
                     <div className="flex items-start justify-between">
                       <div>
-                        <div className="text-lg font-bold text-[#1a365d]">[Company Name]</div>
-                        <div className="text-xs text-muted-foreground mt-1 space-y-0.5">
-                          <div>CR: [CR Number] · [City], Sultanate of Oman</div>
-                          <div>[Phone] · [Email]</div>
+                        <div className="text-base font-bold text-[#1a365d] leading-tight">Al Amri Investment and Services LLC</div>
+                        <div className="text-[10px] text-[#1a365d] font-medium mt-0.5">شركة العامري للاستثمار والخدمات ذ.م.م</div>
+                        <div className="text-xs text-gray-500 mt-1.5 space-y-0.5">
+                          <div>CR: 1234567 · Muscat, Sultanate of Oman</div>
+                          <div>+968 2412 3456 · hr@alamri-invest.om</div>
                         </div>
                       </div>
-                      <div className="w-10 h-10 rounded-xl bg-[#1a365d] flex items-center justify-center">
-                        <span className="text-white font-black text-xs">SP</span>
+                      <div className="w-12 h-12 rounded-xl bg-[#1a365d] flex items-center justify-center shrink-0">
+                        <span className="text-white font-black text-sm">AA</span>
                       </div>
                     </div>
-                    <div className="mt-3 text-xs text-muted-foreground">
-                      Reference No. <span className="font-mono font-semibold text-foreground">HRL-{quickPreviewType?.toUpperCase().slice(0,6)}-{new Date().getFullYear()}-XXXXX</span>
+                    <div className="mt-3 flex items-center justify-between text-xs text-gray-500">
+                      <span>Ref: <span className="font-mono font-semibold text-gray-700">HRL-{(quickPreviewType ?? "LTTR").toUpperCase().replace("_","-").slice(0,8)}-2025-00042</span></span>
+                      <span>Date: {new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" })}</span>
                     </div>
                   </div>
-                  <div className="text-sm text-muted-foreground space-y-3 italic">
-                    <p>To Whom It May Concern,</p>
-                    <p>This is to certify that <strong>[Employee Full Name]</strong>, holding [Nationality] nationality, is currently employed with <strong>[Company Name]</strong> as a <strong>[Job Title]</strong> in the <strong>[Department]</strong> department since <strong>[Hire Date]</strong>.</p>
-                    {quickPreviewType === "salary_certificate" && (
-                      <p>The employee's monthly salary is <strong>OMR [Amount]</strong>.</p>
-                    )}
-                    {quickPreviewType === "noc" && (
-                      <p>The company has no objection to the employee proceeding with <strong>[Purpose / Destination]</strong>. This certificate is valid until <strong>[Validity Date]</strong>.</p>
-                    )}
-                    {quickPreviewType === "experience_letter" && (
-                      <p>During their tenure, the employee has demonstrated excellent performance and professional conduct. We wish them continued success in their future endeavours.</p>
-                    )}
-                    <p>This letter is issued upon the request of the employee for official purposes.</p>
-                    <div className="mt-6 pt-4 border-t border-border">
-                      <p className="font-semibold not-italic text-foreground">[Signatory Name]</p>
-                      <p className="text-xs">[Signatory Title]</p>
-                      <p className="text-xs text-muted-foreground">{new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" })}</p>
+
+                  {/* Per-type realistic body */}
+                  <div className="text-sm leading-relaxed space-y-3">
+                    {quickPreviewType === "salary_certificate" && (<>
+                      <p className="font-semibold text-center text-base underline underline-offset-4">Salary Certificate</p>
+                      <p>To Whom It May Concern,</p>
+                      <p>This is to certify that <strong>Mr. Ahmed Khalid Al-Balushi</strong>, holder of Omani National ID No. <strong>12345678</strong>, is currently employed with <strong>Al Amri Investment and Services LLC</strong> as a <strong>Senior Accountant</strong> in the <strong>Finance Department</strong> since <strong>15 March 2021</strong>.</p>
+                      <p>His monthly basic salary is <strong>OMR 750.000</strong> (Seven Hundred and Fifty Omani Rials), with a total monthly package including allowances of <strong>OMR 950.000</strong> (Nine Hundred and Fifty Omani Rials).</p>
+                      <p>His salary is transferred monthly to Bank Muscat, Account No. <strong>0123456789</strong>.</p>
+                      <p>This certificate is issued upon the employee's request for bank purposes and carries no further liability on the company.</p>
+                    </>)}
+
+                    {quickPreviewType === "employment_verification" && (<>
+                      <p className="font-semibold text-center text-base underline underline-offset-4">Employment Verification Letter</p>
+                      <p>To Whom It May Concern,</p>
+                      <p>This is to confirm that <strong>Ms. Fatima Nasser Al-Rawahi</strong>, holder of Omani National ID No. <strong>98765432</strong>, is a full-time employee of <strong>Al Amri Investment and Services LLC</strong>.</p>
+                      <table className="w-full text-xs border border-gray-200 rounded mt-2 mb-2">
+                        <tbody>
+                          {[
+                            ["Job Title", "HR Coordinator"],
+                            ["Department", "Human Resources"],
+                            ["Employment Type", "Permanent"],
+                            ["Start Date", "01 June 2019"],
+                            ["Employment Status", "Active"],
+                          ].map(([k, v]) => (
+                            <tr key={k} className="border-b border-gray-100">
+                              <td className="px-3 py-1.5 font-medium text-gray-600 w-40">{k}</td>
+                              <td className="px-3 py-1.5 font-semibold">{v}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      <p>This letter is issued for official purposes as requested by the employee.</p>
+                    </>)}
+
+                    {quickPreviewType === "noc" && (<>
+                      <p className="font-semibold text-center text-base underline underline-offset-4">No Objection Certificate</p>
+                      <p>To Whom It May Concern,</p>
+                      <p>This is to certify that <strong>Mr. Mohammed Salim Al-Hinai</strong>, Omani National ID No. <strong>11223344</strong>, employed as a <strong>Project Engineer</strong> in the <strong>Operations Department</strong> since <strong>10 January 2020</strong>, has applied for a visa to the <strong>United Kingdom</strong>.</p>
+                      <p><strong>Al Amri Investment and Services LLC</strong> has no objection to Mr. Al-Hinai travelling to the United Kingdom for the purpose of <strong>attending a professional training programme</strong>. He is expected to resume his duties on <strong>01 June 2025</strong>.</p>
+                      <p>This certificate is valid until <strong>31 May 2025</strong> and is issued solely for visa application purposes.</p>
+                    </>)}
+
+                    {quickPreviewType === "experience_letter" && (<>
+                      <p className="font-semibold text-center text-base underline underline-offset-4">Experience Letter</p>
+                      <p>To Whom It May Concern,</p>
+                      <p>This is to certify that <strong>Ms. Aisha Hamad Al-Zadjali</strong>, Omani National ID No. <strong>55667788</strong>, was employed with <strong>Al Amri Investment and Services LLC</strong> as a <strong>Marketing Executive</strong> in the <strong>Marketing & Communications Department</strong> from <strong>01 September 2018</strong> to <strong>28 February 2025</strong> — a period of <strong>6 years and 6 months</strong>.</p>
+                      <p>During her tenure, Ms. Al-Zadjali demonstrated exceptional dedication, strong analytical skills, and consistent professionalism. She was instrumental in leading the company's digital marketing initiatives and contributed significantly to brand growth across the GCC region.</p>
+                      <p>We wish her continued success in her future career endeavours.</p>
+                    </>)}
+
+                    {quickPreviewType === "promotion_letter" && (<>
+                      <p className="font-semibold text-center text-base underline underline-offset-4">Promotion Letter</p>
+                      <p>Dear <strong>Mr. Khalid Yousuf Al-Maqbali</strong>,</p>
+                      <p>We are pleased to inform you that, in recognition of your outstanding performance and valuable contributions to <strong>Al Amri Investment and Services LLC</strong>, you have been promoted to the position of <strong>Senior Operations Manager</strong> effective <strong>01 May 2025</strong>.</p>
+                      <table className="w-full text-xs border border-gray-200 rounded mt-2 mb-2">
+                        <tbody>
+                          {[
+                            ["Previous Title", "Operations Manager"],
+                            ["New Title", "Senior Operations Manager"],
+                            ["Department", "Operations"],
+                            ["New Basic Salary", "OMR 1,200.000"],
+                            ["Effective Date", "01 May 2025"],
+                          ].map(([k, v]) => (
+                            <tr key={k} className="border-b border-gray-100">
+                              <td className="px-3 py-1.5 font-medium text-gray-600 w-40">{k}</td>
+                              <td className="px-3 py-1.5 font-semibold">{v}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      <p>We congratulate you on this well-deserved achievement and look forward to your continued contributions.</p>
+                    </>)}
+
+                    {quickPreviewType === "salary_transfer_letter" && (<>
+                      <p className="font-semibold text-center text-base underline underline-offset-4">Salary Transfer Letter</p>
+                      <p>To: <strong>The Branch Manager</strong><br />Bank Dhofar — Ruwi Branch, Muscat</p>
+                      <p>Dear Sir / Madam,</p>
+                      <p>We request you to transfer the monthly salary of our employee, <strong>Mr. Saif Abdullah Al-Kindi</strong>, Omani National ID No. <strong>33445566</strong>, employed as a <strong>Logistics Coordinator</strong>, to the following bank account with effect from <strong>01 April 2025</strong>:</p>
+                      <table className="w-full text-xs border border-gray-200 rounded mt-2 mb-2">
+                        <tbody>
+                          {[
+                            ["Bank Name", "Bank Dhofar"],
+                            ["Branch", "Ruwi, Muscat"],
+                            ["Account Name", "Saif Abdullah Al-Kindi"],
+                            ["Account No.", "0987654321"],
+                            ["IBAN", "OM810080000000987654321"],
+                            ["Monthly Salary", "OMR 620.000"],
+                          ].map(([k, v]) => (
+                            <tr key={k} className="border-b border-gray-100">
+                              <td className="px-3 py-1.5 font-medium text-gray-600 w-40">{k}</td>
+                              <td className="px-3 py-1.5 font-semibold">{v}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      <p>Kindly arrange the transfer accordingly and confirm receipt of this instruction.</p>
+                    </>)}
+
+                    {quickPreviewType === "leave_approval_letter" && (<>
+                      <p className="font-semibold text-center text-base underline underline-offset-4">Leave Approval Letter</p>
+                      <p>Dear <strong>Ms. Huda Rashid Al-Amri</strong>,</p>
+                      <p>We are pleased to confirm that your annual leave request has been approved as per the details below:</p>
+                      <table className="w-full text-xs border border-gray-200 rounded mt-2 mb-2">
+                        <tbody>
+                          {[
+                            ["Employee", "Huda Rashid Al-Amri"],
+                            ["Department", "Customer Relations"],
+                            ["Leave Type", "Annual Leave"],
+                            ["From", "10 May 2025"],
+                            ["To", "24 May 2025"],
+                            ["Total Days", "15 calendar days"],
+                            ["Return Date", "25 May 2025"],
+                          ].map(([k, v]) => (
+                            <tr key={k} className="border-b border-gray-100">
+                              <td className="px-3 py-1.5 font-medium text-gray-600 w-40">{k}</td>
+                              <td className="px-3 py-1.5 font-semibold">{v}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      <p>Please ensure all pending tasks are handed over before your departure. We wish you a pleasant leave.</p>
+                    </>)}
+
+                    {quickPreviewType === "warning_letter" && (<>
+                      <p className="font-semibold text-center text-base underline underline-offset-4">Official Warning Letter</p>
+                      <p>Dear <strong>Mr. Tariq Nabil Al-Shukaili</strong>,</p>
+                      <p>This letter serves as a <strong>formal written warning</strong> regarding your repeated unauthorised absences from work on <strong>14, 17, and 21 April 2025</strong>, in violation of Article 12 of the company's Employee Code of Conduct and the Oman Labour Law (Royal Decree No. 35/2003).</p>
+                      <p>Despite a verbal warning issued on <strong>10 April 2025</strong>, the behaviour has continued. You are hereby required to provide a written explanation within <strong>three (3) working days</strong> of receiving this letter.</p>
+                      <p className="font-medium text-red-700">Please be advised that any further violation may result in escalated disciplinary action, up to and including termination of employment.</p>
+                      <p>This letter will be placed in your official personnel file.</p>
+                    </>)}
+
+                    <div className="mt-6 pt-4 border-t border-gray-200">
+                      <p className="font-semibold text-sm">Ibrahim Khalid Al-Amri</p>
+                      <p className="text-xs text-gray-600">General Manager — Human Resources</p>
+                      <p className="text-xs text-gray-400 mt-0.5">Al Amri Investment and Services LLC · Muscat, Sultanate of Oman</p>
                     </div>
                   </div>
                 </div>

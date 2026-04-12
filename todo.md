@@ -1931,3 +1931,8 @@ Every company on SmartPRO Hub gets a complete, unified business operating area â
 - [x] Frontend: polished email dialog â€” letter summary card, auto-filled recipient, CC field, security note, email history badge
 - [x] Frontend: "Already emailed" badge on letter cards showing last sent timestamp (green mail icon + send count)
 - [x] Frontend: success confirmation state in dialog after send
+
+## Letter Template Preview Button
+- [x] Add Preview button next to each letter template card in the Generate tab
+- [x] Wire Preview button to existing previewLetter tRPC procedure with current form state
+- [x] Show generated letter in a preview dialog before official issue

@@ -3,7 +3,7 @@ import {
   FileText, Printer, Copy, Trash2, Eye, Clock,
   CheckCircle2, Loader2, Building2, User, Globe,
   ClipboardList, History, Plus, Search, Mail,
-  AlertCircle, Stamp, Languages, ShieldCheck,
+  AlertCircle, Stamp, Languages, ShieldCheck, ScanEye,
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -325,6 +325,7 @@ export default function HRLettersPage() {
   const [previewTab, setPreviewTab] = useState<"preview" | "data">("preview");
   const [signatoryDialogOpen, setSignatoryDialogOpen] = useState(false);
   const [newSig, setNewSig] = useState({ nameEn: "", nameAr: "", titleEn: "", titleAr: "" });
+  const [quickPreviewType, setQuickPreviewType] = useState<LetterTypeValue | null>(null);
 
   const { activeCompanyId } = useActiveCompany();
   const { data: employees } = trpc.hr.listEmployees.useQuery(
@@ -564,7 +565,20 @@ export default function HRLettersPage() {
                             );
                           })()}
                         </div>
-                        {selectedType === type.value && <CheckCircle2 size={15} className="text-primary shrink-0" />}
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            type="button"
+                            title="Quick preview template"
+                            className="p-1 rounded hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setQuickPreviewType(type.value);
+                            }}
+                          >
+                            <ScanEye size={14} />
+                          </button>
+                          {selectedType === type.value && <CheckCircle2 size={15} className="text-primary" />}
+                        </div>
                       </div>
                     </button>
                   ))}
@@ -1106,6 +1120,115 @@ export default function HRLettersPage() {
               Save signatory
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Quick Preview Dialog — shows template structure with placeholder data */}
+      <Dialog open={!!quickPreviewType} onOpenChange={(o) => { if (!o) setQuickPreviewType(null); }}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ScanEye size={16} />
+              Template Preview — {quickPreviewType ? LETTER_TYPES.find(t => t.value === quickPreviewType)?.labelEn : ""}
+            </DialogTitle>
+            <DialogDescription>
+              This is a sample of how the letter will look when issued. Actual employee and company data will replace the placeholders.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 flex items-start gap-2 text-sm text-amber-800 mb-2">
+            <AlertCircle size={15} className="mt-0.5 shrink-0" />
+            <span>Showing placeholder data. Select an employee and fill in the form to see a live preview with real data on the right panel.</span>
+          </div>
+          {quickPreviewType && (() => {
+            const meta = LETTER_TYPES.find(t => t.value === quickPreviewType);
+            const tm = templateMeta?.find(m => m.code === quickPreviewType);
+            return (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="rounded-lg border border-border bg-muted/30 px-4 py-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Letter details</p>
+                    <div className="space-y-1 text-sm">
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg">{meta?.icon}</span>
+                        <span className="font-medium">{meta?.labelEn}</span>
+                      </div>
+                      <div className="text-xs text-muted-foreground" dir="rtl">{meta?.labelAr}</div>
+                    </div>
+                  </div>
+                  <div className="rounded-lg border border-border bg-muted/30 px-4 py-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Supported formats</p>
+                    <div className="flex flex-wrap gap-1.5 mt-1">
+                      {tm?.supportsEn && <Badge variant="secondary">English</Badge>}
+                      {tm?.supportsAr && <Badge variant="secondary">Arabic</Badge>}
+                      {tm?.supportsBilingual && <Badge variant="secondary">Bilingual</Badge>}
+                      {tm?.isSensitive && <Badge variant="destructive">Sensitive — restricted access</Badge>}
+                    </div>
+                    {tm?.requiredFields && tm.requiredFields.length > 0 && (
+                      <div className="mt-2">
+                        <p className="text-xs text-muted-foreground font-medium">Required fields:</p>
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {tm.requiredFields.map((f: string) => (
+                            <span key={f} className="text-[10px] bg-background border border-border rounded px-1.5 py-0.5 font-mono">{f}</span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div className="rounded-lg border border-border bg-white px-6 py-5">
+                  <div className="border-b-2 border-[#1a365d] pb-4 mb-5">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <div className="text-lg font-bold text-[#1a365d]">[Company Name]</div>
+                        <div className="text-xs text-muted-foreground mt-1 space-y-0.5">
+                          <div>CR: [CR Number] · [City], Sultanate of Oman</div>
+                          <div>[Phone] · [Email]</div>
+                        </div>
+                      </div>
+                      <div className="w-10 h-10 rounded-xl bg-[#1a365d] flex items-center justify-center">
+                        <span className="text-white font-black text-xs">SP</span>
+                      </div>
+                    </div>
+                    <div className="mt-3 text-xs text-muted-foreground">
+                      Reference No. <span className="font-mono font-semibold text-foreground">HRL-{quickPreviewType?.toUpperCase().slice(0,6)}-{new Date().getFullYear()}-XXXXX</span>
+                    </div>
+                  </div>
+                  <div className="text-sm text-muted-foreground space-y-3 italic">
+                    <p>To Whom It May Concern,</p>
+                    <p>This is to certify that <strong>[Employee Full Name]</strong>, holding [Nationality] nationality, is currently employed with <strong>[Company Name]</strong> as a <strong>[Job Title]</strong> in the <strong>[Department]</strong> department since <strong>[Hire Date]</strong>.</p>
+                    {quickPreviewType === "salary_certificate" && (
+                      <p>The employee's monthly salary is <strong>OMR [Amount]</strong>.</p>
+                    )}
+                    {quickPreviewType === "noc" && (
+                      <p>The company has no objection to the employee proceeding with <strong>[Purpose / Destination]</strong>. This certificate is valid until <strong>[Validity Date]</strong>.</p>
+                    )}
+                    {quickPreviewType === "experience_letter" && (
+                      <p>During their tenure, the employee has demonstrated excellent performance and professional conduct. We wish them continued success in their future endeavours.</p>
+                    )}
+                    <p>This letter is issued upon the request of the employee for official purposes.</p>
+                    <div className="mt-6 pt-4 border-t border-border">
+                      <p className="font-semibold not-italic text-foreground">[Signatory Name]</p>
+                      <p className="text-xs">[Signatory Title]</p>
+                      <p className="text-xs text-muted-foreground">{new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" })}</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" onClick={() => setQuickPreviewType(null)}>Close</Button>
+                  <Button onClick={() => {
+                    setSelectedType(quickPreviewType);
+                    setDynamicFields({});
+                    setIssuedSummary(null);
+                    setGeneratedLetter(null);
+                    setQuickPreviewType(null);
+                    setActiveTab("generate");
+                  }}>
+                    <Stamp size={14} className="mr-1.5" /> Use this template
+                  </Button>
+                </div>
+              </div>
+            );
+          })()}
         </DialogContent>
       </Dialog>
     </div>

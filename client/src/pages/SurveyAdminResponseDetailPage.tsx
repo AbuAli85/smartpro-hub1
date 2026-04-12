@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useRoute } from "wouter";
 import { trpc } from "@/lib/trpc";
@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ArrowLeft, UserCircle2 } from "lucide-react";
-import { toast } from "sonner";
 
 const SCORE_KEYS = [
   "smartpro_fit",
@@ -28,6 +27,7 @@ const SCORE_BAR_COLORS: Record<(typeof SCORE_KEYS)[number], string> = {
 type QuestionRow = {
   id: number;
   sectionId: number;
+  sortOrder: number;
   type: string;
   labelEn: string;
   labelAr: string;
@@ -85,10 +85,7 @@ export default function SurveyAdminResponseDetailPage() {
 
   const { data, isLoading, isError, error } = trpc.survey.adminGetResponseDetail.useQuery(
     { responseId: responseId! },
-    {
-      enabled: match && responseId != null,
-      onError: (e) => toast.error(e.message),
-    },
+    { enabled: match && responseId != null },
   );
 
   const lang = data?.response.language === "ar" ? "ar" : "en";

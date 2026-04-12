@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Bar,
@@ -16,7 +16,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BarChart3 } from "lucide-react";
-import { toast } from "sonner";
 
 const CHART_COLORS = ["#ef4444", "#f97316", "#eab308", "#22c55e", "#3b82f6", "#8b5cf6", "#ec4899"];
 
@@ -31,9 +30,7 @@ const SCORE_KEYS = [
 export default function SurveyAdminAnalyticsPage() {
   const { t } = useTranslation("survey");
 
-  const { data, isLoading, isError, error } = trpc.survey.adminGetAnalytics.useQuery(undefined, {
-    onError: (e) => toast.error(e.message),
-  });
+  const { data, isLoading, isError, error } = trpc.survey.adminGetAnalytics.useQuery();
 
   const sectorChartData = useMemo(() => {
     if (!data?.sectorBreakdown) return [];

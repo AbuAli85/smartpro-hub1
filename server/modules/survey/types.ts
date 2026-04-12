@@ -10,7 +10,10 @@ export const startResponseInput = z.object({
   surveyId: z.number().int().positive(),
   language: z.enum(["en", "ar"]).default("en"),
   respondentName: z.string().max(255).optional(),
-  respondentEmail: z.string().email().max(320).optional(),
+  respondentEmail: z.string().max(320).optional().transform((v) => {
+    const trimmed = v?.trim();
+    return trimmed && trimmed.length > 0 ? trimmed : undefined;
+  }),
   respondentPhone: z.string().max(32).optional(),
 });
 

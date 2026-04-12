@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "wouter";
 import { trpc } from "@/lib/trpc";
@@ -16,7 +16,6 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ClipboardList, ChevronLeft, ChevronRight } from "lucide-react";
-import { toast } from "sonner";
 
 type StatusFilter = "all" | "in_progress" | "completed" | "abandoned";
 
@@ -44,9 +43,7 @@ export default function SurveyAdminResponsesPage() {
     setPage(1);
   }, [selectedStatus]);
 
-  const { data: stats } = trpc.survey.adminGetAnalytics.useQuery(undefined, {
-    onError: (e) => toast.error(e.message),
-  });
+  const { data: stats } = trpc.survey.adminGetAnalytics.useQuery();
 
   const { data, isLoading, isError, error } = trpc.survey.adminListResponses.useQuery(
     {
@@ -54,7 +51,6 @@ export default function SurveyAdminResponsesPage() {
       limit: 25,
       status: selectedStatus === "all" ? undefined : selectedStatus,
     },
-    { onError: (e) => toast.error(e.message) },
   );
 
   const total = data?.total ?? 0;

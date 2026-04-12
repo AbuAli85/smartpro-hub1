@@ -294,9 +294,6 @@ export default function SurveyRespondPage() {
           responseId,
           resumeToken: sessionToken,
         });
-        if (storageKey && typeof window !== "undefined") {
-          localStorage.removeItem(storageKey);
-        }
         setLocation(`/survey/${slug}/complete`);
         return;
       }

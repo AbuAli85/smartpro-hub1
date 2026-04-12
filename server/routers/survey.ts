@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { eq, and, desc, sql, like, or } from "drizzle-orm";
+import { eq, and, desc, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { publicProcedure, protectedProcedure, router, t } from "../_core/trpc";
 import { NOT_ADMIN_ERR_MSG } from "@shared/const";

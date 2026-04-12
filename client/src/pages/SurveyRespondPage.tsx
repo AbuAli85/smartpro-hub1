@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRoute, useLocation } from "wouter";
 import { useTranslation } from "react-i18next";
-import { AlertCircle, BookmarkCheck, ChevronLeft, ChevronRight, Copy, Loader2, Mail } from "lucide-react";
+import { AlertCircle, BookmarkCheck, ChevronLeft, ChevronRight, Copy, Loader2, Lock, Mail } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
@@ -92,11 +92,9 @@ export default function SurveyRespondPage() {
 
   const readResumeToken = useCallback((): string | null => {
     if (typeof window === "undefined") return null;
-    // Prefer ?resume=TOKEN from URL (email link deep-link)
     const urlToken = new URLSearchParams(window.location.search).get("resume");
     if (urlToken) {
       if (storageKey) localStorage.setItem(storageKey, urlToken);
-      // Remove the query param from URL without re-render
       const url = new URL(window.location.href);
       url.searchParams.delete("resume");
       window.history.replaceState({}, "", url.toString());
@@ -284,7 +282,7 @@ export default function SurveyRespondPage() {
 
   const isLastSection = sections.length > 0 && currentSectionIndex >= sections.length - 1;
 
-  // ── Save Progress dialog ─────────────────────────────────────────────
+  // Save Progress dialog
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
   const [saveEmail, setSaveEmail] = useState("");
   const [saveEmailSent, setSaveEmailSent] = useState(false);
@@ -347,7 +345,6 @@ export default function SurveyRespondPage() {
     }
   };
 
-  /** Keep a loading shell until the session exists (covers the tick before `startResponse` is pending). */
   const sessionBootPending =
     !!surveyData &&
     !sessionReady &&
@@ -356,208 +353,262 @@ export default function SurveyRespondPage() {
 
   const showPageSkeleton = !slug || surveyLoading || sessionBootPending;
 
+  // Error: could not start
   if (surveyData && !sessionReady && !resumeToken && startMutation.isError) {
     return (
-      <div className="container max-w-3xl py-10">
-        <Card className="border-destructive/40">
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <AlertCircle className="h-5 w-5 text-destructive" />
-              <CardTitle>{isAr ? "تعذر بدء الاستبيان" : "Could not start survey"}</CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm text-muted-foreground">
-              {startMutation.error?.message ?? (isAr ? "حدث خطأ غير معروف" : "Unknown error")}
-            </p>
-            <Button
-              type="button"
-              onClick={() => {
-                startRequestedRef.current = false;
-                startMutation.reset();
-                startMutation.mutate({
-                  surveyId: surveyData.survey.id,
-                  language: surveyLanguage === "ar" ? "ar" : "en",
-                });
-              }}
-            >
-              {isAr ? "إعادة المحاولة" : "Try again"}
-            </Button>
-          </CardContent>
-        </Card>
+      <div className="min-h-screen bg-slate-50">
+        <div className="mx-auto max-w-2xl px-4 py-12">
+          <Card className="border-destructive/40">
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <AlertCircle className="h-5 w-5 text-destructive" />
+                <CardTitle>{isAr ? "تعذر بدء الاستبيان" : "Could not start survey"}</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm text-muted-foreground">
+                {startMutation.error?.message ?? (isAr ? "حدث خطأ غير معروف" : "Unknown error")}
+              </p>
+              <Button
+                type="button"
+                onClick={() => {
+                  startRequestedRef.current = false;
+                  startMutation.reset();
+                  startMutation.mutate({
+                    surveyId: surveyData.survey.id,
+                    language: surveyLanguage === "ar" ? "ar" : "en",
+                  });
+                }}
+              >
+                {isAr ? "إعادة المحاولة" : "Try again"}
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     );
   }
 
+  // No match
   if (!match || !slug) {
     return (
-      <div className="container max-w-3xl py-10">
-        <Card>
-          <CardContent className="pt-6 flex items-center gap-2 text-muted-foreground">
-            <AlertCircle className="h-5 w-5" />
-            <span>{t("surveyNotFound")}</span>
-          </CardContent>
-        </Card>
+      <div className="min-h-screen bg-slate-50">
+        <div className="mx-auto max-w-2xl px-4 py-12">
+          <Card>
+            <CardContent className="pt-6 flex items-center gap-2 text-muted-foreground">
+              <AlertCircle className="h-5 w-5" />
+              <span>{t("surveyNotFound")}</span>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     );
   }
 
+  // Survey error
   if (surveyIsError) {
     const notFound =
       surveyError?.message?.includes("not found") ||
       (surveyError as { data?: { code?: string } } | undefined)?.data?.code === "NOT_FOUND";
     return (
-      <div className="container max-w-3xl py-10">
-        <Card className="border-destructive/40">
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <AlertCircle className="h-5 w-5 text-destructive" />
-              <CardTitle>{notFound ? t("surveyNotFound") : t("surveyNotActive")}</CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent className="text-sm text-muted-foreground">
-            {surveyError?.message ?? t("surveyNotActive")}
-          </CardContent>
-        </Card>
+      <div className="min-h-screen bg-slate-50">
+        <div className="mx-auto max-w-2xl px-4 py-12">
+          <Card className="border-destructive/40">
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <AlertCircle className="h-5 w-5 text-destructive" />
+                <CardTitle>{notFound ? t("surveyNotFound") : t("surveyNotActive")}</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent className="text-sm text-muted-foreground">
+              {surveyError?.message ?? t("surveyNotActive")}
+            </CardContent>
+          </Card>
+        </div>
       </div>
     );
   }
 
+  // Loading skeleton
   if (showPageSkeleton) {
     return (
-      <div className="container max-w-3xl py-8 space-y-6">
-        <Skeleton className="h-10 w-full max-w-md" />
-        <Skeleton className="h-2 w-full" />
-        <Card>
-          <CardHeader>
-            <Skeleton className="h-7 w-2/3" />
-            <Skeleton className="h-4 w-full" />
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <Skeleton className="h-20 w-full" />
-            <Skeleton className="h-20 w-full" />
-            <Skeleton className="h-10 w-full" />
-          </CardContent>
-        </Card>
+      <div className="min-h-screen bg-slate-50">
+        <div className="h-16 bg-gradient-to-r from-indigo-600 to-violet-600" />
+        <div className="mx-auto max-w-2xl px-4 py-8 space-y-6">
+          <Skeleton className="h-10 w-full max-w-md" />
+          <Skeleton className="h-3 w-full rounded-full" />
+          <Card>
+            <CardHeader>
+              <Skeleton className="h-7 w-2/3" />
+              <Skeleton className="h-4 w-full" />
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <Skeleton className="h-20 w-full" />
+              <Skeleton className="h-20 w-full" />
+              <Skeleton className="h-10 w-full" />
+            </CardContent>
+          </Card>
+        </div>
       </div>
     );
   }
 
+  // No data
   if (!surveyData || sections.length === 0) {
     return (
-      <div className="container max-w-3xl py-10">
-        <Card>
-          <CardHeader>
-            <CardTitle>{t("surveyNotFound")}</CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm text-muted-foreground">{t("surveyNotActive")}</CardContent>
-        </Card>
+      <div className="min-h-screen bg-slate-50">
+        <div className="mx-auto max-w-2xl px-4 py-12">
+          <Card>
+            <CardHeader>
+              <CardTitle>{t("surveyNotFound")}</CardTitle>
+            </CardHeader>
+            <CardContent className="text-sm text-muted-foreground">{t("surveyNotActive")}</CardContent>
+          </Card>
+        </div>
       </div>
     );
   }
 
+  // Waiting for session
   if (!currentSection || responseId == null || sessionToken == null) {
     return (
-      <div className="container max-w-3xl py-8 flex flex-col items-center gap-3 text-muted-foreground">
-        <Loader2 className="h-8 w-8 animate-spin" />
-        <p className="text-sm">{t("saving")}</p>
+      <div className="min-h-screen bg-slate-50">
+        <div className="mx-auto max-w-2xl px-4 py-16 flex flex-col items-center gap-3 text-muted-foreground">
+          <Loader2 className="h-8 w-8 animate-spin" />
+          <p className="text-sm">{t("saving")}</p>
+        </div>
       </div>
     );
   }
 
   const sectionTitle = isAr ? currentSection.titleAr : currentSection.titleEn;
   const sectionDescription = isAr ? currentSection.descriptionAr : currentSection.descriptionEn;
+  const isBusy = submitSectionMutation.isPending || completeMutation.isPending;
 
   return (
-    <div className="container max-w-3xl py-8 space-y-8">
-      <div className="space-y-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-2xl font-semibold tracking-tight">
-            {isAr ? surveyData.survey.titleAr : surveyData.survey.titleEn}
-          </h1>
-          <Badge variant="secondary">{surveyLanguage.toUpperCase()}</Badge>
+    <div className="min-h-screen bg-slate-50" dir={isAr ? "rtl" : "ltr"}>
+      {/* Themed header bar */}
+      <div className="bg-gradient-to-r from-indigo-600 to-violet-600 px-4 py-4 shadow-sm">
+        <div className="mx-auto flex max-w-2xl items-center justify-between gap-3">
+          <div className="min-w-0">
+            <h1 className="truncate text-base font-semibold text-white sm:text-lg">
+              {isAr ? surveyData.survey.titleAr : surveyData.survey.titleEn}
+            </h1>
+          </div>
+          <Badge
+            variant="secondary"
+            className="shrink-0 border border-white/20 bg-white/15 text-xs font-medium text-white backdrop-blur"
+          >
+            {surveyLanguage.toUpperCase()}
+          </Badge>
         </div>
-        {(isAr ? surveyData.survey.descriptionAr : surveyData.survey.descriptionEn) && (
-          <p className="text-sm text-muted-foreground max-w-2xl">
-            {isAr ? surveyData.survey.descriptionAr : surveyData.survey.descriptionEn}
-          </p>
-        )}
       </div>
 
-      <SurveyProgress
-        currentIndex={currentSectionIndex}
-        totalSections={sections.length}
-        sectionTitle={sectionTitle}
-      />
+      {/* Main content */}
+      <div className="mx-auto max-w-2xl px-4 py-6 space-y-6">
+        {/* Progress */}
+        <SurveyProgress
+          currentIndex={currentSectionIndex}
+          totalSections={sections.length}
+          sectionTitle={sectionTitle}
+        />
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-xl">{sectionTitle}</CardTitle>
-          {sectionDescription ? (
-            <p className="text-sm text-muted-foreground leading-relaxed">{sectionDescription}</p>
-          ) : null}
-        </CardHeader>
-        <CardContent className="space-y-8">
-          {sectionQuestions.map((q) => {
-            const qOptions = sortSections(
-              (options as SurveyOption[]).filter((o) => o.questionId === q.id),
-            );
-            return (
-              <QuestionRenderer
-                key={q.id}
-                question={q}
-                options={qOptions}
-                language={surveyLanguage}
-                answer={getAnswer(q.id)}
-                onChange={(next) => setAnswer(q.id, next)}
-              />
-            );
-          })}
-        </CardContent>
-      </Card>
-
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <Button type="button" variant="outline" onClick={handlePrevious} disabled={currentSectionIndex <= 0}>
-          <ChevronLeft className="h-4 w-4 me-1" />
-          {t("previous")}
-        </Button>
-        <div className="flex items-center gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={handleSaveProgress}
-            disabled={!sessionToken}
-            title={isAr ? "حفظ التقدم والمتابعة لاحقاً" : "Save progress and resume later"}
-          >
-            <BookmarkCheck className="h-4 w-4 me-1" />
-            {isAr ? "حفظ التقدم" : "Save Progress"}
-          </Button>
-          <Button
-            type="button"
-            onClick={() => void handleNextOrSubmit()}
-            disabled={submitSectionMutation.isPending || completeMutation.isPending}
-          >
-            {submitSectionMutation.isPending || completeMutation.isPending ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin me-2" />
-                {isLastSection ? t("submitting") : t("saving")}
-              </>
-            ) : isLastSection ? (
-              <>
-                {t("submit")}
-                <ChevronRight className="h-4 w-4 ms-1" />
-              </>
-            ) : (
-              <>
-                {t("next")}
-                <ChevronRight className="h-4 w-4 ms-1" />
-              </>
+        {/* Section card */}
+        <Card className="overflow-hidden border-0 shadow-md">
+          <CardHeader className="border-b border-slate-100 bg-slate-50/50 pb-4">
+            <div className="flex items-center justify-between gap-2">
+              <CardTitle className="text-lg">{sectionTitle}</CardTitle>
+              <span className="shrink-0 text-xs font-medium text-muted-foreground">
+                {t("progress", { current: currentSectionIndex + 1, total: sections.length })}
+              </span>
+            </div>
+            {sectionDescription && (
+              <p className="text-sm text-muted-foreground leading-relaxed">{sectionDescription}</p>
             )}
+          </CardHeader>
+          <CardContent className="space-y-8 py-6">
+            {sectionQuestions.map((q) => {
+              const qOptions = sortSections(
+                (options as SurveyOption[]).filter((o) => o.questionId === q.id),
+              );
+              return (
+                <QuestionRenderer
+                  key={q.id}
+                  question={q}
+                  options={qOptions}
+                  language={surveyLanguage}
+                  answer={getAnswer(q.id)}
+                  onChange={(next) => setAnswer(q.id, next)}
+                />
+              );
+            })}
+          </CardContent>
+        </Card>
+
+        {/* Navigation bar */}
+        <div className="flex items-center justify-between gap-3 pb-8">
+          {/* Previous — ghost style */}
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={handlePrevious}
+            disabled={currentSectionIndex <= 0}
+            className="gap-1 text-muted-foreground hover:text-foreground"
+          >
+            <ChevronLeft className="h-4 w-4" />
+            {t("previous")}
           </Button>
+
+          <div className="flex items-center gap-2">
+            {/* Save Progress — outline subtle */}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleSaveProgress}
+              disabled={!sessionToken}
+              className="gap-1.5 text-muted-foreground hover:text-foreground"
+            >
+              <BookmarkCheck className="h-4 w-4" />
+              {isAr ? "حفظ" : "Save"}
+            </Button>
+
+            {/* Next / Submit — primary prominent */}
+            <Button
+              type="button"
+              onClick={() => void handleNextOrSubmit()}
+              disabled={isBusy}
+              className="gap-1.5 bg-indigo-600 hover:bg-indigo-700 px-5"
+            >
+              {isBusy ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  {isLastSection ? t("submitting") : t("saving")}
+                </>
+              ) : isLastSection ? (
+                <>
+                  {t("submit")}
+                  <ChevronRight className="h-4 w-4" />
+                </>
+              ) : (
+                <>
+                  {t("next")}
+                  <ChevronRight className="h-4 w-4" />
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
+
+        {/* Confidential note */}
+        <div className="flex items-center justify-center gap-1.5 pb-6 text-xs text-muted-foreground/70">
+          <Lock className="h-3 w-3" />
+          {t("confidentialNote")}
         </div>
       </div>
 
-      {/* ── Save Progress Dialog ──────────────────────────────────────────── */}
+      {/* Save Progress Dialog */}
       <Dialog
         open={saveDialogOpen}
         onOpenChange={(open) => {
@@ -595,13 +646,13 @@ export default function SurveyRespondPage() {
             </div>
           ) : (
             <div className="space-y-4">
-              {/* Resume token copy */}
+              {/* Resume token */}
               <div className="rounded-lg border bg-muted/40 p-3 space-y-2">
                 <p className="text-xs font-medium text-muted-foreground">
                   {isAr ? "رمز الاستئناف الخاص بك" : "Your Resume Token"}
                 </p>
                 <div className="flex items-center gap-2">
-                  <code className="flex-1 rounded bg-background border px-2 py-1 text-xs font-mono truncate">
+                  <code className="flex-1 rounded bg-background border px-2 py-1.5 text-xs font-mono truncate">
                     {sessionToken}
                   </code>
                   <Button type="button" variant="outline" size="sm" onClick={handleCopyToken}>

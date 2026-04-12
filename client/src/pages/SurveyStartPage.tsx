@@ -3,11 +3,14 @@ import { useTranslation } from "react-i18next";
 import { Link, useLocation } from "wouter";
 import { toast } from "sonner";
 import {
-  ClipboardList,
+  ArrowRight,
+  ChevronDown,
+  ChevronUp,
   Clock,
   Layers,
   ListChecks,
   Loader2,
+  Lock,
   Sparkles,
 } from "lucide-react";
 import { TRPCClientError } from "@trpc/client";
@@ -15,18 +18,9 @@ import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 
 const SURVEY_SLUG = "oman-business-sector-2026";
 
-/** Matches `SurveyRespondPage` localStorage key. */
 export function surveyResumeStorageKey(slug: string) {
   return `survey_resume_${slug}`;
 }
@@ -36,7 +30,8 @@ export default function SurveyStartPage() {
   const [, navigate] = useLocation();
   const isRtl = i18n.language?.startsWith("ar");
 
-  const [showContactForm, setShowContactForm] = useState(false);
+  const [showDetails, setShowDetails] = useState(false);
+  const [showResume, setShowResume] = useState(false);
   const [respondentName, setRespondentName] = useState("");
   const [respondentEmail, setRespondentEmail] = useState("");
   const [respondentPhone, setRespondentPhone] = useState("");
@@ -57,14 +52,14 @@ export default function SurveyStartPage() {
 
   const surveyLanguage = i18n.language?.startsWith("ar") ? "ar" : "en";
 
-  const handleStartSubmit = () => {
+  const handleStart = () => {
     if (!data?.survey?.id) return;
     const email = respondentEmail.trim();
     startMutation.mutate({
       surveyId: data.survey.id,
       language: surveyLanguage,
       respondentName: respondentName.trim() || undefined,
-      respondentEmail: email ? email : undefined,
+      respondentEmail: email || undefined,
       respondentPhone: respondentPhone.trim() || undefined,
     });
   };
@@ -90,207 +85,231 @@ export default function SurveyStartPage() {
       className="min-h-screen bg-gradient-to-br from-slate-950 via-indigo-950 to-slate-900 text-slate-50"
       dir={isRtl ? "rtl" : "ltr"}
     >
+      {/* Minimal header */}
       <header className="border-b border-white/10 bg-black/20 backdrop-blur-md">
-        <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-4">
+        <div className="mx-auto flex max-w-2xl items-center justify-between px-4 py-3">
           <Link href="/">
-            <span className="text-sm font-medium text-white/90 hover:text-white">
+            <span className="text-sm font-medium text-white/70 hover:text-white transition-colors">
               {t("backToHome")}
             </span>
           </Link>
           <Badge
             variant="secondary"
-            className="border border-white/10 bg-white/10 text-white backdrop-blur"
+            className="border border-white/10 bg-white/10 text-xs text-white backdrop-blur"
           >
             {t("subtitle")}
           </Badge>
         </div>
       </header>
 
-      <main className="mx-auto max-w-3xl px-4 py-10">
+      <main className="mx-auto max-w-2xl px-4 py-12 sm:py-16">
+        {/* Loading */}
         {isLoading && (
           <div className="flex flex-col items-center justify-center gap-3 py-24 text-white/80">
             <Loader2 className="h-10 w-10 animate-spin" aria-hidden />
           </div>
         )}
 
+        {/* Generic error */}
         {isError && !notFound && (
-          <Card className="border-white/10 bg-white/95 text-slate-900 shadow-xl">
-            <CardHeader>
-              <CardTitle>{t("loadError")}</CardTitle>
-              <CardDescription>{error.message}</CardDescription>
-            </CardHeader>
-            <CardFooter>
-              <Button asChild variant="outline">
-                <Link href="/">{t("backToHome")}</Link>
-              </Button>
-            </CardFooter>
-          </Card>
+          <div className="rounded-2xl border border-white/10 bg-white/95 p-8 text-slate-900 shadow-xl">
+            <h2 className="text-xl font-semibold">{t("loadError")}</h2>
+            <p className="mt-2 text-sm text-slate-500">{error.message}</p>
+            <Button asChild variant="outline" className="mt-6">
+              <Link href="/">{t("backToHome")}</Link>
+            </Button>
+          </div>
         )}
 
+        {/* Not found */}
         {notFound && (
-          <Card className="border-white/10 bg-white/95 text-slate-900 shadow-xl">
-            <CardHeader>
-              <CardTitle>{t("surveyNotFound")}</CardTitle>
-              <CardDescription>{t("surveyNotActive")}</CardDescription>
-            </CardHeader>
-            <CardFooter>
-              <Button asChild variant="outline">
-                <Link href="/">{t("backToHome")}</Link>
-              </Button>
-            </CardFooter>
-          </Card>
+          <div className="rounded-2xl border border-white/10 bg-white/95 p-8 text-slate-900 shadow-xl">
+            <h2 className="text-xl font-semibold">{t("surveyNotFound")}</h2>
+            <p className="mt-2 text-sm text-slate-500">{t("surveyNotActive")}</p>
+            <Button asChild variant="outline" className="mt-6">
+              <Link href="/">{t("backToHome")}</Link>
+            </Button>
+          </div>
         )}
 
+        {/* Main content */}
         {!isLoading && !notFound && data?.survey && (
-          <div className="space-y-8">
-            <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-r from-indigo-600/90 via-violet-600/80 to-fuchsia-600/70 p-8 shadow-2xl">
-              <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-white/20 blur-3xl" />
-              <div className="pointer-events-none absolute -bottom-16 left-10 h-48 w-48 rounded-full bg-cyan-400/20 blur-3xl" />
-              <div className="relative flex items-start gap-4">
-                <div className="rounded-xl bg-white/15 p-3 ring-1 ring-white/20">
-                  <Sparkles className="h-8 w-8 text-amber-200" aria-hidden />
-                </div>
-                <div className="space-y-2">
-                  <p className="text-xs font-semibold uppercase tracking-widest text-white/80">
+          <div className="space-y-6">
+            {/* Hero */}
+            <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-r from-indigo-600/80 to-violet-600/70 px-8 py-10 shadow-2xl">
+              <div className="pointer-events-none absolute -bottom-16 -right-16 h-52 w-52 rounded-full bg-white/10 blur-3xl" />
+              <div className="relative space-y-4">
+                <div className="inline-flex items-center gap-2.5 rounded-xl bg-white/15 px-3 py-2 ring-1 ring-white/20">
+                  <Sparkles className="h-5 w-5 text-amber-200" aria-hidden />
+                  <span className="text-xs font-semibold uppercase tracking-widest text-white/90">
                     {t("title")}
-                  </p>
-                  <h1 className="text-2xl font-bold tracking-tight text-white sm:text-3xl">
-                    {data.survey.titleEn}
-                  </h1>
-                  <p className="text-lg text-white/90" dir="rtl">
-                    {data.survey.titleAr}
-                  </p>
+                  </span>
                 </div>
+                <h1 className="text-2xl font-bold tracking-tight text-white sm:text-3xl">
+                  {data.survey.titleEn}
+                </h1>
+                <p className="text-lg text-white/80" dir="rtl">
+                  {data.survey.titleAr}
+                </p>
               </div>
             </div>
 
-            <Card className="border-white/10 bg-white/95 text-slate-900 shadow-xl">
-              <CardHeader className="border-b border-slate-100 pb-4">
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant="secondary" className="gap-1">
-                    <Clock className="h-3.5 w-3.5" aria-hidden />
-                    {t("estimatedTime", { minutes: data.survey.estimatedMinutes })}
-                  </Badge>
-                  <Badge variant="outline" className="gap-1 border-slate-200">
-                    <Layers className="h-3.5 w-3.5" aria-hidden />
-                    {t("sectionCount", { count: data.sections.length })}
-                  </Badge>
-                  <Badge variant="outline" className="gap-1 border-slate-200">
-                    <ListChecks className="h-3.5 w-3.5" aria-hidden />
-                    {t("questionCount", { count: data.questions.length })}
-                  </Badge>
-                </div>
-                <CardTitle className="text-xl sm:text-2xl">{t("subtitle")}</CardTitle>
-                <CardDescription className="space-y-3 text-base text-slate-600">
-                  <span className="block">{data.survey.descriptionEn}</span>
-                  <span className="block" dir="rtl">
-                    {data.survey.descriptionAr}
-                  </span>
-                </CardDescription>
-              </CardHeader>
+            {/* Survey card */}
+            <div className="rounded-2xl border border-white/10 bg-white text-slate-900 shadow-xl">
+              {/* Meta badges */}
+              <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 px-6 py-4">
+                <Badge variant="secondary" className="gap-1.5 text-xs font-medium">
+                  <Clock className="h-3.5 w-3.5" aria-hidden />
+                  {t("estimatedTime", { minutes: data.survey.estimatedMinutes })}
+                </Badge>
+                <Badge variant="outline" className="gap-1.5 border-slate-200 text-xs font-medium">
+                  <Layers className="h-3.5 w-3.5" aria-hidden />
+                  {t("sectionCount", { count: data.sections.length })}
+                </Badge>
+                <Badge variant="outline" className="gap-1.5 border-slate-200 text-xs font-medium">
+                  <ListChecks className="h-3.5 w-3.5" aria-hidden />
+                  {t("questionCount", { count: data.questions.length })}
+                </Badge>
+              </div>
 
-              <CardContent className="space-y-6 pt-6">
-                {!showContactForm ? (
-                  <Button
-                    size="lg"
-                    className="w-full gap-2 bg-indigo-600 text-base hover:bg-indigo-700 sm:w-auto"
-                    onClick={() => setShowContactForm(true)}
-                  >
-                    <ClipboardList className="h-5 w-5" aria-hidden />
-                    {t("start")}
-                  </Button>
-                ) : (
-                  <div className="space-y-4 rounded-xl border border-slate-200 bg-slate-50/80 p-4">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <p className="text-sm font-semibold text-slate-800">
-                        {t("enterContactInfo")}
-                      </p>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="text-slate-600"
-                        onClick={() => setShowContactForm(false)}
-                      >
-                        {t("previous")}
-                      </Button>
-                    </div>
+              {/* Description + CTA */}
+              <div className="px-6 py-6 space-y-5">
+                <div className="space-y-2">
+                  <p className="text-sm leading-relaxed text-slate-600">
+                    {data.survey.descriptionEn}
+                  </p>
+                  <p className="text-sm leading-relaxed text-slate-500" dir="rtl">
+                    {data.survey.descriptionAr}
+                  </p>
+                </div>
+
+                {/* Primary CTA */}
+                <Button
+                  size="lg"
+                  className="w-full gap-2.5 bg-indigo-600 text-base font-semibold hover:bg-indigo-700 sm:w-auto"
+                  disabled={startMutation.isPending}
+                  onClick={handleStart}
+                >
+                  {startMutation.isPending ? (
+                    <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
+                  ) : (
+                    <ArrowRight className="h-5 w-5" aria-hidden />
+                  )}
+                  {startMutation.isPending ? t("saving") : t("beginSurvey")}
+                </Button>
+
+                {/* Trust signal */}
+                <p className="flex items-center gap-1.5 text-xs text-slate-400">
+                  <Lock className="h-3 w-3" aria-hidden />
+                  {t("confidentialNote")}
+                </p>
+              </div>
+
+              {/* Optional details expansion */}
+              <div className="border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setShowDetails((v) => !v)}
+                  className="flex w-full items-center justify-between px-6 py-3.5 text-sm font-medium text-slate-500 hover:text-slate-700 transition-colors"
+                >
+                  <span>{showDetails ? t("hideDetails") : t("addDetails")}</span>
+                  {showDetails ? (
+                    <ChevronUp className="h-4 w-4" aria-hidden />
+                  ) : (
+                    <ChevronDown className="h-4 w-4" aria-hidden />
+                  )}
+                </button>
+
+                {showDetails && (
+                  <div className="border-t border-slate-50 px-6 pb-5 pt-3">
                     <div className="grid gap-3 sm:grid-cols-3">
-                      <div className="space-y-1.5">
-                        <p className="text-xs font-medium text-slate-500">
-                          {t("yourName")}{" "}
-                          <span className="text-slate-400">({t("optional")})</span>
-                        </p>
+                      <div className="space-y-1">
+                        <label className="text-xs font-medium text-slate-500">
+                          {t("yourName")}
+                        </label>
                         <Input
                           value={respondentName}
                           onChange={(e) => setRespondentName(e.target.value)}
                           placeholder={t("yourName")}
                           autoComplete="name"
+                          className="h-9 text-sm"
                         />
                       </div>
-                      <div className="space-y-1.5">
-                        <p className="text-xs font-medium text-slate-500">
-                          {t("yourEmail")}{" "}
-                          <span className="text-slate-400">({t("optional")})</span>
-                        </p>
+                      <div className="space-y-1">
+                        <label className="text-xs font-medium text-slate-500">
+                          {t("yourEmail")}
+                        </label>
                         <Input
                           type="email"
                           value={respondentEmail}
                           onChange={(e) => setRespondentEmail(e.target.value)}
                           placeholder={t("yourEmail")}
                           autoComplete="email"
+                          className="h-9 text-sm"
                         />
                       </div>
-                      <div className="space-y-1.5">
-                        <p className="text-xs font-medium text-slate-500">
-                          {t("yourPhone")}{" "}
-                          <span className="text-slate-400">({t("optional")})</span>
-                        </p>
+                      <div className="space-y-1">
+                        <label className="text-xs font-medium text-slate-500">
+                          {t("yourPhone")}
+                        </label>
                         <Input
                           type="tel"
                           value={respondentPhone}
                           onChange={(e) => setRespondentPhone(e.target.value)}
                           placeholder={t("yourPhone")}
                           autoComplete="tel"
+                          className="h-9 text-sm"
                         />
                       </div>
                     </div>
-                    <Button
-                      size="lg"
-                      className="w-full gap-2 bg-indigo-600 hover:bg-indigo-700 sm:w-auto"
-                      disabled={startMutation.isPending}
-                      onClick={handleStartSubmit}
-                    >
-                      {startMutation.isPending ? (
-                        <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
-                      ) : (
-                        <ClipboardList className="h-5 w-5" aria-hidden />
-                      )}
-                      {startMutation.isPending ? t("saving") : t("next")}
-                    </Button>
                   </div>
                 )}
+              </div>
 
-                <div className="space-y-3 rounded-xl border border-dashed border-slate-200 bg-white p-4">
-                  <p className="text-sm font-semibold text-slate-800">{t("resumePrompt")}</p>
-                  <p className="text-xs text-slate-500">{t("resumeInstructions")}</p>
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-                    <div className="flex-1 space-y-1.5">
-                      <p className="text-xs font-medium text-slate-500">{t("resumeTokenLabel")}</p>
-                      <Input
-                        value={resumeTokenInput}
-                        onChange={(e) => setResumeTokenInput(e.target.value)}
-                        placeholder={t("resumeTokenLabel")}
-                        autoComplete="off"
-                      />
+              {/* Resume section — collapsed by default */}
+              <div className="border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setShowResume((v) => !v)}
+                  className="flex w-full items-center justify-between px-6 py-3.5 text-sm text-slate-400 hover:text-slate-600 transition-colors"
+                >
+                  <span>{t("resumePrompt")}</span>
+                  {showResume ? (
+                    <ChevronUp className="h-4 w-4" aria-hidden />
+                  ) : (
+                    <ChevronDown className="h-4 w-4" aria-hidden />
+                  )}
+                </button>
+
+                {showResume && (
+                  <div className="border-t border-slate-50 px-6 pb-5 pt-3">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                      <div className="flex-1 space-y-1">
+                        <label className="text-xs font-medium text-slate-500">
+                          {t("resumeTokenLabel")}
+                        </label>
+                        <Input
+                          value={resumeTokenInput}
+                          onChange={(e) => setResumeTokenInput(e.target.value)}
+                          placeholder={t("resumeTokenLabel")}
+                          autoComplete="off"
+                          className="h-9 font-mono text-sm"
+                        />
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={handleResume}
+                        className="shrink-0"
+                      >
+                        {t("resume")}
+                      </Button>
                     </div>
-                    <Button type="button" variant="outline" onClick={handleResume}>
-                      {t("resume")}
-                    </Button>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
+                )}
+              </div>
+            </div>
           </div>
         )}
       </main>

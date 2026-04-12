@@ -1,9 +1,6 @@
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
-import { Star } from "lucide-react";
+import { Check, Star } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 interface Option {
@@ -55,27 +52,31 @@ export default function QuestionRenderer({
 
   return (
     <div className="space-y-3">
-      <div className="flex items-start gap-2">
-        <Label className="text-sm font-medium leading-relaxed">{label}</Label>
-        {question.isRequired && (
-          <Badge variant="outline" className="text-[10px] shrink-0">
-            {t("required")}
-          </Badge>
-        )}
+      {/* Question label */}
+      <div className="space-y-1">
+        <p className="text-base font-medium leading-relaxed text-foreground">
+          {label}
+          {question.isRequired && (
+            <span className="ms-1 text-red-500" aria-label={t("required")}>*</span>
+          )}
+        </p>
+        {hint && <p className="text-sm text-muted-foreground">{hint}</p>}
       </div>
-      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
 
+      {/* Text */}
       {question.type === "text" && (
         <Input
           value={answer.answerValue ?? ""}
           onChange={(e) => onChange({ ...answer, answerValue: e.target.value })}
           placeholder={t("typeAnswer")}
+          className="h-10"
         />
       )}
 
+      {/* Textarea */}
       {question.type === "textarea" && (
         <textarea
-          className="flex min-h-[80px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] outline-none disabled:opacity-50"
+          className="flex min-h-[88px] w-full rounded-lg border border-input bg-transparent px-3 py-2.5 text-sm shadow-xs placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] outline-none disabled:opacity-50 transition-colors"
           value={answer.answerValue ?? ""}
           onChange={(e) => onChange({ ...answer, answerValue: e.target.value })}
           placeholder={t("typeAnswer")}
@@ -83,73 +84,100 @@ export default function QuestionRenderer({
         />
       )}
 
+      {/* Number */}
       {question.type === "number" && (
         <Input
           type="number"
           value={answer.answerValue ?? ""}
           onChange={(e) => onChange({ ...answer, answerValue: e.target.value })}
           placeholder="0"
+          className="h-10 max-w-[200px]"
         />
       )}
 
+      {/* Single choice */}
       {question.type === "single_choice" && (
         <div className="space-y-2">
-          {sortedOptions.map((opt) => (
-            <label
-              key={opt.id}
-              className={`flex items-center gap-3 rounded-lg border p-3 cursor-pointer transition-colors ${
-                answer.selectedOptions.includes(opt.id)
-                  ? "border-primary bg-primary/5"
-                  : "border-input hover:bg-accent/50"
-              }`}
-            >
-              <input
-                type="radio"
-                name={`q-${question.id}`}
-                checked={answer.selectedOptions.includes(opt.id)}
-                onChange={() =>
+          {sortedOptions.map((opt) => {
+            const selected = answer.selectedOptions.includes(opt.id);
+            return (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() =>
                   onChange({ answerValue: opt.value, selectedOptions: [opt.id] })
                 }
-                className="accent-primary"
-              />
-              <span className="text-sm">{getOptionLabel(opt)}</span>
-            </label>
-          ))}
+                className={`flex w-full items-center gap-3 rounded-lg border-2 px-4 py-3 text-start transition-all ${
+                  selected
+                    ? "border-primary bg-primary/8 shadow-sm"
+                    : "border-transparent bg-muted/40 hover:bg-muted/70 hover:border-muted-foreground/20"
+                }`}
+              >
+                <span
+                  className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-all ${
+                    selected
+                      ? "border-primary bg-primary"
+                      : "border-muted-foreground/30"
+                  }`}
+                >
+                  {selected && (
+                    <span className="h-2 w-2 rounded-full bg-white" />
+                  )}
+                </span>
+                <span className={`text-sm ${selected ? "font-medium text-foreground" : "text-foreground/80"}`}>
+                  {getOptionLabel(opt)}
+                </span>
+              </button>
+            );
+          })}
         </div>
       )}
 
+      {/* Multi choice */}
       {question.type === "multi_choice" && (
         <div className="space-y-2">
           <p className="text-xs text-muted-foreground">{t("selectMultiple")}</p>
           {sortedOptions.map((opt) => {
             const checked = answer.selectedOptions.includes(opt.id);
             return (
-              <label
+              <button
                 key={opt.id}
-                className={`flex items-center gap-3 rounded-lg border p-3 cursor-pointer transition-colors ${
-                  checked ? "border-primary bg-primary/5" : "border-input hover:bg-accent/50"
+                type="button"
+                onClick={() => {
+                  const next = checked
+                    ? answer.selectedOptions.filter((id) => id !== opt.id)
+                    : [...answer.selectedOptions, opt.id];
+                  const values = next
+                    .map((id) => options.find((o) => o.id === id)?.value)
+                    .filter(Boolean)
+                    .join(",");
+                  onChange({ answerValue: values || null, selectedOptions: next });
+                }}
+                className={`flex w-full items-center gap-3 rounded-lg border-2 px-4 py-3 text-start transition-all ${
+                  checked
+                    ? "border-primary bg-primary/8 shadow-sm"
+                    : "border-transparent bg-muted/40 hover:bg-muted/70 hover:border-muted-foreground/20"
                 }`}
               >
-                <Checkbox
-                  checked={checked}
-                  onCheckedChange={(c) => {
-                    const next = c
-                      ? [...answer.selectedOptions, opt.id]
-                      : answer.selectedOptions.filter((id) => id !== opt.id);
-                    const values = next
-                      .map((id) => options.find((o) => o.id === id)?.value)
-                      .filter(Boolean)
-                      .join(",");
-                    onChange({ answerValue: values || null, selectedOptions: next });
-                  }}
-                />
-                <span className="text-sm">{getOptionLabel(opt)}</span>
-              </label>
+                <span
+                  className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2 transition-all ${
+                    checked
+                      ? "border-primary bg-primary"
+                      : "border-muted-foreground/30"
+                  }`}
+                >
+                  {checked && <Check className="h-3 w-3 text-white" strokeWidth={3} />}
+                </span>
+                <span className={`text-sm ${checked ? "font-medium text-foreground" : "text-foreground/80"}`}>
+                  {getOptionLabel(opt)}
+                </span>
+              </button>
             );
           })}
         </div>
       )}
 
+      {/* Dropdown */}
       {question.type === "dropdown" && (
         <Select
           value={answer.selectedOptions[0]?.toString() ?? ""}
@@ -162,7 +190,7 @@ export default function QuestionRenderer({
             });
           }}
         >
-          <SelectTrigger className="w-full">
+          <SelectTrigger className="w-full h-10">
             <SelectValue placeholder={t("selectOption")} />
           </SelectTrigger>
           <SelectContent>
@@ -175,50 +203,58 @@ export default function QuestionRenderer({
         </Select>
       )}
 
+      {/* Yes / No */}
       {question.type === "yes_no" && (
         <div className="flex gap-3">
           {[
             { value: "yes", label: isAr ? "نعم" : "Yes" },
             { value: "no", label: isAr ? "لا" : "No" },
-          ].map((opt) => (
-            <button
-              key={opt.value}
-              type="button"
-              onClick={() => onChange({ answerValue: opt.value, selectedOptions: [] })}
-              className={`flex-1 rounded-lg border p-3 text-sm font-medium transition-colors ${
-                answer.answerValue === opt.value
-                  ? "border-primary bg-primary/10 text-primary"
-                  : "border-input hover:bg-accent/50"
-              }`}
-            >
-              {opt.label}
-            </button>
-          ))}
+          ].map((opt) => {
+            const active = answer.answerValue === opt.value;
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => onChange({ answerValue: opt.value, selectedOptions: [] })}
+                className={`flex-1 rounded-lg border-2 py-3 text-sm font-semibold transition-all ${
+                  active
+                    ? "border-primary bg-primary/10 text-primary shadow-sm"
+                    : "border-transparent bg-muted/40 text-foreground/70 hover:bg-muted/70 hover:border-muted-foreground/20"
+                }`}
+              >
+                {opt.label}
+              </button>
+            );
+          })}
         </div>
       )}
 
+      {/* Rating */}
       {question.type === "rating" && (
-        <div className="flex gap-1">
-          {Array.from({ length: (question.settings as any)?.max ?? 5 }, (_, i) => i + 1).map(
-            (star) => (
-              <button
-                key={star}
-                type="button"
-                onClick={() =>
-                  onChange({ answerValue: star.toString(), selectedOptions: [] })
-                }
-                className="p-1 transition-colors"
-              >
-                <Star
-                  size={28}
-                  className={
-                    Number(answer.answerValue) >= star
-                      ? "fill-amber-400 text-amber-400"
-                      : "text-muted-foreground/30"
+        <div className="flex gap-1.5 py-1">
+          {Array.from({ length: (question.settings as { max?: number })?.max ?? 5 }, (_, i) => i + 1).map(
+            (star) => {
+              const filled = Number(answer.answerValue) >= star;
+              return (
+                <button
+                  key={star}
+                  type="button"
+                  onClick={() =>
+                    onChange({ answerValue: star.toString(), selectedOptions: [] })
                   }
-                />
-              </button>
-            ),
+                  className="rounded-md p-1 transition-transform hover:scale-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+                >
+                  <Star
+                    size={32}
+                    className={`transition-colors ${
+                      filled
+                        ? "fill-amber-400 text-amber-400"
+                        : "text-muted-foreground/25 hover:text-amber-300/50"
+                    }`}
+                  />
+                </button>
+              );
+            },
           )}
         </div>
       )}

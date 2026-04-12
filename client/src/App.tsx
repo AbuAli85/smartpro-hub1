@@ -117,6 +117,7 @@ function PublicRoutes() {
       <Route path="/contracts/:id/sign" component={ContractSignPage} />
       <Route path="/attend/:token" component={AttendCheckInPage} />
       <Route path="/sanad/join" component={SanadJoinInvitePage} />
+      <Route path="/" component={Home} />
       <Route component={AppRoutes} />
     </Switch>
   );
@@ -125,7 +126,6 @@ function AppRoutes() {
   return (
     <PlatformLayout>
       <Switch>
-        <Route path="/" component={ControlTowerPage} />
         <Route path="/dashboard" component={Dashboard} />
         <Route path="/control-tower" component={ControlTowerPage} />
         <Route path="/sanad" component={SanadPage} />

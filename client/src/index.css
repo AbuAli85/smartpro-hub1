@@ -47,6 +47,11 @@
   /* Brand palette */
   --smartpro-orange:     oklch(0.63 0.20 28);   /* primary CTA */
   --smartpro-orange-dk:  oklch(0.54 0.20 28);   /* hover */
+  /* Logo palette — red / forest green (marketing & landing) */
+  --smartpro-red:        oklch(0.52 0.21 25);
+  --smartpro-red-dk:     oklch(0.44 0.19 22);
+  --smartpro-brand-green: oklch(0.42 0.12 155);
+  --smartpro-brand-green-dk: oklch(0.36 0.10 155);
   --smartpro-charcoal:   oklch(0.17 0.012 250); /* sidebar / dark bg */
   --smartpro-slate:      oklch(0.24 0.016 250); /* sidebar hover */
   --smartpro-teal:       oklch(0.52 0.14 195);  /* accent 2 */
@@ -257,12 +262,30 @@
 /* ─── Landing page utilities ─────────────────────────────────────────────── */
 .hero-gradient {
   background: linear-gradient(135deg,
-    var(--smartpro-charcoal) 0%,
-    oklch(0.22 0.018 250) 50%,
-    oklch(0.19 0.014 250) 100%);
+    var(--smartpro-red-dk) 0%,
+    oklch(0.14 0.02 250) 42%,
+    oklch(0.22 0.08 155) 100%);
 }
 .hero-accent-line {
-  background: linear-gradient(90deg, var(--smartpro-orange) 0%, var(--smartpro-teal) 100%);
+  background: linear-gradient(90deg, var(--smartpro-red) 0%, var(--smartpro-brand-green) 100%);
+}
+.landing-cta-primary {
+  background: linear-gradient(90deg, var(--smartpro-red) 0%, var(--smartpro-brand-green) 100%) !important;
+  color: #fff !important;
+  border-color: transparent !important;
+}
+.landing-cta-primary:hover {
+  filter: brightness(1.07);
+}
+.landing-tagline-pill {
+  background: linear-gradient(90deg, var(--smartpro-red) 0%, var(--smartpro-brand-green) 100%);
+  color: #fff;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  font-size: 0.65rem;
+}
+@media (min-width: 640px) {
+  .landing-tagline-pill { font-size: 0.7rem; }
 }
 .feature-card {
   @apply bg-card border border-border rounded-2xl p-6 hover:shadow-lg hover:-translate-y-1 transition-all duration-200;

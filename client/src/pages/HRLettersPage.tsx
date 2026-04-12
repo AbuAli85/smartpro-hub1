@@ -746,7 +746,7 @@ export default function HRLettersPage() {
               <Mail size={16} /> Send Letter by Email
             </DialogTitle>
             <DialogDescription>
-              The letter will be sent to the employee's email address as a notification with a download link.
+              The email includes a time-limited secure link to view and print the letter in the browser when possible, or a SmartPRO sign-in link as a fallback.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">

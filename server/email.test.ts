@@ -149,6 +149,22 @@ describe("sendHRLetterEmail", () => {
     const call = mockSend.mock.calls[0][0];
     expect(call.html).not.toContain("Download Letter");
     expect(call.html).toContain("log in to SmartPRO");
+    expect(call.html).toContain("https://smartprohub-q4qjnxjv.manus.space/");
+  });
+
+  it("uses appBaseUrl for login CTA when no pdfUrl is provided", async () => {
+    await sendHRLetterEmail({
+      to: "employee@example.com",
+      employeeName: "Fatima",
+      letterType: "employment_verification",
+      companyName: "Acme",
+      issuedBy: "HR",
+      appBaseUrl: "https://letters.example.com/",
+    });
+
+    const call = mockSend.mock.calls[0][0];
+    expect(call.html).toContain("https://letters.example.com/");
+    expect(call.html).not.toContain("smartprohub-q4qjnxjv.manus.space");
   });
 });
 

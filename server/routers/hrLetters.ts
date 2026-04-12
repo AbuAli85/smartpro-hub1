@@ -8,6 +8,9 @@ import { getActiveCompanyMembership, requireNotAuditor } from "../_core/membersh
 import { protectedProcedure, router } from "../_core/trpc";
 import { invokeLLM } from "../_core/llm";
 import { sendHRLetterEmail } from "../email";
+import { sanitizeLetterHtml } from "../_core/sanitizeLetterHtml";
+import { resolvePublicAppBaseUrl } from "../_core/publicAppUrl";
+import { signHRLetterViewToken } from "../hrLetterViewToken";
 
 // ─── Letter type metadata ──────────────────────────────────────────────────────
 const LETTER_TYPES = {
@@ -54,6 +57,14 @@ const LETTER_TYPES = {
 } as const;
 
 type LetterType = keyof typeof LETTER_TYPES;
+
+function withSanitizedBodies<T extends { bodyEn: string | null; bodyAr: string | null }>(row: T): T {
+  return {
+    ...row,
+    bodyEn: sanitizeLetterHtml(row.bodyEn),
+    bodyAr: sanitizeLetterHtml(row.bodyAr),
+  };
+}
 
 // ─── Reference number generator ───────────────────────────────────────────────
 function generateRefNumber(companyId: number, letterType: string): string {
@@ -193,7 +204,7 @@ export const hrLettersRouter = router({
           )
         )
         .orderBy(desc(hrLetters.createdAt));
-      return rows;
+      return rows.map((r) => withSanitizedBodies(r));
     }),
 
   // Get a single letter by id
@@ -211,7 +222,7 @@ export const hrLettersRouter = router({
         .limit(1);
       const letter = rows[0];
       if (!letter || letter.isDeleted) throw new TRPCError({ code: "NOT_FOUND" });
-      return letter;
+      return withSanitizedBodies(letter);
     }),
 
   // Generate a new letter using LLM
@@ -312,6 +323,9 @@ export const hrLettersRouter = router({
         bodyEn = generatedContent;
       }
 
+      bodyEn = sanitizeLetterHtml(bodyEn);
+      bodyAr = sanitizeLetterHtml(bodyAr);
+
       const meta = LETTER_TYPES[input.letterType as LetterType];
       const subject = input.language === "ar" ? meta.ar : meta.en;
 
@@ -339,7 +353,7 @@ export const hrLettersRouter = router({
         ? await db.select().from(hrLetters).where(eq(hrLetters.id, insertId)).limit(1)
         : [];
 
-      return savedRows[0] ?? {
+      const out = savedRows[0] ?? {
         id: insertId,
         companyId: membership.companyId,
         employeeId: input.employeeId,
@@ -357,6 +371,7 @@ export const hrLettersRouter = router({
         createdAt: new Date(),
         updatedAt: new Date(),
       };
+      return withSanitizedBodies(out as any);
     }),
 
   // Send letter by email to the employee
@@ -380,13 +395,20 @@ export const hrLettersRouter = router({
       if (!letter) throw new TRPCError({ code: "NOT_FOUND", message: "Letter not found" });
       const employee = await getEmployeeById(letter.employeeId);
       const company = await getCompanyById(membership.companyId);
+      const baseUrl = resolvePublicAppBaseUrl(ctx.req);
+      const viewToken = await signHRLetterViewToken(letter.id);
+      const signedViewUrl =
+        !input.pdfUrl && baseUrl && viewToken
+          ? `${baseUrl}/api/hr-letters/view?token=${encodeURIComponent(viewToken)}`
+          : undefined;
       const result = await sendHRLetterEmail({
         to: input.employeeEmail,
         employeeName: employee ? `${employee.firstName} ${employee.lastName}`.trim() : "Employee",
         letterType: letter.letterType,
         companyName: company?.name ?? "SmartPRO",
         issuedBy: ctx.user.name ?? ctx.user.email ?? "HR Team",
-        pdfUrl: input.pdfUrl,
+        pdfUrl: input.pdfUrl ?? signedViewUrl,
+        appBaseUrl: baseUrl || undefined,
       });
       if (!result.success) {
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: result.error ?? "Failed to send email" });

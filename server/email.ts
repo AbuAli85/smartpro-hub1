@@ -268,6 +268,8 @@ export async function sendInviteEmail(params: InviteEmailParams): Promise<{ succ
 // ─────────────────────────────────────────────────────────────────────────────
 // EMAIL 2 — HR Letter Delivery
 // ─────────────────────────────────────────────────────────────────────────────
+const DEFAULT_HR_LETTER_APP_BASE = "https://smartprohub-q4qjnxjv.manus.space";
+
 export interface HRLetterEmailParams {
   to: string;
   employeeName: string;
@@ -275,10 +277,14 @@ export interface HRLetterEmailParams {
   companyName: string;
   issuedBy: string;
   pdfUrl?: string;
+  /** Used for the "Log in to SmartPRO" button when `pdfUrl` is omitted (set from `PUBLIC_APP_URL` or request host). */
+  appBaseUrl?: string;
 }
 
 export async function sendHRLetterEmail(params: HRLetterEmailParams): Promise<{ success: boolean; error?: string }> {
-  const { to, employeeName, letterType, companyName, issuedBy, pdfUrl } = params;
+  const { to, employeeName, letterType, companyName, issuedBy, pdfUrl, appBaseUrl } = params;
+  const loginOrigin = (appBaseUrl?.trim().replace(/\/+$/, "") || DEFAULT_HR_LETTER_APP_BASE).replace(/\/+$/, "");
+  const loginHref = `${loginOrigin}/`;
   const letterLabel = letterType.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
   const dateStr = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
 
@@ -310,7 +316,7 @@ export async function sendHRLetterEmail(params: HRLetterEmailParams): Promise<{ 
       ? `<p style="color:${C.textMuted};font-size:14px;text-align:center;margin:0 0 4px;">Click below to download your official letter:</p>
          <div style="text-align:center;">${ctaButton(pdfUrl, "Download Letter")}</div>`
       : `<p style="color:${C.textMuted};font-size:14px;text-align:center;margin:0 0 4px;">Please log in to SmartPRO to view and download your letter:</p>
-         <div style="text-align:center;">${ctaButton("https://smartprohub-q4qjnxjv.manus.space", "Log In to SmartPRO")}</div>`
+         <div style="text-align:center;">${ctaButton(loginHref, "Log In to SmartPRO")}</div>`
     }
 
     <!-- Official stamp note -->

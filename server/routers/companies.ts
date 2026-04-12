@@ -18,6 +18,7 @@ import {
 } from "../db";
 import { companyInvites, companyMembers, users, employees, companies } from "../../drizzle/schema";
 import { getActiveCompanyMembership } from "../_core/membership";
+import { resolvePublicAppBaseUrl } from "../_core/publicAppUrl";
 import { protectedProcedure, publicProcedure, router } from "../_core/trpc";
 import { notifyOwner } from "../_core/notification";
 import { sendInviteEmail, sendHRLetterEmail, sendContractSigningEmail } from "../email";
@@ -1406,7 +1407,7 @@ export const companiesRouter = router({
       roleLabel: z.string().default("Company Admin"),
     }))
     .mutation(async ({ ctx, input }) => {
-      const appUrl = "https://smartprohub-q4qjnxjv.manus.space";
+      const appUrl = resolvePublicAppBaseUrl(ctx.req) || "https://smartprohub-q4qjnxjv.manus.space";
       const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
       if (input.template === "invite") {
         return sendInviteEmail({
@@ -1425,6 +1426,7 @@ export const companiesRouter = router({
           letterType: "employment_confirmation",
           companyName: input.companyName,
           issuedBy: ctx.user.name ?? "HR Manager",
+          appBaseUrl: appUrl,
         });
       } else {
         return sendContractSigningEmail({

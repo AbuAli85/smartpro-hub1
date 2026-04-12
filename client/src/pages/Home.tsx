@@ -271,6 +271,9 @@ export default function Home() {
             <a href="#faq" className="hover:text-foreground transition-colors">
               FAQ
             </a>
+            <Link href="/survey" className="text-red-600 dark:text-red-400 font-semibold hover:text-red-700 transition-colors">
+              Take Survey
+            </Link>
           </div>
           <div className="flex items-center gap-2 shrink-0">
             {isAuthenticated ? (
@@ -379,6 +382,38 @@ export default function Home() {
                   <div className="text-sm text-muted-foreground font-medium">{s.label}</div>
                 </div>
               ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="py-10 bg-background">
+          <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-red-600 to-red-700 dark:from-red-700 dark:to-red-800 text-white p-8 md:p-10 shadow-lg">
+              <div className="absolute -right-8 -top-8 h-40 w-40 rounded-full bg-white/10 blur-2xl" />
+              <div className="absolute -left-4 -bottom-6 h-32 w-32 rounded-full bg-white/5 blur-xl" />
+              <div className="relative flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <ClipboardList size={20} />
+                    <span className="text-sm font-semibold uppercase tracking-wider text-white/80">Free Business Survey</span>
+                  </div>
+                  <h3 className="text-2xl md:text-3xl font-black leading-tight">
+                    Oman Business Sector Intelligence Survey 2026
+                  </h3>
+                  <p className="text-white/80 text-sm md:text-base max-w-lg">
+                    Takes ~12 minutes. No login required. Help shape the future of business solutions for Oman's private sector.
+                  </p>
+                </div>
+                <Button
+                  size="lg"
+                  className="bg-white text-red-700 hover:bg-white/90 font-bold shadow-md h-12 px-8 shrink-0"
+                  asChild
+                >
+                  <Link href="/survey">
+                    Take the Survey <ArrowRight size={16} className="ml-2" />
+                  </Link>
+                </Button>
+              </div>
             </div>
           </div>
         </section>

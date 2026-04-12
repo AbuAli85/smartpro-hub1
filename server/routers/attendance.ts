@@ -1,6 +1,6 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { eq, and, desc, gte, like, lt, lte, isNull, ne, inArray, or } from "drizzle-orm";
+import { eq, and, desc, gte, like, lt, lte, isNull, ne, inArray, or, sql } from "drizzle-orm";
 import { randomBytes } from "crypto";
 import {
   attendance,
@@ -1475,8 +1475,8 @@ export const attendanceRouter = router({
               employeeUserId: manualCheckinRequests.employeeUserId,
               siteId: manualCheckinRequests.siteId,
               requestedAt: manualCheckinRequests.requestedAt,
-              requestedBusinessDate: null as null,
-              requestedScheduleId: null as null,
+              requestedBusinessDate: sql<string | null>`NULL`.as("requested_business_date"),
+              requestedScheduleId: sql<number | null>`NULL`.as("requested_schedule_id"),
               justification: manualCheckinRequests.justification,
               lat: manualCheckinRequests.lat,
               lng: manualCheckinRequests.lng,

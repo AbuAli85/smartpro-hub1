@@ -1939,3 +1939,6 @@ Every company on SmartPRO Hub gets a complete, unified business operating area â
 
 ## Letter Preview Realistic Placeholders
 - [x] Replace generic placeholder text in Quick Preview dialog with realistic per-type Omani sample data
+
+## Home Page Redirect Bug
+- [x] Fix Home page auto-redirecting authenticated users to control-tower â€” replaced with contextual Dashboard/Go to app buttons in nav

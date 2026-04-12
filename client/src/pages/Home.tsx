@@ -2,7 +2,7 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { getLoginUrl } from "@/const";
-import { Link, Redirect } from "wouter";
+import { Link } from "wouter";
 import {
   ArrowRight,
   Shield,
@@ -230,10 +230,6 @@ export default function Home() {
     );
   }
 
-  if (isAuthenticated) {
-    return <Redirect to="/control-tower" />;
-  }
-
   return (
     <div className="min-h-screen bg-background text-foreground">
       <a href="#main" className="skip-to-main">
@@ -269,12 +265,25 @@ export default function Home() {
             </a>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <Button variant="ghost" size="sm" asChild>
-              <a href={getLoginUrl()}>Sign in</a>
-            </Button>
-            <Button size="sm" className="landing-cta-primary font-semibold shadow-sm" asChild>
-              <a href={getLoginUrl()}>Get started</a>
-            </Button>
+            {isAuthenticated ? (
+              <>
+                <Button variant="ghost" size="sm" asChild>
+                  <Link href="/control-tower">Dashboard</Link>
+                </Button>
+                <Button size="sm" className="landing-cta-primary font-semibold shadow-sm" asChild>
+                  <Link href="/control-tower">Go to app <ArrowRight size={14} className="ml-1" /></Link>
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button variant="ghost" size="sm" asChild>
+                  <a href={getLoginUrl()}>Sign in</a>
+                </Button>
+                <Button size="sm" className="landing-cta-primary font-semibold shadow-sm" asChild>
+                  <a href={getLoginUrl()}>Get started</a>
+                </Button>
+              </>
+            )}
           </div>
         </div>
       </nav>

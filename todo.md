@@ -1970,3 +1970,10 @@ Every company on SmartPRO Hub gets a complete, unified business operating area â
 - [x] Replace old phone +968 2400 0000 with +968 7966 5522 across all files
 - [x] Replace old email info@smartpro.om with info@thesmartpro.io across all files
 - [x] Replace old website www.smartpro.om with www.thesmartpro.io across all files
+
+## Nav Consolidation â€” MY COMPANY Section
+- [x] Rename "Company Admin" nav item to "Team & Members" (route stays /company-admin) and remove its duplicate Profile tab
+- [x] Rename "Company Settings" nav item to "Workspace Settings" and remove its duplicate basic-info/location/contact/legal fields (keep HR compliance, leave caps, role redirects, nav extensions)
+- [x] Update platformNav.tsx: change labels and icons for the two renamed items
+- [x] Update CompanyAdminPage.tsx: remove Profile tab, keep only Members tab (rename page heading to "Team & Members")
+- [x] Update CompanySettingsPage.tsx: remove Basic Info, Location, Contact, Legal cards (already in Company Profile); keep HR Compliance, Leave Caps, Role Login Redirects, Nav Extensions

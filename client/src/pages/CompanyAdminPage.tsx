@@ -8,9 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Dialog,
@@ -39,10 +37,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  Building2, Users, Shield, Settings, Save, UserPlus, UserMinus,
+  Building2, Users, Shield, Save, UserPlus, UserMinus,
   RefreshCw, Crown, Eye, Loader2, CheckCircle2, AlertCircle,
-  Mail, Globe, Phone, MapPin, Hash, FileText, Edit3, UserCheck,
-  BarChart3, Search, X as XIcon
+  Mail, FileText, Edit3, UserCheck,
+  BarChart3, Search, X as XIcon, Link as LinkIcon,
 } from "lucide-react";
 import { Link } from "wouter";
 import { fmtDate } from "@/lib/dateUtils";
@@ -100,12 +98,6 @@ const ROLE_CONFIG: Record<MemberRole, { label: string; color: string; icon: Reac
   },
 };
 
-const INDUSTRIES = [
-  "Construction", "Real Estate", "Retail", "Hospitality", "Healthcare",
-  "Education", "Technology", "Finance", "Manufacturing", "Logistics",
-  "Oil & Gas", "Government", "NGO", "Other",
-];
-
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 function RoleBadge({ role }: { role: MemberRole }) {
@@ -118,7 +110,7 @@ function RoleBadge({ role }: { role: MemberRole }) {
   );
 }
 
-function StatCard({ icon, label, value, sub }: { icon: React.ReactNode; label: string; value: string | number; sub?: string }) {
+function StatCard({ icon, label, value }: { icon: React.ReactNode; label: string; value: string | number }) {
   return (
     <Card className="shadow-sm">
       <CardContent className="p-5 flex items-center gap-4">
@@ -128,7 +120,6 @@ function StatCard({ icon, label, value, sub }: { icon: React.ReactNode; label: s
         <div>
           <p className="text-2xl font-bold leading-none">{value}</p>
           <p className="text-sm text-muted-foreground mt-0.5">{label}</p>
-          {sub && <p className="text-xs text-muted-foreground/70 mt-0.5">{sub}</p>}
         </div>
       </CardContent>
     </Card>
@@ -142,73 +133,41 @@ export default function CompanyAdminPage() {
   const utils = trpc.useUtils();
   const { activeCompanyId } = useActiveCompany();
 
-  const { data: myCompanyData, isLoading: companyLoading } = trpc.companies.myCompany.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
-  const { data: members, isLoading: membersLoading } = trpc.companies.members.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
-  const { data: stats } = trpc.companies.myStats.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
+  const { data: myCompanyData, isLoading: companyLoading } = trpc.companies.myCompany.useQuery(
+    { companyId: activeCompanyId ?? undefined },
+    { enabled: activeCompanyId != null },
+  );
+  const { data: members, isLoading: membersLoading } = trpc.companies.members.useQuery(
+    { companyId: activeCompanyId ?? undefined },
+    { enabled: activeCompanyId != null },
+  );
+  const { data: stats } = trpc.companies.myStats.useQuery(
+    { companyId: activeCompanyId ?? undefined },
+    { enabled: activeCompanyId != null },
+  );
 
   const company = myCompanyData?.company;
   const myMembership = myCompanyData?.member;
-
-  // ── Profile edit state ──────────────────────────────────────────────────────
-  const [profileForm, setProfileForm] = useState({
-    name: "", nameAr: "", industry: "", city: "", address: "",
-    phone: "", email: "", website: "", registrationNumber: "", taxNumber: "",
-  });
-  const [profileDirty, setProfileDirty] = useState(false);
-
-  useEffect(() => {
-    if (company) {
-      setProfileForm({
-        name: company.name ?? "",
-        nameAr: company.nameAr ?? "",
-        industry: company.industry ?? "",
-        city: company.city ?? "",
-        address: company.address ?? "",
-        phone: company.phone ?? "",
-        email: company.email ?? "",
-        website: company.website ?? "",
-        registrationNumber: company.registrationNumber ?? "",
-        taxNumber: company.taxNumber ?? "",
-      });
-    }
-  }, [company]);
-
-  const updateCompany = trpc.companies.update.useMutation({
-    onSuccess: () => {
-      toast.success("Company profile updated successfully");
-      setProfileDirty(false);
-      utils.companies.myCompany.invalidate();
-    },
-    onError: (err: { message?: string }) => toast.error(err.message || "Failed to update company"),
-  });
-
-  const handleProfileChange = (field: string, value: string) => {
-    setProfileForm((f) => ({ ...f, [field]: value }));
-    setProfileDirty(true);
-  };
-
-  const handleProfileSave = () => {
-    if (!company) return;
-    updateCompany.mutate({ id: company.id, ...profileForm });
-  };
 
   // ── Member management state ─────────────────────────────────────────────────
   const [addMemberDialog, setAddMemberDialog] = useState(false);
   const [addEmail, setAddEmail] = useState("");
   const [addRole, setAddRole] = useState<MemberRole>("company_member");
-  // Invite pipeline state
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<"company_admin" | "company_member" | "finance_admin" | "hr_admin" | "reviewer" | "external_auditor">("company_member");
   const [inviteResult, setInviteResult] = useState<{ inviteUrl: string; expiresAt: Date } | null>(null);
   const [showInviteDialog, setShowInviteDialog] = useState(false);
-
   const [roleDialog, setRoleDialog] = useState<{ memberId: number; currentRole: MemberRole; name: string } | null>(null);
   const [newRole, setNewRole] = useState<MemberRole>("company_member");
-
   const [removeDialog, setRemoveDialog] = useState<{ memberId: number; name: string } | null>(null);
-
-  // ── Search state ────────────────────────────────────────────────────────────
   const [memberSearch, setMemberSearch] = useState("");
+
+  const isAdmin = user?.role === "admin" || myMembership?.role === "company_admin";
+
+  const { data: pendingInvites, refetch: refetchInvites } = trpc.companies.listInvites.useQuery(
+    { companyId: activeCompanyId ?? undefined },
+    { enabled: isAdmin && activeCompanyId != null },
+  );
 
   const addMember = trpc.companies.addMemberByEmail.useMutation({
     onSuccess: (data) => {
@@ -251,12 +210,6 @@ export default function CompanyAdminPage() {
     onError: (err: { message?: string }) => toast.error(err.message || "Failed to reactivate member"),
   });
 
-  const isAdmin = user?.role === "admin" || myMembership?.role === "company_admin";
-  // Invite pipeline queries and mutations (must be after isAdmin)
-  const { data: pendingInvites, refetch: refetchInvites } = trpc.companies.listInvites.useQuery(
-    { companyId: activeCompanyId ?? undefined },
-    { enabled: isAdmin && activeCompanyId != null },
-  );
   const createInvite = trpc.companies.createInvite.useMutation({
     onSuccess: (data) => {
       setInviteResult({ inviteUrl: data.inviteUrl, expiresAt: new Date(data.expiresAt) });
@@ -265,10 +218,12 @@ export default function CompanyAdminPage() {
     },
     onError: (err: { message?: string }) => toast.error(err.message || "Failed to create invite"),
   });
+
   const revokeInvite = trpc.companies.revokeInvite.useMutation({
     onSuccess: () => { toast.success("Invite revoked"); refetchInvites(); },
     onError: (err: { message?: string }) => toast.error(err.message || "Failed to revoke invite"),
   });
+
   const allActiveMembers = (members ?? []).filter((m) => m.isActive);
   const allInactiveMembers = (members ?? []).filter((m) => !m.isActive);
 
@@ -277,24 +232,24 @@ export default function CompanyAdminPage() {
     ? allActiveMembers.filter(
         (m) =>
           (m.name ?? "").toLowerCase().includes(searchLower) ||
-          (m.email ?? "").toLowerCase().includes(searchLower)
+          (m.email ?? "").toLowerCase().includes(searchLower),
       )
     : allActiveMembers;
   const inactiveMembers = searchLower
     ? allInactiveMembers.filter(
         (m) =>
           (m.name ?? "").toLowerCase().includes(searchLower) ||
-          (m.email ?? "").toLowerCase().includes(searchLower)
+          (m.email ?? "").toLowerCase().includes(searchLower),
       )
     : allInactiveMembers;
 
-  // ── Loading state ───────────────────────────────────────────────────────────
+  // ── Loading / empty states ──────────────────────────────────────────────────
   if (companyLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center space-y-3">
           <Loader2 className="w-8 h-8 animate-spin text-primary mx-auto" />
-          <p className="text-sm text-muted-foreground">Loading company data…</p>
+          <p className="text-sm text-muted-foreground">Loading team data…</p>
         </div>
       </div>
     );
@@ -332,15 +287,12 @@ export default function CompanyAdminPage() {
           <div className="flex items-start justify-between gap-4">
             <div className="flex flex-wrap items-center gap-4">
               <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
-                <Building2 className="w-6 h-6 text-primary" />
+                <Users className="w-6 h-6 text-primary" />
               </div>
               <div>
-                <h1 className="text-xl font-bold">{company.name}</h1>
+                <h1 className="text-xl font-bold">Team &amp; Members</h1>
                 <div className="flex items-center gap-2 mt-0.5">
-                  <Badge variant="outline" className="text-xs capitalize">{company.status}</Badge>
-                  {company.industry && (
-                    <span className="text-xs text-muted-foreground">{company.industry}</span>
-                  )}
+                  <span className="text-sm text-muted-foreground">{company.name}</span>
                   {myMembership && (
                     <RoleBadge role={myMembership.role as MemberRole} />
                   )}
@@ -348,10 +300,16 @@ export default function CompanyAdminPage() {
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              {profileDirty && (
-                <Button onClick={handleProfileSave} disabled={updateCompany.isPending} className="gap-2">
-                  {updateCompany.isPending ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" /> : <Save className="w-4 h-4" aria-hidden="true" />}
-                  Save Changes
+              <Button variant="outline" size="sm" asChild className="gap-2">
+                <Link href="/company/profile">
+                  <Building2 className="w-4 h-4" />
+                  Company Profile
+                </Link>
+              </Button>
+              {isAdmin && (
+                <Button onClick={() => setAddMemberDialog(true)} size="sm" className="gap-2">
+                  <UserPlus className="w-4 h-4" />
+                  Add Member
                 </Button>
               )}
             </div>
@@ -368,533 +326,302 @@ export default function CompanyAdminPage() {
           <StatCard icon={<BarChart3 className="w-5 h-5" />} label="Employees" value={stats?.employees ?? 0} />
         </div>
 
-        {/* ── Tabs ── */}
-        <Tabs defaultValue="profile">
-          <TabsList className="grid w-full grid-cols-2 max-w-sm">
-            <TabsTrigger value="profile" className="gap-2">
-              <Settings className="w-4 h-4" />
-              Company Profile
-            </TabsTrigger>
-            <TabsTrigger value="members" className="gap-2">
-              <Users className="w-4 h-4" />
-              Members
-              <span className="ml-1 bg-primary/10 text-primary text-xs rounded-full px-1.5 py-0.5 font-medium">
-                {allActiveMembers.length}
+        {/* ── Role Legend ── */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {(Object.entries(ROLE_CONFIG) as [MemberRole, typeof ROLE_CONFIG[MemberRole]][]).map(([role, cfg]) => (
+            <div key={role} className="flex items-start gap-2 p-3 rounded-lg border bg-card">
+              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border shrink-0 ${cfg.color}`}>
+                {cfg.icon}
+                {cfg.label}
               </span>
-            </TabsTrigger>
-          </TabsList>
-
-          {/* ── Profile Tab ── */}
-          <TabsContent value="profile" className="mt-6 space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Basic Info */}
-              <Card className="shadow-sm">
-                <CardHeader>
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <Building2 className="w-4 h-4 text-primary" />
-                    Basic Information
-                  </CardTitle>
-                  <CardDescription>Company name and identity details</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="name">Company Name (English) *</Label>
-                    <Input
-                      id="name"
-                      value={profileForm.name}
-                      onChange={(e) => handleProfileChange("name", e.target.value)}
-                      disabled={!isAdmin}
-                      placeholder="e.g. SmartPRO Business Services LLC"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="nameAr">Company Name (Arabic)</Label>
-                    <Input
-                      id="nameAr"
-                      value={profileForm.nameAr}
-                      onChange={(e) => handleProfileChange("nameAr", e.target.value)}
-                      disabled={!isAdmin}
-                      placeholder="اسم الشركة بالعربية"
-                      dir="rtl"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="industry">Industry</Label>
-                    <Select
-                      value={profileForm.industry}
-                      onValueChange={(v) => handleProfileChange("industry", v)}
-                      disabled={!isAdmin}
-                    >
-                      <SelectTrigger id="industry">
-                        <SelectValue placeholder="Select industry" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {INDUSTRIES.map((ind) => (
-                          <SelectItem key={ind} value={ind}>{ind}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Registration */}
-              <Card className="shadow-sm">
-                <CardHeader>
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <Hash className="w-4 h-4 text-primary" />
-                    Registration Details
-                  </CardTitle>
-                  <CardDescription>Official registration and tax numbers</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="registrationNumber">Commercial Registration No.</Label>
-                    <Input
-                      id="registrationNumber"
-                      value={profileForm.registrationNumber}
-                      onChange={(e) => handleProfileChange("registrationNumber", e.target.value)}
-                      disabled={!isAdmin}
-                      placeholder="e.g. 1234567"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="taxNumber">Tax Registration No. (VAT)</Label>
-                    <Input
-                      id="taxNumber"
-                      value={profileForm.taxNumber}
-                      onChange={(e) => handleProfileChange("taxNumber", e.target.value)}
-                      disabled={!isAdmin}
-                      placeholder="e.g. OM1234567890"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Company Status</Label>
-                    <div className="flex items-center gap-2 h-9">
-                      <Badge
-                        className={
-                          company.status === "active"
-                            ? "bg-emerald-100 text-emerald-700 border-emerald-200"
-                            : company.status === "suspended"
-                            ? "bg-red-100 text-red-700 border-red-200"
-                            : "bg-amber-100 text-amber-700 border-amber-200"
-                        }
-                        variant="outline"
-                      >
-                        <CheckCircle2 className="w-3 h-3 mr-1" />
-                        {company.status.charAt(0).toUpperCase() + company.status.slice(1)}
-                      </Badge>
-                      <span className="text-xs text-muted-foreground">
-                        Since {fmtDate(company.createdAt)}
-                      </span>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Contact */}
-              <Card className="shadow-sm">
-                <CardHeader>
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <Phone className="w-4 h-4 text-primary" />
-                    Contact Information
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="phone">
-                      <Phone className="w-3.5 h-3.5 inline mr-1" />
-                      Phone
-                    </Label>
-                    <Input
-                      id="phone"
-                      value={profileForm.phone}
-                      onChange={(e) => handleProfileChange("phone", e.target.value)}
-                      disabled={!isAdmin}
-                      placeholder="+968 XXXX XXXX"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="email">
-                      <Mail className="w-3.5 h-3.5 inline mr-1" />
-                      Email
-                    </Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      value={profileForm.email}
-                      onChange={(e) => handleProfileChange("email", e.target.value)}
-                      disabled={!isAdmin}
-                      placeholder="info@company.om"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="website">
-                      <Globe className="w-3.5 h-3.5 inline mr-1" />
-                      Website
-                    </Label>
-                    <Input
-                      id="website"
-                      value={profileForm.website}
-                      onChange={(e) => handleProfileChange("website", e.target.value)}
-                      disabled={!isAdmin}
-                      placeholder="https://www.company.om"
-                    />
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Address */}
-              <Card className="shadow-sm">
-                <CardHeader>
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <MapPin className="w-4 h-4 text-primary" />
-                    Location
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="city">City / Governorate</Label>
-                    <Input
-                      id="city"
-                      value={profileForm.city}
-                      onChange={(e) => handleProfileChange("city", e.target.value)}
-                      disabled={!isAdmin}
-                      placeholder="e.g. Muscat"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="address">Full Address</Label>
-                    <Input
-                      id="address"
-                      value={profileForm.address}
-                      onChange={(e) => handleProfileChange("address", e.target.value)}
-                      disabled={!isAdmin}
-                      placeholder="Building, Street, Area, Postal Code"
-                    />
-                  </div>
-                  {!isAdmin && (
-                    <p className="text-xs text-muted-foreground flex items-center gap-1">
-                      <Shield className="w-3 h-3" />
-                      Only company admins can edit this information.
-                    </p>
-                  )}
-                </CardContent>
-              </Card>
+              <p className="text-xs text-muted-foreground leading-snug">{cfg.description}</p>
             </div>
+          ))}
+        </div>
 
-            {isAdmin && profileDirty && (
-              <div className="flex justify-end">
-                <Button onClick={handleProfileSave} disabled={updateCompany.isPending} size="lg" className="gap-2">
-                  {updateCompany.isPending ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" /> : <Save className="w-4 h-4" aria-hidden="true" />}
-                  Save All Changes
+        {/* ── Active Members ── */}
+        <Card className="shadow-sm">
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle className="text-base flex items-center gap-2">
+                <UserCheck className="w-4 h-4 text-primary" />
+                Active Members
+                <Badge variant="secondary" className="ml-1">
+                  {searchLower ? `${activeMembers.length} / ${allActiveMembers.length}` : activeMembers.length}
+                </Badge>
+              </CardTitle>
+              <CardDescription>Users with active access to this company</CardDescription>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="relative w-52 max-w-full">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none z-10" />
+                <Input
+                  type="search"
+                  value={memberSearch}
+                  onChange={(e) => setMemberSearch(e.target.value)}
+                  placeholder="Search by name or email…"
+                  className="h-8 pl-8 pr-7 text-sm"
+                  aria-label="Filter members by name or email"
+                />
+                {memberSearch && (
+                  <button
+                    onClick={() => setMemberSearch("")}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    aria-label="Clear search"
+                  >
+                    <XIcon className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+              {isAdmin && (
+                <Button onClick={() => setAddMemberDialog(true)} className="gap-2" size="sm">
+                  <UserPlus className="w-4 h-4" />
+                  Add Member
+                </Button>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent className="p-0">
+            {membersLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : activeMembers.length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground">
+                <Users className="w-8 h-8 mx-auto mb-2 opacity-40" />
+                <p className="text-sm">
+                  {searchLower ? `No members match "${memberSearch}"` : "No active members yet"}
+                </p>
+                {searchLower && (
+                  <button
+                    onClick={() => setMemberSearch("")}
+                    className="mt-2 text-xs text-primary hover:underline"
+                  >
+                    Clear search
+                  </button>
+                )}
+              </div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead>Member</TableHead>
+                    <TableHead>Role</TableHead>
+                    <TableHead className="hidden md:table-cell">Login Method</TableHead>
+                    <TableHead className="hidden md:table-cell">Last Active</TableHead>
+                    <TableHead className="hidden md:table-cell">Joined</TableHead>
+                    {isAdmin && <TableHead className="text-right">Actions</TableHead>}
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {activeMembers.map((m) => {
+                    const isMe = m.userId === user?.id;
+                    const initials = (m.name ?? m.email ?? "?")
+                      .split(" ")
+                      .map((w) => w[0])
+                      .join("")
+                      .toUpperCase()
+                      .slice(0, 2);
+                    return (
+                      <TableRow key={m.memberId} className={isMe ? "bg-primary/5" : ""}>
+                        <TableCell>
+                          <div className="flex flex-wrap items-center gap-3">
+                            <Avatar className="w-8 h-8">
+                              <AvatarImage src={m.avatarUrl ?? undefined} />
+                              <AvatarFallback className="text-xs bg-primary/10 text-primary font-semibold">
+                                {initials}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div>
+                              <p className="text-sm font-medium leading-none">
+                                {m.name ?? "—"}
+                                {isMe && <span className="ml-1.5 text-xs text-primary font-normal">(you)</span>}
+                              </p>
+                              <p className="text-xs text-muted-foreground mt-0.5">{m.email ?? "—"}</p>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <RoleBadge role={m.role as MemberRole} />
+                        </TableCell>
+                        <TableCell className="hidden md:table-cell">
+                          <span className="text-xs capitalize text-muted-foreground">{m.loginMethod ?? "—"}</span>
+                        </TableCell>
+                        <TableCell className="hidden md:table-cell">
+                          <span className="text-xs text-muted-foreground">
+                            {m.lastSignedIn ? fmtDate(m.lastSignedIn) : "Never"}
+                          </span>
+                        </TableCell>
+                        <TableCell className="hidden md:table-cell">
+                          <span className="text-xs text-muted-foreground">{fmtDate(m.joinedAt)}</span>
+                        </TableCell>
+                        {isAdmin && (
+                          <TableCell className="text-right">
+                            <div className="flex items-center justify-end gap-1">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 px-2 gap-1 text-xs"
+                                onClick={() => {
+                                  setRoleDialog({ memberId: m.memberId, currentRole: m.role as MemberRole, name: m.name ?? m.email ?? "Member" });
+                                  setNewRole(m.role as MemberRole);
+                                }}
+                              >
+                                <Edit3 className="w-3 h-3" />
+                                Role
+                              </Button>
+                              {!isMe && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 px-2 gap-1 text-xs text-destructive hover:text-destructive"
+                                  onClick={() => setRemoveDialog({ memberId: m.memberId, name: m.name ?? m.email ?? "Member" })}
+                                >
+                                  <UserMinus className="w-3 h-3" />
+                                  Remove
+                                </Button>
+                              )}
+                            </div>
+                          </TableCell>
+                        )}
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* ── Inactive Members ── */}
+        {inactiveMembers.length > 0 && (
+          <Card className="shadow-sm opacity-80">
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2 text-muted-foreground">
+                <UserMinus className="w-4 h-4" />
+                Removed Members
+                <Badge variant="outline" className="ml-1">{inactiveMembers.length}</Badge>
+              </CardTitle>
+              <CardDescription>These users have been removed but can be reactivated</CardDescription>
+            </CardHeader>
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead>Member</TableHead>
+                    <TableHead>Last Role</TableHead>
+                    {isAdmin && <TableHead className="text-right">Actions</TableHead>}
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {inactiveMembers.map((m) => {
+                    const initials = (m.name ?? m.email ?? "?")
+                      .split(" ")
+                      .map((w) => w[0])
+                      .join("")
+                      .toUpperCase()
+                      .slice(0, 2);
+                    return (
+                      <TableRow key={m.memberId} className="opacity-60">
+                        <TableCell>
+                          <div className="flex flex-wrap items-center gap-3">
+                            <Avatar className="w-8 h-8">
+                              <AvatarFallback className="text-xs bg-muted text-muted-foreground font-semibold">
+                                {initials}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div>
+                              <p className="text-sm font-medium">{m.name ?? "—"}</p>
+                              <p className="text-xs text-muted-foreground">{m.email ?? "—"}</p>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <RoleBadge role={m.role as MemberRole} />
+                        </TableCell>
+                        {isAdmin && (
+                          <TableCell className="text-right">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-7 px-2 gap-1 text-xs"
+                              onClick={() => reactivateMember.mutate({ memberId: m.memberId, companyId: activeCompanyId ?? undefined })}
+                              disabled={reactivateMember.isPending}
+                            >
+                              <RefreshCw className="w-3 h-3" />
+                              Reactivate
+                            </Button>
+                          </TableCell>
+                        )}
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* ── Pending Invites ── */}
+        {isAdmin && pendingInvites && pendingInvites.length > 0 && (
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Mail className="w-4 h-4 text-primary" />
+                  Pending Invites
+                  <Badge variant="secondary" className="text-xs">{pendingInvites.length}</Badge>
+                </CardTitle>
+                <Button size="sm" variant="outline" className="gap-2 h-8" onClick={() => { setInviteResult(null); setShowInviteDialog(true); }}>
+                  <LinkIcon className="w-3.5 h-3.5" />
+                  Invite by Link
                 </Button>
               </div>
-            )}
-          </TabsContent>
-
-          {/* ── Members Tab ── */}
-          <TabsContent value="members" className="mt-6 space-y-6">
-            {/* Role legend */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              {(Object.entries(ROLE_CONFIG) as [MemberRole, typeof ROLE_CONFIG[MemberRole]][]).map(([role, cfg]) => (
-                <div key={role} className="flex items-start gap-2 p-3 rounded-lg border bg-card">
-                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border shrink-0 ${cfg.color}`}>
-                    {cfg.icon}
-                    {cfg.label}
-                  </span>
-                  <p className="text-xs text-muted-foreground leading-snug">{cfg.description}</p>
-                </div>
-              ))}
-            </div>
-
-            {/* Active Members */}
-            <Card className="shadow-sm">
-              <CardHeader className="flex flex-row items-center justify-between">
-                <div>
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <UserCheck className="w-4 h-4 text-primary" />
-                    Active Members
-                    <Badge variant="secondary" className="ml-1">
-                      {searchLower ? `${activeMembers.length} / ${allActiveMembers.length}` : activeMembers.length}
-                    </Badge>
-                  </CardTitle>
-                  <CardDescription>Users with active access to this company</CardDescription>
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <div className="relative w-52 max-w-full">
-                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none z-10" />
-                    <Input
-                      type="search"
-                      value={memberSearch}
-                      onChange={(e) => setMemberSearch(e.target.value)}
-                      placeholder="Search by name or email…"
-                      className="h-8 pl-8 pr-7 text-sm"
-                      aria-label="Filter members by name or email"
-                    />
-                    {memberSearch && (
-                      <button
-                        onClick={() => setMemberSearch("")}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                        aria-label="Clear search"
-                      >
-                        <XIcon className="w-3.5 h-3.5" />
-                      </button>
-                    )}
-                  </div>
-                  {isAdmin && (
-                    <Button onClick={() => setAddMemberDialog(true)} className="gap-2" size="sm">
-                      <UserPlus className="w-4 h-4" />
-                      Add Member
-                    </Button>
-                  )}
-                </div>
-              </CardHeader>
-              <CardContent className="p-0">
-                {membersLoading ? (
-                  <div className="flex items-center justify-center py-12">
-                    <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-                  </div>
-                ) : activeMembers.length === 0 ? (
-                  <div className="text-center py-12 text-muted-foreground">
-                    <Users className="w-8 h-8 mx-auto mb-2 opacity-40" />
-                    <p className="text-sm">
-                      {searchLower ? `No members match "${memberSearch}"` : "No active members yet"}
-                    </p>
-                    {searchLower && (
-                      <button
-                        onClick={() => setMemberSearch("")}
-                        className="mt-2 text-xs text-primary hover:underline"
-                      >
-                        Clear search
-                      </button>
-                    )}
-                  </div>
-                ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="hover:bg-transparent">
-                        <TableHead>Member</TableHead>
-                        <TableHead>Role</TableHead>
-                        <TableHead className="hidden md:table-cell">Login Method</TableHead>
-                        <TableHead className="hidden md:table-cell">Last Active</TableHead>
-                        <TableHead className="hidden md:table-cell">Joined</TableHead>
-                        {isAdmin && <TableHead className="text-right">Actions</TableHead>}
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {activeMembers.map((m) => {
-                        const isMe = m.userId === user?.id;
-                        const initials = (m.name ?? m.email ?? "?")
-                          .split(" ")
-                          .map((w) => w[0])
-                          .join("")
-                          .toUpperCase()
-                          .slice(0, 2);
-                        return (
-                          <TableRow key={m.memberId} className={isMe ? "bg-primary/5" : ""}>
-                            <TableCell>
-                              <div className="flex flex-wrap items-center gap-3">
-                                <Avatar className="w-8 h-8">
-                                  <AvatarImage src={m.avatarUrl ?? undefined} />
-                                  <AvatarFallback className="text-xs bg-primary/10 text-primary font-semibold">
-                                    {initials}
-                                  </AvatarFallback>
-                                </Avatar>
-                                <div>
-                                  <p className="text-sm font-medium leading-none">
-                                    {m.name ?? "—"}
-                                    {isMe && <span className="ml-1.5 text-xs text-primary font-normal">(you)</span>}
-                                  </p>
-                                  <p className="text-xs text-muted-foreground mt-0.5">{m.email ?? "—"}</p>
-                                </div>
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <RoleBadge role={m.role as MemberRole} />
-                            </TableCell>
-                            <TableCell className="hidden md:table-cell">
-                              <span className="text-xs capitalize text-muted-foreground">{m.loginMethod ?? "—"}</span>
-                            </TableCell>
-                            <TableCell className="hidden md:table-cell">
-                              <span className="text-xs text-muted-foreground">
-                                {m.lastSignedIn
-                                  ? fmtDate(m.lastSignedIn)
-                                  : "Never"}
-                              </span>
-                            </TableCell>
-                            <TableCell className="hidden md:table-cell">
-                              <span className="text-xs text-muted-foreground">
-                                {fmtDate(m.joinedAt)}
-                              </span>
-                            </TableCell>
-                            {isAdmin && (
-                              <TableCell className="text-right">
-                                <div className="flex items-center justify-end gap-1">
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-7 px-2 gap-1 text-xs"
-                                    onClick={() => {
-                                      setRoleDialog({ memberId: m.memberId, currentRole: m.role as MemberRole, name: m.name ?? m.email ?? "Member" });
-                                      setNewRole(m.role as MemberRole);
-                                    }}
-                                  >
-                                    <Edit3 className="w-3 h-3" />
-                                    Role
-                                  </Button>
-                                  {!isMe && (
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      className="h-7 px-2 gap-1 text-xs text-destructive hover:text-destructive"
-                                      onClick={() => setRemoveDialog({ memberId: m.memberId, name: m.name ?? m.email ?? "Member" })}
-                                    >
-                                      <UserMinus className="w-3 h-3" />
-                                      Remove
-                                    </Button>
-                                  )}
-                                </div>
-                              </TableCell>
-                            )}
-                          </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Inactive Members */}
-            {inactiveMembers.length > 0 && (
-              <Card className="shadow-sm opacity-80">
-                <CardHeader>
-                  <CardTitle className="text-base flex items-center gap-2 text-muted-foreground">
-                    <UserMinus className="w-4 h-4" />
-                    Removed Members
-                    <Badge variant="outline" className="ml-1">{inactiveMembers.length}</Badge>
-                  </CardTitle>
-                  <CardDescription>These users have been removed but can be reactivated</CardDescription>
-                </CardHeader>
-                <CardContent className="p-0">
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="hover:bg-transparent">
-                        <TableHead>Member</TableHead>
-                        <TableHead>Last Role</TableHead>
-                        {isAdmin && <TableHead className="text-right">Actions</TableHead>}
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {inactiveMembers.map((m) => {
-                        const initials = (m.name ?? m.email ?? "?")
-                          .split(" ")
-                          .map((w) => w[0])
-                          .join("")
-                          .toUpperCase()
-                          .slice(0, 2);
-                        return (
-                          <TableRow key={m.memberId} className="opacity-60">
-                            <TableCell>
-                              <div className="flex flex-wrap items-center gap-3">
-                                <Avatar className="w-8 h-8">
-                                  <AvatarFallback className="text-xs bg-muted text-muted-foreground font-semibold">
-                                    {initials}
-                                  </AvatarFallback>
-                                </Avatar>
-                                <div>
-                                  <p className="text-sm font-medium">{m.name ?? "—"}</p>
-                                  <p className="text-xs text-muted-foreground">{m.email ?? "—"}</p>
-                                </div>
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <RoleBadge role={m.role as MemberRole} />
-                            </TableCell>
-                            {isAdmin && (
-                              <TableCell className="text-right">
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className="h-7 px-2 gap-1 text-xs"
-                                  onClick={() => reactivateMember.mutate({ memberId: m.memberId, companyId: activeCompanyId ?? undefined })}
-                                  disabled={reactivateMember.isPending}
-                                >
-                                  <RefreshCw className="w-3 h-3" />
-                                  Reactivate
-                                </Button>
-                              </TableCell>
-                            )}
-                          </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
-                </CardContent>
-              </Card>
-            )}
-          {/* ── Pending Invites ── */}
-          {isAdmin && pendingInvites && pendingInvites.length > 0 && (
-            <Card className="mt-6">
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <Mail className="w-4 h-4 text-primary" />
-                    Pending Invites
-                    <Badge variant="secondary" className="text-xs">{pendingInvites.length}</Badge>
-                  </CardTitle>
-                  <Button size="sm" variant="outline" className="gap-2 h-8" onClick={() => { setInviteResult(null); setShowInviteDialog(true); }}>
-                    <UserPlus className="w-3.5 h-3.5" />
-                    Invite by Link
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent className="p-0">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead scope="col">Email</TableHead>
-                      <TableHead scope="col">Role</TableHead>
-                      <TableHead scope="col">Expires</TableHead>
-                      <TableHead scope="col" className="text-right">Actions</TableHead>
+            </CardHeader>
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Role</TableHead>
+                    <TableHead>Expires</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {pendingInvites.map((inv) => (
+                    <TableRow key={inv.id}>
+                      <TableCell className="font-medium text-sm">{inv.email}</TableCell>
+                      <TableCell><RoleBadge role={inv.role as MemberRole} /></TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{fmtDate(inv.expiresAt)}</TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 px-2 text-xs text-destructive hover:text-destructive"
+                          onClick={() => revokeInvite.mutate({ id: inv.id, companyId: activeCompanyId ?? undefined })}
+                          disabled={revokeInvite.isPending}
+                          aria-label={`Revoke invite for ${inv.email}`}
+                        >
+                          Revoke
+                        </Button>
+                      </TableCell>
                     </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {pendingInvites.map((inv) => (
-                      <TableRow key={inv.id}>
-                        <TableCell className="font-medium text-sm">{inv.email}</TableCell>
-                        <TableCell><RoleBadge role={inv.role as MemberRole} /></TableCell>
-                        <TableCell className="text-xs text-muted-foreground">{fmtDate(inv.expiresAt)}</TableCell>
-                        <TableCell className="text-right">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 px-2 text-xs text-destructive hover:text-destructive"
-                            onClick={() => revokeInvite.mutate({ id: inv.id, companyId: activeCompanyId ?? undefined })}
-                            disabled={revokeInvite.isPending}
-                            aria-label={`Revoke invite for ${inv.email}`}
-                          >
-                            Revoke
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          )}
-          {isAdmin && (!pendingInvites || pendingInvites.length === 0) && (
-            <div className="mt-4 flex justify-end">
-              <Button size="sm" variant="outline" className="gap-2" onClick={() => { setInviteResult(null); setShowInviteDialog(true); }}>
-                <Mail className="w-3.5 h-3.5" />
-                Invite by Magic Link
-              </Button>
-            </div>
-          )}
-          </TabsContent>
-        </Tabs>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        )}
+
+        {isAdmin && (!pendingInvites || pendingInvites.length === 0) && (
+          <div className="flex justify-end">
+            <Button size="sm" variant="outline" className="gap-2" onClick={() => { setInviteResult(null); setShowInviteDialog(true); }}>
+              <Mail className="w-3.5 h-3.5" />
+              Invite by Magic Link
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* ── Add Member Dialog ── */}
@@ -920,12 +647,10 @@ export default function CompanyAdminPage() {
                 onChange={(e) => setAddEmail(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && addEmail && !addMember.isPending)
-                    addMember.mutate({ email: addEmail, role: addRole as Parameters<typeof addMember.mutate>[0]['role'], companyId: activeCompanyId ?? undefined });
+                    addMember.mutate({ email: addEmail, role: addRole as Parameters<typeof addMember.mutate>[0]["role"], companyId: activeCompanyId ?? undefined });
                 }}
               />
-              <p className="text-xs text-muted-foreground">
-                The user must already have a SmartPRO account.
-              </p>
+              <p className="text-xs text-muted-foreground">The user must already have a SmartPRO account.</p>
             </div>
             <div className="space-y-2">
               <Label>Role</Label>
@@ -954,7 +679,7 @@ export default function CompanyAdminPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setAddMemberDialog(false)}>Cancel</Button>
             <Button
-              onClick={() => addMember.mutate({ email: addEmail, role: addRole as Parameters<typeof addMember.mutate>[0]['role'], companyId: activeCompanyId ?? undefined })}
+              onClick={() => addMember.mutate({ email: addEmail, role: addRole as Parameters<typeof addMember.mutate>[0]["role"], companyId: activeCompanyId ?? undefined })}
               disabled={!addEmail.trim() || addMember.isPending}
               className="gap-2"
             >
@@ -1005,7 +730,7 @@ export default function CompanyAdminPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setRoleDialog(null)}>Cancel</Button>
             <Button
-              onClick={() => roleDialog && updateRole.mutate({ memberId: roleDialog.memberId, role: newRole as Parameters<typeof updateRole.mutate>[0]['role'], companyId: activeCompanyId ?? undefined })}
+              onClick={() => roleDialog && updateRole.mutate({ memberId: roleDialog.memberId, role: newRole as Parameters<typeof updateRole.mutate>[0]["role"], companyId: activeCompanyId ?? undefined })}
               disabled={!roleDialog || newRole === roleDialog?.currentRole || updateRole.isPending}
               className="gap-2"
             >
@@ -1025,7 +750,7 @@ export default function CompanyAdminPage() {
               Invite by Magic Link
             </DialogTitle>
             <DialogDescription>
-              Send a one-time invite link to someone who doesn’t have a SmartPRO account yet. The link expires in 7 days.
+              Send a one-time invite link to someone who doesn't have a SmartPRO account yet. The link expires in 7 days.
             </DialogDescription>
           </DialogHeader>
           {!inviteResult ? (

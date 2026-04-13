@@ -49,6 +49,7 @@ import {
   Users,
   Zap,
   BookMarked,
+  SlidersHorizontal,
 } from "lucide-react";
 import { clientNavItemVisible, type ClientNavOptions } from "@shared/clientNav";
 import { getHiddenNavHrefs } from "@/lib/navVisibility";
@@ -174,8 +175,8 @@ export const PLATFORM_NAV_GROUP_DEFS: readonly NavGroupDef[] = [
     items: [
       leaf("co.workspace", "workspace", "Workspace", "/workspace", LayoutGrid, { intent: "workspace" }),
       leaf("co.companyProfile", "companyProfile", "Company Profile", "/company/profile", Building2, { intent: "workspace" }),
-      leaf("co.companyAdmin", "companyAdmin", "Company Admin", "/company-admin", Crown, { intent: "workspace" }),
-      leaf("co.companySettings", "companySettings", "Company Settings", "/company/settings", Settings, {
+      leaf("co.companyAdmin", "companyAdmin", "Team & Members", "/company-admin", Users, { intent: "workspace" }),
+      leaf("co.companySettings", "companySettings", "Workspace Settings", "/company/settings", SlidersHorizontal, {
         intent: "workspace",
       }),
       leaf("co.emailTemplates", "emailTemplates", "Email Templates", "/company/email-preview", Mail, { intent: "workspace" }),

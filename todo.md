@@ -1965,3 +1965,8 @@ Every company on SmartPRO Hub gets a complete, unified business operating area â
 - [ ] Update `reports.ts` router to allow access when user has `view_reports` permission
 - [ ] Build delegation management UI in CompanySettingsPage (Team Access tab)
 - [ ] Add locale strings for delegation UI (en-OM and ar-OM)
+
+## Contact Details Update (Apr 13 2026)
+- [x] Replace old phone +968 2400 0000 with +968 7966 5522 across all files
+- [x] Replace old email info@smartpro.om with info@thesmartpro.io across all files
+- [x] Replace old website www.smartpro.om with www.thesmartpro.io across all files

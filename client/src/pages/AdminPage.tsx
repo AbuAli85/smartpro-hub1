@@ -143,7 +143,7 @@ export default function AdminPage() {
     allSettings.forEach((s) => { if (s.key && s.value !== null) map[s.key] = s.value ?? ""; });
     setPlatformConfig({
       platform_name: map["platform_name"] ?? "SmartPRO Business Hub",
-      support_email: map["support_email"] ?? "support@smartpro.om",
+      support_email: map["support_email"] ?? "info@thesmartpro.io",
       default_country: map["default_country"] ?? "OM",
       default_currency: map["default_currency"] ?? "OMR",
     });

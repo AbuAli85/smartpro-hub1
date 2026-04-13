@@ -825,7 +825,7 @@ export default function Home() {
                 className="border-white/35 text-white hover:bg-white/10 bg-transparent h-12"
                 asChild
               >
-                <a href="mailto:info@smartpro.om">Contact sales</a>
+                <a href="mailto:info@thesmartpro.io">Contact sales</a>
               </Button>
             </div>
           </div>
@@ -895,13 +895,13 @@ export default function Home() {
                   <MapPin size={12} /> Muscat, Sultanate of Oman
                 </div>
                 <div className="flex items-center gap-2">
-                  <Phone size={12} /> +968 2400 0000
+                  <Phone size={12} /> +968 7966 5522
                 </div>
                 <div className="flex items-center gap-2">
-                  <Mail size={12} /> info@smartpro.om
+                  <Mail size={12} /> info@thesmartpro.io
                 </div>
                 <div className="flex items-center gap-2">
-                  <Globe size={12} /> www.smartpro.om
+                  <Globe size={12} /> www.thesmartpro.io
                 </div>
               </div>
             </div>

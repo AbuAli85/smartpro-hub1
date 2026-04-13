@@ -35,6 +35,7 @@ import {
   MessageCircle,
 } from "lucide-react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 type StatusFilter = "all" | "in_progress" | "completed" | "abandoned";
 
@@ -539,8 +540,12 @@ export default function SurveyAdminResponsesPage() {
           }
         }}
       >
-        <DialogContent className="max-h-[85vh] max-w-3xl overflow-y-auto">
-          <DialogHeader>
+        <DialogContent
+          className={cn(
+            "flex h-[min(92vh,56rem)] w-[calc(100%-1rem)] max-w-4xl flex-col gap-0 overflow-hidden rounded-lg border bg-background p-0 shadow-lg sm:max-w-4xl",
+          )}
+        >
+          <DialogHeader className="shrink-0 space-y-2 border-b px-6 pt-6 pb-4 pr-14 text-left">
             <DialogTitle>
               {sanadOutreachManualOnly !== null
                 ? t("admin.sanadOutreachNoEmailTitle", { defaultValue: "Offices without email" })
@@ -548,7 +553,7 @@ export default function SurveyAdminResponsesPage() {
                   ? t("admin.sanadOutreachIntelTitle", { defaultValue: "Sanad centres (directory)" })
                   : t("admin.sanadOutreachAllTitle", { defaultValue: "Sanad office survey links" })}
             </DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="max-w-none text-pretty break-words sm:pr-2">
               {sanadOutreachManualOnly !== null
                 ? t("admin.sanadOutreachNoEmailDesc", {
                     defaultValue:
@@ -557,7 +562,7 @@ export default function SurveyAdminResponsesPage() {
                 : isIntelLayout
                   ? t("admin.sanadOutreachIntelDesc", {
                       defaultValue:
-                        "Imported directory: every row with a phone can open WhatsApp with an Arabic draft. If the centre is linked to an active platform office, the draft uses a dedicated survey URL; otherwise it uses the general survey link until you link the centre.",
+                        "Directory centres: use WhatsApp or Copy below. More detail in the blue box.",
                     })
                   : t("admin.sanadOutreachAllDesc", {
                       defaultValue:
@@ -566,6 +571,7 @@ export default function SurveyAdminResponsesPage() {
             </DialogDescription>
           </DialogHeader>
 
+          <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overflow-x-hidden px-6 py-4">
           {sanadOutreachManualOnly === null && (
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex flex-wrap items-center gap-2">
@@ -597,18 +603,40 @@ export default function SurveyAdminResponsesPage() {
             !outreachLoading &&
             !outreachQueryError &&
             outreachDisplayRows.length > 0 && (
-              <Alert className="border-blue-200 bg-blue-50/80 text-left dark:border-blue-900 dark:bg-blue-950/40">
-                <Info className="h-4 w-4 text-blue-600 dark:text-blue-400" aria-hidden />
-                <AlertTitle className="text-blue-900 dark:text-blue-100">
+              <Alert className="min-w-0 border-blue-200 bg-blue-50/90 text-left dark:border-blue-900 dark:bg-blue-950/50">
+                <Info className="h-4 w-4 shrink-0 text-blue-600 dark:text-blue-400" aria-hidden />
+                <AlertTitle className="break-words text-blue-950 dark:text-blue-50">
                   {t("admin.sanadIntelOutreachInfoTitle", {
-                    defaultValue: "WhatsApp and the “Link” column",
+                    defaultValue: "How WhatsApp and Copy work",
                   })}
                 </AlertTitle>
-                <AlertDescription className="text-blue-900/90 text-sm dark:text-blue-100/90">
-                  {t("admin.sanadIntelOutreachInfoBody", {
-                    defaultValue:
-                      "Green WhatsApp: opens a draft in Arabic — tap Send in WhatsApp to deliver it. “Public link” / “Dedicated link” shows which URL is inside that draft. Copy: use “Copy dedicated link” when the centre is linked; otherwise “Copy public URL” copies the same general link as in the WhatsApp draft. “Not linked” under Copy means the centre is not yet tied to a platform office (responses are not auto-attributed until you link it).",
-                  })}
+                <AlertDescription className="min-w-0 text-blue-950/95 dark:text-blue-50/95">
+                  <ul className="mt-2 max-h-[min(38vh,220px)] list-disc space-y-1.5 overflow-y-auto overscroll-y-contain pr-1 pl-4 text-sm leading-relaxed marker:text-blue-600 dark:marker:text-blue-300">
+                    <li className="break-words">
+                      {t("admin.sanadIntelOutreachBullet1", {
+                        defaultValue:
+                          "Green WhatsApp icon: opens an Arabic draft. You must still tap Send inside WhatsApp.",
+                      })}
+                    </li>
+                    <li className="break-words">
+                      {t("admin.sanadIntelOutreachBullet2", {
+                        defaultValue:
+                          "Badge “General link” or “Dedicated link” shows which URL is inside that draft.",
+                      })}
+                    </li>
+                    <li className="break-words">
+                      {t("admin.sanadIntelOutreachBullet3", {
+                        defaultValue:
+                          "Copy dedicated / Copy public copies the same URL as in the WhatsApp draft.",
+                      })}
+                    </li>
+                    <li className="break-words">
+                      {t("admin.sanadIntelOutreachBullet4", {
+                        defaultValue:
+                          "“Centre not linked…” is informational: link the centre in Sanad Intelligence to get a dedicated URL and auto-attribution.",
+                      })}
+                    </li>
+                  </ul>
                 </AlertDescription>
               </Alert>
             )}
@@ -678,8 +706,8 @@ export default function SurveyAdminResponsesPage() {
             </Button>
           </div>
 
-          <div className="rounded-md border">
-            <Table>
+          <div className="min-w-0 overflow-x-auto rounded-md border">
+            <Table className="min-w-[44rem]">
               <TableHeader>
                 <TableRow>
                   <TableHead>{t("admin.sanadColOffice", { defaultValue: "Office" })}</TableHead>
@@ -861,8 +889,8 @@ export default function SurveyAdminResponsesPage() {
                           ) : null}
                         </div>
                       </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex flex-col items-end gap-1">
+                      <TableCell className="max-w-[13rem] text-right align-top">
+                        <div className="flex flex-col items-end gap-1.5">
                           <Button
                             type="button"
                             variant="outline"
@@ -905,7 +933,7 @@ export default function SurveyAdminResponsesPage() {
                                 : t("copyToken")}
                           </Button>
                           {isIntelLayout ? (
-                            <span className="max-w-[11rem] text-left text-xs leading-snug">
+                            <span className="w-full max-w-[13rem] break-words text-left text-xs leading-snug text-muted-foreground">
                               {row.surveyUrl ? (
                                 <span className="text-green-700 dark:text-green-400">
                                   {t("admin.outreachBindingDedicated", {
@@ -914,10 +942,10 @@ export default function SurveyAdminResponsesPage() {
                                   })}
                                 </span>
                               ) : surveyPublicStartUrl ? (
-                                <span className="text-amber-900 dark:text-amber-200">
+                                <span className="border-muted-foreground/25 text-muted-foreground border-l-2 pl-2">
                                   {t("admin.outreachBindingUsePublic", {
                                     defaultValue:
-                                      "Centre not linked on platform — Copy and WhatsApp both use the same general survey URL until you link this centre.",
+                                      "Centre not linked on platform yet — Copy and WhatsApp use the same general survey URL until you link this centre.",
                                   })}
                                 </span>
                               ) : row.surveyUnavailableReason === "office_inactive" ? (
@@ -939,6 +967,7 @@ export default function SurveyAdminResponsesPage() {
                 )}
               </TableBody>
             </Table>
+          </div>
           </div>
         </DialogContent>
       </Dialog>

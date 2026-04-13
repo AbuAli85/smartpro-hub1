@@ -60,6 +60,20 @@ const PENDING_COLUMNS: ColumnMigration[] = [
        NULL)
   ) VIRTUAL`,
   },
+  // 0040 — survey: link response to user + completion invite email tracking
+  {
+    table: "survey_responses",
+    column: "user_id",
+    ddl: `ALTER TABLE \`survey_responses\`
+  ADD COLUMN \`user_id\` int NULL,
+  ADD INDEX \`idx_survey_responses_user\` (\`user_id\`),
+  ADD CONSTRAINT \`fk_survey_responses_user\` FOREIGN KEY (\`user_id\`) REFERENCES \`users\`(\`id\`) ON DELETE SET NULL`,
+  },
+  {
+    table: "survey_responses",
+    column: "completion_invite_email_sent_at",
+    ddl: "ALTER TABLE `survey_responses` ADD COLUMN `completion_invite_email_sent_at` timestamp NULL",
+  },
 ];
 
 /** Each entry creates a unique/regular index if it does not already exist. */

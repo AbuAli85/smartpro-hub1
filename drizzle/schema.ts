@@ -3650,6 +3650,8 @@ export const surveyResponses = mysqlTable(
     surveyId: int("survey_id")
       .notNull()
       .references(() => surveys.id, { onDelete: "cascade" }),
+    /** Set when the respondent starts the survey while logged in (optional FK). */
+    userId: int("user_id").references(() => users.id, { onDelete: "set null" }),
     resumeToken: varchar("resume_token", { length: 64 }).notNull().unique(),
     language: mysqlEnum("language", ["en", "ar"]).default("en").notNull(),
     status: mysqlEnum("status", ["in_progress", "completed", "abandoned"])
@@ -3665,12 +3667,15 @@ export const surveyResponses = mysqlTable(
     companyGovernorate: varchar("company_governorate", { length: 128 }),
     scores: json("scores").$type<Record<string, number>>(),
     completedAt: timestamp("completed_at"),
+    /** When the post-completion invite/offer email was sent (at most once). */
+    completionInviteEmailSentAt: timestamp("completion_invite_email_sent_at"),
     startedAt: timestamp("started_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().onUpdateNow(),
   },
   (t) => [
     index("idx_survey_responses_survey").on(t.surveyId),
     index("idx_survey_responses_status").on(t.status),
+    index("idx_survey_responses_user").on(t.userId),
   ],
 );
 export type SurveyResponse = typeof surveyResponses.$inferSelect;

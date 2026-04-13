@@ -460,6 +460,150 @@ export interface SurveyResumeEmailParams {
   totalSections: number;
 }
 
+function escapeHtmlText(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Survey completion — thank you + invite / member offer (Resend)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface SurveyCompletionInviteEmailParams {
+  to: string;
+  respondentName?: string;
+  surveyTitle: string;
+  /** True when the response is linked to a logged-in platform user */
+  isRegisteredUser: boolean;
+  /** Public app origin for CTA buttons, e.g. https://app.example.com */
+  appBaseUrl: string;
+}
+
+/**
+ * Sent once after a survey is completed when we have an email address.
+ * - Registered users: thank you + member-focused offer and dashboard CTA.
+ * - Guests: thank you + invite to join SmartPRO Hub with the same offer framing.
+ *
+ * Optional env (marketing copy):
+ * - SURVEY_COMPLETION_OFFER_HEADLINE — short headline for the offer box
+ * - SURVEY_COMPLETION_OFFER_BODY — plain text, shown as one paragraph (escaped)
+ * - SURVEY_COMPLETION_DEMO_HEADLINE — e.g. "Are you ready to try a demo?"
+ * - SURVEY_COMPLETION_DEMO_BODY — plain text for the demo prompt (escaped)
+ * - SURVEY_COMPLETION_DEMO_URL — link for the demo CTA (defaults to app home if unset)
+ * - SURVEY_COMPLETION_DEMO_CTA_LABEL — button label (default: "Book a free demo")
+ */
+export async function sendSurveyCompletionInviteEmail(
+  params: SurveyCompletionInviteEmailParams,
+): Promise<{ success: boolean; error?: string }> {
+  if (!ENV.resendApiKey) {
+    console.warn("[Email] Survey completion invite skipped: RESEND_API_KEY not set");
+    return { success: false, error: "Email not configured" };
+  }
+
+  const { to, respondentName, surveyTitle, isRegisteredUser, appBaseUrl } = params;
+  const base = appBaseUrl.replace(/\/+$/, "");
+  const dashboardUrl = `${base}/`;
+  const demoUrl =
+    process.env.SURVEY_COMPLETION_DEMO_URL?.trim() || dashboardUrl;
+  const demoCtaLabel =
+    process.env.SURVEY_COMPLETION_DEMO_CTA_LABEL?.trim() || "Book a free demo";
+
+  const offerHeadline =
+    process.env.SURVEY_COMPLETION_OFFER_HEADLINE?.trim() ||
+    "Your next step with SmartPRO Hub";
+  const offerBody =
+    process.env.SURVEY_COMPLETION_OFFER_BODY?.trim() ||
+    "Explore HR, payroll, compliance, and PRO services built for businesses in Oman — book a free consultation and see how we can support your operations.";
+
+  const demoHeadline =
+    process.env.SURVEY_COMPLETION_DEMO_HEADLINE?.trim() ||
+    "Are you ready to try a demo?";
+  const demoBody =
+    process.env.SURVEY_COMPLETION_DEMO_BODY?.trim() ||
+    "See SmartPRO Hub in action with a short walkthrough tailored to your business. No obligation — just tell us what you want to explore and we will set it up.";
+
+  const greeting = respondentName
+    ? `Dear <strong>${escapeHtmlText(respondentName)}</strong>,`
+    : "Hello,";
+
+  const memberBlock = isRegisteredUser
+    ? `<p style="color:${C.textMuted};font-size:15px;line-height:1.7;margin:0 0 16px;">
+        Thank you for completing the survey while signed in to SmartPRO Hub. Your feedback helps us improve solutions for Oman businesses like yours.
+      </p>
+      <p style="color:${C.textMuted};font-size:15px;line-height:1.7;margin:0 0 24px;">
+        As a member, you have early access to tailored guidance and platform features. Here is a special follow-up for survey participants:
+      </p>`
+    : `<p style="color:${C.textMuted};font-size:15px;line-height:1.7;margin:0 0 16px;">
+        Thank you for taking the time to complete our survey. Your insights matter to us.
+      </p>
+      <p style="color:${C.textMuted};font-size:15px;line-height:1.7;margin:0 0 24px;">
+        You can join SmartPRO Hub to manage HR, compliance, and government services in one place — and enjoy this offer for new accounts:
+      </p>`;
+
+  const ctaLabel = isRegisteredUser ? "Open SmartPRO Hub" : "Join SmartPRO Hub";
+
+  const body = `
+    <div style="text-align:center;margin-bottom:24px;">
+      <div style="display:inline-block;background:linear-gradient(135deg,${C.primary},${C.accent});border-radius:50%;width:64px;height:64px;line-height:64px;font-size:28px;color:${C.white};text-align:center;">&#10003;</div>
+    </div>
+    <h1 style="color:${C.text};font-size:24px;font-weight:800;margin:0 0 6px;text-align:center;letter-spacing:-0.5px;">Thank you!</h1>
+    <p style="color:${C.textMuted};font-size:14px;text-align:center;margin:0 0 28px;">${escapeHtmlText(surveyTitle)}</p>
+    <p style="color:${C.textMuted};font-size:15px;line-height:1.7;margin:0 0 20px;">${greeting}</p>
+    ${memberBlock}
+    <div style="background:${C.cardBg};border-radius:12px;border:1px solid ${C.border};padding:20px 20px;margin:0 0 24px;">
+      <p style="color:${C.text};font-size:16px;font-weight:700;margin:0 0 10px;">${escapeHtmlText(offerHeadline)}</p>
+      <p style="color:${C.textMuted};font-size:14px;line-height:1.65;margin:0;">${escapeHtmlText(offerBody)}</p>
+    </div>
+    <div style="background:${C.darkCard};border-radius:12px;border:1px solid #2d3748;padding:22px 20px;margin:0 0 8px;">
+      <p style="color:${C.white};font-size:17px;font-weight:700;margin:0 0 12px;">${escapeHtmlText(demoHeadline)}</p>
+      <p style="color:#94a3b8;font-size:14px;line-height:1.65;margin:0 0 8px;">${escapeHtmlText(demoBody)}</p>
+    </div>
+    <div style="text-align:center;">
+      ${ctaButton(demoUrl, demoCtaLabel)}
+    </div>
+    <p style="color:${C.textLight};font-size:13px;text-align:center;margin:0 0 8px;line-height:1.5;">
+      Prefer to browse on your own first? You can always open the platform below.
+    </p>
+    <div style="text-align:center;">
+      ${ctaButton(dashboardUrl, ctaLabel, true)}
+    </div>
+    <div style="background:${C.cardBg};border-radius:8px;border:1px solid ${C.border};padding:12px 16px;margin:16px 0 0;word-break:break-all;">
+      <p style="color:${C.textMuted};font-size:12px;margin:0 0 4px;">App link:</p>
+      <a href="${dashboardUrl}" style="color:${C.primary};font-size:12px;word-break:break-all;">${dashboardUrl}</a>
+    </div>
+    ${trustStrip()}
+  `;
+
+  try {
+    const resend = getResend();
+    const subject = isRegisteredUser
+      ? `Thank you — ${surveyTitle} · Ready for a demo?`
+      : `Thank you — ${surveyTitle} · Try a free demo`;
+
+    const result = await resend.emails.send({
+      from: FROM_ADDRESS,
+      to: [to],
+      subject,
+      html: baseLayout(
+        `Survey complete — ${surveyTitle}`,
+        `${isRegisteredUser ? "Book a demo or explore SmartPRO Hub." : "Your invitation — see a live demo or join SmartPRO Hub."}`,
+        body,
+      ),
+    });
+    if (result.error) {
+      console.error("[Email] Survey completion invite error:", result.error);
+      return { success: false, error: result.error.message };
+    }
+    return { success: true };
+  } catch (err: any) {
+    console.error("[Email] sendSurveyCompletionInviteEmail failed:", err);
+    return { success: false, error: err?.message ?? "Unknown error" };
+  }
+}
+
 export async function sendSurveyResumeEmail(
   params: SurveyResumeEmailParams,
 ): Promise<{ success: boolean; error?: string }> {

@@ -14,6 +14,7 @@ import {
   surveyAnswers,
   surveyTags,
   surveyResponseTags,
+  users,
 } from "../../drizzle/schema";
 import {
   getBySlugInput,
@@ -25,7 +26,7 @@ import {
   getResponseDetailInput,
 } from "../modules/survey/types";
 import { computeSurveyScores, collectResponseTags } from "../modules/survey/scoring";
-import { sendSurveyResumeEmail } from "../email";
+import { sendSurveyResumeEmail, sendSurveyCompletionInviteEmail } from "../email";
 import { resolvePublicAppBaseUrl } from "../_core/publicAppUrl";
 import crypto from "crypto";
 
@@ -83,7 +84,7 @@ export const surveyRouter = router({
     return { survey, sections, questions, options };
   }),
 
-  startResponse: publicProcedure.input(startResponseInput).mutation(async ({ input }) => {
+  startResponse: publicProcedure.input(startResponseInput).mutation(async ({ input, ctx }) => {
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
 
@@ -104,14 +105,19 @@ export const surveyRouter = router({
       .orderBy(surveySections.sortOrder)
       .limit(1);
 
+    const emailFromSession = ctx.user?.email?.trim() || undefined;
+    const respondentEmail = input.respondentEmail ?? emailFromSession ?? null;
+    const userId = ctx.user?.id ?? null;
+
     const [result] = await db.insert(surveyResponses).values({
       surveyId: input.surveyId,
+      userId,
       resumeToken,
       language: input.language,
       status: "in_progress",
       currentSectionId: sections[0]?.id ?? null,
       respondentName: input.respondentName ?? null,
-      respondentEmail: input.respondentEmail ?? null,
+      respondentEmail,
       respondentPhone: input.respondentPhone ?? null,
     });
 
@@ -197,7 +203,7 @@ export const surveyRouter = router({
     };
   }),
 
-  completeResponse: publicProcedure.input(completeResponseInput).mutation(async ({ input }) => {
+  completeResponse: publicProcedure.input(completeResponseInput).mutation(async ({ input, ctx }) => {
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
 
@@ -318,6 +324,47 @@ export const surveyRouter = router({
             .values({ responseId: response.id, tagId })
             .onDuplicateKeyUpdate({ set: { tagId } });
         }
+      }
+    }
+
+    // One-time thank-you + offer email when we can reach the respondent (logged-in user or email on file)
+    const [surveyMeta] = await db
+      .select({ titleEn: surveys.titleEn })
+      .from(surveys)
+      .where(eq(surveys.id, response.surveyId))
+      .limit(1);
+
+    let toEmail = (response.respondentEmail?.trim() ?? "") || "";
+    const isRegisteredUser = response.userId != null;
+
+    if (!toEmail && response.userId) {
+      const [urow] = await db
+        .select({ email: users.email })
+        .from(users)
+        .where(eq(users.id, response.userId))
+        .limit(1);
+      toEmail = (urow?.email?.trim() ?? "") || "";
+    }
+
+    const appBaseUrl = resolvePublicAppBaseUrl(ctx.req) || resolvePublicAppBaseUrl();
+    if (
+      toEmail.length > 0 &&
+      !response.completionInviteEmailSentAt &&
+      surveyMeta &&
+      appBaseUrl.trim().length > 0
+    ) {
+      const inviteResult = await sendSurveyCompletionInviteEmail({
+        to: toEmail,
+        respondentName: response.respondentName?.trim() || undefined,
+        surveyTitle: surveyMeta.titleEn,
+        isRegisteredUser,
+        appBaseUrl,
+      });
+      if (inviteResult.success) {
+        await db
+          .update(surveyResponses)
+          .set({ completionInviteEmailSentAt: new Date() })
+          .where(eq(surveyResponses.id, response.id));
       }
     }
 
@@ -642,6 +689,11 @@ export const surveyRouter = router({
           message: result.error ?? "Failed to send email. Please try again.",
         });
       }
+
+      await db
+        .update(surveyResponses)
+        .set({ respondentEmail: input.email })
+        .where(eq(surveyResponses.id, response.id));
 
       return { sent: true };
     }),

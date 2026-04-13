@@ -760,29 +760,54 @@ export default function SurveyAdminResponsesPage() {
                         </TableCell>
                       ) : null}
                       <TableCell className="text-center">
-                        {waHref ? (
-                          <Button
-                            asChild
-                            size="sm"
-                            className="border-0 bg-[#25D366] text-white hover:bg-[#20bd5a]"
-                            title={t("admin.whatsappOpenHint", {
-                              defaultValue: "Open WhatsApp with this number and a draft message",
-                            })}
-                          >
-                            <a
-                              href={waHref}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              aria-label={t("admin.sanadColWhatsapp", { defaultValue: "WhatsApp" })}
+                        <div className="flex flex-col items-center gap-1">
+                          {waHref ? (
+                            <Button
+                              asChild
+                              size="sm"
+                              className="border-0 bg-[#25D366] text-white hover:bg-[#20bd5a]"
+                              title={t("admin.whatsappOpenHint", {
+                                defaultValue: "Open WhatsApp with this number and a draft message",
+                              })}
                             >
-                              <MessageCircle className="h-4 w-4" aria-hidden />
-                            </a>
-                          </Button>
-                        ) : (
-                          <span className="text-muted-foreground text-xs" title={t("admin.whatsappNoPhoneHint", { defaultValue: "Add a valid phone number" })}>
-                            —
-                          </span>
-                        )}
+                              <a
+                                href={waHref}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                aria-label={t("admin.sanadColWhatsapp", { defaultValue: "WhatsApp" })}
+                              >
+                                <MessageCircle className="h-4 w-4" aria-hidden />
+                              </a>
+                            </Button>
+                          ) : (
+                            <span className="text-muted-foreground text-xs" title={t("admin.whatsappNoPhoneHint", { defaultValue: "Add a valid phone number" })}>
+                              —
+                            </span>
+                          )}
+                          {/* Message variant indicator */}
+                          {row.surveyUrl ? (
+                            <span
+                              className="inline-flex items-center rounded-full bg-green-100 px-1.5 py-0.5 text-[10px] font-medium leading-tight text-green-800 dark:bg-green-900/30 dark:text-green-400"
+                              title={t("admin.msgVariantDedicatedHint", { defaultValue: "Dedicated office link — response auto-linked to this office" })}
+                            >
+                              {t("admin.msgVariantDedicated", { defaultValue: "Dedicated link" })}
+                            </span>
+                          ) : surveyPublicStartUrl ? (
+                            <span
+                              className="inline-flex items-center rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium leading-tight text-amber-800 dark:bg-amber-900/30 dark:text-amber-400"
+                              title={t("admin.msgVariantPublicHint", { defaultValue: "General survey link — no automatic office binding. Link the centre for a dedicated URL." })}
+                            >
+                              {t("admin.msgVariantPublic", { defaultValue: "Public link" })}
+                            </span>
+                          ) : (
+                            <span
+                              className="inline-flex items-center rounded-full bg-zinc-100 px-1.5 py-0.5 text-[10px] font-medium leading-tight text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400"
+                              title={t("admin.msgVariantNoLinkHint", { defaultValue: "No survey link — message asks recipient to reply for a link" })}
+                            >
+                              {t("admin.msgVariantNoLink", { defaultValue: "No link" })}
+                            </span>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex flex-col items-end gap-1">

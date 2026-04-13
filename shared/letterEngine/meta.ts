@@ -11,6 +11,7 @@ export type LetterTemplateMeta = {
   isSensitive: boolean;
   requiresSignatory: boolean;
   requiresRecipient: boolean;
+  requiredFields?: string[];
 };
 
 export const LETTER_TEMPLATE_META: Record<OfficialLetterType, LetterTemplateMeta> = {

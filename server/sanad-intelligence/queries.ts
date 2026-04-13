@@ -1,4 +1,5 @@
 import { and, asc, desc, eq, inArray, isNotNull, isNull, like, notInArray, or, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/mysql-core";
 import {
   resolveSanadLifecycleStage,
   SANAD_LIFECYCLE_STAGES,
@@ -7,6 +8,8 @@ import {
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import * as schema from "../../drizzle/schema";
 import type { SanadDirectoryPipelineFilter } from "@shared/sanadDirectoryPipeline";
+import type { SanadCentrePipelineStatus } from "@shared/sanadCentresPipeline";
+import { findCompanyMatchesForCentreName } from "./pipelineActions";
 import { computeGovernorateOpportunityRows } from "./opportunityScore";
 import { governorateKeyFromLabel } from "./normalize";
 
@@ -188,6 +191,8 @@ function buildExecutiveInterpretation(args: {
   return lines;
 }
 
+const listCentersPipelineOwner = alias(schema.users, "sanad_list_pipe_owner");
+
 export async function listCenters(
   db: DB,
   input: {
@@ -196,6 +201,10 @@ export async function listCenters(
     wilayat?: string;
     partnerStatus?: (typeof schema.sanadIntelCenterOperations.$inferSelect)["partnerStatus"];
     pipeline?: SanadDirectoryPipelineFilter;
+    /** CRM funnel stage (sanad_centres_pipeline). */
+    pipelineStatus?: SanadCentrePipelineStatus;
+    ownerUserId?: number;
+    ownerUnassignedOnly?: boolean;
     limit: number;
     offset: number;
   },
@@ -207,6 +216,20 @@ export async function listCenters(
   if (input.wilayat?.trim()) conds.push(like(schema.sanadIntelCenters.wilayat, `%${input.wilayat.trim()}%`));
   if (input.partnerStatus)
     conds.push(eq(schema.sanadIntelCenterOperations.partnerStatus, input.partnerStatus));
+
+  if (input.pipelineStatus) {
+    conds.push(
+      eq(
+        sql<string>`coalesce(${schema.sanadCentresPipeline.pipelineStatus}, 'imported')`,
+        input.pipelineStatus,
+      ),
+    );
+  }
+  if (input.ownerUnassignedOnly) {
+    conds.push(isNull(schema.sanadCentresPipeline.ownerUserId));
+  } else if (input.ownerUserId != null) {
+    conds.push(eq(schema.sanadCentresPipeline.ownerUserId, input.ownerUserId));
+  }
 
   const pf = input.pipeline;
   if (pf === "stuck_onboarding") {
@@ -303,11 +326,22 @@ export async function listCenters(
     .select({
       center: schema.sanadIntelCenters,
       ops: schema.sanadIntelCenterOperations,
+      pipeline: schema.sanadCentresPipeline,
+      pipelineOwnerName: listCentersPipelineOwner.name,
+      pipelineOwnerEmail: listCentersPipelineOwner.email,
     })
     .from(schema.sanadIntelCenters)
     .leftJoin(
       schema.sanadIntelCenterOperations,
       eq(schema.sanadIntelCenterOperations.centerId, schema.sanadIntelCenters.id),
+    )
+    .leftJoin(
+      schema.sanadCentresPipeline,
+      eq(schema.sanadCentresPipeline.centerId, schema.sanadIntelCenters.id),
+    )
+    .leftJoin(
+      listCentersPipelineOwner,
+      eq(listCentersPipelineOwner.id, schema.sanadCentresPipeline.ownerUserId),
     )
     .where(whereClause)
     .orderBy(asc(schema.sanadIntelCenters.centerName))
@@ -321,22 +355,40 @@ export async function listCenters(
       schema.sanadIntelCenterOperations,
       eq(schema.sanadIntelCenterOperations.centerId, schema.sanadIntelCenters.id),
     )
+    .leftJoin(
+      schema.sanadCentresPipeline,
+      eq(schema.sanadCentresPipeline.centerId, schema.sanadIntelCenters.id),
+    )
+    .leftJoin(
+      listCentersPipelineOwner,
+      eq(listCentersPipelineOwner.id, schema.sanadCentresPipeline.ownerUserId),
+    )
     .where(whereClause);
 
   return { rows, total: countRow?.n ?? 0 };
 }
+
+const detailPipeOwner = alias(schema.users, "sanad_detail_pipe_owner");
 
 export async function getCenterDetail(db: DB, id: number) {
   const [row] = await db
     .select({
       center: schema.sanadIntelCenters,
       ops: schema.sanadIntelCenterOperations,
+      pipeline: schema.sanadCentresPipeline,
+      pipelineOwnerName: detailPipeOwner.name,
+      pipelineOwnerEmail: detailPipeOwner.email,
     })
     .from(schema.sanadIntelCenters)
     .leftJoin(
       schema.sanadIntelCenterOperations,
       eq(schema.sanadIntelCenterOperations.centerId, schema.sanadIntelCenters.id),
     )
+    .leftJoin(
+      schema.sanadCentresPipeline,
+      eq(schema.sanadCentresPipeline.centerId, schema.sanadIntelCenters.id),
+    )
+    .leftJoin(detailPipeOwner, eq(detailPipeOwner.id, schema.sanadCentresPipeline.ownerUserId))
     .where(eq(schema.sanadIntelCenters.id, id))
     .limit(1);
 
@@ -364,7 +416,23 @@ export async function getCenterDetail(db: DB, id: number) {
     console.warn("[sanad-intelligence] getCenterDetail: compliance query failed; returning empty checklist", e);
   }
 
-  return { ...row, compliance };
+  let companyMatches: Awaited<ReturnType<typeof findCompanyMatchesForCentreName>> = [];
+  try {
+    companyMatches = await findCompanyMatchesForCentreName(db, row.center.centerName);
+  } catch (e) {
+    console.warn("[sanad-intelligence] getCenterDetail: company match query failed", e);
+  }
+
+  const pipelineOwnerUser =
+    row.pipeline?.ownerUserId != null
+      ? {
+          id: row.pipeline.ownerUserId,
+          name: row.pipelineOwnerName ?? null,
+          email: row.pipelineOwnerEmail ?? null,
+        }
+      : null;
+
+  return { ...row, compliance, companyMatches, pipelineOwnerUser };
 }
 
 export async function getRegionalOpportunity(db: DB, year: number) {

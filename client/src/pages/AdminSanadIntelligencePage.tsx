@@ -18,6 +18,7 @@ import {
   type SanadLifecycleOpsInput,
 } from "@shared/sanadLifecycle";
 import { parseSanadDirectoryPipeline } from "@shared/sanadDirectoryPipeline";
+import { SANAD_CENTRE_PIPELINE_STATUSES, type SanadCentrePipelineStatus } from "@shared/sanadCentresPipeline";
 import { canAccessSanadIntelligenceUi } from "@shared/sanadRoles";
 import {
   Activity,
@@ -26,6 +27,7 @@ import {
   BookOpen,
   Building2,
   CalendarClock,
+  Check,
   ChevronLeft,
   ChevronRight,
   ClipboardCheck,
@@ -34,19 +36,39 @@ import {
   FileText,
   Info,
   LayoutDashboard,
+  Link2,
   Loader2,
   MapPin,
   MessageCircle,
+  MoreHorizontal,
   Network,
+  Phone,
   Search,
   Shield,
   Trash2,
   TrendingUp,
+  UserPlus,
   Users,
 } from "lucide-react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link, useLocation } from "wouter";
 import { toast } from "sonner";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { fmtDateTime } from "@/lib/dateUtils";
 import { buildWhatsAppMessageHref, toWhatsAppPhoneDigits } from "@/lib/whatsappClickToChat";
 import {
@@ -82,6 +104,25 @@ function directoryLifecycleBadge(ops: SanadLifecycleOpsInput | null | undefined)
       title={b.description}
     >
       {b.label}
+    </Badge>
+  );
+}
+
+const PIPELINE_BADGE_CLASS: Record<SanadCentrePipelineStatus, string> = {
+  imported: "bg-zinc-100 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200",
+  contacted: "bg-sky-100 text-sky-900 dark:bg-sky-950/50 dark:text-sky-200",
+  prospect: "bg-violet-100 text-violet-900 dark:bg-violet-950/40 dark:text-violet-200",
+  invited: "bg-amber-100 text-amber-900 dark:bg-amber-950/40 dark:text-amber-200",
+  registered: "bg-emerald-100 text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200",
+  active: "bg-green-100 text-green-900 dark:bg-green-950/40 dark:text-green-200",
+};
+
+function pipelineStatusBadge(status: SanadCentrePipelineStatus | string | null | undefined) {
+  const s = (status ?? "imported") as SanadCentrePipelineStatus;
+  const label = s.replace(/_/g, " ");
+  return (
+    <Badge variant="outline" className={`max-w-full whitespace-normal text-start font-normal capitalize ${PIPELINE_BADGE_CLASS[s] ?? PIPELINE_BADGE_CLASS.imported}`}>
+      {label}
     </Badge>
   );
 }
@@ -397,6 +438,10 @@ function DirectorySurface() {
   const [gov, setGov] = useState<string>("");
   const [wil, setWil] = useState("");
   const [partner, setPartner] = useState<string>("");
+  const [pipeStage, setPipeStage] = useState<string>("");
+  const [pipeOwnerFilter, setPipeOwnerFilter] = useState<string>("__all");
+  const [assignCenterId, setAssignCenterId] = useState<number | null>(null);
+  const [assignSearch, setAssignSearch] = useState("");
   const [drawerId, setDrawerId] = useState<number | null>(null);
   const [pageSize, setPageSize] = useState<100 | 200 | 500>(100);
   const [page, setPage] = useState(0);
@@ -426,9 +471,13 @@ function DirectorySurface() {
     { governorateKey: gov },
     { enabled: Boolean(gov) },
   );
+  const { data: pipeKpis } = trpc.sanad.intelligence.centrePipelineKpis.useQuery();
+  const { data: pipeOwnerOptions } = trpc.sanad.intelligence.centrePipelineOwnerOptions.useQuery();
 
   const partnerFilter =
     partner === "" ? undefined : (partner as "unknown" | "prospect" | "active" | "suspended" | "churned");
+
+  const utils = trpc.useUtils();
 
   const offset = page * pageSize;
 
@@ -438,15 +487,23 @@ function DirectorySurface() {
     wilayat: wil || undefined,
     partnerStatus: partnerFilter,
     pipeline: pipelineFilter,
+    pipelineStatus: pipeStage ? (pipeStage as SanadCentrePipelineStatus) : undefined,
+    ownerUnassignedOnly: pipeOwnerFilter === "__unassigned" ? true : undefined,
+    ownerUserId:
+      pipeOwnerFilter !== "__all" && pipeOwnerFilter !== "__unassigned" && pipeOwnerFilter
+        ? Number(pipeOwnerFilter)
+        : undefined,
     limit: pageSize,
     offset,
   });
 
   useEffect(() => {
     setPage(0);
-  }, [search, gov, wil, partner, pageSize, pipelineFilter]);
+  }, [search, gov, wil, partner, pageSize, pipelineFilter, pipeStage, pipeOwnerFilter]);
 
-  const filtersActive = Boolean(search.trim() || gov || wil || partner || pipelineFilter);
+  const filtersActive = Boolean(
+    search.trim() || gov || wil || partner || pipelineFilter || pipeStage || pipeOwnerFilter !== "__all",
+  );
   const total = listQuery.data?.total ?? 0;
   const rows = listQuery.data?.rows ?? [];
   const rangeStart = total === 0 ? 0 : offset + 1;
@@ -474,11 +531,39 @@ function DirectorySurface() {
     onError: (e) => toast.error(e.message),
   });
 
+  const markPipelineContacted = trpc.sanad.intelligence.markSanadCentrePipelineContacted.useMutation({
+    onSuccess: () => {
+      toast.success("Marked as contacted");
+      void listQuery.refetch();
+      void utils.sanad.intelligence.centrePipelineKpis.invalidate();
+      void utils.sanad.intelligence.centrePipelineOwnerOptions.invalidate();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const updatePipeline = trpc.sanad.intelligence.updateSanadCentrePipeline.useMutation({
+    onSuccess: () => {
+      toast.success("Pipeline updated");
+      void listQuery.refetch();
+      void utils.sanad.intelligence.centrePipelineKpis.invalidate();
+      void utils.sanad.intelligence.centrePipelineOwnerOptions.invalidate();
+      setAssignCenterId(null);
+      setAssignSearch("");
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const assignUserSearch = trpc.sanad.searchUsersForSanadRoster.useQuery(
+    { query: assignSearch.trim(), officeId: undefined },
+    { enabled: assignCenterId != null && assignSearch.trim().length >= 2 },
+  );
+
   const genInvite = trpc.sanad.intelligence.generateCenterInvite.useMutation({
     onSuccess: async (data) => {
       listQuery.refetch();
       detail.refetch();
       readiness.refetch();
+      void utils.sanad.intelligence.centrePipelineKpis.invalidate();
       const url =
         typeof window !== "undefined" ? `${window.location.origin}${data.invitePath}` : data.invitePath;
       let waNote: string | undefined;
@@ -607,6 +692,8 @@ function DirectorySurface() {
                 setGov("");
                 setWil("");
                 setPartner("");
+                setPipeStage("");
+                setPipeOwnerFilter("__all");
                 setPage(0);
                 navigate("/admin/sanad/directory");
               }}
@@ -679,6 +766,43 @@ function DirectorySurface() {
               </Select>
             </div>
           </div>
+          <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="min-w-0 space-y-1.5">
+              <Label className="text-xs font-medium text-foreground">Pipeline stage</Label>
+              <Select value={pipeStage || "__all"} onValueChange={(v) => setPipeStage(v === "__all" ? "" : v)}>
+                <SelectTrigger className="h-10 w-full text-sm">
+                  <SelectValue placeholder="All stages" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all">All stages</SelectItem>
+                  {SANAD_CENTRE_PIPELINE_STATUSES.map((s) => (
+                    <SelectItem key={s} value={s}>
+                      {s.replace(/_/g, " ")}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="min-w-0 space-y-1.5">
+              <Label className="text-xs font-medium text-foreground">Owner</Label>
+              <Select value={pipeOwnerFilter} onValueChange={setPipeOwnerFilter}>
+                <SelectTrigger className="h-10 w-full text-sm">
+                  <SelectValue placeholder="All" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all">All owners</SelectItem>
+                  <SelectItem value="__unassigned">Unassigned</SelectItem>
+                  {(pipeOwnerOptions ?? []).map((o) =>
+                    o.userId != null ? (
+                      <SelectItem key={o.userId} value={String(o.userId)}>
+                        {(o.name ?? o.email ?? `User ${o.userId}`).trim()}
+                      </SelectItem>
+                    ) : null,
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -696,6 +820,29 @@ function DirectorySurface() {
           <Button type="button" variant="outline" size="sm" className="h-8 shrink-0 text-xs" asChild>
             <Link href="/admin/sanad/directory">Clear drilldown</Link>
           </Button>
+        </div>
+      ) : null}
+
+      {pipeKpis ? (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <Card className="shadow-sm">
+            <CardHeader className="pb-2">
+              <CardDescription className="text-xs">Total centres (directory)</CardDescription>
+              <CardTitle className="text-2xl tabular-nums">{pipeKpis.totalCentres.toLocaleString()}</CardTitle>
+            </CardHeader>
+          </Card>
+          <Card className="shadow-sm">
+            <CardHeader className="pb-2">
+              <CardDescription className="text-xs">Contacted or later</CardDescription>
+              <CardTitle className="text-2xl tabular-nums">{pipeKpis.contactedPct}%</CardTitle>
+            </CardHeader>
+          </Card>
+          <Card className="shadow-sm">
+            <CardHeader className="pb-2">
+              <CardDescription className="text-xs">Conversion (registered + active)</CardDescription>
+              <CardTitle className="text-2xl tabular-nums">{pipeKpis.conversionPct}%</CardTitle>
+            </CardHeader>
+          </Card>
         </div>
       ) : null}
 
@@ -797,17 +944,20 @@ function DirectorySurface() {
             </div>
           ) : (
             <div className="max-h-[min(70vh,640px)] overflow-auto border-t border-border/60">
-              <table className="w-full min-w-[760px] table-fixed border-collapse text-sm">
+              <table className="w-full min-w-[1100px] table-fixed border-collapse text-sm">
                 <caption className="sr-only">
-                  SANAD partner centres: name, responsible person, phone, location, partner status, and actions
+                  SANAD partner centres: directory fields, onboarding pipeline, owner, and actions
                 </caption>
                 <colgroup>
-                  <col className="w-[24%]" />
-                  <col className="w-[20%]" />
-                  <col className="w-[7.5rem]" />
-                  <col className="w-[28%]" />
-                  <col className="w-[7rem]" />
-                  <col className="w-[8.75rem]" />
+                  <col className="w-[18%]" />
+                  <col className="w-[14%]" />
+                  <col className="w-[6.5rem]" />
+                  <col className="w-[18%]" />
+                  <col className="w-[9%]" />
+                  <col className="w-[10%]" />
+                  <col className="w-[7%]" />
+                  <col className="w-[12%]" />
+                  <col className="w-[5.5rem]" />
                 </colgroup>
                 <TableHeader>
                   <TableRow className="border-b-2 border-border hover:bg-transparent">
@@ -830,15 +980,24 @@ function DirectorySurface() {
                       Location
                     </TableHead>
                     <TableHead className="sticky top-0 z-30 h-12 border-b border-border bg-card px-2 py-2 text-start align-bottom text-xs font-bold uppercase tracking-wide text-foreground shadow-[inset_0_-1px_0_0_hsl(var(--border))]">
-                      Partner
+                      Stage
                     </TableHead>
-                    <TableHead className="sticky top-0 z-30 h-12 border-b border-border bg-card px-3 py-2 text-end align-bottom text-xs font-bold uppercase tracking-wide text-foreground shadow-[inset_0_-1px_0_0_hsl(var(--border))]">
+                    <TableHead className="sticky top-0 z-30 h-12 border-b border-border bg-card px-2 py-2 text-start align-bottom text-xs font-bold uppercase tracking-wide text-foreground shadow-[inset_0_-1px_0_0_hsl(var(--border))]">
+                      Owner
+                    </TableHead>
+                    <TableHead className="sticky top-0 z-30 h-12 border-b border-border bg-card px-2 py-2 text-start align-bottom text-xs font-bold uppercase tracking-wide text-foreground shadow-[inset_0_-1px_0_0_hsl(var(--border))]">
+                      Last contact
+                    </TableHead>
+                    <TableHead className="sticky top-0 z-30 h-12 border-b border-border bg-card px-2 py-2 text-start align-bottom text-xs font-bold uppercase tracking-wide text-foreground shadow-[inset_0_-1px_0_0_hsl(var(--border))]">
+                      Next action
+                    </TableHead>
+                    <TableHead className="sticky top-0 z-30 h-12 border-b border-border bg-card px-2 py-2 text-end align-bottom text-xs font-bold uppercase tracking-wide text-foreground shadow-[inset_0_-1px_0_0_hsl(var(--border))]">
                       Actions
                     </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {listQuery.data.rows.map(({ center, ops }) => (
+                  {listQuery.data.rows.map(({ center, pipeline, pipelineOwnerName, pipelineOwnerEmail }) => (
                     <TableRow
                       key={center.id}
                       className="cursor-pointer border-b border-border/50 transition-colors hover:bg-muted/50"
@@ -888,23 +1047,110 @@ function DirectorySurface() {
                           );
                         })()}
                       </TableCell>
-                      <TableCell className="px-2 py-2.5 align-middle" onClick={(e) => e.stopPropagation()}>
-                        {directoryLifecycleBadge(ops)}
+                      <TableCell className="px-2 py-2 align-top" onClick={(e) => e.stopPropagation()}>
+                        {pipelineStatusBadge(pipeline?.pipelineStatus)}
                       </TableCell>
                       <TableCell
-                        className="px-3 py-2.5 align-middle text-end whitespace-nowrap"
+                        className="px-2 py-2.5 align-top text-xs text-foreground"
+                        title={pipelineOwnerEmail ?? undefined}
                         onClick={(e) => e.stopPropagation()}
                       >
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          size="sm"
-                          className="h-9 min-w-[5.5rem] gap-1.5 font-medium shadow-sm"
-                          onClick={() => setDrawerId(center.id)}
-                        >
-                          Details
-                          <ArrowRight className="h-3.5 w-3.5 shrink-0 opacity-80" aria-hidden />
-                        </Button>
+                        {pipelineOwnerName?.trim() ? (
+                          <span className="line-clamp-2 [overflow-wrap:anywhere]">{pipelineOwnerName}</span>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="px-2 py-2.5 align-top text-xs tabular-nums text-muted-foreground" onClick={(e) => e.stopPropagation()}>
+                        {pipeline?.lastContactedAt ? fmtDateTime(pipeline.lastContactedAt) : "—"}
+                      </TableCell>
+                      <TableCell
+                        className="px-2 py-2.5 align-top text-xs text-muted-foreground"
+                        title={pipeline?.nextAction ?? undefined}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {pipeline?.nextAction?.trim() ? (
+                          <span className="line-clamp-2 [overflow-wrap:anywhere]">{pipeline.nextAction}</span>
+                        ) : (
+                          "—"
+                        )}
+                      </TableCell>
+                      <TableCell
+                        className="px-2 py-2.5 align-middle text-end whitespace-nowrap"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button type="button" variant="outline" size="icon" className="h-9 w-9 shrink-0" aria-label="Centre actions">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-56">
+                            <DropdownMenuLabel>Outreach</DropdownMenuLabel>
+                            {(() => {
+                              const digits = toWhatsAppPhoneDigits(center.contactNumber);
+                              const waHref = digits
+                                ? buildWhatsAppMessageHref(
+                                    digits,
+                                    `مرحباً،\nنُسجّل اهتمامكم بالانضمام إلى SmartPRO.\nالمركز: ${center.centerName}`,
+                                  )
+                                : null;
+                              return (
+                                <>
+                                  <DropdownMenuItem
+                                    disabled={!waHref}
+                                    onSelect={() => {
+                                      if (waHref) window.open(waHref, "_blank", "noopener,noreferrer");
+                                    }}
+                                  >
+                                    <MessageCircle className="mr-2 h-4 w-4 text-[#25D366]" />
+                                    WhatsApp (draft)
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    disabled={!digits}
+                                    onSelect={() => {
+                                      if (digits) window.open(`tel:${digits}`, "_self");
+                                    }}
+                                  >
+                                    <Phone className="mr-2 h-4 w-4" />
+                                    Call
+                                  </DropdownMenuItem>
+                                </>
+                              );
+                            })()}
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              onSelect={() => {
+                                void genInvite.mutateAsync({ centerId: center.id });
+                              }}
+                            >
+                              <Link2 className="mr-2 h-4 w-4" />
+                              Invite to SmartPRO
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onSelect={() => {
+                                markPipelineContacted.mutate({ centerId: center.id });
+                              }}
+                            >
+                              <Check className="mr-2 h-4 w-4" />
+                              Mark as contacted
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onSelect={() => {
+                                setAssignCenterId(center.id);
+                                setAssignSearch("");
+                              }}
+                            >
+                              <UserPlus className="mr-2 h-4 w-4" />
+                              Assign owner
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onSelect={() => setDrawerId(center.id)}>
+                              <ArrowRight className="mr-2 h-4 w-4" />
+                              Open details
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -974,6 +1220,26 @@ function DirectorySurface() {
                   </div>
                 </div>
               </div>
+
+              {detail.data.companyMatches && detail.data.companyMatches.length > 0 ? (
+                <div className="rounded-lg border border-amber-500/35 bg-amber-500/[0.06] p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-amber-950 dark:text-amber-100">
+                    Possible SmartPRO company match
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Link the centre to a platform office when you confirm it is the same entity.
+                  </p>
+                  <ul className="mt-2 space-y-1.5 text-sm">
+                    {detail.data.companyMatches.map((m) => (
+                      <li key={m.id} className="font-medium text-foreground">
+                        {m.name}
+                        {m.nameAr ? <span className="text-muted-foreground"> · {m.nameAr}</span> : null}
+                        <span className="ml-1.5 font-mono text-xs font-normal text-muted-foreground">#{m.id}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
 
               <div className="rounded-lg border bg-card p-4 shadow-sm">
                 <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -1525,6 +1791,55 @@ function DirectorySurface() {
           ) : null}
         </SheetContent>
       </Sheet>
+
+      <Dialog
+        open={assignCenterId != null}
+        onOpenChange={(o) => {
+          if (!o) {
+            setAssignCenterId(null);
+            setAssignSearch("");
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Assign pipeline owner</DialogTitle>
+            <DialogDescription>Search platform users by name or email (min. 2 characters).</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Input
+              value={assignSearch}
+              onChange={(e) => setAssignSearch(e.target.value)}
+              placeholder="Search users…"
+              autoFocus
+            />
+            <div className="max-h-48 space-y-1 overflow-y-auto rounded-md border bg-muted/20 p-1">
+              {(assignUserSearch.data ?? []).map((u) => (
+                <button
+                  key={u.id}
+                  type="button"
+                  className="flex w-full flex-col items-start rounded-sm px-2 py-2 text-start text-sm hover:bg-muted"
+                  onClick={() => {
+                    if (assignCenterId == null) return;
+                    updatePipeline.mutate({ centerId: assignCenterId, ownerUserId: u.id });
+                  }}
+                >
+                  <span className="font-medium">{u.name ?? "—"}</span>
+                  <span className="text-xs text-muted-foreground">{u.email ?? ""}</span>
+                </button>
+              ))}
+              {assignSearch.trim().length >= 2 && (assignUserSearch.data?.length ?? 0) === 0 && !assignUserSearch.isLoading ? (
+                <p className="px-2 py-3 text-xs text-muted-foreground">No users found.</p>
+              ) : null}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setAssignCenterId(null)}>
+              Cancel
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

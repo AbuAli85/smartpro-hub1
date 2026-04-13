@@ -172,6 +172,12 @@ async function importDirectoryFromAoa(db: SanadIntelDb, batchId: number, aoa: un
         .where(eq(schema.sanadIntelCenterOperations.centerId, centerId))
         .limit(1);
       if (!hasOps) await db.insert(schema.sanadIntelCenterOperations).values({ centerId });
+      const [hasPipe] = await db
+        .select({ c: schema.sanadCentresPipeline.centerId })
+        .from(schema.sanadCentresPipeline)
+        .where(eq(schema.sanadCentresPipeline.centerId, centerId))
+        .limit(1);
+      if (!hasPipe) await db.insert(schema.sanadCentresPipeline).values({ centerId });
     }
     n++;
   }

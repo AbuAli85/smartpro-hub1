@@ -6,11 +6,7 @@ import {
   SANAD_DIRECTORY_PIPELINE_FILTERS,
   type SanadDirectoryPipelineFilter,
 } from "@shared/sanadDirectoryPipeline";
-import {
-  validateAcceptCenterInvite,
-  validateGenerateCenterInvite,
-  validateLinkSanadInviteToAccount,
-} from "@shared/sanadLifecycleTransitions";
+import { validateAcceptCenterInvite, validateLinkSanadInviteToAccount } from "@shared/sanadLifecycleTransitions";
 import { canAccessSanadIntelFull, canAccessSanadIntelRead } from "@shared/sanadRoles";
 import {
   sanadIntelCenterComplianceItems,
@@ -20,6 +16,17 @@ import {
   sanadOffices,
   sanadOfficeMembers,
 } from "../../drizzle/schema";
+import { SANAD_CENTRE_PIPELINE_STATUSES } from "@shared/sanadCentresPipeline";
+import { runGenerateCenterInvite } from "../sanad-intelligence/generateCenterInviteRunner";
+import {
+  computeSanadCentrePipelineKpis,
+  ensureSanadCentrePipelineRow,
+  findCompanyMatchesForCentreName,
+  listDistinctPipelineOwners,
+  markSanadCentreContacted,
+  patchSanadCentrePipeline,
+  promoteSanadCentrePipelineStatus,
+} from "../sanad-intelligence/pipelineActions";
 import { getDb } from "../db";
 import {
   buildSanadInvitePath,
@@ -27,18 +34,11 @@ import {
   ensureCenterOperations,
   evaluateActivationServerGate,
   findByInviteToken,
-  generateInviteTokenValue,
   inviteIsExpired,
   isSanadInviteOnboardingChannelOpen,
   SANAD_INVITE_PEEK_NOT_FOUND_MESSAGE,
 } from "../sanad-intelligence/activation";
 import { insertSanadIntelAuditEvent } from "../sanad-intelligence/sanadIntelAudit";
-import { resolvePublicAppBaseUrl } from "../_core/publicAppUrl";
-import {
-  isSanadInviteWhatsAppTemplateConfigured,
-  sendSanadCenterInviteTemplateAr,
-} from "../whatsappCloud";
-import { toWhatsAppPhoneDigits } from "@shared/whatsappPhoneDigits";
 import {
   getCenterDetail,
   getLatestMetricYear,
@@ -103,6 +103,7 @@ const protectedSanadIntelProcedure = protectedProcedure.use(
 );
 
 const partnerStatusZ = z.enum(["unknown", "prospect", "active", "suspended", "churned"]);
+const pipelineStatusZ = z.enum(SANAD_CENTRE_PIPELINE_STATUSES as unknown as [string, ...string[]]);
 const onboardingZ = z.enum([
   "not_started",
   "intake",
@@ -165,6 +166,9 @@ export const sanadIntelligenceRouter = router({
           wilayat: z.string().optional(),
           partnerStatus: partnerStatusZ.optional(),
           pipeline: z.enum(SANAD_DIRECTORY_PIPELINE_FILTERS as unknown as [string, ...string[]]).optional(),
+          pipelineStatus: pipelineStatusZ.optional(),
+          ownerUserId: z.number().optional(),
+          ownerUnassignedOnly: z.boolean().optional(),
           limit: z.number().min(1).max(1000).default(50),
           offset: z.number().min(0).default(0),
         })
@@ -179,9 +183,81 @@ export const sanadIntelligenceRouter = router({
         wilayat: input?.wilayat,
         partnerStatus: input?.partnerStatus,
         pipeline: input?.pipeline as SanadDirectoryPipelineFilter | undefined,
+        pipelineStatus: input?.pipelineStatus,
+        ownerUserId: input?.ownerUserId,
+        ownerUnassignedOnly: input?.ownerUnassignedOnly,
         limit: input?.limit ?? 50,
         offset: input?.offset ?? 0,
       });
+    }),
+
+  centrePipelineKpis: sanadIntelReadProcedure.query(async () => {
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+    return computeSanadCentrePipelineKpis(db as never);
+  }),
+
+  centrePipelineOwnerOptions: sanadIntelReadProcedure.query(async () => {
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+    return listDistinctPipelineOwners(db as never);
+  }),
+
+  updateSanadCentrePipeline: sanadIntelFullProcedure
+    .input(
+      z.object({
+        centerId: z.number(),
+        pipelineStatus: pipelineStatusZ.optional(),
+        ownerUserId: z.number().nullable().optional(),
+        nextAction: z.string().max(4000).nullable().optional(),
+        lastContactedAt: z.coerce.date().nullable().optional(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      const [c] = await db
+        .select({ id: sanadIntelCenters.id })
+        .from(sanadIntelCenters)
+        .where(eq(sanadIntelCenters.id, input.centerId))
+        .limit(1);
+      if (!c) throw new TRPCError({ code: "NOT_FOUND", message: "Center not found" });
+      await patchSanadCentrePipeline(db as never, input.centerId, {
+        pipelineStatus: input.pipelineStatus,
+        ownerUserId: input.ownerUserId,
+        nextAction: input.nextAction,
+        lastContactedAt: input.lastContactedAt,
+      });
+      return { success: true as const };
+    }),
+
+  markSanadCentrePipelineContacted: sanadIntelFullProcedure
+    .input(z.object({ centerId: z.number() }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      const [c] = await db
+        .select({ id: sanadIntelCenters.id })
+        .from(sanadIntelCenters)
+        .where(eq(sanadIntelCenters.id, input.centerId))
+        .limit(1);
+      if (!c) throw new TRPCError({ code: "NOT_FOUND", message: "Center not found" });
+      await markSanadCentreContacted(db as never, input.centerId);
+      return { success: true as const };
+    }),
+
+  suggestCompanyMatchForCentre: sanadIntelReadProcedure
+    .input(z.object({ centerId: z.number() }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      const [row] = await db
+        .select({ centerName: sanadIntelCenters.centerName })
+        .from(sanadIntelCenters)
+        .where(eq(sanadIntelCenters.id, input.centerId))
+        .limit(1);
+      if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Center not found" });
+      return findCompanyMatchesForCentreName(db as never, row.centerName);
     }),
 
   getCenter: sanadIntelReadProcedure.input(z.object({ id: z.number() })).query(async ({ input }) => {
@@ -476,88 +552,12 @@ export const sanadIntelligenceRouter = router({
     .mutation(async ({ input, ctx }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
-      const [c] = await db
-        .select({ id: sanadIntelCenters.id })
-        .from(sanadIntelCenters)
-        .where(eq(sanadIntelCenters.id, input.centerId))
-        .limit(1);
-      if (!c) throw new TRPCError({ code: "NOT_FOUND", message: "Center not found" });
-
-      const prior = await ensureCenterOperations(db as never, input.centerId);
-      const genCheck = validateGenerateCenterInvite(prior);
-      if (!genCheck.ok) {
-        throw new TRPCError({ code: genCheck.code, message: genCheck.message });
-      }
-
-      const token = generateInviteTokenValue();
-      const now = new Date();
-      const days = input.expiresInDays ?? 14;
-      const inviteExpiresAt = new Date(now.getTime() + days * 86400000);
-
-      await db
-        .update(sanadIntelCenterOperations)
-        .set({
-          inviteToken: token,
-          inviteSentAt: now,
-          inviteExpiresAt,
-        })
-        .where(eq(sanadIntelCenterOperations.centerId, input.centerId));
-
-      await insertSanadIntelAuditEvent(db as never, {
+      return runGenerateCenterInvite(db as never, {
+        centerId: input.centerId,
+        expiresInDays: input.expiresInDays,
         actorUserId: ctx.user.id,
-        entityType: "sanad_intel_center",
-        entityId: input.centerId,
-        action: "sanad_intel_invite_generated",
-        metadata: { expiresInDays: days, replacedPriorToken: Boolean(prior.inviteToken) },
-        beforeState: { hadInviteToken: Boolean(prior.inviteToken), inviteExpiresAt: prior.inviteExpiresAt },
-        afterState: { inviteExpiresAt, reissued: true },
+        req: ctx.req,
       });
-
-      const invitePath = buildSanadInvitePath(token);
-      const [centerContact] = await db
-        .select({
-          centerName: sanadIntelCenters.centerName,
-          contactNumber: sanadIntelCenters.contactNumber,
-        })
-        .from(sanadIntelCenters)
-        .where(eq(sanadIntelCenters.id, input.centerId))
-        .limit(1);
-
-      const base = resolvePublicAppBaseUrl(ctx.req).replace(/\/+$/, "");
-      const inviteUrl = base ? `${base}${invitePath}` : "";
-
-      let whatsappAutoSent = false;
-      let whatsappAutoSkippedReason: "not_configured" | "no_public_base_url" | "invalid_phone" | null = null;
-      let whatsappAutoError: string | null = null;
-
-      if (!isSanadInviteWhatsAppTemplateConfigured()) {
-        whatsappAutoSkippedReason = "not_configured";
-      } else if (!base) {
-        whatsappAutoSkippedReason = "no_public_base_url";
-      } else {
-        const digits = toWhatsAppPhoneDigits(centerContact?.contactNumber);
-        if (!digits) {
-          whatsappAutoSkippedReason = "invalid_phone";
-        } else {
-          const wa = await sendSanadCenterInviteTemplateAr({
-            toDigits: digits,
-            centerName: (centerContact?.centerName ?? "").trim() || "مركز",
-            inviteUrl,
-          });
-          if (wa.ok) whatsappAutoSent = true;
-          else whatsappAutoError = wa.error;
-        }
-      }
-
-      return {
-        token,
-        invitePath,
-        inviteSentAt: now,
-        inviteExpiresAt,
-        whatsappAutoSent,
-        whatsappAutoSkippedReason,
-        whatsappAutoError,
-      };
     }),
 
   getCenterInvite: sanadIntelReadProcedure.input(z.object({ centerId: z.number() })).query(async ({ input }) => {
@@ -731,6 +731,8 @@ export const sanadIntelligenceRouter = router({
         afterState: { registeredUserId: ctx.user.id },
       });
 
+      await promoteSanadCentrePipelineStatus(db as never, row.center.id, "registered");
+
       return {
         success: true as const,
         centerId: row.center.id,
@@ -866,6 +868,8 @@ export const sanadIntelligenceRouter = router({
           })
           .where(eq(sanadIntelCenterOperations.centerId, input.centerId));
 
+        await promoteSanadCentrePipelineStatus(tx as never, input.centerId, "active");
+
         await insertSanadIntelAuditEvent(tx as never, {
           actorUserId: ctx.user.id,
           entityType: "sanad_intel_center",
@@ -932,6 +936,16 @@ export const sanadIntelligenceRouter = router({
           .update(sanadIntelCenterOperations)
           .set(patch as never)
           .where(eq(sanadIntelCenterOperations.centerId, input.centerId));
+      }
+
+      if (input.lastContactedAt !== undefined) {
+        await ensureSanadCentrePipelineRow(db as never, input.centerId);
+        await patchSanadCentrePipeline(db as never, input.centerId, {
+          lastContactedAt: input.lastContactedAt ?? null,
+        });
+        if (input.lastContactedAt) {
+          await promoteSanadCentrePipelineStatus(db as never, input.centerId, "contacted");
+        }
       }
 
       await insertSanadIntelAuditEvent(db as never, {

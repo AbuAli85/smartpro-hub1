@@ -1,9 +1,11 @@
 import { z } from "zod";
 import { eq, and, desc, sql, isNotNull, asc } from "drizzle-orm";
+import { alias } from "drizzle-orm/mysql-core";
 import { TRPCError } from "@trpc/server";
 import { publicProcedure, protectedProcedure, router, t } from "../_core/trpc";
 import { NOT_ADMIN_ERR_MSG } from "@shared/const";
 import { canAccessSurveyAdmin } from "@shared/rbac";
+import { SANAD_CENTRE_PIPELINE_STATUSES } from "@shared/sanadCentresPipeline";
 import { getDb } from "../db";
 import {
   surveys,
@@ -19,6 +21,7 @@ import {
   sanadOffices,
   sanadIntelCenters,
   sanadIntelCenterOperations,
+  sanadCentresPipeline,
 } from "../../drizzle/schema";
 import {
   getBySlugInput,
@@ -44,6 +47,25 @@ import {
 import { toWhatsAppPhoneDigits } from "@shared/whatsappPhoneDigits";
 import crypto from "crypto";
 import { assertSanadOfficeAccess } from "../sanadAccess";
+import { runGenerateCenterInvite } from "../sanad-intelligence/generateCenterInviteRunner";
+import {
+  computeSanadCentrePipelineKpis,
+  markSanadCentreContacted,
+  patchSanadCentrePipeline,
+} from "../sanad-intelligence/pipelineActions";
+import { throwIfSanadIntelSchemaMissing } from "../sanad-intelligence/dbErrors";
+
+const surveyIntelSchemaGuard = t.middleware(async ({ next }) => {
+  try {
+    return await next();
+  } catch (e) {
+    throwIfSanadIntelSchemaMissing(e);
+  }
+});
+
+const surveyAdminIntelProcedure = surveyAdminProcedure.use(surveyIntelSchemaGuard);
+
+const pipelineStatusSurveyZ = z.enum(SANAD_CENTRE_PIPELINE_STATUSES as unknown as [string, ...string[]]);
 
 /** Canonical links for emails / outreach: `PUBLIC_APP_URL` first, else infer from the HTTP request (local dev). */
 function resolveSanadSurveyBaseUrl(req?: Pick<Request, "get">): string {
@@ -597,7 +619,7 @@ export const surveyRouter = router({
    * Intel centre directory (`sanad_intel_centers`) with contact details; survey URL only when
    * `sanad_intel_center_operations.linked_sanad_office_id` points at an **active** platform office.
    */
-  adminSanadIntelCenterSurveyLinks: surveyAdminProcedure
+  adminSanadIntelCenterSurveyLinks: surveyAdminIntelProcedure
     .input(z.object({ surveySlug: z.string().min(1).max(100).optional() }).optional())
     .query(async ({ input, ctx }) => {
       const db = await getDb();
@@ -616,11 +638,14 @@ export const surveyRouter = router({
         });
       }
 
+      const pipeOwner = alias(users, "survey_sanad_pipe_owner");
       const joined = await db
         .select({
           center: sanadIntelCenters,
           linkedSanadOfficeId: sanadIntelCenterOperations.linkedSanadOfficeId,
           officeStatus: sanadOffices.status,
+          pipeline: sanadCentresPipeline,
+          pipelineOwnerName: pipeOwner.name,
         })
         .from(sanadIntelCenters)
         .leftJoin(
@@ -628,9 +653,14 @@ export const surveyRouter = router({
           eq(sanadIntelCenterOperations.centerId, sanadIntelCenters.id),
         )
         .leftJoin(sanadOffices, eq(sanadOffices.id, sanadIntelCenterOperations.linkedSanadOfficeId))
+        .leftJoin(
+          sanadCentresPipeline,
+          eq(sanadCentresPipeline.centerId, sanadIntelCenters.id),
+        )
+        .leftJoin(pipeOwner, eq(pipeOwner.id, sanadCentresPipeline.ownerUserId))
         .orderBy(asc(sanadIntelCenters.centerName));
 
-      const rows = joined.map(({ center, linkedSanadOfficeId, officeStatus }) => {
+      const rows = joined.map(({ center, linkedSanadOfficeId, officeStatus, pipeline, pipelineOwnerName }) => {
         const linkedId = linkedSanadOfficeId ?? null;
         const active = officeStatus === "active";
         let surveyUrl: string | null = null;
@@ -652,6 +682,11 @@ export const surveyRouter = router({
           linkedSanadOfficeId: linkedId,
           surveyUrl,
           surveyUnavailableReason,
+          pipelineStatus: (pipeline?.pipelineStatus ?? "imported") as (typeof SANAD_CENTRE_PIPELINE_STATUSES)[number],
+          ownerUserId: pipeline?.ownerUserId ?? null,
+          pipelineOwnerName: pipelineOwnerName?.trim() || null,
+          lastContactedAt: pipeline?.lastContactedAt ?? null,
+          nextAction: pipeline?.nextAction?.trim() || null,
         };
       });
 
@@ -661,6 +696,65 @@ export const surveyRouter = router({
         baseUrl,
         rows,
       };
+    }),
+
+  adminSanadIntelPipelineKpis: surveyAdminIntelProcedure.query(async () => {
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+    return computeSanadCentrePipelineKpis(db as never);
+  }),
+
+  adminSanadIntelInviteSmartPro: surveyAdminIntelProcedure
+    .input(
+      z.object({
+        centerId: z.number(),
+        expiresInDays: z.number().min(1).max(365).optional(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      return runGenerateCenterInvite(db as never, {
+        centerId: input.centerId,
+        expiresInDays: input.expiresInDays,
+        actorUserId: ctx.user.id,
+        req: ctx.req,
+      });
+    }),
+
+  adminSanadIntelMarkContacted: surveyAdminIntelProcedure
+    .input(z.object({ centerId: z.number() }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      await markSanadCentreContacted(db as never, input.centerId);
+      return { success: true as const };
+    }),
+
+  adminSanadIntelUpdatePipeline: surveyAdminIntelProcedure
+    .input(
+      z.object({
+        centerId: z.number(),
+        pipelineStatus: pipelineStatusSurveyZ.optional(),
+        ownerUserId: z.number().nullable().optional(),
+        nextAction: z.string().max(4000).nullable().optional(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      const [c] = await db
+        .select({ id: sanadIntelCenters.id })
+        .from(sanadIntelCenters)
+        .where(eq(sanadIntelCenters.id, input.centerId))
+        .limit(1);
+      if (!c) throw new TRPCError({ code: "NOT_FOUND", message: "Center not found" });
+      await patchSanadCentrePipeline(db as never, input.centerId, {
+        pipelineStatus: input.pipelineStatus,
+        ownerUserId: input.ownerUserId,
+        nextAction: input.nextAction,
+      });
+      return { success: true as const };
     }),
 
   /**

@@ -38,6 +38,11 @@ import {
   Loader2,
   Mail,
   MessageCircle,
+  MoreHorizontal,
+  Phone,
+  Check,
+  UserPlus,
+  Link2,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -66,6 +71,12 @@ type OutreachTableRow = {
   governorateLabel?: string | null;
   wilayat?: string | null;
   surveyUnavailableReason?: "not_linked" | "office_inactive" | null;
+  /** Intel directory only */
+  intelCenterId?: number;
+  pipelineStatus?: string;
+  pipelineOwnerName?: string | null;
+  lastContactedAt?: Date | string | null;
+  nextAction?: string | null;
 };
 
 /** Prefer Arabic name; strip leading directory refs like "1645 - " for clearer WhatsApp copy. */
@@ -296,6 +307,37 @@ export default function SurveyAdminResponsesPage() {
     enabled: sanadOutreachOpen && sanadOutreachManualOnly === null && sanadOutreachListMode === "intel",
   });
 
+  const intelPipeKpis = trpc.survey.adminSanadIntelPipelineKpis.useQuery(undefined, {
+    enabled: sanadOutreachOpen && sanadOutreachManualOnly === null && sanadOutreachListMode === "intel",
+  });
+
+  const markIntelContacted = trpc.survey.adminSanadIntelMarkContacted.useMutation({
+    onSuccess: () => {
+      void intelLinksQuery.refetch();
+      void intelPipeKpis.refetch();
+      toast.success("Marked as contacted");
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const inviteIntelSmartPro = trpc.survey.adminSanadIntelInviteSmartPro.useMutation({
+    onSuccess: async (data) => {
+      void intelLinksQuery.refetch();
+      void intelPipeKpis.refetch();
+      const url =
+        typeof window !== "undefined" ? `${window.location.origin}${data.invitePath}` : data.invitePath;
+      try {
+        await navigator.clipboard.writeText(url);
+        toast.success("Invite link generated — pipeline set to invited", {
+          description: data.whatsappAutoSent ? "WhatsApp template sent when configured." : undefined,
+        });
+      } catch {
+        toast.success("Invite generated", { description: url });
+      }
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
   const followUpQuery = trpc.survey.adminSanadSurveyOfficeFollowUp.useQuery(undefined, {
     enabled: followUpOpen,
   });
@@ -409,6 +451,11 @@ export default function SurveyAdminResponsesPage() {
           governorateLabel: r.governorateLabel,
           wilayat: r.wilayat,
           surveyUnavailableReason: r.surveyUnavailableReason,
+          intelCenterId: r.intelCenterId,
+          pipelineStatus: r.pipelineStatus,
+          pipelineOwnerName: r.pipelineOwnerName,
+          lastContactedAt: r.lastContactedAt,
+          nextAction: r.nextAction,
         })) ?? []
       );
     }
@@ -857,6 +904,29 @@ export default function SurveyAdminResponsesPage() {
               </Button>
             </div>
 
+            {sanadOutreachManualOnly === null && isIntelLayout && intelPipeKpis.data ? (
+              <div className="grid shrink-0 grid-cols-3 gap-2 rounded-lg border border-border/80 bg-muted/25 px-3 py-2 text-center text-sm">
+                <div>
+                  <span className="block text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                    Centres
+                  </span>
+                  <span className="tabular-nums text-base font-semibold">{intelPipeKpis.data.totalCentres}</span>
+                </div>
+                <div>
+                  <span className="block text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                    Contacted+
+                  </span>
+                  <span className="tabular-nums text-base font-semibold">{intelPipeKpis.data.contactedPct}%</span>
+                </div>
+                <div>
+                  <span className="block text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                    Conversion
+                  </span>
+                  <span className="tabular-nums text-base font-semibold">{intelPipeKpis.data.conversionPct}%</span>
+                </div>
+              </div>
+            ) : null}
+
             {sanadOutreachManualOnly === null &&
               isIntelLayout &&
               !outreachLoading &&
@@ -971,11 +1041,17 @@ export default function SurveyAdminResponsesPage() {
                   {!isIntelLayout ? <TableHead>{t("yourEmail")}</TableHead> : null}
                   <TableHead className="w-[5.5rem] min-w-[5.5rem] max-w-[5.5rem] text-center align-bottom">
                     <div className="flex flex-col items-center gap-0.5">
-                      <span>{t("admin.sanadColWhatsapp", { defaultValue: "WhatsApp" })}</span>
+                      <span>
+                        {isIntelLayout
+                          ? t("admin.sanadColPipelineActions", { defaultValue: "Actions" })
+                          : t("admin.sanadColWhatsapp", { defaultValue: "WhatsApp" })}
+                      </span>
                       <span className="text-muted-foreground text-[10px] font-normal leading-tight">
-                        {t("admin.sanadColWhatsappSub", {
-                          defaultValue: "Arabic draft",
-                        })}
+                        {isIntelLayout
+                          ? t("admin.sanadColPipelineActionsSub", { defaultValue: "Outreach" })
+                          : t("admin.sanadColWhatsappSub", {
+                              defaultValue: "Arabic draft",
+                            })}
                       </span>
                     </div>
                   </TableHead>
@@ -1065,6 +1141,24 @@ export default function SurveyAdminResponsesPage() {
                     <TableRow key={row.rowKey} className="align-top">
                       <TableCell className="max-w-[10rem] font-medium">
                         <span className="line-clamp-2">{row.name}</span>
+                        {isIntelLayout && (row.pipelineStatus || row.pipelineOwnerName) ? (
+                          <p className="mt-1 text-[10px] leading-snug text-muted-foreground">
+                            {row.pipelineStatus ? (
+                              <span className="me-1 rounded bg-muted px-1 py-0.5 font-normal capitalize">
+                                {row.pipelineStatus.replace(/_/g, " ")}
+                              </span>
+                            ) : null}
+                            {row.pipelineOwnerName?.trim() ? (
+                              <span title={row.pipelineOwnerName}>Owner: {row.pipelineOwnerName}</span>
+                            ) : null}
+                            {row.lastContactedAt ? (
+                              <span className="ms-1 block sm:inline">
+                                · {t("admin.lastContactShort", { defaultValue: "Last" })}{" "}
+                                {fmtDate(row.lastContactedAt)}
+                              </span>
+                            ) : null}
+                          </p>
+                        ) : null}
                       </TableCell>
                       {isIntelLayout ? (
                         <>
@@ -1092,51 +1186,133 @@ export default function SurveyAdminResponsesPage() {
                         </TableCell>
                       ) : null}
                       <TableCell className="w-[5.5rem] min-w-[5.5rem] max-w-[5.5rem] align-top text-center">
-                        <div className="flex flex-col items-center justify-center gap-1.5 py-1">
-                          {waHref ? (
-                            <Button
-                              asChild
-                              size="sm"
-                              className="border-0 bg-[#25D366] text-white hover:bg-[#20bd5a]"
-                              title={`${t("admin.whatsappOpenHint", { defaultValue: "Opens WhatsApp with a draft." })} ${t("admin.whatsappDraftReady", { defaultValue: "Then tap Send in WhatsApp." })}`}
-                            >
-                              <a
-                                href={waHref}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                aria-label={`${t("admin.sanadColWhatsapp", { defaultValue: "WhatsApp" })}. ${t("admin.whatsappDraftReady", { defaultValue: "Tap Send in WhatsApp after opening." })}`}
+                        {isIntelLayout && row.intelCenterId != null ? (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                className="h-8 w-8 shrink-0"
+                                aria-label={t("admin.sanadColPipelineActions", { defaultValue: "Actions" })}
                               >
-                                <MessageCircle className="h-4 w-4" aria-hidden />
-                              </a>
-                            </Button>
-                          ) : (
-                            <span className="text-muted-foreground text-xs" title={t("admin.whatsappNoPhoneHint", { defaultValue: "Add a valid phone number" })}>
-                              —
-                            </span>
-                          )}
-                          {row.surveyUrl ? (
-                            <span
-                              className="inline-flex max-w-full justify-center rounded-full bg-green-100 px-1.5 py-0.5 text-[10px] font-medium leading-tight text-green-800 dark:bg-green-900/30 dark:text-green-400"
-                              title={t("admin.msgVariantDedicatedHint", { defaultValue: "Dedicated office link — response auto-linked to this office" })}
-                            >
-                              {t("admin.msgVariantDedicated", { defaultValue: "Office URL" })}
-                            </span>
-                          ) : surveyPublicStartUrl ? (
-                            <span
-                              className="inline-flex max-w-full justify-center rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium leading-tight text-amber-800 dark:bg-amber-900/30 dark:text-amber-400"
-                              title={t("admin.msgVariantPublicHint", { defaultValue: "General survey link — no automatic office binding. Link the centre for a dedicated URL." })}
-                            >
-                              {t("admin.msgVariantPublic", { defaultValue: "Public URL" })}
-                            </span>
-                          ) : (
-                            <span
-                              className="inline-flex max-w-full justify-center rounded-full bg-zinc-100 px-1.5 py-0.5 text-[10px] font-medium leading-tight text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400"
-                              title={t("admin.msgVariantNoLinkHint", { defaultValue: "No survey link — message asks recipient to reply for a link" })}
-                            >
-                              {t("admin.msgVariantNoLink", { defaultValue: "No link" })}
-                            </span>
-                          )}
-                        </div>
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-56">
+                              <DropdownMenuLabel>{t("admin.pipelineOutreachMenu", { defaultValue: "Outreach" })}</DropdownMenuLabel>
+                              <DropdownMenuItem
+                                disabled={!waHref}
+                                onSelect={() => {
+                                  if (waHref) window.open(waHref, "_blank", "noopener,noreferrer");
+                                }}
+                              >
+                                <MessageCircle className="mr-2 h-4 w-4 text-[#25D366]" />
+                                {t("admin.menuWhatsappDraft", { defaultValue: "WhatsApp (prefilled)" })}
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                disabled={!waDigits}
+                                onSelect={() => {
+                                  if (waDigits) window.open(`tel:${waDigits}`, "_self");
+                                }}
+                              >
+                                <Phone className="mr-2 h-4 w-4" />
+                                {t("admin.menuCall", { defaultValue: "Call" })}
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                disabled={inviteIntelSmartPro.isPending}
+                                onSelect={() => inviteIntelSmartPro.mutate({ centerId: row.intelCenterId! })}
+                              >
+                                <Link2 className="mr-2 h-4 w-4" />
+                                {t("admin.menuInviteSmartPro", { defaultValue: "Invite to SmartPRO" })}
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                disabled={markIntelContacted.isPending}
+                                onSelect={() => markIntelContacted.mutate({ centerId: row.intelCenterId! })}
+                              >
+                                <Check className="mr-2 h-4 w-4" />
+                                {t("admin.menuMarkContacted", { defaultValue: "Mark as contacted" })}
+                              </DropdownMenuItem>
+                              <DropdownMenuItem asChild>
+                                <Link href="/admin/sanad/directory" className="flex cursor-pointer items-center">
+                                  <UserPlus className="mr-2 h-4 w-4" />
+                                  {t("admin.menuAssignOwner", { defaultValue: "Assign owner (directory)" })}
+                                </Link>
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                          <div className="mt-1 flex flex-col items-center gap-1">
+                            {row.surveyUrl ? (
+                              <span
+                                className="inline-flex max-w-full justify-center rounded-full bg-green-100 px-1.5 py-0.5 text-[10px] font-medium leading-tight text-green-800 dark:bg-green-900/30 dark:text-green-400"
+                                title={t("admin.msgVariantDedicatedHint", { defaultValue: "Dedicated office link — response auto-linked to this office" })}
+                              >
+                                {t("admin.msgVariantDedicated", { defaultValue: "Office URL" })}
+                              </span>
+                            ) : surveyPublicStartUrl ? (
+                              <span
+                                className="inline-flex max-w-full justify-center rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium leading-tight text-amber-800 dark:bg-amber-900/30 dark:text-amber-400"
+                                title={t("admin.msgVariantPublicHint", { defaultValue: "General survey link — no automatic office binding. Link the centre for a dedicated URL." })}
+                              >
+                                {t("admin.msgVariantPublic", { defaultValue: "Public URL" })}
+                              </span>
+                            ) : (
+                              <span
+                                className="inline-flex max-w-full justify-center rounded-full bg-zinc-100 px-1.5 py-0.5 text-[10px] font-medium leading-tight text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400"
+                                title={t("admin.msgVariantNoLinkHint", { defaultValue: "No survey link — message asks recipient to reply for a link" })}
+                              >
+                                {t("admin.msgVariantNoLink", { defaultValue: "No link" })}
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="flex flex-col items-center justify-center gap-1.5 py-1">
+                            {waHref ? (
+                              <Button
+                                asChild
+                                size="sm"
+                                className="border-0 bg-[#25D366] text-white hover:bg-[#20bd5a]"
+                                title={`${t("admin.whatsappOpenHint", { defaultValue: "Opens WhatsApp with a draft." })} ${t("admin.whatsappDraftReady", { defaultValue: "Then tap Send in WhatsApp." })}`}
+                              >
+                                <a
+                                  href={waHref}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  aria-label={`${t("admin.sanadColWhatsapp", { defaultValue: "WhatsApp" })}. ${t("admin.whatsappDraftReady", { defaultValue: "Tap Send in WhatsApp after opening." })}`}
+                                >
+                                  <MessageCircle className="h-4 w-4" aria-hidden />
+                                </a>
+                              </Button>
+                            ) : (
+                              <span className="text-muted-foreground text-xs" title={t("admin.whatsappNoPhoneHint", { defaultValue: "Add a valid phone number" })}>
+                                —
+                              </span>
+                            )}
+                            {row.surveyUrl ? (
+                              <span
+                                className="inline-flex max-w-full justify-center rounded-full bg-green-100 px-1.5 py-0.5 text-[10px] font-medium leading-tight text-green-800 dark:bg-green-900/30 dark:text-green-400"
+                                title={t("admin.msgVariantDedicatedHint", { defaultValue: "Dedicated office link — response auto-linked to this office" })}
+                              >
+                                {t("admin.msgVariantDedicated", { defaultValue: "Office URL" })}
+                              </span>
+                            ) : surveyPublicStartUrl ? (
+                              <span
+                                className="inline-flex max-w-full justify-center rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium leading-tight text-amber-800 dark:bg-amber-900/30 dark:text-amber-400"
+                                title={t("admin.msgVariantPublicHint", { defaultValue: "General survey link — no automatic office binding. Link the centre for a dedicated URL." })}
+                              >
+                                {t("admin.msgVariantPublic", { defaultValue: "Public URL" })}
+                              </span>
+                            ) : (
+                              <span
+                                className="inline-flex max-w-full justify-center rounded-full bg-zinc-100 px-1.5 py-0.5 text-[10px] font-medium leading-tight text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400"
+                                title={t("admin.msgVariantNoLinkHint", { defaultValue: "No survey link — message asks recipient to reply for a link" })}
+                              >
+                                {t("admin.msgVariantNoLink", { defaultValue: "No link" })}
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </TableCell>
                       <TableCell
                         className={cn(

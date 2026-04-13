@@ -3396,6 +3396,40 @@ export const sanadIntelCenterOperations = mysqlTable(
 );
 export type SanadIntelCenterOperations = typeof sanadIntelCenterOperations.$inferSelect;
 
+/**
+ * Lead / onboarding funnel for imported directory centres (1:1 with sanad_intel_centers).
+ * Complements sanad_intel_center_operations (activation, invites) with CRM-style pipeline fields.
+ */
+export const sanadCentresPipeline = mysqlTable(
+  "sanad_centres_pipeline",
+  {
+    centerId: int("center_id")
+      .notNull()
+      .primaryKey()
+      .references(() => sanadIntelCenters.id, { onDelete: "cascade" }),
+    pipelineStatus: mysqlEnum("pipeline_status", [
+      "imported",
+      "contacted",
+      "prospect",
+      "invited",
+      "registered",
+      "active",
+    ])
+      .default("imported")
+      .notNull(),
+    ownerUserId: int("owner_user_id").references(() => users.id),
+    lastContactedAt: timestamp("last_contacted_at"),
+    nextAction: text("next_action"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  },
+  (t) => [
+    index("idx_sanad_centres_pipe_status").on(t.pipelineStatus),
+    index("idx_sanad_centres_pipe_owner").on(t.ownerUserId),
+  ],
+);
+export type SanadCentresPipeline = typeof sanadCentresPipeline.$inferSelect;
+
 /** Structured licensing checklist (seeded; aligns with SANAD centre licensing reference). */
 export const sanadIntelLicenseRequirements = mysqlTable(
   "sanad_intel_license_requirements",

@@ -121,8 +121,15 @@ function downloadSanadLinksCsv(
   URL.revokeObjectURL(a.href);
 }
 
+/** WhatsApp drafts for Omani offices: always Arabic, independent of admin UI language. */
+const WHATSAPP_OUTREACH_LANG = "ar-OM";
+
 export default function SurveyAdminResponsesPage() {
-  const { t } = useTranslation("survey");
+  const { t, i18n } = useTranslation("survey");
+  const tWhatsappOutreach = useMemo(
+    () => i18n.getFixedT(WHATSAPP_OUTREACH_LANG, "survey"),
+    [i18n],
+  );
   const [page, setPage] = useState(1);
   const [selectedStatus, setSelectedStatus] = useState<StatusFilter>("all");
   const [sanadOutreachOpen, setSanadOutreachOpen] = useState(false);
@@ -643,16 +650,16 @@ export default function SurveyAdminResponsesPage() {
                     const waDigits = toWhatsAppPhoneDigits(row.phone);
                     const officeWa = officeLabelForWhatsApp(row);
                     const waMessage = row.surveyUrl
-                      ? t("admin.whatsappSurveyMessage", {
+                      ? tWhatsappOutreach("admin.whatsappSurveyMessage", {
                           officeName: officeWa,
                           surveyUrl: row.surveyUrl,
                           defaultValue:
-                            "Dear Sir/Madam,\n\nThis message is about the official Oman business-sector questionnaire, issued through the SmartPRO platform in line with the SANAD offices programme. Its purpose is to collect standard sector information for planning and official reporting only.\n\nYou are kindly requested to complete it for this establishment:\n{{officeName}}\n\nQuestionnaire link:\n{{surveyUrl}}\n\nThank you for your cooperation.",
+                            "السلام عليكم ورحمة الله وبركاته،\n\nنفيدكم بأن هذه الرسالة تتصل باستبيان قطاع الأعمال الرسمي في سلطنة عُمان، الصادر عبر منصة سمارت برو وبما يتوافق مع برنامج مكاتب سند؛ ويهدف الاستبيان إلى جمع معلومات قطاعية موحّدة لأغراض التخطيط والإفادة الرسمية.\n\nالمنشأة:\n{{officeName}}\n\nرابط الاستبيان:\n{{surveyUrl}}\n\nنرجو التكرم بإكمال الاستبيان من خلال الرابط أعلاه.\n\nشكراً لتعاونكم،",
                         })
-                      : t("admin.whatsappSurveyMessageNoLink", {
+                      : tWhatsappOutreach("admin.whatsappSurveyMessageNoLink", {
                           officeName: officeWa,
                           defaultValue:
-                            "Dear Sir/Madam,\n\nWe are writing regarding the official Oman business-sector questionnaire (SmartPRO platform / SANAD offices programme). It collects standard sector information for planning and official reporting.\n\nEstablishment:\n{{officeName}}\n\nWhen you reply to this message at your convenience, we will send you the questionnaire link.\n\nThank you for your cooperation.",
+                            "السلام عليكم ورحمة الله وبركاته،\n\nنفيدكم بأن هذه الرسالة تتصل باستبيان قطاع الأعمال الرسمي في سلطنة عُمان (منصة سمارت برو / برنامج مكاتب سند)، ويُجمع من خلاله معلومات قطاعية للتخطيط والإفادة الرسمية.\n\nالمنشأة:\n{{officeName}}\n\nنرجو التكرم بالرد على هذه الرسالة في الوقت المناسب ليتم تزويدكم برابط الاستبيان.\n\nشكراً لتعاونكم،",
                         });
                     const waHref = waDigits ? buildWhatsAppMessageHref(waDigits, waMessage) : null;
                     return (

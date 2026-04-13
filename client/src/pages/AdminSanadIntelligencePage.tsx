@@ -36,6 +36,7 @@ import {
   LayoutDashboard,
   Loader2,
   MapPin,
+  MessageCircle,
   Network,
   Search,
   Shield,
@@ -47,6 +48,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link, useLocation } from "wouter";
 import { toast } from "sonner";
 import { fmtDateTime } from "@/lib/dateUtils";
+import { buildWhatsAppMessageHref, toWhatsAppPhoneDigits } from "@/lib/whatsappClickToChat";
 import {
   CartesianGrid,
   Line,
@@ -560,6 +562,17 @@ function DirectorySurface() {
     if (!t || typeof window === "undefined") return "";
     return `${window.location.origin}/sanad/join?token=${encodeURIComponent(t)}`;
   }, [ops?.inviteToken]);
+
+  const inviteWhatsAppHref = useMemo(() => {
+    const url = inviteFullUrl;
+    const phone = detail.data?.center.contactNumber;
+    const name = detail.data?.center.centerName?.trim() ?? "your centre";
+    if (!url) return null;
+    const digits = toWhatsAppPhoneDigits(phone ?? null);
+    if (!digits) return null;
+    const body = `Hello,\n\nPlease complete your SmartPRO Sanad onboarding using this link:\n${url}\n\nCentre: ${name}\n\nThank you.`;
+    return buildWhatsAppMessageHref(digits, body);
+  }, [inviteFullUrl, detail.data?.center.contactNumber, detail.data?.center.centerName]);
 
   /** Radix Select rejects `value=""` on SelectItem; skip empty keys from API data. */
   const governorateOptions = (filters?.governorates ?? []).filter((g) => g.key.length > 0);
@@ -1201,6 +1214,43 @@ function DirectorySurface() {
                       <Copy className="h-3.5 w-3.5 mr-1" />
                       Copy invite link
                     </Button>
+                    {inviteWhatsAppHref ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="border-0 bg-[#25D366] text-white hover:bg-[#20bd5a]"
+                        asChild
+                        title="Open WhatsApp with this number and a draft onboarding message (tap Send in WhatsApp)"
+                      >
+                        <a
+                          href={inviteWhatsAppHref}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1"
+                          aria-label="WhatsApp invite link"
+                        >
+                          <MessageCircle className="h-3.5 w-3.5" />
+                          WhatsApp invite
+                        </a>
+                      </Button>
+                    ) : (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={!inviteWhatsAppHref}
+                        title={
+                          !inviteFullUrl
+                            ? "Generate an invite first"
+                            : !detail.data?.center.contactNumber?.trim()
+                              ? "Add a contact phone on this centre record for WhatsApp"
+                              : "Phone number could not be normalized (e.g. use +968… or 8-digit local)"
+                        }
+                      >
+                        <MessageCircle className="h-3.5 w-3.5 mr-1" />
+                        WhatsApp invite
+                      </Button>
+                    )}
                     {ops?.linkedSanadOfficeId ? (
                       <Button type="button" size="sm" variant="outline" asChild>
                         <a

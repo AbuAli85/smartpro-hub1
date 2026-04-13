@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "wouter";
 import { trpc } from "@/lib/trpc";
+import { buildWhatsAppMessageHref, toWhatsAppPhoneDigits } from "@/lib/whatsappClickToChat";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -60,27 +61,6 @@ function fmtDate(d: Date | string | null | undefined): string {
 function csvEscapeCell(value: string): string {
   if (/[",\r\n]/.test(value)) return `"${value.replace(/"/g, '""')}"`;
   return value;
-}
-
-/**
- * Digits only for wa.me links (no + prefix).
- * If the value is 8 digits without a country code, prepends Oman +968.
- */
-function toWhatsAppPhoneDigits(raw: string | null | undefined): string | null {
-  if (!raw?.trim()) return null;
-  let d = raw.replace(/\D/g, "");
-  if (!d) return null;
-  if (d.startsWith("00")) d = d.slice(2);
-  if (d.length === 9 && d.startsWith("0")) d = d.slice(1);
-  if (!d.startsWith("968") && d.length === 8) d = `968${d}`;
-  if (d.length < 10 || d.length > 15) return null;
-  return d;
-}
-
-function buildWhatsAppSurveyHref(phoneDigits: string, message: string): string {
-  const params = new URLSearchParams();
-  params.set("text", message);
-  return `https://wa.me/${phoneDigits}?${params.toString()}`;
 }
 
 function downloadSanadLinksCsv(
@@ -616,7 +596,7 @@ export default function SurveyAdminResponsesPage() {
                           defaultValue:
                             "Hello,\n\nRegarding {{officeName}} — please reply when convenient.\n\nThank you.",
                         });
-                    const waHref = waDigits ? buildWhatsAppSurveyHref(waDigits, waMessage) : null;
+                    const waHref = waDigits ? buildWhatsAppMessageHref(waDigits, waMessage) : null;
                     return (
                     <TableRow key={row.rowKey}>
                       <TableCell className="max-w-[10rem] font-medium">

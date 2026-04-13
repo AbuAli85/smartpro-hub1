@@ -32,6 +32,8 @@ import { toast } from "sonner";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { seesPlatformOperatorNav } from "@shared/clientNav";
+import { HubBreadcrumb } from "@/components/hub/HubBreadcrumb";
+import { renewalsTrail } from "@/components/hub/hubCrumbs";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -153,6 +155,7 @@ export default function ExpiryAlertsPage() {
 
   return (
     <div className="space-y-6 p-1">
+      <HubBreadcrumb items={renewalsTrail("Expiry alerts")} />
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>

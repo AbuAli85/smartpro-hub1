@@ -6,14 +6,15 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
+import { cn } from "@/lib/utils";
 import { Fragment } from "react";
 import { Link } from "wouter";
 
 export type HubCrumb = { label: string; href?: string };
 
-export function HubBreadcrumb({ items }: { items: HubCrumb[] }) {
+export function HubBreadcrumb({ items, className }: { items: HubCrumb[]; className?: string }) {
   return (
-    <Breadcrumb className="mb-4">
+    <Breadcrumb className={cn("mb-4", className)}>
       <BreadcrumbList className="flex-wrap gap-y-1">
         {items.map((crumb, i) => (
           <Fragment key={`${crumb.label}-${i}`}>

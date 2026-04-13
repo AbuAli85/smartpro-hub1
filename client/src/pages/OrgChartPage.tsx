@@ -29,6 +29,8 @@ import {
   Truck, HeartPulse, BookOpen, Headphones, FlaskConical,
   UserMinus, GripVertical, ArrowRight, Info,
 } from "lucide-react";
+import { HubBreadcrumb } from "@/components/hub/HubBreadcrumb";
+import { organizationTrail } from "@/components/hub/hubCrumbs";
 
 // ─── Color palette ────────────────────────────────────────────────────────────
 const DEPT_PALETTE: Record<string, { bg: string; border: string; text: string; header: string; ring: string }> = {
@@ -440,6 +442,9 @@ export default function OrgChartPage() {
       onDragEnd={handleDragEnd}
     >
       <div className="flex flex-col h-full overflow-hidden">
+        <div className="px-6 pt-4 shrink-0">
+          <HubBreadcrumb items={organizationTrail("Org chart")} />
+        </div>
         {/* ── Top bar ── */}
         <div className="px-6 pt-5 pb-4 border-b bg-background shrink-0">
           <div className="flex items-start justify-between gap-4 flex-wrap">

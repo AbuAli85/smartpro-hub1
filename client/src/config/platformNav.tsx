@@ -63,9 +63,11 @@ export type NavLeafDef = {
   defaultLabel: string;
   href: string;
   icon: LucideIcon;
-  intent?: NavIntent;
+  intent: NavIntent;
   /** Treat these paths as active for this item (hub + legacy deep links). */
   activePathPrefixes?: string[];
+  /** Stronger sidebar emphasis — primary hub entry points. */
+  hubPrimary?: boolean;
 };
 
 export type NavBranchDef = {
@@ -74,7 +76,7 @@ export type NavBranchDef = {
   labelKey: string;
   defaultLabel: string;
   icon: LucideIcon;
-  intent?: NavIntent;
+  intent: NavIntent;
   children: NavLeafDef[];
 };
 
@@ -87,7 +89,7 @@ export type NavGroupDef = {
   items: NavItemDef[];
 };
 
-type LeafOpts = { intent?: NavIntent; activePathPrefixes?: string[] };
+type LeafOpts = { intent: NavIntent; activePathPrefixes?: string[]; hubPrimary?: boolean };
 
 function leaf(
   id: string,
@@ -95,7 +97,7 @@ function leaf(
   defaultLabel: string,
   href: string,
   icon: LucideIcon,
-  opts?: LeafOpts,
+  opts: LeafOpts,
 ): NavLeafDef {
   return {
     kind: "leaf",
@@ -104,8 +106,9 @@ function leaf(
     defaultLabel,
     href,
     icon,
-    intent: opts?.intent,
-    activePathPrefixes: opts?.activePathPrefixes,
+    intent: opts.intent,
+    activePathPrefixes: opts.activePathPrefixes,
+    hubPrimary: opts.hubPrimary,
   };
 }
 
@@ -114,8 +117,8 @@ function branch(
   labelKey: string,
   defaultLabel: string,
   icon: LucideIcon,
+  intent: NavIntent,
   children: NavLeafDef[],
-  intent?: NavIntent,
 ): NavBranchDef {
   return { kind: "branch", id, labelKey, defaultLabel, icon, children, intent };
 }
@@ -130,11 +133,17 @@ export const PLATFORM_NAV_GROUP_DEFS: readonly NavGroupDef[] = [
     labelKey: "overview",
     defaultGroupLabel: "Overview",
     items: [
-      leaf("overview.controlTower", "controlTower", "Control Tower", "/control-tower", Radar),
-      leaf("overview.businessOverview", "businessOverview", "Business Overview", "/dashboard", LayoutDashboard),
-      leaf("overview.operationsOverview", "operationsOverview", "Operations Overview", "/operations", Activity),
-      leaf("overview.analytics", "analytics", "Analytics", "/analytics", BarChart3),
-      leaf("overview.complianceCentre", "complianceCentre", "Compliance Centre", "/compliance", CheckCircle2),
+      leaf("overview.controlTower", "controlTower", "Control Tower", "/control-tower", Radar, { intent: "overview" }),
+      leaf("overview.businessOverview", "businessOverview", "Business Overview", "/dashboard", LayoutDashboard, {
+        intent: "overview",
+      }),
+      leaf("overview.operationsOverview", "operationsOverview", "Operations Overview", "/operations", Activity, {
+        intent: "overview",
+      }),
+      leaf("overview.analytics", "analytics", "Analytics", "/analytics", BarChart3, { intent: "overview" }),
+      leaf("overview.complianceCentre", "complianceCentre", "Compliance Centre", "/compliance", CheckCircle2, {
+        intent: "overview",
+      }),
     ],
   },
   {
@@ -142,12 +151,20 @@ export const PLATFORM_NAV_GROUP_DEFS: readonly NavGroupDef[] = [
     labelKey: "governmentServices",
     defaultGroupLabel: "Government Services",
     items: [
-      leaf("gov.sanadOffices", "sanadOffices", "Sanad Offices", "/sanad", Building2),
-      leaf("gov.officeDashboard", "officeDashboard", "Office Dashboard", "/sanad/office-dashboard", BarChart3),
-      leaf("gov.partnerOnboarding", "partnerOnboarding", "Partner onboarding", "/sanad/partner-onboarding", Sparkles),
-      leaf("gov.catalogueAdmin", "catalogueAdmin", "Catalogue Admin", "/sanad/catalogue-admin", BookMarked),
-      leaf("gov.ratingsModeration", "ratingsModeration", "Ratings Moderation", "/sanad/ratings-moderation", Star),
-      leaf("gov.proServices", "proServices", "PRO Services", "/pro", Shield),
+      leaf("gov.sanadOffices", "sanadOffices", "Sanad Offices", "/sanad", Building2, { intent: "system" }),
+      leaf("gov.officeDashboard", "officeDashboard", "Office Dashboard", "/sanad/office-dashboard", BarChart3, {
+        intent: "system",
+      }),
+      leaf("gov.partnerOnboarding", "partnerOnboarding", "Partner onboarding", "/sanad/partner-onboarding", Sparkles, {
+        intent: "system",
+      }),
+      leaf("gov.catalogueAdmin", "catalogueAdmin", "Catalogue Admin", "/sanad/catalogue-admin", BookMarked, {
+        intent: "system",
+      }),
+      leaf("gov.ratingsModeration", "ratingsModeration", "Ratings Moderation", "/sanad/ratings-moderation", Star, {
+        intent: "system",
+      }),
+      leaf("gov.proServices", "proServices", "PRO Services", "/pro", Shield, { intent: "system" }),
     ],
   },
   {
@@ -155,12 +172,16 @@ export const PLATFORM_NAV_GROUP_DEFS: readonly NavGroupDef[] = [
     labelKey: "myCompany",
     defaultGroupLabel: "My Company",
     items: [
-      leaf("co.workspace", "workspace", "Workspace", "/workspace", LayoutGrid),
-      leaf("co.companyProfile", "companyProfile", "Company Profile", "/company/profile", Building2),
-      leaf("co.companyAdmin", "companyAdmin", "Company Admin", "/company-admin", Crown),
-      leaf("co.companySettings", "companySettings", "Company Settings", "/company/settings", Settings),
-      leaf("co.emailTemplates", "emailTemplates", "Email Templates", "/company/email-preview", Mail),
-      leaf("co.companyDocuments", "companyDocuments", "Company Documents", "/company/documents", FolderOpen),
+      leaf("co.workspace", "workspace", "Workspace", "/workspace", LayoutGrid, { intent: "workspace" }),
+      leaf("co.companyProfile", "companyProfile", "Company Profile", "/company/profile", Building2, { intent: "workspace" }),
+      leaf("co.companyAdmin", "companyAdmin", "Company Admin", "/company-admin", Crown, { intent: "workspace" }),
+      leaf("co.companySettings", "companySettings", "Company Settings", "/company/settings", Settings, {
+        intent: "workspace",
+      }),
+      leaf("co.emailTemplates", "emailTemplates", "Email Templates", "/company/email-preview", Mail, { intent: "workspace" }),
+      leaf("co.companyDocuments", "companyDocuments", "Company Documents", "/company/documents", FolderOpen, {
+        intent: "workspace",
+      }),
     ],
   },
   {
@@ -168,21 +189,34 @@ export const PLATFORM_NAV_GROUP_DEFS: readonly NavGroupDef[] = [
     labelKey: "people",
     defaultGroupLabel: "People",
     items: [
-      leaf("people.employeeHome", "employeeHome", "Employee Home", "/my-portal", Home),
-      leaf("people.teamDirectory", "teamDirectory", "Team Directory", "/my-team", Users),
+      leaf("people.employeeHome", "employeeHome", "Employee Home", "/my-portal", Home, { intent: "workspace" }),
+      leaf("people.teamDirectory", "teamDirectory", "Team Directory", "/my-team", Users, { intent: "workspace" }),
       branch(
         "people.scheduling",
         "schedulingTime",
         "Scheduling & attendance",
         CalendarClock,
+        "workspace",
         [
-          leaf("people.attendance", "attendance", "Attendance", "/hr/attendance", Clock),
-          leaf("people.attendanceSites", "attendanceSites", "Attendance sites", "/hr/attendance-sites", QrCode),
-          leaf("people.shiftTemplates", "shiftTemplates", "Shift templates", "/hr/shift-templates", CalendarDays),
-          leaf("people.employeeSchedules", "employeeSchedules", "Employee schedules", "/hr/employee-schedules", CalendarRange),
-          leaf("people.holidayCalendar", "holidayCalendar", "Holiday calendar", "/hr/holidays", SunMedium),
-          leaf("people.todaysBoard", "todaysBoard", "Today's board", "/hr/today-board", CalendarClock),
-          leaf("people.monthlyReport", "monthlyReport", "Monthly report", "/hr/monthly-report", BarChart2),
+          leaf("people.attendance", "attendance", "Attendance", "/hr/attendance", Clock, { intent: "workspace" }),
+          leaf("people.attendanceSites", "attendanceSites", "Attendance sites", "/hr/attendance-sites", QrCode, {
+            intent: "workspace",
+          }),
+          leaf("people.shiftTemplates", "shiftTemplates", "Shift templates", "/hr/shift-templates", CalendarDays, {
+            intent: "workspace",
+          }),
+          leaf("people.employeeSchedules", "employeeSchedules", "Employee schedules", "/hr/employee-schedules", CalendarRange, {
+            intent: "workspace",
+          }),
+          leaf("people.holidayCalendar", "holidayCalendar", "Holiday calendar", "/hr/holidays", SunMedium, {
+            intent: "workspace",
+          }),
+          leaf("people.todaysBoard", "todaysBoard", "Today's board", "/hr/today-board", CalendarClock, {
+            intent: "workspace",
+          }),
+          leaf("people.monthlyReport", "monthlyReport", "Monthly report", "/hr/monthly-report", BarChart2, {
+            intent: "workspace",
+          }),
         ],
       ),
       branch(
@@ -190,9 +224,14 @@ export const PLATFORM_NAV_GROUP_DEFS: readonly NavGroupDef[] = [
         "leaveGroup",
         "Leave",
         Calendar,
+        "workspace",
         [
-          leaf("people.leaveRequests", "leaveRequests", "Leave & requests", "/hr/leave", Calendar),
-          leaf("people.leaveBalances", "leaveBalances", "Leave balances", "/hr/leave-balance", CalendarCheck),
+          leaf("people.leaveRequests", "leaveRequests", "Leave & requests", "/hr/leave", Calendar, {
+            intent: "workspace",
+          }),
+          leaf("people.leaveBalances", "leaveBalances", "Leave balances", "/hr/leave-balance", CalendarCheck, {
+            intent: "workspace",
+          }),
         ],
       ),
       leaf(
@@ -203,6 +242,7 @@ export const PLATFORM_NAV_GROUP_DEFS: readonly NavGroupDef[] = [
         Network,
         {
           intent: "workspace",
+          hubPrimary: true,
           activePathPrefixes: [
             "/organization",
             "/hr/org-chart",
@@ -219,6 +259,7 @@ export const PLATFORM_NAV_GROUP_DEFS: readonly NavGroupDef[] = [
         Activity,
         {
           intent: "insight",
+          hubPrimary: true,
           activePathPrefixes: [
             "/hr/insights",
             "/hr/workforce-intelligence",
@@ -228,22 +269,35 @@ export const PLATFORM_NAV_GROUP_DEFS: readonly NavGroupDef[] = [
           ],
         },
       ),
-      leaf("people.payroll", "payrollEngine", "Payroll", "/payroll", Banknote),
-      leaf("people.tasks", "taskManager", "Task manager", "/hr/tasks", ListTodo),
-      leaf("people.recruitment", "recruitment", "Recruitment", "/hr/recruitment", BookOpen),
-      leaf("people.announcements", "announcements", "Announcements", "/hr/announcements", Megaphone),
-      leaf("people.profileCompleteness", "profileCompleteness", "Profile completeness", "/hr/completeness", UserCheck),
-      leaf("people.financeOverview", "financeOverview", "Finance overview", "/finance/overview", TrendingDown),
+      leaf("people.payroll", "payrollEngine", "Payroll", "/payroll", Banknote, { intent: "workspace" }),
+      leaf("people.tasks", "taskManager", "Task manager", "/hr/tasks", ListTodo, { intent: "workspace" }),
+      leaf("people.recruitment", "recruitment", "Recruitment", "/hr/recruitment", BookOpen, { intent: "workspace" }),
+      leaf("people.announcements", "announcements", "Announcements", "/hr/announcements", Megaphone, {
+        intent: "workspace",
+      }),
+      leaf("people.profileCompleteness", "profileCompleteness", "Profile completeness", "/hr/completeness", UserCheck, {
+        intent: "workspace",
+      }),
+      leaf("people.financeOverview", "financeOverview", "Finance overview", "/finance/overview", TrendingDown, {
+        intent: "insight",
+      }),
       branch(
         "people.hrDocs",
         "hrDocumentsGroup",
         "HR documents & requests",
         FileText,
+        "workspace",
         [
-          leaf("people.hrDocuments", "hrDocuments", "HR documents", "/hr/documents-dashboard", FileText),
-          leaf("people.hrLetters", "hrLetters", "HR letters", "/hr/letters", Mail),
-          leaf("people.employeeRequests", "employeeRequests", "Employee requests", "/hr/employee-requests", ClipboardList),
-          leaf("people.promoterAgreements", "promoterAgreements", "Promoter agreements", "/hr/contracts", UserSquare2),
+          leaf("people.hrDocuments", "hrDocuments", "HR documents", "/hr/documents-dashboard", FileText, {
+            intent: "workspace",
+          }),
+          leaf("people.hrLetters", "hrLetters", "HR letters", "/hr/letters", Mail, { intent: "workspace" }),
+          leaf("people.employeeRequests", "employeeRequests", "Employee requests", "/hr/employee-requests", ClipboardList, {
+            intent: "workspace",
+          }),
+          leaf("people.promoterAgreements", "promoterAgreements", "Promoter agreements", "/hr/contracts", UserSquare2, {
+            intent: "workspace",
+          }),
         ],
       ),
     ],
@@ -253,10 +307,10 @@ export const PLATFORM_NAV_GROUP_DEFS: readonly NavGroupDef[] = [
     labelKey: "operations",
     defaultGroupLabel: "Operations",
     items: [
-      leaf("ops.companyHub", "companyHub", "Company hub", "/company/hub", Building2),
-      leaf("ops.crm", "crm", "CRM", "/crm", Users),
-      leaf("ops.quotations", "quotations", "Quotations", "/quotations", Target),
-      leaf("ops.contracts", "contracts", "Contracts", "/contracts", FileText),
+      leaf("ops.companyHub", "companyHub", "Company hub", "/company/hub", Building2, { intent: "workspace" }),
+      leaf("ops.crm", "crm", "CRM", "/crm", Users, { intent: "workspace" }),
+      leaf("ops.quotations", "quotations", "Quotations", "/quotations", Target, { intent: "workspace" }),
+      leaf("ops.contracts", "contracts", "Contracts", "/contracts", FileText, { intent: "workspace" }),
     ],
   },
   {
@@ -264,8 +318,10 @@ export const PLATFORM_NAV_GROUP_DEFS: readonly NavGroupDef[] = [
     labelKey: "marketplaceSection",
     defaultGroupLabel: "Marketplace",
     items: [
-      leaf("mp.service", "serviceMarketplace", "Service marketplace", "/marketplace", ShoppingBag),
-      leaf("mp.sanad", "sanadMarketplace", "Sanad marketplace", "/sanad/marketplace", Store),
+      leaf("mp.service", "serviceMarketplace", "Service marketplace", "/marketplace", ShoppingBag, {
+        intent: "marketplace",
+      }),
+      leaf("mp.sanad", "sanadMarketplace", "Sanad marketplace", "/sanad/marketplace", Store, { intent: "marketplace" }),
     ],
   },
   {
@@ -281,6 +337,7 @@ export const PLATFORM_NAV_GROUP_DEFS: readonly NavGroupDef[] = [
         Bell,
         {
           intent: "governance",
+          hubPrimary: true,
           activePathPrefixes: [
             "/compliance/renewals",
             "/alerts",
@@ -290,13 +347,28 @@ export const PLATFORM_NAV_GROUP_DEFS: readonly NavGroupDef[] = [
           ],
         },
       ),
-      leaf("compliance.workPermits", "workPermits", "Work permits", "/workforce/permits", Shield),
-      leaf("compliance.governmentCases", "governmentCases", "Government cases", "/workforce/cases", ClipboardCheck),
-      leaf("compliance.portalSync", "portalSync", "Portal sync", "/workforce/sync", RefreshCw),
-      leaf("compliance.workforceDashboard", "workforceDashboard", "Workforce overview", "/workforce", BarChart3),
-      leaf("compliance.workforceEmployees", "workforceEmployees", "Workforce employees", "/workforce/employees", Briefcase),
-      leaf("compliance.profileRequests", "profileChangeRequests", "Profile change requests", "/workforce/profile-change-requests", ClipboardList),
-      leaf("compliance.complianceVault", "complianceVault", "Compliance vault", "/workforce/documents", FolderOpen),
+      leaf("compliance.workPermits", "workPermits", "Work permits", "/workforce/permits", Shield, { intent: "governance" }),
+      leaf("compliance.governmentCases", "governmentCases", "Government cases", "/workforce/cases", ClipboardCheck, {
+        intent: "governance",
+      }),
+      leaf("compliance.portalSync", "portalSync", "Portal sync", "/workforce/sync", RefreshCw, { intent: "governance" }),
+      leaf("compliance.workforceDashboard", "workforceDashboard", "Workforce overview", "/workforce", BarChart3, {
+        intent: "governance",
+      }),
+      leaf("compliance.workforceEmployees", "workforceEmployees", "Workforce employees", "/workforce/employees", Briefcase, {
+        intent: "governance",
+      }),
+      leaf(
+        "compliance.profileRequests",
+        "profileChangeRequests",
+        "Profile change requests",
+        "/workforce/profile-change-requests",
+        ClipboardList,
+        { intent: "governance" },
+      ),
+      leaf("compliance.complianceVault", "complianceVault", "Compliance vault", "/workforce/documents", FolderOpen, {
+        intent: "governance",
+      }),
     ],
   },
   {
@@ -304,9 +376,15 @@ export const PLATFORM_NAV_GROUP_DEFS: readonly NavGroupDef[] = [
     labelKey: "access",
     defaultGroupLabel: "Access",
     items: [
-      leaf("access.companyRoles", "companyRolesPermissions", "Company roles & permissions", "/company/team-access", UserCheck),
-      leaf("access.crossCompany", "crossCompanyAccess", "Cross-company access", "/company/multi-company-roles", ShieldCheck),
-      leaf("access.platformAccess", "platformAccessControl", "Platform access control", "/user-roles", ShieldCheck),
+      leaf("access.companyRoles", "companyRolesPermissions", "Company roles & permissions", "/company/team-access", UserCheck, {
+        intent: "governance",
+      }),
+      leaf("access.crossCompany", "crossCompanyAccess", "Cross-company access", "/company/multi-company-roles", ShieldCheck, {
+        intent: "governance",
+      }),
+      leaf("access.platformAccess", "platformAccessControl", "Platform access control", "/user-roles", ShieldCheck, {
+        intent: "governance",
+      }),
     ],
   },
   {
@@ -314,10 +392,10 @@ export const PLATFORM_NAV_GROUP_DEFS: readonly NavGroupDef[] = [
     labelKey: "sharedOmaniPro",
     defaultGroupLabel: "Shared Omani PRO",
     items: [
-      leaf("sop.officers", "officerRegistry", "Officer registry", "/omani-officers", UserCheck),
-      leaf("sop.assignments", "assignments", "Assignments", "/officer-assignments", Building2),
-      leaf("sop.billing", "billingEngine", "Billing engine", "/billing", CreditCard),
-      leaf("sop.sla", "slaManagement", "SLA management", "/sla-management", Shield),
+      leaf("sop.officers", "officerRegistry", "Officer registry", "/omani-officers", UserCheck, { intent: "workspace" }),
+      leaf("sop.assignments", "assignments", "Assignments", "/officer-assignments", Building2, { intent: "workspace" }),
+      leaf("sop.billing", "billingEngine", "Billing engine", "/billing", CreditCard, { intent: "workspace" }),
+      leaf("sop.sla", "slaManagement", "SLA management", "/sla-management", Shield, { intent: "workspace" }),
     ],
   },
   {
@@ -325,12 +403,14 @@ export const PLATFORM_NAV_GROUP_DEFS: readonly NavGroupDef[] = [
     labelKey: "platform",
     defaultGroupLabel: "Platform",
     items: [
-      leaf("plat.clientPortal", "clientPortal", "Client portal", "/client-portal", UserCircle),
-      leaf("plat.platformOps", "platformOpsLabel", "Platform operations", "/platform-ops", Globe),
-      leaf("plat.pdfReports", "pdfReports", "PDF reports", "/reports", BarChart2),
-      leaf("plat.auditLog", "auditLog", "Audit log", "/audit-log", Shield),
-      leaf("plat.adminPanel", "adminPanel", "Admin panel", "/admin", Settings),
-      leaf("plat.sanadIntelligence", "sanadIntelligence", "SANAD intelligence", "/admin/sanad", Network),
+      leaf("plat.clientPortal", "clientPortal", "Client portal", "/client-portal", UserCircle, { intent: "system" }),
+      leaf("plat.platformOps", "platformOpsLabel", "Platform operations", "/platform-ops", Globe, { intent: "system" }),
+      leaf("plat.pdfReports", "pdfReports", "PDF reports", "/reports", BarChart2, { intent: "system" }),
+      leaf("plat.auditLog", "auditLog", "Audit log", "/audit-log", Shield, { intent: "system" }),
+      leaf("plat.adminPanel", "adminPanel", "Admin panel", "/admin", Settings, { intent: "system" }),
+      leaf("plat.sanadIntelligence", "sanadIntelligence", "SANAD intelligence", "/admin/sanad", Network, {
+        intent: "system",
+      }),
     ],
   },
 ];

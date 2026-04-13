@@ -18,6 +18,8 @@ import {
   Shield, FileWarning, UserX, BarChart3, Activity, Bell, Settings2,
   ArrowUpRight, Calendar, Building2, Download, Cpu, GitBranch, Repeat, XCircle
 } from "lucide-react";
+import { HubBreadcrumb } from "@/components/hub/HubBreadcrumb";
+import { hrInsightsTrail } from "@/components/hub/hubCrumbs";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type Priority = "critical" | "high" | "medium";
@@ -263,6 +265,7 @@ export default function WorkforceIntelligencePage() {
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
+      <HubBreadcrumb items={hrInsightsTrail("Workforce intelligence")} />
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>

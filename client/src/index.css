@@ -198,6 +198,14 @@
 .sidebar-nav-item--child {
   @apply py-2 gap-2.5;
 }
+/* Primary hub entries (Organization, HR insights, Renewals) — slightly stronger than default nav rows */
+.sidebar-nav-item--hub:not(.active) {
+  opacity: 0.88;
+  font-weight: 600;
+}
+.sidebar-nav-item--hub:not(.active):hover {
+  opacity: 1;
+}
 
 /* ─── KPI stat cards ─────────────────────────────────────────────────────── */
 .stat-gradient-1 {

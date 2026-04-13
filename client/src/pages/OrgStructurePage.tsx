@@ -9,6 +9,8 @@ import {
   Briefcase, Search, X, Network, AlertCircle,
 } from "lucide-react";
 import { Link } from "wouter";
+import { HubBreadcrumb } from "@/components/hub/HubBreadcrumb";
+import { organizationTrail } from "@/components/hub/hubCrumbs";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type OrgEmployee = { id: number; name: string; position: string | null; managerId: number | null };
@@ -255,6 +257,7 @@ export default function OrgStructurePage() {
 
   return (
     <div className="p-6 space-y-6">
+      <HubBreadcrumb items={organizationTrail("Org structure")} />
       {/* Header */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>

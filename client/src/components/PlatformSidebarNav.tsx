@@ -32,7 +32,8 @@ function NavLeafLink({
       href={item.href}
       onClick={onClose}
       data-nav-intent={item.intent}
-      className={`sidebar-nav-item sidebar-nav-item--child ${active ? "active" : ""}`}
+      data-hub-primary={item.hubPrimary ? "true" : undefined}
+      className={`sidebar-nav-item sidebar-nav-item--child ${item.hubPrimary ? "sidebar-nav-item--hub" : ""} ${active ? "active" : ""}`}
     >
       <Icon size={16} className="shrink-0 opacity-90" aria-hidden />
       <span className="flex-1 text-[13px]">{t(item.labelKey, item.defaultLabel)}</span>
@@ -141,7 +142,8 @@ function NavItemRow({
       href={item.href}
       onClick={onClose}
       data-nav-intent={item.intent}
-      className={`sidebar-nav-item ${active ? "active" : ""}`}
+      data-hub-primary={item.hubPrimary ? "true" : undefined}
+      className={`sidebar-nav-item ${item.hubPrimary ? "sidebar-nav-item--hub" : ""} ${active ? "active" : ""}`}
     >
       <Icon size={18} aria-hidden />
       <span className="flex-1">{t(item.labelKey, item.defaultLabel)}</span>

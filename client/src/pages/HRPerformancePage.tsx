@@ -46,6 +46,8 @@ import {
   Users,
   Filter,
 } from "lucide-react";
+import { HubBreadcrumb } from "@/components/hub/HubBreadcrumb";
+import { hrInsightsTrail } from "@/components/hub/hubCrumbs";
 
 const TAB_IDS = ["overview", "training", "reviews", "targets", "insights"] as const;
 type TabId = (typeof TAB_IDS)[number];
@@ -297,6 +299,7 @@ export default function HRPerformancePage() {
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-6 space-y-6">
+      <HubBreadcrumb items={hrInsightsTrail("Performance & growth")} />
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold flex items-center gap-2">

@@ -25,6 +25,8 @@ import {
   DollarSign, Megaphone, Code2, FlaskConical, Headphones,
   UserPlus, UserMinus, CheckCircle2, ListFilter,
 } from "lucide-react";
+import { HubBreadcrumb } from "@/components/hub/HubBreadcrumb";
+import { organizationTrail } from "@/components/hub/hubCrumbs";
 
 // ─── Color palette ────────────────────────────────────────────────────────────
 const DEPT_COLORS = [
@@ -665,6 +667,7 @@ export default function DepartmentsPage() {
 
   return (
     <div className="p-6 space-y-5">
+      <HubBreadcrumb items={organizationTrail("Departments")} />
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>

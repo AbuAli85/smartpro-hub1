@@ -34,6 +34,8 @@ import {
   Users, Award, Zap, ChevronDown, ChevronUp, Eye,
   DollarSign, MoreHorizontal,
 } from "lucide-react";
+import { HubBreadcrumb } from "@/components/hub/HubBreadcrumb";
+import { hrInsightsTrail } from "@/components/hub/hubCrumbs";
 
 const METRIC_TYPES = [
   { value: "sales_amount", label: "Sales Amount" },
@@ -285,6 +287,7 @@ export default function HRKpiPage() {
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-6 space-y-6">
+      <HubBreadcrumb items={hrInsightsTrail("KPIs & performance")} />
       {/* ── Header ── */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>

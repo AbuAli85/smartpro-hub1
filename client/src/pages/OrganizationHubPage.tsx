@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { HubBreadcrumb } from "@/components/hub/HubBreadcrumb";
-import { Building2, ExternalLink, LayoutGrid, Network, Users } from "lucide-react";
+import { Building2, ExternalLink, LayoutGrid, Network, Users, UserCheck } from "lucide-react";
 import { Link } from "wouter";
 
 export default function OrganizationHubPage() {
@@ -28,6 +28,8 @@ export default function OrganizationHubPage() {
   const deptCount = depts?.length ?? 0;
   const posCount = positions?.length ?? 0;
   const headcount = stats?.total ?? 0;
+  const unassigned =
+    stats?.byDepartment?.find((d) => d.dept === "Unassigned" || d.dept === "")?.count ?? 0;
 
   const topDepts = [...(depts ?? [])]
     .sort((a, b) => (b.employeeCount ?? 0) - (a.employeeCount ?? 0))
@@ -80,11 +82,31 @@ export default function OrganizationHubPage() {
         </p>
       </div>
 
-      <div className="grid sm:grid-cols-3 gap-3">
+      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <SummaryPill label="Departments" loading={dLoading} value={deptCount} />
         <SummaryPill label="Positions" loading={pLoading} value={posCount} />
         <SummaryPill label="Headcount" loading={sLoading} value={headcount} />
+        <SummaryPill label="Unassigned dept." loading={sLoading} value={unassigned} warn={unassigned > 0} />
       </div>
+
+      <Card className="border-dashed">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base flex items-center gap-2">
+            <UserCheck className="h-4 w-4" /> Completeness &amp; data hygiene
+          </CardTitle>
+          <CardDescription>
+            Org strength depends on clean departments, positions, and employee profiles — jump to the right fix.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-wrap gap-2">
+          <Button size="sm" variant="secondary" asChild>
+            <Link href="/hr/completeness">Profile completeness</Link>
+          </Button>
+          <Button size="sm" variant="outline" asChild>
+            <Link href="/hr/departments">Department records</Link>
+          </Button>
+        </CardContent>
+      </Card>
 
       {topDepts.length > 0 && (
         <Card>
@@ -132,15 +154,21 @@ function SummaryPill({
   label,
   value,
   loading,
+  warn,
 }: {
   label: string;
   value: number;
   loading: boolean;
+  warn?: boolean;
 }) {
   return (
     <div className="rounded-xl border bg-card px-4 py-3">
       <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">{label}</p>
-      {loading ? <Skeleton className="h-8 w-16 mt-1" /> : <p className="text-2xl font-bold tabular-nums">{value}</p>}
+      {loading ? (
+        <Skeleton className="h-8 w-16 mt-1" />
+      ) : (
+        <p className={`text-2xl font-bold tabular-nums ${warn ? "text-amber-600" : ""}`}>{value}</p>
+      )}
     </div>
   );
 }

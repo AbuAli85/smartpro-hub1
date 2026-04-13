@@ -17,6 +17,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import DashboardLayout from "@/components/DashboardLayout";
+import { HubBreadcrumb } from "@/components/hub/HubBreadcrumb";
+import { renewalsTrail } from "@/components/hub/hubCrumbs";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type DocStatus = "expired" | "expiring_soon";
@@ -277,6 +279,7 @@ export default function DocumentExpiryDashboard() {
   return (
     <DashboardLayout>
       <div className="p-6 max-w-7xl mx-auto space-y-6">
+        <HubBreadcrumb items={renewalsTrail("HR expiry dashboard")} />
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>

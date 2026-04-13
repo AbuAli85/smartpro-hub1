@@ -16,6 +16,8 @@ import { AlertCircle, CheckCircle2, Clock, Edit2, Play, Plus, RefreshCw, Trash2,
 import { toast } from "sonner";
 import { useLocation } from "wouter";
 import { useTranslation } from "react-i18next";
+import { HubBreadcrumb } from "@/components/hub/HubBreadcrumb";
+import { renewalsTrail } from "@/components/hub/hubCrumbs";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -310,6 +312,7 @@ export default function RenewalWorkflowsPage() {
   return (
     <TooltipProvider>
       <div className="p-6 space-y-6">
+        <HubBreadcrumb items={renewalsTrail("Renewal workflows")} />
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
           <div>

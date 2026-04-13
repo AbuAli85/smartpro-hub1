@@ -12,6 +12,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { Link } from "wouter";
+import { HubBreadcrumb } from "@/components/hub/HubBreadcrumb";
+import { hrInsightsTrail } from "@/components/hub/hubCrumbs";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 function healthColor(score: number) {
@@ -170,6 +172,12 @@ export default function ExecutiveDashboardPage() {
 
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100">
+      <div className="max-w-7xl mx-auto px-6 pt-4">
+        <HubBreadcrumb
+          items={hrInsightsTrail("HR operations health")}
+          className="mb-0 text-slate-400 [&_a]:text-blue-400 [&_a:hover]:text-blue-300 [&_[data-slot=breadcrumb-page]]:text-slate-200"
+        />
+      </div>
       {/* ── Header ── */}
       <div className="border-b border-slate-700 bg-slate-900/95 sticky top-0 z-10 backdrop-blur">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">

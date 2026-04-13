@@ -58,6 +58,7 @@ export const SANAD_CENTRE_ACTIVITY_TYPES = [
   "invite_sent",
   "next_action_set",
   "marked_contacted",
+  "outreach_reply_email_set",
 ] as const;
 
 export type SanadCentreActivityType = (typeof SANAD_CENTRE_ACTIVITY_TYPES)[number];

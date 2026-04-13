@@ -3386,6 +3386,8 @@ export const sanadIntelCenterOperations = mysqlTable(
     inviteAcceptName: varchar("invite_accept_name", { length: 255 }),
     inviteAcceptPhone: varchar("invite_accept_phone", { length: 64 }),
     inviteAcceptEmail: varchar("invite_accept_email", { length: 320 }),
+    /** WhatsApp/survey outreach: centre replied with this email (dedicated link can be emailed here). */
+    surveyOutreachReplyEmail: varchar("survey_outreach_reply_email", { length: 320 }),
     inviteAcceptAt: timestamp("invite_accept_at"),
   },
   (t) => [

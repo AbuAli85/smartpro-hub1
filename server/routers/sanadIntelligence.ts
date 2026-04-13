@@ -431,6 +431,8 @@ export const sanadIntelligenceRouter = router({
         longitude: z.string().nullable().optional(),
         coverageRadiusKm: z.number().nullable().optional(),
         targetSlaHours: z.number().nullable().optional(),
+        /** WhatsApp/survey outreach: centre replied with this email only. */
+        surveyOutreachReplyEmail: z.union([z.string().email(), z.literal(""), z.null()]).optional(),
       }),
     )
     .mutation(async ({ input }) => {
@@ -461,6 +463,10 @@ export const sanadIntelligenceRouter = router({
       if (rest.longitude !== undefined) patch.longitude = rest.longitude;
       if (rest.coverageRadiusKm !== undefined) patch.coverageRadiusKm = rest.coverageRadiusKm;
       if (rest.targetSlaHours !== undefined) patch.targetSlaHours = rest.targetSlaHours;
+      if (rest.surveyOutreachReplyEmail !== undefined) {
+        const e = rest.surveyOutreachReplyEmail;
+        patch.surveyOutreachReplyEmail = e === "" || e === null ? null : e.trim().toLowerCase();
+      }
 
       if (Object.keys(patch).length > 0) {
         await db.update(sanadIntelCenterOperations).set(patch as never).where(eq(sanadIntelCenterOperations.centerId, centerId));

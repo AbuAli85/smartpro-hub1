@@ -60,6 +60,7 @@ import {
   patchSanadCentrePipeline,
 } from "../sanad-intelligence/pipelineActions";
 import { throwIfSanadIntelSchemaMissing } from "../sanad-intelligence/dbErrors";
+import { insertCentreActivityLog } from "../sanad-intelligence/pipelineActivity";
 
 const pipelineStatusSurveyZ = z.enum(SANAD_CENTRE_PIPELINE_STATUSES as unknown as [string, ...string[]]);
 const nextActionTypeSurveyZ = z.enum(SANAD_NEXT_ACTION_TYPES as unknown as [string, ...string[]]);
@@ -650,6 +651,7 @@ export const surveyRouter = router({
         .select({
           center: sanadIntelCenters,
           linkedSanadOfficeId: sanadIntelCenterOperations.linkedSanadOfficeId,
+          surveyOutreachReplyEmail: sanadIntelCenterOperations.surveyOutreachReplyEmail,
           officeStatus: sanadOffices.status,
           pipeline: sanadCentresPipeline,
           pipelineOwnerName: pipeOwner.name,
@@ -667,7 +669,8 @@ export const surveyRouter = router({
         .leftJoin(pipeOwner, eq(pipeOwner.id, sanadCentresPipeline.ownerUserId))
         .orderBy(asc(sanadIntelCenters.centerName));
 
-      const rows = joined.map(({ center, linkedSanadOfficeId, officeStatus, pipeline, pipelineOwnerName }) => {
+      const rows = joined.map(
+        ({ center, linkedSanadOfficeId, surveyOutreachReplyEmail, officeStatus, pipeline, pipelineOwnerName }) => {
         const linkedId = linkedSanadOfficeId ?? null;
         const active = officeStatus === "active";
         let surveyUrl: string | null = null;
@@ -696,6 +699,7 @@ export const surveyRouter = router({
           nextAction: pipeline?.nextAction?.trim() || null,
           nextActionType: pipeline?.nextActionType ?? null,
           nextActionDueAt: pipeline?.nextActionDueAt ?? null,
+          surveyOutreachReplyEmail: surveyOutreachReplyEmail?.trim() || null,
         };
       });
 
@@ -791,6 +795,64 @@ export const surveyRouter = router({
           ? { assignedAt: new Date(), assignedByUserId: ctx.user.id }
           : {}),
       });
+      return { success: true as const };
+    }),
+
+  /**
+   * Store email the centre sent back via WhatsApp (reply-text only), so ops can send the dedicated survey link later.
+   */
+  adminSanadIntelSetSurveyOutreachReplyEmail: surveyAdminIntelProcedure
+    .input(
+      z.object({
+        centerId: z.number(),
+        email: z.union([z.string().email(), z.literal("")]),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      const [c] = await db
+        .select({ id: sanadIntelCenters.id })
+        .from(sanadIntelCenters)
+        .where(eq(sanadIntelCenters.id, input.centerId))
+        .limit(1);
+      if (!c) throw new TRPCError({ code: "NOT_FOUND", message: "Center not found" });
+
+      const priorPipe = await ensureSanadCentrePipelineRow(db as never, input.centerId);
+      if (!canAssignSanadPipelineOwner(ctx.user) && !canWriteSanadCentrePipeline(ctx.user, priorPipe)) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "You cannot update this centre." });
+      }
+
+      const normalized = input.email === "" ? null : input.email.trim().toLowerCase();
+
+      const [priorOps] = await db
+        .select({ surveyOutreachReplyEmail: sanadIntelCenterOperations.surveyOutreachReplyEmail })
+        .from(sanadIntelCenterOperations)
+        .where(eq(sanadIntelCenterOperations.centerId, input.centerId))
+        .limit(1);
+      if (!priorOps) {
+        await db.insert(sanadIntelCenterOperations).values({ centerId: input.centerId });
+      }
+
+      const before = priorOps?.surveyOutreachReplyEmail?.trim().toLowerCase() ?? null;
+      await db
+        .update(sanadIntelCenterOperations)
+        .set({
+          surveyOutreachReplyEmail: normalized,
+          updatedAt: new Date(),
+        })
+        .where(eq(sanadIntelCenterOperations.centerId, input.centerId));
+
+      if (before !== normalized) {
+        await insertCentreActivityLog(db as never, {
+          centerId: input.centerId,
+          actorUserId: ctx.user.id,
+          activityType: "outreach_reply_email_set",
+          note: normalized,
+          metadata: { previous: before },
+        });
+      }
+
       return { success: true as const };
     }),
 

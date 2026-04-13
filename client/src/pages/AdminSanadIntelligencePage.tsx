@@ -167,6 +167,7 @@ function sanadActivityLabel(activityType: string): string {
     invite_sent: "Invite sent",
     next_action_set: "Follow-up set",
     marked_contacted: "Marked contacted",
+    outreach_reply_email_set: "Survey reply email saved",
   };
   return m[activityType] ?? activityType.replace(/_/g, " ");
 }
@@ -1367,6 +1368,35 @@ function DirectorySurface() {
                           Not in directory import — update CSV/JSON and re-run import if needed
                         </span>
                       )}
+                    </p>
+                  </div>
+                  <div className="sm:col-span-2" dir="ltr">
+                    <Label className="text-xs font-medium text-muted-foreground">
+                      Survey reply email (e.g. WhatsApp text reply)
+                    </Label>
+                    <Input
+                      className="mt-1.5 h-9 text-sm"
+                      type="email"
+                      autoComplete="email"
+                      placeholder="name@example.com"
+                      defaultValue={detail.data.ops?.surveyOutreachReplyEmail ?? ""}
+                      key={`reply-email-${detail.data.center.id}-${detail.data.ops?.surveyOutreachReplyEmail ?? ""}`}
+                      onBlur={(e) => {
+                        const v = e.target.value.trim();
+                        const prev = (detail.data!.ops?.surveyOutreachReplyEmail ?? "").trim();
+                        if (v === prev) return;
+                        if (v && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) {
+                          toast.error("Enter a valid email or leave empty");
+                          return;
+                        }
+                        updateOps.mutate({
+                          centerId: detail.data!.center.id,
+                          surveyOutreachReplyEmail: v === "" ? null : v,
+                        });
+                      }}
+                    />
+                    <p className="mt-1 text-[11px] text-muted-foreground leading-snug">
+                      Save when a centre replies with an email only so you can send the dedicated survey link from this address later.
                     </p>
                   </div>
                 </div>

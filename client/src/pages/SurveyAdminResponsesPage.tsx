@@ -28,6 +28,7 @@ import {
   ClipboardList,
   ChevronLeft,
   ChevronRight,
+  Info,
   Link2,
   ListChecks,
   Mail,
@@ -556,7 +557,7 @@ export default function SurveyAdminResponsesPage() {
                 : isIntelLayout
                   ? t("admin.sanadOutreachIntelDesc", {
                       defaultValue:
-                        "Data from sanad_intel_centers (imported directory). A survey link appears only when the centre is linked to an active platform office. Use the list source control to switch to live platform offices only.",
+                        "Imported directory: every row with a phone can open WhatsApp with an Arabic draft. If the centre is linked to an active platform office, the draft uses a dedicated survey URL; otherwise it uses the general survey link until you link the centre.",
                     })
                   : t("admin.sanadOutreachAllDesc", {
                       defaultValue:
@@ -590,6 +591,27 @@ export default function SurveyAdminResponsesPage() {
               </div>
             </div>
           )}
+
+          {sanadOutreachManualOnly === null &&
+            isIntelLayout &&
+            !outreachLoading &&
+            !outreachQueryError &&
+            outreachDisplayRows.length > 0 && (
+              <Alert className="border-blue-200 bg-blue-50/80 text-left dark:border-blue-900 dark:bg-blue-950/40">
+                <Info className="h-4 w-4 text-blue-600 dark:text-blue-400" aria-hidden />
+                <AlertTitle className="text-blue-900 dark:text-blue-100">
+                  {t("admin.sanadIntelOutreachInfoTitle", {
+                    defaultValue: "WhatsApp and the “Link” column",
+                  })}
+                </AlertTitle>
+                <AlertDescription className="text-blue-900/90 text-sm dark:text-blue-100/90">
+                  {t("admin.sanadIntelOutreachInfoBody", {
+                    defaultValue:
+                      "Green WhatsApp: opens a draft in Arabic — tap Send in WhatsApp to deliver it. “Public link” / “Dedicated link” shows which URL is inside that draft. Copy: use “Copy dedicated link” when the centre is linked; otherwise “Copy public URL” copies the same general link as in the WhatsApp draft. “Not linked” under Copy means the centre is not yet tied to a platform office (responses are not auto-attributed until you link it).",
+                  })}
+                </AlertDescription>
+              </Alert>
+            )}
 
           {outreachQueryError && (
             <Alert variant="destructive" className="text-left">
@@ -628,14 +650,19 @@ export default function SurveyAdminResponsesPage() {
                     phone: r.phone,
                     contactPerson: r.contactPerson,
                     email: r.email,
-                    surveyUrl: r.surveyUrl,
+                    surveyUrl: r.surveyUrl ?? surveyPublicStartUrl ?? null,
                     governorateLabel: r.governorateLabel,
                     wilayat: r.wilayat,
                     surveyNote:
                       r.surveyUnavailableReason === "not_linked"
-                        ? t("admin.surveyNoteNotLinked", {
-                            defaultValue: "No linked platform office",
-                          })
+                        ? !r.surveyUrl && surveyPublicStartUrl
+                          ? t("admin.surveyNoteNotLinkedPublicCsv", {
+                              defaultValue:
+                                "Centre not linked to platform — survey_url column is the general (public) start URL",
+                            })
+                          : t("admin.surveyNoteNotLinked", {
+                              defaultValue: "No linked platform office",
+                            })
                         : r.surveyUnavailableReason === "office_inactive"
                           ? t("admin.surveyNoteOfficeInactive", {
                               defaultValue: "Linked office not active",
@@ -666,10 +693,28 @@ export default function SurveyAdminResponsesPage() {
                   <TableHead>{t("admin.sanadColContact", { defaultValue: "Contact" })}</TableHead>
                   {!isIntelLayout ? <TableHead>{t("yourEmail")}</TableHead> : null}
                   <TableHead className="text-center">
-                    {t("admin.sanadColWhatsapp", { defaultValue: "WhatsApp" })}
+                    <div className="flex flex-col items-center gap-0.5">
+                      <span>{t("admin.sanadColWhatsapp", { defaultValue: "WhatsApp" })}</span>
+                      <span className="text-muted-foreground max-w-[7.5rem] text-[10px] font-normal leading-tight">
+                        {t("admin.sanadColWhatsappSub", {
+                          defaultValue: "Arabic draft",
+                        })}
+                      </span>
+                    </div>
                   </TableHead>
                   <TableHead className="text-right">
-                    {t("admin.sanadColLink", { defaultValue: "Link" })}
+                    <div className="flex flex-col items-end gap-0.5">
+                      <span>{t("admin.sanadColSurveyUrl", { defaultValue: "Survey URL" })}</span>
+                      <span className="text-muted-foreground max-w-[11rem] text-[10px] font-normal leading-snug">
+                        {isIntelLayout
+                          ? t("admin.sanadColSurveyUrlSubIntel", {
+                              defaultValue: "Copy matches the draft",
+                            })
+                          : t("admin.sanadColSurveyUrlSubPlatform", {
+                              defaultValue: "Dedicated per office",
+                            })}
+                      </span>
+                    </div>
                   </TableHead>
                 </TableRow>
               </TableHeader>
@@ -807,6 +852,13 @@ export default function SurveyAdminResponsesPage() {
                               {t("admin.msgVariantNoLink", { defaultValue: "No link" })}
                             </span>
                           )}
+                          {waHref ? (
+                            <span className="max-w-[6.5rem] text-center text-[10px] leading-tight text-green-700 dark:text-green-400">
+                              {t("admin.whatsappDraftReady", {
+                                defaultValue: "Tap icon, then Send in WhatsApp",
+                              })}
+                            </span>
+                          ) : null}
                         </div>
                       </TableCell>
                       <TableCell className="text-right">
@@ -846,13 +898,37 @@ export default function SurveyAdminResponsesPage() {
                               }
                             }}
                           >
-                            {t("copyToken")}
+                            {row.surveyUrl
+                              ? t("admin.copyDedicatedLink", { defaultValue: "Copy dedicated" })
+                              : surveyPublicStartUrl
+                                ? t("admin.copyPublicLink", { defaultValue: "Copy public URL" })
+                                : t("copyToken")}
                           </Button>
-                          {isIntelLayout && row.surveyUnavailableReason ? (
-                            <span className="text-muted-foreground max-w-[10rem] text-left text-xs">
-                              {row.surveyUnavailableReason === "not_linked"
-                                ? t("admin.badgeNotLinked", { defaultValue: "Not linked" })
-                                : t("admin.badgeOfficeInactive", { defaultValue: "Office inactive" })}
+                          {isIntelLayout ? (
+                            <span className="max-w-[11rem] text-left text-xs leading-snug">
+                              {row.surveyUrl ? (
+                                <span className="text-green-700 dark:text-green-400">
+                                  {t("admin.outreachBindingDedicated", {
+                                    defaultValue:
+                                      "Linked to platform — Copy and WhatsApp both use the dedicated office URL.",
+                                  })}
+                                </span>
+                              ) : surveyPublicStartUrl ? (
+                                <span className="text-amber-900 dark:text-amber-200">
+                                  {t("admin.outreachBindingUsePublic", {
+                                    defaultValue:
+                                      "Centre not linked on platform — Copy and WhatsApp both use the same general survey URL until you link this centre.",
+                                  })}
+                                </span>
+                              ) : row.surveyUnavailableReason === "office_inactive" ? (
+                                <span className="text-muted-foreground">
+                                  {t("admin.badgeOfficeInactive", { defaultValue: "Office inactive" })}
+                                </span>
+                              ) : (
+                                <span className="text-muted-foreground">
+                                  {t("admin.badgeNotLinked", { defaultValue: "Not linked" })}
+                                </span>
+                              )}
                             </span>
                           ) : null}
                         </div>

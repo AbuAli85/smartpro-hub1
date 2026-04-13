@@ -34,6 +34,7 @@ import {
   sendSurveyCompletionInviteEmail,
   sendSanadOfficeSurveyBridgeEmail,
 } from "../email";
+import type { Request } from "express";
 import { resolvePublicAppBaseUrl } from "../_core/publicAppUrl";
 import {
   isSurveyOfficeWhatsAppTemplateConfigured,
@@ -43,8 +44,11 @@ import { toWhatsAppPhoneDigits } from "@shared/whatsappPhoneDigits";
 import crypto from "crypto";
 import { assertSanadOfficeAccess } from "../sanadAccess";
 
-function resolveSanadSurveyBaseUrl(): string {
-  return (resolvePublicAppBaseUrl() || process.env.PUBLIC_APP_URL?.replace(/\/+$/, "") || "").trim();
+/** Canonical links for emails / outreach: `PUBLIC_APP_URL` first, else infer from the HTTP request (local dev). */
+function resolveSanadSurveyBaseUrl(req?: Pick<Request, "get">): string {
+  const fromEnv = (process.env.PUBLIC_APP_URL ?? "").replace(/\/+$/, "").trim();
+  if (fromEnv) return fromEnv;
+  return resolvePublicAppBaseUrl(req).replace(/\/+$/, "").trim();
 }
 
 async function userExistsWithEmail(
@@ -552,7 +556,7 @@ export const surveyRouter = router({
    */
   adminSanadOfficeSurveyLinks: surveyAdminProcedure
     .input(z.object({ surveySlug: z.string().min(1).max(100).optional() }).optional())
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
 
@@ -560,11 +564,12 @@ export const surveyRouter = router({
       const [survey] = await db.select().from(surveys).where(eq(surveys.slug, slug)).limit(1);
       if (!survey) throw new TRPCError({ code: "NOT_FOUND", message: "Survey not found" });
 
-      const baseUrl = resolveSanadSurveyBaseUrl();
+      const baseUrl = resolveSanadSurveyBaseUrl(ctx.req);
       if (!baseUrl) {
         throw new TRPCError({
           code: "PRECONDITION_FAILED",
-          message: "Set PUBLIC_APP_URL so survey links are valid.",
+          message:
+            "Could not build survey links. Set PUBLIC_APP_URL in production, or open the admin UI through the same host the API uses (e.g. localhost with matching port).",
         });
       }
 
@@ -593,7 +598,7 @@ export const surveyRouter = router({
    */
   adminSanadIntelCenterSurveyLinks: surveyAdminProcedure
     .input(z.object({ surveySlug: z.string().min(1).max(100).optional() }).optional())
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
 
@@ -601,11 +606,12 @@ export const surveyRouter = router({
       const [survey] = await db.select().from(surveys).where(eq(surveys.slug, slug)).limit(1);
       if (!survey) throw new TRPCError({ code: "NOT_FOUND", message: "Survey not found" });
 
-      const baseUrl = resolveSanadSurveyBaseUrl();
+      const baseUrl = resolveSanadSurveyBaseUrl(ctx.req);
       if (!baseUrl) {
         throw new TRPCError({
           code: "PRECONDITION_FAILED",
-          message: "Set PUBLIC_APP_URL so survey links are valid.",
+          message:
+            "Could not build survey links. Set PUBLIC_APP_URL in production, or open the admin UI through the same host the API uses (e.g. localhost with matching port).",
         });
       }
 
@@ -659,7 +665,7 @@ export const surveyRouter = router({
   /** Email active Sanad offices that have an email; return copyable links for offices without email. */
   adminInviteSanadOffices: surveyAdminProcedure
     .input(z.object({ surveySlug: z.string().min(1).max(100).optional() }).optional())
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
 
@@ -669,11 +675,12 @@ export const surveyRouter = router({
 
       const offices = await db.select().from(sanadOffices).where(eq(sanadOffices.status, "active"));
 
-      const baseUrl = resolveSanadSurveyBaseUrl();
+      const baseUrl = resolveSanadSurveyBaseUrl(ctx.req);
       if (!baseUrl) {
         throw new TRPCError({
           code: "PRECONDITION_FAILED",
-          message: "Set PUBLIC_APP_URL so survey links in emails are valid.",
+          message:
+            "Could not build survey links for emails. Set PUBLIC_APP_URL in production, or open the admin UI through the same host the API uses (e.g. localhost with matching port).",
         });
       }
 

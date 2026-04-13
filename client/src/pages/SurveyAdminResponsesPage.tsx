@@ -23,6 +23,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { ClipboardList, ChevronLeft, ChevronRight, Link2, Mail, MessageCircle } from "lucide-react";
 import { toast } from "sonner";
 
@@ -514,9 +515,27 @@ export default function SurveyAdminResponsesPage() {
           )}
 
           {outreachQueryError && (
-            <p className="text-destructive text-sm" role="alert">
-              {outreachQueryError.message}
-            </p>
+            <Alert variant="destructive" className="text-left">
+              <AlertTitle>
+                {t("admin.sanadOutreachErrorTitle", { defaultValue: "Could not load this list" })}
+              </AlertTitle>
+              <AlertDescription className="flex flex-col gap-2">
+                <span>{outreachQueryError.message}</span>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="w-fit border-destructive/40 text-destructive hover:bg-destructive/10"
+                  onClick={() =>
+                    void (sanadOutreachListMode === "intel"
+                      ? intelLinksQuery.refetch()
+                      : sanadLinksQuery.refetch())
+                  }
+                >
+                  {t("admin.sanadOutreachRetry", { defaultValue: "Retry" })}
+                </Button>
+              </AlertDescription>
+            </Alert>
           )}
 
           <div className="flex flex-wrap gap-2">
@@ -524,7 +543,7 @@ export default function SurveyAdminResponsesPage() {
               type="button"
               variant="secondary"
               size="sm"
-              disabled={outreachDisplayRows.length === 0}
+              disabled={outreachDisplayRows.length === 0 || Boolean(outreachQueryError)}
               onClick={() =>
                 downloadSanadLinksCsv(
                   outreachDisplayRows.map((r) => ({
@@ -578,16 +597,35 @@ export default function SurveyAdminResponsesPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {outreachLoading ? (
+                {outreachQueryError ? (
                   <TableRow>
-                    <TableCell colSpan={outreachColCount}>
-                      <Skeleton className="h-10 w-full" />
+                    <TableCell colSpan={outreachColCount} className="text-muted-foreground h-14 text-center text-sm">
+                      {t("admin.sanadOutreachErrorTableHint", {
+                        defaultValue: "Fix the issue above, or tap Retry, to load rows here.",
+                      })}
                     </TableCell>
                   </TableRow>
+                ) : outreachLoading ? (
+                  <>
+                    {[0, 1, 2].map((i) => (
+                      <TableRow key={`sk-${i}`}>
+                        <TableCell colSpan={outreachColCount}>
+                          <Skeleton className="h-10 w-full" />
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </>
                 ) : outreachDisplayRows.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={outreachColCount} className="text-muted-foreground h-16 text-center">
-                      {t("admin.sanadOutreachEmpty", { defaultValue: "No rows found." })}
+                      {isIntelLayout
+                        ? t("admin.sanadOutreachIntelEmpty", {
+                            defaultValue:
+                              "No centres in the imported directory yet. Import the directory, link centres to active platform offices for survey URLs, or switch list source to “Platform offices (live)”.",
+                          })
+                        : t("admin.sanadOutreachEmpty", {
+                            defaultValue: "No active Sanad offices on the platform.",
+                          })}
                     </TableCell>
                   </TableRow>
                 ) : (

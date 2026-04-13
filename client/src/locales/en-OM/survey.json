@@ -82,6 +82,20 @@
     "digital_maturity": "Digital Maturity",
     "compliance_burden": "Compliance Burden",
     "staffing_pressure": "Staffing Pressure",
-    "adoption_readiness": "Adoption Readiness"
+    "adoption_readiness": "Adoption Readiness",
+    "emailSanadOffices": "Email Sanad offices",
+    "inviteSanadToast": "Emails sent: {{sent}} / {{withEmail}} (failed: {{failed}}). Offices without email: {{skipped}}.",
+    "inviteSanadConfirm": "Send invitation emails to every active Sanad office that has an email on file? Offices without email are not emailed; you can copy their survey links afterward.",
+    "sanadSurveyLinks": "Sanad survey links",
+    "sanadOutreachNoEmailTitle": "Offices without email",
+    "sanadOutreachAllTitle": "Sanad office survey links",
+    "sanadOutreachNoEmailDesc": "Share each survey link by WhatsApp or phone using the office name and number on file. The link records which Sanad office the response belongs to.",
+    "sanadOutreachAllDesc": "Per-office survey links for manual outreach. Offices that have an email can also get the link via the Email Sanad offices button.",
+    "downloadSanadCsv": "Download CSV",
+    "sanadColOffice": "Office",
+    "sanadColContact": "Contact",
+    "sanadColLink": "Link",
+    "sanadOutreachEmpty": "No active Sanad offices found.",
+    "surveyLinkCopied": "Survey link copied"
   }
 }

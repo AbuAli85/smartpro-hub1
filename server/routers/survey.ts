@@ -36,6 +36,10 @@ import { resolvePublicAppBaseUrl } from "../_core/publicAppUrl";
 import crypto from "crypto";
 import { assertSanadOfficeAccess } from "../sanadAccess";
 
+function resolveSanadSurveyBaseUrl(): string {
+  return (resolvePublicAppBaseUrl() || process.env.PUBLIC_APP_URL?.replace(/\/+$/, "") || "").trim();
+}
+
 async function userExistsWithEmail(
   db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
   email: string,
@@ -536,7 +540,47 @@ export const surveyRouter = router({
       };
     }),
 
-  /** Email all active Sanad offices (with an email on file) a survey link attributed to each office. */
+  /**
+   * All active Sanad offices with per-office survey URLs (for manual outreach when email is missing).
+   */
+  adminSanadOfficeSurveyLinks: surveyAdminProcedure
+    .input(z.object({ surveySlug: z.string().min(1).max(100).optional() }).optional())
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+
+      const slug = input?.surveySlug ?? "oman-business-sector-2026";
+      const [survey] = await db.select().from(surveys).where(eq(surveys.slug, slug)).limit(1);
+      if (!survey) throw new TRPCError({ code: "NOT_FOUND", message: "Survey not found" });
+
+      const baseUrl = resolveSanadSurveyBaseUrl();
+      if (!baseUrl) {
+        throw new TRPCError({
+          code: "FAILED_PRECONDITION",
+          message: "Set PUBLIC_APP_URL so survey links are valid.",
+        });
+      }
+
+      const offices = await db.select().from(sanadOffices).where(eq(sanadOffices.status, "active"));
+
+      return {
+        surveySlug: slug,
+        surveyTitleEn: survey.titleEn,
+        baseUrl,
+        offices: offices.map((o) => ({
+          id: o.id,
+          name: o.name,
+          nameAr: o.nameAr ?? null,
+          phone: o.phone?.trim() || null,
+          contactPerson: o.contactPerson?.trim() || null,
+          email: o.email?.trim() || null,
+          hasEmail: Boolean(o.email?.trim()),
+          surveyUrl: `${baseUrl}/survey/${slug}?officeId=${o.id}`,
+        })),
+      };
+    }),
+
+  /** Email active Sanad offices that have an email; return copyable links for offices without email. */
   adminInviteSanadOffices: surveyAdminProcedure
     .input(z.object({ surveySlug: z.string().min(1).max(100).optional() }).optional())
     .mutation(async ({ input }) => {
@@ -547,12 +591,9 @@ export const surveyRouter = router({
       const [survey] = await db.select().from(surveys).where(eq(surveys.slug, slug)).limit(1);
       if (!survey) throw new TRPCError({ code: "NOT_FOUND", message: "Survey not found" });
 
-      const offices = await db
-        .select()
-        .from(sanadOffices)
-        .where(and(eq(sanadOffices.status, "active"), isNotNull(sanadOffices.email)));
+      const offices = await db.select().from(sanadOffices).where(eq(sanadOffices.status, "active"));
 
-      const baseUrl = (resolvePublicAppBaseUrl() || process.env.PUBLIC_APP_URL?.replace(/\/+$/, "") || "").trim();
+      const baseUrl = resolveSanadSurveyBaseUrl();
       if (!baseUrl) {
         throw new TRPCError({
           code: "FAILED_PRECONDITION",
@@ -560,12 +601,31 @@ export const surveyRouter = router({
         });
       }
 
+      const manualOutreach: Array<{
+        id: number;
+        name: string;
+        nameAr: string | null;
+        phone: string | null;
+        contactPerson: string | null;
+        surveyUrl: string;
+      }> = [];
+
       let sent = 0;
       let failed = 0;
       for (const o of offices) {
         const email = o.email?.trim();
-        if (!email) continue;
         const surveyUrl = `${baseUrl}/survey/${slug}?officeId=${o.id}`;
+        if (!email) {
+          manualOutreach.push({
+            id: o.id,
+            name: o.name,
+            nameAr: o.nameAr ?? null,
+            phone: o.phone?.trim() || null,
+            contactPerson: o.contactPerson?.trim() || null,
+            surveyUrl,
+          });
+          continue;
+        }
         const result = await sendSanadOfficeSurveyBridgeEmail({
           to: email,
           officeName: o.name,
@@ -577,7 +637,16 @@ export const surveyRouter = router({
         else failed++;
       }
 
-      return { sent, failed, totalOffices: offices.length };
+      const withEmailCount = offices.length - manualOutreach.length;
+
+      return {
+        sent,
+        failed,
+        totalActiveOffices: offices.length,
+        withEmailCount,
+        skippedNoEmail: manualOutreach.length,
+        manualOutreach,
+      };
     }),
 
   adminGetAnalytics: surveyAdminProcedure.query(async () => {

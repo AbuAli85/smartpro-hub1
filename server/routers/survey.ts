@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { eq, and, desc, sql } from "drizzle-orm";
+import { eq, and, desc, sql, isNotNull } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { publicProcedure, protectedProcedure, router, t } from "../_core/trpc";
 import { NOT_ADMIN_ERR_MSG } from "@shared/const";
@@ -29,6 +29,20 @@ import { computeSurveyScores, collectResponseTags } from "../modules/survey/scor
 import { sendSurveyResumeEmail, sendSurveyCompletionInviteEmail } from "../email";
 import { resolvePublicAppBaseUrl } from "../_core/publicAppUrl";
 import crypto from "crypto";
+
+async function userExistsWithEmail(
+  db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
+  email: string,
+): Promise<boolean> {
+  const n = email.trim().toLowerCase();
+  if (!n) return false;
+  const [r] = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(and(isNotNull(users.email), sql`LOWER(TRIM(${users.email})) = ${n}`))
+    .limit(1);
+  return !!r;
+}
 
 const surveyAdminProcedure = protectedProcedure.use(
   t.middleware(({ ctx, next }) => {
@@ -335,7 +349,6 @@ export const surveyRouter = router({
       .limit(1);
 
     let toEmail = (response.respondentEmail?.trim() ?? "") || "";
-    const isRegisteredUser = response.userId != null;
 
     if (!toEmail && response.userId) {
       const [urow] = await db
@@ -345,6 +358,9 @@ export const surveyRouter = router({
         .limit(1);
       toEmail = (urow?.email?.trim() ?? "") || "";
     }
+
+    const emailMatchesExistingUser = toEmail.length > 0 ? await userExistsWithEmail(db, toEmail) : false;
+    const isRegisteredUser = response.userId != null || emailMatchesExistingUser;
 
     const appBaseUrl = resolvePublicAppBaseUrl(ctx.req) || resolvePublicAppBaseUrl();
     if (
@@ -359,11 +375,24 @@ export const surveyRouter = router({
         surveyTitle: surveyMeta.titleEn,
         isRegisteredUser,
         appBaseUrl,
+        resumeToken: !isRegisteredUser ? response.resumeToken : undefined,
       });
       if (inviteResult.success) {
+        const now = new Date();
+        const stopNurtureForExistingEmail =
+          !response.userId && emailMatchesExistingUser;
+
         await db
           .update(surveyResponses)
-          .set({ completionInviteEmailSentAt: new Date() })
+          .set({
+            completionInviteEmailSentAt: now,
+            ...(stopNurtureForExistingEmail
+              ? {
+                  nurtureStoppedAt: now,
+                  nurtureStoppedReason: "already_registered",
+                }
+              : {}),
+          })
           .where(eq(surveyResponses.id, response.id));
       }
     }
@@ -696,5 +725,33 @@ export const surveyRouter = router({
         .where(eq(surveyResponses.id, response.id));
 
       return { sent: true };
+    }),
+
+  /** Stop nurture reminder emails (same effect as GET /api/survey/nurture/unsubscribe). */
+  optOutNurtureEmails: publicProcedure
+    .input(z.object({ resumeToken: z.string().min(1).max(64) }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+
+      const [row] = await db
+        .select({ id: surveyResponses.id })
+        .from(surveyResponses)
+        .where(eq(surveyResponses.resumeToken, input.resumeToken))
+        .limit(1);
+
+      if (!row) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Survey response not found." });
+      }
+
+      await db
+        .update(surveyResponses)
+        .set({
+          nurtureStoppedAt: new Date(),
+          nurtureStoppedReason: "unsubscribed",
+        })
+        .where(eq(surveyResponses.id, row.id));
+
+      return { ok: true as const };
     }),
 });

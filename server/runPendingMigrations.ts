@@ -74,6 +74,26 @@ const PENDING_COLUMNS: ColumnMigration[] = [
     column: "completion_invite_email_sent_at",
     ddl: "ALTER TABLE `survey_responses` ADD COLUMN `completion_invite_email_sent_at` timestamp NULL",
   },
+  {
+    table: "survey_responses",
+    column: "nurture_followup_count",
+    ddl: "ALTER TABLE `survey_responses` ADD COLUMN `nurture_followup_count` int NOT NULL DEFAULT 0",
+  },
+  {
+    table: "survey_responses",
+    column: "nurture_last_sent_at",
+    ddl: "ALTER TABLE `survey_responses` ADD COLUMN `nurture_last_sent_at` timestamp NULL",
+  },
+  {
+    table: "survey_responses",
+    column: "nurture_stopped_at",
+    ddl: "ALTER TABLE `survey_responses` ADD COLUMN `nurture_stopped_at` timestamp NULL",
+  },
+  {
+    table: "survey_responses",
+    column: "nurture_stopped_reason",
+    ddl: "ALTER TABLE `survey_responses` ADD COLUMN `nurture_stopped_reason` varchar(32) NULL",
+  },
 ];
 
 /** Each entry creates a unique/regular index if it does not already exist. */

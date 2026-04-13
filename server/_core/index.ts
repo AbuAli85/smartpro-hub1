@@ -6,6 +6,7 @@ import net from "net";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerOAuthRoutes } from "./oauth";
 import { registerHRLetterPublicRoutes } from "../hrLetterPublicRoutes";
+import { registerSurveyNurturePublicRoutes } from "../surveyNurturePublicRoutes";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
@@ -14,6 +15,7 @@ import { validateProductionEnvironment } from "./env";
 import { runPendingMigrations } from "../runPendingMigrations";
 import { runEmployeeTaskOverdueNotifications } from "../jobs/employeeTaskOverdue";
 import { runSyncExpiredContracts } from "../jobs/syncExpiredContracts";
+import { runSurveyNurtureEmails } from "../jobs/surveyNurture";
 import { registerSentryExpressErrorHandler } from "./sentry";
 
 function isPortAvailable(port: number): Promise<boolean> {
@@ -49,6 +51,7 @@ async function startServer() {
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);
   registerHRLetterPublicRoutes(app);
+  registerSurveyNurturePublicRoutes(app);
   // tRPC API
   app.use(
     "/api/trpc",
@@ -121,6 +124,34 @@ async function startServer() {
           );
         })
         .catch((e) => console.error("[expire-job] daily run error:", e));
+    }, DAY_MS);
+  }
+
+  // ── Survey nurture (daily): reminders until respondent registers or opts out ─
+  // Disable with: DISABLE_SURVEY_NURTURE_CRON=1
+  if (process.env.DISABLE_SURVEY_NURTURE_CRON !== "1") {
+    void runSurveyNurtureEmails()
+      .then((r) => {
+        if (r.sent > 0 || r.stoppedConverted > 0 || r.errors > 0) {
+          console.log(
+            `[survey-nurture] startup — scanned: ${r.scanned}, sent: ${r.sent}, ` +
+              `stopped(converted): ${r.stoppedConverted}, errors: ${r.errors}`,
+          );
+        }
+      })
+      .catch((e) => console.error("[survey-nurture] startup error:", e));
+
+    setInterval(() => {
+      void runSurveyNurtureEmails()
+        .then((r) => {
+          if (r.sent > 0 || r.stoppedConverted > 0 || r.errors > 0) {
+            console.log(
+              `[survey-nurture] daily — scanned: ${r.scanned}, sent: ${r.sent}, ` +
+                `stopped(converted): ${r.stoppedConverted}, errors: ${r.errors}`,
+            );
+          }
+        })
+        .catch((e) => console.error("[survey-nurture] daily error:", e));
     }, DAY_MS);
   }
 }

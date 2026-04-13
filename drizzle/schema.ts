@@ -3669,6 +3669,13 @@ export const surveyResponses = mysqlTable(
     completedAt: timestamp("completed_at"),
     /** When the post-completion invite/offer email was sent (at most once). */
     completionInviteEmailSentAt: timestamp("completion_invite_email_sent_at"),
+    /** Follow-up nurture emails sent after completion (0 = none yet; first completion email is separate). */
+    nurtureFollowupCount: int("nurture_followup_count").default(0).notNull(),
+    /** Last time a completion or nurture email was sent (used to schedule next follow-up). */
+    nurtureLastSentAt: timestamp("nurture_last_sent_at"),
+    /** When nurture was stopped (converted, max emails, or unsubscribe). */
+    nurtureStoppedAt: timestamp("nurture_stopped_at"),
+    nurtureStoppedReason: varchar("nurture_stopped_reason", { length: 32 }),
     startedAt: timestamp("started_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().onUpdateNow(),
   },

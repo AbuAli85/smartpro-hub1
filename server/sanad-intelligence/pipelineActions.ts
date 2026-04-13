@@ -60,6 +60,9 @@ export async function patchSanadCentrePipeline(
     assignedAt?: Date | null;
     assignedByUserId?: number | null;
     latestNotePreview?: string | null;
+    isArchived?: number;
+    isInvalid?: number;
+    isDuplicate?: number;
   },
 ) {
   await ensureSanadCentrePipelineRow(db, centerId);
@@ -73,6 +76,9 @@ export async function patchSanadCentrePipeline(
   if (patch.assignedAt !== undefined) update.assignedAt = patch.assignedAt;
   if (patch.assignedByUserId !== undefined) update.assignedByUserId = patch.assignedByUserId;
   if (patch.latestNotePreview !== undefined) update.latestNotePreview = patch.latestNotePreview;
+  if (patch.isArchived !== undefined) update.isArchived = patch.isArchived;
+  if (patch.isInvalid !== undefined) update.isInvalid = patch.isInvalid;
+  if (patch.isDuplicate !== undefined) update.isDuplicate = patch.isDuplicate;
   await db
     .update(schema.sanadCentresPipeline)
     .set(update as never)
@@ -133,8 +139,16 @@ export async function markSanadCentreContacted(db: DB, centerId: number, actorUs
 
 export type SanadPipelineKpis = {
   totalCentres: number;
+  /** % with stage contacted or later (legacy). */
   contactedPct: number;
+  /** % registered or active (legacy). */
   conversionPct: number;
+  contacted: number;
+  invited: number;
+  registered: number;
+  active: number;
+  unassigned: number;
+  overdue: number;
 };
 
 export async function computeSanadCentrePipelineKpis(db: DB): Promise<SanadPipelineKpis> {
@@ -143,14 +157,42 @@ export async function computeSanadCentrePipelineKpis(db: DB): Promise<SanadPipel
     .from(schema.sanadIntelCenters);
   const totalCentres = totalRow?.n ?? 0;
   if (totalCentres === 0) {
-    return { totalCentres: 0, contactedPct: 0, conversionPct: 0 };
+    return {
+      totalCentres: 0,
+      contactedPct: 0,
+      conversionPct: 0,
+      contacted: 0,
+      invited: 0,
+      registered: 0,
+      active: 0,
+      unassigned: 0,
+      overdue: 0,
+    };
   }
   const [agg] = await db
     .select({
-      contacted: sql<number>`sum(case when coalesce(${schema.sanadCentresPipeline.pipelineStatus}, 'imported') in ('contacted','prospect','invited','registered','active') then 1 else 0 end)`.mapWith(
+      contactedOrLater: sql<number>`sum(case when coalesce(${schema.sanadCentresPipeline.pipelineStatus}, 'imported') in ('contacted','prospect','invited','registered','active') then 1 else 0 end)`.mapWith(
         Number,
       ),
       converted: sql<number>`sum(case when coalesce(${schema.sanadCentresPipeline.pipelineStatus}, 'imported') in ('registered','active') then 1 else 0 end)`.mapWith(
+        Number,
+      ),
+      contactedExact: sql<number>`sum(case when coalesce(${schema.sanadCentresPipeline.pipelineStatus}, 'imported') = 'contacted' then 1 else 0 end)`.mapWith(
+        Number,
+      ),
+      invitedExact: sql<number>`sum(case when coalesce(${schema.sanadCentresPipeline.pipelineStatus}, 'imported') = 'invited' then 1 else 0 end)`.mapWith(
+        Number,
+      ),
+      registeredExact: sql<number>`sum(case when coalesce(${schema.sanadCentresPipeline.pipelineStatus}, 'imported') = 'registered' then 1 else 0 end)`.mapWith(
+        Number,
+      ),
+      activeExact: sql<number>`sum(case when coalesce(${schema.sanadCentresPipeline.pipelineStatus}, 'imported') = 'active' then 1 else 0 end)`.mapWith(
+        Number,
+      ),
+      unassigned: sql<number>`sum(case when ${schema.sanadCentresPipeline.ownerUserId} is null and coalesce(${schema.sanadCentresPipeline.isArchived}, 0) = 0 then 1 else 0 end)`.mapWith(
+        Number,
+      ),
+      overdue: sql<number>`sum(case when ${schema.sanadCentresPipeline.nextActionDueAt} is not null and DATE(${schema.sanadCentresPipeline.nextActionDueAt}) < CURDATE() and coalesce(${schema.sanadCentresPipeline.isArchived}, 0) = 0 then 1 else 0 end)`.mapWith(
         Number,
       ),
     })
@@ -159,12 +201,18 @@ export async function computeSanadCentrePipelineKpis(db: DB): Promise<SanadPipel
       schema.sanadCentresPipeline,
       eq(schema.sanadCentresPipeline.centerId, schema.sanadIntelCenters.id),
     );
-  const contacted = Number(agg?.contacted ?? 0);
+  const contactedOrLater = Number(agg?.contactedOrLater ?? 0);
   const converted = Number(agg?.converted ?? 0);
   return {
     totalCentres,
-    contactedPct: Math.round((contacted / totalCentres) * 1000) / 10,
+    contactedPct: Math.round((contactedOrLater / totalCentres) * 1000) / 10,
     conversionPct: Math.round((converted / totalCentres) * 1000) / 10,
+    contacted: Number(agg?.contactedExact ?? 0),
+    invited: Number(agg?.invitedExact ?? 0),
+    registered: Number(agg?.registeredExact ?? 0),
+    active: Number(agg?.activeExact ?? 0),
+    unassigned: Number(agg?.unassigned ?? 0),
+    overdue: Number(agg?.overdue ?? 0),
   };
 }
 

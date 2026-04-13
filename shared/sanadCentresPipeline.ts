@@ -49,6 +49,19 @@ export const SANAD_NEXT_ACTION_TYPES = [
 
 export type SanadNextActionType = (typeof SANAD_NEXT_ACTION_TYPES)[number];
 
+/** Server/client: directory list queue presets (see listCenters). */
+export const SANAD_PIPELINE_LIST_QUICK_VIEWS = [
+  "all",
+  "unassigned",
+  "new",
+  "contacted",
+  "invited",
+  "needs_followup",
+  "converted",
+] as const;
+
+export type SanadPipelineListQuickView = (typeof SANAD_PIPELINE_LIST_QUICK_VIEWS)[number];
+
 /** Activity log event types (sanad_centre_activity_log.activity_type). */
 export const SANAD_CENTRE_ACTIVITY_TYPES = [
   "note_added",
@@ -59,6 +72,9 @@ export const SANAD_CENTRE_ACTIVITY_TYPES = [
   "next_action_set",
   "marked_contacted",
   "outreach_reply_email_set",
+  "record_invalid_set",
+  "record_duplicate_set",
+  "record_archived_set",
 ] as const;
 
 export type SanadCentreActivityType = (typeof SANAD_CENTRE_ACTIVITY_TYPES)[number];

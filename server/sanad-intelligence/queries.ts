@@ -8,7 +8,7 @@ import {
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import * as schema from "../../drizzle/schema";
 import type { SanadDirectoryPipelineFilter } from "@shared/sanadDirectoryPipeline";
-import type { SanadCentrePipelineStatus } from "@shared/sanadCentresPipeline";
+import type { SanadCentrePipelineStatus, SanadPipelineListQuickView } from "@shared/sanadCentresPipeline";
 import { findCompanyMatchesForCentreName } from "./pipelineActions";
 import { computeGovernorateOpportunityRows } from "./opportunityScore";
 import { governorateKeyFromLabel } from "./normalize";
@@ -201,12 +201,18 @@ export async function listCenters(
     wilayat?: string;
     partnerStatus?: (typeof schema.sanadIntelCenterOperations.$inferSelect)["partnerStatus"];
     pipeline?: SanadDirectoryPipelineFilter;
-    /** CRM funnel stage (sanad_centres_pipeline). */
+    /** CRM funnel stage (sanad_centres_pipeline). Ignored when pipelineQuickView is set (not all). */
     pipelineStatus?: SanadCentrePipelineStatus;
     ownerUserId?: number;
     ownerUnassignedOnly?: boolean;
     /** Follow-up queue presets (uses next_action_due_at). */
     pipelineQueue?: "due_today" | "overdue";
+    /** Primary queue chip: unassigned / new / contacted / invited / needs_followup / converted. */
+    pipelineQuickView?: SanadPipelineListQuickView;
+    /** Narrow to centres that need attention (overdue/due follow-up or unassigned pipeline work). */
+    needsActionOnly?: boolean;
+    /** Default true: hide archived pipeline rows. */
+    excludeArchived?: boolean;
     limit: number;
     offset: number;
   },
@@ -214,12 +220,37 @@ export async function listCenters(
   const search = input.search?.trim();
   const conds = [];
 
+  if (input.excludeArchived !== false) {
+    conds.push(sql`coalesce(${schema.sanadCentresPipeline.isArchived}, 0) = 0`);
+  }
+
   if (input.governorateKey) conds.push(eq(schema.sanadIntelCenters.governorateKey, input.governorateKey));
   if (input.wilayat?.trim()) conds.push(like(schema.sanadIntelCenters.wilayat, `%${input.wilayat.trim()}%`));
   if (input.partnerStatus)
     conds.push(eq(schema.sanadIntelCenterOperations.partnerStatus, input.partnerStatus));
 
-  if (input.pipelineStatus) {
+  const quick = input.pipelineQuickView ?? "all";
+  const useQuick = quick !== "all";
+
+  if (useQuick) {
+    if (quick === "unassigned") {
+      conds.push(isNull(schema.sanadCentresPipeline.ownerUserId));
+    } else if (quick === "new") {
+      conds.push(sql`coalesce(${schema.sanadCentresPipeline.pipelineStatus}, 'imported') = 'imported'`);
+    } else if (quick === "contacted") {
+      conds.push(sql`coalesce(${schema.sanadCentresPipeline.pipelineStatus}, 'imported') = 'contacted'`);
+    } else if (quick === "invited") {
+      conds.push(sql`coalesce(${schema.sanadCentresPipeline.pipelineStatus}, 'imported') = 'invited'`);
+    } else if (quick === "needs_followup") {
+      conds.push(
+        sql`${schema.sanadCentresPipeline.nextActionDueAt} is not null and DATE(${schema.sanadCentresPipeline.nextActionDueAt}) <= CURDATE()`,
+      );
+    } else if (quick === "converted") {
+      conds.push(
+        sql`coalesce(${schema.sanadCentresPipeline.pipelineStatus}, 'imported') in ('registered', 'active')`,
+      );
+    }
+  } else if (input.pipelineStatus) {
     conds.push(
       eq(
         sql<string>`coalesce(${schema.sanadCentresPipeline.pipelineStatus}, 'imported')`,
@@ -233,19 +264,31 @@ export async function listCenters(
     conds.push(eq(schema.sanadCentresPipeline.ownerUserId, input.ownerUserId));
   }
 
-  if (input.pipelineQueue === "overdue") {
+  if (!useQuick && input.pipelineQueue === "overdue") {
     conds.push(
       and(
         isNotNull(schema.sanadCentresPipeline.nextActionDueAt),
         sql`DATE(${schema.sanadCentresPipeline.nextActionDueAt}) < CURDATE()`,
       )!,
     );
-  } else if (input.pipelineQueue === "due_today") {
+  } else if (!useQuick && input.pipelineQueue === "due_today") {
     conds.push(
       and(
         isNotNull(schema.sanadCentresPipeline.nextActionDueAt),
         sql`DATE(${schema.sanadCentresPipeline.nextActionDueAt}) = CURDATE()`,
       )!,
+    );
+  }
+
+  if (input.needsActionOnly) {
+    conds.push(
+      sql`(
+        (${schema.sanadCentresPipeline.nextActionDueAt} is not null and DATE(${schema.sanadCentresPipeline.nextActionDueAt}) <= CURDATE())
+        or (
+          ${schema.sanadCentresPipeline.ownerUserId} is null
+          and coalesce(${schema.sanadCentresPipeline.pipelineStatus}, 'imported') not in ('imported', 'active')
+        )
+      )`,
     );
   }
 

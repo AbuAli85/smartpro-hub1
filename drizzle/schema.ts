@@ -3427,6 +3427,9 @@ export const sanadCentresPipeline = mysqlTable(
     assignedAt: timestamp("assigned_at"),
     assignedByUserId: int("assigned_by_user_id").references(() => users.id),
     latestNotePreview: varchar("latest_note_preview", { length: 512 }),
+    isArchived: int("is_archived").default(0).notNull(),
+    isInvalid: int("is_invalid").default(0).notNull(),
+    isDuplicate: int("is_duplicate").default(0).notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
   },
@@ -3434,6 +3437,7 @@ export const sanadCentresPipeline = mysqlTable(
     index("idx_sanad_centres_pipe_status").on(t.pipelineStatus),
     index("idx_sanad_centres_pipe_owner").on(t.ownerUserId),
     index("idx_sanad_centres_pipe_due").on(t.nextActionDueAt),
+    index("idx_sanad_centres_pipe_archived").on(t.isArchived),
   ],
 );
 export type SanadCentresPipeline = typeof sanadCentresPipeline.$inferSelect;

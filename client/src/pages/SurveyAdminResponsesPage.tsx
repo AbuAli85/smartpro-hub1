@@ -1,11 +1,10 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { buildWhatsAppMessageHref, toWhatsAppPhoneDigits } from "@/lib/whatsappClickToChat";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
@@ -109,50 +108,6 @@ function fmtDate(d: Date | string | null | undefined): string {
 function csvEscapeCell(value: string): string {
   if (/[",\r\n]/.test(value)) return `"${value.replace(/"/g, '""')}"`;
   return value;
-}
-
-function IntelReplyEmailCell({
-  centerId,
-  initial,
-  pending,
-  onSave,
-}: {
-  centerId: number;
-  initial: string | null;
-  pending: boolean;
-  onSave: (email: string) => void;
-}) {
-  const [value, setValue] = useState(initial ?? "");
-  useEffect(() => {
-    setValue(initial ?? "");
-  }, [initial, centerId]);
-
-  const submit = (e?: FormEvent) => {
-    e?.preventDefault();
-    const t = value.trim();
-    if (t && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(t)) {
-      toast.error("Enter a valid email or clear the field");
-      return;
-    }
-    onSave(t);
-  };
-
-  return (
-    <form className="flex max-w-[15rem] flex-col gap-1" onSubmit={submit}>
-      <Input
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        className="h-8 text-xs"
-        dir="ltr"
-        placeholder="email@example.com"
-        disabled={pending}
-        aria-label="Survey outreach reply email"
-      />
-      <Button type="submit" variant="outline" size="sm" className="h-7 w-full text-[11px]" disabled={pending}>
-        Save
-      </Button>
-    </form>
-  );
 }
 
 function downloadSanadLinksCsv(
@@ -370,15 +325,6 @@ export default function SurveyAdminResponsesPage() {
     onError: (e) => toast.error(e.message),
   });
 
-  const setIntelSurveyReplyEmail = trpc.survey.adminSanadIntelSetSurveyOutreachReplyEmail.useMutation({
-    onSuccess: () => {
-      void intelLinksQuery.refetch();
-      void intelPipeKpis.refetch();
-      toast.success("Reply email saved — use it to send the dedicated survey link when ready.");
-    },
-    onError: (e) => toast.error(e.message),
-  });
-
   const inviteIntelSmartPro = trpc.survey.adminSanadIntelInviteSmartPro.useMutation({
     onSuccess: async (data) => {
       void intelLinksQuery.refetch();
@@ -581,7 +527,7 @@ export default function SurveyAdminResponsesPage() {
 
   const isIntelLayout =
     sanadOutreachManualOnly === null && sanadOutreachListMode === "intel";
-  const outreachColCount = isIntelLayout ? 8 : 6;
+  const outreachColCount = isIntelLayout ? 7 : 6;
 
   const outreachLoading =
     sanadOutreachOpen &&
@@ -897,6 +843,22 @@ export default function SurveyAdminResponsesPage() {
           </DialogHeader>
 
           <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden px-6 py-3">
+            {isIntelLayout && sanadOutreachManualOnly === null ? (
+              <div className="shrink-0 rounded-lg border border-primary/25 bg-primary/[0.06] px-4 py-3 text-sm">
+                <p className="font-medium text-foreground">
+                  {t("admin.sanadIntelDirectoryCtaTitle", { defaultValue: "Need full CRM and editing?" })}
+                </p>
+                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                  {t("admin.sanadIntelDirectoryCtaBody", {
+                    defaultValue:
+                      "Reply emails, pipeline stages, follow-up dates, notes, and ownership are managed on the SANAD directory page — not in this quick preview.",
+                  })}
+                </p>
+                <Button type="button" size="sm" className="mt-3" asChild>
+                  <Link href="/admin/sanad/directory">{t("admin.openFullDirectory", { defaultValue: "Open full directory" })}</Link>
+                </Button>
+              </div>
+            ) : null}
             <div className="flex shrink-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
               {sanadOutreachManualOnly === null ? (
                 <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
@@ -1046,12 +1008,6 @@ export default function SurveyAdminResponsesPage() {
                             "“Centre not linked…” is informational: link the centre in Sanad Intelligence to get a dedicated URL and auto-attribution.",
                         })}
                       </li>
-                      <li className="break-words">
-                        {t("admin.sanadIntelOutreachBullet5", {
-                          defaultValue:
-                            "If they reply on WhatsApp with an email only, save it under “Reply email” so your team can send the dedicated link to that inbox.",
-                        })}
-                      </li>
                     </ul>
                     <p className="mt-2 text-xs sm:text-sm">
                       <Link
@@ -1106,11 +1062,6 @@ export default function SurveyAdminResponsesPage() {
                   <TableHead>{t("yourPhone")}</TableHead>
                   <TableHead>{t("admin.sanadColContact", { defaultValue: "Contact" })}</TableHead>
                   {!isIntelLayout ? <TableHead>{t("yourEmail")}</TableHead> : null}
-                  {isIntelLayout ? (
-                    <TableHead className="min-w-[12rem] max-w-[16rem] align-bottom">
-                      {t("admin.sanadColReplyEmail", { defaultValue: "Reply email" })}
-                    </TableHead>
-                  ) : null}
                   <TableHead className="w-[5.5rem] min-w-[5.5rem] max-w-[5.5rem] text-center align-bottom">
                     <div className="flex flex-col items-center gap-0.5">
                       <span>
@@ -1254,25 +1205,6 @@ export default function SurveyAdminResponsesPage() {
                             row.email
                           ) : (
                             <span className="text-muted-foreground">—</span>
-                          )}
-                        </TableCell>
-                      ) : null}
-                      {isIntelLayout ? (
-                        <TableCell className="max-w-[16rem] align-top py-2">
-                          {row.intelCenterId != null ? (
-                            <IntelReplyEmailCell
-                              centerId={row.intelCenterId}
-                              initial={row.surveyOutreachReplyEmail ?? null}
-                              pending={setIntelSurveyReplyEmail.isPending}
-                              onSave={(email) =>
-                                setIntelSurveyReplyEmail.mutate({
-                                  centerId: row.intelCenterId!,
-                                  email: email === "" ? "" : email,
-                                })
-                              }
-                            />
-                          ) : (
-                            "—"
                           )}
                         </TableCell>
                       ) : null}

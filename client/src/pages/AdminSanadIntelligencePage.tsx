@@ -9,6 +9,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -23,12 +25,16 @@ import {
   SANAD_NEXT_ACTION_TYPES,
   type SanadCentrePipelineStatus,
   type SanadNextActionType,
+  type SanadPipelineListQuickView,
 } from "@shared/sanadCentresPipeline";
 import { canAccessSanadIntelligenceUi, canAccessSanadIntelFull } from "@shared/sanadRoles";
 import {
   Activity,
+  AlertTriangle,
   AlertCircle,
+  Archive,
   ArrowRight,
+  Ban,
   BookOpen,
   Building2,
   CalendarClock,
@@ -168,8 +174,42 @@ function sanadActivityLabel(activityType: string): string {
     next_action_set: "Follow-up set",
     marked_contacted: "Marked contacted",
     outreach_reply_email_set: "Survey reply email saved",
+    record_invalid_set: "Marked invalid",
+    record_duplicate_set: "Marked duplicate",
+    record_archived_set: "Archived",
   };
   return m[activityType] ?? activityType.replace(/_/g, " ");
+}
+
+const STALE_LEAD_DAYS = 14;
+
+function isLeadStale(
+  pipeline: { lastContactedAt?: Date | string | null; pipelineStatus?: string | null } | null | undefined,
+): boolean {
+  if (!pipeline?.lastContactedAt) return false;
+  const st = (pipeline.pipelineStatus ?? "imported") as string;
+  if (st === "active" || st === "registered") return false;
+  const ms = Date.now() - new Date(pipeline.lastContactedAt).getTime();
+  return ms > STALE_LEAD_DAYS * 86400000;
+}
+
+function contactReadinessBadge(
+  center: { contactNumber?: string | null },
+  ops: { surveyOutreachReplyEmail?: string | null; linkedSanadOfficeId?: number | null } | null | undefined,
+) {
+  const phone = Boolean(center.contactNumber?.trim());
+  const email = Boolean(ops?.surveyOutreachReplyEmail?.trim());
+  const linked = ops?.linkedSanadOfficeId != null;
+  if (!phone) {
+    return <Badge variant="outline" className="font-normal text-red-700 dark:text-red-300">No phone</Badge>;
+  }
+  if (linked) {
+    return <Badge variant="secondary" className="font-normal bg-emerald-100 text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200">Linked</Badge>;
+  }
+  if (email) {
+    return <Badge variant="secondary" className="font-normal">Phone + email</Badge>;
+  }
+  return <Badge variant="outline" className="font-normal">Phone only</Badge>;
 }
 
 function useSection(): Section {
@@ -483,11 +523,11 @@ function DirectorySurface() {
   const fullSanadOps = Boolean(user && canAccessSanadIntelFull(user));
   const [search, setSearch] = useState("");
   const [gov, setGov] = useState<string>("");
-  const [wil, setWil] = useState("");
-  const [partner, setPartner] = useState<string>("");
   const [pipeStage, setPipeStage] = useState<string>("");
   const [pipeOwnerFilter, setPipeOwnerFilter] = useState<string>("__all");
-  const [pipeQueue, setPipeQueue] = useState<undefined | "due_today" | "overdue">(undefined);
+  const [pipelineQuickView, setPipelineQuickView] = useState<SanadPipelineListQuickView>("all");
+  const [needsActionOnly, setNeedsActionOnly] = useState(false);
+  const [drawerTab, setDrawerTab] = useState<string>("overview");
   const [assignCenterId, setAssignCenterId] = useState<number | null>(null);
   const [assignSearch, setAssignSearch] = useState("");
   const [drawerId, setDrawerId] = useState<number | null>(null);
@@ -517,15 +557,8 @@ function DirectorySurface() {
   }, [pipelineFilter]);
 
   const { data: filters } = trpc.sanad.intelligence.filterOptions.useQuery();
-  const { data: wilayatList } = trpc.sanad.intelligence.wilayatForGovernorate.useQuery(
-    { governorateKey: gov },
-    { enabled: Boolean(gov) },
-  );
   const { data: pipeKpis } = trpc.sanad.intelligence.centrePipelineKpis.useQuery();
   const { data: pipeOwnerOptions } = trpc.sanad.intelligence.centrePipelineOwnerOptions.useQuery();
-
-  const partnerFilter =
-    partner === "" ? undefined : (partner as "unknown" | "prospect" | "active" | "suspended" | "churned");
 
   const utils = trpc.useUtils();
 
@@ -534,11 +567,12 @@ function DirectorySurface() {
   const listQuery = trpc.sanad.intelligence.listCenters.useQuery({
     search: search || undefined,
     governorateKey: gov || undefined,
-    wilayat: wil || undefined,
-    partnerStatus: partnerFilter,
     pipeline: pipelineFilter,
-    pipelineStatus: pipeStage ? (pipeStage as SanadCentrePipelineStatus) : undefined,
-    pipelineQueue: pipeQueue,
+    pipelineStatus:
+      pipelineQuickView === "all" && pipeStage ? (pipeStage as SanadCentrePipelineStatus) : undefined,
+    pipelineQuickView: pipelineQuickView === "all" ? undefined : pipelineQuickView,
+    needsActionOnly: needsActionOnly || undefined,
+    excludeArchived: true,
     ownerUnassignedOnly: pipeOwnerFilter === "__unassigned" ? true : undefined,
     ownerUserId:
       pipeOwnerFilter !== "__all" && pipeOwnerFilter !== "__unassigned" && pipeOwnerFilter
@@ -550,17 +584,29 @@ function DirectorySurface() {
 
   useEffect(() => {
     setPage(0);
-  }, [search, gov, wil, partner, pageSize, pipelineFilter, pipeStage, pipeOwnerFilter, pipeQueue]);
+  }, [
+    search,
+    gov,
+    pageSize,
+    pipelineFilter,
+    pipeStage,
+    pipeOwnerFilter,
+    pipelineQuickView,
+    needsActionOnly,
+  ]);
+
+  useEffect(() => {
+    if (pipelineQuickView !== "all") setPipeStage("");
+  }, [pipelineQuickView]);
 
   const filtersActive = Boolean(
     search.trim() ||
       gov ||
-      wil ||
-      partner ||
       pipelineFilter ||
       pipeStage ||
       pipeOwnerFilter !== "__all" ||
-      pipeQueue != null,
+      pipelineQuickView !== "all" ||
+      needsActionOnly,
   );
   const total = listQuery.data?.total ?? 0;
   const rows = listQuery.data?.rows ?? [];
@@ -771,7 +817,6 @@ function DirectorySurface() {
 
   /** Radix Select rejects `value=""` on SelectItem; skip empty keys from API data. */
   const governorateOptions = (filters?.governorates ?? []).filter((g) => g.key.length > 0);
-  const wilayatOptions = (wilayatList ?? []).filter((w) => w.length > 0);
 
   return (
     <div className="space-y-5">
@@ -790,11 +835,10 @@ function DirectorySurface() {
               onClick={() => {
                 setSearch("");
                 setGov("");
-                setWil("");
-                setPartner("");
                 setPipeStage("");
                 setPipeOwnerFilter("__all");
-                setPipeQueue(undefined);
+                setPipelineQuickView("all");
+                setNeedsActionOnly(false);
                 setPage(0);
                 navigate("/admin/sanad/directory");
               }}
@@ -810,17 +854,17 @@ function DirectorySurface() {
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
               <Input
                 className="h-10 w-full pl-9 text-sm"
-                placeholder="Centre name, contact, village, manager…"
+                placeholder="Office name, phone, contact person…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 aria-label="Search directory"
               />
             </div>
           </div>
-          <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-3">
+          <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <div className="min-w-0 space-y-1.5">
               <Label className="text-xs font-medium text-foreground">Governorate</Label>
-              <Select value={gov || "__all"} onValueChange={(v) => { setGov(v === "__all" ? "" : v); setWil(""); }}>
+              <Select value={gov || "__all"} onValueChange={(v) => setGov(v === "__all" ? "" : v)}>
                 <SelectTrigger className="h-10 w-full text-sm">
                   <SelectValue placeholder="All" />
                 </SelectTrigger>
@@ -835,42 +879,15 @@ function DirectorySurface() {
               </Select>
             </div>
             <div className="min-w-0 space-y-1.5">
-              <Label className="text-xs font-medium text-foreground">Wilayat</Label>
-              <Select value={wil || "__all"} onValueChange={(v) => setWil(v === "__all" ? "" : v)} disabled={!gov}>
-                <SelectTrigger className="h-10 w-full text-sm">
-                  <SelectValue placeholder="All" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__all">All</SelectItem>
-                  {wilayatOptions.map((w) => (
-                    <SelectItem key={w} value={w}>
-                      {w}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="min-w-0 space-y-1.5">
-              <Label className="text-xs font-medium text-foreground">Partner status</Label>
-              <Select value={partner || "__all"} onValueChange={(v) => setPartner(v === "__all" ? "" : v)}>
-                <SelectTrigger className="h-10 w-full text-sm">
-                  <SelectValue placeholder="All" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__all">All</SelectItem>
-                  <SelectItem value="unknown">Registry (default)</SelectItem>
-                  <SelectItem value="prospect">Prospect</SelectItem>
-                  <SelectItem value="active">Active</SelectItem>
-                  <SelectItem value="suspended">Suspended</SelectItem>
-                  <SelectItem value="churned">Churned</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2">
-            <div className="min-w-0 space-y-1.5">
-              <Label className="text-xs font-medium text-foreground">Pipeline stage</Label>
-              <Select value={pipeStage || "__all"} onValueChange={(v) => setPipeStage(v === "__all" ? "" : v)}>
+              <Label className="text-xs font-medium text-foreground">Stage</Label>
+              <Select
+                value={pipeStage || "__all"}
+                onValueChange={(v) => {
+                  setPipeStage(v === "__all" ? "" : v);
+                  setPipelineQuickView("all");
+                }}
+                disabled={pipelineQuickView !== "all"}
+              >
                 <SelectTrigger className="h-10 w-full text-sm">
                   <SelectValue placeholder="All stages" />
                 </SelectTrigger>
@@ -903,36 +920,44 @@ function DirectorySurface() {
                 </SelectContent>
               </Select>
             </div>
+            <div className="flex flex-col justify-end gap-2 sm:col-span-2 lg:col-span-1">
+              <Label className="text-xs font-medium text-foreground">Needs action only</Label>
+              <div className="flex h-10 items-center gap-2 rounded-md border border-input px-3">
+                <Switch
+                  id="needs-action-only"
+                  checked={needsActionOnly}
+                  onCheckedChange={(v) => setNeedsActionOnly(Boolean(v))}
+                />
+                <label htmlFor="needs-action-only" className="text-xs text-muted-foreground cursor-pointer">
+                  Due / unassigned work
+                </label>
+              </div>
+            </div>
           </div>
           <div className="flex flex-wrap items-center gap-2 border-t border-border/60 pt-3">
-            <span className="text-xs font-medium text-muted-foreground">Follow-up queue</span>
-            <Button
-              type="button"
-              size="sm"
-              variant={pipeQueue === undefined ? "secondary" : "outline"}
-              className="h-8"
-              onClick={() => setPipeQueue(undefined)}
-            >
-              All
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant={pipeQueue === "due_today" ? "secondary" : "outline"}
-              className="h-8"
-              onClick={() => setPipeQueue("due_today")}
-            >
-              Due today
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant={pipeQueue === "overdue" ? "secondary" : "outline"}
-              className="h-8"
-              onClick={() => setPipeQueue("overdue")}
-            >
-              Overdue
-            </Button>
+            <span className="text-xs font-medium text-muted-foreground">Queues</span>
+            {(
+              [
+                ["all", "All"],
+                ["unassigned", "Unassigned"],
+                ["new", "New"],
+                ["contacted", "Contacted"],
+                ["invited", "Invited"],
+                ["needs_followup", "Needs follow-up"],
+                ["converted", "Converted"],
+              ] as const
+            ).map(([key, label]) => (
+              <Button
+                key={key}
+                type="button"
+                size="sm"
+                variant={pipelineQuickView === key ? "secondary" : "outline"}
+                className="h-8"
+                onClick={() => setPipelineQuickView(key)}
+              >
+                {label}
+              </Button>
+            ))}
           </div>
         </div>
       </div>
@@ -955,23 +980,53 @@ function DirectorySurface() {
       ) : null}
 
       {pipeKpis ? (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-4">
           <Card className="shadow-sm">
-            <CardHeader className="pb-2">
-              <CardDescription className="text-xs">Total centres (directory)</CardDescription>
-              <CardTitle className="text-2xl tabular-nums">{pipeKpis.totalCentres.toLocaleString()}</CardTitle>
+            <CardHeader className="pb-2 pt-4">
+              <CardDescription className="text-[11px]">Total</CardDescription>
+              <CardTitle className="text-xl tabular-nums">{pipeKpis.totalCentres.toLocaleString()}</CardTitle>
             </CardHeader>
           </Card>
           <Card className="shadow-sm">
-            <CardHeader className="pb-2">
-              <CardDescription className="text-xs">Contacted or later</CardDescription>
-              <CardTitle className="text-2xl tabular-nums">{pipeKpis.contactedPct}%</CardTitle>
+            <CardHeader className="pb-2 pt-4">
+              <CardDescription className="text-[11px]">Contacted</CardDescription>
+              <CardTitle className="text-xl tabular-nums">{pipeKpis.contacted.toLocaleString()}</CardTitle>
             </CardHeader>
           </Card>
           <Card className="shadow-sm">
-            <CardHeader className="pb-2">
-              <CardDescription className="text-xs">Conversion (registered + active)</CardDescription>
-              <CardTitle className="text-2xl tabular-nums">{pipeKpis.conversionPct}%</CardTitle>
+            <CardHeader className="pb-2 pt-4">
+              <CardDescription className="text-[11px]">Invited</CardDescription>
+              <CardTitle className="text-xl tabular-nums">{pipeKpis.invited.toLocaleString()}</CardTitle>
+            </CardHeader>
+          </Card>
+          <Card className="shadow-sm">
+            <CardHeader className="pb-2 pt-4">
+              <CardDescription className="text-[11px]">Registered</CardDescription>
+              <CardTitle className="text-xl tabular-nums">{pipeKpis.registered.toLocaleString()}</CardTitle>
+            </CardHeader>
+          </Card>
+          <Card className="shadow-sm">
+            <CardHeader className="pb-2 pt-4">
+              <CardDescription className="text-[11px]">Active</CardDescription>
+              <CardTitle className="text-xl tabular-nums">{pipeKpis.active.toLocaleString()}</CardTitle>
+            </CardHeader>
+          </Card>
+          <Card className="shadow-sm">
+            <CardHeader className="pb-2 pt-4">
+              <CardDescription className="text-[11px]">Conversion</CardDescription>
+              <CardTitle className="text-xl tabular-nums">{pipeKpis.conversionPct}%</CardTitle>
+            </CardHeader>
+          </Card>
+          <Card className="shadow-sm">
+            <CardHeader className="pb-2 pt-4">
+              <CardDescription className="text-[11px]">Unassigned</CardDescription>
+              <CardTitle className="text-xl tabular-nums">{pipeKpis.unassigned.toLocaleString()}</CardTitle>
+            </CardHeader>
+          </Card>
+          <Card className="shadow-sm">
+            <CardHeader className="pb-2 pt-4">
+              <CardDescription className="text-[11px]">Overdue follow-ups</CardDescription>
+              <CardTitle className="text-xl tabular-nums">{pipeKpis.overdue.toLocaleString()}</CardTitle>
             </CardHeader>
           </Card>
         </div>
@@ -1075,41 +1130,24 @@ function DirectorySurface() {
             </div>
           ) : (
             <div className="max-h-[min(70vh,640px)] overflow-auto border-t border-border/60">
-              <table className="w-full min-w-[1180px] table-fixed border-collapse text-sm">
+              <table className="w-full min-w-[1040px] table-fixed border-collapse text-sm">
                 <caption className="sr-only">
-                  SANAD partner centres: directory fields, onboarding pipeline, owner, and actions
+                  SANAD directory: office, pipeline stage, owner, follow-up, actions
                 </caption>
                 <colgroup>
-                  <col className="w-[17%]" />
-                  <col className="w-[13%]" />
-                  <col className="w-[6.5rem]" />
-                  <col className="w-[17%]" />
-                  <col className="w-[8%]" />
+                  <col className="w-[22%]" />
                   <col className="w-[9%]" />
-                  <col className="w-[7%]" />
+                  <col className="w-[11%]" />
+                  <col className="w-[11%]" />
+                  <col className="w-[9%]" />
+                  <col className="w-[16%]" />
                   <col className="w-[10%]" />
-                  <col className="w-[5.5rem]" />
-                  <col className="w-[5.5rem]" />
+                  <col className="w-[5rem]" />
                 </colgroup>
                 <TableHeader>
                   <TableRow className="border-b-2 border-border hover:bg-transparent">
                     <TableHead className="sticky top-0 z-30 h-12 border-b border-border bg-card px-3 py-2 text-start align-bottom text-xs font-bold uppercase tracking-wide text-foreground shadow-[inset_0_-1px_0_0_hsl(var(--border))]">
-                      Centre
-                    </TableHead>
-                    <TableHead className="sticky top-0 z-30 h-12 border-b border-border bg-card px-3 py-2 text-start align-bottom text-xs font-bold uppercase tracking-wide text-foreground shadow-[inset_0_-1px_0_0_hsl(var(--border))]">
-                      Responsible
-                    </TableHead>
-                    <TableHead
-                      className="sticky top-0 z-30 h-12 border-b border-border bg-card px-2 py-2 text-center align-bottom text-xs font-bold uppercase tracking-wide text-foreground shadow-[inset_0_-1px_0_0_hsl(var(--border))]"
-                      title="From directory import (CSV / JSON)"
-                    >
-                      Phone
-                    </TableHead>
-                    <TableHead
-                      className="sticky top-0 z-30 h-12 border-b border-border bg-card px-3 py-2 text-start align-bottom text-xs font-bold uppercase tracking-wide text-foreground shadow-[inset_0_-1px_0_0_hsl(var(--border))]"
-                      title="Governorate · wilayat · village when present"
-                    >
-                      Location
+                      Office
                     </TableHead>
                     <TableHead className="sticky top-0 z-30 h-12 border-b border-border bg-card px-2 py-2 text-start align-bottom text-xs font-bold uppercase tracking-wide text-foreground shadow-[inset_0_-1px_0_0_hsl(var(--border))]">
                       Stage
@@ -1118,16 +1156,16 @@ function DirectorySurface() {
                       Owner
                     </TableHead>
                     <TableHead className="sticky top-0 z-30 h-12 border-b border-border bg-card px-2 py-2 text-start align-bottom text-xs font-bold uppercase tracking-wide text-foreground shadow-[inset_0_-1px_0_0_hsl(var(--border))]">
+                      Governorate
+                    </TableHead>
+                    <TableHead className="sticky top-0 z-30 h-12 border-b border-border bg-card px-2 py-2 text-start align-bottom text-xs font-bold uppercase tracking-wide text-foreground shadow-[inset_0_-1px_0_0_hsl(var(--border))]">
                       Last contact
                     </TableHead>
                     <TableHead className="sticky top-0 z-30 h-12 border-b border-border bg-card px-2 py-2 text-start align-bottom text-xs font-bold uppercase tracking-wide text-foreground shadow-[inset_0_-1px_0_0_hsl(var(--border))]">
                       Next action
                     </TableHead>
-                    <TableHead
-                      className="sticky top-0 z-30 h-12 border-b border-border bg-card px-2 py-2 text-start align-bottom text-xs font-bold uppercase tracking-wide text-foreground shadow-[inset_0_-1px_0_0_hsl(var(--border))]"
-                      title="Scheduled follow-up (next_action_due_at)"
-                    >
-                      Due
+                    <TableHead className="sticky top-0 z-30 h-12 border-b border-border bg-card px-2 py-2 text-start align-bottom text-xs font-bold uppercase tracking-wide text-foreground shadow-[inset_0_-1px_0_0_hsl(var(--border))]">
+                      Contact readiness
                     </TableHead>
                     <TableHead className="sticky top-0 z-30 h-12 border-b border-border bg-card px-2 py-2 text-end align-bottom text-xs font-bold uppercase tracking-wide text-foreground shadow-[inset_0_-1px_0_0_hsl(var(--border))]">
                       Actions
@@ -1135,11 +1173,20 @@ function DirectorySurface() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {listQuery.data.rows.map(({ center, pipeline, pipelineOwnerName, pipelineOwnerEmail }) => (
+                  {listQuery.data.rows.map(({ center, ops, pipeline, pipelineOwnerName, pipelineOwnerEmail }) => {
+                    const stale = isLeadStale(pipeline ?? undefined);
+                    const dueCue = nextActionDueCue(pipeline?.nextActionDueAt ?? null);
+                    return (
                     <TableRow
                       key={center.id}
-                      className="cursor-pointer border-b border-border/50 transition-colors hover:bg-muted/50"
-                      onClick={() => setDrawerId(center.id)}
+                      className={cn(
+                        "cursor-pointer border-b border-border/50 transition-colors hover:bg-muted/50",
+                        stale && "bg-amber-500/[0.06]",
+                      )}
+                      onClick={() => {
+                        setDrawerTab("overview");
+                        setDrawerId(center.id);
+                      }}
                     >
                       <TableCell className="whitespace-normal px-3 py-2.5 align-top">
                         <div dir="auto" className="min-w-0 text-start">
@@ -1148,42 +1195,14 @@ function DirectorySurface() {
                           </p>
                           <p className="mt-1 font-mono text-[11px] font-medium tabular-nums text-muted-foreground">
                             ID {center.id}
+                            {stale ? (
+                              <span className="ms-2 inline-flex items-center gap-0.5 text-amber-800 dark:text-amber-200">
+                                <AlertTriangle className="inline h-3 w-3" aria-hidden />
+                                Stale
+                              </span>
+                            ) : null}
                           </p>
                         </div>
-                      </TableCell>
-                      <TableCell
-                        dir="auto"
-                        className="whitespace-normal px-3 py-2.5 align-top text-start text-sm leading-snug [overflow-wrap:anywhere]"
-                      >
-                        {center.responsiblePerson?.trim() ? (
-                          center.responsiblePerson
-                        ) : (
-                          <span className="text-muted-foreground">—</span>
-                        )}
-                      </TableCell>
-                      <TableCell
-                        dir="ltr"
-                        className="px-2 py-2.5 align-top text-center text-sm tabular-nums"
-                        title={center.contactNumber?.trim() ? undefined : "No phone in source file for this row"}
-                      >
-                        {center.contactNumber?.trim() ? (
-                          <span className="text-foreground">{center.contactNumber}</span>
-                        ) : (
-                          <span className="text-muted-foreground">—</span>
-                        )}
-                      </TableCell>
-                      <TableCell
-                        dir="auto"
-                        className="whitespace-normal px-3 py-2.5 align-top text-start text-sm leading-snug [overflow-wrap:anywhere]"
-                      >
-                        {(() => {
-                          const loc = formatDirectoryLocation(center);
-                          return loc ? (
-                            <span className="text-foreground/90">{loc}</span>
-                          ) : (
-                            <span className="text-muted-foreground">—</span>
-                          );
-                        })()}
                       </TableCell>
                       <TableCell className="px-2 py-2 align-top" onClick={(e) => e.stopPropagation()}>
                         {pipelineStatusBadge(pipeline?.pipelineStatus)}
@@ -1199,33 +1218,35 @@ function DirectorySurface() {
                           <span className="text-muted-foreground">—</span>
                         )}
                       </TableCell>
+                      <TableCell
+                        dir="auto"
+                        className="whitespace-normal px-2 py-2.5 align-top text-xs leading-snug text-muted-foreground [overflow-wrap:anywhere]"
+                      >
+                        {center.governorateLabelRaw?.trim() || "—"}
+                      </TableCell>
                       <TableCell className="px-2 py-2.5 align-top text-xs tabular-nums text-muted-foreground" onClick={(e) => e.stopPropagation()}>
                         {pipeline?.lastContactedAt ? fmtDateTime(pipeline.lastContactedAt) : "—"}
                       </TableCell>
                       <TableCell
-                        className="px-2 py-2.5 align-top text-xs text-muted-foreground"
-                        title={pipeline?.nextAction ?? undefined}
+                        className="px-2 py-2.5 align-top text-xs"
                         onClick={(e) => e.stopPropagation()}
                       >
-                        {pipeline?.nextAction?.trim() ? (
-                          <span className="line-clamp-2 [overflow-wrap:anywhere]">{pipeline.nextAction}</span>
-                        ) : (
-                          "—"
-                        )}
+                        <div className="space-y-1">
+                          <p className={cn("line-clamp-2 [overflow-wrap:anywhere] text-foreground", !pipeline?.nextAction?.trim() && "text-muted-foreground")}>
+                            {pipeline?.nextAction?.trim() || "—"}
+                          </p>
+                          <p className="text-[10px] text-muted-foreground">
+                            {pipeline?.nextActionType
+                              ? String(pipeline.nextActionType).replace(/_/g, " ")
+                              : "—"}
+                            {dueCue ? (
+                              <span className={cn(" ms-1 tabular-nums", dueCue.className)}>· {dueCue.text}</span>
+                            ) : null}
+                          </p>
+                        </div>
                       </TableCell>
-                      <TableCell
-                        className="px-2 py-2.5 align-top text-xs tabular-nums"
-                        title={pipeline?.nextActionDueAt ? fmtDateTime(pipeline.nextActionDueAt) : undefined}
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        {(() => {
-                          const cue = nextActionDueCue(pipeline?.nextActionDueAt ?? null);
-                          return cue ? (
-                            <span className={cn("block leading-snug", cue.className)}>{cue.text}</span>
-                          ) : (
-                            <span className="text-muted-foreground">—</span>
-                          );
-                        })()}
+                      <TableCell className="px-2 py-2 align-top" onClick={(e) => e.stopPropagation()}>
+                        {contactReadinessBadge(center, ops ?? undefined)}
                       </TableCell>
                       <TableCell
                         className="px-2 py-2.5 align-middle text-end whitespace-nowrap"
@@ -1237,7 +1258,7 @@ function DirectorySurface() {
                               <MoreHorizontal className="h-4 w-4" />
                             </Button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="w-56">
+                          <DropdownMenuContent align="end" className="w-60">
                             <DropdownMenuLabel>Outreach</DropdownMenuLabel>
                             {(() => {
                               const digits = toWhatsAppPhoneDigits(center.contactNumber);
@@ -1256,7 +1277,7 @@ function DirectorySurface() {
                                     }}
                                   >
                                     <MessageCircle className="mr-2 h-4 w-4 text-[#25D366]" />
-                                    WhatsApp (draft)
+                                    Open WhatsApp
                                   </DropdownMenuItem>
                                   <DropdownMenuItem
                                     disabled={!digits}
@@ -1270,7 +1291,25 @@ function DirectorySurface() {
                                 </>
                               );
                             })()}
+                            <DropdownMenuItem
+                              onSelect={() => {
+                                markPipelineContacted.mutate({ centerId: center.id });
+                              }}
+                            >
+                              <Check className="mr-2 h-4 w-4" />
+                              Mark contacted
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onSelect={() => {
+                                setDrawerId(center.id);
+                                setDrawerTab("outreach");
+                              }}
+                            >
+                              <ExternalLink className="mr-2 h-4 w-4" />
+                              Add email…
+                            </DropdownMenuItem>
                             <DropdownMenuSeparator />
+                            <DropdownMenuLabel>Conversion</DropdownMenuLabel>
                             <DropdownMenuItem
                               onSelect={() => {
                                 void genInvite.mutateAsync({ centerId: center.id });
@@ -1281,12 +1320,24 @@ function DirectorySurface() {
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               onSelect={() => {
-                                markPipelineContacted.mutate({ centerId: center.id });
+                                setDrawerId(center.id);
+                                setDrawerTab("matches");
                               }}
                             >
-                              <Check className="mr-2 h-4 w-4" />
-                              Mark as contacted
+                              <Building2 className="mr-2 h-4 w-4" />
+                              Suggest company match
                             </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onSelect={() => {
+                                setDrawerId(center.id);
+                                setDrawerTab("invite");
+                              }}
+                            >
+                              <Link2 className="mr-2 h-4 w-4" />
+                              Link existing account…
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuLabel>Ownership</DropdownMenuLabel>
                             <DropdownMenuItem
                               onSelect={() => {
                                 setAssignCenterId(center.id);
@@ -1296,8 +1347,61 @@ function DirectorySurface() {
                               <UserPlus className="mr-2 h-4 w-4" />
                               Assign owner
                             </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onSelect={() => {
+                                setDrawerId(center.id);
+                                setDrawerTab("outreach");
+                              }}
+                            >
+                              <CalendarClock className="mr-2 h-4 w-4" />
+                              Set next action
+                            </DropdownMenuItem>
                             <DropdownMenuSeparator />
-                            <DropdownMenuItem onSelect={() => setDrawerId(center.id)}>
+                            <DropdownMenuLabel>Record quality</DropdownMenuLabel>
+                            <DropdownMenuItem
+                              onSelect={() => {
+                                setDrawerId(center.id);
+                                setDrawerTab("notes");
+                              }}
+                            >
+                              <FileText className="mr-2 h-4 w-4" />
+                              Add note
+                            </DropdownMenuItem>
+                            {fullSanadOps ? (
+                              <>
+                                <DropdownMenuItem
+                                  onSelect={() =>
+                                    updatePipeline.mutate({ centerId: center.id, isInvalid: true })
+                                  }
+                                >
+                                  <Ban className="mr-2 h-4 w-4" />
+                                  Mark invalid
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onSelect={() =>
+                                    updatePipeline.mutate({ centerId: center.id, isDuplicate: true })
+                                  }
+                                >
+                                  <Copy className="mr-2 h-4 w-4" />
+                                  Mark duplicate
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onSelect={() =>
+                                    updatePipeline.mutate({ centerId: center.id, isArchived: true })
+                                  }
+                                >
+                                  <Archive className="mr-2 h-4 w-4" />
+                                  Archive
+                                </DropdownMenuItem>
+                              </>
+                            ) : null}
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              onSelect={() => {
+                                setDrawerTab("overview");
+                                setDrawerId(center.id);
+                              }}
+                            >
                               <ArrowRight className="mr-2 h-4 w-4" />
                               Open details
                             </DropdownMenuItem>
@@ -1305,7 +1409,8 @@ function DirectorySurface() {
                         </DropdownMenu>
                       </TableCell>
                     </TableRow>
-                  ))}
+                    );
+                  })}
                 </TableBody>
               </table>
             </div>
@@ -1332,7 +1437,33 @@ function DirectorySurface() {
               </div>
             </div>
           ) : detail.data ? (
-            <div className="flex-1 space-y-5 overflow-y-auto py-5 pr-1">
+            <Tabs
+              value={drawerTab}
+              onValueChange={setDrawerTab}
+              className="flex min-h-0 flex-1 flex-col overflow-hidden"
+            >
+              <TabsList className="h-auto w-full shrink-0 flex-wrap justify-start gap-1 rounded-none border-b bg-muted/25 px-2 py-2">
+                <TabsTrigger value="overview" className="text-xs">
+                  Overview
+                </TabsTrigger>
+                <TabsTrigger value="outreach" className="text-xs">
+                  Outreach
+                </TabsTrigger>
+                <TabsTrigger value="notes" className="text-xs">
+                  Notes
+                </TabsTrigger>
+                <TabsTrigger value="invite" className="text-xs">
+                  Invite / account
+                </TabsTrigger>
+                <TabsTrigger value="activity" className="text-xs">
+                  Activity
+                </TabsTrigger>
+                <TabsTrigger value="matches" className="text-xs">
+                  Company matches
+                </TabsTrigger>
+              </TabsList>
+              <div className="min-h-0 flex-1 overflow-y-auto px-1 py-4 pr-2">
+                <TabsContent value="overview" className="m-0 mt-0 space-y-4 outline-none">
               <div className="rounded-lg border bg-muted/25 p-4" dir="auto">
                 <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Centre</p>
                 <h3 className="mt-1.5 text-lg font-semibold leading-snug text-foreground">
@@ -1345,6 +1476,106 @@ function DirectorySurface() {
                 </p>
               </div>
 
+              <div
+                className={cn(
+                  "rounded-lg border p-4",
+                  isLeadStale(detail.data.pipeline ?? undefined) ? "border-amber-500/40 bg-amber-500/[0.06]" : "bg-muted/20",
+                )}
+              >
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Pipeline snapshot</p>
+                <div className="mt-3 flex flex-wrap gap-4 text-sm">
+                  <div>
+                    <span className="text-xs text-muted-foreground">Stage</span>
+                    <div className="mt-1">{pipelineStatusBadge(detail.data.pipeline?.pipelineStatus)}</div>
+                  </div>
+                  <div className="min-w-[8rem]">
+                    <span className="text-xs text-muted-foreground">Owner</span>
+                    <p className="mt-1 font-medium text-foreground">
+                      {(() => {
+                        const label = (
+                          detail.data.pipelineOwnerUser?.name ??
+                          detail.data.pipelineOwnerUser?.email ??
+                          ""
+                        ).trim();
+                        if (label) return label;
+                        if (detail.data.pipeline?.ownerUserId == null) {
+                          return <span className="font-normal text-muted-foreground">Unassigned</span>;
+                        }
+                        return `User #${detail.data.pipeline!.ownerUserId}`;
+                      })()}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-xs text-muted-foreground">Last contact</span>
+                    <p className="mt-1 tabular-nums text-muted-foreground">
+                      {detail.data.pipeline?.lastContactedAt
+                        ? fmtDateTime(detail.data.pipeline.lastContactedAt)
+                        : "—"}
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-4 space-y-1 border-t border-border/60 pt-3 text-sm">
+                  <div className="flex flex-wrap items-baseline justify-between gap-2">
+                    <span className="text-xs text-muted-foreground">Next action</span>
+                    {(() => {
+                      const due = detail.data.pipeline?.nextActionDueAt;
+                      const cue = nextActionDueCue(due ?? null);
+                      return cue ? (
+                        <span className={cn("text-xs tabular-nums", cue.className)}>{cue.text}</span>
+                      ) : null;
+                    })()}
+                  </div>
+                  <p className="text-foreground [overflow-wrap:anywhere]">
+                    {detail.data.pipeline?.nextAction?.trim() || (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Type:{" "}
+                    {detail.data.pipeline?.nextActionType
+                      ? String(detail.data.pipeline.nextActionType).replace(/_/g, " ")
+                      : "—"}
+                  </p>
+                  {isLeadStale(detail.data.pipeline ?? undefined) ? (
+                    <p className="flex items-center gap-1 text-xs text-amber-900 dark:text-amber-200">
+                      <AlertTriangle className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                      No pipeline contact in {STALE_LEAD_DAYS}+ days — review or advance stage.
+                    </p>
+                  ) : null}
+                </div>
+                {fullSanadOps &&
+                (Number(detail.data.pipeline?.isInvalid) === 1 ||
+                  Number(detail.data.pipeline?.isDuplicate) === 1 ||
+                  Number(detail.data.pipeline?.isArchived) === 1) ? (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {Number(detail.data.pipeline?.isInvalid) === 1 ? (
+                      <Badge variant="destructive" className="font-normal">
+                        Invalid
+                      </Badge>
+                    ) : null}
+                    {Number(detail.data.pipeline?.isDuplicate) === 1 ? (
+                      <Badge variant="secondary" className="font-normal">
+                        Duplicate
+                      </Badge>
+                    ) : null}
+                    {Number(detail.data.pipeline?.isArchived) === 1 ? (
+                      <Badge variant="outline" className="font-normal">
+                        Archived
+                      </Badge>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+
+              {detail.data.pipeline?.latestNotePreview?.trim() ? (
+                <div className="rounded-md border bg-background/80 p-2.5 text-xs text-muted-foreground">
+                  <span className="font-medium text-foreground">Latest note:</span>{" "}
+                  {detail.data.pipeline.latestNotePreview}
+                </div>
+              ) : null}
+                </TabsContent>
+
+                <TabsContent value="outreach" className="m-0 mt-0 space-y-4 outline-none">
               <div className="rounded-lg border bg-muted/25 p-4">
                 <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Contact</p>
                 <div className="mt-3 grid gap-4 text-sm sm:grid-cols-2">
@@ -1438,12 +1669,6 @@ function DirectorySurface() {
                       </p>
                     </div>
                   </div>
-                  {detail.data.pipeline?.latestNotePreview?.trim() ? (
-                    <div className="rounded-md border bg-background/80 p-2.5 text-xs text-muted-foreground">
-                      <span className="font-medium text-foreground">Latest note:</span>{" "}
-                      {detail.data.pipeline.latestNotePreview}
-                    </div>
-                  ) : null}
 
                   {fullSanadOps ? (
                     <div className="grid gap-3 sm:grid-cols-2">
@@ -1549,6 +1774,73 @@ function DirectorySurface() {
                 </div>
               </div>
 
+              <div className="rounded-md border border-dashed border-border/80 p-3 space-y-2">
+                <p className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                  <CalendarClock className="h-3.5 w-3.5" />
+                  Ops follow-up (legacy fields)
+                </p>
+                <div className="flex flex-wrap gap-2 items-end">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Follow-up due</Label>
+                    <Input
+                      type="datetime-local"
+                      className="h-9 w-[11.5rem] text-xs"
+                      value={followUpInput}
+                      onChange={(e) => setFollowUpInput(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-1 min-w-[6rem]">
+                    <Label className="text-xs">Method</Label>
+                    <Input
+                      className="h-9 text-xs"
+                      placeholder="call, email, visit…"
+                      value={contactMethodDraft}
+                      onChange={(e) => setContactMethodDraft(e.target.value)}
+                    />
+                  </div>
+                </div>
+                <Textarea
+                  className="text-xs min-h-[52px]"
+                  placeholder="Optional note (appended with timestamp)"
+                  value={outreachNote}
+                  onChange={(e) => setOutreachNote(e.target.value)}
+                />
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    disabled={outreachMut.isPending}
+                    onClick={() =>
+                      outreachMut.mutate({
+                        centerId: detail.data!.center.id,
+                        lastContactedAt: new Date(),
+                        contactMethod: contactMethodDraft.trim() || undefined,
+                      })
+                    }
+                  >
+                    Mark contacted (now)
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={outreachMut.isPending || !followUpInput}
+                    onClick={() =>
+                      outreachMut.mutate({
+                        centerId: detail.data!.center.id,
+                        followUpDueAt: new Date(followUpInput),
+                        notesAppend: outreachNote.trim() || undefined,
+                      })
+                    }
+                  >
+                    Save follow-up
+                  </Button>
+                </div>
+              </div>
+                </TabsContent>
+
+                <TabsContent value="activity" className="m-0 mt-0 space-y-4 outline-none">
               <div className="rounded-lg border bg-card p-4 shadow-sm">
                 <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Activity</p>
                 {centreActivityLog.isLoading ? (
@@ -1580,7 +1872,9 @@ function DirectorySurface() {
                   </ScrollArea>
                 )}
               </div>
+                </TabsContent>
 
+                <TabsContent value="notes" className="m-0 mt-0 space-y-4 outline-none">
               <div className="rounded-lg border bg-card p-4 shadow-sm">
                 <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Notes</p>
                 {centreNotes.isLoading ? (
@@ -1622,8 +1916,10 @@ function DirectorySurface() {
                   </Button>
                 </div>
               </div>
+                </TabsContent>
 
-              {detail.data.companyMatches && detail.data.companyMatches.length > 0 ? (
+                <TabsContent value="matches" className="m-0 mt-0 space-y-4 outline-none">
+              {(detail.data.companyMatches?.length ?? 0) > 0 ? (
                 <div className="rounded-lg border border-amber-500/35 bg-amber-500/[0.06] p-4">
                   <p className="text-xs font-semibold uppercase tracking-wide text-amber-950 dark:text-amber-100">
                     Possible SmartPRO company match
@@ -1632,7 +1928,7 @@ function DirectorySurface() {
                     Link the centre to a platform office when you confirm it is the same entity.
                   </p>
                   <ul className="mt-2 space-y-1.5 text-sm">
-                    {detail.data.companyMatches.map((m) => (
+                    {detail.data.companyMatches!.map((m) => (
                       <li key={m.id} className="font-medium text-foreground">
                         {m.name}
                         {m.nameAr ? <span className="text-muted-foreground"> · {m.nameAr}</span> : null}
@@ -1641,8 +1937,12 @@ function DirectorySurface() {
                     ))}
                   </ul>
                 </div>
-              ) : null}
+              ) : (
+                <p className="text-sm text-muted-foreground">No suggested company matches for this centre name.</p>
+              )}
+                </TabsContent>
 
+                <TabsContent value="invite" className="m-0 mt-0 space-y-4 outline-none">
               <div className="rounded-lg border bg-card p-4 shadow-sm">
                 <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   Partner operations
@@ -2122,74 +2422,11 @@ function DirectorySurface() {
                       )}
                     </div>
                   ) : null}
-
-                  <div className="rounded-md border border-dashed border-border/80 p-3 space-y-2">
-                    <p className="text-xs font-medium text-muted-foreground flex items-center gap-1">
-                      <CalendarClock className="h-3.5 w-3.5" />
-                      Outreach
-                    </p>
-                    <div className="flex flex-wrap gap-2 items-end">
-                      <div className="space-y-1">
-                        <Label className="text-xs">Follow-up due</Label>
-                        <Input
-                          type="datetime-local"
-                          className="h-9 w-[11.5rem] text-xs"
-                          value={followUpInput}
-                          onChange={(e) => setFollowUpInput(e.target.value)}
-                        />
-                      </div>
-                      <div className="space-y-1 min-w-[6rem]">
-                        <Label className="text-xs">Method</Label>
-                        <Input
-                          className="h-9 text-xs"
-                          placeholder="call, email, visit…"
-                          value={contactMethodDraft}
-                          onChange={(e) => setContactMethodDraft(e.target.value)}
-                        />
-                      </div>
-                    </div>
-                    <Textarea
-                      className="text-xs min-h-[52px]"
-                      placeholder="Optional note (appended with timestamp)"
-                      value={outreachNote}
-                      onChange={(e) => setOutreachNote(e.target.value)}
-                    />
-                    <div className="flex flex-wrap gap-2">
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="secondary"
-                        disabled={outreachMut.isPending}
-                        onClick={() =>
-                          outreachMut.mutate({
-                            centerId: detail.data!.center.id,
-                            lastContactedAt: new Date(),
-                            contactMethod: contactMethodDraft.trim() || undefined,
-                          })
-                        }
-                      >
-                        Mark contacted (now)
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        disabled={outreachMut.isPending || !followUpInput}
-                        onClick={() =>
-                          outreachMut.mutate({
-                            centerId: detail.data!.center.id,
-                            followUpDueAt: new Date(followUpInput),
-                            notesAppend: outreachNote.trim() || undefined,
-                          })
-                        }
-                      >
-                        Save follow-up
-                      </Button>
-                    </div>
-                  </div>
                 </div>
               </div>
-            </div>
+                </TabsContent>
+              </div>
+            </Tabs>
           ) : null}
         </SheetContent>
       </Sheet>

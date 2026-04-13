@@ -20,6 +20,7 @@ import {
   SANAD_CENTRE_PIPELINE_STATUSES,
   SANAD_NEXT_ACTION_TYPES,
   type SanadCentrePipelineStatus,
+  type SanadPipelineListQuickView,
 } from "@shared/sanadCentresPipeline";
 import { canAssignSanadPipelineOwner, canWriteSanadCentrePipeline } from "@shared/sanadPipelineRbac";
 import { runGenerateCenterInvite } from "../sanad-intelligence/generateCenterInviteRunner";
@@ -117,6 +118,15 @@ const partnerStatusZ = z.enum(["unknown", "prospect", "active", "suspended", "ch
 const pipelineStatusZ = z.enum(SANAD_CENTRE_PIPELINE_STATUSES as unknown as [string, ...string[]]);
 const nextActionTypeZ = z.enum(SANAD_NEXT_ACTION_TYPES as unknown as [string, ...string[]]);
 const pipelineQueueZ = z.enum(["due_today", "overdue"]);
+const pipelineQuickViewZ = z.enum([
+  "all",
+  "unassigned",
+  "new",
+  "contacted",
+  "invited",
+  "needs_followup",
+  "converted",
+]);
 const onboardingZ = z.enum([
   "not_started",
   "intake",
@@ -183,6 +193,9 @@ export const sanadIntelligenceRouter = router({
           ownerUserId: z.number().optional(),
           ownerUnassignedOnly: z.boolean().optional(),
           pipelineQueue: pipelineQueueZ.optional(),
+          pipelineQuickView: pipelineQuickViewZ.optional(),
+          needsActionOnly: z.boolean().optional(),
+          excludeArchived: z.boolean().optional(),
           limit: z.number().min(1).max(1000).default(50),
           offset: z.number().min(0).default(0),
         })
@@ -201,6 +214,9 @@ export const sanadIntelligenceRouter = router({
         ownerUserId: input?.ownerUserId,
         ownerUnassignedOnly: input?.ownerUnassignedOnly,
         pipelineQueue: input?.pipelineQueue,
+        pipelineQuickView: input?.pipelineQuickView as SanadPipelineListQuickView | undefined,
+        needsActionOnly: input?.needsActionOnly,
+        excludeArchived: input?.excludeArchived,
         limit: input?.limit ?? 50,
         offset: input?.offset ?? 0,
       });
@@ -228,6 +244,9 @@ export const sanadIntelligenceRouter = router({
         nextActionType: nextActionTypeZ.nullable().optional(),
         nextActionDueAt: z.coerce.date().nullable().optional(),
         lastContactedAt: z.coerce.date().nullable().optional(),
+        isArchived: z.boolean().optional(),
+        isInvalid: z.boolean().optional(),
+        isDuplicate: z.boolean().optional(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -252,6 +271,16 @@ export const sanadIntelligenceRouter = router({
             message: "Only Sanad operators may change stage, owner, or backdated contact time.",
           });
         }
+        if (
+          input.isArchived !== undefined ||
+          input.isInvalid !== undefined ||
+          input.isDuplicate !== undefined
+        ) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "Only Sanad operators may change record quality flags.",
+          });
+        }
       }
       if (
         input.ownerUserId !== undefined &&
@@ -263,6 +292,7 @@ export const sanadIntelligenceRouter = router({
 
       const ownerChanging =
         input.ownerUserId !== undefined && input.ownerUserId !== prior.ownerUserId;
+      const to01 = (v: boolean | undefined) => (v === undefined ? undefined : v ? 1 : 0);
       await patchSanadCentrePipeline(db as never, input.centerId, {
         pipelineStatus: input.pipelineStatus as SanadCentrePipelineStatus | undefined,
         ownerUserId: input.ownerUserId,
@@ -270,6 +300,9 @@ export const sanadIntelligenceRouter = router({
         nextActionType: input.nextActionType ?? undefined,
         nextActionDueAt: input.nextActionDueAt,
         lastContactedAt: input.lastContactedAt,
+        isArchived: to01(input.isArchived),
+        isInvalid: to01(input.isInvalid),
+        isDuplicate: to01(input.isDuplicate),
         ...(ownerChanging
           ? {
               assignedAt: new Date(),
@@ -313,6 +346,33 @@ export const sanadIntelligenceRouter = router({
             nextActionDueAt: input.nextActionDueAt?.toISOString() ?? null,
             nextActionType: input.nextActionType ?? null,
           },
+        });
+      }
+      if (input.isInvalid !== undefined && (prior.isInvalid ?? 0) !== (input.isInvalid ? 1 : 0)) {
+        await insertCentreActivityLog(db as never, {
+          centerId: input.centerId,
+          actorUserId: ctx.user.id,
+          activityType: "record_invalid_set",
+          note: null,
+          metadata: { value: input.isInvalid },
+        });
+      }
+      if (input.isDuplicate !== undefined && (prior.isDuplicate ?? 0) !== (input.isDuplicate ? 1 : 0)) {
+        await insertCentreActivityLog(db as never, {
+          centerId: input.centerId,
+          actorUserId: ctx.user.id,
+          activityType: "record_duplicate_set",
+          note: null,
+          metadata: { value: input.isDuplicate },
+        });
+      }
+      if (input.isArchived !== undefined && (prior.isArchived ?? 0) !== (input.isArchived ? 1 : 0)) {
+        await insertCentreActivityLog(db as never, {
+          centerId: input.centerId,
+          actorUserId: ctx.user.id,
+          activityType: "record_archived_set",
+          note: null,
+          metadata: { value: input.isArchived },
         });
       }
       return { success: true as const };

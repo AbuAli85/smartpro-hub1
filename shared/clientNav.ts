@@ -1,25 +1,16 @@
 import { canAccessGlobalAdminProcedures } from "./rbac";
+import {
+  GLOBAL_ADMIN_ONLY_PATH_PREFIXES,
+  PLATFORM_OPERATOR_ONLY_PATH_PREFIXES,
+} from "./navPlatformRestrictedPrefixes";
 import { isTenantUnsafeNavExtensionPath, pathMatchesNavExtensionHref } from "./roleNavConfig";
+import { normalizeAppPath } from "./normalizeAppPath";
 
 /** SmartPRO operator / provider tools — not shown to typical business tenants */
 /** Platform sidebar links restricted to global admins (not regional_manager / client_services). */
-export const GLOBAL_ADMIN_PLATFORM_HREFS = new Set<string>(["/admin/sanad"]);
+export const GLOBAL_ADMIN_PLATFORM_HREFS = new Set<string>([...GLOBAL_ADMIN_ONLY_PATH_PREFIXES]);
 
-export const PLATFORM_ONLY_HREFS = new Set<string>([
-  "/sanad/office-dashboard",
-  "/sanad/catalogue-admin",
-  "/sanad/ratings-moderation",
-  "/omani-officers",
-  "/officer-assignments",
-  "/billing",
-  "/sla-management",
-  "/platform-ops",
-  "/audit-log",
-  "/admin",
-  "/user-roles",
-  "/survey/admin/responses",
-  "/survey/admin/analytics",
-]);
+export const PLATFORM_ONLY_HREFS = new Set<string>([...PLATFORM_OPERATOR_ONLY_PATH_PREFIXES]);
 
 /** Owner-style configuration — company_admin only */
 export const COMPANY_OWNER_HREFS = new Set<string>([
@@ -695,11 +686,9 @@ export function clientNavItemVisible(
   return true;
 }
 
-/** Strip query string and trailing slash (except `/`). */
+/** Strip query/hash, collapse slashes, trim trailing slash (except `/`). */
 export function normalizeClientPath(path: string): string {
-  let p = path.split("?")[0] ?? "/";
-  if (p.length > 1 && p.endsWith("/")) p = p.slice(0, -1);
-  return p || "/";
+  return normalizeAppPath(path) || "/";
 }
 
 function pathMatchesRestrictedPrefix(path: string, baseHref: string): boolean {

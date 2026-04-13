@@ -271,6 +271,11 @@ export default function SurveyAdminResponsesPage() {
 
   /** Same survey entry URL without `officeId` — for WhatsApp when a row has no per-office link yet. */
   const surveyPublicStartUrl = useMemo(() => {
+    const slug =
+      intelLinksQuery.data?.surveySlug ??
+      sanadLinksQuery.data?.surveySlug ??
+      "oman-business-sector-2026";
+
     if (sanadOutreachManualOnly?.length) {
       const first = sanadOutreachManualOnly[0]?.surveyUrl;
       if (first) {
@@ -283,12 +288,20 @@ export default function SurveyAdminResponsesPage() {
         }
       }
     }
-    const plat = sanadLinksQuery.data;
+
     const intel = intelLinksQuery.data;
-    const d = sanadOutreachListMode === "intel" ? intel : plat;
-    if (d?.baseUrl && "surveySlug" in d && d.surveySlug) {
-      return `${String(d.baseUrl).replace(/\/+$/, "")}/survey/${d.surveySlug}`;
+    const plat = sanadLinksQuery.data;
+    const preferredBase =
+      sanadOutreachListMode === "intel"
+        ? intel?.baseUrl?.trim()
+        : plat?.baseUrl?.trim();
+    const anyApiBase = preferredBase || intel?.baseUrl?.trim() || plat?.baseUrl?.trim();
+
+    let base = (anyApiBase ?? "").replace(/\/+$/, "");
+    if (!base && typeof window !== "undefined") {
+      base = window.location.origin.replace(/\/+$/, "");
     }
+    if (base && slug) return `${base}/survey/${slug}`;
     return null;
   }, [
     sanadOutreachManualOnly,
@@ -637,6 +650,16 @@ export default function SurveyAdminResponsesPage() {
                       })}
                     </li>
                   </ul>
+                  <p className="mt-3 text-sm">
+                    <Link
+                      href="/admin/sanad/directory"
+                      className="font-medium text-blue-800 underline-offset-2 hover:underline dark:text-blue-200"
+                    >
+                      {t("admin.openSanadDirectoryToLink", {
+                        defaultValue: "Open Sanad directory → link a centre to a platform office",
+                      })}
+                    </Link>
+                  </p>
                 </AlertDescription>
               </Alert>
             )}
@@ -730,13 +753,13 @@ export default function SurveyAdminResponsesPage() {
                       </span>
                     </div>
                   </TableHead>
-                  <TableHead className="text-right">
+                  <TableHead className="min-w-[10rem] text-right">
                     <div className="flex flex-col items-end gap-0.5">
                       <span>{t("admin.sanadColSurveyUrl", { defaultValue: "Survey URL" })}</span>
-                      <span className="text-muted-foreground max-w-[11rem] text-[10px] font-normal leading-snug">
+                      <span className="text-muted-foreground max-w-[12rem] text-[10px] font-normal leading-snug">
                         {isIntelLayout
                           ? t("admin.sanadColSurveyUrlSubIntel", {
-                              defaultValue: "Copy matches the draft",
+                              defaultValue: "Same URL as WhatsApp draft",
                             })
                           : t("admin.sanadColSurveyUrlSubPlatform", {
                               defaultValue: "Dedicated per office",
@@ -889,12 +912,13 @@ export default function SurveyAdminResponsesPage() {
                           ) : null}
                         </div>
                       </TableCell>
-                      <TableCell className="max-w-[13rem] text-right align-top">
+                      <TableCell className="min-w-[10rem] max-w-[16rem] text-right align-top">
                         <div className="flex flex-col items-end gap-1.5">
                           <Button
                             type="button"
                             variant="outline"
                             size="sm"
+                            className="h-auto min-h-8 max-w-full whitespace-normal px-2 py-1.5 text-center text-[11px] leading-snug"
                             disabled={!row.surveyUrl && !surveyPublicStartUrl}
                             title={
                               row.surveyUrl
@@ -933,7 +957,7 @@ export default function SurveyAdminResponsesPage() {
                                 : t("copyToken")}
                           </Button>
                           {isIntelLayout ? (
-                            <span className="w-full max-w-[13rem] break-words text-left text-xs leading-snug text-muted-foreground">
+                            <span className="w-full max-w-[16rem] break-words text-left text-xs leading-snug text-muted-foreground">
                               {row.surveyUrl ? (
                                 <span className="text-green-700 dark:text-green-400">
                                   {t("admin.outreachBindingDedicated", {
@@ -942,11 +966,24 @@ export default function SurveyAdminResponsesPage() {
                                   })}
                                 </span>
                               ) : surveyPublicStartUrl ? (
-                                <span className="border-muted-foreground/25 text-muted-foreground border-l-2 pl-2">
-                                  {t("admin.outreachBindingUsePublic", {
+                                <span
+                                  className="border-muted-foreground/25 text-muted-foreground border-l-2 pl-2"
+                                  title={t("admin.outreachBindingUsePublic", {
                                     defaultValue:
                                       "Centre not linked on platform yet — Copy and WhatsApp use the same general survey URL until you link this centre.",
                                   })}
+                                >
+                                  <span className="font-medium text-foreground">
+                                    {t("admin.outreachBindingUsePublicShort", {
+                                      defaultValue: "Not linked to platform office",
+                                    })}
+                                  </span>
+                                  <span className="mt-0.5 block text-[11px] leading-snug">
+                                    {t("admin.outreachBindingUsePublicDetail", {
+                                      defaultValue:
+                                        "Copy and WhatsApp use the general survey URL until you link this centre (see link above).",
+                                    })}
+                                  </span>
                                 </span>
                               ) : row.surveyUnavailableReason === "office_inactive" ? (
                                 <span className="text-muted-foreground">

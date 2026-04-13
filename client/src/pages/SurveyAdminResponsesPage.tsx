@@ -623,7 +623,7 @@ export default function SurveyAdminResponsesPage() {
               )}
               <Button
                 type="button"
-                variant="secondary"
+                variant="outline"
                 size="sm"
                 className="shrink-0 self-stretch sm:self-center"
                 disabled={outreachDisplayRows.length === 0 || Boolean(outreachQueryError)}
@@ -786,7 +786,7 @@ export default function SurveyAdminResponsesPage() {
                   </TableHead>
                   <TableHead
                     className={cn(
-                      "min-w-[11rem] max-w-[18rem] align-bottom sm:min-w-[12rem]",
+                      "min-w-[11rem] max-w-[22rem] align-bottom sm:min-w-[12rem]",
                       outreachRtl ? "text-start" : "text-end",
                     )}
                   >
@@ -945,21 +945,29 @@ export default function SurveyAdminResponsesPage() {
                       </TableCell>
                       <TableCell
                         className={cn(
-                          "min-w-[11rem] max-w-[18rem] align-top sm:min-w-[12rem]",
+                          "min-w-[11rem] max-w-[22rem] align-top sm:min-w-[12rem]",
                           outreachRtl ? "text-start" : "text-end",
                         )}
                       >
                         <div
                           className={cn(
-                            "flex flex-col gap-1.5",
-                            outreachRtl ? "items-start" : "items-end",
+                            "flex min-w-0 flex-col gap-1.5",
+                            isIntelLayout
+                              ? "items-stretch"
+                              : outreachRtl
+                                ? "items-start"
+                                : "items-end",
                           )}
                         >
                           <Button
                             type="button"
                             variant="outline"
                             size="sm"
-                            className="h-auto min-h-8 max-w-full whitespace-normal px-2 py-1.5 text-center text-[11px] leading-snug"
+                            className={cn(
+                              "h-auto min-h-8 max-w-full whitespace-normal px-2 py-1.5 text-center text-[11px] leading-snug",
+                              isIntelLayout &&
+                                (outreachRtl ? "w-fit self-start" : "w-fit self-end"),
+                            )}
                             disabled={!row.surveyUrl && !surveyPublicStartUrl}
                             title={
                               row.surveyUrl
@@ -998,7 +1006,7 @@ export default function SurveyAdminResponsesPage() {
                                 : t("copyToken")}
                           </Button>
                           {isIntelLayout ? (
-                            <span className="w-full max-w-full break-words text-xs leading-snug text-muted-foreground">
+                            <span className="min-w-0 w-full max-w-full break-words text-start text-xs leading-snug text-muted-foreground">
                               {row.surveyUrl ? (
                                 <span className="text-green-700 dark:text-green-400">
                                   {t("admin.outreachBindingDedicated", {

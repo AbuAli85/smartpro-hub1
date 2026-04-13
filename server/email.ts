@@ -480,6 +480,8 @@ export interface SurveyCompletionInviteEmailParams {
   isRegisteredUser: boolean;
   /** Public app origin for CTA buttons, e.g. https://app.example.com */
   appBaseUrl: string;
+  /** When set and the respondent is not treated as registered, shown as nurture opt-out link. */
+  resumeToken?: string;
 }
 
 /**
@@ -503,7 +505,7 @@ export async function sendSurveyCompletionInviteEmail(
     return { success: false, error: "Email not configured" };
   }
 
-  const { to, respondentName, surveyTitle, isRegisteredUser, appBaseUrl } = params;
+  const { to, respondentName, surveyTitle, isRegisteredUser, appBaseUrl, resumeToken } = params;
   const base = appBaseUrl.replace(/\/+$/, "");
   const dashboardUrl = `${base}/`;
   const demoUrl =
@@ -545,6 +547,13 @@ export async function sendSurveyCompletionInviteEmail(
 
   const ctaLabel = isRegisteredUser ? "Open SmartPRO Hub" : "Join SmartPRO Hub";
 
+  const nurtureOptOutFooter =
+    !isRegisteredUser && resumeToken
+      ? `<p style="color:${C.textLight};font-size:11px;text-align:center;margin:16px 0 0;line-height:1.5;">
+      <a href="${base}/api/survey/nurture/unsubscribe?token=${encodeURIComponent(resumeToken)}" style="color:${C.textLight};text-decoration:underline;">Opt out of future reminder emails about SmartPRO Hub</a>
+    </p>`
+      : "";
+
   const body = `
     <div style="text-align:center;margin-bottom:24px;">
       <div style="display:inline-block;background:linear-gradient(135deg,${C.primary},${C.accent});border-radius:50%;width:64px;height:64px;line-height:64px;font-size:28px;color:${C.white};text-align:center;">&#10003;</div>
@@ -574,6 +583,7 @@ export async function sendSurveyCompletionInviteEmail(
       <p style="color:${C.textMuted};font-size:12px;margin:0 0 4px;">App link:</p>
       <a href="${dashboardUrl}" style="color:${C.primary};font-size:12px;word-break:break-all;">${dashboardUrl}</a>
     </div>
+    ${nurtureOptOutFooter}
     ${trustStrip()}
   `;
 
@@ -600,6 +610,87 @@ export async function sendSurveyCompletionInviteEmail(
     return { success: true };
   } catch (err: any) {
     console.error("[Email] sendSurveyCompletionInviteEmail failed:", err);
+    return { success: false, error: err?.message ?? "Unknown error" };
+  }
+}
+
+export interface SurveyNurtureFollowupEmailParams {
+  to: string;
+  respondentName?: string;
+  surveyTitle: string;
+  /** 1-based follow-up sequence (after the initial completion email). */
+  followUpIndex: number;
+  resumeToken: string;
+  appBaseUrl: string;
+}
+
+/**
+ * Follow-up nurture email for anonymous respondents who have not yet registered.
+ * Includes unsubscribe link using resume token.
+ */
+export async function sendSurveyNurtureFollowupEmail(
+  params: SurveyNurtureFollowupEmailParams,
+): Promise<{ success: boolean; error?: string }> {
+  if (!ENV.resendApiKey) {
+    console.warn("[Email] Survey nurture follow-up skipped: RESEND_API_KEY not set");
+    return { success: false, error: "Email not configured" };
+  }
+
+  const { to, respondentName, surveyTitle, followUpIndex, resumeToken, appBaseUrl } = params;
+  const base = appBaseUrl.replace(/\/+$/, "");
+  const dashboardUrl = `${base}/`;
+  const demoUrl = process.env.SURVEY_COMPLETION_DEMO_URL?.trim() || dashboardUrl;
+  const demoCta =
+    process.env.SURVEY_COMPLETION_DEMO_CTA_LABEL?.trim() || "Book a free demo";
+  const unsubscribeUrl = `${base}/api/survey/nurture/unsubscribe?token=${encodeURIComponent(resumeToken)}`;
+
+  const headline =
+    process.env.SURVEY_NURTURE_FOLLOWUP_HEADLINE?.trim() ||
+    "Still thinking about SmartPRO Hub?";
+  const bodyText =
+    process.env.SURVEY_NURTURE_FOLLOWUP_BODY?.trim() ||
+    "You shared valuable feedback in our survey. When you are ready, create your free account to explore HR, payroll, compliance, and PRO tools built for Oman — or book a short demo with our team.";
+
+  const greeting = respondentName
+    ? `Dear <strong>${escapeHtmlText(respondentName)}</strong>,`
+    : "Hello,";
+
+  const body = `
+    <p style="color:${C.textMuted};font-size:15px;line-height:1.7;margin:0 0 16px;">${greeting}</p>
+    <p style="color:${C.text};font-size:18px;font-weight:700;margin:0 0 12px;">${escapeHtmlText(headline)}</p>
+    <p style="color:${C.textMuted};font-size:14px;line-height:1.65;margin:0 0 20px;">${escapeHtmlText(bodyText)}</p>
+    <p style="color:${C.textMuted};font-size:13px;margin:0 0 20px;">Reference: <strong>${escapeHtmlText(surveyTitle)}</strong> · Follow-up #${followUpIndex}</p>
+    <div style="text-align:center;">
+      ${ctaButton(demoUrl, demoCta)}
+    </div>
+    <div style="text-align:center;">
+      ${ctaButton(dashboardUrl, "Create your account", true)}
+    </div>
+    <p style="color:${C.textLight};font-size:11px;text-align:center;margin:24px 0 8px;line-height:1.5;">
+      <a href="${unsubscribeUrl}" style="color:${C.textLight};text-decoration:underline;">Unsubscribe from these reminders</a>
+    </p>
+    ${trustStrip()}
+  `;
+
+  try {
+    const resend = getResend();
+    const result = await resend.emails.send({
+      from: FROM_ADDRESS,
+      to: [to],
+      subject: `SmartPRO Hub — ${headline} (${followUpIndex})`,
+      html: baseLayout(
+        `Reminder — ${surveyTitle}`,
+        "Join SmartPRO Hub or book a demo when you are ready.",
+        body,
+      ),
+    });
+    if (result.error) {
+      console.error("[Email] Survey nurture follow-up error:", result.error);
+      return { success: false, error: result.error.message };
+    }
+    return { success: true };
+  } catch (err: any) {
+    console.error("[Email] sendSurveyNurtureFollowupEmail failed:", err);
     return { success: false, error: err?.message ?? "Unknown error" };
   }
 }

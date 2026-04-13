@@ -96,6 +96,10 @@
     "sanadColContact": "جهة الاتصال",
     "sanadColLink": "الرابط",
     "sanadOutreachEmpty": "لا توجد مكاتب سند نشطة.",
-    "surveyLinkCopied": "تم نسخ رابط الاستبيان"
+    "surveyLinkCopied": "تم نسخ رابط الاستبيان",
+    "sanadColWhatsapp": "واتساب",
+    "whatsappSurveyMessage": "مرحباً،\n\nيرجى إكمال الاستبيان لـ {{officeName}}:\n{{surveyUrl}}\n\nشكراً لكم.",
+    "whatsappOpenHint": "فتح واتساب بهذا الرقم ورسالة جاهزة (اضغط إرسال في واتساب)",
+    "whatsappNoPhoneHint": "لا يوجد رقم صالح — أضف رقماً أو صحّح الصيغة (مثلاً +968…)"
   }
 }

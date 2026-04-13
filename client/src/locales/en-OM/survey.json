@@ -96,6 +96,10 @@
     "sanadColContact": "Contact",
     "sanadColLink": "Link",
     "sanadOutreachEmpty": "No active Sanad offices found.",
-    "surveyLinkCopied": "Survey link copied"
+    "surveyLinkCopied": "Survey link copied",
+    "sanadColWhatsapp": "WhatsApp",
+    "whatsappSurveyMessage": "Hello,\n\nPlease complete the survey for {{officeName}}:\n{{surveyUrl}}\n\nThank you.",
+    "whatsappOpenHint": "Open WhatsApp with this number and a draft message (tap Send in WhatsApp)",
+    "whatsappNoPhoneHint": "No usable phone on file — add a number or fix format (e.g. +968…)"
   }
 }

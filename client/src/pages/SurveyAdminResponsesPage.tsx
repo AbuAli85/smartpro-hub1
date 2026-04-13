@@ -22,7 +22,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { ClipboardList, ChevronLeft, ChevronRight, Link2, Mail } from "lucide-react";
+import { ClipboardList, ChevronLeft, ChevronRight, Link2, Mail, MessageCircle } from "lucide-react";
 import { toast } from "sonner";
 
 type StatusFilter = "all" | "in_progress" | "completed" | "abandoned";
@@ -45,6 +45,27 @@ function fmtDate(d: Date | string | null | undefined): string {
 function csvEscapeCell(value: string): string {
   if (/[",\r\n]/.test(value)) return `"${value.replace(/"/g, '""')}"`;
   return value;
+}
+
+/**
+ * Digits only for wa.me links (no + prefix).
+ * If the value is 8 digits without a country code, prepends Oman +968.
+ */
+function toWhatsAppPhoneDigits(raw: string | null | undefined): string | null {
+  if (!raw?.trim()) return null;
+  let d = raw.replace(/\D/g, "");
+  if (!d) return null;
+  if (d.startsWith("00")) d = d.slice(2);
+  if (d.length === 9 && d.startsWith("0")) d = d.slice(1);
+  if (!d.startsWith("968") && d.length === 8) d = `968${d}`;
+  if (d.length < 10 || d.length > 15) return null;
+  return d;
+}
+
+function buildWhatsAppSurveyHref(phoneDigits: string, message: string): string {
+  const params = new URLSearchParams();
+  params.set("text", message);
+  return `https://wa.me/${phoneDigits}?${params.toString()}`;
 }
 
 function downloadSanadLinksCsv(
@@ -422,6 +443,9 @@ export default function SurveyAdminResponsesPage() {
                   <TableHead>{t("yourPhone")}</TableHead>
                   <TableHead>{t("admin.sanadColContact", { defaultValue: "Contact" })}</TableHead>
                   <TableHead>{t("yourEmail")}</TableHead>
+                  <TableHead className="text-center">
+                    {t("admin.sanadColWhatsapp", { defaultValue: "WhatsApp" })}
+                  </TableHead>
                   <TableHead className="text-right">
                     {t("admin.sanadColLink", { defaultValue: "Link" })}
                   </TableHead>
@@ -430,18 +454,27 @@ export default function SurveyAdminResponsesPage() {
               <TableBody>
                 {outreachLoading ? (
                   <TableRow>
-                    <TableCell colSpan={5}>
+                    <TableCell colSpan={6}>
                       <Skeleton className="h-10 w-full" />
                     </TableCell>
                   </TableRow>
                 ) : outreachDisplayRows.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-muted-foreground h-16 text-center">
+                    <TableCell colSpan={6} className="text-muted-foreground h-16 text-center">
                       {t("admin.sanadOutreachEmpty", { defaultValue: "No active Sanad offices found." })}
                     </TableCell>
                   </TableRow>
                 ) : (
-                  outreachDisplayRows.map((row) => (
+                  outreachDisplayRows.map((row) => {
+                    const waDigits = toWhatsAppPhoneDigits(row.phone);
+                    const waMessage = t("admin.whatsappSurveyMessage", {
+                      officeName: row.name,
+                      surveyUrl: row.surveyUrl,
+                      defaultValue:
+                        "Hello,\n\nPlease complete the survey for {{officeName}}:\n{{surveyUrl}}\n\nThank you.",
+                    });
+                    const waHref = waDigits ? buildWhatsAppSurveyHref(waDigits, waMessage) : null;
+                    return (
                     <TableRow key={row.id}>
                       <TableCell className="max-w-[10rem] font-medium">
                         <span className="line-clamp-2">{row.name}</span>
@@ -457,6 +490,31 @@ export default function SurveyAdminResponsesPage() {
                           row.email
                         ) : (
                           <span className="text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {waHref ? (
+                          <Button
+                            asChild
+                            size="sm"
+                            className="border-0 bg-[#25D366] text-white hover:bg-[#20bd5a]"
+                            title={t("admin.whatsappOpenHint", {
+                              defaultValue: "Open WhatsApp with this number and a draft message",
+                            })}
+                          >
+                            <a
+                              href={waHref}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              aria-label={t("admin.sanadColWhatsapp", { defaultValue: "WhatsApp" })}
+                            >
+                              <MessageCircle className="h-4 w-4" aria-hidden />
+                            </a>
+                          </Button>
+                        ) : (
+                          <span className="text-muted-foreground text-xs" title={t("admin.whatsappNoPhoneHint", { defaultValue: "Add a valid phone number" })}>
+                            —
+                          </span>
                         )}
                       </TableCell>
                       <TableCell className="text-right">
@@ -479,7 +537,8 @@ export default function SurveyAdminResponsesPage() {
                         </Button>
                       </TableCell>
                     </TableRow>
-                  ))
+                    );
+                  })
                 )}
               </TableBody>
             </Table>

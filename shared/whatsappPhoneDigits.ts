@@ -1,5 +1,5 @@
 /**
- * Normalize a phone string to WhatsApp Cloud API / wa.me digits (no "+").
+ * Normalize a phone string to WhatsApp Cloud API / click-to-chat digits (no "+").
  * Oman: prefix 968 when 8 local digits are given.
  */
 export function toWhatsAppPhoneDigits(raw: string | null | undefined): string | null {

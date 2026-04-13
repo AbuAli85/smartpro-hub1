@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useRoute, useLocation } from "wouter";
+import { useRoute, useLocation, useSearch } from "wouter";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useTranslation } from "react-i18next";
 import { AlertCircle, BookmarkCheck, ChevronLeft, ChevronRight, Copy, Loader2, Lock, Mail, Sparkles } from "lucide-react";
@@ -83,17 +83,19 @@ function mergeResumeAnswers(
 
 export default function SurveyRespondPage() {
   const [match, params] = useRoute("/survey/:slug");
-  const [location, setLocation] = useLocation();
+  const [, setLocation] = useLocation();
+  /** Wouter v3 `useLocation()` is pathname-only; query must come from `useSearch()`. */
+  const search = useSearch();
   const slug = match ? params.slug : undefined;
   const { isAuthenticated, loading: authLoading } = useAuth();
 
   const sanadOfficeIdFromUrl = useMemo(() => {
-    const q = new URLSearchParams(location.split("?")[1] ?? "");
+    const q = new URLSearchParams(search);
     const v = q.get("officeId");
     if (!v) return undefined;
     const n = Number(v);
     return Number.isFinite(n) && n > 0 ? n : undefined;
-  }, [location]);
+  }, [search]);
   const { t, i18n } = useTranslation("survey");
   const surveyLanguage = i18n.language.startsWith("ar") ? "ar" : "en";
   const isAr = surveyLanguage === "ar";
@@ -395,21 +397,34 @@ export default function SurveyRespondPage() {
         <div className="mx-auto max-w-lg px-4 py-16">
           <Card>
             <CardHeader>
-              <CardTitle>{isAr ? "ربط مكتب سند" : "Sanad office link"}</CardTitle>
-              <CardDescription>
-                {isAr
-                  ? "سجّل الدخول بحساب SmartPRO نفسه المستخدم للوحة مكتبك لربط الإجابات بهذا المكتب."
-                  : "Sign in with the same SmartPRO account you use for your Sanad office dashboard to attribute answers to your office."}
+              <CardTitle>
+                {t("officeLinkTitle", { defaultValue: "Sign in to link your Sanad office" })}
+              </CardTitle>
+              <CardDescription className="space-y-2">
+                <p>
+                  {t("officeLinkBody", {
+                    defaultValue:
+                      "This survey link is for a specific Sanad office. Sign in with the SmartPRO account you use for that office’s dashboard so your answers are recorded for the correct office.",
+                  })}
+                </p>
+                <p className="text-muted-foreground">
+                  {t("officeLinkAfterSignIn", {
+                    defaultValue:
+                      "After you sign in, you will return here automatically to start and complete the questionnaire.",
+                  })}
+                </p>
               </CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col gap-3">
               <Button asChild className="w-full">
                 <a
                   href={getLoginUrl(
-                    typeof window !== "undefined" ? `${window.location.pathname}${window.location.search}` : undefined,
+                    typeof window !== "undefined"
+                      ? `${window.location.pathname}${window.location.search}`
+                      : undefined,
                   )}
                 >
-                  {isAr ? "تسجيل الدخول" : "Sign in"}
+                  {t("officeLinkSignInCta", { defaultValue: "Sign in" })}
                 </a>
               </Button>
               <Button
@@ -421,7 +436,9 @@ export default function SurveyRespondPage() {
                   setGuestSkipOfficeLink(true);
                 }}
               >
-                {isAr ? "المتابعة بدون ربط المكتب" : "Continue without office link"}
+                {t("officeLinkContinueGuest", {
+                  defaultValue: "Continue without linking this office",
+                })}
               </Button>
             </CardContent>
           </Card>

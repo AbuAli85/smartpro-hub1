@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Link, useLocation } from "wouter";
+import { Link, useLocation, useSearch } from "wouter";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { toast } from "sonner";
 import {
@@ -29,17 +29,19 @@ export function surveyResumeStorageKey(slug: string) {
 
 export default function SurveyStartPage() {
   const { t, i18n } = useTranslation("survey");
-  const [location, navigate] = useLocation();
+  const [, navigate] = useLocation();
+  /** Wouter v3 pathname from `useLocation()` omits `?query`; use `useSearch()` for `officeId`. */
+  const search = useSearch();
   const { isAuthenticated } = useAuth();
   const isRtl = i18n.language?.startsWith("ar");
 
   const sanadOfficeIdFromUrl = useMemo(() => {
-    const q = new URLSearchParams(location.split("?")[1] ?? "");
+    const q = new URLSearchParams(search);
     const v = q.get("officeId");
     if (!v) return undefined;
     const n = Number(v);
     return Number.isFinite(n) && n > 0 ? n : undefined;
-  }, [location]);
+  }, [search]);
 
   const [showDetails, setShowDetails] = useState(false);
   const [showResume, setShowResume] = useState(false);

@@ -493,6 +493,13 @@ export default function Home() {
                     </li>
                   ))}
                 </ul>
+                <div className="mt-6 pt-5 border-t border-red-100 dark:border-red-900/40">
+                  <Link href="/features/attract">
+                    <a className="inline-flex items-center gap-1.5 text-sm font-semibold text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-colors">
+                      Learn more <ArrowRight size={14} />
+                    </a>
+                  </Link>
+                </div>
               </div>
 
               {/* Convert */}
@@ -521,6 +528,13 @@ export default function Home() {
                     </li>
                   ))}
                 </ul>
+                <div className="mt-6 pt-5 border-t border-emerald-100 dark:border-emerald-900/40">
+                  <Link href="/features/convert">
+                    <a className="inline-flex items-center gap-1.5 text-sm font-semibold text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 transition-colors">
+                      Learn more <ArrowRight size={14} />
+                    </a>
+                  </Link>
+                </div>
               </div>
 
               {/* Retain */}
@@ -549,6 +563,13 @@ export default function Home() {
                     </li>
                   ))}
                 </ul>
+                <div className="mt-6 pt-5 border-t border-blue-100 dark:border-blue-900/40">
+                  <Link href="/features/retain">
+                    <a className="inline-flex items-center gap-1.5 text-sm font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors">
+                      Learn more <ArrowRight size={14} />
+                    </a>
+                  </Link>
+                </div>
               </div>
             </div>
 

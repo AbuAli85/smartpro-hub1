@@ -116,6 +116,9 @@ import SurveyCompletePage from "./pages/SurveyCompletePage";
 import SurveyAdminResponsesPage from "./pages/SurveyAdminResponsesPage";
 import SurveyAdminResponseDetailPage from "./pages/SurveyAdminResponseDetailPage";
 import SurveyAdminAnalyticsPage from "./pages/SurveyAdminAnalyticsPage";
+import AttractPage from "./pages/AttractPage";
+import ConvertPage from "./pages/ConvertPage";
+import RetainPage from "./pages/RetainPage";
 function PublicRoutes() {
   return (
     <Switch>
@@ -127,6 +130,10 @@ function PublicRoutes() {
       <Route path="/survey/:slug/complete" component={SurveyCompletePage} />
       <Route path="/survey/:slug" component={SurveyRespondPage} />
       <Route path="/survey" component={SurveyStartPage} />
+      {/* ── Feature pillar pages (public) ──────────────────────────────── */}
+      <Route path="/features/attract" component={AttractPage} />
+      <Route path="/features/convert" component={ConvertPage} />
+      <Route path="/features/retain" component={RetainPage} />
       <Route path="/" component={Home} />
       <Route component={AppRoutes} />
     </Switch>

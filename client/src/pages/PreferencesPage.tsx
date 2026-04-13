@@ -14,8 +14,8 @@ import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 
 const OPTIONAL_LABELS: Record<string, string> = {
   "/analytics": "Analytics",
-  "/compliance": "Compliance dashboard",
-  "/marketplace": "Marketplace",
+  "/compliance": "Compliance centre",
+  "/marketplace": "Service marketplace",
   "/hr/recruitment": "Recruitment",
   "/quotations": "Quotations",
 };

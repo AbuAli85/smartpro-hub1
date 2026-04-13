@@ -200,7 +200,7 @@ export default function CompanySettingsPage() {
       routes: [
         { value: "/dashboard", label: "Command center" },
         { value: "/dashboard", label: "Overview Dashboard" },
-        { value: "/operations", label: "Operations Centre" },
+        { value: "/operations", label: "Operations overview" },
         { value: "/hr/employees", label: "HR — Employees" },
         { value: "/payroll", label: "Payroll Engine" },
         { value: "/crm", label: "CRM" },
@@ -236,7 +236,7 @@ export default function CompanySettingsPage() {
       label: "Company Member (Staff)",
       color: "bg-gray-100 text-gray-700 border-gray-200",
       routes: [
-        { value: "/my-portal", label: "My Portal" },
+        { value: "/my-portal", label: "Employee home" },
         { value: "/dashboard", label: "Overview Dashboard" },
       ],
     },

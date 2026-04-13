@@ -195,6 +195,9 @@
   box-shadow: 0 2px 8px oklch(0.63 0.20 28 / 35%);
 }
 .sidebar-nav-item.active svg { color: #fff; }
+.sidebar-nav-item--child {
+  @apply py-2 gap-2.5;
+}
 
 /* ─── KPI stat cards ─────────────────────────────────────────────────────── */
 .stat-gradient-1 {

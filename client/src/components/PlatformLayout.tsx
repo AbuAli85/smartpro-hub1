@@ -3,60 +3,21 @@ import { getLoginUrl } from "@/const";
 import QuickActionsButton from "@/components/QuickActionsButton";
 import {
   Activity,
-  BarChart2,
-  BarChart3,
-  Banknote,
   Bell,
-  BookOpen,
   Briefcase,
   Building2,
-  Calendar,
-  CheckCircle2,
   ChevronDown,
-  ChevronRight,
-  Clock,
   FileText,
-  FolderOpen,
-  Globe,
-  LayoutDashboard,
   HelpCircle,
+  Home,
+  LayoutDashboard,
+  LayoutGrid,
   LogOut,
   Menu,
-  RefreshCw,
   Settings,
-  Shield,
-  ShoppingBag,
-  Store,
-  BookMarked,
-  CreditCard,
-  Mail,
-  Star,
-  Target,
-  UserCheck,
   UserCircle,
-  ShieldCheck,
   Users,
   X,
-  Zap,
-  ListTodo,
-  Megaphone,
-  LayoutGrid,
-  Home,
-  AlertTriangle,
-  QrCode,
-  ClipboardList,
-  CalendarDays,
-  CalendarCheck,
-  CalendarClock,
-  CalendarRange,
-  SunMedium,
-  ClipboardCheck,
-  TrendingDown,
-  Network,
-  Sparkles,
-  UserSquare2,
-  Crown,
-  Radar,
 } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
 import { useTranslation } from "react-i18next";
@@ -65,10 +26,7 @@ import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { Link, useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import {
-  clientNavItemVisible,
   seesPlatformOperatorNav,
-  isPortalClientNav,
-  isCompanyOwnerNav,
   shouldUsePortalOnlyShell,
   shouldUsePreRegistrationShell,
   getMemberRoleLabel,
@@ -79,7 +37,6 @@ import { ClientAccessGate } from "@/components/ClientAccessGate";
 import { SignInCallbackErrorBanner } from "@/components/SignInCallbackErrorBanner";
 import { SignInTroubleshootingNote } from "@/components/SignInTroubleshootingNote";
 import { AuditModeBanner } from "@/components/AuditModeBanner";
-import { getHiddenNavHrefs } from "@/lib/navVisibility";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -89,246 +46,14 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Badge } from "@/components/ui/badge";
 import { CompanySwitcher } from "@/components/CompanySwitcher";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { OnboardingProgressWidget } from "@/components/OnboardingProgressWidget";
 import { useOnboardingAutoComplete } from "@/hooks/useOnboardingAutoComplete";
-
-interface NavItem {
-  label: string;
-  href: string;
-  icon: React.ReactNode;
-  badge?: string;
-  children?: NavItem[];
-}
-
-const navGroups = [
-  // ── CONTROL (decision layer) ───────────────────────────────────────────────
-  {
-    label: "Control",
-    items: [
-      { label: "Control Tower", href: "/control-tower", icon: <Radar size={18} /> },
-    ],
-  },
-  // ── OVERVIEW ──────────────────────────────────────────────────────────────
-  {
-    label: "Overview",
-    items: [
-      { label: "Executive Dashboard", href: "/dashboard", icon: <LayoutDashboard size={18} /> },
-      { label: "Operations Centre", href: "/operations", icon: <Activity size={18} /> },
-      { label: "Analytics", href: "/analytics", icon: <BarChart3 size={18} /> },
-      { label: "Compliance Centre", href: "/compliance", icon: <CheckCircle2 size={18} /> },
-    ],
-  },
-  // ── GOVERNMENT SERVICES ───────────────────────────────────────────────────
-  {
-    label: "Government Services",
-    items: [
-      { label: "Sanad Offices", href: "/sanad", icon: <Building2 size={18} /> },
-      { label: "Office Dashboard", href: "/sanad/office-dashboard", icon: <BarChart3 size={18} /> },
-      { label: "Partner onboarding", href: "/sanad/partner-onboarding", icon: <Sparkles size={18} /> },
-      { label: "Sanad Marketplace", href: "/sanad/marketplace", icon: <Store size={18} /> },
-      { label: "Catalogue Admin", href: "/sanad/catalogue-admin", icon: <BookMarked size={18} /> },
-      { label: "Ratings Moderation", href: "/sanad/ratings-moderation", icon: <Star size={18} /> },
-      { label: "PRO Services", href: "/pro", icon: <Shield size={18} /> },
-    ],
-  },
-  // ── MY COMPANY ────────────────────────────────────────────────────────────
-  // Purpose: company identity, settings, access control, and company-level documents.
-  // Employee/HR data lives exclusively under Human Resources.
-  {
-    label: "My Company",
-    items: [
-      { label: "Workspace", href: "/workspace", icon: <LayoutGrid size={18} /> },
-      { label: "My Portal", href: "/my-portal", icon: <Home size={18} /> },
-      { label: "Company Profile", href: "/company/profile", icon: <Building2 size={18} /> },
-      { label: "Company Admin", href: "/company-admin", icon: <Crown size={18} /> },
-      { label: "Team Access & Roles", href: "/company/team-access", icon: <UserCheck size={18} /> },
-      { label: "Multi-Company Roles", href: "/company/multi-company-roles", icon: <ShieldCheck size={18} /> },
-      { label: "Company Settings", href: "/company/settings", icon: <Settings size={18} /> },
-      { label: "Email Templates", href: "/company/email-preview", icon: <Mail size={18} /> },
-      { label: "Company Documents", href: "/company/documents", icon: <FolderOpen size={18} /> },
-    ],
-  },
-  // ── OPERATIONS (commercial) ────────────────────────────────────────────────
-  {
-    label: "Operations",
-    items: [
-      { label: "Company Hub", href: "/company/hub", icon: <Building2 size={18} /> },
-      { label: "CRM", href: "/crm", icon: <Users size={18} /> },
-      { label: "Quotations", href: "/quotations", icon: <Target size={18} /> },
-      { label: "Contracts", href: "/contracts", icon: <FileText size={18} /> },
-      { label: "Marketplace", href: "/marketplace", icon: <ShoppingBag size={18} /> },
-    ],
-  },
-  // ── PEOPLE (HR) ───────────────────────────────────────────────────────────
-  {
-    label: "People",
-    items: [
-      { label: "My Team", href: "/my-team", icon: <Users size={18} /> },
-      { label: "Attendance", href: "/hr/attendance", icon: <Clock size={18} /> },
-      { label: "Payroll Engine", href: "/payroll", icon: <Banknote size={18} /> },
-      { label: "Performance & Growth", href: "/hr/performance", icon: <Sparkles size={18} /> },
-      { label: "Task Manager", href: "/hr/tasks", icon: <ListTodo size={18} /> },
-      { label: "Recruitment", href: "/hr/recruitment", icon: <BookOpen size={18} /> },
-      { label: "Departments", href: "/hr/departments", icon: <Building2 size={18} /> },
-      { label: "Org Chart", href: "/hr/org-chart", icon: <Network size={18} /> },
-      { label: "Workforce Intelligence", href: "/hr/workforce-intelligence", icon: <Activity size={18} /> },
-      { label: "HR Performance & Automation", href: "/hr/executive-dashboard", icon: <Globe size={18} /> },
-      { label: "Org Structure", href: "/hr/org-structure", icon: <LayoutGrid size={18} /> },
-      { label: "Profile Completeness", href: "/hr/completeness", icon: <UserCheck size={18} /> },
-      { label: "Leave & Requests", href: "/hr/leave", icon: <Calendar size={18} /> },
-      { label: "Leave Balances", href: "/hr/leave-balance", icon: <CalendarCheck size={18} /> },
-      { label: "Finance Overview", href: "/finance/overview", icon: <TrendingDown size={18} /> },
-      { label: "Attendance Sites", href: "/hr/attendance-sites", icon: <QrCode size={18} /> },
-      { label: "Shift Templates", href: "/hr/shift-templates", icon: <CalendarDays size={18} /> },
-      { label: "Employee Schedules", href: "/hr/employee-schedules", icon: <CalendarRange size={18} /> },
-      { label: "Holiday Calendar", href: "/hr/holidays", icon: <SunMedium size={18} /> },
-      { label: "Today's Board", href: "/hr/today-board", icon: <CalendarClock size={18} /> },
-      { label: "Monthly Report", href: "/hr/monthly-report", icon: <BarChart2 size={18} /> },
-      { label: "HR Documents", href: "/hr/documents-dashboard", icon: <FileText size={18} /> },
-      { label: "HR Letters", href: "/hr/letters", icon: <Mail size={18} /> },
-      { label: "Promoter Agreements", href: "/hr/contracts", icon: <UserSquare2 size={18} /> },
-      { label: "Employee Requests", href: "/hr/employee-requests", icon: <ClipboardList size={18} /> },
-      { label: "Announcements", href: "/hr/announcements", icon: <Megaphone size={18} /> },
-      { label: "KPI & Performance", href: "/hr/kpi", icon: <Target size={18} /> },
-    ],
-  },
-  // ── COMPLIANCE (regulatory / workforce) ─────────────────────────────────
-  {
-    label: "Compliance",
-    items: [
-      { label: "Work Permits", href: "/workforce/permits", icon: <Shield size={18} /> },
-      { label: "Government Cases", href: "/workforce/cases", icon: <ClipboardCheck size={18} /> },
-      { label: "Expiry Dashboard", href: "/hr/expiry-dashboard", icon: <AlertTriangle size={18} /> },
-      { label: "Portal Sync", href: "/workforce/sync", icon: <RefreshCw size={18} /> },
-      { label: "Workforce Dashboard", href: "/workforce", icon: <BarChart3 size={18} /> },
-      { label: "Workforce Employees", href: "/workforce/employees", icon: <Briefcase size={18} /> },
-      { label: "Profile requests", href: "/workforce/profile-change-requests", icon: <ClipboardList size={18} /> },
-      { label: "Document Vault", href: "/workforce/documents", icon: <FolderOpen size={18} /> },
-    ],
-  },
-  // ── SHARED OMANI PRO ──────────────────────────────────────────────────────
-  {
-    label: "Shared Omani PRO",
-    items: [
-      { label: "Officer Registry", href: "/omani-officers", icon: <UserCheck size={18} /> },
-      { label: "Assignments", href: "/officer-assignments", icon: <Building2 size={18} /> },
-      { label: "Billing Engine", href: "/billing", icon: <CreditCard size={18} /> },
-      { label: "SLA Management", href: "/sla-management", icon: <Shield size={18} /> },
-    ],
-  },
-  // ── PLATFORM (admin-only) ─────────────────────────────────────────────────
-  {
-    label: "Platform",
-    items: [
-      { label: "Client Portal", href: "/client-portal", icon: <UserCircle size={18} /> },
-      { label: "Subscriptions", href: "/subscriptions", icon: <Zap size={18} /> },
-      { label: "Expiry Alerts", href: "/alerts", icon: <Bell size={18} /> },
-      { label: "Renewal Workflows", href: "/renewal-workflows", icon: <Zap size={18} /> },
-      { label: "Platform Operations", href: "/platform-ops", icon: <Globe size={18} /> },
-      { label: "PDF Reports", href: "/reports", icon: <BarChart2 size={18} /> },
-      { label: "Audit Log", href: "/audit-log", icon: <Shield size={18} /> },
-      { label: "User Roles & Access", href: "/user-roles", icon: <ShieldCheck size={18} /> },
-      { label: "Admin Panel", href: "/admin", icon: <Settings size={18} /> },
-      { label: "SANAD Intelligence", href: "/admin/sanad", icon: <Network size={18} /> },
-    ],
-  },
-];
-
-// Map English label strings to nav translation keys
-const NAV_GROUP_KEYS: Record<string, string> = {
-  "Control": "control",
-  "Overview": "overview",
-  "Government Services": "governmentServices",
-  "My Company": "myCompany",
-  "Operations": "operations",
-  "People": "people",
-  "Compliance": "compliance",
-  "Shared Omani PRO": "sharedOmaniPro",
-  "Platform": "platform",
-  "Your company": "platform",
-};
-const NAV_ITEM_KEYS: Record<string, string> = {
-  "Control Tower": "controlTower",
-  "Executive Dashboard": "executiveDashboard",
-  "Operations Centre": "operationsCentre",
-  "Analytics": "analytics",
-  "Compliance Centre": "complianceCentre",
-  "Sanad Offices": "sanadOffices",
-  "Office Dashboard": "officeDashboard",
-  "Sanad Marketplace": "sanadMarketplace",
-  "Catalogue Admin": "catalogueAdmin",
-  "Ratings Moderation": "ratingsModeration",
-  "PRO Services": "proServices",
-  "Workspace": "workspace",
-  "My Portal": "myPortal",
-  "Company Profile": "companyProfile",
-  "Team Access & Roles": "teamAccessRoles",
-  "Multi-Company Roles": "multiCompanyRoles",
-  "Company Settings": "companySettings",
-  "Email Templates": "emailTemplates",
-  "Company Documents": "companyDocuments",
-  "Company Hub": "companyHub",
-  "Quotations": "quotations",
-  "Contracts": "contracts",
-  "Marketplace": "marketplace",
-  "CRM": "crm",
-  "My Team": "myTeam",
-  "Recruitment": "recruitment",
-  "Departments": "departments",
-  "Org Chart": "orgChart",
-  "Workforce Intelligence": "workforceIntelligence",
-  "HR Performance & Automation": "hrPerformanceAutomation",
-  "Org Structure": "orgStructure",
-  "Profile Completeness": "profileCompleteness",
-  "Leave & Requests": "leaveRequests",
-  "Leave Balances": "leaveBalances",
-  "Finance Overview": "financeOverview",
-  "Payroll Engine": "payrollEngine",
-  "Attendance": "attendance",
-  "Attendance Sites": "attendanceSites",
-  "Shift Templates": "shiftTemplates",
-  "Employee Schedules": "employeeSchedules",
-  "Holiday Calendar": "holidayCalendar",
-  "Today's Board": "todaysBoard",
-  "Monthly Report": "monthlyReport",
-  "HR Documents": "hrDocuments",
-  "Document Expiry": "documentExpiry",
-  "HR Letters": "hrLetters",
-  "Promoter Agreements": "promoterAgreements",
-  "Employee Requests": "employeeRequests",
-  "Task Manager": "taskManager",
-  "Announcements": "announcements",
-  "Performance & Growth": "performanceGrowth",
-  "KPI & Performance": "kpiPerformance",
-  "Workforce Dashboard": "workforceDashboard",
-  "Workforce Employees": "workforceEmployees",
-  "Profile requests": "profileChangeRequests",
-  "Work Permits": "workPermits",
-  "Government Cases": "governmentCases",
-  "Expiry Dashboard": "expiryDashboard",
-  "Document Vault": "documentVault",
-  "Portal Sync": "portalSync",
-  "Officer Registry": "officerRegistry",
-  "Assignments": "assignments",
-  "Billing Engine": "billingEngine",
-  "SLA Management": "slaManagement",
-  "Company Admin": "companyAdmin",
-  "Client Portal": "clientPortal",
-  "Subscriptions": "subscriptions",
-  "Expiry Alerts": "expiryAlerts",
-  "Renewal Workflows": "renewalWorkflows",
-  "Platform Operations": "platformOpsLabel",
-  "PDF Reports": "pdfReports",
-  "Audit Log": "auditLog",
-  "User Roles & Access": "userRolesAccess",
-  "Admin Panel": "adminPanel",
-  "SANAD Intelligence": "sanadIntelligence",
-};
+import { filterVisibleNavGroups } from "@/config/platformNav";
+import { PlatformSidebarNav } from "@/components/PlatformSidebarNav";
+import type { ClientNavOptions } from "@shared/clientNav";
 function SidebarContent({ onClose }: { onClose?: () => void }) {
-  const [location] = useLocation();
   const { user, logout } = useAuth();
   const { t } = useTranslation("nav");
   const { activeCompanyId, companies, activeCompany } = useActiveCompany();
@@ -357,25 +82,17 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
     return () => window.removeEventListener("smartpro-nav-prefs-changed", onPrefs);
   }, []);
 
+  const platformNav = seesPlatformOperatorNav(user);
+
   const visibleNavGroups = useMemo(() => {
-    const hiddenOptional = getHiddenNavHrefs();
-    const platformNav = seesPlatformOperatorNav(user);
-    return navGroups
-      .map((group) => ({
-        ...group,
-        label:
-          group.label === "Platform" && !platformNav ? "Your company" : group.label,
-        items: group.items.filter((item) =>
-          clientNavItemVisible(item.href, user, hiddenOptional, {
-            hasCompanyWorkspace: Boolean(myCompany?.company?.id),
-            companyWorkspaceLoading: myCompanyLoading,
-            memberRole: effectiveMemberRole,
-            hasCompanyMembership: companies.length > 0,
-            navExtraAllowedHrefs,
-          }),
-        ),
-      }))
-      .filter((g) => g.items.length > 0);
+    const navOptions: ClientNavOptions = {
+      hasCompanyWorkspace: Boolean(myCompany?.company?.id),
+      companyWorkspaceLoading: myCompanyLoading,
+      memberRole: effectiveMemberRole,
+      hasCompanyMembership: companies.length > 0,
+      navExtraAllowedHrefs,
+    };
+    return filterVisibleNavGroups(user, navOptions);
   }, [
     user,
     navPrefsEpoch,
@@ -412,45 +129,13 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
         <CompanySwitcher />
       </div>
 
-      {/* Nav */}
-      <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-5">
-        {visibleNavGroups.map((group) => (
-          <div key={group.label}>
-            <div className="px-3 mb-1.5 text-[10px] font-semibold uppercase tracking-widest text-white/30">
-              {NAV_GROUP_KEYS[group.label] ? t(NAV_GROUP_KEYS[group.label], group.label) : group.label}
-            </div>
-            <div className="space-y-0.5">
-              {group.items.map((item) => {
-                const isActive = location === item.href || location.startsWith(item.href + "/");
-                const pendingProfileReq =
-                  item.href === "/workforce/profile-change-requests"
-                    ? (wfStats?.pendingProfileChangeRequests ?? 0)
-                    : 0;
-                return (
-                  <Link
-                    key={`${group.label}-${item.href}`}
-                    href={item.href}
-                    onClick={onClose}
-                    className={`sidebar-nav-item ${isActive ? "active" : ""}`}
-                  >
-                    {item.icon}
-                    <span className="flex-1">{NAV_ITEM_KEYS[item.label] ? t(NAV_ITEM_KEYS[item.label], item.label) : item.label}</span>
-                    {pendingProfileReq > 0 ? (
-                      <Badge
-                        variant="secondary"
-                        className="text-[10px] px-1.5 py-0 h-5 min-w-[1.25rem] justify-center shrink-0 bg-white/15 text-white border-white/20"
-                      >
-                        {pendingProfileReq > 99 ? "99+" : pendingProfileReq}
-                      </Badge>
-                    ) : null}
-                    {isActive && <ChevronRight size={14} className="opacity-60 shrink-0" />}
-                  </Link>
-                );
-              })}
-            </div>
-          </div>
-        ))}
-      </nav>
+      <PlatformSidebarNav
+        groups={visibleNavGroups}
+        onClose={onClose}
+        t={t}
+        platformNav={platformNav}
+        pendingProfileReq={wfStats?.pendingProfileChangeRequests ?? 0}
+      />
 
       {/* Onboarding progress widget */}
       <OnboardingProgressWidget />
@@ -842,7 +527,7 @@ function MobileBottomNav() {
     if (isFieldEmployee(effectiveMemberRole)) {
       return [
         { href: "/dashboard", icon: <LayoutDashboard size={20} />, label: "Home" },
-        { href: "/my-portal", icon: <Home size={20} />, label: "My Portal" },
+        { href: "/my-portal", icon: <Home size={20} />, label: "Home" },
         { href: "/workspace", icon: <LayoutGrid size={20} />, label: "Workspace" },
       ];
     }

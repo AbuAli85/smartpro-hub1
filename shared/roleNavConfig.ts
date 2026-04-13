@@ -111,7 +111,7 @@ export const ROLE_NAV_SUMMARY: Record<NavExtensionRoleKey, string> = {
   company_admin: "Full company workspace: settings, HR, finance, operations, government modules (per product rules).",
   hr_admin: "HR modules under /hr, workspace, team, dashboards — not payroll-only finance surfaces.",
   finance_admin: "Payroll, reports, finance overview, subscriptions/alerts, shared dashboards.",
-  company_member: "Workspace, My Portal, Executive Dashboard, Control Tower, preferences — staff shell.",
+  company_member: "Workspace, Employee home, Business overview, Control Tower, preferences — staff shell.",
   reviewer: "Commercial (CRM, hub, quotations), contracts, compliance-style overview links.",
   external_auditor: "Read-oriented compliance paths; management routes stay blocked.",
 };

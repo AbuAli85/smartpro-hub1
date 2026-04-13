@@ -652,7 +652,7 @@ export default function SurveyAdminResponsesPage() {
                       : t("admin.whatsappSurveyMessageNoLink", {
                           officeName: officeWa,
                           defaultValue:
-                            "Dear Sir/Madam,\n\nThis message is about the same official Oman business-sector questionnaire (SmartPRO platform / SANAD offices programme), used to collect standard sector information for planning and official reporting.\n\nIt concerns this establishment:\n{{officeName}}\n\nA questionnaire link will be sent to you after you reply to this message at your convenience.\n\nThank you for your cooperation.",
+                            "Dear Sir/Madam,\n\nWe are writing regarding the official Oman business-sector questionnaire (SmartPRO platform / SANAD offices programme). It collects standard sector information for planning and official reporting.\n\nEstablishment:\n{{officeName}}\n\nWhen you reply to this message at your convenience, we will send you the questionnaire link.\n\nThank you for your cooperation.",
                         });
                     const waHref = waDigits ? buildWhatsAppMessageHref(waDigits, waMessage) : null;
                     return (

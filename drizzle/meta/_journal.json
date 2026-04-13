@@ -134,6 +134,41 @@
       "when": 1744940000000,
       "tag": "0037_profile_change_requests_field_key",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1744000000000,
+      "tag": "0038_hr_letters_engine",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1744000001000,
+      "tag": "0039_survey_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1744000002000,
+      "tag": "0040_survey_response_user_invite",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1744000003000,
+      "tag": "0041_survey_nurture_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1744000004000,
+      "tag": "0042_survey_sanad_office_outreach",
+      "breakpoints": true
     }
   ]
 }

@@ -73,6 +73,24 @@ export function validatePlatformNavMetadata(defs: readonly NavGroupDef[]): strin
     }
   }
 
+  /** labelKey → distinct (id, href) — same i18n key must not map to different routes. */
+  const labelKeyToEntries = new Map<string, { id: string; href: string }[]>();
+  for (const leaf of allLeaves) {
+    const key = leaf.labelKey.trim();
+    const list = labelKeyToEntries.get(key) ?? [];
+    list.push({ id: leaf.id, href: normalizeAppPath(leaf.href) });
+    labelKeyToEntries.set(key, list);
+  }
+  for (const [lk, entries] of labelKeyToEntries) {
+    const hrefs = new Set(entries.map((e) => e.href));
+    if (hrefs.size > 1) {
+      const detail = entries.map((e) => `${e.id}→${e.href}`).join(", ");
+      issues.push(
+        `labelKey "${lk}" maps to multiple different hrefs (translation drift risk): ${detail}`,
+      );
+    }
+  }
+
   return issues;
 }
 

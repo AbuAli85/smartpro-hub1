@@ -377,7 +377,7 @@ export default function Dashboard() {
         key: "pro",
         href: "/pro",
         title: t("dashboard:modules.proVisaServices", "PRO & Visa Services"),
-        description: t("dashboard:modules.proVisaDesc", "Work permits, residence visas, labour cards, PASI, and MHRSD filings"),
+        description: t("dashboard:modules.proVisaDesc", "Work permits, residence visas, labour cards, PASI, and Ministry of Labour filings"),
         icon: <Shield size={18} />,
         count: stats?.proServices,
         tag: t("dashboard:tags.compliance", "Compliance"),

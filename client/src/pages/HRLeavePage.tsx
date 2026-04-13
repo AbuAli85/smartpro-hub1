@@ -284,12 +284,12 @@ export default function HRLeavePage() {
             <div>
               <h1 className="text-2xl font-black text-foreground tracking-tight">Leave Management</h1>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Annual leave, sick leave, Oman public holidays, and payroll records per MHRSD guidelines
+                Annual leave, sick leave, Oman public holidays, and payroll records per Oman Labour Law
               </p>
             </div>
           </div>
           <div className="flex flex-wrap gap-2 mt-2">
-            <span className="inline-flex items-center gap-1 bg-sky-50 text-sky-700 border border-sky-200 rounded-full px-2.5 py-0.5 text-[10px] font-semibold dark:bg-sky-950/40 dark:text-sky-400 dark:border-sky-800">MHRSD Compliant</span>
+            <span className="inline-flex items-center gap-1 bg-sky-50 text-sky-700 border border-sky-200 rounded-full px-2.5 py-0.5 text-[10px] font-semibold dark:bg-sky-950/40 dark:text-sky-400 dark:border-sky-800">Labour Law Compliant</span>
             <span className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 border border-blue-200 rounded-full px-2.5 py-0.5 text-[10px] font-semibold dark:bg-blue-950/40 dark:text-blue-400 dark:border-blue-800">Annual Leave</span>
             <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full px-2.5 py-0.5 text-[10px] font-semibold dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800">Sick Leave</span>
           </div>

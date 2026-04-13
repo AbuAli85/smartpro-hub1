@@ -47,7 +47,7 @@ const MODULES = [
     icon: <Shield size={24} />,
     color: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200",
     title: "PRO & Visa Services",
-    desc: "Work permits, visas, labour cards, PASI, MHRSD filings, and officer assignments with full traceability.",
+    desc: "Work permits, visas, labour cards, PASI filings, and officer assignments with full traceability.",
     tag: "Compliance",
   },
   {
@@ -205,8 +205,8 @@ const TESTIMONIALS = [
 
 const FAQS = [
   {
-    q: "Is Smart PRO compliant with Oman MHRSD and PASI rules?",
-    a: "Yes. The platform is built for Oman’s framework — MHRSD labour filings, PASI contributions, WPS salary transfers, and Omanisation tracking are first-class.",
+    q: "Is Smart PRO compliant with Oman labour law and PASI rules?",
+    a: "Yes. The platform is built for Oman's framework — Ministry of Labour filings, PASI contributions, WPS salary transfers, and Omanisation tracking are first-class.",
   },
   {
     q: "Can we manage multiple companies or branches?",
@@ -343,7 +343,7 @@ export default function Home() {
                   </Button>
                 </div>
                 <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm text-white/65">
-                  {["MHRSD-ready", "PASI integrated", "WPS payroll", "Role-based security"].map((b) => (
+                  {["Oman-ready workflows", "PASI integrated", "WPS payroll", "Role-based security"].map((b) => (
                     <span key={b} className="inline-flex items-center gap-1.5">
                       <CheckCircle2 size={14} className="text-emerald-300 shrink-0" /> {b}
                     </span>
@@ -646,14 +646,14 @@ export default function Home() {
                   Built for Oman&apos;s regulatory reality
                 </h2>
                 <p className="text-muted-foreground mb-8 leading-relaxed">
-                  Unlike generic HR suites, Smart PRO encodes PASI, MHRSD, Omanisation, Sanad workflows,
+                  Unlike generic HR suites, Smart PRO encodes PASI, Ministry of Labour, Omanisation, Sanad workflows,
                   and WPS payroll patterns — so teams spend less time on spreadsheets and more on outcomes.
                 </p>
                 <div className="space-y-4">
                   {[
                     {
                       icon: <Shield size={18} />,
-                      title: "PASI & MHRSD aligned",
+                      title: "PASI & Labour law aligned",
                       desc: "Contribution logic and ministry-ready templates without manual rework.",
                     },
                     {
@@ -869,7 +869,7 @@ export default function Home() {
             <div>
               <div className="text-white text-xs font-semibold uppercase tracking-widest mb-4">Compliance</div>
               <div className="space-y-2 text-xs">
-                {["MHRSD integration", "PASI contributions", "WPS payroll", "Omanisation", "Labour law", "Data privacy"].map((l) => (
+                {["Ministry of Labour", "PASI contributions", "WPS payroll", "Omanisation", "Labour law", "Data privacy"].map((l) => (
                   <div key={l}>
                     <span className="cursor-default">{l}</span>
                   </div>

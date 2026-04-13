@@ -535,7 +535,7 @@ export default function ProServicesPage() {
               </div>
             </div>
             <div className="flex flex-wrap gap-2 mt-2">
-              {["MHRSD Compliant", "PASI Integrated", "WPS Ready", "Omanisation Tracking"].map((tag, i) => (
+              {["Labour Law Compliant", "PASI Integrated", "WPS Ready", "Omanisation Tracking"].map((tag, i) => (
                 <span key={tag} className={"inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-semibold border " + (i === 0 ? "bg-orange-50 text-orange-700 border-orange-200" : i === 1 ? "bg-blue-50 text-blue-700 border-blue-200" : i === 2 ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-violet-50 text-violet-700 border-violet-200")}>{tag}</span>
               ))}
             </div>

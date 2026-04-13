@@ -794,7 +794,7 @@ export default function HREmployeesPage() {
               </div>
             </div>
             <div className="flex flex-wrap gap-2 mt-2">
-              {["MHRSD Compliant", "Omanisation Quota", "WPS Ready", "PASI Integrated"].map((tag, i) => (
+              {["Labour Law Compliant", "Omanisation Quota", "WPS Ready", "PASI Integrated"].map((tag, i) => (
                 <span key={tag} className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-semibold border ${
                   i === 0 ? "bg-orange-50 text-orange-700 border-orange-200" : i === 1 ? "bg-green-50 text-green-700 border-green-200" : i === 2 ? "bg-blue-50 text-blue-700 border-blue-200" : "bg-violet-50 text-violet-700 border-violet-200"
                 }`}>{tag}</span>
@@ -832,7 +832,7 @@ export default function HREmployeesPage() {
           <div className="p-4 bg-card border rounded-xl">
             <div className="flex items-center justify-between mb-3">
               <p className="text-sm font-semibold">Omanisation Progress</p>
-              <span className="text-xs text-muted-foreground">MHRSD Target: 35%</span>
+              <span className="text-xs text-muted-foreground">Omanisation Target: 35%</span>
             </div>
             <div className="w-full bg-muted rounded-full h-3">
               <div className={`h-3 rounded-full transition-all ${stats.omanisationRate >= 35 ? "bg-emerald-500" : stats.omanisationRate >= 20 ? "bg-amber-500" : "bg-red-500"}`} style={{ width: `${Math.min(stats.omanisationRate, 100)}%` }} />
@@ -845,7 +845,7 @@ export default function HREmployeesPage() {
             {stats.omanisationRate < 35 && (
               <div className="mt-2 flex items-center gap-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-2">
                 <AlertTriangle size={12} />
-                <span>Below MHRSD target. Consider hiring {Math.ceil(stats.active * 0.35) - stats.omani} more Omani nationals.</span>
+                <span>Below Omanisation target. Consider hiring {Math.ceil(stats.active * 0.35) - stats.omani} more Omani nationals.</span>
               </div>
             )}
           </div>

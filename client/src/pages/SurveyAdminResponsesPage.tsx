@@ -647,12 +647,12 @@ export default function SurveyAdminResponsesPage() {
                           officeName: officeWa,
                           surveyUrl: row.surveyUrl,
                           defaultValue:
-                            "Assalamu alaikum,\n\nPlease complete the SmartPRO Oman business-sector survey (SANAD) for:\n{{officeName}}\n\nLink:\n{{surveyUrl}}\n\nنرجو إكمال الاستبيان عبر الرابط أعلاه.\n\nThank you — شكراً",
+                            "Dear Sir/Madam,\n\nThis message is about the official Oman business-sector questionnaire, issued through the SmartPRO platform in line with the SANAD offices programme. Its purpose is to collect standard sector information for planning and official reporting only.\n\nYou are kindly requested to complete it for this establishment:\n{{officeName}}\n\nQuestionnaire link:\n{{surveyUrl}}\n\nThank you for your cooperation.",
                         })
                       : t("admin.whatsappSurveyMessageNoLink", {
                           officeName: officeWa,
                           defaultValue:
-                            "Assalamu alaikum,\n\nWe are contacting you from SmartPRO about the SANAD business-sector survey for:\n{{officeName}}\n\nNo survey link is available in our system for this listing yet. Please reply with an email address or confirm this number so we can send the link.\n\nنتواصل بخصوص استبيان قطاع الأعمال (سند). لم يُتاح الرابط — يرجى الرد ببريد أو تأكيد الرقم.\n\nThank you — شكراً",
+                            "Dear Sir/Madam,\n\nThis message is about the same official Oman business-sector questionnaire (SmartPRO platform / SANAD offices programme), used to collect standard sector information for planning and official reporting.\n\nIt concerns this establishment:\n{{officeName}}\n\nA questionnaire link will be sent to you after you reply to this message at your convenience.\n\nThank you for your cooperation.",
                         });
                     const waHref = waDigits ? buildWhatsAppMessageHref(waDigits, waMessage) : null;
                     return (

@@ -124,6 +124,7 @@
     "badgeNotLinked": "Not linked",
     "badgeOfficeInactive": "Office inactive",
     "sanadColWilayat": "Wilayat",
+    "followUpInviteCount": "Invites sent",
     "followUpOpen": "Follow-up status",
     "followUpTitle": "Sanad office survey — follow-up",
     "followUpDesc": "Latest bulk invite per office (from “Email Sanad offices”) and the latest office-linked survey response, if any.",

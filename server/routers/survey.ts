@@ -708,6 +708,8 @@ export const surveyRouter = router({
           createdAt: Date;
         }
       >();
+      // Count total invites (all rows) per office, not just the latest
+      const inviteCountByOffice = new Map<number, number>();
       for (const r of outreachRows) {
         if (!latestOutreachByOffice.has(r.sanadOfficeId)) {
           latestOutreachByOffice.set(r.sanadOfficeId, {
@@ -718,6 +720,7 @@ export const surveyRouter = router({
             createdAt: r.createdAt,
           });
         }
+        inviteCountByOffice.set(r.sanadOfficeId, (inviteCountByOffice.get(r.sanadOfficeId) ?? 0) + 1);
       }
 
       const responseRows = await db
@@ -761,6 +764,7 @@ export const surveyRouter = router({
           surveyUrl: `${baseUrl}/survey/${slug}?officeId=${o.id}`,
           lastOutreach: latestOutreachByOffice.get(o.id) ?? null,
           linkedResponse: latestResponseByOffice.get(o.id) ?? null,
+          inviteCount: inviteCountByOffice.get(o.id) ?? 0,
         })),
       };
     }),

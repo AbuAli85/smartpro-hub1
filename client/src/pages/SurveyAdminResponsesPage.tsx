@@ -824,6 +824,7 @@ export default function SurveyAdminResponsesPage() {
                     <TableHead>{t("admin.sanadColOffice", { defaultValue: "Office" })}</TableHead>
                     <TableHead>{t("yourEmail")}</TableHead>
                     <TableHead>{t("yourPhone")}</TableHead>
+                    <TableHead className="text-center">{t("admin.followUpInviteCount", { defaultValue: "Invites sent" })}</TableHead>
                     <TableHead>{t("admin.followUpLastOutreach", { defaultValue: "Last invite" })}</TableHead>
                     <TableHead>{t("admin.followUpSurvey", { defaultValue: "Survey response" })}</TableHead>
                     <TableHead className="text-right">{t("admin.followUpAction", { defaultValue: "Open" })}</TableHead>
@@ -861,6 +862,15 @@ export default function SurveyAdminResponsesPage() {
                         </TableCell>
                         <TableCell className="max-w-[9rem] truncate text-sm">{row.email ?? "—"}</TableCell>
                         <TableCell className="text-muted-foreground text-sm">{row.phone ?? "—"}</TableCell>
+                        <TableCell className="text-center">
+                          {row.inviteCount > 0 ? (
+                            <Badge variant="secondary" className="tabular-nums font-semibold">
+                              {row.inviteCount}
+                            </Badge>
+                          ) : (
+                            <span className="text-muted-foreground text-xs">0</span>
+                          )}
+                        </TableCell>
                         <TableCell className="max-w-[14rem] text-xs">
                           {!lo ? (
                             <span className="text-muted-foreground">

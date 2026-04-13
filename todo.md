@@ -1955,3 +1955,13 @@ Every company on SmartPRO Hub gets a complete, unified business operating area â
 
 ## Homepage Features Section
 - [x] Add detailed "Features" section to homepage with Attract / Convert / Retain groupings, icons, headlines, and descriptions
+
+## Report Delegation Feature
+
+- [ ] Use existing `companyMembers.permissions` JSON column to store delegated report permissions
+- [ ] Add `REPORT_PERMISSION_KEYS` constant in shared layer (`view_reports`, `view_payroll`, `view_executive_summary`)
+- [ ] Add tRPC procedures: `company.getReportDelegations`, `company.setReportDelegations`
+- [ ] Update `clientNav.ts` to check delegated permissions alongside role-based access
+- [ ] Update `reports.ts` router to allow access when user has `view_reports` permission
+- [ ] Build delegation management UI in CompanySettingsPage (Team Access tab)
+- [ ] Add locale strings for delegation UI (en-OM and ar-OM)

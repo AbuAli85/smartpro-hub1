@@ -1177,4 +1177,50 @@ export const surveyRouter = router({
 
       return { ok: true as const };
     }),
+
+  /**
+   * Export all survey responses matching the given filters (no pagination).
+   * Returns up to 5,000 rows for CSV / Excel / PDF generation on the client.
+   */
+  adminExportResponses: surveyAdminProcedure
+    .input(
+      z.object({
+        status: z.enum(["in_progress", "completed", "abandoned"]).optional(),
+      }),
+    )
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      const conditions: ReturnType<typeof eq>[] = [];
+      if (input.status) conditions.push(eq(surveyResponses.status, input.status));
+      const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+      const joined = await db
+        .select({
+          response: surveyResponses,
+          sanadOfficeName: sanadOffices.name,
+        })
+        .from(surveyResponses)
+        .leftJoin(sanadOffices, eq(surveyResponses.sanadOfficeId, sanadOffices.id))
+        .where(whereClause)
+        .orderBy(desc(surveyResponses.startedAt))
+        .limit(5000);
+      return joined.map((j) => ({
+        id: j.response.id,
+        status: j.response.status,
+        language: j.response.language,
+        respondentName: j.response.respondentName ?? null,
+        respondentEmail: j.response.respondentEmail ?? null,
+        respondentPhone: j.response.respondentPhone ?? null,
+        companyName: j.response.companyName ?? null,
+        companySector: j.response.companySector ?? null,
+        companySize: j.response.companySize ?? null,
+        companyGovernorate: j.response.companyGovernorate ?? null,
+        sanadOfficeName: j.sanadOfficeName ?? null,
+        nurtureFollowupCount: j.response.nurtureFollowupCount,
+        nurtureStoppedReason: j.response.nurtureStoppedReason ?? null,
+        startedAt: j.response.startedAt,
+        completedAt: j.response.completedAt ?? null,
+        updatedAt: j.response.updatedAt ?? null,
+      }));
+    }),
 });

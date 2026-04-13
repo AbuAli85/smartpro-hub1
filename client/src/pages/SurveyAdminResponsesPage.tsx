@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "wouter";
 import { trpc } from "@/lib/trpc";
@@ -29,12 +29,24 @@ import {
   ClipboardList,
   ChevronLeft,
   ChevronRight,
+  Download,
+  FileSpreadsheet,
+  FileText,
   Info,
   Link2,
   ListChecks,
+  Loader2,
   Mail,
   MessageCircle,
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -136,6 +148,114 @@ function downloadSanadLinksCsv(
 /** WhatsApp drafts for Omani offices: always Arabic, independent of admin UI language. */
 const WHATSAPP_OUTREACH_LANG = "ar-OM";
 
+// ─── Export helpers ───────────────────────────────────────────────────────────
+
+type ExportRow = {
+  id: number;
+  status: string;
+  language: string;
+  respondentName: string | null;
+  respondentEmail: string | null;
+  respondentPhone: string | null;
+  companyName: string | null;
+  companySector: string | null;
+  companySize: string | null;
+  companyGovernorate: string | null;
+  sanadOfficeName: string | null;
+  nurtureFollowupCount: number;
+  nurtureStoppedReason: string | null;
+  startedAt: Date | string;
+  completedAt: Date | string | null;
+  updatedAt: Date | string | null;
+};
+
+const EXPORT_HEADERS = [
+  "ID", "Status", "Language", "Respondent Name", "Email", "Phone",
+  "Company", "Sector", "Company Size", "Governorate", "Sanad Office",
+  "Nurture Emails", "Nurture Stopped Reason", "Started At", "Completed At", "Updated At",
+];
+
+function rowToArray(r: ExportRow): string[] {
+  return [
+    String(r.id),
+    r.status,
+    r.language,
+    r.respondentName ?? "",
+    r.respondentEmail ?? "",
+    r.respondentPhone ?? "",
+    r.companyName ?? "",
+    r.companySector ?? "",
+    r.companySize ?? "",
+    r.companyGovernorate ?? "",
+    r.sanadOfficeName ?? "",
+    String(r.nurtureFollowupCount),
+    r.nurtureStoppedReason ?? "",
+    fmtDate(r.startedAt),
+    fmtDate(r.completedAt),
+    fmtDate(r.updatedAt),
+  ];
+}
+
+function downloadResponsesCsv(rows: ExportRow[], filename: string): void {
+  const lines = [EXPORT_HEADERS.join(","), ...rows.map((r) => rowToArray(r).map(csvEscapeCell).join(","))];
+  const blob = new Blob([lines.join("\n") + "\n"], { type: "text/csv;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+async function downloadResponsesXlsx(rows: ExportRow[], filename: string): Promise<void> {
+  const XLSX = await import("xlsx");
+  const ws = XLSX.utils.aoa_to_sheet([EXPORT_HEADERS, ...rows.map(rowToArray)]);
+  // Auto-width columns
+  ws["!cols"] = EXPORT_HEADERS.map((h, i) => ({
+    wch: Math.max(h.length, ...rows.map((r) => (rowToArray(r)[i] ?? "").length), 10),
+  }));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Responses");
+  XLSX.writeFile(wb, filename);
+}
+
+function downloadResponsesPdf(rows: ExportRow[], filename: string, statusLabel: string): void {
+  const tableRows = rows
+    .map(
+      (r) =>
+        `<tr>
+          <td>${r.id}</td>
+          <td><span class="badge badge-${r.status}">${r.status.replace("_", " ")}</span></td>
+          <td>${r.respondentName ?? "—"}</td>
+          <td>${r.respondentEmail ?? "—"}</td>
+          <td>${r.companyName ?? "—"}</td>
+          <td>${r.companyGovernorate ?? "—"}</td>
+          <td>${r.sanadOfficeName ?? "—"}</td>
+          <td>${fmtDate(r.startedAt)}</td>
+          <td>${fmtDate(r.completedAt)}</td>
+        </tr>`,
+    )
+    .join("");
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Survey Responses Export</title>
+  <style>
+    body{font-family:Arial,sans-serif;font-size:11px;margin:24px;color:#111}
+    h1{font-size:16px;margin-bottom:4px}p{margin:0 0 12px;color:#555;font-size:11px}
+    table{width:100%;border-collapse:collapse}th,td{border:1px solid #ddd;padding:5px 7px;text-align:left;vertical-align:top}
+    th{background:#f5f5f5;font-weight:600}tr:nth-child(even){background:#fafafa}
+    .badge{padding:2px 6px;border-radius:4px;font-size:10px;font-weight:600}
+    .badge-completed{background:#d1fae5;color:#065f46}.badge-in_progress{background:#fef3c7;color:#92400e}.badge-abandoned{background:#fee2e2;color:#991b1b}
+  </style></head><body>
+  <h1>Survey Responses Export</h1>
+  <p>Filter: ${statusLabel} &nbsp;|&nbsp; ${rows.length} records &nbsp;|&nbsp; Generated: ${new Date().toLocaleString()}</p>
+  <table><thead><tr><th>ID</th><th>Status</th><th>Respondent</th><th>Email</th><th>Company</th><th>Governorate</th><th>Sanad Office</th><th>Started</th><th>Completed</th></tr></thead>
+  <tbody>${tableRows}</tbody></table></body></html>`;
+  const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
 export default function SurveyAdminResponsesPage() {
   const { t, i18n } = useTranslation("survey");
   const outreachRtl = Boolean(i18n.language?.startsWith("ar"));
@@ -160,6 +280,7 @@ export default function SurveyAdminResponsesPage() {
       surveyUrl: string;
     }> | null
   >(null);
+  const [isExporting, setIsExporting] = useState(false);
 
   useEffect(() => {
     setPage(1);
@@ -185,6 +306,43 @@ export default function SurveyAdminResponsesPage() {
       limit: 25,
       status: selectedStatus === "all" ? undefined : selectedStatus,
     },
+  );
+
+  const exportQuery = trpc.survey.adminExportResponses.useQuery(
+    { status: selectedStatus === "all" ? undefined : selectedStatus },
+    { enabled: false, retry: false },
+  );
+
+  const handleExport = useCallback(
+    async (format: "csv" | "xlsx" | "pdf") => {
+      setIsExporting(true);
+      try {
+        const result = await exportQuery.refetch();
+        const rows = result.data;
+        if (!rows || rows.length === 0) {
+          toast.info("No responses to export.");
+          return;
+        }
+        const statusLabel = selectedStatus === "all" ? "All" : selectedStatus.replace("_", " ");
+        const date = new Date().toISOString().slice(0, 10);
+        const base = `survey-responses-${statusLabel.toLowerCase().replace(" ", "-")}-${date}`;
+        if (format === "csv") {
+          downloadResponsesCsv(rows, `${base}.csv`);
+          toast.success(`Exported ${rows.length} responses as CSV.`);
+        } else if (format === "xlsx") {
+          await downloadResponsesXlsx(rows, `${base}.xlsx`);
+          toast.success(`Exported ${rows.length} responses as Excel.`);
+        } else {
+          downloadResponsesPdf(rows, `${base}.html`, statusLabel);
+          toast.success(`Exported ${rows.length} responses as PDF-ready HTML.`);
+        }
+      } catch (err: unknown) {
+        toast.error(err instanceof Error ? err.message : "Export failed.");
+      } finally {
+        setIsExporting(false);
+      }
+    },
+    [exportQuery, selectedStatus],
   );
 
   const inviteSanadMutation = trpc.survey.adminInviteSanadOffices.useMutation({
@@ -391,6 +549,43 @@ export default function SurveyAdminResponsesPage() {
             <ListChecks className="h-4 w-4" aria-hidden />
             {t("admin.followUpOpen", { defaultValue: "Follow-up status" })}
           </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                disabled={isExporting}
+              >
+                {isExporting ? (
+                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                ) : (
+                  <Download className="h-4 w-4" aria-hidden />
+                )}
+                {isExporting ? "Exporting…" : "Export"}
+                <ChevronDown className="h-3 w-3 opacity-60" aria-hidden />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-44">
+              <DropdownMenuLabel className="text-xs text-muted-foreground">
+                {selectedStatus === "all" ? "All responses" : selectedStatus.replace("_", " ")}
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => void handleExport("csv")} className="gap-2">
+                <FileText className="h-4 w-4 text-muted-foreground" />
+                CSV (.csv)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => void handleExport("xlsx")} className="gap-2">
+                <FileSpreadsheet className="h-4 w-4 text-muted-foreground" />
+                Excel (.xlsx)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => void handleExport("pdf")} className="gap-2">
+                <FileText className="h-4 w-4 text-muted-foreground" />
+                PDF-ready HTML
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Select
             value={selectedStatus}
             onValueChange={(v) => setSelectedStatus(v as StatusFilter)}

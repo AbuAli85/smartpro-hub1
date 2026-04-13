@@ -31,6 +31,12 @@ interface TableMigration {
   ddl: string;
 }
 
+interface ForeignKeyMigration {
+  table: string;
+  constraintName: string;
+  ddl: string;
+}
+
 /** Each entry adds one nullable column if it does not already exist. */
 const PENDING_COLUMNS: ColumnMigration[] = [
   // 0032 — multi-shift attendance
@@ -60,14 +66,11 @@ const PENDING_COLUMNS: ColumnMigration[] = [
        NULL)
   ) VIRTUAL`,
   },
-  // 0040 — survey: link response to user + completion invite email tracking
+  // 0040 — survey: link response to user + completion invite email tracking (column only; index + FK below)
   {
     table: "survey_responses",
     column: "user_id",
-    ddl: `ALTER TABLE \`survey_responses\`
-  ADD COLUMN \`user_id\` int NULL,
-  ADD INDEX \`idx_survey_responses_user\` (\`user_id\`),
-  ADD CONSTRAINT \`fk_survey_responses_user\` FOREIGN KEY (\`user_id\`) REFERENCES \`users\`(\`id\`) ON DELETE SET NULL`,
+    ddl: "ALTER TABLE `survey_responses` ADD COLUMN `user_id` int NULL",
   },
   {
     table: "survey_responses",
@@ -97,10 +100,7 @@ const PENDING_COLUMNS: ColumnMigration[] = [
   {
     table: "survey_responses",
     column: "sanad_office_id",
-    ddl: `ALTER TABLE \`survey_responses\`
-  ADD COLUMN \`sanad_office_id\` int NULL,
-  ADD INDEX \`idx_survey_responses_sanad_office\` (\`sanad_office_id\`),
-  ADD CONSTRAINT \`fk_survey_responses_sanad_office\` FOREIGN KEY (\`sanad_office_id\`) REFERENCES \`sanad_offices\`(\`id\`) ON DELETE SET NULL`,
+    ddl: "ALTER TABLE `survey_responses` ADD COLUMN `sanad_office_id` int NULL",
   },
 ];
 
@@ -111,6 +111,32 @@ const PENDING_INDEXES: IndexMigration[] = [
     table: "attendance_records",
     indexName: "uniq_att_rec_open_session",
     ddl: "CREATE UNIQUE INDEX `uniq_att_rec_open_session` ON `attendance_records` (`open_session_key`)",
+  },
+  {
+    table: "survey_responses",
+    indexName: "idx_survey_responses_user",
+    ddl: "CREATE INDEX `idx_survey_responses_user` ON `survey_responses` (`user_id`)",
+  },
+  {
+    table: "survey_responses",
+    indexName: "idx_survey_responses_sanad_office",
+    ddl: "CREATE INDEX `idx_survey_responses_sanad_office` ON `survey_responses` (`sanad_office_id`)",
+  },
+];
+
+/** Foreign keys (run after columns + indexes exist). */
+const PENDING_FOREIGN_KEYS: ForeignKeyMigration[] = [
+  {
+    table: "survey_responses",
+    constraintName: "fk_survey_responses_user",
+    ddl: `ALTER TABLE \`survey_responses\`
+      ADD CONSTRAINT \`fk_survey_responses_user\` FOREIGN KEY (\`user_id\`) REFERENCES \`users\`(\`id\`) ON DELETE SET NULL`,
+  },
+  {
+    table: "survey_responses",
+    constraintName: "fk_survey_responses_sanad_office",
+    ddl: `ALTER TABLE \`survey_responses\`
+      ADD CONSTRAINT \`fk_survey_responses_sanad_office\` FOREIGN KEY (\`sanad_office_id\`) REFERENCES \`sanad_offices\`(\`id\`) ON DELETE SET NULL`,
   },
 ];
 
@@ -230,6 +256,21 @@ async function tableExists(
   return rows.length > 0;
 }
 
+async function foreignKeyConstraintExists(
+  conn: mysql2.Connection,
+  database: string,
+  table: string,
+  constraintName: string,
+): Promise<boolean> {
+  const [rows] = await conn.execute<mysql2.RowDataPacket[]>(
+    `SELECT 1 FROM information_schema.TABLE_CONSTRAINTS
+     WHERE CONSTRAINT_SCHEMA = ? AND TABLE_NAME = ? AND CONSTRAINT_NAME = ? AND CONSTRAINT_TYPE = 'FOREIGN KEY'
+     LIMIT 1`,
+    [database, table, constraintName],
+  );
+  return rows.length > 0;
+}
+
 /** Runs at server startup. Safe to call on every boot — skips DDL that already exists. */
 export async function runPendingMigrations(): Promise<void> {
   const url = process.env.DATABASE_URL;
@@ -264,6 +305,16 @@ export async function runPendingMigrations(): Promise<void> {
         console.log(`[migrations] Creating index ${table}.${indexName} …`);
         await conn.execute(ddl);
         console.log(`[migrations] ✓ ${table}.${indexName} created.`);
+      }
+    }
+
+    // ── Foreign keys ──────────────────────────────────────────────────────────
+    for (const { table, constraintName, ddl } of PENDING_FOREIGN_KEYS) {
+      const exists = await foreignKeyConstraintExists(conn, database, table, constraintName);
+      if (!exists) {
+        console.log(`[migrations] Adding foreign key ${table}.${constraintName} …`);
+        await conn.execute(ddl);
+        console.log(`[migrations] ✓ ${table}.${constraintName} added.`);
       }
     }
 

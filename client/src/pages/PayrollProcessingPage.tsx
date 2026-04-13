@@ -18,9 +18,10 @@ import {
   DollarSign, Users, CheckCircle, Clock, AlertCircle, Play, Download,
   Eye, Plus, RefreshCw, Banknote, Calculator, CreditCard, Settings,
   ChevronRight, FileText, TrendingUp, Pencil, Check, X,
-  ShieldAlert, ShieldCheck, ShieldX, ShieldOff, ExternalLink
+  ShieldAlert, ShieldCheck, ShieldX, ShieldOff, ExternalLink, Calendar,
 } from "lucide-react";
 import { useLocation } from "wouter";
+import { DateInput } from "@/components/ui/date-input";
 
 // ─── Compliance helpers ────────────────────────────────────────────────────────
 type ComplianceLevel = "expired" | "expiring_30" | "expiring_90" | "ok" | "no_data";
@@ -814,19 +815,52 @@ function LoansTab() {
   );
 }
 
+function PayrollProcessingPageSkeleton() {
+  return (
+    <div className="mx-auto max-w-5xl space-y-6 p-6">
+      <div className="space-y-2">
+        <Skeleton className="h-8 w-72 max-w-full" />
+        <Skeleton className="h-4 w-full max-w-xl" />
+      </div>
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        {[0, 1, 2, 3].map((i) => (
+          <Card key={i}>
+            <CardContent className="flex items-center gap-3 p-4">
+              <Skeleton className="h-10 w-10 shrink-0 rounded-lg" />
+              <div className="min-w-0 flex-1 space-y-2">
+                <Skeleton className="h-3 w-28" />
+                <Skeleton className="h-5 w-20" />
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+      <Skeleton className="h-10 w-full max-w-md rounded-lg" />
+      <Skeleton className="min-h-[28rem] w-full rounded-xl" />
+    </div>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function PayrollProcessingPage() {
   const { user } = useAuth();
   const { activeCompanyId } = useActiveCompany();
   const now = new Date();
 
-  const { data: runs } = trpc.payroll.listRuns.useQuery({ year: now.getFullYear(), companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
-  const { data: employees } = trpc.team.listMembers.useQuery({ status: "active", companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
-  const { data: loans } = trpc.payroll.listLoans.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
+  const { data: runs, isLoading: runsLoading } = trpc.payroll.listRuns.useQuery({ year: now.getFullYear(), companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
+  const { data: employees, isLoading: employeesLoading } = trpc.team.listMembers.useQuery({ status: "active", companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
+  const { data: loans, isLoading: loansLoading } = trpc.payroll.listLoans.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
+
+  const pageDataLoading =
+    activeCompanyId != null && (runsLoading || employeesLoading || loansLoading);
 
   const thisMonthRun = runs?.find(r => r.periodMonth === now.getMonth() + 1 && r.periodYear === now.getFullYear());
   const activeLoans = loans?.filter((l: any) => l.status === "active").length ?? 0;
   const totalNetThisYear = runs?.filter(r => r.status !== "cancelled").reduce((s, r) => s + Number(r.totalNet ?? 0), 0) ?? 0;
+
+  if (pageDataLoading) {
+    return <PayrollProcessingPageSkeleton />;
+  }
 
   return (
     <div className="max-w-5xl mx-auto p-6 space-y-6">
@@ -874,7 +908,3 @@ export default function PayrollProcessingPage() {
     </div>
   );
 }
-
-// Need Calendar import
-import { Calendar } from "lucide-react";
-import { DateInput } from "@/components/ui/date-input";

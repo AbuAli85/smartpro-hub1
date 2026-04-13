@@ -164,6 +164,70 @@ function LeaveCard({
   );
 }
 
+function HRLeavePageSkeleton() {
+  return (
+    <div className="mx-auto max-w-7xl space-y-6 p-6">
+      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
+        <div className="flex items-center gap-3">
+          <Skeleton className="h-10 w-10 shrink-0 rounded-xl" />
+          <div className="space-y-2">
+            <Skeleton className="h-8 w-56 max-w-full" />
+            <Skeleton className="h-3 w-80 max-w-full" />
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Skeleton className="h-9 w-32" />
+          <Skeleton className="h-9 w-28" />
+        </div>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <Skeleton className="h-6 w-36 rounded-full" />
+        <Skeleton className="h-6 w-28 rounded-full" />
+        <Skeleton className="h-6 w-28 rounded-full" />
+      </div>
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+        {[0, 1, 2, 3].map((i) => (
+          <Card key={i}>
+            <CardContent className="flex items-center gap-3 p-4">
+              <Skeleton className="h-9 w-9 shrink-0 rounded-lg" />
+              <div className="space-y-2">
+                <Skeleton className="h-6 w-16" />
+                <Skeleton className="h-3 w-24" />
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+      <Card>
+        <CardHeader className="pb-3">
+          <Skeleton className="h-5 w-48" />
+        </CardHeader>
+        <CardContent className="space-y-3 pt-0">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {[0, 1, 2].map((i) => (
+              <Skeleton key={i} className="h-16 w-full rounded-lg" />
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+      <Skeleton className="h-10 w-full max-w-md rounded-lg" />
+      <div className="space-y-3">
+        {[0, 1, 2, 3].map((i) => (
+          <Card key={i}>
+            <CardContent className="flex gap-3 p-4">
+              <Skeleton className="h-8 w-8 shrink-0 rounded-lg" />
+              <div className="flex-1 space-y-2">
+                <Skeleton className="h-4 w-40" />
+                <Skeleton className="h-3 w-56 max-w-full" />
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function HRLeavePage() {
@@ -190,7 +254,7 @@ export default function HRLeavePage() {
 
   const { data: leaveRequests, isLoading: leaveLoading, refetch: refetchLeave } = trpc.hr.listLeave.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
   const { data: payrollRecords, isLoading: payrollLoading, refetch: refetchPayroll } = trpc.hr.listPayroll.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
-  const { data: employees } = trpc.hr.listEmployees.useQuery({ status: "active", companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
+  const { data: employees, isLoading: employeesLoading } = trpc.hr.listEmployees.useQuery({ status: "active", companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
 
   // Build employee name lookup
   const empNames = useMemo(() => {
@@ -271,6 +335,13 @@ export default function HRLeavePage() {
       companyId: activeCompanyId ?? undefined,
     });
   };
+
+  const pageDataLoading =
+    activeCompanyId != null && (employeesLoading || leaveLoading || payrollLoading);
+
+  if (pageDataLoading) {
+    return <HRLeavePageSkeleton />;
+  }
 
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">

@@ -12,7 +12,8 @@
     "test": "vitest run",
     "db:push": "drizzle-kit generate && drizzle-kit migrate",
     "db:backfill-hr-permissions": "tsx server/hrPerformancePermissionsBackfill.ts",
-    "sanad-intel:import": "tsx scripts/import-sanad-intelligence.ts"
+    "sanad-intel:import": "tsx scripts/import-sanad-intelligence.ts",
+    "db:run-pending": "tsx scripts/run-pending-migrations.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.693.0",

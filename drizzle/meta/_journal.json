@@ -190,6 +190,20 @@
       "when": 1776113420614,
       "tag": "0045_sanad_pipeline_p0_activity_notes",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1776118139394,
+      "tag": "0046_sanad_intel_survey_outreach_reply_email",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1776118139394,
+      "tag": "0047_sanad_pipeline_record_flags",
+      "breakpoints": true
     }
   ]
 }

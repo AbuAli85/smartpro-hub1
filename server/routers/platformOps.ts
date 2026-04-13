@@ -15,6 +15,7 @@ import {
   users,
 } from "../../drizzle/schema";
 import { adminProcedure, router } from "../_core/trpc";
+import { runNavIntegrityChecks } from "../navIntegrityChecks";
 import { mapMemberRoleToPlatformRole } from "../../shared/rbac";
 import {
   PLATFORM_STAFF_ROLES,
@@ -762,6 +763,15 @@ export const platformOpsRouter = router({
 
       return rows;
     }),
+
+  /**
+   * Run platform navigation integrity checks and return a structured report.
+   * Validates nav metadata (duplicate hrefs, label key drift, missing intents)
+   * and hub breadcrumb coverage (all key child pages use correct trail helpers).
+   */
+  runNavIntegrityChecks: adminProcedure.query(() => {
+    return runNavIntegrityChecks();
+  }),
 
   /**
    * List all companies (for dropdowns in role management).

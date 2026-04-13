@@ -51,6 +51,7 @@ import BillingEnginePage from "./pages/BillingEnginePage";
 import ExpiryAlertsPage from "@/pages/ExpiryAlertsPage";
 import RenewalWorkflowsPage from "@/pages/RenewalWorkflowsPage";
 import PlatformOpsPage from "./pages/PlatformOpsPage";
+import NavIntegrityPage from "./pages/NavIntegrityPage";
 import PayrollEnginePage from "./pages/PayrollEnginePage";
 import PayrollProcessingPage from "./pages/PayrollProcessingPage";
 import SanadRatingsModerationPage from "./pages/SanadRatingsModerationPage";
@@ -207,6 +208,7 @@ function AppRoutes() {
           <Route path="/renewal-workflows/:id" component={WorkflowDetailPage} />
         <Route path="/renewal-workflows" component={RenewalWorkflowsPage} />
         <Route path="/platform-ops" component={PlatformOpsPage} />
+        <Route path="/nav-integrity" component={NavIntegrityPage} />
         <Route path="/finance/overview" component={FinanceOverviewPage} />
         <Route path="/payroll" component={PayrollEnginePage} />
         <Route path="/payroll/process" component={PayrollProcessingPage} />

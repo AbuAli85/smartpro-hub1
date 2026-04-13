@@ -35,6 +35,11 @@ import {
   sendSanadOfficeSurveyBridgeEmail,
 } from "../email";
 import { resolvePublicAppBaseUrl } from "../_core/publicAppUrl";
+import {
+  isSurveyOfficeWhatsAppTemplateConfigured,
+  sendSurveyOfficeInviteTemplateAr,
+} from "../whatsappCloud";
+import { toWhatsAppPhoneDigits } from "@shared/whatsappPhoneDigits";
 import crypto from "crypto";
 import { assertSanadOfficeAccess } from "../sanadAccess";
 
@@ -683,9 +688,31 @@ export const surveyRouter = router({
 
       let sent = 0;
       let failed = 0;
+      const waEnabled = isSurveyOfficeWhatsAppTemplateConfigured();
+      let whatsappSent = 0;
+      let whatsappFailed = 0;
+      let whatsappSkippedNoPhone = 0;
+
       for (const o of offices) {
-        const email = o.email?.trim();
         const surveyUrl = `${baseUrl}/survey/${slug}?officeId=${o.id}`;
+
+        if (waEnabled) {
+          const digits = toWhatsAppPhoneDigits(o.phone);
+          const officeLabelAr = (o.nameAr?.trim() || o.name).trim() || "مكتب";
+          if (!digits) {
+            whatsappSkippedNoPhone++;
+          } else {
+            const waResult = await sendSurveyOfficeInviteTemplateAr({
+              toDigits: digits,
+              officeLabelAr,
+              surveyUrl,
+            });
+            if (waResult.ok) whatsappSent++;
+            else whatsappFailed++;
+          }
+        }
+
+        const email = o.email?.trim();
         if (!email) {
           manualOutreach.push({
             id: o.id,
@@ -717,6 +744,10 @@ export const surveyRouter = router({
         withEmailCount,
         skippedNoEmail: manualOutreach.length,
         manualOutreach,
+        whatsappAutoAttempted: waEnabled,
+        whatsappSent,
+        whatsappFailed,
+        whatsappSkippedNoPhone,
       };
     }),
 

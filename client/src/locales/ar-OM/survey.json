@@ -85,6 +85,7 @@
     "adoption_readiness": "جاهزية التبني",
     "emailSanadOffices": "إرسال بريد لمكاتب سند",
     "inviteSanadToast": "تم الإرسال: {{sent}} / {{withEmail}} (فشل: {{failed}}). مكاتب بلا بريد: {{skipped}}.",
+    "inviteSanadToastWhatsapp": "واتساب (قالب عربي): أُرسل {{waSent}}، فشل {{waFailed}}، تخطّي {{waNoPhone}} (لا رقم صالح).",
     "inviteSanadConfirm": "إرسال دعوات بالبريد إلى كل مكتب سند نشط لديه بريد؟ المكاتب بلا بريد لا تُرسل إليها؛ يمكنك نسخ روابط الاستبيان لها لاحقاً.",
     "sanadSurveyLinks": "روابط استبيان سند",
     "sanadOutreachNoEmailTitle": "مكاتب بلا بريد إلكتروني",

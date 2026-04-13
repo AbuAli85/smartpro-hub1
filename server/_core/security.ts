@@ -80,6 +80,10 @@ function sanitiseValue(val: unknown, depth = 0): unknown {
 }
 
 export function inputSanitiser(req: Request, _res: Response, next: NextFunction) {
+  if (Buffer.isBuffer(req.body)) {
+    next();
+    return;
+  }
   if (req.body && typeof req.body === "object") {
     req.body = sanitiseValue(req.body);
   }

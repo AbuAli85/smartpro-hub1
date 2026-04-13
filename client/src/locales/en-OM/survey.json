@@ -85,6 +85,7 @@
     "adoption_readiness": "Adoption Readiness",
     "emailSanadOffices": "Email Sanad offices",
     "inviteSanadToast": "Emails sent: {{sent}} / {{withEmail}} (failed: {{failed}}). Offices without email: {{skipped}}.",
+    "inviteSanadToastWhatsapp": "WhatsApp (Arabic template): {{waSent}} sent, {{waFailed}} failed, {{waNoPhone}} skipped (no valid phone).",
     "inviteSanadConfirm": "Send invitation emails to every active Sanad office that has an email on file? Offices without email are not emailed; you can copy their survey links afterward.",
     "sanadSurveyLinks": "Sanad survey links",
     "sanadOutreachNoEmailTitle": "Offices without email",

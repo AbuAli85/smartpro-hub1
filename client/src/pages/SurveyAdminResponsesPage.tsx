@@ -159,7 +159,16 @@ export default function SurveyAdminResponsesPage() {
         defaultValue:
           "Emails sent: {{sent}} / {{withEmail}} (failed: {{failed}}). Offices without email: {{skipped}}.",
       });
-      toast.success(base);
+      const waDesc = r.whatsappAutoAttempted
+        ? t("admin.inviteSanadToastWhatsapp", {
+            waSent: r.whatsappSent,
+            waFailed: r.whatsappFailed,
+            waNoPhone: r.whatsappSkippedNoPhone,
+            defaultValue:
+              "WhatsApp (Arabic template): {{waSent}} sent, {{waFailed}} failed, {{waNoPhone}} skipped (no valid phone).",
+          })
+        : undefined;
+      toast.success(base, waDesc ? { description: waDesc } : undefined);
       if (r.manualOutreach.length > 0) {
         setSanadOutreachListMode("platform");
         setSanadOutreachManualOnly(r.manualOutreach);

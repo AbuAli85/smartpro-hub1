@@ -481,11 +481,23 @@ function DirectorySurface() {
       readiness.refetch();
       const url =
         typeof window !== "undefined" ? `${window.location.origin}${data.invitePath}` : data.invitePath;
+      let waNote: string | undefined;
+      if (data.whatsappAutoSent) {
+        waNote = "WhatsApp (Arabic template) sent to the centre contact.";
+      } else if (data.whatsappAutoError) {
+        waNote = `WhatsApp auto-send failed: ${data.whatsappAutoError}`;
+      } else if (data.whatsappAutoSkippedReason === "invalid_phone") {
+        waNote = "WhatsApp skipped: no valid centre phone on file.";
+      } else if (data.whatsappAutoSkippedReason === "no_public_base_url") {
+        waNote = "WhatsApp skipped: set PUBLIC_APP_URL for absolute invite links.";
+      } else if (data.whatsappAutoSkippedReason === "not_configured") {
+        waNote = undefined;
+      }
       try {
         await navigator.clipboard.writeText(url);
-        toast.success("Invite link generated and copied");
+        toast.success("Invite link generated and copied", waNote ? { description: waNote } : undefined);
       } catch {
-        toast.success("Invite link generated", { description: url });
+        toast.success("Invite link generated", { description: [url, waNote].filter(Boolean).join("\n") });
       }
     },
     onError: (e) => toast.error(e.message),

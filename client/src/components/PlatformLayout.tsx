@@ -73,6 +73,7 @@ import {
   shouldUsePreRegistrationShell,
   getMemberRoleLabel,
   getMemberRoleColor,
+  isFieldEmployee,
 } from "@shared/clientNav";
 import { ClientAccessGate } from "@/components/ClientAccessGate";
 import { SignInCallbackErrorBanner } from "@/components/SignInCallbackErrorBanner";
@@ -330,11 +331,12 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
   const [location] = useLocation();
   const { user, logout } = useAuth();
   const { t } = useTranslation("nav");
-  const { activeCompanyId, companies } = useActiveCompany();
+  const { activeCompanyId, companies, activeCompany } = useActiveCompany();
   const { data: myCompany, isLoading: myCompanyLoading } = trpc.companies.myCompany.useQuery(
     { companyId: activeCompanyId ?? undefined },
     { enabled: activeCompanyId != null },
   );
+  const effectiveMemberRole = myCompany?.member?.role ?? activeCompany?.role ?? null;
   const { data: wfStats } = trpc.workforce.dashboardStats.useQuery(undefined, {
     enabled: activeCompanyId != null && Boolean(myCompany?.company?.id),
     staleTime: 60_000,
@@ -359,13 +361,21 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
           clientNavItemVisible(item.href, user, hiddenOptional, {
             hasCompanyWorkspace: Boolean(myCompany?.company?.id),
             companyWorkspaceLoading: myCompanyLoading,
-            memberRole: myCompany?.member?.role ?? null,
+            memberRole: effectiveMemberRole,
             hasCompanyMembership: companies.length > 0,
           }),
         ),
       }))
       .filter((g) => g.items.length > 0);
-  }, [user, navPrefsEpoch, myCompany?.company?.id, myCompanyLoading, companies.length]);
+  }, [
+    user,
+    navPrefsEpoch,
+    myCompany?.company?.id,
+    myCompany?.member?.role,
+    activeCompany?.role,
+    myCompanyLoading,
+    companies.length,
+  ]);
 
   return (
     <div className="flex flex-col h-full sidebar-nav">
@@ -778,16 +788,17 @@ export default function PlatformLayout({ children }: { children: React.ReactNode
 function MobileBottomNav() {
   const [location] = useLocation();
   const { user } = useAuth();
-  const { activeCompanyId, loading: companiesLoading, companies } = useActiveCompany();
+  const { activeCompanyId, activeCompany, loading: companiesLoading, companies } = useActiveCompany();
   const { data: myCompany, isLoading: companyLoading } = trpc.companies.myCompany.useQuery(
     { companyId: activeCompanyId ?? undefined },
     { enabled: activeCompanyId != null && !companiesLoading },
   );
+  const effectiveMemberRole = myCompany?.member?.role ?? activeCompany?.role ?? null;
   const platform = seesPlatformOperatorNav(user);
   const portalShell = shouldUsePortalOnlyShell(user, {
     hasCompanyWorkspace: Boolean(myCompany?.company?.id),
     companyWorkspaceLoading: companyLoading,
-    memberRole: myCompany?.member?.role ?? null,
+    memberRole: effectiveMemberRole,
   });
   const preRegShell = shouldUsePreRegistrationShell(user, {
     hasCompanyMembership: companies.length > 0,
@@ -818,6 +829,13 @@ function MobileBottomNav() {
         { href: "/company/hub", icon: <Building2 size={20} />, label: "Hub" },
       ];
     }
+    if (isFieldEmployee(effectiveMemberRole)) {
+      return [
+        { href: "/dashboard", icon: <LayoutDashboard size={20} />, label: "Home" },
+        { href: "/my-portal", icon: <Home size={20} />, label: "My Portal" },
+        { href: "/workspace", icon: <LayoutGrid size={20} />, label: "Workspace" },
+      ];
+    }
     return [
       { href: "/dashboard", icon: <LayoutDashboard size={20} />, label: "Home" },
       { href: "/alerts", icon: <Bell size={20} />, label: "Alerts" },
@@ -825,7 +843,7 @@ function MobileBottomNav() {
       { href: "/company/hub", icon: <Building2 size={20} />, label: "Hub" },
       { href: "/hr/employees", icon: <Users size={20} />, label: "HR" },
     ];
-  }, [platform, portalShell, preRegShell]);
+  }, [platform, portalShell, preRegShell, effectiveMemberRole]);
 
   return (
     <nav className="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-card border-t border-border flex items-center justify-around h-16">

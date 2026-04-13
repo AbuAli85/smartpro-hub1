@@ -12,6 +12,7 @@ const member = { role: "user" as const, platformRole: "company_member" as const 
 const owner = { role: "user" as const, platformRole: "company_admin" as const };
 const finance = { role: "user" as const, platformRole: "finance_admin" as const };
 const platform = { role: "user" as const, platformRole: "platform_admin" as const };
+const superAdmin = { role: "user" as const, platformRole: "super_admin" as const };
 const portalClient = { role: "user" as const, platformRole: "client" as const };
 
 describe("clientNavItemVisible", () => {
@@ -122,6 +123,21 @@ describe("clientNavItemVisible", () => {
     expect(clientNavItemVisible("/company/hub", rev, new Set(), opts)).toBe(true);
     expect(clientNavItemVisible("/hr/employees", rev, new Set(), opts)).toBe(false);
     expect(clientNavItemVisible("/payroll", rev, new Set(), opts)).toBe(false);
+  });
+
+  it('uses the Member (company_member) shell even for Super Admin when that is the active membership role', () => {
+    const opts = { hasCompanyWorkspace: true, memberRole: "company_member" as const };
+    expect(clientNavItemVisible("/user-roles", superAdmin, new Set(), opts)).toBe(false);
+    expect(clientNavItemVisible("/platform-ops", superAdmin, new Set(), opts)).toBe(false);
+    expect(clientNavItemVisible("/admin", superAdmin, new Set(), opts)).toBe(false);
+    expect(clientNavItemVisible("/my-portal", superAdmin, new Set(), opts)).toBe(true);
+    expect(clientNavItemVisible("/dashboard", superAdmin, new Set(), opts)).toBe(true);
+    expect(
+      clientRouteAccessible("/user-roles", superAdmin, new Set(), opts),
+    ).toBe(false);
+    expect(
+      clientRouteAccessible("/my-portal/tasks", superAdmin, new Set(), opts),
+    ).toBe(true);
   });
 });
 

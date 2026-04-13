@@ -106,7 +106,10 @@ export const FINANCE_ADMIN_HREFS = new Set<string>([
   "/finance/overview",
 ]);
 
-/** Field employee / basic staff — only My Portal + their own data */
+/**
+ * Company membership role `company_member` ("Member") — staff shell in the sidebar and route guard.
+ * Shown regardless of platform job (e.g. Super Admin) while that membership is the active workspace role.
+ */
 export const FIELD_EMPLOYEE_HREFS = new Set<string>([
   "/workspace",
   "/my-portal",
@@ -556,6 +559,12 @@ export function clientNavItemVisible(
     return NO_COMPANY_SHELL_HREFS.has(href);
   }
 
+  // Staff / "Member" company role — employee shell only, even for Super Admin or other platform jobs
+  // while this membership is the active workspace role (see PlatformLayout memberRole from myCompany).
+  if (isFieldEmployee(options?.memberRole)) {
+    return FIELD_EMPLOYEE_HREFS.has(href);
+  }
+
   if (PLATFORM_ONLY_HREFS.has(href)) {
     return seesPlatformOperatorNav(user);
   }
@@ -619,11 +628,6 @@ export function clientNavItemVisible(
   // Operations Centre — company_admin and platform operators only
   if (COMPANY_ADMIN_OVERVIEW_HREFS.has(href)) {
     return seesPlatformOperatorNav(user) || isCompanyOwnerNav(user) || isCompanyAdminMember(options?.memberRole);
-  }
-
-  // Field employees (company_member) only see My Portal + preferences
-  if (isFieldEmployee(options?.memberRole)) {
-    return FIELD_EMPLOYEE_HREFS.has(href);
   }
 
   if (membershipScopedNavDenies(href, user, options)) {
@@ -702,6 +706,10 @@ export function clientRouteAccessible(
 
   if (shouldUsePreRegistrationShell(user, options)) {
     return preRegistrationPathAllowed(path);
+  }
+
+  if (isFieldEmployee(options?.memberRole)) {
+    return FIELD_EMPLOYEE_HREFS.has(path) || path.startsWith("/my-portal") || path.startsWith("/preferences");
   }
 
   for (const href of Array.from(GLOBAL_ADMIN_PLATFORM_HREFS)) {
@@ -788,11 +796,6 @@ export function clientRouteAccessible(
     if (pathMatchesRestrictedPrefix(path, href)) {
       return seesPlatformOperatorNav(user) || isCompanyOwnerNav(user) || isCompanyAdminMember(options?.memberRole);
     }
-  }
-
-  // Field employees: only allowed in My Portal
-  if (isFieldEmployee(options?.memberRole)) {
-    return FIELD_EMPLOYEE_HREFS.has(path) || path.startsWith("/my-portal") || path.startsWith("/preferences");
   }
 
   if (membershipScopedNavDenies(path, user, options)) {

@@ -21,7 +21,7 @@ const OPTIONAL_LABELS: Record<string, string> = {
 };
 
 export default function PreferencesPage() {
-  const { activeCompanyId } = useActiveCompany();
+  const { activeCompanyId, activeCompany } = useActiveCompany();
   const { user } = useAuth();
   const { data: myCompany, isLoading: myCompanyLoading } = trpc.companies.myCompany.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
   const [hidden, setHidden] = useState<Set<string>>(() => getHiddenNavHrefs());
@@ -33,7 +33,7 @@ export default function PreferencesPage() {
   const portalOnly = shouldUsePortalOnlyShell(user, {
     hasCompanyWorkspace: Boolean(myCompany?.company?.id),
     companyWorkspaceLoading: myCompanyLoading,
-    memberRole: myCompany?.member?.role ?? null,
+    memberRole: myCompany?.member?.role ?? activeCompany?.role ?? null,
   });
 
   const onToggle = (href: string, checked: boolean) => {

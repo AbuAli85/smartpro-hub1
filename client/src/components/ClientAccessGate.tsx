@@ -13,7 +13,7 @@ import { Redirect, useLocation } from "wouter";
 export function ClientAccessGate({ children }: { children: ReactNode }) {
   const [location] = useLocation();
   const { user, loading: authLoading } = useAuth();
-  const { activeCompanyId, loading: companiesLoading, companies } = useActiveCompany();
+  const { activeCompanyId, activeCompany, loading: companiesLoading, companies } = useActiveCompany();
   const { data: myCompany, isLoading: companyLoading } = trpc.companies.myCompany.useQuery(
     { companyId: activeCompanyId ?? undefined },
     { enabled: Boolean(user) && !companiesLoading && activeCompanyId != null },
@@ -31,10 +31,21 @@ export function ClientAccessGate({ children }: { children: ReactNode }) {
     return clientRouteAccessible(location, user, getHiddenNavHrefs(), {
       hasCompanyWorkspace: Boolean(myCompany?.company?.id),
       companyWorkspaceLoading: companiesLoading || (Boolean(user) && activeCompanyId != null && companyLoading),
-      memberRole: myCompany?.member?.role ?? null,
+      memberRole: myCompany?.member?.role ?? activeCompany?.role ?? null,
       hasCompanyMembership: companies.length > 0,
     });
-  }, [location, user, myCompany?.company?.id, myCompany?.member?.role, companyLoading, companiesLoading, activeCompanyId, companies.length, prefsEpoch]);
+  }, [
+    location,
+    user,
+    myCompany?.company?.id,
+    myCompany?.member?.role,
+    activeCompany?.role,
+    companyLoading,
+    companiesLoading,
+    activeCompanyId,
+    companies.length,
+    prefsEpoch,
+  ]);
 
   // Don't redirect while auth or company data is still loading — prevents
   // the infinite /dashboard ↔ /hr/employees bounce when the company query

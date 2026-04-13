@@ -136,8 +136,9 @@ export default function Dashboard() {
       hasCompanyWorkspace: Boolean(myCompany?.company?.id),
       companyWorkspaceLoading: myCompanyLoading,
       hasCompanyMembership: companies.length > 0,
+      memberRole: myCompany?.member?.role ?? activeCompany?.role ?? null,
     }),
-    [myCompany?.company?.id, myCompanyLoading, companies.length],
+    [myCompany?.company?.id, myCompany?.member?.role, activeCompany?.role, myCompanyLoading, companies.length],
   );
 
   const showHref = useMemo(() => {

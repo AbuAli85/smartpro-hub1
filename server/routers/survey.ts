@@ -5,7 +5,12 @@ import { TRPCError } from "@trpc/server";
 import { publicProcedure, protectedProcedure, router, t } from "../_core/trpc";
 import { NOT_ADMIN_ERR_MSG } from "@shared/const";
 import { canAccessSurveyAdmin } from "@shared/rbac";
-import { SANAD_CENTRE_PIPELINE_STATUSES } from "@shared/sanadCentresPipeline";
+import {
+  SANAD_CENTRE_PIPELINE_STATUSES,
+  SANAD_NEXT_ACTION_TYPES,
+  type SanadCentrePipelineStatus,
+} from "@shared/sanadCentresPipeline";
+import { canAssignSanadPipelineOwner, canWriteSanadCentrePipeline } from "@shared/sanadPipelineRbac";
 import { getDb } from "../db";
 import {
   surveys,
@@ -50,22 +55,14 @@ import { assertSanadOfficeAccess } from "../sanadAccess";
 import { runGenerateCenterInvite } from "../sanad-intelligence/generateCenterInviteRunner";
 import {
   computeSanadCentrePipelineKpis,
+  ensureSanadCentrePipelineRow,
   markSanadCentreContacted,
   patchSanadCentrePipeline,
 } from "../sanad-intelligence/pipelineActions";
 import { throwIfSanadIntelSchemaMissing } from "../sanad-intelligence/dbErrors";
 
-const surveyIntelSchemaGuard = t.middleware(async ({ next }) => {
-  try {
-    return await next();
-  } catch (e) {
-    throwIfSanadIntelSchemaMissing(e);
-  }
-});
-
-const surveyAdminIntelProcedure = surveyAdminProcedure.use(surveyIntelSchemaGuard);
-
 const pipelineStatusSurveyZ = z.enum(SANAD_CENTRE_PIPELINE_STATUSES as unknown as [string, ...string[]]);
+const nextActionTypeSurveyZ = z.enum(SANAD_NEXT_ACTION_TYPES as unknown as [string, ...string[]]);
 
 /** Canonical links for emails / outreach: `PUBLIC_APP_URL` first, else infer from the HTTP request (local dev). */
 function resolveSanadSurveyBaseUrl(req?: Pick<Request, "get">): string {
@@ -96,6 +93,16 @@ const surveyAdminProcedure = protectedProcedure.use(
     return next({ ctx: { ...ctx, user: ctx.user } });
   }),
 );
+
+const surveyIntelSchemaGuard = t.middleware(async ({ next }) => {
+  try {
+    return await next();
+  } catch (e) {
+    throwIfSanadIntelSchemaMissing(e);
+  }
+});
+
+const surveyAdminIntelProcedure = surveyAdminProcedure.use(surveyIntelSchemaGuard);
 
 export const surveyRouter = router({
   // ─── Public Procedures ────────────────────────────────────────────────────
@@ -687,6 +694,8 @@ export const surveyRouter = router({
           pipelineOwnerName: pipelineOwnerName?.trim() || null,
           lastContactedAt: pipeline?.lastContactedAt ?? null,
           nextAction: pipeline?.nextAction?.trim() || null,
+          nextActionType: pipeline?.nextActionType ?? null,
+          nextActionDueAt: pipeline?.nextActionDueAt ?? null,
         };
       });
 
@@ -724,10 +733,14 @@ export const surveyRouter = router({
 
   adminSanadIntelMarkContacted: surveyAdminIntelProcedure
     .input(z.object({ centerId: z.number() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
-      await markSanadCentreContacted(db as never, input.centerId);
+      const prior = await ensureSanadCentrePipelineRow(db as never, input.centerId);
+      if (!canAssignSanadPipelineOwner(ctx.user) && !canWriteSanadCentrePipeline(ctx.user, prior)) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "You cannot update contact for this centre." });
+      }
+      await markSanadCentreContacted(db as never, input.centerId, ctx.user.id);
       return { success: true as const };
     }),
 
@@ -738,9 +751,11 @@ export const surveyRouter = router({
         pipelineStatus: pipelineStatusSurveyZ.optional(),
         ownerUserId: z.number().nullable().optional(),
         nextAction: z.string().max(4000).nullable().optional(),
+        nextActionType: nextActionTypeSurveyZ.nullable().optional(),
+        nextActionDueAt: z.coerce.date().nullable().optional(),
       }),
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
       const [c] = await db
@@ -749,10 +764,32 @@ export const surveyRouter = router({
         .where(eq(sanadIntelCenters.id, input.centerId))
         .limit(1);
       if (!c) throw new TRPCError({ code: "NOT_FOUND", message: "Center not found" });
+      const prior = await ensureSanadCentrePipelineRow(db as never, input.centerId);
+      const full = canAssignSanadPipelineOwner(ctx.user);
+      const ownerOk = canWriteSanadCentrePipeline(ctx.user, prior);
+      if (!full && !ownerOk) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "You cannot edit this centre's pipeline." });
+      }
+      if (!full) {
+        if (input.pipelineStatus !== undefined || input.ownerUserId !== undefined) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "Survey admin cannot change pipeline stage or owner — use Sanad directory.",
+          });
+        }
+      }
+      if (input.ownerUserId !== undefined && input.ownerUserId !== prior.ownerUserId && !full) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Only Sanad operators may assign owners." });
+      }
       await patchSanadCentrePipeline(db as never, input.centerId, {
-        pipelineStatus: input.pipelineStatus,
+        pipelineStatus: input.pipelineStatus as SanadCentrePipelineStatus | undefined,
         ownerUserId: input.ownerUserId,
         nextAction: input.nextAction,
+        nextActionType: input.nextActionType ?? undefined,
+        nextActionDueAt: input.nextActionDueAt,
+        ...(input.ownerUserId !== undefined && input.ownerUserId !== prior.ownerUserId && full
+          ? { assignedAt: new Date(), assignedByUserId: ctx.user.id }
+          : {}),
       });
       return { success: true as const };
     }),

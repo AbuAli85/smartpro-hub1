@@ -42,7 +42,6 @@ import {
   Phone,
   Check,
   UserPlus,
-  Link2,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -1187,6 +1186,7 @@ export default function SurveyAdminResponsesPage() {
                       ) : null}
                       <TableCell className="w-[5.5rem] min-w-[5.5rem] max-w-[5.5rem] align-top text-center">
                         {isIntelLayout && row.intelCenterId != null ? (
+                          <>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button
@@ -1266,6 +1266,7 @@ export default function SurveyAdminResponsesPage() {
                               </span>
                             )}
                           </div>
+                          </>
                         ) : (
                           <div className="flex flex-col items-center justify-center gap-1.5 py-1">
                             {waHref ? (

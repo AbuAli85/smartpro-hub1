@@ -16,7 +16,12 @@ import {
   sanadOffices,
   sanadOfficeMembers,
 } from "../../drizzle/schema";
-import { SANAD_CENTRE_PIPELINE_STATUSES } from "@shared/sanadCentresPipeline";
+import {
+  SANAD_CENTRE_PIPELINE_STATUSES,
+  SANAD_NEXT_ACTION_TYPES,
+  type SanadCentrePipelineStatus,
+} from "@shared/sanadCentresPipeline";
+import { canAssignSanadPipelineOwner, canWriteSanadCentrePipeline } from "@shared/sanadPipelineRbac";
 import { runGenerateCenterInvite } from "../sanad-intelligence/generateCenterInviteRunner";
 import {
   computeSanadCentrePipelineKpis,
@@ -27,6 +32,12 @@ import {
   patchSanadCentrePipeline,
   promoteSanadCentrePipelineStatus,
 } from "../sanad-intelligence/pipelineActions";
+import {
+  insertCentreActivityLog,
+  insertCentreNoteAndPreview,
+  listCentreActivityLog,
+  listCentreNotes,
+} from "../sanad-intelligence/pipelineActivity";
 import { getDb } from "../db";
 import {
   buildSanadInvitePath,
@@ -104,6 +115,8 @@ const protectedSanadIntelProcedure = protectedProcedure.use(
 
 const partnerStatusZ = z.enum(["unknown", "prospect", "active", "suspended", "churned"]);
 const pipelineStatusZ = z.enum(SANAD_CENTRE_PIPELINE_STATUSES as unknown as [string, ...string[]]);
+const nextActionTypeZ = z.enum(SANAD_NEXT_ACTION_TYPES as unknown as [string, ...string[]]);
+const pipelineQueueZ = z.enum(["due_today", "overdue"]);
 const onboardingZ = z.enum([
   "not_started",
   "intake",
@@ -169,6 +182,7 @@ export const sanadIntelligenceRouter = router({
           pipelineStatus: pipelineStatusZ.optional(),
           ownerUserId: z.number().optional(),
           ownerUnassignedOnly: z.boolean().optional(),
+          pipelineQueue: pipelineQueueZ.optional(),
           limit: z.number().min(1).max(1000).default(50),
           offset: z.number().min(0).default(0),
         })
@@ -183,9 +197,10 @@ export const sanadIntelligenceRouter = router({
         wilayat: input?.wilayat,
         partnerStatus: input?.partnerStatus,
         pipeline: input?.pipeline as SanadDirectoryPipelineFilter | undefined,
-        pipelineStatus: input?.pipelineStatus,
+        pipelineStatus: input?.pipelineStatus as SanadCentrePipelineStatus | undefined,
         ownerUserId: input?.ownerUserId,
         ownerUnassignedOnly: input?.ownerUnassignedOnly,
+        pipelineQueue: input?.pipelineQueue,
         limit: input?.limit ?? 50,
         offset: input?.offset ?? 0,
       });
@@ -203,17 +218,19 @@ export const sanadIntelligenceRouter = router({
     return listDistinctPipelineOwners(db as never);
   }),
 
-  updateSanadCentrePipeline: sanadIntelFullProcedure
+  updateSanadCentrePipeline: sanadIntelReadProcedure
     .input(
       z.object({
         centerId: z.number(),
         pipelineStatus: pipelineStatusZ.optional(),
         ownerUserId: z.number().nullable().optional(),
         nextAction: z.string().max(4000).nullable().optional(),
+        nextActionType: nextActionTypeZ.nullable().optional(),
+        nextActionDueAt: z.coerce.date().nullable().optional(),
         lastContactedAt: z.coerce.date().nullable().optional(),
       }),
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
       const [c] = await db
@@ -222,18 +239,88 @@ export const sanadIntelligenceRouter = router({
         .where(eq(sanadIntelCenters.id, input.centerId))
         .limit(1);
       if (!c) throw new TRPCError({ code: "NOT_FOUND", message: "Center not found" });
+      const prior = await ensureSanadCentrePipelineRow(db as never, input.centerId);
+      const full = canAssignSanadPipelineOwner(ctx.user);
+      const ownerOk = canWriteSanadCentrePipeline(ctx.user, prior);
+      if (!full && !ownerOk) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "You cannot edit this centre's pipeline." });
+      }
+      if (!full) {
+        if (input.pipelineStatus !== undefined || input.ownerUserId !== undefined || input.lastContactedAt !== undefined) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "Only Sanad operators may change stage, owner, or backdated contact time.",
+          });
+        }
+      }
+      if (
+        input.ownerUserId !== undefined &&
+        input.ownerUserId !== prior.ownerUserId &&
+        !canAssignSanadPipelineOwner(ctx.user)
+      ) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Only Sanad operators may assign or reassign owners." });
+      }
+
+      const ownerChanging =
+        input.ownerUserId !== undefined && input.ownerUserId !== prior.ownerUserId;
       await patchSanadCentrePipeline(db as never, input.centerId, {
-        pipelineStatus: input.pipelineStatus,
+        pipelineStatus: input.pipelineStatus as SanadCentrePipelineStatus | undefined,
         ownerUserId: input.ownerUserId,
         nextAction: input.nextAction,
+        nextActionType: input.nextActionType ?? undefined,
+        nextActionDueAt: input.nextActionDueAt,
         lastContactedAt: input.lastContactedAt,
+        ...(ownerChanging
+          ? {
+              assignedAt: new Date(),
+              assignedByUserId: ctx.user.id,
+            }
+          : {}),
       });
+
+      if (ownerChanging) {
+        await insertCentreActivityLog(db as never, {
+          centerId: input.centerId,
+          actorUserId: ctx.user.id,
+          activityType: "owner_assigned",
+          note: null,
+          metadata: {
+            from: prior.ownerUserId,
+            to: input.ownerUserId,
+          },
+        });
+      }
+      if (input.pipelineStatus !== undefined && input.pipelineStatus !== prior.pipelineStatus) {
+        await insertCentreActivityLog(db as never, {
+          centerId: input.centerId,
+          actorUserId: ctx.user.id,
+          activityType: "status_changed",
+          note: null,
+          metadata: { from: prior.pipelineStatus, to: input.pipelineStatus },
+        });
+      }
+      if (
+        input.nextAction !== undefined ||
+        input.nextActionDueAt !== undefined ||
+        input.nextActionType !== undefined
+      ) {
+        await insertCentreActivityLog(db as never, {
+          centerId: input.centerId,
+          actorUserId: ctx.user.id,
+          activityType: "next_action_set",
+          note: input.nextAction ?? null,
+          metadata: {
+            nextActionDueAt: input.nextActionDueAt?.toISOString() ?? null,
+            nextActionType: input.nextActionType ?? null,
+          },
+        });
+      }
       return { success: true as const };
     }),
 
-  markSanadCentrePipelineContacted: sanadIntelFullProcedure
+  markSanadCentrePipelineContacted: sanadIntelReadProcedure
     .input(z.object({ centerId: z.number() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
       const [c] = await db
@@ -242,7 +329,52 @@ export const sanadIntelligenceRouter = router({
         .where(eq(sanadIntelCenters.id, input.centerId))
         .limit(1);
       if (!c) throw new TRPCError({ code: "NOT_FOUND", message: "Center not found" });
-      await markSanadCentreContacted(db as never, input.centerId);
+      const prior = await ensureSanadCentrePipelineRow(db as never, input.centerId);
+      const full = canAssignSanadPipelineOwner(ctx.user);
+      const ownerOk = canWriteSanadCentrePipeline(ctx.user, prior);
+      if (!full && !ownerOk) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "You cannot update contact for this centre." });
+      }
+      await markSanadCentreContacted(db as never, input.centerId, ctx.user.id);
+      return { success: true as const };
+    }),
+
+  centreActivityLog: sanadIntelReadProcedure
+    .input(z.object({ centerId: z.number(), limit: z.number().min(1).max(200).optional() }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      return listCentreActivityLog(db as never, input.centerId, input.limit ?? 80);
+    }),
+
+  centreNotes: sanadIntelReadProcedure
+    .input(z.object({ centerId: z.number(), limit: z.number().min(1).max(100).optional() }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      return listCentreNotes(db as never, input.centerId, input.limit ?? 40);
+    }),
+
+  addCentreNote: sanadIntelReadProcedure
+    .input(z.object({ centerId: z.number(), body: z.string().min(1).max(12000) }))
+    .mutation(async ({ input, ctx }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      const [c] = await db
+        .select({ id: sanadIntelCenters.id })
+        .from(sanadIntelCenters)
+        .where(eq(sanadIntelCenters.id, input.centerId))
+        .limit(1);
+      if (!c) throw new TRPCError({ code: "NOT_FOUND", message: "Center not found" });
+      const prior = await ensureSanadCentrePipelineRow(db as never, input.centerId);
+      if (!canAssignSanadPipelineOwner(ctx.user) && !canWriteSanadCentrePipeline(ctx.user, prior)) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "You cannot add notes for this centre." });
+      }
+      await insertCentreNoteAndPreview(db as never, {
+        centerId: input.centerId,
+        authorUserId: ctx.user.id,
+        body: input.body,
+      });
       return { success: true as const };
     }),
 

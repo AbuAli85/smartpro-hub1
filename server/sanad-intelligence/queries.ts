@@ -205,6 +205,8 @@ export async function listCenters(
     pipelineStatus?: SanadCentrePipelineStatus;
     ownerUserId?: number;
     ownerUnassignedOnly?: boolean;
+    /** Follow-up queue presets (uses next_action_due_at). */
+    pipelineQueue?: "due_today" | "overdue";
     limit: number;
     offset: number;
   },
@@ -229,6 +231,22 @@ export async function listCenters(
     conds.push(isNull(schema.sanadCentresPipeline.ownerUserId));
   } else if (input.ownerUserId != null) {
     conds.push(eq(schema.sanadCentresPipeline.ownerUserId, input.ownerUserId));
+  }
+
+  if (input.pipelineQueue === "overdue") {
+    conds.push(
+      and(
+        isNotNull(schema.sanadCentresPipeline.nextActionDueAt),
+        sql`DATE(${schema.sanadCentresPipeline.nextActionDueAt}) < CURDATE()`,
+      )!,
+    );
+  } else if (input.pipelineQueue === "due_today") {
+    conds.push(
+      and(
+        isNotNull(schema.sanadCentresPipeline.nextActionDueAt),
+        sql`DATE(${schema.sanadCentresPipeline.nextActionDueAt}) = CURDATE()`,
+      )!,
+    );
   }
 
   const pf = input.pipeline;

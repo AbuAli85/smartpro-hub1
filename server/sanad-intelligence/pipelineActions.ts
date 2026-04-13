@@ -5,6 +5,7 @@ import type { SanadCentrePipelineStatus } from "@shared/sanadCentresPipeline";
 import { maxPipelineStatus } from "@shared/sanadCentresPipeline";
 import * as schema from "../../drizzle/schema";
 import { ensureCenterOperations } from "./activation";
+import { insertCentreActivityLog } from "./pipelineActivity";
 
 type DB = MySql2Database<typeof schema>;
 
@@ -54,6 +55,11 @@ export async function patchSanadCentrePipeline(
     ownerUserId?: number | null;
     lastContactedAt?: Date | null;
     nextAction?: string | null;
+    nextActionType?: string | null;
+    nextActionDueAt?: Date | null;
+    assignedAt?: Date | null;
+    assignedByUserId?: number | null;
+    latestNotePreview?: string | null;
   },
 ) {
   await ensureSanadCentrePipelineRow(db, centerId);
@@ -62,6 +68,11 @@ export async function patchSanadCentrePipeline(
   if (patch.ownerUserId !== undefined) update.ownerUserId = patch.ownerUserId;
   if (patch.lastContactedAt !== undefined) update.lastContactedAt = patch.lastContactedAt;
   if (patch.nextAction !== undefined) update.nextAction = patch.nextAction;
+  if (patch.nextActionType !== undefined) update.nextActionType = patch.nextActionType;
+  if (patch.nextActionDueAt !== undefined) update.nextActionDueAt = patch.nextActionDueAt;
+  if (patch.assignedAt !== undefined) update.assignedAt = patch.assignedAt;
+  if (patch.assignedByUserId !== undefined) update.assignedByUserId = patch.assignedByUserId;
+  if (patch.latestNotePreview !== undefined) update.latestNotePreview = patch.latestNotePreview;
   await db
     .update(schema.sanadCentresPipeline)
     .set(update as never)
@@ -98,7 +109,7 @@ export async function findCompanyMatchesForCentreName(db: DB, centerName: string
   return rows;
 }
 
-export async function markSanadCentreContacted(db: DB, centerId: number) {
+export async function markSanadCentreContacted(db: DB, centerId: number, actorUserId: number | null) {
   const now = new Date();
   await ensureCenterOperations(db, centerId);
   await db
@@ -111,6 +122,13 @@ export async function markSanadCentreContacted(db: DB, centerId: number) {
     .set({ lastContactedAt: now, updatedAt: new Date() })
     .where(eq(schema.sanadCentresPipeline.centerId, centerId));
   await promoteSanadCentrePipelineStatus(db, centerId, "contacted");
+  await insertCentreActivityLog(db, {
+    centerId,
+    actorUserId,
+    activityType: "marked_contacted",
+    note: null,
+    metadata: { at: now.toISOString() },
+  });
 }
 
 export type SanadPipelineKpis = {

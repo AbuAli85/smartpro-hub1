@@ -13,6 +13,7 @@ import {
 } from "./activation";
 import { isSanadInviteWhatsAppTemplateConfigured, sendSanadCenterInviteTemplateAr } from "../whatsappCloud";
 import { promoteSanadCentrePipelineStatus } from "./pipelineActions";
+import { insertCentreActivityLog } from "./pipelineActivity";
 import type { Request } from "express";
 
 type DB = MySql2Database<typeof schema>;
@@ -65,6 +66,14 @@ export async function runGenerateCenterInvite(
   });
 
   await promoteSanadCentrePipelineStatus(db, centerId, "invited");
+
+  await insertCentreActivityLog(db, {
+    centerId,
+    actorUserId,
+    activityType: "invite_sent",
+    note: null,
+    metadata: { inviteExpiresAt: inviteExpiresAt.toISOString() },
+  });
 
   const invitePath = buildSanadInvitePath(token);
   const [centerContact] = await db

@@ -3420,15 +3420,57 @@ export const sanadCentresPipeline = mysqlTable(
     ownerUserId: int("owner_user_id").references(() => users.id),
     lastContactedAt: timestamp("last_contacted_at"),
     nextAction: text("next_action"),
+    nextActionType: varchar("next_action_type", { length: 32 }),
+    nextActionDueAt: timestamp("next_action_due_at"),
+    assignedAt: timestamp("assigned_at"),
+    assignedByUserId: int("assigned_by_user_id").references(() => users.id),
+    latestNotePreview: varchar("latest_note_preview", { length: 512 }),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
   },
   (t) => [
     index("idx_sanad_centres_pipe_status").on(t.pipelineStatus),
     index("idx_sanad_centres_pipe_owner").on(t.ownerUserId),
+    index("idx_sanad_centres_pipe_due").on(t.nextActionDueAt),
   ],
 );
 export type SanadCentresPipeline = typeof sanadCentresPipeline.$inferSelect;
+
+/** Append-only interaction timeline for a directory centre (CRM audit + follow-up history). */
+export const sanadCentreActivityLog = mysqlTable(
+  "sanad_centre_activity_log",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    centerId: int("center_id")
+      .notNull()
+      .references(() => sanadIntelCenters.id, { onDelete: "cascade" }),
+    actorUserId: int("actor_user_id").references(() => users.id),
+    activityType: varchar("activity_type", { length: 64 }).notNull(),
+    note: text("note"),
+    metadataJson: json("metadata_json").$type<Record<string, unknown>>(),
+    occurredAt: timestamp("occurred_at").defaultNow().notNull(),
+  },
+  (t) => [index("idx_sanad_act_center_time").on(t.centerId, t.occurredAt)],
+);
+export type SanadCentreActivityLog = typeof sanadCentreActivityLog.$inferSelect;
+
+/** Structured notes on a directory centre (timeline + latest preview on pipeline row). */
+export const sanadCentreNotes = mysqlTable(
+  "sanad_centre_notes",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    centerId: int("center_id")
+      .notNull()
+      .references(() => sanadIntelCenters.id, { onDelete: "cascade" }),
+    authorUserId: int("author_user_id")
+      .notNull()
+      .references(() => users.id),
+    body: text("body").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [index("idx_sanad_notes_center").on(t.centerId, t.createdAt)],
+);
+export type SanadCentreNote = typeof sanadCentreNotes.$inferSelect;
 
 /** Structured licensing checklist (seeded; aligns with SANAD centre licensing reference). */
 export const sanadIntelLicenseRequirements = mysqlTable(

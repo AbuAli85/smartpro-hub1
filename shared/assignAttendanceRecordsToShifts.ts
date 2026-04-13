@@ -108,7 +108,7 @@ export function assignAttendanceRecordsToShiftRows<T extends AttendanceRecordLik
     byEmp.set(s.employeeId, arr);
   }
 
-  for (const [employeeId, rows] of byEmp) {
+  byEmp.forEach((rows, employeeId) => {
     const records = (recordsByEmployeeId.get(employeeId) ?? []).filter(isPositiveDurationAttendanceRecord);
     const used = new Set<number>();
 
@@ -146,7 +146,7 @@ export function assignAttendanceRecordsToShiftRows<T extends AttendanceRecordLik
         used.add(picked.id);
       }
     }
-  }
+  });
 
   return out;
 }

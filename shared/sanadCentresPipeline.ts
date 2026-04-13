@@ -35,3 +35,29 @@ export function maxPipelineStatus(
 ): SanadCentrePipelineStatus {
   return ORDER[a] >= ORDER[b] ? a : b;
 }
+
+/** Optional scheduling / categorisation for `next_action` (sanad_centres_pipeline.next_action_type). */
+export const SANAD_NEXT_ACTION_TYPES = [
+  "call",
+  "whatsapp",
+  "invite",
+  "verify_data",
+  "assign_owner",
+  "onboarding_support",
+  "other",
+] as const;
+
+export type SanadNextActionType = (typeof SANAD_NEXT_ACTION_TYPES)[number];
+
+/** Activity log event types (sanad_centre_activity_log.activity_type). */
+export const SANAD_CENTRE_ACTIVITY_TYPES = [
+  "note_added",
+  "contacted",
+  "owner_assigned",
+  "status_changed",
+  "invite_sent",
+  "next_action_set",
+  "marked_contacted",
+] as const;
+
+export type SanadCentreActivityType = (typeof SANAD_CENTRE_ACTIVITY_TYPES)[number];

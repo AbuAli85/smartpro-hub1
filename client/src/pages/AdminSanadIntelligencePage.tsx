@@ -18,8 +18,13 @@ import {
   type SanadLifecycleOpsInput,
 } from "@shared/sanadLifecycle";
 import { parseSanadDirectoryPipeline } from "@shared/sanadDirectoryPipeline";
-import { SANAD_CENTRE_PIPELINE_STATUSES, type SanadCentrePipelineStatus } from "@shared/sanadCentresPipeline";
-import { canAccessSanadIntelligenceUi } from "@shared/sanadRoles";
+import {
+  SANAD_CENTRE_PIPELINE_STATUSES,
+  SANAD_NEXT_ACTION_TYPES,
+  type SanadCentrePipelineStatus,
+  type SanadNextActionType,
+} from "@shared/sanadCentresPipeline";
+import { canAccessSanadIntelligenceUi, canAccessSanadIntelFull } from "@shared/sanadRoles";
 import {
   Activity,
   AlertCircle,
@@ -69,7 +74,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { fmtDateTime } from "@/lib/dateUtils";
+import { cn } from "@/lib/utils";
+import { fmtDate, fmtDateTime } from "@/lib/dateUtils";
 import { buildWhatsAppMessageHref, toWhatsAppPhoneDigits } from "@/lib/whatsappClickToChat";
 import {
   CartesianGrid,
@@ -125,6 +131,44 @@ function pipelineStatusBadge(status: SanadCentrePipelineStatus | string | null |
       {label}
     </Badge>
   );
+}
+
+function toDatetimeLocalValue(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function parseDatetimeLocal(s: string): Date | null {
+  const t = s.trim();
+  if (!t) return null;
+  const d = new Date(t);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function nextActionDueCue(due: Date | string | null | undefined): { text: string; className: string } | null {
+  if (!due) return null;
+  const d = new Date(due);
+  if (Number.isNaN(d.getTime())) return null;
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const dueDay = new Date(d);
+  dueDay.setHours(0, 0, 0, 0);
+  if (dueDay < todayStart) return { text: "Overdue", className: "text-destructive font-medium" };
+  if (dueDay.getTime() === todayStart.getTime()) return { text: "Due today", className: "text-amber-700 dark:text-amber-300 font-medium" };
+  return { text: fmtDate(due), className: "text-muted-foreground" };
+}
+
+function sanadActivityLabel(activityType: string): string {
+  const m: Record<string, string> = {
+    note_added: "Note added",
+    contacted: "Contacted",
+    owner_assigned: "Owner assigned",
+    status_changed: "Stage changed",
+    invite_sent: "Invite sent",
+    next_action_set: "Follow-up set",
+    marked_contacted: "Marked contacted",
+  };
+  return m[activityType] ?? activityType.replace(/_/g, " ");
 }
 
 function useSection(): Section {
@@ -434,15 +478,20 @@ function OverviewSurface() {
 }
 
 function DirectorySurface() {
+  const { user } = useAuth();
+  const fullSanadOps = Boolean(user && canAccessSanadIntelFull(user));
   const [search, setSearch] = useState("");
   const [gov, setGov] = useState<string>("");
   const [wil, setWil] = useState("");
   const [partner, setPartner] = useState<string>("");
   const [pipeStage, setPipeStage] = useState<string>("");
   const [pipeOwnerFilter, setPipeOwnerFilter] = useState<string>("__all");
+  const [pipeQueue, setPipeQueue] = useState<undefined | "due_today" | "overdue">(undefined);
   const [assignCenterId, setAssignCenterId] = useState<number | null>(null);
   const [assignSearch, setAssignSearch] = useState("");
   const [drawerId, setDrawerId] = useState<number | null>(null);
+  const [crmDraft, setCrmDraft] = useState({ nextAction: "", nextActionType: "__none", dueLocal: "" });
+  const [crmNoteBody, setCrmNoteBody] = useState("");
   const [pageSize, setPageSize] = useState<100 | 200 | 500>(100);
   const [page, setPage] = useState(0);
   const [, navigate] = useLocation();
@@ -488,6 +537,7 @@ function DirectorySurface() {
     partnerStatus: partnerFilter,
     pipeline: pipelineFilter,
     pipelineStatus: pipeStage ? (pipeStage as SanadCentrePipelineStatus) : undefined,
+    pipelineQueue: pipeQueue,
     ownerUnassignedOnly: pipeOwnerFilter === "__unassigned" ? true : undefined,
     ownerUserId:
       pipeOwnerFilter !== "__all" && pipeOwnerFilter !== "__unassigned" && pipeOwnerFilter
@@ -499,10 +549,17 @@ function DirectorySurface() {
 
   useEffect(() => {
     setPage(0);
-  }, [search, gov, wil, partner, pageSize, pipelineFilter, pipeStage, pipeOwnerFilter]);
+  }, [search, gov, wil, partner, pageSize, pipelineFilter, pipeStage, pipeOwnerFilter, pipeQueue]);
 
   const filtersActive = Boolean(
-    search.trim() || gov || wil || partner || pipelineFilter || pipeStage || pipeOwnerFilter !== "__all",
+    search.trim() ||
+      gov ||
+      wil ||
+      partner ||
+      pipelineFilter ||
+      pipeStage ||
+      pipeOwnerFilter !== "__all" ||
+      pipeQueue != null,
   );
   const total = listQuery.data?.total ?? 0;
   const rows = listQuery.data?.rows ?? [];
@@ -521,6 +578,29 @@ function DirectorySurface() {
     { enabled: drawerId != null },
   );
 
+  const centreActivityLog = trpc.sanad.intelligence.centreActivityLog.useQuery(
+    { centerId: drawerId ?? 0, limit: 80 },
+    { enabled: drawerId != null },
+  );
+  const centreNotes = trpc.sanad.intelligence.centreNotes.useQuery(
+    { centerId: drawerId ?? 0, limit: 40 },
+    { enabled: drawerId != null },
+  );
+
+  useEffect(() => {
+    if (drawerId == null || !detail.data) return;
+    const pl = detail.data.pipeline;
+    if (!pl) {
+      setCrmDraft({ nextAction: "", nextActionType: "__none", dueLocal: "" });
+      return;
+    }
+    setCrmDraft({
+      nextAction: pl.nextAction?.trim() ?? "",
+      nextActionType: pl.nextActionType ?? "__none",
+      dueLocal: pl.nextActionDueAt ? toDatetimeLocalValue(new Date(pl.nextActionDueAt)) : "",
+    });
+  }, [drawerId, detail.data?.center.id, detail.data?.pipeline]);
+
   const updateOps = trpc.sanad.intelligence.updateCenterOperations.useMutation({
     onSuccess: () => {
       toast.success("Partner record updated");
@@ -532,23 +612,41 @@ function DirectorySurface() {
   });
 
   const markPipelineContacted = trpc.sanad.intelligence.markSanadCentrePipelineContacted.useMutation({
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       toast.success("Marked as contacted");
       void listQuery.refetch();
       void utils.sanad.intelligence.centrePipelineKpis.invalidate();
       void utils.sanad.intelligence.centrePipelineOwnerOptions.invalidate();
+      void utils.sanad.intelligence.centreActivityLog.invalidate({ centerId: variables.centerId });
+      if (drawerId === variables.centerId) void detail.refetch();
     },
     onError: (e) => toast.error(e.message),
   });
 
   const updatePipeline = trpc.sanad.intelligence.updateSanadCentrePipeline.useMutation({
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       toast.success("Pipeline updated");
       void listQuery.refetch();
       void utils.sanad.intelligence.centrePipelineKpis.invalidate();
       void utils.sanad.intelligence.centrePipelineOwnerOptions.invalidate();
+      void utils.sanad.intelligence.centreActivityLog.invalidate({ centerId: variables.centerId });
+      void utils.sanad.intelligence.centreNotes.invalidate({ centerId: variables.centerId });
+      if (drawerId === variables.centerId) void detail.refetch();
       setAssignCenterId(null);
       setAssignSearch("");
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const addCentreNote = trpc.sanad.intelligence.addCentreNote.useMutation({
+    onSuccess: (_, variables) => {
+      toast.success("Note added");
+      setCrmNoteBody("");
+      void listQuery.refetch();
+      void utils.sanad.intelligence.centrePipelineKpis.invalidate();
+      void utils.sanad.intelligence.centreActivityLog.invalidate({ centerId: variables.centerId });
+      void utils.sanad.intelligence.centreNotes.invalidate({ centerId: variables.centerId });
+      void detail.refetch();
     },
     onError: (e) => toast.error(e.message),
   });
@@ -559,11 +657,12 @@ function DirectorySurface() {
   );
 
   const genInvite = trpc.sanad.intelligence.generateCenterInvite.useMutation({
-    onSuccess: async (data) => {
+    onSuccess: async (data, variables) => {
       listQuery.refetch();
       detail.refetch();
       readiness.refetch();
       void utils.sanad.intelligence.centrePipelineKpis.invalidate();
+      void utils.sanad.intelligence.centreActivityLog.invalidate({ centerId: variables.centerId });
       const url =
         typeof window !== "undefined" ? `${window.location.origin}${data.invitePath}` : data.invitePath;
       let waNote: string | undefined;
@@ -694,6 +793,7 @@ function DirectorySurface() {
                 setPartner("");
                 setPipeStage("");
                 setPipeOwnerFilter("__all");
+                setPipeQueue(undefined);
                 setPage(0);
                 navigate("/admin/sanad/directory");
               }}
@@ -802,6 +902,36 @@ function DirectorySurface() {
                 </SelectContent>
               </Select>
             </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 border-t border-border/60 pt-3">
+            <span className="text-xs font-medium text-muted-foreground">Follow-up queue</span>
+            <Button
+              type="button"
+              size="sm"
+              variant={pipeQueue === undefined ? "secondary" : "outline"}
+              className="h-8"
+              onClick={() => setPipeQueue(undefined)}
+            >
+              All
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={pipeQueue === "due_today" ? "secondary" : "outline"}
+              className="h-8"
+              onClick={() => setPipeQueue("due_today")}
+            >
+              Due today
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={pipeQueue === "overdue" ? "secondary" : "outline"}
+              className="h-8"
+              onClick={() => setPipeQueue("overdue")}
+            >
+              Overdue
+            </Button>
           </div>
         </div>
       </div>
@@ -944,19 +1074,20 @@ function DirectorySurface() {
             </div>
           ) : (
             <div className="max-h-[min(70vh,640px)] overflow-auto border-t border-border/60">
-              <table className="w-full min-w-[1100px] table-fixed border-collapse text-sm">
+              <table className="w-full min-w-[1180px] table-fixed border-collapse text-sm">
                 <caption className="sr-only">
                   SANAD partner centres: directory fields, onboarding pipeline, owner, and actions
                 </caption>
                 <colgroup>
-                  <col className="w-[18%]" />
-                  <col className="w-[14%]" />
+                  <col className="w-[17%]" />
+                  <col className="w-[13%]" />
                   <col className="w-[6.5rem]" />
-                  <col className="w-[18%]" />
+                  <col className="w-[17%]" />
+                  <col className="w-[8%]" />
                   <col className="w-[9%]" />
-                  <col className="w-[10%]" />
                   <col className="w-[7%]" />
-                  <col className="w-[12%]" />
+                  <col className="w-[10%]" />
+                  <col className="w-[5.5rem]" />
                   <col className="w-[5.5rem]" />
                 </colgroup>
                 <TableHeader>
@@ -990,6 +1121,12 @@ function DirectorySurface() {
                     </TableHead>
                     <TableHead className="sticky top-0 z-30 h-12 border-b border-border bg-card px-2 py-2 text-start align-bottom text-xs font-bold uppercase tracking-wide text-foreground shadow-[inset_0_-1px_0_0_hsl(var(--border))]">
                       Next action
+                    </TableHead>
+                    <TableHead
+                      className="sticky top-0 z-30 h-12 border-b border-border bg-card px-2 py-2 text-start align-bottom text-xs font-bold uppercase tracking-wide text-foreground shadow-[inset_0_-1px_0_0_hsl(var(--border))]"
+                      title="Scheduled follow-up (next_action_due_at)"
+                    >
+                      Due
                     </TableHead>
                     <TableHead className="sticky top-0 z-30 h-12 border-b border-border bg-card px-2 py-2 text-end align-bottom text-xs font-bold uppercase tracking-wide text-foreground shadow-[inset_0_-1px_0_0_hsl(var(--border))]">
                       Actions
@@ -1074,6 +1211,20 @@ function DirectorySurface() {
                         ) : (
                           "—"
                         )}
+                      </TableCell>
+                      <TableCell
+                        className="px-2 py-2.5 align-top text-xs tabular-nums"
+                        title={pipeline?.nextActionDueAt ? fmtDateTime(pipeline.nextActionDueAt) : undefined}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {(() => {
+                          const cue = nextActionDueCue(pipeline?.nextActionDueAt ?? null);
+                          return cue ? (
+                            <span className={cn("block leading-snug", cue.className)}>{cue.text}</span>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          );
+                        })()}
                       </TableCell>
                       <TableCell
                         className="px-2 py-2.5 align-middle text-end whitespace-nowrap"
@@ -1218,6 +1369,227 @@ function DirectorySurface() {
                       )}
                     </p>
                   </div>
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-primary/15 bg-primary/[0.03] p-4 shadow-sm">
+                <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Pipeline &amp; follow-up
+                </p>
+                <div className="space-y-4 text-sm">
+                  <div className="flex flex-wrap gap-4">
+                    <div>
+                      <span className="text-xs text-muted-foreground">Stage</span>
+                      <div className="mt-1">{pipelineStatusBadge(detail.data.pipeline?.pipelineStatus)}</div>
+                    </div>
+                    <div className="min-w-[10rem]">
+                      <span className="text-xs text-muted-foreground">Owner</span>
+                      <p className="mt-1 font-medium text-foreground">
+                        {(() => {
+                          const label = (
+                            detail.data.pipelineOwnerUser?.name ??
+                            detail.data.pipelineOwnerUser?.email ??
+                            ""
+                          ).trim();
+                          if (label) return label;
+                          if (detail.data.pipeline?.ownerUserId == null) {
+                            return <span className="font-normal text-muted-foreground">Unassigned</span>;
+                          }
+                          return `User #${detail.data.pipeline!.ownerUserId}`;
+                        })()}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-xs text-muted-foreground">Last pipeline contact</span>
+                      <p className="mt-1 tabular-nums text-muted-foreground">
+                        {detail.data.pipeline?.lastContactedAt
+                          ? fmtDateTime(detail.data.pipeline.lastContactedAt)
+                          : "—"}
+                      </p>
+                    </div>
+                  </div>
+                  {detail.data.pipeline?.latestNotePreview?.trim() ? (
+                    <div className="rounded-md border bg-background/80 p-2.5 text-xs text-muted-foreground">
+                      <span className="font-medium text-foreground">Latest note:</span>{" "}
+                      {detail.data.pipeline.latestNotePreview}
+                    </div>
+                  ) : null}
+
+                  {fullSanadOps ? (
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Pipeline stage (override)</Label>
+                        <Select
+                          value={(detail.data.pipeline?.pipelineStatus ?? "imported") as string}
+                          onValueChange={(v) =>
+                            updatePipeline.mutate({
+                              centerId: detail.data!.center.id,
+                              pipelineStatus: v as SanadCentrePipelineStatus,
+                            })
+                          }
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {SANAD_CENTRE_PIPELINE_STATUSES.map((s) => (
+                              <SelectItem key={s} value={s}>
+                                {s.replace(/_/g, " ")}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="flex flex-col justify-end gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setAssignCenterId(detail.data!.center.id);
+                            setAssignSearch("");
+                          }}
+                        >
+                          <UserPlus className="mr-2 h-4 w-4" />
+                          Assign owner
+                        </Button>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  <div className="space-y-2 border-t border-border/60 pt-3">
+                    <p className="text-xs font-medium text-muted-foreground">Follow-up</p>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Next action</Label>
+                      <Textarea
+                        className="min-h-[72px] text-sm"
+                        value={crmDraft.nextAction}
+                        onChange={(e) => setCrmDraft((d) => ({ ...d, nextAction: e.target.value }))}
+                        placeholder="What happens next?"
+                      />
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Type</Label>
+                        <Select
+                          value={crmDraft.nextActionType}
+                          onValueChange={(v) => setCrmDraft((d) => ({ ...d, nextActionType: v }))}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Optional" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__none">Not set</SelectItem>
+                            {SANAD_NEXT_ACTION_TYPES.map((t) => (
+                              <SelectItem key={t} value={t}>
+                                {t.replace(/_/g, " ")}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Due</Label>
+                        <Input
+                          type="datetime-local"
+                          value={crmDraft.dueLocal}
+                          onChange={(e) => setCrmDraft((d) => ({ ...d, dueLocal: e.target.value }))}
+                        />
+                      </div>
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={updatePipeline.isPending}
+                      onClick={() => {
+                        updatePipeline.mutate({
+                          centerId: detail.data!.center.id,
+                          nextAction: crmDraft.nextAction.trim() || null,
+                          nextActionType:
+                            crmDraft.nextActionType === "__none"
+                              ? null
+                              : (crmDraft.nextActionType as SanadNextActionType),
+                          nextActionDueAt: parseDatetimeLocal(crmDraft.dueLocal),
+                        });
+                      }}
+                    >
+                      Save follow-up
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-lg border bg-card p-4 shadow-sm">
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Activity</p>
+                {centreActivityLog.isLoading ? (
+                  <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                ) : (centreActivityLog.data?.length ?? 0) === 0 ? (
+                  <p className="text-xs text-muted-foreground">No activity yet.</p>
+                ) : (
+                  <ScrollArea className="max-h-48 pr-3">
+                    <ul className="space-y-3 text-sm">
+                      {(centreActivityLog.data ?? []).map((a) => (
+                        <li key={a.id} className="border-b border-border/50 pb-2 last:border-0 last:pb-0">
+                          <div className="flex flex-wrap justify-between gap-1">
+                            <span className="font-medium text-foreground">{sanadActivityLabel(a.activityType)}</span>
+                            <span className="tabular-nums text-xs text-muted-foreground">
+                              {fmtDateTime(a.occurredAt)}
+                            </span>
+                          </div>
+                          {a.actorName?.trim() || a.actorEmail ? (
+                            <p className="text-xs text-muted-foreground">
+                              {a.actorName?.trim() || a.actorEmail}
+                            </p>
+                          ) : null}
+                          {a.note?.trim() ? (
+                            <p className="mt-1 whitespace-pre-wrap text-xs text-muted-foreground">{a.note}</p>
+                          ) : null}
+                        </li>
+                      ))}
+                    </ul>
+                  </ScrollArea>
+                )}
+              </div>
+
+              <div className="rounded-lg border bg-card p-4 shadow-sm">
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Notes</p>
+                {centreNotes.isLoading ? (
+                  <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                ) : (centreNotes.data?.length ?? 0) === 0 ? (
+                  <p className="text-xs text-muted-foreground">No notes yet.</p>
+                ) : (
+                  <ScrollArea className="mb-3 max-h-40 pr-3">
+                    <ul className="space-y-3 text-sm">
+                      {(centreNotes.data ?? []).map((n) => (
+                        <li key={n.id} className="border-b border-border/50 pb-2 last:border-0 last:pb-0">
+                          <div className="flex flex-wrap justify-between gap-1 text-xs text-muted-foreground">
+                            <span>{n.authorName?.trim() || n.authorEmail}</span>
+                            <span className="tabular-nums">{fmtDateTime(n.createdAt)}</span>
+                          </div>
+                          <p className="mt-1 whitespace-pre-wrap text-sm text-foreground">{n.body}</p>
+                        </li>
+                      ))}
+                    </ul>
+                  </ScrollArea>
+                )}
+                <div className="space-y-2">
+                  <Label className="text-xs">Add note</Label>
+                  <Textarea
+                    className="min-h-[80px] text-sm"
+                    value={crmNoteBody}
+                    onChange={(e) => setCrmNoteBody(e.target.value)}
+                    placeholder="Visible to operators with access to this centre…"
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={addCentreNote.isPending || !crmNoteBody.trim()}
+                    onClick={() =>
+                      addCentreNote.mutate({ centerId: detail.data!.center.id, body: crmNoteBody.trim() })
+                    }
+                  >
+                    Add note
+                  </Button>
                 </div>
               </div>
 

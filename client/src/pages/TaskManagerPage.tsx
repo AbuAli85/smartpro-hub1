@@ -242,7 +242,7 @@ export default function TaskManagerPage() {
           <p className="text-sm max-w-md mx-auto mt-1">
             {search || filterStatus !== "all" || filterPriority !== "all"
               ? "Try clearing search or setting status and priority to “All”."
-              : "Assign a task from the button above. Employees see tasks in My Portal → Tasks."}
+              : "Assign a task from the button above. Employees see tasks in Employee home → Tasks."}
           </p>
         </div>
       ) : (

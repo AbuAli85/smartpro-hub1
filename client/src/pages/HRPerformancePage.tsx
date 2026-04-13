@@ -301,7 +301,7 @@ export default function HRPerformancePage() {
         <div>
           <h1 className="text-xl font-bold flex items-center gap-2">
             <Sparkles className="w-5 h-5 text-primary" />
-            HR Performance &amp; Growth
+            Performance &amp; growth
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">
             Control layer for training, reviews, targets, and workforce intelligence — on top of existing HR data.
@@ -820,9 +820,9 @@ export default function HRPerformancePage() {
             <Card className="hover:border-primary/40 transition-colors">
               <CardHeader>
                 <CardTitle className="text-base flex items-center gap-2">
-                  <BarChart2 className="w-4 h-4" /> Executive dashboard
+                  <BarChart2 className="w-4 h-4" /> HR operations health
                 </CardTitle>
-                <CardDescription>Company-wide HR and operations KPIs.</CardDescription>
+                <CardDescription>Company-wide HR and operations KPIs and automation health.</CardDescription>
               </CardHeader>
               <CardContent>
                 <Button asChild variant="secondary" className="gap-1">

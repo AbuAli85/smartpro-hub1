@@ -123,11 +123,11 @@ export function ExecutiveHeader({
           ) : null}
           <div className="flex flex-wrap gap-2 justify-end pt-1">
             <Button variant="outline" size="sm" asChild>
-              <Link href="/dashboard">Executive dashboard</Link>
+              <Link href="/dashboard">Business overview</Link>
             </Button>
             <Button size="sm" className="gap-1" asChild>
               <Link href="/operations">
-                Operations centre <ArrowUpRight className="w-3.5 h-3.5" />
+                Operations overview <ArrowUpRight className="w-3.5 h-3.5" />
               </Link>
             </Button>
           </div>

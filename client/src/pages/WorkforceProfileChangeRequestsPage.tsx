@@ -426,7 +426,7 @@ export default function WorkforceProfileChangeRequestsPage() {
                   ? "“Other / custom” means the employee’s label did not match a standard category. Review the Field column; use “Set category” on a pending row to correct the classification without changing the label text."
                   : hasActiveFilters
                     ? "Try clearing search, changing status, or widening the age filter."
-                    : "When employees submit updates from My Portal, they will appear here for HR review."}
+                    : "When employees submit updates from Employee home, they will appear here for HR review."}
               </p>
               {hasActiveFilters ? (
                 <Button variant="outline" size="sm" onClick={resetFilters}>

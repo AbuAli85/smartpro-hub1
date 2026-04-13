@@ -95,11 +95,11 @@ const ROLE_CONFIG: Record<string, {
   },
   company_member: {
     label: "Staff / Employee",
-    description: "Access to My Portal only — their own attendance, tasks, leave, announcements",
+    description: "Access to Employee home only — their own attendance, tasks, leave, announcements",
     color: "text-gray-600",
     bgColor: "bg-gray-50 border-gray-200",
     icon: <Users size={14} className="text-gray-500" />,
-    access: ["My Portal (personal dashboard)", "My Attendance", "My Tasks", "My Leave"],
+    access: ["Employee home (personal dashboard)", "My Attendance", "My Tasks", "My Leave"],
   },
   reviewer: {
     label: "Reviewer",
@@ -863,7 +863,7 @@ export default function TeamAccessPage() {
                                 <SelectItem value="company_admin">Owner / Admin — Full access</SelectItem>
                                 <SelectItem value="hr_admin">HR Manager — HR modules</SelectItem>
                                 <SelectItem value="finance_admin">Finance Manager — Payroll & Finance</SelectItem>
-                                <SelectItem value="company_member">Staff / Employee — My Portal only</SelectItem>
+                                <SelectItem value="company_member">Staff / Employee — Employee home only</SelectItem>
                                 <SelectItem value="reviewer">Reviewer — Read-only</SelectItem>
                                 <SelectItem value="external_auditor">External Auditor — Limited read-only</SelectItem>
                               </SelectContent>
@@ -927,7 +927,7 @@ export default function TeamAccessPage() {
                   <SelectItem value="company_admin">Owner / Admin — Full access</SelectItem>
                   <SelectItem value="hr_admin">HR Manager — HR modules</SelectItem>
                   <SelectItem value="finance_admin">Finance Manager — Payroll & Finance</SelectItem>
-                  <SelectItem value="company_member">Staff / Employee — My Portal only</SelectItem>
+                  <SelectItem value="company_member">Staff / Employee — Employee home only</SelectItem>
                   <SelectItem value="reviewer">Reviewer — Read-only</SelectItem>
                   <SelectItem value="external_auditor">External Auditor — Limited read-only</SelectItem>
                 </SelectContent>

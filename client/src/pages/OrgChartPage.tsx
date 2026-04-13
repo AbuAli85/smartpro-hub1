@@ -20,6 +20,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
+import { Link } from "wouter";
 import {
   Building2, Users, Search, X, ZoomIn, ZoomOut, Maximize2,
   ChevronDown, ChevronRight, LayoutGrid, Network, List,
@@ -449,6 +450,16 @@ export default function OrgChartPage() {
               </h1>
               <p className="text-sm text-muted-foreground mt-0.5">
                 Visual hierarchy of departments and employees
+              </p>
+              <p className="text-xs text-muted-foreground mt-2 flex flex-wrap items-center gap-x-2 gap-y-1">
+                <span>Organization:</span>
+                <Link href="/hr/org-structure" className="text-primary hover:underline">
+                  Org structure
+                </Link>
+                <span className="text-muted-foreground/60">·</span>
+                <Link href="/hr/departments" className="text-primary hover:underline">
+                  Departments
+                </Link>
               </p>
             </div>
             <div className="flex items-center gap-2 flex-wrap">

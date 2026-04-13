@@ -109,8 +109,8 @@ const CAPABILITY_GROUPS = [
     accent: "text-red-700 dark:text-red-400",
     items: [
       "Control Tower",
-      "Executive dashboard",
-      "Operations centre",
+      "Business overview",
+      "Operations overview",
       "Analytics",
       "Compliance centre",
     ],

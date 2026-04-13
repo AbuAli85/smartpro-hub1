@@ -289,6 +289,20 @@ export default function DocumentExpiryDashboard() {
               <span className="font-semibold text-foreground">{warnDays} days</span> or already expired
               {activeCompany && <span> · {activeCompany.name}</span>}
             </p>
+            <p className="text-xs text-muted-foreground mt-2 flex flex-wrap items-center gap-x-2 gap-y-1">
+              <span>Renewals &amp; expiry:</span>
+              <Link href="/alerts" className="text-primary hover:underline">
+                Expiry alerts
+              </Link>
+              <span className="text-muted-foreground/60">·</span>
+              <Link href="/renewal-workflows" className="text-primary hover:underline">
+                Renewal workflows
+              </Link>
+              <span className="text-muted-foreground/60">·</span>
+              <Link href="/subscriptions" className="text-primary hover:underline">
+                Subscriptions
+              </Link>
+            </p>
           </div>
           <div className="flex items-center gap-2">
             <TooltipProvider>

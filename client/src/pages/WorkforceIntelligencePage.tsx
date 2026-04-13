@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useLocation } from "wouter";
+import { Link, useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -272,6 +272,20 @@ export default function WorkforceIntelligencePage() {
           </h1>
           <p className="text-muted-foreground text-sm mt-1">
             Real-time health monitoring, automation rules, and predictive insights
+          </p>
+          <p className="text-xs text-muted-foreground mt-2 flex flex-wrap items-center gap-x-2 gap-y-1">
+            <span>HR insights:</span>
+            <Link href="/hr/executive-dashboard" className="text-primary hover:underline">
+              HR operations health
+            </Link>
+            <span className="text-muted-foreground/60">·</span>
+            <Link href="/hr/kpi" className="text-primary hover:underline">
+              KPIs &amp; performance
+            </Link>
+            <span className="text-muted-foreground/60">·</span>
+            <Link href="/hr/performance" className="text-primary hover:underline">
+              Performance &amp; growth
+            </Link>
           </p>
         </div>
         <div className="flex items-center gap-2">

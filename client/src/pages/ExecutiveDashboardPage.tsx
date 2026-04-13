@@ -11,6 +11,7 @@ import {
   TrendingUp, Users, Zap, XCircle, Target, Globe,
 } from "lucide-react";
 import { toast } from "sonner";
+import { Link } from "wouter";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 function healthColor(score: number) {
@@ -161,7 +162,7 @@ export default function ExecutiveDashboardPage() {
       <div className="min-h-screen bg-slate-900 flex items-center justify-center">
         <div className="text-center">
           <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-slate-400">Loading Executive Dashboard…</p>
+          <p className="text-slate-400">Loading HR operations health…</p>
         </div>
       </div>
     );
@@ -177,8 +178,22 @@ export default function ExecutiveDashboardPage() {
               <Globe className="h-5 w-5 text-white" />
             </div>
             <div>
-              <h1 className="text-lg font-bold text-white">Executive Platform Dashboard</h1>
-              <p className="text-xs text-slate-400">Real-time platform intelligence · SmartPRO Business Services Hub</p>
+              <h1 className="text-lg font-bold text-white">HR operations health</h1>
+              <p className="text-xs text-slate-400">Automation, SLA, and HR signal health · SmartPRO</p>
+              <p className="text-[11px] text-slate-500 mt-2 flex flex-wrap gap-x-3 gap-y-1">
+                <span className="text-slate-500">HR insights:</span>
+                <Link href="/hr/workforce-intelligence" className="text-blue-400 hover:underline">
+                  Workforce intelligence
+                </Link>
+                <span className="text-slate-600">·</span>
+                <Link href="/hr/kpi" className="text-blue-400 hover:underline">
+                  KPIs &amp; performance
+                </Link>
+                <span className="text-slate-600">·</span>
+                <Link href="/hr/performance" className="text-blue-400 hover:underline">
+                  Performance &amp; growth
+                </Link>
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-3">

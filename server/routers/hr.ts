@@ -505,7 +505,7 @@ export const hrRouter = router({
               companyId: row.companyId,
               type: "payslip_ready",
               title: "💰 Payslip Ready",
-              message: `Your salary for ${row.periodMonth}/${row.periodYear} has been processed and paid. View your payslip in My Portal.`,
+              message: `Your salary for ${row.periodMonth}/${row.periodYear} has been processed and paid. View your payslip in Employee home.`,
               link: "/my-portal",
               actorUserId: ctx.user.id,
             });

@@ -265,6 +265,16 @@ export default function OrgStructurePage() {
           <p className="text-sm text-muted-foreground mt-1">
             Visual hierarchy of departments, positions, and team members
           </p>
+          <p className="text-xs text-muted-foreground mt-2 flex flex-wrap items-center gap-x-2 gap-y-1">
+            <span>Organization:</span>
+            <Link href="/hr/org-chart" className="text-primary hover:underline">
+              Org chart
+            </Link>
+            <span className="text-muted-foreground/60">·</span>
+            <Link href="/hr/departments" className="text-primary hover:underline">
+              Departments
+            </Link>
+          </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <Button

@@ -490,8 +490,6 @@ function DirectorySurface() {
         waNote = "WhatsApp skipped: no valid centre phone on file.";
       } else if (data.whatsappAutoSkippedReason === "no_public_base_url") {
         waNote = "WhatsApp skipped: set PUBLIC_APP_URL for absolute invite links.";
-      } else if (data.whatsappAutoSkippedReason === "not_configured") {
-        waNote = undefined;
       }
       try {
         await navigator.clipboard.writeText(url);

@@ -746,7 +746,16 @@ export default function Dashboard() {
           </div>
           {isLoading ? (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-32 rounded-2xl" />)}
+              {[...Array(4)].map((_, i) => (
+                <div key={i} className="rounded-2xl border bg-card p-5 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Skeleton className="h-3 w-20" />
+                    <Skeleton className="w-9 h-9 rounded-xl" />
+                  </div>
+                  <Skeleton className="h-8 w-16" />
+                  <Skeleton className="h-2.5 w-24" />
+                </div>
+              ))}
             </div>
           ) : stats ? (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -1657,18 +1666,36 @@ export default function Dashboard() {
               <Zap size={13} /> {t("dashboard:quickAccess", "Quick Access")}
             </h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {quickAccessModules.map((m) => (
-                <ModuleCard
-                  key={m.key}
-                  title={m.title}
-                  description={m.description}
-                  href={m.href}
-                  icon={m.icon}
-                  count={m.count}
-                  tag={m.tag}
-                  tagColor={m.tagColor}
-                />
-              ))}
+              {(myCompanyLoading || isLoading) && quickAccessModules.length === 0
+                ? [...Array(6)].map((_, i) => (
+                    <div key={i} className="rounded-xl border bg-card p-4 space-y-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="space-y-2 flex-1">
+                          <Skeleton className="h-4 w-36" />
+                          <Skeleton className="h-3 w-full" />
+                          <Skeleton className="h-3 w-3/4" />
+                        </div>
+                        <Skeleton className="w-9 h-9 rounded-lg shrink-0" />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <Skeleton className="h-5 w-16 rounded-full" />
+                        <Skeleton className="h-3 w-10" />
+                      </div>
+                    </div>
+                  ))
+                : quickAccessModules.map((m) => (
+                    <ModuleCard
+                      key={m.key}
+                      title={m.title}
+                      description={m.description}
+                      href={m.href}
+                      icon={m.icon}
+                      count={m.count}
+                      tag={m.tag}
+                      tagColor={m.tagColor}
+                    />
+                  ))
+              }
             </div>
           </div>
         )}

@@ -11,6 +11,7 @@ import {
   Layers, Send, UserCog, History, ChevronUp, ArrowUpDown,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -689,11 +690,11 @@ export default function HREmployeesPage() {
   const [, setLocation] = useLocation();
   const { activeCompanyId, expiryWarningDays } = useActiveCompany();
 
-  const { data: employees, refetch } = trpc.hr.listEmployees.useQuery(
+  const { data: employees, isLoading: employeesLoading, refetch } = trpc.hr.listEmployees.useQuery(
     { status: statusFilter !== "all" ? statusFilter : undefined, department: deptFilter !== "all" ? deptFilter : undefined, companyId: activeCompanyId ?? undefined },
     { enabled: activeCompanyId != null }
   );
-  const { data: stats } = trpc.hr.getStats.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
+  const { data: stats, isLoading: statsLoading } = trpc.hr.getStats.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
   const { data: departments } = trpc.hr.listDepartments.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
   const { data: completenessData } = trpc.hr.getEmployeeCompleteness.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
   const bulkAssignMutation = trpc.hr.assignDepartment.useMutation({
@@ -818,13 +819,22 @@ export default function HREmployeesPage() {
 
         {/* KPI Cards */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-          {kpiItems.map(({ label, value, color, icon: Icon }) => (
-            <div key={label} className="bg-card border rounded-xl p-3 hover:shadow-sm transition-shadow">
-              <div className={`w-7 h-7 rounded-lg ${color} flex items-center justify-center mb-2`}><Icon size={14} className="text-white" /></div>
-              <p className="text-xl font-black text-foreground">{value}</p>
-              <p className="text-[10px] text-muted-foreground leading-tight mt-0.5">{label}</p>
-            </div>
-          ))}
+          {statsLoading
+            ? [...Array(6)].map((_, i) => (
+                <div key={i} className="bg-card border rounded-xl p-3 space-y-2">
+                  <Skeleton className="w-7 h-7 rounded-lg" />
+                  <Skeleton className="h-6 w-12" />
+                  <Skeleton className="h-3 w-20" />
+                </div>
+              ))
+            : kpiItems.map(({ label, value, color, icon: Icon }) => (
+                <div key={label} className="bg-card border rounded-xl p-3 hover:shadow-sm transition-shadow">
+                  <div className={`w-7 h-7 rounded-lg ${color} flex items-center justify-center mb-2`}><Icon size={14} className="text-white" /></div>
+                  <p className="text-xl font-black text-foreground">{value}</p>
+                  <p className="text-[10px] text-muted-foreground leading-tight mt-0.5">{label}</p>
+                </div>
+              ))
+          }
         </div>
 
         {/* Omanisation Progress */}
@@ -1018,7 +1028,34 @@ export default function HREmployeesPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filtered.length === 0 && (
+                    {employeesLoading && [...Array(8)].map((_, i) => (
+                      <tr key={`skel-${i}`} className="border-b">
+                        <td className="px-4 py-3"><Skeleton className="w-4 h-4 rounded" /></td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-3">
+                            <Skeleton className="w-8 h-8 rounded-full shrink-0" />
+                            <div className="space-y-1.5">
+                              <Skeleton className="h-3.5 w-28" />
+                              <Skeleton className="h-2.5 w-20" />
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3"><Skeleton className="h-3 w-20" /></td>
+                        <td className="px-4 py-3"><Skeleton className="h-3 w-24" /></td>
+                        <td className="px-4 py-3"><Skeleton className="h-3 w-16" /></td>
+                        <td className="px-4 py-3"><Skeleton className="h-5 w-16 rounded-full" /></td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <Skeleton className="h-1.5 w-16 rounded-full" />
+                            <Skeleton className="h-3 w-6" />
+                          </div>
+                        </td>
+                        <td className="px-4 py-3"><Skeleton className="h-3 w-16" /></td>
+                        <td className="px-4 py-3"><Skeleton className="h-3 w-14" /></td>
+                        <td className="px-4 py-3"><Skeleton className="w-6 h-6 rounded" /></td>
+                      </tr>
+                    ))}
+                    {!employeesLoading && filtered.length === 0 && (
                       <tr><td colSpan={10} className="text-center py-12 text-muted-foreground">
                         <Users size={32} className="mx-auto mb-2 opacity-30" />
                         <p>No employees found</p>

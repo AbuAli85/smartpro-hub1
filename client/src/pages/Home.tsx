@@ -447,6 +447,130 @@ export default function Home() {
           </div>
         </section>
 
+        {/* ── Attract / Convert / Retain Features ── */}
+        <section id="features" className="py-24 bg-background">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="text-center mb-16">
+              <Badge variant="outline" className="mb-4 text-xs font-semibold tracking-widest uppercase border-red-300 text-red-700 dark:border-red-700 dark:text-red-300">
+                How SmartPRO works for you
+              </Badge>
+              <h2 className="text-3xl sm:text-4xl font-black text-foreground mb-4 leading-tight">
+                Attract, convert, and retain clients —{" "}
+                <span className="bg-clip-text text-transparent bg-gradient-to-r from-[var(--smartpro-red)] to-[var(--smartpro-brand-green)]">
+                  all in one platform
+                </span>
+              </h2>
+              <p className="text-muted-foreground max-w-2xl mx-auto text-lg leading-relaxed">
+                SmartPRO gives every team the tools to grow the business, close deals faster, and keep clients coming back.
+              </p>
+            </div>
+
+            {/* Three pillars */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-16">
+              {/* Attract */}
+              <div className="rounded-2xl border border-border/60 bg-gradient-to-b from-red-50/60 to-background dark:from-red-950/20 dark:to-background p-8">
+                <div className="w-12 h-12 rounded-xl bg-red-100 dark:bg-red-950/50 text-red-700 dark:text-red-300 flex items-center justify-center mb-5">
+                  <Radar size={24} />
+                </div>
+                <div className="text-xs font-bold uppercase tracking-widest text-red-600 dark:text-red-400 mb-2">Attract</div>
+                <h3 className="text-xl font-bold text-foreground mb-3">Make your services discoverable</h3>
+                <p className="text-muted-foreground text-sm leading-relaxed mb-6">
+                  Put your business in front of the right clients at the right time — through the SmartPRO marketplace, a polished client portal, and SEO-ready service listings.
+                </p>
+                <ul className="space-y-3">
+                  {[
+                    { icon: <ShoppingBag size={15} />, title: "Marketplace listing", desc: "Get discovered by businesses searching for PRO, HR, legal, and consulting services in Oman." },
+                    { icon: <Globe size={15} />, title: "Public service catalogue", desc: "Showcase your full service menu with pricing tiers, turnaround times, and credentials." },
+                    { icon: <Star size={15} />, title: "Verified reviews & ratings", desc: "Build trust with star ratings and client testimonials displayed on your profile." },
+                    { icon: <BarChart3 size={15} />, title: "Lead analytics", desc: "See which services attract the most enquiries and optimise your offering accordingly." },
+                  ].map((f) => (
+                    <li key={f.title} className="flex gap-3">
+                      <div className="w-6 h-6 rounded-md bg-red-100 dark:bg-red-950/50 text-red-700 dark:text-red-300 flex items-center justify-center shrink-0 mt-0.5">{f.icon}</div>
+                      <div>
+                        <div className="text-sm font-semibold text-foreground">{f.title}</div>
+                        <div className="text-xs text-muted-foreground leading-relaxed">{f.desc}</div>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              {/* Convert */}
+              <div className="rounded-2xl border border-border/60 bg-gradient-to-b from-emerald-50/60 to-background dark:from-emerald-950/20 dark:to-background p-8">
+                <div className="w-12 h-12 rounded-xl bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 flex items-center justify-center mb-5">
+                  <TrendingUp size={24} />
+                </div>
+                <div className="text-xs font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-400 mb-2">Convert</div>
+                <h3 className="text-xl font-bold text-foreground mb-3">Turn enquiries into signed contracts</h3>
+                <p className="text-muted-foreground text-sm leading-relaxed mb-6">
+                  A built-in CRM, proposal tools, and e-signature-ready contracts mean you can move from first contact to paid engagement without leaving the platform.
+                </p>
+                <ul className="space-y-3">
+                  {[
+                    { icon: <Users size={15} />, title: "CRM & sales pipeline", desc: "Track every lead from first touch to closed deal with stage-based pipeline views and activity logs." },
+                    { icon: <FileText size={15} />, title: "AI-generated proposals", desc: "Create professional, branded proposals and contracts in seconds using SmartPRO's LLM engine." },
+                    { icon: <CheckCircle2 size={15} />, title: "Contract e-signature", desc: "Send contracts for signature directly from the platform — no third-party tools needed." },
+                    { icon: <Banknote size={15} />, title: "Instant invoicing", desc: "Auto-generate invoices from accepted proposals with payment terms, VAT, and due-date tracking." },
+                  ].map((f) => (
+                    <li key={f.title} className="flex gap-3">
+                      <div className="w-6 h-6 rounded-md bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 flex items-center justify-center shrink-0 mt-0.5">{f.icon}</div>
+                      <div>
+                        <div className="text-sm font-semibold text-foreground">{f.title}</div>
+                        <div className="text-xs text-muted-foreground leading-relaxed">{f.desc}</div>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              {/* Retain */}
+              <div className="rounded-2xl border border-border/60 bg-gradient-to-b from-blue-50/60 to-background dark:from-blue-950/20 dark:to-background p-8">
+                <div className="w-12 h-12 rounded-xl bg-blue-100 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 flex items-center justify-center mb-5">
+                  <RefreshCw size={24} />
+                </div>
+                <div className="text-xs font-bold uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-2">Retain</div>
+                <h3 className="text-xl font-bold text-foreground mb-3">Keep clients engaged and coming back</h3>
+                <p className="text-muted-foreground text-sm leading-relaxed mb-6">
+                  A dedicated client portal, proactive renewal alerts, and performance dashboards give clients full visibility — and give you the data to deliver exceptional service every time.
+                </p>
+                <ul className="space-y-3">
+                  {[
+                    { icon: <LayoutGrid size={15} />, title: "Client self-service portal", desc: "Clients log in to view their contracts, visa status, payroll docs, and open cases — reducing support calls." },
+                    { icon: <CalendarClock size={15} />, title: "Proactive renewal reminders", desc: "Automated alerts for visa, permit, and contract renewals keep clients compliant and loyal." },
+                    { icon: <ClipboardList size={15} />, title: "Service delivery tracking", desc: "Real-time case status and SLA progress visible to both your team and the client." },
+                    { icon: <Sparkles size={15} />, title: "Performance reporting", desc: "Monthly summary reports show clients the value you deliver — reducing churn and enabling upsells." },
+                  ].map((f) => (
+                    <li key={f.title} className="flex gap-3">
+                      <div className="w-6 h-6 rounded-md bg-blue-100 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 flex items-center justify-center shrink-0 mt-0.5">{f.icon}</div>
+                      <div>
+                        <div className="text-sm font-semibold text-foreground">{f.title}</div>
+                        <div className="text-xs text-muted-foreground leading-relaxed">{f.desc}</div>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+
+            {/* Bottom stat strip */}
+            <div className="rounded-2xl bg-gradient-to-r from-[var(--smartpro-red)] to-[var(--smartpro-brand-green)] p-px">
+              <div className="rounded-2xl bg-background px-8 py-6 grid grid-cols-2 sm:grid-cols-4 gap-6 text-center">
+                {[
+                  { value: "3×", label: "Faster client onboarding" },
+                  { value: "40%", label: "Reduction in manual follow-ups" },
+                  { value: "92%", label: "Client retention rate" },
+                  { value: "< 24h", label: "Average proposal turnaround" },
+                ].map((s) => (
+                  <div key={s.label}>
+                    <div className="text-2xl font-black bg-clip-text text-transparent bg-gradient-to-r from-[var(--smartpro-red)] to-[var(--smartpro-brand-green)]">{s.value}</div>
+                    <div className="text-xs text-muted-foreground mt-1 leading-snug">{s.label}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+
         <section id="capabilities" className="py-20 bg-background border-y border-border/60">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center mb-14">

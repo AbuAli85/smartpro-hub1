@@ -1950,3 +1950,6 @@ Every company on SmartPRO Hub gets a complete, unified business operating area �
 - [x] Frontend: Save Progress dialog — shows resume token with copy button + optional email field with success state
 - [x] Frontend: ?resume=TOKEN URL deep-link handling — clicking email link auto-resumes without manual token entry
 - [x] Frontend: Resume banner on SurveyStartPage already existed (manual token entry input)
+
+## Homepage Features Section
+- [x] Add detailed "Features" section to homepage with Attract / Convert / Retain groupings, icons, headlines, and descriptions

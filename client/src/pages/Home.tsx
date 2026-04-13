@@ -869,9 +869,27 @@ export default function Home() {
             <div>
               <div className="text-white text-xs font-semibold uppercase tracking-widest mb-4">Compliance</div>
               <div className="space-y-2 text-xs">
-                {["Ministry of Labour", "PASI contributions", "WPS payroll", "Omanisation", "Labour law", "Data privacy"].map((l) => (
-                  <div key={l}>
-                    <span className="cursor-default">{l}</span>
+                {([
+                  { label: "Ministry of Labour", href: "https://mol.gov.om" },
+                  { label: "PASI contributions", href: null },
+                  { label: "WPS payroll", href: null },
+                  { label: "Omanisation", href: null },
+                  { label: "Labour law", href: null },
+                  { label: "Data privacy", href: null },
+                ] as { label: string; href: string | null }[]).map((item) => (
+                  <div key={item.label}>
+                    {item.href ? (
+                      <a
+                        href={item.href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="hover:text-white transition-colors underline underline-offset-2 decoration-white/30"
+                      >
+                        {item.label}
+                      </a>
+                    ) : (
+                      <span className="cursor-default">{item.label}</span>
+                    )}
                   </div>
                 ))}
               </div>

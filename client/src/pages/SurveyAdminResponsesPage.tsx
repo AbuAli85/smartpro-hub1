@@ -24,7 +24,15 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { ClipboardList, ChevronLeft, ChevronRight, Link2, Mail, MessageCircle } from "lucide-react";
+import {
+  ClipboardList,
+  ChevronLeft,
+  ChevronRight,
+  Link2,
+  ListChecks,
+  Mail,
+  MessageCircle,
+} from "lucide-react";
 import { toast } from "sonner";
 
 type StatusFilter = "all" | "in_progress" | "completed" | "abandoned";
@@ -126,12 +134,14 @@ const WHATSAPP_OUTREACH_LANG = "ar-OM";
 
 export default function SurveyAdminResponsesPage() {
   const { t, i18n } = useTranslation("survey");
+  const utils = trpc.useUtils();
   const tWhatsappOutreach = useMemo(
     () => i18n.getFixedT(WHATSAPP_OUTREACH_LANG, "survey"),
     [i18n],
   );
   const [page, setPage] = useState(1);
   const [selectedStatus, setSelectedStatus] = useState<StatusFilter>("all");
+  const [followUpOpen, setFollowUpOpen] = useState(false);
   const [sanadOutreachOpen, setSanadOutreachOpen] = useState(false);
   const [sanadOutreachListMode, setSanadOutreachListMode] = useState<"intel" | "platform">("intel");
   const [sanadOutreachManualOnly, setSanadOutreachManualOnly] = useState<
@@ -159,6 +169,10 @@ export default function SurveyAdminResponsesPage() {
     enabled: sanadOutreachOpen && sanadOutreachManualOnly === null && sanadOutreachListMode === "intel",
   });
 
+  const followUpQuery = trpc.survey.adminSanadSurveyOfficeFollowUp.useQuery(undefined, {
+    enabled: followUpOpen,
+  });
+
   const { data, isLoading, isError, error } = trpc.survey.adminListResponses.useQuery(
     {
       page,
@@ -169,6 +183,7 @@ export default function SurveyAdminResponsesPage() {
 
   const inviteSanadMutation = trpc.survey.adminInviteSanadOffices.useMutation({
     onSuccess: (r) => {
+      void utils.survey.adminSanadSurveyOfficeFollowUp.invalidate();
       const base = t("admin.inviteSanadToast", {
         sent: r.sent,
         withEmail: r.withEmailCount,
@@ -186,7 +201,14 @@ export default function SurveyAdminResponsesPage() {
               "WhatsApp (Arabic template): {{waSent}} sent, {{waFailed}} failed, {{waNoPhone}} skipped (no valid phone).",
           })
         : undefined;
-      toast.success(base, waDesc ? { description: waDesc } : undefined);
+      const batchNote = r.outreachBatchId
+        ? t("admin.inviteOutreachLogged", {
+            batch: r.outreachBatchId.slice(0, 8),
+            defaultValue: "Outreach logged (batch {{batch}}…). Open Follow-up to see per-office status.",
+          })
+        : undefined;
+      const desc = [waDesc, batchNote].filter(Boolean).join("\n") || undefined;
+      toast.success(base, desc ? { description: desc } : undefined);
       if (r.manualOutreach.length > 0) {
         setSanadOutreachListMode("platform");
         setSanadOutreachManualOnly(r.manualOutreach);
@@ -311,6 +333,16 @@ export default function SurveyAdminResponsesPage() {
           >
             <Link2 className="h-4 w-4" aria-hidden />
             {t("admin.sanadSurveyLinks", { defaultValue: "Sanad survey links" })}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="gap-1.5"
+            onClick={() => setFollowUpOpen(true)}
+          >
+            <ListChecks className="h-4 w-4" aria-hidden />
+            {t("admin.followUpOpen", { defaultValue: "Follow-up status" })}
           </Button>
           <Select
             value={selectedStatus}
@@ -762,6 +794,137 @@ export default function SurveyAdminResponsesPage() {
               </TableBody>
             </Table>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={followUpOpen} onOpenChange={setFollowUpOpen}>
+        <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {t("admin.followUpTitle", { defaultValue: "Sanad office survey — follow-up" })}
+            </DialogTitle>
+            <DialogDescription>
+              {t("admin.followUpDesc", {
+                defaultValue:
+                  "Latest bulk invite per office (from “Email Sanad offices”) and the latest office-linked survey response, if any.",
+              })}
+            </DialogDescription>
+          </DialogHeader>
+          {followUpQuery.isLoading ? (
+            <Skeleton className="h-40 w-full" />
+          ) : followUpQuery.error ? (
+            <p className="text-destructive text-sm" role="alert">
+              {followUpQuery.error.message}
+            </p>
+          ) : (
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>{t("admin.sanadColOffice", { defaultValue: "Office" })}</TableHead>
+                    <TableHead>{t("yourEmail")}</TableHead>
+                    <TableHead>{t("yourPhone")}</TableHead>
+                    <TableHead>{t("admin.followUpLastOutreach", { defaultValue: "Last invite" })}</TableHead>
+                    <TableHead>{t("admin.followUpSurvey", { defaultValue: "Survey response" })}</TableHead>
+                    <TableHead className="text-right">{t("admin.followUpAction", { defaultValue: "Open" })}</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {(followUpQuery.data?.offices ?? []).map((row) => {
+                    const lo = row.lastOutreach;
+                    const lr = row.linkedResponse;
+                    const outcomeKey =
+                      lo?.outcome === "sent"
+                        ? "admin.outreachOutcomeSent"
+                        : lo?.outcome === "failed"
+                          ? "admin.outreachOutcomeFailed"
+                          : lo?.outcome === "skipped_no_email"
+                            ? "admin.outreachOutcomeSkippedEmail"
+                            : lo?.outcome === "skipped_no_phone"
+                              ? "admin.outreachOutcomeSkippedPhone"
+                              : "admin.outreachOutcomeOther";
+                    const outcomeLabel = lo
+                      ? t(outcomeKey, {
+                          defaultValue: lo.outcome.replace(/_/g, " "),
+                        })
+                      : null;
+                    const channelLabel =
+                      lo?.channel === "whatsapp_api"
+                        ? t("admin.outreachChannelWhatsapp", { defaultValue: "WhatsApp API" })
+                        : lo?.channel === "email"
+                          ? t("admin.outreachChannelEmail", { defaultValue: "Email" })
+                          : null;
+                    return (
+                      <TableRow key={row.officeId}>
+                        <TableCell className="max-w-[10rem] font-medium">
+                          <span className="line-clamp-2">{row.nameAr?.trim() || row.name}</span>
+                        </TableCell>
+                        <TableCell className="max-w-[9rem] truncate text-sm">{row.email ?? "—"}</TableCell>
+                        <TableCell className="text-muted-foreground text-sm">{row.phone ?? "—"}</TableCell>
+                        <TableCell className="max-w-[14rem] text-xs">
+                          {!lo ? (
+                            <span className="text-muted-foreground">
+                              {t("admin.followUpNever", { defaultValue: "No logged invite yet" })}
+                            </span>
+                          ) : (
+                            <div className="flex flex-col gap-0.5">
+                              <span className="text-muted-foreground tabular-nums">
+                                {fmtDate(lo.createdAt)}
+                              </span>
+                              <span>
+                                {channelLabel} ·{" "}
+                                <Badge
+                                  variant="outline"
+                                  className={
+                                    lo.outcome === "sent"
+                                      ? "border-emerald-300 bg-emerald-50 text-emerald-900"
+                                      : lo.outcome === "failed"
+                                        ? "border-red-300 bg-red-50 text-red-900"
+                                        : "text-muted-foreground"
+                                  }
+                                >
+                                  {outcomeLabel}
+                                </Badge>
+                              </span>
+                              {lo.detail ? (
+                                <span className="text-destructive line-clamp-2" title={lo.detail}>
+                                  {lo.detail}
+                                </span>
+                              ) : null}
+                            </div>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {!lr ? (
+                            <span className="text-muted-foreground text-xs">
+                              {t("admin.followUpNoResponse", { defaultValue: "No office-linked response" })}
+                            </span>
+                          ) : (
+                            <Badge variant="secondary" className="font-normal">
+                              {lr.status === "completed"
+                                ? t("admin.completed")
+                                : lr.status === "in_progress"
+                                  ? t("admin.inProgress")
+                                  : t("admin.abandoned", { defaultValue: "Abandoned" })}
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {lr ? (
+                            <Button variant="outline" size="sm" asChild>
+                              <Link href={`/survey/admin/responses/${lr.id}`}>{t("admin.viewDetail")}</Link>
+                            </Button>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

@@ -90,6 +90,7 @@
     "adoption_readiness": "جاهزية التبني",
     "emailSanadOffices": "إرسال بريد لمكاتب سند",
     "inviteSanadToast": "تم الإرسال: {{sent}} / {{withEmail}} (فشل: {{failed}}). مكاتب بلا بريد: {{skipped}}.",
+    "inviteOutreachLogged": "تم تسجيل عمليات التواصل (دفعة {{batch}}…). افتح «حالة المتابعة» لعرض كل مكتب.",
     "inviteSanadToastWhatsapp": "واتساب (قالب عربي): أُرسل {{waSent}}، فشل {{waFailed}}، تخطّي {{waNoPhone}} (لا رقم صالح).",
     "inviteSanadConfirm": "إرسال دعوات بالبريد إلى كل مكتب سند نشط لديه بريد؟ المكاتب بلا بريد لا تُرسل إليها؛ يمكنك نسخ روابط الاستبيان لها لاحقاً.",
     "sanadSurveyLinks": "روابط استبيان سند",
@@ -122,6 +123,21 @@
     "surveyLinkUnavailableHint": "اربط المركز بمكتب سند نشط للحصول على رابط الاستبيان.",
     "badgeNotLinked": "غير مربوط",
     "badgeOfficeInactive": "المكتب غير نشط",
-    "sanadColWilayat": "الولاية"
+    "sanadColWilayat": "الولاية",
+    "followUpOpen": "حالة المتابعة",
+    "followUpTitle": "استبيان مكاتب سند — متابعة",
+    "followUpDesc": "آخر دعوة جماعية لكل مكتب (من «إرسال بريد لمكاتب سند») وآخر استجابة مرتبطة بالمكتب إن وُجدت.",
+    "followUpLastOutreach": "آخر دعوة",
+    "followUpSurvey": "استجابة الاستبيان",
+    "followUpAction": "فتح",
+    "followUpNever": "لا يوجد تسجيل دعوة بعد",
+    "followUpNoResponse": "لا استجابة مرتبطة بالمكتب",
+    "outreachChannelEmail": "بريد",
+    "outreachChannelWhatsapp": "واتساب (واجهة)",
+    "outreachOutcomeSent": "أُرسل",
+    "outreachOutcomeFailed": "فشل",
+    "outreachOutcomeSkippedEmail": "تخطّي (لا بريد)",
+    "outreachOutcomeSkippedPhone": "تخطّي (لا هاتف)",
+    "outreachOutcomeOther": "أخرى"
   }
 }

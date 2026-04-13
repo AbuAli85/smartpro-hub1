@@ -211,6 +211,28 @@ const PENDING_TABLES: TableMigration[] = [
   { table: "survey_responses", ddl: `CREATE TABLE IF NOT EXISTS \`survey_responses\` (\`id\` int AUTO_INCREMENT PRIMARY KEY, \`survey_id\` int NOT NULL, \`resume_token\` varchar(64) NOT NULL UNIQUE, \`language\` enum('en','ar') NOT NULL DEFAULT 'en', \`status\` enum('in_progress','completed','abandoned') NOT NULL DEFAULT 'in_progress', \`current_section_id\` int, \`respondent_name\` varchar(255), \`respondent_email\` varchar(320), \`respondent_phone\` varchar(32), \`company_name\` varchar(255), \`company_sector\` varchar(128), \`company_size\` varchar(64), \`company_governorate\` varchar(128), \`scores\` json, \`completed_at\` timestamp, \`started_at\` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, \`updated_at\` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, INDEX \`idx_survey_responses_survey\` (\`survey_id\`), INDEX \`idx_survey_responses_status\` (\`status\`), CONSTRAINT \`fk_survey_responses_survey\` FOREIGN KEY (\`survey_id\`) REFERENCES \`surveys\`(\`id\`) ON DELETE CASCADE) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4` },
   { table: "survey_answers", ddl: `CREATE TABLE IF NOT EXISTS \`survey_answers\` (\`id\` int AUTO_INCREMENT PRIMARY KEY, \`response_id\` int NOT NULL, \`question_id\` int NOT NULL, \`answer_value\` text, \`selected_options\` json, \`created_at\` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, \`updated_at\` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, UNIQUE \`uq_survey_answers_response_question\` (\`response_id\`, \`question_id\`), INDEX \`idx_survey_answers_response\` (\`response_id\`), CONSTRAINT \`fk_survey_answers_response\` FOREIGN KEY (\`response_id\`) REFERENCES \`survey_responses\`(\`id\`) ON DELETE CASCADE, CONSTRAINT \`fk_survey_answers_question\` FOREIGN KEY (\`question_id\`) REFERENCES \`survey_questions\`(\`id\`) ON DELETE CASCADE) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4` },
   { table: "survey_response_tags", ddl: `CREATE TABLE IF NOT EXISTS \`survey_response_tags\` (\`id\` int AUTO_INCREMENT PRIMARY KEY, \`response_id\` int NOT NULL, \`tag_id\` int NOT NULL, \`created_at\` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, UNIQUE \`uq_survey_response_tags\` (\`response_id\`, \`tag_id\`), INDEX \`idx_survey_response_tags_response\` (\`response_id\`), CONSTRAINT \`fk_survey_response_tags_response\` FOREIGN KEY (\`response_id\`) REFERENCES \`survey_responses\`(\`id\`) ON DELETE CASCADE, CONSTRAINT \`fk_survey_response_tags_tag\` FOREIGN KEY (\`tag_id\`) REFERENCES \`survey_tags\`(\`id\`) ON DELETE CASCADE) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4` },
+  // 0042 — survey Sanad office outreach audit (bulk invite tracking)
+  {
+    table: "survey_sanad_office_outreach",
+    ddl: `CREATE TABLE IF NOT EXISTS \`survey_sanad_office_outreach\` (
+  \`id\` int NOT NULL AUTO_INCREMENT,
+  \`survey_id\` int NOT NULL,
+  \`sanad_office_id\` int NOT NULL,
+  \`batch_id\` varchar(36) NOT NULL,
+  \`channel\` enum('email','whatsapp_api') NOT NULL,
+  \`outcome\` enum('sent','failed','skipped_no_email','skipped_no_phone') NOT NULL,
+  \`detail\` varchar(500) DEFAULT NULL,
+  \`actor_user_id\` int DEFAULT NULL,
+  \`created_at\` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (\`id\`),
+  KEY \`idx_survey_outreach_survey_office\` (\`survey_id\`,\`sanad_office_id\`),
+  KEY \`idx_survey_outreach_batch\` (\`batch_id\`),
+  KEY \`idx_survey_outreach_created\` (\`created_at\`),
+  CONSTRAINT \`fk_survey_outreach_survey\` FOREIGN KEY (\`survey_id\`) REFERENCES \`surveys\` (\`id\`) ON DELETE CASCADE,
+  CONSTRAINT \`fk_survey_outreach_office\` FOREIGN KEY (\`sanad_office_id\`) REFERENCES \`sanad_offices\` (\`id\`) ON DELETE CASCADE,
+  CONSTRAINT \`fk_survey_outreach_actor\` FOREIGN KEY (\`actor_user_id\`) REFERENCES \`users\` (\`id\`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+  },
 ];
 
 async function columnExists(

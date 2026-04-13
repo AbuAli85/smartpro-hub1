@@ -3730,3 +3730,34 @@ export const surveyResponseTags = mysqlTable(
   ],
 );
 export type SurveyResponseTag = typeof surveyResponseTags.$inferSelect;
+
+/** Audit trail when platform staff email / WhatsApp-api invite Sanad offices to a survey (follow-up visibility). */
+export const surveySanadOfficeOutreach = mysqlTable(
+  "survey_sanad_office_outreach",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    surveyId: int("survey_id")
+      .notNull()
+      .references(() => surveys.id, { onDelete: "cascade" }),
+    sanadOfficeId: int("sanad_office_id")
+      .notNull()
+      .references(() => sanadOffices.id, { onDelete: "cascade" }),
+    batchId: varchar("batch_id", { length: 36 }).notNull(),
+    channel: mysqlEnum("channel", ["email", "whatsapp_api"]).notNull(),
+    outcome: mysqlEnum("outcome", [
+      "sent",
+      "failed",
+      "skipped_no_email",
+      "skipped_no_phone",
+    ]).notNull(),
+    detail: varchar("detail", { length: 500 }),
+    actorUserId: int("actor_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("idx_survey_outreach_survey_office").on(t.surveyId, t.sanadOfficeId),
+    index("idx_survey_outreach_batch").on(t.batchId),
+    index("idx_survey_outreach_created").on(t.createdAt),
+  ],
+);
+export type SurveySanadOfficeOutreach = typeof surveySanadOfficeOutreach.$inferSelect;

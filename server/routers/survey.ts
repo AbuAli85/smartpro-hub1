@@ -14,6 +14,7 @@ import {
   surveyAnswers,
   surveyTags,
   surveyResponseTags,
+  surveySanadOfficeOutreach,
   users,
   sanadOffices,
   sanadIntelCenters,
@@ -662,6 +663,108 @@ export const surveyRouter = router({
       };
     }),
 
+  /**
+   * Per-office follow-up: last bulk invite log (email / WhatsApp API) + latest survey response
+   * for this survey when `sanad_office_id` is set (signed-in office-linked starts).
+   */
+  adminSanadSurveyOfficeFollowUp: surveyAdminProcedure
+    .input(z.object({ surveySlug: z.string().min(1).max(100).optional() }).optional())
+    .query(async ({ input, ctx }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+
+      const slug = input?.surveySlug ?? "oman-business-sector-2026";
+      const [survey] = await db.select().from(surveys).where(eq(surveys.slug, slug)).limit(1);
+      if (!survey) throw new TRPCError({ code: "NOT_FOUND", message: "Survey not found" });
+
+      const baseUrl = resolveSanadSurveyBaseUrl(ctx.req);
+      if (!baseUrl) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message:
+            "Could not build survey links. Set PUBLIC_APP_URL in production, or open the admin UI through the same host the API uses (e.g. localhost with matching port).",
+        });
+      }
+
+      const offices = await db
+        .select()
+        .from(sanadOffices)
+        .where(eq(sanadOffices.status, "active"))
+        .orderBy(asc(sanadOffices.name));
+
+      const outreachRows = await db
+        .select()
+        .from(surveySanadOfficeOutreach)
+        .where(eq(surveySanadOfficeOutreach.surveyId, survey.id))
+        .orderBy(desc(surveySanadOfficeOutreach.createdAt));
+
+      const latestOutreachByOffice = new Map<
+        number,
+        {
+          batchId: string;
+          channel: string;
+          outcome: string;
+          detail: string | null;
+          createdAt: Date;
+        }
+      >();
+      for (const r of outreachRows) {
+        if (!latestOutreachByOffice.has(r.sanadOfficeId)) {
+          latestOutreachByOffice.set(r.sanadOfficeId, {
+            batchId: r.batchId,
+            channel: r.channel,
+            outcome: r.outcome,
+            detail: r.detail ?? null,
+            createdAt: r.createdAt,
+          });
+        }
+      }
+
+      const responseRows = await db
+        .select({
+          id: surveyResponses.id,
+          sanadOfficeId: surveyResponses.sanadOfficeId,
+          status: surveyResponses.status,
+          startedAt: surveyResponses.startedAt,
+          completedAt: surveyResponses.completedAt,
+        })
+        .from(surveyResponses)
+        .where(and(eq(surveyResponses.surveyId, survey.id), isNotNull(surveyResponses.sanadOfficeId)))
+        .orderBy(desc(surveyResponses.startedAt));
+
+      const latestResponseByOffice = new Map<
+        number,
+        { id: number; status: string; startedAt: Date; completedAt: Date | null }
+      >();
+      for (const r of responseRows) {
+        if (r.sanadOfficeId != null && !latestResponseByOffice.has(r.sanadOfficeId)) {
+          latestResponseByOffice.set(r.sanadOfficeId, {
+            id: r.id,
+            status: r.status,
+            startedAt: r.startedAt,
+            completedAt: r.completedAt ?? null,
+          });
+        }
+      }
+
+      return {
+        surveySlug: slug,
+        surveyTitleEn: survey.titleEn,
+        baseUrl,
+        offices: offices.map((o) => ({
+          officeId: o.id,
+          name: o.name,
+          nameAr: o.nameAr ?? null,
+          email: o.email?.trim() || null,
+          phone: o.phone?.trim() || null,
+          contactPerson: o.contactPerson?.trim() || null,
+          surveyUrl: `${baseUrl}/survey/${slug}?officeId=${o.id}`,
+          lastOutreach: latestOutreachByOffice.get(o.id) ?? null,
+          linkedResponse: latestResponseByOffice.get(o.id) ?? null,
+        })),
+      };
+    }),
+
   /** Email active Sanad offices that have an email; return copyable links for offices without email. */
   adminInviteSanadOffices: surveyAdminProcedure
     .input(z.object({ surveySlug: z.string().min(1).max(100).optional() }).optional())
@@ -700,6 +803,30 @@ export const surveyRouter = router({
       let whatsappFailed = 0;
       let whatsappSkippedNoPhone = 0;
 
+      const batchId = crypto.randomUUID();
+      const actorUserId = ctx.user.id;
+
+      const logOutreach = async (p: {
+        sanadOfficeId: number;
+        channel: "email" | "whatsapp_api";
+        outcome: "sent" | "failed" | "skipped_no_email" | "skipped_no_phone";
+        detail?: string | null;
+      }) => {
+        try {
+          await db.insert(surveySanadOfficeOutreach).values({
+            surveyId: survey.id,
+            sanadOfficeId: p.sanadOfficeId,
+            batchId,
+            channel: p.channel,
+            outcome: p.outcome,
+            detail: p.detail ? p.detail.slice(0, 500) : null,
+            actorUserId,
+          });
+        } catch (err) {
+          console.error("[survey] survey_sanad_office_outreach insert failed:", err);
+        }
+      };
+
       for (const o of offices) {
         const surveyUrl = `${baseUrl}/survey/${slug}?officeId=${o.id}`;
 
@@ -708,14 +835,29 @@ export const surveyRouter = router({
           const officeLabelAr = (o.nameAr?.trim() || o.name).trim() || "مكتب";
           if (!digits) {
             whatsappSkippedNoPhone++;
+            await logOutreach({
+              sanadOfficeId: o.id,
+              channel: "whatsapp_api",
+              outcome: "skipped_no_phone",
+            });
           } else {
             const waResult = await sendSurveyOfficeInviteTemplateAr({
               toDigits: digits,
               officeLabelAr,
               surveyUrl,
             });
-            if (waResult.ok) whatsappSent++;
-            else whatsappFailed++;
+            if (waResult.ok) {
+              whatsappSent++;
+              await logOutreach({ sanadOfficeId: o.id, channel: "whatsapp_api", outcome: "sent" });
+            } else {
+              whatsappFailed++;
+              await logOutreach({
+                sanadOfficeId: o.id,
+                channel: "whatsapp_api",
+                outcome: "failed",
+                detail: !waResult.ok ? waResult.error : null,
+              });
+            }
           }
         }
 
@@ -729,6 +871,7 @@ export const surveyRouter = router({
             contactPerson: o.contactPerson?.trim() || null,
             surveyUrl,
           });
+          await logOutreach({ sanadOfficeId: o.id, channel: "email", outcome: "skipped_no_email" });
           continue;
         }
         const result = await sendSanadOfficeSurveyBridgeEmail({
@@ -738,8 +881,18 @@ export const surveyRouter = router({
           surveyUrl,
           contactPerson: o.contactPerson?.trim() || undefined,
         });
-        if (result.success) sent++;
-        else failed++;
+        if (result.success) {
+          sent++;
+          await logOutreach({ sanadOfficeId: o.id, channel: "email", outcome: "sent" });
+        } else {
+          failed++;
+          await logOutreach({
+            sanadOfficeId: o.id,
+            channel: "email",
+            outcome: "failed",
+            detail: result.error ?? null,
+          });
+        }
       }
 
       const withEmailCount = offices.length - manualOutreach.length;
@@ -755,6 +908,7 @@ export const surveyRouter = router({
         whatsappSent,
         whatsappFailed,
         whatsappSkippedNoPhone,
+        outreachBatchId: batchId,
       };
     }),
 

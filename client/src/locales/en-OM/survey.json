@@ -90,6 +90,7 @@
     "adoption_readiness": "Adoption Readiness",
     "emailSanadOffices": "Email Sanad offices",
     "inviteSanadToast": "Emails sent: {{sent}} / {{withEmail}} (failed: {{failed}}). Offices without email: {{skipped}}.",
+    "inviteOutreachLogged": "Outreach logged (batch {{batch}}…). Open Follow-up status to see each office.",
     "inviteSanadToastWhatsapp": "WhatsApp (Arabic template): {{waSent}} sent, {{waFailed}} failed, {{waNoPhone}} skipped (no valid phone).",
     "inviteSanadConfirm": "Send invitation emails to every active Sanad office that has an email on file? Offices without email are not emailed; you can copy their survey links afterward.",
     "sanadSurveyLinks": "Sanad survey links",
@@ -122,6 +123,21 @@
     "surveyLinkUnavailableHint": "Link the centre to an active Sanad office to get a survey URL.",
     "badgeNotLinked": "Not linked",
     "badgeOfficeInactive": "Office inactive",
-    "sanadColWilayat": "Wilayat"
+    "sanadColWilayat": "Wilayat",
+    "followUpOpen": "Follow-up status",
+    "followUpTitle": "Sanad office survey — follow-up",
+    "followUpDesc": "Latest bulk invite per office (from “Email Sanad offices”) and the latest office-linked survey response, if any.",
+    "followUpLastOutreach": "Last invite",
+    "followUpSurvey": "Survey response",
+    "followUpAction": "Open",
+    "followUpNever": "No logged invite yet",
+    "followUpNoResponse": "No office-linked response",
+    "outreachChannelEmail": "Email",
+    "outreachChannelWhatsapp": "WhatsApp API",
+    "outreachOutcomeSent": "Sent",
+    "outreachOutcomeFailed": "Failed",
+    "outreachOutcomeSkippedEmail": "Skipped (no email)",
+    "outreachOutcomeSkippedPhone": "Skipped (no phone)",
+    "outreachOutcomeOther": "Other"
   }
 }

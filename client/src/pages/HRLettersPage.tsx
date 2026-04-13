@@ -922,7 +922,7 @@ export default function HRLettersPage() {
                             size="sm"
                             variant="outline"
                             className={cn("gap-1 text-xs h-7 px-2", "emailSentAt" in letter && letter.emailSentAt ? "text-emerald-600 border-emerald-300" : "")}
-                            title={"emailSentAt" in letter && letter.emailSentAt ? `Last sent: ${new Date(letter.emailSentAt as string).toLocaleString()}` : "Send by email"}
+                            title={"emailSentAt" in letter && letter.emailSentAt ? `Last sent: ${new Date(letter.emailSentAt as unknown as string).toLocaleString()}` : "Send by email"}
                             onClick={() => {
                               const emp = employees?.find(e => e.id === letter.employeeId);
                               setEmailTo(emp?.email ?? "");
@@ -1024,7 +1024,7 @@ export default function HRLettersPage() {
                     {"emailSentAt" in emailDialogLetter && emailDialogLetter.emailSentAt && (
                       <p className="text-xs text-emerald-600 mt-1 flex items-center gap-1">
                         <CheckCircle2 size={11} />
-                        Previously sent {new Date(emailDialogLetter.emailSentAt as string).toLocaleString()}
+                        Previously sent {new Date(emailDialogLetter.emailSentAt as unknown as string).toLocaleString()}
                         {"emailSendCount" in emailDialogLetter && (emailDialogLetter.emailSendCount as number) > 1 && (
                           <span className="ml-1 text-muted-foreground">({emailDialogLetter.emailSendCount as number}x total)</span>
                         )}

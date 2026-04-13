@@ -109,9 +109,11 @@
 - [x] Build Client Portal page (contracts, bookings, PRO services, company info, support)
 
 ## Known Limitations (Future Roadmap)
-- [ ] E-signature flow — DEFERRED: requires DocuSign or Adobe Sign API key from user
 - [x] Contract document S3 storage pipeline: saveToStorage mutation uploads contract HTML to S3 via storagePut, persists CDN URL in contracts.pdfUrl column, returns download URL. Note: stores HTML document (not PDF bytes); true PDF byte generation is a future enhancement.
-- [ ] Live chat support channel — DEFERRED: requires Intercom / Crisp / Tawk.to API key from user
+
+## Blocked / Deferred (awaiting external API keys)
+- [~] E-signature flow — blocked: requires DocuSign or Adobe Sign API key from user before implementation
+- [~] Live chat support channel — blocked: requires Intercom / Crisp / Tawk.to API key from user before implementation
 - [x] Service detail view deep-link from Client Portal (PRO tab → /pro-services, Bookings → /marketplace with Leave Review action)
 - [x] Undefined-return audit: grep verified 32 membership guards return null/[]/zero-object; no bare `return undefined` in any router file. Comprehensive automated test coverage for all edge cases is a future enhancement.
 

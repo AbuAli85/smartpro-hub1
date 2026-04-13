@@ -44,6 +44,16 @@ type OutreachTableRow = {
   surveyUnavailableReason?: "not_linked" | "office_inactive" | null;
 };
 
+/** Prefer Arabic name; strip leading directory refs like "1645 - " for clearer WhatsApp copy. */
+function officeLabelForWhatsApp(row: OutreachTableRow): string {
+  const ar = row.nameAr?.trim();
+  if (ar) return ar;
+  const n = row.name.trim();
+  const stripped = n.replace(/^\d{1,12}\s*[-–—:]\s*/u, "").trim();
+  if (stripped.length >= 2) return stripped;
+  return n || "—";
+}
+
 const STATUS_BADGE: Record<string, string> = {
   completed: "bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800",
   in_progress: "bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-800",
@@ -631,17 +641,18 @@ export default function SurveyAdminResponsesPage() {
                 ) : (
                   outreachDisplayRows.map((row) => {
                     const waDigits = toWhatsAppPhoneDigits(row.phone);
+                    const officeWa = officeLabelForWhatsApp(row);
                     const waMessage = row.surveyUrl
                       ? t("admin.whatsappSurveyMessage", {
-                          officeName: row.name,
+                          officeName: officeWa,
                           surveyUrl: row.surveyUrl,
                           defaultValue:
-                            "Hello,\n\nPlease complete the survey for {{officeName}}:\n{{surveyUrl}}\n\nThank you.",
+                            "Assalamu alaikum,\n\nPlease complete the SmartPRO Oman business-sector survey (SANAD) for:\n{{officeName}}\n\nLink:\n{{surveyUrl}}\n\nنرجو إكمال الاستبيان عبر الرابط أعلاه.\n\nThank you — شكراً",
                         })
                       : t("admin.whatsappSurveyMessageNoLink", {
-                          officeName: row.name,
+                          officeName: officeWa,
                           defaultValue:
-                            "Hello,\n\nRegarding {{officeName}} — please reply when convenient.\n\nThank you.",
+                            "Assalamu alaikum,\n\nWe are contacting you from SmartPRO about the SANAD business-sector survey for:\n{{officeName}}\n\nNo survey link is available in our system for this listing yet. Please reply with an email address or confirm this number so we can send the link.\n\nنتواصل بخصوص استبيان قطاع الأعمال (سند). لم يُتاح الرابط — يرجى الرد ببريد أو تأكيد الرقم.\n\nThank you — شكراً",
                         });
                     const waHref = waDigits ? buildWhatsAppMessageHref(waDigits, waMessage) : null;
                     return (

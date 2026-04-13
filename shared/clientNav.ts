@@ -66,7 +66,7 @@ export const COMPANY_ADMIN_OVERVIEW_HREFS = new Set<string>([
   "/operations",
 ]);
 
-/** Payroll & executive reports — company_admin + finance_admin + hr_admin */
+/** Payroll & executive reports — company owner/admin + finance manager (not HR-only). */
 export const COMPANY_LEADERSHIP_HREFS = new Set<string>([
   "/payroll",
   "/payroll/process",
@@ -203,6 +203,185 @@ export function isFieldEmployee(memberRole?: string | null): boolean {
 
 export function isReviewer(memberRole?: string | null): boolean {
   return memberRole === "reviewer";
+}
+
+/** Active company membership role OR legacy platform-only role (before membership loads). */
+function readsAsHrManager(
+  user: { platformRole?: string | null } | null,
+  memberRole?: string | null,
+): boolean {
+  return isHrAdminMember(memberRole) || user?.platformRole === "hr_admin";
+}
+
+function readsAsFinanceManager(
+  user: { platformRole?: string | null } | null,
+  memberRole?: string | null,
+): boolean {
+  return isFinanceAdminMember(memberRole) || user?.platformRole === "finance_admin";
+}
+
+function readsAsReviewerRole(
+  user: { platformRole?: string | null } | null,
+  memberRole?: string | null,
+): boolean {
+  return isReviewer(memberRole) || user?.platformRole === "reviewer";
+}
+
+function isHrModuleHref(href: string): boolean {
+  return href === "/hr" || href.startsWith("/hr/");
+}
+
+/** Non-HR surfaces shown to HR managers (sidebar uses exact hrefs; route guard uses prefixes). */
+const HR_MANAGER_SURFACE_HREFS = new Set<string>([
+  "/dashboard",
+  "/control-tower",
+  "/my-portal",
+  "/preferences",
+  "/",
+  "/workspace",
+  "/my-team",
+  "/my-team/import",
+  "/business/employee",
+  "/company/profile",
+  "/company/documents",
+  "/analytics",
+  "/compliance",
+]);
+
+const FINANCE_MANAGER_SURFACE_HREFS = new Set<string>([
+  "/payroll",
+  "/payroll/process",
+  "/reports",
+  "/finance/overview",
+  "/dashboard",
+  "/control-tower",
+  "/my-portal",
+  "/preferences",
+  "/",
+  "/company/profile",
+  "/company/documents",
+  "/subscriptions",
+  "/alerts",
+  "/analytics",
+  "/compliance",
+]);
+
+const REVIEWER_SURFACE_HREFS = new Set<string>([
+  "/dashboard",
+  "/control-tower",
+  "/my-portal",
+  "/preferences",
+  "/",
+  "/company/profile",
+  "/company/documents",
+  "/analytics",
+  "/compliance",
+  "/contracts",
+  "/company/hub",
+  "/crm",
+  "/quotations",
+  "/marketplace",
+]);
+
+const EXTERNAL_AUDITOR_SURFACE_HREFS = new Set<string>([
+  "/dashboard",
+  "/control-tower",
+  "/my-portal",
+  "/preferences",
+  "/",
+  "/company/profile",
+  "/analytics",
+  "/compliance",
+  "/contracts",
+]);
+
+function hrManagerSurfaceAllowed(href: string): boolean {
+  if (isHrModuleHref(href)) return true;
+  if (HR_MANAGER_SURFACE_HREFS.has(href)) return true;
+  if (href.startsWith("/my-portal")) return true;
+  if (href.startsWith("/preferences")) return true;
+  if (href.startsWith("/workspace")) return true;
+  if (href.startsWith("/company/profile")) return true;
+  if (href.startsWith("/company/documents")) return true;
+  if (href.startsWith("/my-team")) return true;
+  if (href.startsWith("/business/employee")) return true;
+  if (href.startsWith("/analytics")) return true;
+  if (href.startsWith("/compliance")) return true;
+  return false;
+}
+
+function financeManagerSurfaceAllowed(href: string): boolean {
+  if (FINANCE_MANAGER_SURFACE_HREFS.has(href)) return true;
+  if (href.startsWith("/my-portal")) return true;
+  if (href.startsWith("/preferences")) return true;
+  if (href.startsWith("/payroll")) return true;
+  if (href.startsWith("/finance")) return true;
+  if (href.startsWith("/reports")) return true;
+  if (href.startsWith("/subscriptions")) return true;
+  if (href.startsWith("/alerts")) return true;
+  if (href.startsWith("/company/profile")) return true;
+  if (href.startsWith("/company/documents")) return true;
+  if (href.startsWith("/analytics")) return true;
+  if (href.startsWith("/compliance")) return true;
+  return false;
+}
+
+function reviewerSurfaceAllowed(href: string): boolean {
+  if (REVIEWER_SURFACE_HREFS.has(href)) return true;
+  if (href.startsWith("/my-portal")) return true;
+  if (href.startsWith("/preferences")) return true;
+  if (href.startsWith("/company/profile")) return true;
+  if (href.startsWith("/company/documents")) return true;
+  if (href.startsWith("/contracts")) return true;
+  if (href.startsWith("/company/hub")) return true;
+  if (href.startsWith("/crm")) return true;
+  if (href.startsWith("/quotations")) return true;
+  if (href.startsWith("/marketplace")) return true;
+  if (href.startsWith("/analytics")) return true;
+  if (href.startsWith("/compliance")) return true;
+  return false;
+}
+
+function externalAuditorSurfaceAllowed(href: string): boolean {
+  if (isHrModuleHref(href)) return true;
+  if (href === "/workforce" || href.startsWith("/workforce/")) return true;
+  if (EXTERNAL_AUDITOR_SURFACE_HREFS.has(href)) return true;
+  if (href.startsWith("/my-portal")) return true;
+  if (href.startsWith("/preferences")) return true;
+  if (href.startsWith("/company/profile")) return true;
+  if (href.startsWith("/analytics")) return true;
+  if (href.startsWith("/compliance")) return true;
+  if (href.startsWith("/contracts")) return true;
+  return false;
+}
+
+/**
+ * When the user's job in the active company is HR / Finance / Reviewer / Auditor only,
+ * hide any sidebar item not part of that surface (membership role wins over synced platformRole).
+ */
+function membershipScopedNavDenies(
+  href: string,
+  user: { role?: string | null; platformRole?: string | null } | null,
+  options?: ClientNavOptions,
+): boolean {
+  if (!user) return false;
+  if (seesPlatformOperatorNav(user) || canAccessGlobalAdminProcedures(user)) return false;
+  const mr = options?.memberRole ?? null;
+  if (isCompanyAdminMember(mr) || isFieldEmployee(mr) || isCustomerPortalMemberRole(mr)) return false;
+
+  if (readsAsHrManager(user, mr)) {
+    return !hrManagerSurfaceAllowed(href);
+  }
+  if (readsAsFinanceManager(user, mr)) {
+    return !financeManagerSurfaceAllowed(href);
+  }
+  if (readsAsReviewerRole(user, mr)) {
+    return !reviewerSurfaceAllowed(href);
+  }
+  if (isExternalAuditorNav(mr)) {
+    return !externalAuditorSurfaceAllowed(href);
+  }
+  return false;
 }
 
 export function seesPlatformOperatorNav(user: {
@@ -386,34 +565,53 @@ export function clientNavItemVisible(
   }
 
   if (COMPANY_LEADERSHIP_HREFS.has(href)) {
-    return seesPlatformOperatorNav(user) || seesLeadershipCompanyNav(user) ||
-      isCompanyAdminMember(options?.memberRole) || isFinanceAdminMember(options?.memberRole);
+    return (
+      seesPlatformOperatorNav(user) ||
+      isCompanyAdminMember(options?.memberRole) ||
+      isFinanceAdminMember(options?.memberRole) ||
+      user?.platformRole === "finance_admin"
+    );
   }
 
-  // HR-only pages: only company_admin and hr_admin can see them
-  if (HR_ADMIN_HREFS.has(href)) {
+  // HR module — company_admin, hr_admin, external auditors (read); never finance-only managers
+  if (isHrModuleHref(href)) {
     if (seesPlatformOperatorNav(user)) return true;
     const mr = options?.memberRole;
-    // If memberRole is not yet loaded but the user has a company workspace,
-    // allow access to avoid a broken sidebar flash while membership loads
-    if (!mr && options?.hasCompanyWorkspace) return true;
-    if (!mr && options?.companyWorkspaceLoading) return true;
-    return isCompanyAdminMember(mr) || isHrAdminMember(mr);
+    if (!mr && (isCompanyOwnerNav(user) || canAccessGlobalAdminProcedures(user ?? {}))) return true;
+    if (
+      !mr &&
+      options?.companyWorkspaceLoading &&
+      (isCompanyOwnerNav(user) || canAccessGlobalAdminProcedures(user ?? {}))
+    ) {
+      return true;
+    }
+    if (readsAsFinanceManager(user, mr) && !readsAsHrManager(user, mr) && !isCompanyAdminMember(mr)) {
+      return false;
+    }
+    return (
+      isCompanyAdminMember(mr) ||
+      readsAsHrManager(user, mr) ||
+      isExternalAuditorNav(mr)
+    );
   }
 
-  // Government services — platform operators and company_admin only
+  // Government services — platform operators, company_admin, external auditors (compliance read)
   if (GOVERNMENT_SERVICES_HREFS.has(href)) {
-    return seesPlatformOperatorNav(user) || isCompanyOwnerNav(user) || isCompanyAdminMember(options?.memberRole);
+    return (
+      seesPlatformOperatorNav(user) ||
+      isCompanyOwnerNav(user) ||
+      isCompanyAdminMember(options?.memberRole) ||
+      isExternalAuditorNav(options?.memberRole)
+    );
   }
 
-  // Business management pages — not for HR-only or Finance-only managers
+  // Business management pages — not for HR-only, Finance-only, or basic staff
   if (BUSINESS_MGMT_HREFS.has(href)) {
     if (seesPlatformOperatorNav(user)) return true;
     const mr = options?.memberRole;
     if (isCustomerPortalMemberRole(mr)) return false;
-    // hr_admin should not see CRM/quotations/marketplace — those are business/commercial
-    if (isHrAdminMember(mr)) return false;
-    // company_member cannot see these
+    if (readsAsHrManager(user, mr) && !isCompanyAdminMember(mr)) return false;
+    if (readsAsFinanceManager(user, mr) && !isCompanyAdminMember(mr)) return false;
     if (isFieldEmployee(mr)) return false;
     return true;
   }
@@ -426,6 +624,10 @@ export function clientNavItemVisible(
   // Field employees (company_member) only see My Portal + preferences
   if (isFieldEmployee(options?.memberRole)) {
     return FIELD_EMPLOYEE_HREFS.has(href);
+  }
+
+  if (membershipScopedNavDenies(href, user, options)) {
+    return false;
   }
 
   return true;
@@ -529,39 +731,54 @@ export function clientRouteAccessible(
     if (
       pathMatchesRestrictedPrefix(path, href) &&
       !seesPlatformOperatorNav(user) &&
-      !seesLeadershipCompanyNav(user) &&
       !isCompanyAdminMember(options?.memberRole) &&
-      !isFinanceAdminMember(options?.memberRole)
+      !isFinanceAdminMember(options?.memberRole) &&
+      user?.platformRole !== "finance_admin"
     ) {
       return false;
     }
   }
 
-  // HR-only routes: block for non-HR roles
-  for (const href of Array.from(HR_ADMIN_HREFS)) {
-    if (pathMatchesRestrictedPrefix(path, href)) {
-      if (seesPlatformOperatorNav(user)) return true;
-      const mr = options?.memberRole;
-      if (!isCompanyAdminMember(mr) && !isHrAdminMember(mr)) return false;
+  // HR module routes
+  if (path === "/hr" || path.startsWith("/hr/")) {
+    if (seesPlatformOperatorNav(user)) return true;
+    const mr = options?.memberRole;
+    if (
+      readsAsFinanceManager(user, mr) &&
+      !readsAsHrManager(user, mr) &&
+      !isCompanyAdminMember(mr)
+    ) {
+      return false;
     }
+    if (isExternalAuditorNav(mr)) return true;
+    if (!isCompanyAdminMember(mr) && !readsAsHrManager(user, mr)) return false;
+    return true;
   }
 
-  // Government services routes: platform operators + company_admin only
+  // Government services routes
   for (const href of Array.from(GOVERNMENT_SERVICES_HREFS)) {
     if (pathMatchesRestrictedPrefix(path, href)) {
       if (seesPlatformOperatorNav(user)) return true;
-      if (isCompanyOwnerNav(user) || isCompanyAdminMember(options?.memberRole)) return true;
+      if (
+        isCompanyOwnerNav(user) ||
+        isCompanyAdminMember(options?.memberRole) ||
+        isExternalAuditorNav(options?.memberRole)
+      ) {
+        return true;
+      }
       return false;
     }
   }
 
-  // Business management routes: not for hr_admin
+  // Business management routes: not for HR-only / Finance-only / basic staff
   for (const href of Array.from(BUSINESS_MGMT_HREFS)) {
     if (pathMatchesRestrictedPrefix(path, href)) {
       if (seesPlatformOperatorNav(user)) return true;
       const mr = options?.memberRole;
       if (isCustomerPortalMemberRole(mr)) return false;
-      if (isHrAdminMember(mr) || isFieldEmployee(mr)) return false;
+      if (readsAsHrManager(user, mr) && !isCompanyAdminMember(mr)) return false;
+      if (readsAsFinanceManager(user, mr) && !isCompanyAdminMember(mr)) return false;
+      if (isFieldEmployee(mr)) return false;
       return true;
     }
   }
@@ -576,6 +793,10 @@ export function clientRouteAccessible(
   // Field employees: only allowed in My Portal
   if (isFieldEmployee(options?.memberRole)) {
     return FIELD_EMPLOYEE_HREFS.has(path) || path.startsWith("/my-portal") || path.startsWith("/preferences");
+  }
+
+  if (membershipScopedNavDenies(path, user, options)) {
+    return false;
   }
 
   return true;

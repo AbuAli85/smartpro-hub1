@@ -99,6 +99,30 @@ describe("clientNavItemVisible", () => {
     expect(clientNavItemVisible("/dashboard", owner, new Set(), { hasCompanyMembership: false })).toBe(true);
     expect(clientNavItemVisible("/onboarding", owner, new Set(), { hasCompanyMembership: false })).toBe(true);
   });
+
+  it("hides payroll from HR managers even when platformRole is company_admin (synced)", () => {
+    const syncedHr = { role: "user" as const, platformRole: "company_admin" as const };
+    const opts = { hasCompanyWorkspace: true, memberRole: "hr_admin" as const };
+    expect(clientNavItemVisible("/payroll", syncedHr, new Set(), opts)).toBe(false);
+    expect(clientNavItemVisible("/hr/performance", syncedHr, new Set(), opts)).toBe(true);
+    expect(clientNavItemVisible("/crm", syncedHr, new Set(), opts)).toBe(false);
+  });
+
+  it("hides HR and CRM from finance managers (membership-scoped shell)", () => {
+    const syncedFinance = { role: "user" as const, platformRole: "company_admin" as const };
+    const opts = { hasCompanyWorkspace: true, memberRole: "finance_admin" as const };
+    expect(clientNavItemVisible("/payroll", syncedFinance, new Set(), opts)).toBe(true);
+    expect(clientNavItemVisible("/hr/employees", syncedFinance, new Set(), opts)).toBe(false);
+    expect(clientNavItemVisible("/crm", syncedFinance, new Set(), opts)).toBe(false);
+  });
+
+  it("limits reviewers to commercial + overview surfaces", () => {
+    const rev = { role: "user" as const, platformRole: "company_member" as const };
+    const opts = { hasCompanyWorkspace: true, memberRole: "reviewer" as const };
+    expect(clientNavItemVisible("/company/hub", rev, new Set(), opts)).toBe(true);
+    expect(clientNavItemVisible("/hr/employees", rev, new Set(), opts)).toBe(false);
+    expect(clientNavItemVisible("/payroll", rev, new Set(), opts)).toBe(false);
+  });
 });
 
 describe("shouldUsePreRegistrationShell", () => {

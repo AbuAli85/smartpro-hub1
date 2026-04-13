@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/dialog";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
+  ChevronDown,
   ClipboardList,
   ChevronLeft,
   ChevronRight,
@@ -34,6 +35,7 @@ import {
   Mail,
   MessageCircle,
 } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -136,6 +138,7 @@ const WHATSAPP_OUTREACH_LANG = "ar-OM";
 
 export default function SurveyAdminResponsesPage() {
   const { t, i18n } = useTranslation("survey");
+  const outreachRtl = Boolean(i18n.language?.startsWith("ar"));
   const utils = trpc.useUtils();
   const tWhatsappOutreach = useMemo(
     () => i18n.getFixedT(WHATSAPP_OUTREACH_LANG, "survey"),
@@ -145,6 +148,7 @@ export default function SurveyAdminResponsesPage() {
   const [selectedStatus, setSelectedStatus] = useState<StatusFilter>("all");
   const [followUpOpen, setFollowUpOpen] = useState(false);
   const [sanadOutreachOpen, setSanadOutreachOpen] = useState(false);
+  const [sanadIntelTipsOpen, setSanadIntelTipsOpen] = useState(false);
   const [sanadOutreachListMode, setSanadOutreachListMode] = useState<"intel" | "platform">("intel");
   const [sanadOutreachManualOnly, setSanadOutreachManualOnly] = useState<
     Array<{
@@ -550,6 +554,7 @@ export default function SurveyAdminResponsesPage() {
           setSanadOutreachOpen(open);
           if (!open) {
             setSanadOutreachManualOnly(null);
+            setSanadIntelTipsOpen(false);
           }
         }}
       >
@@ -558,7 +563,12 @@ export default function SurveyAdminResponsesPage() {
             "flex h-[min(92vh,56rem)] w-[calc(100%-1rem)] max-w-4xl flex-col gap-0 overflow-hidden rounded-lg border bg-background p-0 shadow-lg sm:max-w-4xl",
           )}
         >
-          <DialogHeader className="shrink-0 space-y-2 border-b px-6 pt-6 pb-4 pr-14 text-left">
+          <DialogHeader
+            className={cn(
+              "shrink-0 space-y-2 border-b px-6 pt-6 pb-4 pr-14",
+              outreachRtl ? "text-end" : "text-start",
+            )}
+          >
             <DialogTitle>
               {sanadOutreachManualOnly !== null
                 ? t("admin.sanadOutreachNoEmailTitle", { defaultValue: "Offices without email" })
@@ -575,7 +585,7 @@ export default function SurveyAdminResponsesPage() {
                 : isIntelLayout
                   ? t("admin.sanadOutreachIntelDesc", {
                       defaultValue:
-                        "Directory centres: use WhatsApp or Copy below. More detail in the blue box.",
+                        "Imported directory: use WhatsApp or Copy per row. Expand the tips panel for details.",
                     })
                   : t("admin.sanadOutreachAllDesc", {
                       defaultValue:
@@ -584,85 +594,146 @@ export default function SurveyAdminResponsesPage() {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overflow-x-hidden px-6 py-4">
-          {sanadOutreachManualOnly === null && (
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-muted-foreground text-sm">
-                  {t("admin.sanadOutreachListSource", { defaultValue: "List source" })}
-                </span>
-                <Select
-                  value={sanadOutreachListMode}
-                  onValueChange={(v) => setSanadOutreachListMode(v as "intel" | "platform")}
-                >
-                  <SelectTrigger className="w-[min(100%,280px)]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="intel">
-                      {t("admin.sanadListIntel", { defaultValue: "Intel centres (directory)" })}
-                    </SelectItem>
-                    <SelectItem value="platform">
-                      {t("admin.sanadListPlatform", { defaultValue: "Platform offices (live)" })}
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+          <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden px-6 py-3">
+            <div className="flex shrink-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+              {sanadOutreachManualOnly === null ? (
+                <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+                  <span className="text-muted-foreground shrink-0 text-sm">
+                    {t("admin.sanadOutreachListSource", { defaultValue: "List source" })}
+                  </span>
+                  <Select
+                    value={sanadOutreachListMode}
+                    onValueChange={(v) => setSanadOutreachListMode(v as "intel" | "platform")}
+                  >
+                    <SelectTrigger className="w-full min-w-0 sm:w-[min(100%,280px)]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="intel">
+                        {t("admin.sanadListIntel", { defaultValue: "Intel centres (directory)" })}
+                      </SelectItem>
+                      <SelectItem value="platform">
+                        {t("admin.sanadListPlatform", { defaultValue: "Platform offices (live)" })}
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : (
+                <div className="min-w-0 flex-1" />
+              )}
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                className="shrink-0 self-stretch sm:self-center"
+                disabled={outreachDisplayRows.length === 0 || Boolean(outreachQueryError)}
+                onClick={() =>
+                  downloadSanadLinksCsv(
+                    outreachDisplayRows.map((r) => ({
+                      name: r.name,
+                      phone: r.phone,
+                      contactPerson: r.contactPerson,
+                      email: r.email,
+                      surveyUrl: r.surveyUrl ?? surveyPublicStartUrl ?? null,
+                      governorateLabel: r.governorateLabel,
+                      wilayat: r.wilayat,
+                      surveyNote:
+                        r.surveyUnavailableReason === "not_linked"
+                          ? !r.surveyUrl && surveyPublicStartUrl
+                            ? t("admin.surveyNoteNotLinkedPublicCsv", {
+                                defaultValue:
+                                  "Centre not linked to platform — survey_url column is the general (public) start URL",
+                              })
+                            : t("admin.surveyNoteNotLinked", {
+                                defaultValue: "No linked platform office",
+                              })
+                          : r.surveyUnavailableReason === "office_inactive"
+                            ? t("admin.surveyNoteOfficeInactive", {
+                                defaultValue: "Linked office not active",
+                              })
+                            : null,
+                    })),
+                    "sanad-survey-links.csv",
+                    isIntelLayout ? "intel" : "platform",
+                  )
+                }
+              >
+                {t("admin.downloadSanadCsv", { defaultValue: "Download CSV" })}
+              </Button>
             </div>
-          )}
 
-          {sanadOutreachManualOnly === null &&
-            isIntelLayout &&
-            !outreachLoading &&
-            !outreachQueryError &&
-            outreachDisplayRows.length > 0 && (
-              <Alert className="min-w-0 border-blue-200 bg-blue-50/90 text-left dark:border-blue-900 dark:bg-blue-950/50">
-                <Info className="h-4 w-4 shrink-0 text-blue-600 dark:text-blue-400" aria-hidden />
-                <AlertTitle className="break-words text-blue-950 dark:text-blue-50">
-                  {t("admin.sanadIntelOutreachInfoTitle", {
-                    defaultValue: "How WhatsApp and Copy work",
-                  })}
-                </AlertTitle>
-                <AlertDescription className="min-w-0 text-blue-950/95 dark:text-blue-50/95">
-                  <ul className="mt-2 max-h-[min(38vh,220px)] list-disc space-y-1.5 overflow-y-auto overscroll-y-contain pr-1 pl-4 text-sm leading-relaxed marker:text-blue-600 dark:marker:text-blue-300">
-                    <li className="break-words">
-                      {t("admin.sanadIntelOutreachBullet1", {
-                        defaultValue:
-                          "Green WhatsApp icon: opens an Arabic draft. You must still tap Send inside WhatsApp.",
-                      })}
-                    </li>
-                    <li className="break-words">
-                      {t("admin.sanadIntelOutreachBullet2", {
-                        defaultValue:
-                          "Badge “General link” or “Dedicated link” shows which URL is inside that draft.",
-                      })}
-                    </li>
-                    <li className="break-words">
-                      {t("admin.sanadIntelOutreachBullet3", {
-                        defaultValue:
-                          "Copy dedicated / Copy public copies the same URL as in the WhatsApp draft.",
-                      })}
-                    </li>
-                    <li className="break-words">
-                      {t("admin.sanadIntelOutreachBullet4", {
-                        defaultValue:
-                          "“Centre not linked…” is informational: link the centre in Sanad Intelligence to get a dedicated URL and auto-attribution.",
-                      })}
-                    </li>
-                  </ul>
-                  <p className="mt-3 text-sm">
-                    <Link
-                      href="/admin/sanad/directory"
-                      className="font-medium text-blue-800 underline-offset-2 hover:underline dark:text-blue-200"
+            {sanadOutreachManualOnly === null &&
+              isIntelLayout &&
+              !outreachLoading &&
+              !outreachQueryError &&
+              outreachDisplayRows.length > 0 && (
+                <Collapsible
+                  open={sanadIntelTipsOpen}
+                  onOpenChange={setSanadIntelTipsOpen}
+                  className="shrink-0 rounded-lg border border-blue-200/80 bg-blue-50/80 dark:border-blue-900 dark:bg-blue-950/40"
+                >
+                  <CollapsibleTrigger asChild>
+                    <button
+                      type="button"
+                      className="flex w-full items-center justify-between gap-2 px-3 py-2.5 text-start text-sm font-medium text-blue-950 hover:bg-blue-100/60 dark:text-blue-50 dark:hover:bg-blue-900/40"
                     >
-                      {t("admin.openSanadDirectoryToLink", {
-                        defaultValue: "Open Sanad directory → link a centre to a platform office",
-                      })}
-                    </Link>
-                  </p>
-                </AlertDescription>
-              </Alert>
-            )}
+                      <span className="flex min-w-0 items-center gap-2">
+                        <Info className="size-4 shrink-0 text-blue-600 dark:text-blue-400" aria-hidden />
+                        <span className="min-w-0 break-words">
+                          {t("admin.sanadIntelTipsToggle", {
+                            defaultValue: "How WhatsApp & Copy work (tap to expand)",
+                          })}
+                        </span>
+                      </span>
+                      <ChevronDown
+                        className={cn(
+                          "size-4 shrink-0 text-blue-700 transition-transform dark:text-blue-300",
+                          sanadIntelTipsOpen && "rotate-180",
+                        )}
+                        aria-hidden
+                      />
+                    </button>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="border-t border-blue-200/60 px-3 pb-3 pt-0 dark:border-blue-900/80">
+                    <ul className="mt-2 list-disc space-y-1.5 ps-4 text-xs leading-relaxed text-blue-950/95 marker:text-blue-600 dark:text-blue-50/95 dark:marker:text-blue-300 sm:text-sm">
+                      <li className="break-words">
+                        {t("admin.sanadIntelOutreachBullet1", {
+                          defaultValue:
+                            "Green WhatsApp icon: opens an Arabic draft. You must still tap Send inside WhatsApp.",
+                        })}
+                      </li>
+                      <li className="break-words">
+                        {t("admin.sanadIntelOutreachBullet2", {
+                          defaultValue:
+                            "Badge “Public URL” or “Office URL” shows which link is inside that draft.",
+                        })}
+                      </li>
+                      <li className="break-words">
+                        {t("admin.sanadIntelOutreachBullet3", {
+                          defaultValue:
+                            "“Office URL” / “Public URL” copies the same link as in the WhatsApp draft.",
+                        })}
+                      </li>
+                      <li className="break-words">
+                        {t("admin.sanadIntelOutreachBullet4", {
+                          defaultValue:
+                            "“Centre not linked…” is informational: link the centre in Sanad Intelligence to get a dedicated URL and auto-attribution.",
+                        })}
+                      </li>
+                    </ul>
+                    <p className="mt-2 text-xs sm:text-sm">
+                      <Link
+                        href="/admin/sanad/directory"
+                        className="font-medium text-blue-800 underline-offset-2 hover:underline dark:text-blue-200"
+                      >
+                        {t("admin.openSanadDirectoryToLink", {
+                          defaultValue: "Open Sanad directory → link a centre to a platform office",
+                        })}
+                      </Link>
+                    </p>
+                  </CollapsibleContent>
+                </Collapsible>
+              )}
 
           {outreachQueryError && (
             <Alert variant="destructive" className="text-left">
@@ -688,50 +759,10 @@ export default function SurveyAdminResponsesPage() {
             </Alert>
           )}
 
-          <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              disabled={outreachDisplayRows.length === 0 || Boolean(outreachQueryError)}
-              onClick={() =>
-                downloadSanadLinksCsv(
-                  outreachDisplayRows.map((r) => ({
-                    name: r.name,
-                    phone: r.phone,
-                    contactPerson: r.contactPerson,
-                    email: r.email,
-                    surveyUrl: r.surveyUrl ?? surveyPublicStartUrl ?? null,
-                    governorateLabel: r.governorateLabel,
-                    wilayat: r.wilayat,
-                    surveyNote:
-                      r.surveyUnavailableReason === "not_linked"
-                        ? !r.surveyUrl && surveyPublicStartUrl
-                          ? t("admin.surveyNoteNotLinkedPublicCsv", {
-                              defaultValue:
-                                "Centre not linked to platform — survey_url column is the general (public) start URL",
-                            })
-                          : t("admin.surveyNoteNotLinked", {
-                              defaultValue: "No linked platform office",
-                            })
-                        : r.surveyUnavailableReason === "office_inactive"
-                          ? t("admin.surveyNoteOfficeInactive", {
-                              defaultValue: "Linked office not active",
-                            })
-                          : null,
-                  })),
-                  "sanad-survey-links.csv",
-                  isIntelLayout ? "intel" : "platform",
-                )
-              }
-            >
-              {t("admin.downloadSanadCsv", { defaultValue: "Download CSV" })}
-            </Button>
-          </div>
-
-          <div className="min-w-0 overflow-x-auto rounded-md border">
-            <Table className="min-w-[44rem]">
-              <TableHeader>
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-md border bg-card">
+            <div className="min-h-0 flex-1 overflow-auto">
+            <Table className="min-w-[48rem]">
+              <TableHeader className="bg-muted/40 dark:bg-muted/30">
                 <TableRow>
                   <TableHead>{t("admin.sanadColOffice", { defaultValue: "Office" })}</TableHead>
                   {isIntelLayout ? (
@@ -743,18 +774,28 @@ export default function SurveyAdminResponsesPage() {
                   <TableHead>{t("yourPhone")}</TableHead>
                   <TableHead>{t("admin.sanadColContact", { defaultValue: "Contact" })}</TableHead>
                   {!isIntelLayout ? <TableHead>{t("yourEmail")}</TableHead> : null}
-                  <TableHead className="text-center">
+                  <TableHead className="w-[5.5rem] min-w-[5.5rem] max-w-[5.5rem] text-center align-bottom">
                     <div className="flex flex-col items-center gap-0.5">
                       <span>{t("admin.sanadColWhatsapp", { defaultValue: "WhatsApp" })}</span>
-                      <span className="text-muted-foreground max-w-[7.5rem] text-[10px] font-normal leading-tight">
+                      <span className="text-muted-foreground text-[10px] font-normal leading-tight">
                         {t("admin.sanadColWhatsappSub", {
                           defaultValue: "Arabic draft",
                         })}
                       </span>
                     </div>
                   </TableHead>
-                  <TableHead className="min-w-[10rem] text-right">
-                    <div className="flex flex-col items-end gap-0.5">
+                  <TableHead
+                    className={cn(
+                      "min-w-[11rem] max-w-[18rem] align-bottom sm:min-w-[12rem]",
+                      outreachRtl ? "text-start" : "text-end",
+                    )}
+                  >
+                    <div
+                      className={cn(
+                        "flex flex-col gap-0.5",
+                        outreachRtl ? "items-start" : "items-end",
+                      )}
+                    >
                       <span>{t("admin.sanadColSurveyUrl", { defaultValue: "Survey URL" })}</span>
                       <span className="text-muted-foreground max-w-[12rem] text-[10px] font-normal leading-snug">
                         {isIntelLayout
@@ -826,7 +867,7 @@ export default function SurveyAdminResponsesPage() {
                           });
                     const waHref = waDigits ? buildWhatsAppMessageHref(waDigits, waMessage) : null;
                     return (
-                    <TableRow key={row.rowKey}>
+                    <TableRow key={row.rowKey} className="align-top">
                       <TableCell className="max-w-[10rem] font-medium">
                         <span className="line-clamp-2">{row.name}</span>
                       </TableCell>
@@ -855,22 +896,20 @@ export default function SurveyAdminResponsesPage() {
                           )}
                         </TableCell>
                       ) : null}
-                      <TableCell className="text-center">
-                        <div className="flex flex-col items-center gap-1">
+                      <TableCell className="w-[5.5rem] min-w-[5.5rem] max-w-[5.5rem] align-top text-center">
+                        <div className="flex flex-col items-center justify-center gap-1.5 py-1">
                           {waHref ? (
                             <Button
                               asChild
                               size="sm"
                               className="border-0 bg-[#25D366] text-white hover:bg-[#20bd5a]"
-                              title={t("admin.whatsappOpenHint", {
-                                defaultValue: "Open WhatsApp with this number and a draft message",
-                              })}
+                              title={`${t("admin.whatsappOpenHint", { defaultValue: "Opens WhatsApp with a draft." })} ${t("admin.whatsappDraftReady", { defaultValue: "Then tap Send in WhatsApp." })}`}
                             >
                               <a
                                 href={waHref}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                aria-label={t("admin.sanadColWhatsapp", { defaultValue: "WhatsApp" })}
+                                aria-label={`${t("admin.sanadColWhatsapp", { defaultValue: "WhatsApp" })}. ${t("admin.whatsappDraftReady", { defaultValue: "Tap Send in WhatsApp after opening." })}`}
                               >
                                 <MessageCircle className="h-4 w-4" aria-hidden />
                               </a>
@@ -880,40 +919,42 @@ export default function SurveyAdminResponsesPage() {
                               —
                             </span>
                           )}
-                          {/* Message variant indicator */}
                           {row.surveyUrl ? (
                             <span
-                              className="inline-flex items-center rounded-full bg-green-100 px-1.5 py-0.5 text-[10px] font-medium leading-tight text-green-800 dark:bg-green-900/30 dark:text-green-400"
+                              className="inline-flex max-w-full justify-center rounded-full bg-green-100 px-1.5 py-0.5 text-[10px] font-medium leading-tight text-green-800 dark:bg-green-900/30 dark:text-green-400"
                               title={t("admin.msgVariantDedicatedHint", { defaultValue: "Dedicated office link — response auto-linked to this office" })}
                             >
-                              {t("admin.msgVariantDedicated", { defaultValue: "Dedicated link" })}
+                              {t("admin.msgVariantDedicated", { defaultValue: "Office URL" })}
                             </span>
                           ) : surveyPublicStartUrl ? (
                             <span
-                              className="inline-flex items-center rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium leading-tight text-amber-800 dark:bg-amber-900/30 dark:text-amber-400"
+                              className="inline-flex max-w-full justify-center rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium leading-tight text-amber-800 dark:bg-amber-900/30 dark:text-amber-400"
                               title={t("admin.msgVariantPublicHint", { defaultValue: "General survey link — no automatic office binding. Link the centre for a dedicated URL." })}
                             >
-                              {t("admin.msgVariantPublic", { defaultValue: "Public link" })}
+                              {t("admin.msgVariantPublic", { defaultValue: "Public URL" })}
                             </span>
                           ) : (
                             <span
-                              className="inline-flex items-center rounded-full bg-zinc-100 px-1.5 py-0.5 text-[10px] font-medium leading-tight text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400"
+                              className="inline-flex max-w-full justify-center rounded-full bg-zinc-100 px-1.5 py-0.5 text-[10px] font-medium leading-tight text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400"
                               title={t("admin.msgVariantNoLinkHint", { defaultValue: "No survey link — message asks recipient to reply for a link" })}
                             >
                               {t("admin.msgVariantNoLink", { defaultValue: "No link" })}
                             </span>
                           )}
-                          {waHref ? (
-                            <span className="max-w-[6.5rem] text-center text-[10px] leading-tight text-green-700 dark:text-green-400">
-                              {t("admin.whatsappDraftReady", {
-                                defaultValue: "Tap icon, then Send in WhatsApp",
-                              })}
-                            </span>
-                          ) : null}
                         </div>
                       </TableCell>
-                      <TableCell className="min-w-[10rem] max-w-[16rem] text-right align-top">
-                        <div className="flex flex-col items-end gap-1.5">
+                      <TableCell
+                        className={cn(
+                          "min-w-[11rem] max-w-[18rem] align-top sm:min-w-[12rem]",
+                          outreachRtl ? "text-start" : "text-end",
+                        )}
+                      >
+                        <div
+                          className={cn(
+                            "flex flex-col gap-1.5",
+                            outreachRtl ? "items-start" : "items-end",
+                          )}
+                        >
                           <Button
                             type="button"
                             variant="outline"
@@ -957,7 +998,7 @@ export default function SurveyAdminResponsesPage() {
                                 : t("copyToken")}
                           </Button>
                           {isIntelLayout ? (
-                            <span className="w-full max-w-[16rem] break-words text-left text-xs leading-snug text-muted-foreground">
+                            <span className="w-full max-w-full break-words text-xs leading-snug text-muted-foreground">
                               {row.surveyUrl ? (
                                 <span className="text-green-700 dark:text-green-400">
                                   {t("admin.outreachBindingDedicated", {
@@ -967,7 +1008,7 @@ export default function SurveyAdminResponsesPage() {
                                 </span>
                               ) : surveyPublicStartUrl ? (
                                 <span
-                                  className="border-muted-foreground/25 text-muted-foreground border-l-2 pl-2"
+                                  className="border-muted-foreground/25 border-s-2 ps-2 text-muted-foreground"
                                   title={t("admin.outreachBindingUsePublic", {
                                     defaultValue:
                                       "Centre not linked on platform yet — Copy and WhatsApp use the same general survey URL until you link this centre.",
@@ -1004,6 +1045,7 @@ export default function SurveyAdminResponsesPage() {
                 )}
               </TableBody>
             </Table>
+            </div>
           </div>
           </div>
         </DialogContent>

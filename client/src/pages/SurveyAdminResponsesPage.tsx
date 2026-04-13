@@ -267,6 +267,34 @@ export default function SurveyAdminResponsesPage() {
     sanadLinksQuery.data?.offices,
   ]);
 
+  /** Same survey entry URL without `officeId` — for WhatsApp when a row has no per-office link yet. */
+  const surveyPublicStartUrl = useMemo(() => {
+    if (sanadOutreachManualOnly?.length) {
+      const first = sanadOutreachManualOnly[0]?.surveyUrl;
+      if (first) {
+        try {
+          const u = new URL(first);
+          u.search = "";
+          return u.toString();
+        } catch {
+          /* ignore */
+        }
+      }
+    }
+    const plat = sanadLinksQuery.data;
+    const intel = intelLinksQuery.data;
+    const d = sanadOutreachListMode === "intel" ? intel : plat;
+    if (d?.baseUrl && "surveySlug" in d && d.surveySlug) {
+      return `${String(d.baseUrl).replace(/\/+$/, "")}/survey/${d.surveySlug}`;
+    }
+    return null;
+  }, [
+    sanadOutreachManualOnly,
+    sanadOutreachListMode,
+    sanadLinksQuery.data,
+    intelLinksQuery.data,
+  ]);
+
   const isIntelLayout =
     sanadOutreachManualOnly === null && sanadOutreachListMode === "intel";
   const outreachColCount = isIntelLayout ? 7 : 6;
@@ -688,11 +716,18 @@ export default function SurveyAdminResponsesPage() {
                           defaultValue:
                             "السلام عليكم ورحمة الله وبركاته،\n\nنفيدكم بأن هذه الرسالة تتصل باستبيان قطاع الأعمال الرسمي في سلطنة عُمان (منصة سمارت برو «المندوب الذكي» وبرنامج مكاتب سند)، لجمع معلومات قطاعية تُسهم في التخطيط والإفادة الرسمية.\n\nالمنشأة:\n{{officeName}}\n\nالرابط المباشر لاستكمال الاستبيان عبر المتصفح:\n{{surveyUrl}}\n\nشكراً لتعاونكم،",
                         })
-                      : tWhatsappOutreach("admin.whatsappSurveyMessageNoLink", {
-                          officeName: officeWa,
-                          defaultValue:
-                            "السلام عليكم ورحمة الله وبركاته،\n\nنفيدكم بأن هذه الرسالة تتصل باستبيان قطاع الأعمال الرسمي في سلطنة عُمان (منصة سمارت برو «المندوب الذكي» وبرنامج مكاتب سند)، لجمع معلومات قطاعية تُسهم في التخطيط والإفادة الرسمية.\n\nالمنشأة:\n{{officeName}}\n\nلم يُرفق رابط إلكتروني مع هذه الرسالة حالياً. نرجو منكم الرد على هذه المحادثة عند التيسّر، أو تزويدنا ببريد إلكتروني نشط، ليُرسل إليكم رابط الاستبيان المخصّص للمنشأة.\n\nشكراً لتعاونكم،",
-                        });
+                      : surveyPublicStartUrl
+                        ? tWhatsappOutreach("admin.whatsappSurveyMessageNoOfficeLink", {
+                            officeName: officeWa,
+                            surveyPublicUrl: surveyPublicStartUrl,
+                            defaultValue:
+                              "السلام عليكم ورحمة الله وبركاته،\n\nنفيدكم بأن هذه الرسالة تتصل باستبيان قطاع الأعمال الرسمي في سلطنة عُمان (منصة سمارت برو «المندوب الذكي» وبرنامج مكاتب سند)، لجمع معلومات قطاعية تُسهم في التخطيط والإفادة الرسمية.\n\nالمنشأة:\n{{officeName}}\n\nلا يتوفر رابط مخصّص لربط الإجابة تلقائياً بهذا المكتب على المنصة في هذه الرسالة بعد. يمكنكم البدء عبر الرابط العام التالي؛ ولإرسال الرابط المخصّص بعد اكتمال الربط على المنصة نرجو الرد على هذه المحادثة أو تزويدنا ببريد إلكتروني نشط:\n\n{{surveyPublicUrl}}\n\nشكراً لتعاونكم،",
+                          })
+                        : tWhatsappOutreach("admin.whatsappSurveyMessageNoLink", {
+                            officeName: officeWa,
+                            defaultValue:
+                              "السلام عليكم ورحمة الله وبركاته،\n\nنفيدكم بأن هذه الرسالة تتصل باستبيان قطاع الأعمال الرسمي في سلطنة عُمان (منصة سمارت برو «المندوب الذكي» وبرنامج مكاتب سند)، لجمع معلومات قطاعية تُسهم في التخطيط والإفادة الرسمية.\n\nالمنشأة:\n{{officeName}}\n\nلم يُرفق رابط إلكتروني مع هذه الرسالة حالياً. نرجو منكم الرد على هذه المحادثة عند التيسّر، أو تزويدنا ببريد إلكتروني نشط، ليُرسل إليكم رابط الاستبيان المخصّص للمنشأة.\n\nشكراً لتعاونكم،",
+                          });
                     const waHref = waDigits ? buildWhatsAppMessageHref(waDigits, waMessage) : null;
                     return (
                     <TableRow key={row.rowKey}>
@@ -755,21 +790,31 @@ export default function SurveyAdminResponsesPage() {
                             type="button"
                             variant="outline"
                             size="sm"
-                            disabled={!row.surveyUrl}
+                            disabled={!row.surveyUrl && !surveyPublicStartUrl}
                             title={
-                              !row.surveyUrl
-                                ? t("admin.surveyLinkUnavailableHint", {
-                                    defaultValue:
-                                      "Link the centre to an active Sanad office to get a survey URL.",
-                                  })
-                                : undefined
+                              row.surveyUrl
+                                ? undefined
+                                : surveyPublicStartUrl
+                                  ? t("admin.surveyPublicLinkCopyHint", {
+                                      defaultValue:
+                                        "General survey link (no office binding). Link the centre for a dedicated URL.",
+                                    })
+                                  : t("admin.surveyLinkUnavailableHint", {
+                                      defaultValue:
+                                        "Link the centre to an active Sanad office to get a survey URL.",
+                                    })
                             }
                             onClick={async () => {
-                              if (!row.surveyUrl) return;
+                              const toCopy = row.surveyUrl ?? surveyPublicStartUrl;
+                              if (!toCopy) return;
                               try {
-                                await navigator.clipboard.writeText(row.surveyUrl);
+                                await navigator.clipboard.writeText(toCopy);
                                 toast.success(
-                                  t("admin.surveyLinkCopied", { defaultValue: "Survey link copied" }),
+                                  row.surveyUrl
+                                    ? t("admin.surveyLinkCopied", { defaultValue: "Survey link copied" })
+                                    : t("admin.surveyPublicLinkCopied", {
+                                        defaultValue: "General survey link copied (office-specific link after linking)",
+                                      }),
                                 );
                               } catch {
                                 toast.error(t("copyFailed"));

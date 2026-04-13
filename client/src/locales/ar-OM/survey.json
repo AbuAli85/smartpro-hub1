@@ -100,6 +100,18 @@
     "sanadColWhatsapp": "واتساب",
     "whatsappSurveyMessage": "مرحباً،\n\nيرجى إكمال الاستبيان لـ {{officeName}}:\n{{surveyUrl}}\n\nشكراً لكم.",
     "whatsappOpenHint": "فتح واتساب بهذا الرقم ورسالة جاهزة (اضغط إرسال في واتساب)",
-    "whatsappNoPhoneHint": "لا يوجد رقم صالح — أضف رقماً أو صحّح الصيغة (مثلاً +968…)"
+    "whatsappNoPhoneHint": "لا يوجد رقم صالح — أضف رقماً أو صحّح الصيغة (مثلاً +968…)",
+    "sanadOutreachIntelTitle": "مراكز سند (الدليل)",
+    "sanadOutreachIntelDesc": "بيانات من دليل المراكز المستورد. يظهر رابط الاستبيان فقط عند ربط المركز بمكتب منصة نشط. غيّر مصدر القائمة لعرض مكاتب المنصة فقط.",
+    "sanadOutreachListSource": "مصدر القائمة",
+    "sanadListIntel": "مراكز الدليل (استخبارات)",
+    "sanadListPlatform": "مكاتب المنصة (نشطة)",
+    "whatsappSurveyMessageNoLink": "مرحباً،\n\nبخصوص {{officeName}} — يرجى الرد عند التيسر.\n\nشكراً لكم.",
+    "surveyNoteNotLinked": "لا يوجد مكتب منصة مرتبط",
+    "surveyNoteOfficeInactive": "المكتب المرتبط غير نشط",
+    "surveyLinkUnavailableHint": "اربط المركز بمكتب سند نشط للحصول على رابط الاستبيان.",
+    "badgeNotLinked": "غير مربوط",
+    "badgeOfficeInactive": "المكتب غير نشط",
+    "sanadColWilayat": "الولاية"
   }
 }

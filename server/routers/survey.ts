@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { eq, and, desc, sql, isNotNull } from "drizzle-orm";
+import { eq, and, desc, sql, isNotNull, asc } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { publicProcedure, protectedProcedure, router, t } from "../_core/trpc";
 import { NOT_ADMIN_ERR_MSG } from "@shared/const";
@@ -16,6 +16,8 @@ import {
   surveyResponseTags,
   users,
   sanadOffices,
+  sanadIntelCenters,
+  sanadIntelCenterOperations,
 } from "../../drizzle/schema";
 import {
   getBySlugInput,
@@ -591,6 +593,75 @@ export const surveyRouter = router({
           hasEmail: Boolean(o.email?.trim()),
           surveyUrl: `${baseUrl}/survey/${slug}?officeId=${o.id}`,
         })),
+      };
+    }),
+
+  /**
+   * Intel centre directory (`sanad_intel_centers`) with contact details; survey URL only when
+   * `sanad_intel_center_operations.linked_sanad_office_id` points at an **active** platform office.
+   */
+  adminSanadIntelCenterSurveyLinks: surveyAdminProcedure
+    .input(z.object({ surveySlug: z.string().min(1).max(100).optional() }).optional())
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+
+      const slug = input?.surveySlug ?? "oman-business-sector-2026";
+      const [survey] = await db.select().from(surveys).where(eq(surveys.slug, slug)).limit(1);
+      if (!survey) throw new TRPCError({ code: "NOT_FOUND", message: "Survey not found" });
+
+      const baseUrl = resolveSanadSurveyBaseUrl();
+      if (!baseUrl) {
+        throw new TRPCError({
+          code: "FAILED_PRECONDITION",
+          message: "Set PUBLIC_APP_URL so survey links are valid.",
+        });
+      }
+
+      const joined = await db
+        .select({
+          center: sanadIntelCenters,
+          linkedSanadOfficeId: sanadIntelCenterOperations.linkedSanadOfficeId,
+          officeStatus: sanadOffices.status,
+        })
+        .from(sanadIntelCenters)
+        .leftJoin(
+          sanadIntelCenterOperations,
+          eq(sanadIntelCenterOperations.centerId, sanadIntelCenters.id),
+        )
+        .leftJoin(sanadOffices, eq(sanadOffices.id, sanadIntelCenterOperations.linkedSanadOfficeId))
+        .orderBy(asc(sanadIntelCenters.centerName));
+
+      const rows = joined.map(({ center, linkedSanadOfficeId, officeStatus }) => {
+        const linkedId = linkedSanadOfficeId ?? null;
+        const active = officeStatus === "active";
+        let surveyUrl: string | null = null;
+        let surveyUnavailableReason: "not_linked" | "office_inactive" | null = null;
+        if (linkedId != null && active) {
+          surveyUrl = `${baseUrl}/survey/${slug}?officeId=${linkedId}`;
+        } else if (linkedId == null) {
+          surveyUnavailableReason = "not_linked";
+        } else {
+          surveyUnavailableReason = "office_inactive";
+        }
+        return {
+          intelCenterId: center.id,
+          centerName: center.centerName,
+          responsiblePerson: center.responsiblePerson?.trim() || null,
+          contactNumber: center.contactNumber?.trim() || null,
+          governorateLabel: center.governorateLabelRaw,
+          wilayat: center.wilayat?.trim() || null,
+          linkedSanadOfficeId: linkedId,
+          surveyUrl,
+          surveyUnavailableReason,
+        };
+      });
+
+      return {
+        surveySlug: slug,
+        surveyTitleEn: survey.titleEn,
+        baseUrl,
+        rows,
       };
     }),
 

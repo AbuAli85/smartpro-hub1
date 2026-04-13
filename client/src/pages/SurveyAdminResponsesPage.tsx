@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "wouter";
 import { trpc } from "@/lib/trpc";
@@ -26,6 +26,21 @@ import { ClipboardList, ChevronLeft, ChevronRight, Link2, Mail, MessageCircle } 
 import { toast } from "sonner";
 
 type StatusFilter = "all" | "in_progress" | "completed" | "abandoned";
+
+/** Unified row for Sanad outreach dialog (platform offices or intel centre directory). */
+type OutreachTableRow = {
+  rowKey: string;
+  name: string;
+  nameAr: string | null;
+  phone: string | null;
+  contactPerson: string | null;
+  email: string | null;
+  hasEmail: boolean;
+  surveyUrl: string | null;
+  governorateLabel?: string | null;
+  wilayat?: string | null;
+  surveyUnavailableReason?: "not_linked" | "office_inactive" | null;
+};
 
 const STATUS_BADGE: Record<string, string> = {
   completed: "bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800",
@@ -74,19 +89,36 @@ function downloadSanadLinksCsv(
     phone: string | null;
     contactPerson: string | null;
     email: string | null | undefined;
-    surveyUrl: string;
+    surveyUrl: string | null;
+    governorateLabel?: string | null;
+    wilayat?: string | null;
+    surveyNote?: string | null;
   }>,
   filename: string,
+  format: "platform" | "intel",
 ): void {
-  const header = ["office_name", "phone", "contact", "email", "survey_url"].join(",");
+  const header =
+    format === "intel"
+      ? ["office_name", "governorate", "wilayat", "phone", "contact", "survey_url", "note"].join(",")
+      : ["office_name", "phone", "contact", "email", "survey_url"].join(",");
   const lines = rows.map((r) =>
-    [
-      csvEscapeCell(r.name),
-      csvEscapeCell(r.phone ?? ""),
-      csvEscapeCell(r.contactPerson ?? ""),
-      csvEscapeCell(r.email ?? ""),
-      csvEscapeCell(r.surveyUrl),
-    ].join(","),
+    format === "intel"
+      ? [
+          csvEscapeCell(r.name),
+          csvEscapeCell(r.governorateLabel ?? ""),
+          csvEscapeCell(r.wilayat ?? ""),
+          csvEscapeCell(r.phone ?? ""),
+          csvEscapeCell(r.contactPerson ?? ""),
+          csvEscapeCell(r.surveyUrl ?? ""),
+          csvEscapeCell(r.surveyNote ?? ""),
+        ].join(",")
+      : [
+          csvEscapeCell(r.name),
+          csvEscapeCell(r.phone ?? ""),
+          csvEscapeCell(r.contactPerson ?? ""),
+          csvEscapeCell(r.email ?? ""),
+          csvEscapeCell(r.surveyUrl ?? ""),
+        ].join(","),
   );
   const blob = new Blob([`${header}\n${lines.join("\n")}\n`], {
     type: "text/csv;charset=utf-8",
@@ -103,6 +135,7 @@ export default function SurveyAdminResponsesPage() {
   const [page, setPage] = useState(1);
   const [selectedStatus, setSelectedStatus] = useState<StatusFilter>("all");
   const [sanadOutreachOpen, setSanadOutreachOpen] = useState(false);
+  const [sanadOutreachListMode, setSanadOutreachListMode] = useState<"intel" | "platform">("intel");
   const [sanadOutreachManualOnly, setSanadOutreachManualOnly] = useState<
     Array<{
       id: number;
@@ -121,7 +154,11 @@ export default function SurveyAdminResponsesPage() {
   const { data: stats } = trpc.survey.adminGetAnalytics.useQuery();
 
   const sanadLinksQuery = trpc.survey.adminSanadOfficeSurveyLinks.useQuery(undefined, {
-    enabled: sanadOutreachOpen && sanadOutreachManualOnly === null,
+    enabled: sanadOutreachOpen && sanadOutreachManualOnly === null && sanadOutreachListMode === "platform",
+  });
+
+  const intelLinksQuery = trpc.survey.adminSanadIntelCenterSurveyLinks.useQuery(undefined, {
+    enabled: sanadOutreachOpen && sanadOutreachManualOnly === null && sanadOutreachListMode === "intel",
   });
 
   const { data, isLoading, isError, error } = trpc.survey.adminListResponses.useQuery(
@@ -144,6 +181,7 @@ export default function SurveyAdminResponsesPage() {
       });
       toast.success(base);
       if (r.manualOutreach.length > 0) {
+        setSanadOutreachListMode("platform");
         setSanadOutreachManualOnly(r.manualOutreach);
         setSanadOutreachOpen(true);
       }
@@ -151,26 +189,70 @@ export default function SurveyAdminResponsesPage() {
     onError: (e) => toast.error(e.message),
   });
 
-  const outreachDisplayRows =
-    sanadOutreachManualOnly !== null
-      ? sanadOutreachManualOnly.map((o) => ({
-          ...o,
-          email: null as string | null,
+  const outreachDisplayRows: OutreachTableRow[] = useMemo(() => {
+    if (sanadOutreachManualOnly !== null) {
+      return sanadOutreachManualOnly.map((o) => ({
+        rowKey: `platform-${o.id}`,
+        name: o.name,
+        nameAr: o.nameAr,
+        phone: o.phone,
+        contactPerson: o.contactPerson,
+        email: null,
+        hasEmail: false,
+        surveyUrl: o.surveyUrl,
+      }));
+    }
+    if (sanadOutreachListMode === "intel") {
+      return (
+        intelLinksQuery.data?.rows.map((r) => ({
+          rowKey: `intel-${r.intelCenterId}`,
+          name: r.centerName,
+          nameAr: null,
+          phone: r.contactNumber,
+          contactPerson: r.responsiblePerson,
+          email: null,
           hasEmail: false,
-        }))
-      : (sanadLinksQuery.data?.offices.map((o) => ({
-          id: o.id,
-          name: o.name,
-          nameAr: o.nameAr,
-          phone: o.phone,
-          contactPerson: o.contactPerson,
-          surveyUrl: o.surveyUrl,
-          email: o.email,
-          hasEmail: o.hasEmail,
-        })) ?? []);
+          surveyUrl: r.surveyUrl,
+          governorateLabel: r.governorateLabel,
+          wilayat: r.wilayat,
+          surveyUnavailableReason: r.surveyUnavailableReason,
+        })) ?? []
+      );
+    }
+    return (
+      sanadLinksQuery.data?.offices.map((o) => ({
+        rowKey: `platform-${o.id}`,
+        name: o.name,
+        nameAr: o.nameAr,
+        phone: o.phone,
+        contactPerson: o.contactPerson,
+        email: o.email,
+        hasEmail: o.hasEmail,
+        surveyUrl: o.surveyUrl,
+      })) ?? []
+    );
+  }, [
+    sanadOutreachManualOnly,
+    sanadOutreachListMode,
+    intelLinksQuery.data?.rows,
+    sanadLinksQuery.data?.offices,
+  ]);
+
+  const isIntelLayout =
+    sanadOutreachManualOnly === null && sanadOutreachListMode === "intel";
+  const outreachColCount = isIntelLayout ? 7 : 6;
 
   const outreachLoading =
-    sanadOutreachOpen && sanadOutreachManualOnly === null && sanadLinksQuery.isLoading;
+    sanadOutreachOpen &&
+    sanadOutreachManualOnly === null &&
+    (sanadOutreachListMode === "intel" ? intelLinksQuery.isLoading : sanadLinksQuery.isLoading);
+
+  const outreachQueryError =
+    sanadOutreachManualOnly === null
+      ? sanadOutreachListMode === "intel"
+        ? intelLinksQuery.error
+        : sanadLinksQuery.error
+      : null;
 
   const total = data?.total ?? 0;
   const limit = data?.limit ?? 25;
@@ -216,6 +298,7 @@ export default function SurveyAdminResponsesPage() {
             className="gap-1.5"
             onClick={() => {
               setSanadOutreachManualOnly(null);
+              setSanadOutreachListMode("intel");
               setSanadOutreachOpen(true);
             }}
           >
@@ -383,7 +466,9 @@ export default function SurveyAdminResponsesPage() {
         open={sanadOutreachOpen}
         onOpenChange={(open) => {
           setSanadOutreachOpen(open);
-          if (!open) setSanadOutreachManualOnly(null);
+          if (!open) {
+            setSanadOutreachManualOnly(null);
+          }
         }}
       >
         <DialogContent className="max-h-[85vh] max-w-3xl overflow-y-auto">
@@ -391,7 +476,9 @@ export default function SurveyAdminResponsesPage() {
             <DialogTitle>
               {sanadOutreachManualOnly !== null
                 ? t("admin.sanadOutreachNoEmailTitle", { defaultValue: "Offices without email" })
-                : t("admin.sanadOutreachAllTitle", { defaultValue: "Sanad office survey links" })}
+                : isIntelLayout
+                  ? t("admin.sanadOutreachIntelTitle", { defaultValue: "Sanad centres (directory)" })
+                  : t("admin.sanadOutreachAllTitle", { defaultValue: "Sanad office survey links" })}
             </DialogTitle>
             <DialogDescription>
               {sanadOutreachManualOnly !== null
@@ -399,16 +486,47 @@ export default function SurveyAdminResponsesPage() {
                     defaultValue:
                       "Share each survey link by WhatsApp or phone using the office name and number on file. The link records which Sanad office the response belongs to.",
                   })
-                : t("admin.sanadOutreachAllDesc", {
-                    defaultValue:
-                      "Per-office survey links for manual outreach. Offices that have an email can also get the link via the Email Sanad offices button.",
-                  })}
+                : isIntelLayout
+                  ? t("admin.sanadOutreachIntelDesc", {
+                      defaultValue:
+                        "Data from sanad_intel_centers (imported directory). A survey link appears only when the centre is linked to an active platform office. Use the list source control to switch to live platform offices only.",
+                    })
+                  : t("admin.sanadOutreachAllDesc", {
+                      defaultValue:
+                        "Per-office survey links for manual outreach. Offices that have an email can also get the link via the Email Sanad offices button.",
+                    })}
             </DialogDescription>
           </DialogHeader>
 
-          {sanadOutreachManualOnly === null && sanadLinksQuery.isError && (
+          {sanadOutreachManualOnly === null && (
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-muted-foreground text-sm">
+                  {t("admin.sanadOutreachListSource", { defaultValue: "List source" })}
+                </span>
+                <Select
+                  value={sanadOutreachListMode}
+                  onValueChange={(v) => setSanadOutreachListMode(v as "intel" | "platform")}
+                >
+                  <SelectTrigger className="w-[min(100%,280px)]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="intel">
+                      {t("admin.sanadListIntel", { defaultValue: "Intel centres (directory)" })}
+                    </SelectItem>
+                    <SelectItem value="platform">
+                      {t("admin.sanadListPlatform", { defaultValue: "Platform offices (live)" })}
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+
+          {outreachQueryError && (
             <p className="text-destructive text-sm" role="alert">
-              {sanadLinksQuery.error.message}
+              {outreachQueryError.message}
             </p>
           )}
 
@@ -426,8 +544,21 @@ export default function SurveyAdminResponsesPage() {
                     contactPerson: r.contactPerson,
                     email: r.email,
                     surveyUrl: r.surveyUrl,
+                    governorateLabel: r.governorateLabel,
+                    wilayat: r.wilayat,
+                    surveyNote:
+                      r.surveyUnavailableReason === "not_linked"
+                        ? t("admin.surveyNoteNotLinked", {
+                            defaultValue: "No linked platform office",
+                          })
+                        : r.surveyUnavailableReason === "office_inactive"
+                          ? t("admin.surveyNoteOfficeInactive", {
+                              defaultValue: "Linked office not active",
+                            })
+                          : null,
                   })),
                   "sanad-survey-links.csv",
+                  isIntelLayout ? "intel" : "platform",
                 )
               }
             >
@@ -440,9 +571,15 @@ export default function SurveyAdminResponsesPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>{t("admin.sanadColOffice", { defaultValue: "Office" })}</TableHead>
+                  {isIntelLayout ? (
+                    <>
+                      <TableHead>{t("companyGovernorate", { defaultValue: "Governorate" })}</TableHead>
+                      <TableHead>{t("admin.sanadColWilayat", { defaultValue: "Wilayat" })}</TableHead>
+                    </>
+                  ) : null}
                   <TableHead>{t("yourPhone")}</TableHead>
                   <TableHead>{t("admin.sanadColContact", { defaultValue: "Contact" })}</TableHead>
-                  <TableHead>{t("yourEmail")}</TableHead>
+                  {!isIntelLayout ? <TableHead>{t("yourEmail")}</TableHead> : null}
                   <TableHead className="text-center">
                     {t("admin.sanadColWhatsapp", { defaultValue: "WhatsApp" })}
                   </TableHead>
@@ -454,44 +591,62 @@ export default function SurveyAdminResponsesPage() {
               <TableBody>
                 {outreachLoading ? (
                   <TableRow>
-                    <TableCell colSpan={6}>
+                    <TableCell colSpan={outreachColCount}>
                       <Skeleton className="h-10 w-full" />
                     </TableCell>
                   </TableRow>
                 ) : outreachDisplayRows.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-muted-foreground h-16 text-center">
-                      {t("admin.sanadOutreachEmpty", { defaultValue: "No active Sanad offices found." })}
+                    <TableCell colSpan={outreachColCount} className="text-muted-foreground h-16 text-center">
+                      {t("admin.sanadOutreachEmpty", { defaultValue: "No rows found." })}
                     </TableCell>
                   </TableRow>
                 ) : (
                   outreachDisplayRows.map((row) => {
                     const waDigits = toWhatsAppPhoneDigits(row.phone);
-                    const waMessage = t("admin.whatsappSurveyMessage", {
-                      officeName: row.name,
-                      surveyUrl: row.surveyUrl,
-                      defaultValue:
-                        "Hello,\n\nPlease complete the survey for {{officeName}}:\n{{surveyUrl}}\n\nThank you.",
-                    });
+                    const waMessage = row.surveyUrl
+                      ? t("admin.whatsappSurveyMessage", {
+                          officeName: row.name,
+                          surveyUrl: row.surveyUrl,
+                          defaultValue:
+                            "Hello,\n\nPlease complete the survey for {{officeName}}:\n{{surveyUrl}}\n\nThank you.",
+                        })
+                      : t("admin.whatsappSurveyMessageNoLink", {
+                          officeName: row.name,
+                          defaultValue:
+                            "Hello,\n\nRegarding {{officeName}} — please reply when convenient.\n\nThank you.",
+                        });
                     const waHref = waDigits ? buildWhatsAppSurveyHref(waDigits, waMessage) : null;
                     return (
-                    <TableRow key={row.id}>
+                    <TableRow key={row.rowKey}>
                       <TableCell className="max-w-[10rem] font-medium">
                         <span className="line-clamp-2">{row.name}</span>
                       </TableCell>
+                      {isIntelLayout ? (
+                        <>
+                          <TableCell className="max-w-[7rem] truncate text-muted-foreground text-sm">
+                            {row.governorateLabel?.trim() || "—"}
+                          </TableCell>
+                          <TableCell className="max-w-[7rem] truncate text-muted-foreground text-sm">
+                            {row.wilayat?.trim() || "—"}
+                          </TableCell>
+                        </>
+                      ) : null}
                       <TableCell className="text-muted-foreground tabular-nums text-sm">
                         {row.phone?.trim() || "—"}
                       </TableCell>
                       <TableCell className="max-w-[8rem] truncate text-muted-foreground text-sm">
                         {row.contactPerson?.trim() || "—"}
                       </TableCell>
-                      <TableCell className="max-w-[9rem] truncate text-sm">
-                        {row.email?.trim() ? (
-                          row.email
-                        ) : (
-                          <span className="text-muted-foreground">—</span>
-                        )}
-                      </TableCell>
+                      {!isIntelLayout ? (
+                        <TableCell className="max-w-[9rem] truncate text-sm">
+                          {row.email?.trim() ? (
+                            row.email
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+                      ) : null}
                       <TableCell className="text-center">
                         {waHref ? (
                           <Button
@@ -518,23 +673,42 @@ export default function SurveyAdminResponsesPage() {
                         )}
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={async () => {
-                            try {
-                              await navigator.clipboard.writeText(row.surveyUrl);
-                              toast.success(
-                                t("admin.surveyLinkCopied", { defaultValue: "Survey link copied" }),
-                              );
-                            } catch {
-                              toast.error(t("copyFailed"));
+                        <div className="flex flex-col items-end gap-1">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            disabled={!row.surveyUrl}
+                            title={
+                              !row.surveyUrl
+                                ? t("admin.surveyLinkUnavailableHint", {
+                                    defaultValue:
+                                      "Link the centre to an active Sanad office to get a survey URL.",
+                                  })
+                                : undefined
                             }
-                          }}
-                        >
-                          {t("copyToken")}
-                        </Button>
+                            onClick={async () => {
+                              if (!row.surveyUrl) return;
+                              try {
+                                await navigator.clipboard.writeText(row.surveyUrl);
+                                toast.success(
+                                  t("admin.surveyLinkCopied", { defaultValue: "Survey link copied" }),
+                                );
+                              } catch {
+                                toast.error(t("copyFailed"));
+                              }
+                            }}
+                          >
+                            {t("copyToken")}
+                          </Button>
+                          {isIntelLayout && row.surveyUnavailableReason ? (
+                            <span className="text-muted-foreground max-w-[10rem] text-left text-xs">
+                              {row.surveyUnavailableReason === "not_linked"
+                                ? t("admin.badgeNotLinked", { defaultValue: "Not linked" })
+                                : t("admin.badgeOfficeInactive", { defaultValue: "Office inactive" })}
+                            </span>
+                          ) : null}
+                        </div>
                       </TableCell>
                     </TableRow>
                     );

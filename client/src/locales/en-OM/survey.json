@@ -100,6 +100,18 @@
     "sanadColWhatsapp": "WhatsApp",
     "whatsappSurveyMessage": "Hello,\n\nPlease complete the survey for {{officeName}}:\n{{surveyUrl}}\n\nThank you.",
     "whatsappOpenHint": "Open WhatsApp with this number and a draft message (tap Send in WhatsApp)",
-    "whatsappNoPhoneHint": "No usable phone on file — add a number or fix format (e.g. +968…)"
+    "whatsappNoPhoneHint": "No usable phone on file — add a number or fix format (e.g. +968…)",
+    "sanadOutreachIntelTitle": "Sanad centres (directory)",
+    "sanadOutreachIntelDesc": "Data from the imported centre directory. A survey link appears only when the centre is linked to an active platform office. Switch list source to use live platform offices only.",
+    "sanadOutreachListSource": "List source",
+    "sanadListIntel": "Intel centres (directory)",
+    "sanadListPlatform": "Platform offices (live)",
+    "whatsappSurveyMessageNoLink": "Hello,\n\nRegarding {{officeName}} — please reply when convenient.\n\nThank you.",
+    "surveyNoteNotLinked": "No linked platform office",
+    "surveyNoteOfficeInactive": "Linked office not active",
+    "surveyLinkUnavailableHint": "Link the centre to an active Sanad office to get a survey URL.",
+    "badgeNotLinked": "Not linked",
+    "badgeOfficeInactive": "Office inactive",
+    "sanadColWilayat": "Wilayat"
   }
 }

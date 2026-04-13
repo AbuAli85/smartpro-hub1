@@ -52,7 +52,7 @@ export const BUSINESS_MGMT_HREFS = new Set<string>([
 
 /**
  * Overview items restricted to company_admin and above.
- * hr_admin and finance_admin see Dashboard only, not Operations Centre.
+ * hr_admin and finance_admin see Dashboard only, not Operations overview.
  */
 export const COMPANY_ADMIN_OVERVIEW_HREFS = new Set<string>([
   "/operations",
@@ -302,6 +302,7 @@ function hrManagerSurfaceAllowed(href: string): boolean {
   if (href.startsWith("/business/employee")) return true;
   if (href.startsWith("/analytics")) return true;
   if (href.startsWith("/compliance")) return true;
+  if (href === "/organization" || href.startsWith("/organization/")) return true;
   return false;
 }
 
@@ -318,6 +319,7 @@ function financeManagerSurfaceAllowed(href: string): boolean {
   if (href.startsWith("/company/documents")) return true;
   if (href.startsWith("/analytics")) return true;
   if (href.startsWith("/compliance")) return true;
+  if (href === "/organization" || href.startsWith("/organization/")) return true;
   return false;
 }
 
@@ -334,6 +336,7 @@ function reviewerSurfaceAllowed(href: string): boolean {
   if (href.startsWith("/marketplace")) return true;
   if (href.startsWith("/analytics")) return true;
   if (href.startsWith("/compliance")) return true;
+  if (href === "/organization" || href.startsWith("/organization/")) return true;
   return false;
 }
 
@@ -347,6 +350,7 @@ function externalAuditorSurfaceAllowed(href: string): boolean {
   if (href.startsWith("/analytics")) return true;
   if (href.startsWith("/compliance")) return true;
   if (href.startsWith("/contracts")) return true;
+  if (href === "/organization" || href.startsWith("/organization/")) return true;
   return false;
 }
 
@@ -674,7 +678,7 @@ export function clientNavItemVisible(
     return true;
   }
 
-  // Operations Centre — company_admin and platform operators only
+  // Operations overview — company_admin and platform operators only
   if (COMPANY_ADMIN_OVERVIEW_HREFS.has(href)) {
     return seesPlatformOperatorNav(user) || isCompanyOwnerNav(user) || isCompanyAdminMember(options?.memberRole);
   }
@@ -842,7 +846,7 @@ export function clientRouteAccessible(
     }
   }
 
-  // Operations Centre: company_admin and platform operators only
+  // Operations overview: company_admin and platform operators only
   for (const href of Array.from(COMPANY_ADMIN_OVERVIEW_HREFS)) {
     if (pathMatchesRestrictedPrefix(path, href)) {
       return seesPlatformOperatorNav(user) || isCompanyOwnerNav(user) || isCompanyAdminMember(options?.memberRole);

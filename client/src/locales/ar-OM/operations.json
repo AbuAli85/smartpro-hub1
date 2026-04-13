@@ -12,7 +12,7 @@
     "slaBreaches": "{{count}} حالة تتجاوز مستوى الخدمة",
     "slaBreachesDesc": "تجاوزت هذه الحالات وقت الحل المستهدف. يلزم الاهتمام الفوري للحفاظ على رضا العملاء.",
     "viewBreaches": "عرض التجاوزات",
-    "operationsCentre": "مركز العمليات",
+    "operationsCentre": "نظرة العمليات",
     "overdueInvoices": "OMR {{total}} متأخر من {{count}} فاتورة",
     "overdueInvoicesDesc": "تابع مع العملاء بشأن المدفوعات المتأخرة للحفاظ على تدفق نقدي صحي.",
     "billingEngine": "محرك الفواتير",

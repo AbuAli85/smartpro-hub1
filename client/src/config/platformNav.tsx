@@ -53,6 +53,9 @@ import {
 import { clientNavItemVisible, type ClientNavOptions } from "@shared/clientNav";
 import { getHiddenNavHrefs } from "@/lib/navVisibility";
 
+/** Semantic layer for analytics, onboarding, and future AI routing. */
+export type NavIntent = "overview" | "workspace" | "insight" | "governance" | "marketplace" | "system";
+
 export type NavLeafDef = {
   kind: "leaf";
   id: string;
@@ -60,6 +63,9 @@ export type NavLeafDef = {
   defaultLabel: string;
   href: string;
   icon: LucideIcon;
+  intent?: NavIntent;
+  /** Treat these paths as active for this item (hub + legacy deep links). */
+  activePathPrefixes?: string[];
 };
 
 export type NavBranchDef = {
@@ -68,6 +74,7 @@ export type NavBranchDef = {
   labelKey: string;
   defaultLabel: string;
   icon: LucideIcon;
+  intent?: NavIntent;
   children: NavLeafDef[];
 };
 
@@ -80,14 +87,26 @@ export type NavGroupDef = {
   items: NavItemDef[];
 };
 
+type LeafOpts = { intent?: NavIntent; activePathPrefixes?: string[] };
+
 function leaf(
   id: string,
   labelKey: string,
   defaultLabel: string,
   href: string,
   icon: LucideIcon,
+  opts?: LeafOpts,
 ): NavLeafDef {
-  return { kind: "leaf", id, labelKey, defaultLabel, href, icon };
+  return {
+    kind: "leaf",
+    id,
+    labelKey,
+    defaultLabel,
+    href,
+    icon,
+    intent: opts?.intent,
+    activePathPrefixes: opts?.activePathPrefixes,
+  };
 }
 
 function branch(
@@ -96,8 +115,9 @@ function branch(
   defaultLabel: string,
   icon: LucideIcon,
   children: NavLeafDef[],
+  intent?: NavIntent,
 ): NavBranchDef {
-  return { kind: "branch", id, labelKey, defaultLabel, icon, children };
+  return { kind: "branch", id, labelKey, defaultLabel, icon, children, intent };
 }
 
 /**
@@ -175,28 +195,38 @@ export const PLATFORM_NAV_GROUP_DEFS: readonly NavGroupDef[] = [
           leaf("people.leaveBalances", "leaveBalances", "Leave balances", "/hr/leave-balance", CalendarCheck),
         ],
       ),
-      branch(
-        "people.organization",
-        "organization",
+      leaf(
+        "people.organizationHub",
+        "organizationHub",
         "Organization",
+        "/organization",
         Network,
-        [
-          leaf("people.orgChart", "orgChart", "Org chart", "/hr/org-chart", Network),
-          leaf("people.orgStructure", "orgStructure", "Org structure", "/hr/org-structure", LayoutGrid),
-          leaf("people.departments", "departments", "Departments", "/hr/departments", Building2),
-        ],
+        {
+          intent: "workspace",
+          activePathPrefixes: [
+            "/organization",
+            "/hr/org-chart",
+            "/hr/org-structure",
+            "/hr/departments",
+          ],
+        },
       ),
-      branch(
-        "people.hrInsights",
-        "hrInsights",
+      leaf(
+        "people.hrInsightsHub",
+        "hrInsightsHub",
         "HR insights",
+        "/hr/insights",
         Activity,
-        [
-          leaf("people.workforceIntelligence", "workforceIntelligence", "Workforce intelligence", "/hr/workforce-intelligence", Activity),
-          leaf("people.hrOperationsHealth", "hrOperationsHealth", "HR operations health", "/hr/executive-dashboard", Globe),
-          leaf("people.kpiPerformance", "kpiPerformance", "KPIs & performance", "/hr/kpi", Target),
-          leaf("people.performanceGrowth", "performanceGrowth", "Performance & growth", "/hr/performance", Sparkles),
-        ],
+        {
+          intent: "insight",
+          activePathPrefixes: [
+            "/hr/insights",
+            "/hr/workforce-intelligence",
+            "/hr/executive-dashboard",
+            "/hr/kpi",
+            "/hr/performance",
+          ],
+        },
       ),
       leaf("people.payroll", "payrollEngine", "Payroll", "/payroll", Banknote),
       leaf("people.tasks", "taskManager", "Task manager", "/hr/tasks", ListTodo),
@@ -243,17 +273,22 @@ export const PLATFORM_NAV_GROUP_DEFS: readonly NavGroupDef[] = [
     labelKey: "compliance",
     defaultGroupLabel: "Compliance",
     items: [
-      branch(
-        "compliance.renewals",
-        "renewalsExpiry",
+      leaf(
+        "compliance.renewalsHub",
+        "renewalsExpiryHub",
         "Renewals & expiry",
+        "/compliance/renewals",
         Bell,
-        [
-          leaf("compliance.expiryAlerts", "expiryAlerts", "Expiry alerts", "/alerts", Bell),
-          leaf("compliance.expiryDashboard", "expiryDashboard", "Expiry dashboard", "/hr/expiry-dashboard", AlertTriangle),
-          leaf("compliance.renewalWorkflows", "renewalWorkflows", "Renewal workflows", "/renewal-workflows", Zap),
-          leaf("compliance.subscriptions", "subscriptions", "Subscriptions", "/subscriptions", Zap),
-        ],
+        {
+          intent: "governance",
+          activePathPrefixes: [
+            "/compliance/renewals",
+            "/alerts",
+            "/hr/expiry-dashboard",
+            "/renewal-workflows",
+            "/subscriptions",
+          ],
+        },
       ),
       leaf("compliance.workPermits", "workPermits", "Work permits", "/workforce/permits", Shield),
       leaf("compliance.governmentCases", "governmentCases", "Government cases", "/workforce/cases", ClipboardCheck),
@@ -339,8 +374,19 @@ export function isLeafActive(href: string, location: string): boolean {
   return false;
 }
 
+/** Sidebar active state including hub `activePathPrefixes`. */
+export function isNavLeafActive(leaf: NavLeafDef, location: string): boolean {
+  if (isLeafActive(leaf.href, location)) return true;
+  if (!leaf.activePathPrefixes?.length) return false;
+  return leaf.activePathPrefixes.some((p) => {
+    if (location === p) return true;
+    if (p !== "/" && location.startsWith(`${p}/`)) return true;
+    return false;
+  });
+}
+
 function subtreeContainsActive(item: NavItemDef, location: string): boolean {
-  if (item.kind === "leaf") return isLeafActive(item.href, location);
+  if (item.kind === "leaf") return isNavLeafActive(item, location);
   return item.children.some((c) => subtreeContainsActive(c, location));
 }
 

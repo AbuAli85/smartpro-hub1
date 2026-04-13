@@ -12,7 +12,7 @@
     "slaBreaches": "{{count}} case(s) breaching SLA",
     "slaBreachesDesc": "These cases have exceeded their target resolution time. Immediate attention required to maintain client satisfaction.",
     "viewBreaches": "View breaches",
-    "operationsCentre": "Operations centre",
+    "operationsCentre": "Operations overview",
     "overdueInvoices": "OMR {{total}} overdue from {{count}} invoice(s)",
     "overdueInvoicesDesc": "Follow up with clients on overdue payments to maintain healthy cash flow.",
     "billingEngine": "Billing engine",

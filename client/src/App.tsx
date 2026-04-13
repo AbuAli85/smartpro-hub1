@@ -109,6 +109,9 @@ import MultiCompanyRolesPage from "./pages/MultiCompanyRolesPage";
 import EmailPreviewPage from "./pages/EmailPreviewPage";
 import UserRolesPage from "./pages/UserRolesPage";
 import ExecutiveDashboardPage from "./pages/ExecutiveDashboardPage";
+import HRInsightsHubPage from "./pages/HRInsightsHubPage";
+import OrganizationHubPage from "./pages/OrganizationHubPage";
+import ComplianceRenewalsHubPage from "./pages/ComplianceRenewalsHubPage";
 import ControlTowerPage from "./pages/ControlTowerPage";
 import SurveyStartPage from "./pages/SurveyStartPage";
 import SurveyRespondPage from "./pages/SurveyRespondPage";
@@ -163,6 +166,7 @@ function AppRoutes() {
         <Route path="/hr/holidays" component={HolidayCalendarPage} />
         <Route path="/hr/today-board" component={TodayBoardPage} />
         <Route path="/hr/monthly-report" component={MonthlyReportPage} />
+        <Route path="/hr/insights" component={HRInsightsHubPage} />
         <Route path="/client-portal" component={ClientPortalPage} />
         <Route path="/onboarding" component={OnboardingPage} />
         <Route path="/crm" component={CRMPage} />
@@ -213,6 +217,7 @@ function AppRoutes() {
         <Route path="/operations" component={OperationsDashboardPage} />
         <Route path="/quotations" component={QuotationsPage} />
         <Route path="/sla-management" component={SlaManagementPage} />
+        <Route path="/compliance/renewals" component={ComplianceRenewalsHubPage} />
         <Route path="/compliance" component={ComplianceDashboardPage} />
         <Route path="/company/hub" component={CompanyHubPage} />
         <Route path="/company/workspace" component={CompanyWorkspacePage} />
@@ -236,6 +241,7 @@ function AppRoutes() {
         <Route path="/hr/org-structure" component={OrgStructurePage} />
         <Route path="/hr/departments" component={DepartmentsPage} />
         <Route path="/hr/org-chart" component={OrgChartPage} />
+        <Route path="/organization" component={OrganizationHubPage} />
         <Route path="/hr/workforce-intelligence" component={WorkforceIntelligencePage} />
         <Route path="/hr/executive-dashboard" component={ExecutiveDashboardPage} />
         <Route path="/hr/tasks" component={TaskManagerPage} />

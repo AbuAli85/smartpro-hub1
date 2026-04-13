@@ -8,7 +8,7 @@ import {
   type NavItemDef,
   type NavLeafDef,
   type NavBranchDef,
-  isLeafActive,
+  isNavLeafActive,
   branchShouldShowOpen,
 } from "@/config/platformNav";
 
@@ -25,12 +25,13 @@ function NavLeafLink({
   t: (key: string, defaultLabel: string) => string;
   pendingProfileReq: number;
 }) {
-  const active = isLeafActive(item.href, location);
+  const active = isNavLeafActive(item, location);
   const Icon = item.icon;
   return (
     <Link
       href={item.href}
       onClick={onClose}
+      data-nav-intent={item.intent}
       className={`sidebar-nav-item sidebar-nav-item--child ${active ? "active" : ""}`}
     >
       <Icon size={16} className="shrink-0 opacity-90" aria-hidden />
@@ -82,6 +83,7 @@ function NavBranch({
     >
       <CollapsibleTrigger
         type="button"
+        data-nav-intent={item.intent}
         className={`sidebar-nav-item w-full text-left ${pathActive ? "bg-white/8 ring-1 ring-white/10" : ""}`}
       >
         <Icon size={18} className="shrink-0 opacity-90" aria-hidden />
@@ -133,11 +135,12 @@ function NavItemRow({
     );
   }
   const Icon = item.icon;
-  const active = isLeafActive(item.href, location);
+  const active = isNavLeafActive(item, location);
   return (
     <Link
       href={item.href}
       onClick={onClose}
+      data-nav-intent={item.intent}
       className={`sidebar-nav-item ${active ? "active" : ""}`}
     >
       <Icon size={18} aria-hidden />

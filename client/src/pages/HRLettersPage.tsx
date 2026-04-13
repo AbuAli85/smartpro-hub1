@@ -1163,16 +1163,7 @@ export default function HRLettersPage() {
                       {tm?.supportsBilingual && <Badge variant="secondary">Bilingual</Badge>}
                       {tm?.isSensitive && <Badge variant="destructive">Sensitive — restricted access</Badge>}
                     </div>
-                    {tm?.requiredFields && tm.requiredFields.length > 0 && (
-                      <div className="mt-2">
-                        <p className="text-xs text-muted-foreground font-medium">Required fields:</p>
-                        <div className="flex flex-wrap gap-1 mt-1">
-                          {tm.requiredFields.map((f: string) => (
-                            <span key={f} className="text-[10px] bg-background border border-border rounded px-1.5 py-0.5 font-mono">{f}</span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
+
                   </div>
                 </div>
                 <div className="rounded-lg border border-border bg-white px-6 py-5 text-[#1a1a1a]">

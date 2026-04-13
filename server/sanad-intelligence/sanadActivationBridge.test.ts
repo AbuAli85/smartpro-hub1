@@ -25,7 +25,25 @@ import {
   sanadIntelCenters,
   sanadOffices,
   sanadOfficeMembers,
+  sanadCentresPipeline,
 } from "../../drizzle/schema";
+
+function makePipelineRow(centerId = 1) {
+  return {
+    centerId,
+    pipelineStatus: "imported" as const,
+    ownerUserId: null,
+    lastContactedAt: null,
+    nextAction: null,
+    nextActionType: null,
+    nextActionDueAt: null,
+    assignedAt: null,
+    assignedByUserId: null,
+    latestNotePreview: null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -225,6 +243,7 @@ describe("A. Invite generation lifecycle", () => {
     const selectMap = new Map<object, unknown[]>([
       [sanadIntelCenters, [makeCenter()]],
       [sanadIntelCenterOperations, [makeOps()]],
+      [sanadCentresPipeline, [makePipelineRow()]],
     ]);
     const mockDb = buildMockDb({ selectMap, insertSpy, updateSpy });
     vi.spyOn(db, "getDb").mockResolvedValue(mockDb as never);
@@ -250,6 +269,7 @@ describe("A. Invite generation lifecycle", () => {
     const selectMap = new Map<object, unknown[]>([
       [sanadIntelCenters, [makeCenter()]],
       [sanadIntelCenterOperations, [makeOps({ inviteToken: priorToken, inviteExpiresAt: new Date(Date.now() + 86400000) })]],
+      [sanadCentresPipeline, [makePipelineRow()]],
     ]);
     const mockDb = buildMockDb({ selectMap, insertSpy });
     vi.spyOn(db, "getDb").mockResolvedValue(mockDb as never);
@@ -271,6 +291,7 @@ describe("A. Invite generation lifecycle", () => {
     const selectMap = new Map<object, unknown[]>([
       [sanadIntelCenters, [makeCenter()]],
       [sanadIntelCenterOperations, [makeOps({ linkedSanadOfficeId: 42 })]],
+      [sanadCentresPipeline, [makePipelineRow()]],
     ]);
     const mockDb = buildMockDb({ selectMap });
     vi.spyOn(db, "getDb").mockResolvedValue(mockDb as never);
@@ -282,6 +303,7 @@ describe("A. Invite generation lifecycle", () => {
   it("A4 — NOT_FOUND when centre does not exist", async () => {
     const selectMap = new Map<object, unknown[]>([
       [sanadIntelCenters, []],
+      [sanadCentresPipeline, [makePipelineRow()]],
     ]);
     const mockDb = buildMockDb({ selectMap });
     vi.spyOn(db, "getDb").mockResolvedValue(mockDb as never);
@@ -310,6 +332,7 @@ describe("B. Public accept flow", () => {
     const selectMap = new Map<object, unknown[]>([
       [sanadIntelCenterOperations, [makeValidOps()]],
       [sanadIntelCenters, [makeCenter()]],
+      [sanadCentresPipeline, [makePipelineRow()]],
     ]);
     const mockDb = buildMockDb({ selectMap, insertSpy });
     vi.spyOn(db, "getDb").mockResolvedValue(mockDb as never);
@@ -344,6 +367,7 @@ describe("B. Public accept flow", () => {
     const selectMap = new Map<object, unknown[]>([
       [sanadIntelCenterOperations, [opsWithLead]],
       [sanadIntelCenters, [makeCenter()]],
+      [sanadCentresPipeline, [makePipelineRow()]],
     ]);
     const mockDb = buildMockDb({ selectMap, insertSpy });
     vi.spyOn(db, "getDb").mockResolvedValue(mockDb as never);
@@ -371,6 +395,7 @@ describe("B. Public accept flow", () => {
     const selectMap = new Map<object, unknown[]>([
       [sanadIntelCenterOperations, [expiredOps]],
       [sanadIntelCenters, [makeCenter()]],
+      [sanadCentresPipeline, [makePipelineRow()]],
     ]);
     const mockDb = buildMockDb({ selectMap });
     vi.spyOn(db, "getDb").mockResolvedValue(mockDb as never);
@@ -386,6 +411,7 @@ describe("B. Public accept flow", () => {
     const selectMap = new Map<object, unknown[]>([
       [sanadIntelCenterOperations, []],
       [sanadIntelCenters, []],
+      [sanadCentresPipeline, [makePipelineRow()]],
     ]);
     const mockDb = buildMockDb({ selectMap });
     vi.spyOn(db, "getDb").mockResolvedValue(mockDb as never);
@@ -405,6 +431,7 @@ describe("B. Public accept flow", () => {
     const selectMap = new Map<object, unknown[]>([
       [sanadIntelCenterOperations, [linkedOps]],
       [sanadIntelCenters, [makeCenter()]],
+      [sanadCentresPipeline, [makePipelineRow()]],
     ]);
     const mockDb = buildMockDb({ selectMap });
     vi.spyOn(db, "getDb").mockResolvedValue(mockDb as never);
@@ -425,6 +452,7 @@ describe("B. Public accept flow", () => {
     const selectMap = new Map<object, unknown[]>([
       [sanadIntelCenterOperations, [linkedUserOps]],
       [sanadIntelCenters, [makeCenter()]],
+      [sanadCentresPipeline, [makePipelineRow()]],
     ]);
     const mockDb = buildMockDb({ selectMap });
     vi.spyOn(db, "getDb").mockResolvedValue(mockDb as never);
@@ -459,6 +487,7 @@ describe("C. Account linking", () => {
     const selectMap = new Map<object, unknown[]>([
       [sanadIntelCenterOperations, [makeAcceptedOps()]],
       [sanadIntelCenters, [makeCenter()]],
+      [sanadCentresPipeline, [makePipelineRow()]],
     ]);
     const mockDb = buildMockDb({ selectMap, insertSpy });
     vi.spyOn(db, "getDb").mockResolvedValue(mockDb as never);
@@ -481,6 +510,7 @@ describe("C. Account linking", () => {
     const selectMap = new Map<object, unknown[]>([
       [sanadIntelCenterOperations, [opsAlreadyLinked]],
       [sanadIntelCenters, [makeCenter()]],
+      [sanadCentresPipeline, [makePipelineRow()]],
     ]);
     const mockDb = buildMockDb({ selectMap, insertSpy });
     vi.spyOn(db, "getDb").mockResolvedValue(mockDb as never);
@@ -501,6 +531,7 @@ describe("C. Account linking", () => {
     const selectMap = new Map<object, unknown[]>([
       [sanadIntelCenterOperations, [opsLinkedToOtherUser]],
       [sanadIntelCenters, [makeCenter()]],
+      [sanadCentresPipeline, [makePipelineRow()]],
     ]);
     const mockDb = buildMockDb({ selectMap });
     vi.spyOn(db, "getDb").mockResolvedValue(mockDb as never);
@@ -520,6 +551,7 @@ describe("C. Account linking", () => {
     const selectMap = new Map<object, unknown[]>([
       [sanadIntelCenterOperations, [opsNoLead]],
       [sanadIntelCenters, [makeCenter()]],
+      [sanadCentresPipeline, [makePipelineRow()]],
     ]);
     const mockDb = buildMockDb({ selectMap });
     vi.spyOn(db, "getDb").mockResolvedValue(mockDb as never);
@@ -553,6 +585,7 @@ describe("D. Office activation", () => {
       [sanadIntelCenterOperations, [makeActivatableOps()]],
       [sanadIntelCenterComplianceItems, [{ id: 1 }, { id: 2 }]], // 2 items → gate passes
       [sanadOffices, [makeSanadOffice(100)]],
+      [sanadCentresPipeline, [makePipelineRow()]],
     ]);
     const mockDb = buildMockDb({ selectMap, insertSpy, insertIdOverride: 100 });
     vi.spyOn(db, "getDb").mockResolvedValue(mockDb as never);
@@ -581,6 +614,7 @@ describe("D. Office activation", () => {
       [sanadIntelCenters, [makeCenter()]],
       [sanadIntelCenterOperations, [alreadyLinkedOps]],
       [sanadOffices, [makeSanadOffice(100)]],
+      [sanadCentresPipeline, [makePipelineRow()]],
     ]);
     const mockDb = buildMockDb({ selectMap, insertSpy });
     vi.spyOn(db, "getDb").mockResolvedValue(mockDb as never);
@@ -600,6 +634,7 @@ describe("D. Office activation", () => {
       [sanadIntelCenterOperations, [makeActivatableOps()]],
       [sanadIntelCenterComplianceItems, [{ id: 1 }]],
       [sanadOffices, [makeSanadOffice(100)]],
+      [sanadCentresPipeline, [makePipelineRow()]],
     ]);
     const mockDb = buildMockDb({ selectMap, updateSpy, insertIdOverride: 100 });
     vi.spyOn(db, "getDb").mockResolvedValue(mockDb as never);
@@ -619,6 +654,7 @@ describe("D. Office activation", () => {
       [sanadIntelCenters, [makeCenter()]],
       [sanadIntelCenterOperations, [makeOps({ registeredUserId: 99 })]],
       [sanadIntelCenterComplianceItems, []], // empty → gate fails
+      [sanadCentresPipeline, [makePipelineRow()]],
     ]);
     const mockDb = buildMockDb({ selectMap });
     vi.spyOn(db, "getDb").mockResolvedValue(mockDb as never);
@@ -634,6 +670,7 @@ describe("D. Office activation", () => {
       [sanadIntelCenters, [makeCenter()]],
       [sanadIntelCenterOperations, [makeOps({ registeredUserId: null })]],
       [sanadIntelCenterComplianceItems, [{ id: 1 }]],
+      [sanadCentresPipeline, [makePipelineRow()]],
     ]);
     const mockDb = buildMockDb({ selectMap });
     vi.spyOn(db, "getDb").mockResolvedValue(mockDb as never);
@@ -649,6 +686,7 @@ describe("D. Office activation", () => {
       [sanadIntelCenters, [makeCenter({ centerName: "   " })]],
       [sanadIntelCenterOperations, [makeOps({ registeredUserId: 5 })]],
       [sanadIntelCenterComplianceItems, [{ id: 1 }]],
+      [sanadCentresPipeline, [makePipelineRow()]],
     ]);
     const mockDb = buildMockDb({ selectMap });
     vi.spyOn(db, "getDb").mockResolvedValue(mockDb as never);
@@ -662,6 +700,7 @@ describe("D. Office activation", () => {
   it("D6 — NOT_FOUND when centre does not exist", async () => {
     const selectMap = new Map<object, unknown[]>([
       [sanadIntelCenters, []],
+      [sanadCentresPipeline, [makePipelineRow()]],
     ]);
     const mockDb = buildMockDb({ selectMap });
     vi.spyOn(db, "getDb").mockResolvedValue(mockDb as never);
@@ -685,6 +724,7 @@ describe("E. Audit side effects", () => {
     const selectMap = new Map<object, unknown[]>([
       [sanadIntelCenters, [makeCenter({ id: 7 })]],
       [sanadIntelCenterOperations, [makeOps({ centerId: 7 })]],
+      [sanadCentresPipeline, [makePipelineRow(7)]],
     ]);
     const mockDb = buildMockDb({ selectMap, insertSpy });
     vi.spyOn(db, "getDb").mockResolvedValue(mockDb as never);
@@ -712,6 +752,7 @@ describe("E. Audit side effects", () => {
         inviteExpiresAt: new Date(Date.now() + 86400000),
       })]],
       [sanadIntelCenters, [makeCenter({ id: 3 })]],
+      [sanadCentresPipeline, [makePipelineRow(3)]],
     ]);
     const mockDb = buildMockDb({ selectMap, insertSpy });
     vi.spyOn(db, "getDb").mockResolvedValue(mockDb as never);
@@ -735,6 +776,7 @@ describe("E. Audit side effects", () => {
         inviteAcceptAt: new Date(),
       })]],
       [sanadIntelCenters, [makeCenter()]],
+      [sanadCentresPipeline, [makePipelineRow()]],
     ]);
     const mockDb = buildMockDb({ selectMap, insertSpy });
     vi.spyOn(db, "getDb").mockResolvedValue(mockDb as never);
@@ -757,6 +799,7 @@ describe("E. Audit side effects", () => {
       [sanadIntelCenterOperations, [makeOps({ registeredUserId: 7 })]],
       [sanadIntelCenterComplianceItems, [{ id: 1 }]],
       [sanadOffices, [makeSanadOffice(200)]],
+      [sanadCentresPipeline, [makePipelineRow()]],
     ]);
     const mockDb = buildMockDb({ selectMap, insertSpy, insertIdOverride: 200 });
     vi.spyOn(db, "getDb").mockResolvedValue(mockDb as never);
@@ -778,6 +821,7 @@ describe("E. Audit side effects", () => {
     const selectMap = new Map<object, unknown[]>([
       [sanadIntelCenters, [makeCenter()]],
       [sanadIntelCenterOperations, [makeOps()]],
+      [sanadCentresPipeline, [makePipelineRow()]],
     ]);
     const mockDb = buildMockDb({ selectMap, insertSpy });
     vi.spyOn(db, "getDb").mockResolvedValue(mockDb as never);

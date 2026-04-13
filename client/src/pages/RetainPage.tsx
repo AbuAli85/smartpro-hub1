@@ -63,14 +63,12 @@ export default function RetainPage() {
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-50 bg-background/95 backdrop-blur border-b border-border/60">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <Link href="/">
-            <a className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
-              <ArrowLeft size={16} /> Back to home
-            </a>
+          <Link href="/" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
+            <ArrowLeft size={16} /> Back to home
           </Link>
           <div className="flex items-center gap-3">
-            <Link href="/features/attract"><a className="text-sm text-muted-foreground hover:text-foreground hidden sm:block">← Attract</a></Link>
-            <Link href="/features/convert"><a className="text-sm text-muted-foreground hover:text-foreground hidden sm:block">← Convert</a></Link>
+            <Link href="/features/attract" className="text-sm text-muted-foreground hover:text-foreground hidden sm:block">← Attract</Link>
+            <Link href="/features/convert" className="text-sm text-muted-foreground hover:text-foreground hidden sm:block">← Convert</Link>
             <Button size="sm" asChild><a href={getLoginUrl()}>Get started <ArrowRight size={14} className="ml-1" /></a></Button>
           </div>
         </div>

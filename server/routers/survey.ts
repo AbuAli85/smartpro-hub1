@@ -54,6 +54,20 @@ async function userExistsWithEmail(
   return !!r;
 }
 
+async function userExistsWithEmail(
+  db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
+  email: string,
+): Promise<boolean> {
+  const n = email.trim().toLowerCase();
+  if (!n) return false;
+  const [r] = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(and(isNotNull(users.email), sql`LOWER(TRIM(${users.email})) = ${n}`))
+    .limit(1);
+  return !!r;
+}
+
 const surveyAdminProcedure = protectedProcedure.use(
   t.middleware(({ ctx, next }) => {
     if (!ctx.user || !canAccessSurveyAdmin(ctx.user)) {

@@ -119,6 +119,7 @@ import SurveyAdminAnalyticsPage from "./pages/SurveyAdminAnalyticsPage";
 import AttractPage from "./pages/AttractPage";
 import ConvertPage from "./pages/ConvertPage";
 import RetainPage from "./pages/RetainPage";
+import NavigationProgress from "./components/NavigationProgress";
 function PublicRoutes() {
   return (
     <Switch>
@@ -267,6 +268,7 @@ function App() {
     <ErrorBoundary>
       <ThemeProvider defaultTheme="light">
         <TooltipProvider>
+          <NavigationProgress />
           <Toaster />
           <PublicRoutes />
         </TooltipProvider>

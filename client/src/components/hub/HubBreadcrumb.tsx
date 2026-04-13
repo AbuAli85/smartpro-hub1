@@ -7,7 +7,7 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
 import { cn } from "@/lib/utils";
-import { Fragment } from "react";
+import React, { Fragment } from "react";
 import { Link } from "wouter";
 
 export type HubCrumb = { label: string; href?: string };

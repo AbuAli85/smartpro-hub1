@@ -169,6 +169,13 @@
       "when": 1744000004000,
       "tag": "0042_survey_sanad_office_outreach",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1744100000000,
+      "tag": "0043_company_role_nav_extensions",
+      "breakpoints": true
     }
   ]
 }

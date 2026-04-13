@@ -33,6 +33,12 @@ import {
   SANAD_INVITE_PEEK_NOT_FOUND_MESSAGE,
 } from "../sanad-intelligence/activation";
 import { insertSanadIntelAuditEvent } from "../sanad-intelligence/sanadIntelAudit";
+import { resolvePublicAppBaseUrl } from "../_core/publicAppUrl";
+import {
+  isSanadInviteWhatsAppTemplateConfigured,
+  sendSanadCenterInviteTemplateAr,
+} from "../whatsappCloud";
+import { toWhatsAppPhoneDigits } from "@shared/whatsappPhoneDigits";
 import {
   getCenterDetail,
   getLatestMetricYear,
@@ -508,7 +514,50 @@ export const sanadIntelligenceRouter = router({
       });
 
       const invitePath = buildSanadInvitePath(token);
-      return { token, invitePath, inviteSentAt: now, inviteExpiresAt };
+      const [centerContact] = await db
+        .select({
+          centerName: sanadIntelCenters.centerName,
+          contactNumber: sanadIntelCenters.contactNumber,
+        })
+        .from(sanadIntelCenters)
+        .where(eq(sanadIntelCenters.id, input.centerId))
+        .limit(1);
+
+      const base = resolvePublicAppBaseUrl(ctx.req).replace(/\/+$/, "");
+      const inviteUrl = base ? `${base}${invitePath}` : "";
+
+      let whatsappAutoSent = false;
+      let whatsappAutoSkippedReason: "not_configured" | "no_public_base_url" | "invalid_phone" | null = null;
+      let whatsappAutoError: string | null = null;
+
+      if (!isSanadInviteWhatsAppTemplateConfigured()) {
+        whatsappAutoSkippedReason = "not_configured";
+      } else if (!base) {
+        whatsappAutoSkippedReason = "no_public_base_url";
+      } else {
+        const digits = toWhatsAppPhoneDigits(centerContact?.contactNumber);
+        if (!digits) {
+          whatsappAutoSkippedReason = "invalid_phone";
+        } else {
+          const wa = await sendSanadCenterInviteTemplateAr({
+            toDigits: digits,
+            centerName: (centerContact?.centerName ?? "").trim() || "مركز",
+            inviteUrl,
+          });
+          if (wa.ok) whatsappAutoSent = true;
+          else whatsappAutoError = wa.error;
+        }
+      }
+
+      return {
+        token,
+        invitePath,
+        inviteSentAt: now,
+        inviteExpiresAt,
+        whatsappAutoSent,
+        whatsappAutoSkippedReason,
+        whatsappAutoError,
+      };
     }),
 
   getCenterInvite: sanadIntelReadProcedure.input(z.object({ centerId: z.number() })).query(async ({ input }) => {

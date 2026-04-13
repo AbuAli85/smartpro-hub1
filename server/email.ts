@@ -614,6 +614,70 @@ export async function sendSurveyCompletionInviteEmail(
   }
 }
 
+export interface SanadOfficeSurveyBridgeEmailParams {
+  to: string;
+  officeName: string;
+  officeNameAr?: string;
+  surveyUrl: string;
+  contactPerson?: string;
+}
+
+/**
+ * Invite a Sanad service office to take / share the business survey — positioned as gov ↔ business bridge.
+ */
+export async function sendSanadOfficeSurveyBridgeEmail(
+  params: SanadOfficeSurveyBridgeEmailParams,
+): Promise<{ success: boolean; error?: string }> {
+  if (!ENV.resendApiKey) {
+    console.warn("[Email] Sanad office survey invite skipped: RESEND_API_KEY not set");
+    return { success: false, error: "Email not configured" };
+  }
+
+  const { to, officeName, officeNameAr, surveyUrl, contactPerson } = params;
+  const greet = contactPerson ? `Dear ${escapeHtmlText(contactPerson)},` : `Hello from <strong>${escapeHtmlText(officeName)}</strong>,`;
+
+  const body = `
+    <p style="color:${C.textMuted};font-size:15px;line-height:1.7;margin:0 0 16px;">${greet}</p>
+    <p style="color:${C.textMuted};font-size:15px;line-height:1.7;margin:0 0 20px;">
+      SmartPRO Hub is running a short <strong>Business Sector Intelligence</strong> survey to understand how companies interact with government services and where PRO offices like yours fit as the bridge between regulators and businesses.
+    </p>
+    <p style="color:${C.textMuted};font-size:15px;line-height:1.7;margin:0 0 24px;">
+      Please <strong>sign in with your existing SmartPRO account</strong> (the same login you use for your Sanad office) and open the link below. Your responses will be attributed to your office so we can see patterns across Oman’s service bureau network.
+    </p>
+    ${officeNameAr ? `<p style="color:${C.textMuted};font-size:14px;line-height:1.65;margin:0 0 20px;" dir="rtl">${escapeHtmlText(officeNameAr)} — نفس الرابط أدناه بعد تسجيل الدخول.</p>` : ""}
+    <div style="text-align:center;">
+      ${ctaButton(surveyUrl, "Open survey (sign in required for office link)")}
+    </div>
+    <div style="background:${C.cardBg};border-radius:8px;border:1px solid ${C.border};padding:12px 16px;margin:16px 0 0;word-break:break-all;">
+      <p style="color:${C.textMuted};font-size:12px;margin:0 0 4px;">Direct link:</p>
+      <a href="${surveyUrl}" style="color:${C.primary};font-size:12px;word-break:break-all;">${surveyUrl}</a>
+    </div>
+    ${trustStrip()}
+  `;
+
+  try {
+    const resend = getResend();
+    const result = await resend.emails.send({
+      from: FROM_ADDRESS,
+      to: [to],
+      subject: `SmartPRO — Business sector survey (Sanad office: ${officeName})`,
+      html: baseLayout(
+        "Survey invitation — Sanad office partner",
+        "Sign in and complete the sector survey attributed to your office.",
+        body,
+      ),
+    });
+    if (result.error) {
+      console.error("[Email] Sanad office survey bridge error:", result.error);
+      return { success: false, error: result.error.message };
+    }
+    return { success: true };
+  } catch (err: any) {
+    console.error("[Email] sendSanadOfficeSurveyBridgeEmail failed:", err);
+    return { success: false, error: err?.message ?? "Unknown error" };
+  }
+}
+
 export interface SurveyNurtureFollowupEmailParams {
   to: string;
   respondentName?: string;

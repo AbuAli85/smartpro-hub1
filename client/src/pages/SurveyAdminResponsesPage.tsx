@@ -15,7 +15,8 @@ import {
 } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ClipboardList, ChevronLeft, ChevronRight } from "lucide-react";
+import { ClipboardList, ChevronLeft, ChevronRight, Mail } from "lucide-react";
+import { toast } from "sonner";
 
 type StatusFilter = "all" | "in_progress" | "completed" | "abandoned";
 
@@ -53,13 +54,19 @@ export default function SurveyAdminResponsesPage() {
     },
   );
 
+  const inviteSanadMutation = trpc.survey.adminInviteSanadOffices.useMutation({
+    onSuccess: (r) =>
+      toast.success(`Emails sent: ${r.sent} / ${r.totalOffices} (failed: ${r.failed})`),
+    onError: (e) => toast.error(e.message),
+  });
+
   const total = data?.total ?? 0;
   const limit = data?.limit ?? 25;
   const totalPages = Math.max(1, Math.ceil(total / limit));
 
   return (
     <div className="mx-auto max-w-6xl space-y-6 p-4 md:p-6">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
             <ClipboardList className="h-7 w-7 text-primary" aria-hidden />
@@ -67,20 +74,41 @@ export default function SurveyAdminResponsesPage() {
           </h1>
           <p className="text-muted-foreground text-sm">{t("admin.filterByStatus")}</p>
         </div>
-        <Select
-          value={selectedStatus}
-          onValueChange={(v) => setSelectedStatus(v as StatusFilter)}
-        >
-          <SelectTrigger className="w-full sm:w-[220px]">
-            <SelectValue placeholder={t("admin.filterByStatus")} />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">{t("admin.all")}</SelectItem>
-            <SelectItem value="in_progress">{t("admin.inProgress")}</SelectItem>
-            <SelectItem value="completed">{t("admin.completed")}</SelectItem>
-            <SelectItem value="abandoned">{t("admin.abandoned", { defaultValue: "Abandoned" })}</SelectItem>
-          </SelectContent>
-        </Select>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            className="gap-1.5"
+            disabled={inviteSanadMutation.isPending}
+            onClick={() => {
+              if (
+                window.confirm(
+                  "Send the survey invitation email to every active Sanad office that has an email on file?",
+                )
+              ) {
+                inviteSanadMutation.mutate({});
+              }
+            }}
+          >
+            <Mail className="h-4 w-4" aria-hidden />
+            {t("admin.emailSanadOffices", { defaultValue: "Email Sanad offices" })}
+          </Button>
+          <Select
+            value={selectedStatus}
+            onValueChange={(v) => setSelectedStatus(v as StatusFilter)}
+          >
+            <SelectTrigger className="w-full sm:w-[220px]">
+              <SelectValue placeholder={t("admin.filterByStatus")} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">{t("admin.all")}</SelectItem>
+              <SelectItem value="in_progress">{t("admin.inProgress")}</SelectItem>
+              <SelectItem value="completed">{t("admin.completed")}</SelectItem>
+              <SelectItem value="abandoned">{t("admin.abandoned", { defaultValue: "Abandoned" })}</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-3">
@@ -126,6 +154,7 @@ export default function SurveyAdminResponsesPage() {
                   <TableHead>{t("admin.respondent")}</TableHead>
                   <TableHead>{t("admin.company")}</TableHead>
                   <TableHead>{t("companySector")}</TableHead>
+                  <TableHead>{t("admin.sanadOffice", { defaultValue: "Sanad office" })}</TableHead>
                   <TableHead>{t("admin.status")}</TableHead>
                   <TableHead>{t("admin.date")}</TableHead>
                   <TableHead className="text-right">
@@ -137,7 +166,7 @@ export default function SurveyAdminResponsesPage() {
                 {isLoading
                   ? Array.from({ length: 8 }).map((_, r) => (
                       <TableRow key={r}>
-                        {Array.from({ length: 6 }).map((__, c) => (
+                        {Array.from({ length: 7 }).map((__, c) => (
                           <TableCell key={c}>
                             <Skeleton className="h-4 w-full max-w-[140px]" />
                           </TableCell>
@@ -147,7 +176,7 @@ export default function SurveyAdminResponsesPage() {
                   : (data?.rows.length ?? 0) === 0
                     ? (
                         <TableRow>
-                          <TableCell colSpan={6} className="text-muted-foreground h-24 text-center">
+                          <TableCell colSpan={7} className="text-muted-foreground h-24 text-center">
                             {t("admin.noResponses")}
                           </TableCell>
                         </TableRow>
@@ -159,6 +188,11 @@ export default function SurveyAdminResponsesPage() {
                           </TableCell>
                           <TableCell>{row.companyName?.trim() || "—"}</TableCell>
                           <TableCell>{row.companySector?.trim() || "—"}</TableCell>
+                          <TableCell className="max-w-[10rem] truncate text-muted-foreground text-sm">
+                            {"sanadOfficeName" in row && row.sanadOfficeName
+                              ? String(row.sanadOfficeName).trim() || "—"
+                              : "—"}
+                          </TableCell>
                           <TableCell>
                             <Badge
                               variant="outline"

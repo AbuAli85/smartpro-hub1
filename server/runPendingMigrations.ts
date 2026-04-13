@@ -94,6 +94,14 @@ const PENDING_COLUMNS: ColumnMigration[] = [
     column: "nurture_stopped_reason",
     ddl: "ALTER TABLE `survey_responses` ADD COLUMN `nurture_stopped_reason` varchar(32) NULL",
   },
+  {
+    table: "survey_responses",
+    column: "sanad_office_id",
+    ddl: `ALTER TABLE \`survey_responses\`
+  ADD COLUMN \`sanad_office_id\` int NULL,
+  ADD INDEX \`idx_survey_responses_sanad_office\` (\`sanad_office_id\`),
+  ADD CONSTRAINT \`fk_survey_responses_sanad_office\` FOREIGN KEY (\`sanad_office_id\`) REFERENCES \`sanad_offices\`(\`id\`) ON DELETE SET NULL`,
+  },
 ];
 
 /** Each entry creates a unique/regular index if it does not already exist. */

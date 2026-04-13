@@ -3652,6 +3652,8 @@ export const surveyResponses = mysqlTable(
       .references(() => surveys.id, { onDelete: "cascade" }),
     /** Set when the respondent starts the survey while logged in (optional FK). */
     userId: int("user_id").references(() => users.id, { onDelete: "set null" }),
+    /** When started from a Sanad office context (member must be logged in; same platform user as office roster). */
+    sanadOfficeId: int("sanad_office_id").references(() => sanadOffices.id, { onDelete: "set null" }),
     resumeToken: varchar("resume_token", { length: 64 }).notNull().unique(),
     language: mysqlEnum("language", ["en", "ar"]).default("en").notNull(),
     status: mysqlEnum("status", ["in_progress", "completed", "abandoned"])
@@ -3683,6 +3685,7 @@ export const surveyResponses = mysqlTable(
     index("idx_survey_responses_survey").on(t.surveyId),
     index("idx_survey_responses_status").on(t.status),
     index("idx_survey_responses_user").on(t.userId),
+    index("idx_survey_responses_sanad_office").on(t.sanadOfficeId),
   ],
 );
 export type SurveyResponse = typeof surveyResponses.$inferSelect;

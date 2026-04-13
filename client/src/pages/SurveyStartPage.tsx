@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useLocation } from "wouter";
+import { useAuth } from "@/_core/hooks/useAuth";
 import { toast } from "sonner";
 import {
   ArrowRight,
@@ -28,8 +29,17 @@ export function surveyResumeStorageKey(slug: string) {
 
 export default function SurveyStartPage() {
   const { t, i18n } = useTranslation("survey");
-  const [, navigate] = useLocation();
+  const [location, navigate] = useLocation();
+  const { isAuthenticated } = useAuth();
   const isRtl = i18n.language?.startsWith("ar");
+
+  const sanadOfficeIdFromUrl = useMemo(() => {
+    const q = new URLSearchParams(location.split("?")[1] ?? "");
+    const v = q.get("officeId");
+    if (!v) return undefined;
+    const n = Number(v);
+    return Number.isFinite(n) && n > 0 ? n : undefined;
+  }, [location]);
 
   const [showDetails, setShowDetails] = useState(false);
   const [showResume, setShowResume] = useState(false);
@@ -46,7 +56,8 @@ export default function SurveyStartPage() {
   const startMutation = trpc.survey.startResponse.useMutation({
     onSuccess: ({ resumeToken }) => {
       localStorage.setItem(surveyResumeStorageKey(SURVEY_SLUG), resumeToken);
-      navigate(`/survey/${SURVEY_SLUG}`);
+      const q = sanadOfficeIdFromUrl ? `?officeId=${sanadOfficeIdFromUrl}` : "";
+      navigate(`/survey/${SURVEY_SLUG}${q}`);
     },
     onError: (e) => toast.error(e.message),
   });
@@ -62,6 +73,7 @@ export default function SurveyStartPage() {
       respondentName: respondentName.trim() || undefined,
       respondentEmail: email || undefined,
       respondentPhone: respondentPhone.trim() || undefined,
+      ...(isAuthenticated && sanadOfficeIdFromUrl ? { sanadOfficeId: sanadOfficeIdFromUrl } : {}),
     });
   };
 
@@ -72,7 +84,8 @@ export default function SurveyStartPage() {
       return;
     }
     localStorage.setItem(surveyResumeStorageKey(SURVEY_SLUG), token);
-    navigate(`/survey/${SURVEY_SLUG}`);
+    const q = sanadOfficeIdFromUrl ? `?officeId=${sanadOfficeIdFromUrl}` : "";
+    navigate(`/survey/${SURVEY_SLUG}${q}`);
   };
 
   const errCode =
@@ -140,6 +153,12 @@ export default function SurveyStartPage() {
         {/* Main content */}
         {!isLoading && !notFound && data?.survey && (
           <div className="space-y-4 sm:space-y-5">
+            {sanadOfficeIdFromUrl && !isAuthenticated && (
+              <div className="rounded-xl border border-amber-400/50 bg-amber-500/15 px-4 py-3 text-sm leading-relaxed text-amber-50">
+                Sign in to SmartPRO first so this survey can be attributed to your Sanad office. Use Log in from the home
+                page, then open this link again.
+              </div>
+            )}
             {/* Hero */}
             <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-r from-indigo-600/80 to-violet-600/70 px-5 py-7 shadow-2xl sm:px-8 sm:py-9">
               <div className="pointer-events-none absolute -bottom-16 -right-16 h-52 w-52 rounded-full bg-white/10 blur-3xl" />

@@ -15,6 +15,8 @@ export const startResponseInput = z.object({
     return trimmed && trimmed.length > 0 ? trimmed : undefined;
   }),
   respondentPhone: z.string().max(32).optional(),
+  /** Requires a logged-in user who is a member of this Sanad office (same platform login). */
+  sanadOfficeId: z.number().int().positive().optional(),
 });
 
 export const resumeResponseInput = z.object({

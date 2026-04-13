@@ -205,6 +205,19 @@ export default function SurveyAdminResponseDetailPage() {
                 <p className="text-muted-foreground text-xs uppercase">{t("companyGovernorate")}</p>
                 <p className="font-medium">{data.response.companyGovernorate?.trim() || "—"}</p>
               </div>
+              {data.sanadOffice && (
+                <div className="sm:col-span-2">
+                  <p className="text-muted-foreground text-xs uppercase">
+                    {t("admin.sanadOffice", { defaultValue: "Sanad office" })}
+                  </p>
+                  <p className="font-medium">{data.sanadOffice.name}</p>
+                  {data.sanadOffice.nameAr && (
+                    <p className="text-muted-foreground text-sm leading-relaxed" dir="rtl">
+                      {data.sanadOffice.nameAr}
+                    </p>
+                  )}
+                </div>
+              )}
               <div className="sm:col-span-2">
                 <p className="text-muted-foreground text-xs uppercase">{t("admin.status")}</p>
                 <p className="font-medium">

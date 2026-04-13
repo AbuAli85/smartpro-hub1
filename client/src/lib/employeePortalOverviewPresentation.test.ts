@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { muscatWallDateTimeToUtc } from "@shared/attendanceMuscatTime";
 import {
   getAttendanceTodayStripPresentation,
   getOverviewShiftCardPresentation,
@@ -6,7 +7,12 @@ import {
   type ServerEligibilityHints,
 } from "./employeePortalOverviewPresentation";
 
-const fixed = (y: number, m: number, d: number, h: number, min = 0) => new Date(y, m - 1, d, h, min, 0, 0);
+/** Wall-clock instant on calendar day `(y, m, d)` in Asia/Muscat (matches shift helpers; CI may run in UTC). */
+const fixed = (y: number, m: number, d: number, h: number, min = 0) =>
+  muscatWallDateTimeToUtc(
+    `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`,
+    `${String(h).padStart(2, "0")}:${String(min).padStart(2, "0")}:00`,
+  );
 
 function elHints(
   x: Pick<ServerEligibilityHints, "canCheckIn" | "canCheckOut" | "canRequestCorrection"> &

@@ -1,9 +1,18 @@
 import { describe, expect, it } from "vitest";
+import { muscatWallDateTimeToUtc } from "./attendanceMuscatTime";
 import { computePortalOperationalHints } from "./employeePortalOperationalHints";
+
+/** Wall time on 2026-04-05 in Asia/Muscat (CI may run in UTC). */
+function m(h: number, min = 0, sec = 0): Date {
+  return muscatWallDateTimeToUtc(
+    "2026-04-05",
+    `${String(h).padStart(2, "0")}:${String(min).padStart(2, "0")}:${String(sec).padStart(2, "0")}`,
+  );
+}
 
 describe("computePortalOperationalHints", () => {
   it("exposes flags and phase from shift + attendance (mid-shift day)", () => {
-    const now = new Date(2026, 3, 5, 12, 0, 0);
+    const now = m(12);
     const h = computePortalOperationalHints({
       now,
       businessDate: "2026-04-05",
@@ -36,7 +45,7 @@ describe("computePortalOperationalHints", () => {
   });
 
   it("blocks check-in before early-open window (grace before start)", () => {
-    const now = new Date(2026, 3, 5, 12, 0, 0); // noon
+    const now = m(12); // noon Muscat
     const h = computePortalOperationalHints({
       now,
       businessDate: "2026-04-05",
@@ -62,7 +71,7 @@ describe("computePortalOperationalHints", () => {
   });
 
   it("allows check-in inside early-open window before nominal start", () => {
-    const now = new Date(2026, 3, 5, 14, 50, 0);
+    const now = m(14, 50);
     const h = computePortalOperationalHints({
       now,
       businessDate: "2026-04-05",
@@ -84,7 +93,7 @@ describe("computePortalOperationalHints", () => {
   });
 
   it("closes check-in after shift end when still not checked in", () => {
-    const now = new Date(2026, 3, 5, 23, 0, 0);
+    const now = m(23);
     const h = computePortalOperationalHints({
       now,
       businessDate: "2026-04-05",
@@ -107,7 +116,7 @@ describe("computePortalOperationalHints", () => {
   });
 
   it("detects pending correction and blocks check-in when inconsistent", () => {
-    const now = new Date(2026, 3, 5, 12, 0, 0);
+    const now = m(12);
     const h = computePortalOperationalHints({
       now,
       businessDate: "2026-04-05",
@@ -134,7 +143,7 @@ describe("computePortalOperationalHints", () => {
   });
 
   it("surfaces pending manual check-in requests", () => {
-    const now = new Date(2026, 3, 5, 12, 0, 0);
+    const now = m(12);
     const h = computePortalOperationalHints({
       now,
       businessDate: "2026-04-05",
@@ -155,7 +164,7 @@ describe("computePortalOperationalHints", () => {
   });
 
   it("reports minutes late after grace when checked in without check-out", () => {
-    const now = new Date(2026, 3, 5, 9, 30, 0);
+    const now = m(9, 30);
     const h = computePortalOperationalHints({
       now,
       businessDate: "2026-04-05",
@@ -165,7 +174,7 @@ describe("computePortalOperationalHints", () => {
       isWorkingDay: true,
       hasSchedule: true,
       hasShift: true,
-      checkIn: new Date(2026, 3, 5, 9, 20, 0),
+      checkIn: m(9, 20),
       checkOut: null,
       pendingCorrectionCount: 0,
       gracePeriodMinutes: 15,
@@ -175,7 +184,7 @@ describe("computePortalOperationalHints", () => {
   });
 
   it("after shift end, nudges check-out in banner text and eligibility while still clocked in", () => {
-    const now = new Date(2026, 3, 5, 18, 30, 0);
+    const now = m(18, 30);
     const h = computePortalOperationalHints({
       now,
       businessDate: "2026-04-05",
@@ -185,7 +194,7 @@ describe("computePortalOperationalHints", () => {
       isWorkingDay: true,
       hasSchedule: true,
       hasShift: true,
-      checkIn: new Date(2026, 3, 5, 9, 0, 0),
+      checkIn: m(9),
       checkOut: null,
       pendingCorrectionCount: 0,
       gracePeriodMinutes: 15,

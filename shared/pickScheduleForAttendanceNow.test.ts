@@ -1,8 +1,17 @@
 import { describe, it, expect } from "vitest";
+import { muscatWallDateTimeToUtc } from "./attendanceMuscatTime";
 import { pickScheduleRowForNow, type SchedulePickRow, type ShiftTimes } from "./pickScheduleForAttendanceNow";
 
 function shift(start: string, end: string, grace = 15): ShiftTimes {
   return { startTime: start, endTime: end, gracePeriodMinutes: grace };
+}
+
+/** `now` on 2026-06-01 in Asia/Muscat wall clock (CI may run in UTC). */
+function june1(h: number, min = 0): Date {
+  return muscatWallDateTimeToUtc(
+    "2026-06-01",
+    `${String(h).padStart(2, "0")}:${String(min).padStart(2, "0")}:00`,
+  );
 }
 
 describe("pickScheduleRowForNow", () => {
@@ -12,7 +21,7 @@ describe("pickScheduleRowForNow", () => {
   it("returns null for empty rows", () => {
     expect(
       pickScheduleRowForNow({
-        now: new Date(2026, 5, 1, 9, 0, 0),
+        now: june1(9, 0),
         businessDate,
         dow: mondayDow,
         isHoliday: false,
@@ -28,7 +37,7 @@ describe("pickScheduleRowForNow", () => {
     ];
     const shifts = new Map<number, ShiftTimes>([[100, shift("09:00", "17:00")]]);
     const r = pickScheduleRowForNow({
-      now: new Date(2026, 5, 1, 10, 0, 0),
+      now: june1(10, 0),
       businessDate,
       dow: mondayDow,
       isHoliday: false,
@@ -48,7 +57,7 @@ describe("pickScheduleRowForNow", () => {
       [2, shift("17:00", "22:00")],
     ]);
     const r = pickScheduleRowForNow({
-      now: new Date(2026, 5, 1, 7, 0, 0),
+      now: june1(7, 0),
       businessDate,
       dow: mondayDow,
       isHoliday: false,
@@ -68,7 +77,7 @@ describe("pickScheduleRowForNow", () => {
       [2, shift("17:00", "22:00")],
     ]);
     const r = pickScheduleRowForNow({
-      now: new Date(2026, 5, 1, 10, 0, 0),
+      now: june1(10, 0),
       businessDate,
       dow: mondayDow,
       isHoliday: false,
@@ -88,7 +97,7 @@ describe("pickScheduleRowForNow", () => {
       [2, shift("17:00", "22:00")],
     ]);
     const r = pickScheduleRowForNow({
-      now: new Date(2026, 5, 1, 18, 0, 0),
+      now: june1(18, 0),
       businessDate,
       dow: mondayDow,
       isHoliday: false,
@@ -108,7 +117,7 @@ describe("pickScheduleRowForNow", () => {
       [2, shift("17:00", "22:00")],
     ]);
     const r = pickScheduleRowForNow({
-      now: new Date(2026, 5, 1, 23, 0, 0),
+      now: june1(23, 0),
       businessDate,
       dow: mondayDow,
       isHoliday: false,
@@ -128,7 +137,7 @@ describe("pickScheduleRowForNow", () => {
       [2, shift("17:00", "22:00")],
     ]);
     const r = pickScheduleRowForNow({
-      now: new Date(2026, 5, 1, 14, 0, 0),
+      now: june1(14, 0),
       businessDate,
       dow: mondayDow,
       isHoliday: false,
@@ -148,7 +157,7 @@ describe("pickScheduleRowForNow", () => {
       [2, shift("09:00", "17:00")],
     ]);
     const r = pickScheduleRowForNow({
-      now: new Date(2026, 5, 1, 12, 0, 0),
+      now: june1(12, 0),
       businessDate,
       dow: mondayDow,
       isHoliday: true,

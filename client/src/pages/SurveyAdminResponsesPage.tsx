@@ -15,7 +15,15 @@ import {
 } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ClipboardList, ChevronLeft, ChevronRight } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { ClipboardList, ChevronLeft, ChevronRight, Link2, Mail } from "lucide-react";
+import { toast } from "sonner";
 
 type StatusFilter = "all" | "in_progress" | "completed" | "abandoned";
 
@@ -34,16 +42,66 @@ function fmtDate(d: Date | string | null | undefined): string {
   });
 }
 
+function csvEscapeCell(value: string): string {
+  if (/[",\r\n]/.test(value)) return `"${value.replace(/"/g, '""')}"`;
+  return value;
+}
+
+function downloadSanadLinksCsv(
+  rows: Array<{
+    name: string;
+    phone: string | null;
+    contactPerson: string | null;
+    email: string | null | undefined;
+    surveyUrl: string;
+  }>,
+  filename: string,
+): void {
+  const header = ["office_name", "phone", "contact", "email", "survey_url"].join(",");
+  const lines = rows.map((r) =>
+    [
+      csvEscapeCell(r.name),
+      csvEscapeCell(r.phone ?? ""),
+      csvEscapeCell(r.contactPerson ?? ""),
+      csvEscapeCell(r.email ?? ""),
+      csvEscapeCell(r.surveyUrl),
+    ].join(","),
+  );
+  const blob = new Blob([`${header}\n${lines.join("\n")}\n`], {
+    type: "text/csv;charset=utf-8",
+  });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
 export default function SurveyAdminResponsesPage() {
   const { t } = useTranslation("survey");
   const [page, setPage] = useState(1);
   const [selectedStatus, setSelectedStatus] = useState<StatusFilter>("all");
+  const [sanadOutreachOpen, setSanadOutreachOpen] = useState(false);
+  const [sanadOutreachManualOnly, setSanadOutreachManualOnly] = useState<
+    Array<{
+      id: number;
+      name: string;
+      nameAr: string | null;
+      phone: string | null;
+      contactPerson: string | null;
+      surveyUrl: string;
+    }> | null
+  >(null);
 
   useEffect(() => {
     setPage(1);
   }, [selectedStatus]);
 
   const { data: stats } = trpc.survey.adminGetAnalytics.useQuery();
+
+  const sanadLinksQuery = trpc.survey.adminSanadOfficeSurveyLinks.useQuery(undefined, {
+    enabled: sanadOutreachOpen && sanadOutreachManualOnly === null,
+  });
 
   const { data, isLoading, isError, error } = trpc.survey.adminListResponses.useQuery(
     {
@@ -53,13 +111,53 @@ export default function SurveyAdminResponsesPage() {
     },
   );
 
+  const inviteSanadMutation = trpc.survey.adminInviteSanadOffices.useMutation({
+    onSuccess: (r) => {
+      const base = t("admin.inviteSanadToast", {
+        sent: r.sent,
+        withEmail: r.withEmailCount,
+        failed: r.failed,
+        skipped: r.skippedNoEmail,
+        defaultValue:
+          "Emails sent: {{sent}} / {{withEmail}} (failed: {{failed}}). Offices without email: {{skipped}}.",
+      });
+      toast.success(base);
+      if (r.manualOutreach.length > 0) {
+        setSanadOutreachManualOnly(r.manualOutreach);
+        setSanadOutreachOpen(true);
+      }
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const outreachDisplayRows =
+    sanadOutreachManualOnly !== null
+      ? sanadOutreachManualOnly.map((o) => ({
+          ...o,
+          email: null as string | null,
+          hasEmail: false,
+        }))
+      : (sanadLinksQuery.data?.offices.map((o) => ({
+          id: o.id,
+          name: o.name,
+          nameAr: o.nameAr,
+          phone: o.phone,
+          contactPerson: o.contactPerson,
+          surveyUrl: o.surveyUrl,
+          email: o.email,
+          hasEmail: o.hasEmail,
+        })) ?? []);
+
+  const outreachLoading =
+    sanadOutreachOpen && sanadOutreachManualOnly === null && sanadLinksQuery.isLoading;
+
   const total = data?.total ?? 0;
   const limit = data?.limit ?? 25;
   const totalPages = Math.max(1, Math.ceil(total / limit));
 
   return (
     <div className="mx-auto max-w-6xl space-y-6 p-4 md:p-6">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
             <ClipboardList className="h-7 w-7 text-primary" aria-hidden />
@@ -67,20 +165,57 @@ export default function SurveyAdminResponsesPage() {
           </h1>
           <p className="text-muted-foreground text-sm">{t("admin.filterByStatus")}</p>
         </div>
-        <Select
-          value={selectedStatus}
-          onValueChange={(v) => setSelectedStatus(v as StatusFilter)}
-        >
-          <SelectTrigger className="w-full sm:w-[220px]">
-            <SelectValue placeholder={t("admin.filterByStatus")} />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">{t("admin.all")}</SelectItem>
-            <SelectItem value="in_progress">{t("admin.inProgress")}</SelectItem>
-            <SelectItem value="completed">{t("admin.completed")}</SelectItem>
-            <SelectItem value="abandoned">{t("admin.abandoned", { defaultValue: "Abandoned" })}</SelectItem>
-          </SelectContent>
-        </Select>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            className="gap-1.5"
+            disabled={inviteSanadMutation.isPending}
+            onClick={() => {
+              if (
+                window.confirm(
+                  t("admin.inviteSanadConfirm", {
+                    defaultValue:
+                      "Send invitation emails to every active Sanad office that has an email on file? Offices without email are not emailed; you can copy their survey links afterward.",
+                  }),
+                )
+              ) {
+                inviteSanadMutation.mutate({});
+              }
+            }}
+          >
+            <Mail className="h-4 w-4" aria-hidden />
+            {t("admin.emailSanadOffices", { defaultValue: "Email Sanad offices" })}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="gap-1.5"
+            onClick={() => {
+              setSanadOutreachManualOnly(null);
+              setSanadOutreachOpen(true);
+            }}
+          >
+            <Link2 className="h-4 w-4" aria-hidden />
+            {t("admin.sanadSurveyLinks", { defaultValue: "Sanad survey links" })}
+          </Button>
+          <Select
+            value={selectedStatus}
+            onValueChange={(v) => setSelectedStatus(v as StatusFilter)}
+          >
+            <SelectTrigger className="w-full sm:w-[220px]">
+              <SelectValue placeholder={t("admin.filterByStatus")} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">{t("admin.all")}</SelectItem>
+              <SelectItem value="in_progress">{t("admin.inProgress")}</SelectItem>
+              <SelectItem value="completed">{t("admin.completed")}</SelectItem>
+              <SelectItem value="abandoned">{t("admin.abandoned", { defaultValue: "Abandoned" })}</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-3">
@@ -126,6 +261,7 @@ export default function SurveyAdminResponsesPage() {
                   <TableHead>{t("admin.respondent")}</TableHead>
                   <TableHead>{t("admin.company")}</TableHead>
                   <TableHead>{t("companySector")}</TableHead>
+                  <TableHead>{t("admin.sanadOffice", { defaultValue: "Sanad office" })}</TableHead>
                   <TableHead>{t("admin.status")}</TableHead>
                   <TableHead>{t("admin.date")}</TableHead>
                   <TableHead className="text-right">
@@ -137,7 +273,7 @@ export default function SurveyAdminResponsesPage() {
                 {isLoading
                   ? Array.from({ length: 8 }).map((_, r) => (
                       <TableRow key={r}>
-                        {Array.from({ length: 6 }).map((__, c) => (
+                        {Array.from({ length: 7 }).map((__, c) => (
                           <TableCell key={c}>
                             <Skeleton className="h-4 w-full max-w-[140px]" />
                           </TableCell>
@@ -147,7 +283,7 @@ export default function SurveyAdminResponsesPage() {
                   : (data?.rows.length ?? 0) === 0
                     ? (
                         <TableRow>
-                          <TableCell colSpan={6} className="text-muted-foreground h-24 text-center">
+                          <TableCell colSpan={7} className="text-muted-foreground h-24 text-center">
                             {t("admin.noResponses")}
                           </TableCell>
                         </TableRow>
@@ -159,6 +295,11 @@ export default function SurveyAdminResponsesPage() {
                           </TableCell>
                           <TableCell>{row.companyName?.trim() || "—"}</TableCell>
                           <TableCell>{row.companySector?.trim() || "—"}</TableCell>
+                          <TableCell className="max-w-[10rem] truncate text-muted-foreground text-sm">
+                            {"sanadOfficeName" in row && row.sanadOfficeName
+                              ? String(row.sanadOfficeName).trim() || "—"
+                              : "—"}
+                          </TableCell>
                           <TableCell>
                             <Badge
                               variant="outline"
@@ -216,6 +357,135 @@ export default function SurveyAdminResponsesPage() {
           </div>
         </CardContent>
       </Card>
+
+      <Dialog
+        open={sanadOutreachOpen}
+        onOpenChange={(open) => {
+          setSanadOutreachOpen(open);
+          if (!open) setSanadOutreachManualOnly(null);
+        }}
+      >
+        <DialogContent className="max-h-[85vh] max-w-3xl overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {sanadOutreachManualOnly !== null
+                ? t("admin.sanadOutreachNoEmailTitle", { defaultValue: "Offices without email" })
+                : t("admin.sanadOutreachAllTitle", { defaultValue: "Sanad office survey links" })}
+            </DialogTitle>
+            <DialogDescription>
+              {sanadOutreachManualOnly !== null
+                ? t("admin.sanadOutreachNoEmailDesc", {
+                    defaultValue:
+                      "Share each survey link by WhatsApp or phone using the office name and number on file. The link records which Sanad office the response belongs to.",
+                  })
+                : t("admin.sanadOutreachAllDesc", {
+                    defaultValue:
+                      "Per-office survey links for manual outreach. Offices that have an email can also get the link via the Email Sanad offices button.",
+                  })}
+            </DialogDescription>
+          </DialogHeader>
+
+          {sanadOutreachManualOnly === null && sanadLinksQuery.isError && (
+            <p className="text-destructive text-sm" role="alert">
+              {sanadLinksQuery.error.message}
+            </p>
+          )}
+
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              disabled={outreachDisplayRows.length === 0}
+              onClick={() =>
+                downloadSanadLinksCsv(
+                  outreachDisplayRows.map((r) => ({
+                    name: r.name,
+                    phone: r.phone,
+                    contactPerson: r.contactPerson,
+                    email: r.email,
+                    surveyUrl: r.surveyUrl,
+                  })),
+                  "sanad-survey-links.csv",
+                )
+              }
+            >
+              {t("admin.downloadSanadCsv", { defaultValue: "Download CSV" })}
+            </Button>
+          </div>
+
+          <div className="rounded-md border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>{t("admin.sanadColOffice", { defaultValue: "Office" })}</TableHead>
+                  <TableHead>{t("yourPhone")}</TableHead>
+                  <TableHead>{t("admin.sanadColContact", { defaultValue: "Contact" })}</TableHead>
+                  <TableHead>{t("yourEmail")}</TableHead>
+                  <TableHead className="text-right">
+                    {t("admin.sanadColLink", { defaultValue: "Link" })}
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {outreachLoading ? (
+                  <TableRow>
+                    <TableCell colSpan={5}>
+                      <Skeleton className="h-10 w-full" />
+                    </TableCell>
+                  </TableRow>
+                ) : outreachDisplayRows.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-muted-foreground h-16 text-center">
+                      {t("admin.sanadOutreachEmpty", { defaultValue: "No active Sanad offices found." })}
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  outreachDisplayRows.map((row) => (
+                    <TableRow key={row.id}>
+                      <TableCell className="max-w-[10rem] font-medium">
+                        <span className="line-clamp-2">{row.name}</span>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground tabular-nums text-sm">
+                        {row.phone?.trim() || "—"}
+                      </TableCell>
+                      <TableCell className="max-w-[8rem] truncate text-muted-foreground text-sm">
+                        {row.contactPerson?.trim() || "—"}
+                      </TableCell>
+                      <TableCell className="max-w-[9rem] truncate text-sm">
+                        {row.email?.trim() ? (
+                          row.email
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={async () => {
+                            try {
+                              await navigator.clipboard.writeText(row.surveyUrl);
+                              toast.success(
+                                t("admin.surveyLinkCopied", { defaultValue: "Survey link copied" }),
+                              );
+                            } catch {
+                              toast.error(t("copyFailed"));
+                            }
+                          }}
+                        >
+                          {t("copyToken")}
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

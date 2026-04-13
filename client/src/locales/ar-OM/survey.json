@@ -82,6 +82,20 @@
     "digital_maturity": "النضج الرقمي",
     "compliance_burden": "عبء الامتثال",
     "staffing_pressure": "ضغط التوظيف",
-    "adoption_readiness": "جاهزية التبني"
+    "adoption_readiness": "جاهزية التبني",
+    "emailSanadOffices": "إرسال بريد لمكاتب سند",
+    "inviteSanadToast": "تم الإرسال: {{sent}} / {{withEmail}} (فشل: {{failed}}). مكاتب بلا بريد: {{skipped}}.",
+    "inviteSanadConfirm": "إرسال دعوات بالبريد إلى كل مكتب سند نشط لديه بريد؟ المكاتب بلا بريد لا تُرسل إليها؛ يمكنك نسخ روابط الاستبيان لها لاحقاً.",
+    "sanadSurveyLinks": "روابط استبيان سند",
+    "sanadOutreachNoEmailTitle": "مكاتب بلا بريد إلكتروني",
+    "sanadOutreachAllTitle": "روابط استبيان مكاتب سند",
+    "sanadOutreachNoEmailDesc": "أرسل رابط الاستبيان عبر واتساب أو الاتصال باستخدام اسم المكتب والرقم المسجّل. يربط الرابط الاستجابة بالمكتب الصحيح.",
+    "sanadOutreachAllDesc": "روابط لكل مكتب للتواصل اليدوي. المكاتب التي لديها بريد يمكن أيضاً استلام الرابط عبر زر إرسال البريد.",
+    "downloadSanadCsv": "تنزيل CSV",
+    "sanadColOffice": "المكتب",
+    "sanadColContact": "جهة الاتصال",
+    "sanadColLink": "الرابط",
+    "sanadOutreachEmpty": "لا توجد مكاتب سند نشطة.",
+    "surveyLinkCopied": "تم نسخ رابط الاستبيان"
   }
 }

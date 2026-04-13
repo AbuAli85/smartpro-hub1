@@ -21,6 +21,7 @@ import {
   Award,
   Wallet,
   Activity,
+  ClipboardList,
 } from "lucide-react";
 import {
   BarChart,
@@ -215,6 +216,27 @@ export default function SanadOfficeDashboardPage() {
           )}
         </div>
       </div>
+
+      {officeId != null && (
+        <Card className="border-primary/25 bg-gradient-to-r from-primary/5 to-transparent">
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <ClipboardList className="h-5 w-5 text-primary shrink-0" aria-hidden />
+              Business sector survey — gov &amp; business bridge
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-muted-foreground text-sm max-w-3xl leading-relaxed">
+              Use your <strong>same SmartPRO login</strong> as this dashboard. Opening the survey from here attributes
+              responses to <strong>{selectedOffice?.name ?? "your office"}</strong>, helping map how PRO offices connect
+              regulators and businesses.
+            </p>
+            <Button className="shrink-0" asChild>
+              <Link href={`/survey/oman-business-sector-2026?officeId=${officeId}`}>Open survey</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       {dashLoading ? (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

@@ -15,6 +15,7 @@ import {
   surveyTags,
   surveyResponseTags,
   users,
+  sanadOffices,
 } from "../../drizzle/schema";
 import {
   getBySlugInput,
@@ -26,9 +27,32 @@ import {
   getResponseDetailInput,
 } from "../modules/survey/types";
 import { computeSurveyScores, collectResponseTags } from "../modules/survey/scoring";
-import { sendSurveyResumeEmail, sendSurveyCompletionInviteEmail } from "../email";
+import {
+  sendSurveyResumeEmail,
+  sendSurveyCompletionInviteEmail,
+  sendSanadOfficeSurveyBridgeEmail,
+} from "../email";
 import { resolvePublicAppBaseUrl } from "../_core/publicAppUrl";
 import crypto from "crypto";
+import { assertSanadOfficeAccess } from "../sanadAccess";
+
+function resolveSanadSurveyBaseUrl(): string {
+  return (resolvePublicAppBaseUrl() || process.env.PUBLIC_APP_URL?.replace(/\/+$/, "") || "").trim();
+}
+
+async function userExistsWithEmail(
+  db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
+  email: string,
+): Promise<boolean> {
+  const n = email.trim().toLowerCase();
+  if (!n) return false;
+  const [r] = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(and(isNotNull(users.email), sql`LOWER(TRIM(${users.email})) = ${n}`))
+    .limit(1);
+  return !!r;
+}
 
 async function userExistsWithEmail(
   db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
@@ -123,9 +147,22 @@ export const surveyRouter = router({
     const respondentEmail = input.respondentEmail ?? emailFromSession ?? null;
     const userId = ctx.user?.id ?? null;
 
+    let sanadOfficeId: number | null = null;
+    if (input.sanadOfficeId != null) {
+      if (!ctx.user) {
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message: "Sign in with your SmartPRO account to link this survey to your Sanad office.",
+        });
+      }
+      await assertSanadOfficeAccess(db as never, ctx.user.id, input.sanadOfficeId);
+      sanadOfficeId = input.sanadOfficeId;
+    }
+
     const [result] = await db.insert(surveyResponses).values({
       surveyId: input.surveyId,
       userId,
+      sanadOfficeId,
       resumeToken,
       language: input.language,
       status: "in_progress",
@@ -421,13 +458,22 @@ export const surveyRouter = router({
       const total = countResult?.count ?? 0;
       const offset = (input.page - 1) * input.limit;
 
-      const rows = await db
-        .select()
+      const joined = await db
+        .select({
+          response: surveyResponses,
+          sanadOfficeName: sanadOffices.name,
+        })
         .from(surveyResponses)
+        .leftJoin(sanadOffices, eq(surveyResponses.sanadOfficeId, sanadOffices.id))
         .where(whereClause)
         .orderBy(desc(surveyResponses.startedAt))
         .limit(input.limit)
         .offset(offset);
+
+      const rows = joined.map((j) => ({
+        ...j.response,
+        sanadOfficeName: j.sanadOfficeName ?? null,
+      }));
 
       return { rows, total, page: input.page, limit: input.limit };
     }),
@@ -445,6 +491,20 @@ export const surveyRouter = router({
         .limit(1);
 
       if (!response) throw new TRPCError({ code: "NOT_FOUND", message: "Response not found" });
+
+      let sanadOffice: { id: number; name: string; nameAr: string | null } | null = null;
+      if (response.sanadOfficeId) {
+        const [o] = await db
+          .select({
+            id: sanadOffices.id,
+            name: sanadOffices.name,
+            nameAr: sanadOffices.nameAr,
+          })
+          .from(sanadOffices)
+          .where(eq(sanadOffices.id, response.sanadOfficeId))
+          .limit(1);
+        sanadOffice = o ?? null;
+      }
 
       const answers = await db
         .select()
@@ -485,11 +545,121 @@ export const surveyRouter = router({
 
       return {
         response,
+        sanadOffice,
         answers,
         sections,
         questions,
         options,
         tags: tags.map((t) => t.tag),
+      };
+    }),
+
+  /**
+   * All active Sanad offices with per-office survey URLs (for manual outreach when email is missing).
+   */
+  adminSanadOfficeSurveyLinks: surveyAdminProcedure
+    .input(z.object({ surveySlug: z.string().min(1).max(100).optional() }).optional())
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+
+      const slug = input?.surveySlug ?? "oman-business-sector-2026";
+      const [survey] = await db.select().from(surveys).where(eq(surveys.slug, slug)).limit(1);
+      if (!survey) throw new TRPCError({ code: "NOT_FOUND", message: "Survey not found" });
+
+      const baseUrl = resolveSanadSurveyBaseUrl();
+      if (!baseUrl) {
+        throw new TRPCError({
+          code: "FAILED_PRECONDITION",
+          message: "Set PUBLIC_APP_URL so survey links are valid.",
+        });
+      }
+
+      const offices = await db.select().from(sanadOffices).where(eq(sanadOffices.status, "active"));
+
+      return {
+        surveySlug: slug,
+        surveyTitleEn: survey.titleEn,
+        baseUrl,
+        offices: offices.map((o) => ({
+          id: o.id,
+          name: o.name,
+          nameAr: o.nameAr ?? null,
+          phone: o.phone?.trim() || null,
+          contactPerson: o.contactPerson?.trim() || null,
+          email: o.email?.trim() || null,
+          hasEmail: Boolean(o.email?.trim()),
+          surveyUrl: `${baseUrl}/survey/${slug}?officeId=${o.id}`,
+        })),
+      };
+    }),
+
+  /** Email active Sanad offices that have an email; return copyable links for offices without email. */
+  adminInviteSanadOffices: surveyAdminProcedure
+    .input(z.object({ surveySlug: z.string().min(1).max(100).optional() }).optional())
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+
+      const slug = input?.surveySlug ?? "oman-business-sector-2026";
+      const [survey] = await db.select().from(surveys).where(eq(surveys.slug, slug)).limit(1);
+      if (!survey) throw new TRPCError({ code: "NOT_FOUND", message: "Survey not found" });
+
+      const offices = await db.select().from(sanadOffices).where(eq(sanadOffices.status, "active"));
+
+      const baseUrl = resolveSanadSurveyBaseUrl();
+      if (!baseUrl) {
+        throw new TRPCError({
+          code: "FAILED_PRECONDITION",
+          message: "Set PUBLIC_APP_URL so survey links in emails are valid.",
+        });
+      }
+
+      const manualOutreach: Array<{
+        id: number;
+        name: string;
+        nameAr: string | null;
+        phone: string | null;
+        contactPerson: string | null;
+        surveyUrl: string;
+      }> = [];
+
+      let sent = 0;
+      let failed = 0;
+      for (const o of offices) {
+        const email = o.email?.trim();
+        const surveyUrl = `${baseUrl}/survey/${slug}?officeId=${o.id}`;
+        if (!email) {
+          manualOutreach.push({
+            id: o.id,
+            name: o.name,
+            nameAr: o.nameAr ?? null,
+            phone: o.phone?.trim() || null,
+            contactPerson: o.contactPerson?.trim() || null,
+            surveyUrl,
+          });
+          continue;
+        }
+        const result = await sendSanadOfficeSurveyBridgeEmail({
+          to: email,
+          officeName: o.name,
+          officeNameAr: o.nameAr ?? undefined,
+          surveyUrl,
+          contactPerson: o.contactPerson?.trim() || undefined,
+        });
+        if (result.success) sent++;
+        else failed++;
+      }
+
+      const withEmailCount = offices.length - manualOutreach.length;
+
+      return {
+        sent,
+        failed,
+        totalActiveOffices: offices.length,
+        withEmailCount,
+        skippedNoEmail: manualOutreach.length,
+        manualOutreach,
       };
     }),
 

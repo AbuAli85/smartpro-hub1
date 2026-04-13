@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRoute, useLocation } from "wouter";
+import { useAuth } from "@/_core/hooks/useAuth";
 import { useTranslation } from "react-i18next";
 import { AlertCircle, BookmarkCheck, ChevronLeft, ChevronRight, Copy, Loader2, Lock, Mail, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
+import { getLoginUrl } from "@/const";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -81,8 +83,17 @@ function mergeResumeAnswers(
 
 export default function SurveyRespondPage() {
   const [match, params] = useRoute("/survey/:slug");
+  const [location, setLocation] = useLocation();
   const slug = match ? params.slug : undefined;
-  const [, setLocation] = useLocation();
+  const { isAuthenticated, loading: authLoading } = useAuth();
+
+  const sanadOfficeIdFromUrl = useMemo(() => {
+    const q = new URLSearchParams(location.split("?")[1] ?? "");
+    const v = q.get("officeId");
+    if (!v) return undefined;
+    const n = Number(v);
+    return Number.isFinite(n) && n > 0 ? n : undefined;
+  }, [location]);
   const { t, i18n } = useTranslation("survey");
   const surveyLanguage = i18n.language.startsWith("ar") ? "ar" : "en";
   const isAr = surveyLanguage === "ar";
@@ -127,17 +138,39 @@ export default function SurveyRespondPage() {
   const [answers, setAnswers] = useState<Record<number, AnswerState>>({});
   const [currentSectionIndex, setCurrentSectionIndex] = useState(0);
   const [sessionReady, setSessionReady] = useState(false);
+  const [guestSkipOfficeLink, setGuestSkipOfficeLink] = useState(false);
   const startRequestedRef = useRef(false);
 
   useEffect(() => {
     setResumeToken(readResumeToken());
     setSessionReady(false);
     startRequestedRef.current = false;
+    setGuestSkipOfficeLink(false);
     setResponseId(null);
     setSessionToken(null);
     setAnswers({});
     setCurrentSectionIndex(0);
   }, [slug, readResumeToken]);
+
+  const startPayload = useMemo(() => {
+    if (!surveyData?.survey?.id) return null;
+    const base = {
+      surveyId: surveyData.survey.id,
+      language: surveyLanguage === "ar" ? "ar" : "en",
+    } as const;
+    if (isAuthenticated && sanadOfficeIdFromUrl) {
+      return { ...base, sanadOfficeId: sanadOfficeIdFromUrl };
+    }
+    return base;
+  }, [surveyData?.survey?.id, surveyLanguage, isAuthenticated, sanadOfficeIdFromUrl]);
+
+  /** Anonymous user with ?officeId= must confirm or sign in first — do not auto-start. */
+  const needsOfficeAuthChoice =
+    !!sanadOfficeIdFromUrl &&
+    !authLoading &&
+    !isAuthenticated &&
+    !resumeToken &&
+    !guestSkipOfficeLink;
 
   const startMutation = trpc.survey.startResponse.useMutation({
     onSuccess: (data) => {
@@ -213,12 +246,12 @@ export default function SurveyRespondPage() {
     }
 
     if (resumeToken === null && !resumeLoading && !resumeFetching) {
+      if (sanadOfficeIdFromUrl && authLoading) return;
+      if (needsOfficeAuthChoice) return;
       if (startRequestedRef.current || startMutation.isPending) return;
+      if (!startPayload) return;
       startRequestedRef.current = true;
-      startMutation.mutate({
-        surveyId: surveyData.survey.id,
-        language: surveyLanguage === "ar" ? "ar" : "en",
-      });
+      startMutation.mutate(startPayload);
     }
   }, [
     surveyData,
@@ -232,8 +265,12 @@ export default function SurveyRespondPage() {
     setLocation,
     clearStoredResume,
     startMutation,
-    surveyLanguage,
+    startPayload,
     sessionReady,
+    sanadOfficeIdFromUrl,
+    authLoading,
+    needsOfficeAuthChoice,
+    guestSkipOfficeLink,
   ]);
 
   const currentSection = sections[currentSectionIndex] ?? null;
@@ -352,6 +389,47 @@ export default function SurveyRespondPage() {
 
   const showPageSkeleton = !slug || surveyLoading || sessionBootPending;
 
+  if (needsOfficeAuthChoice && surveyData?.survey) {
+    return (
+      <div className="min-h-screen bg-slate-50">
+        <div className="mx-auto max-w-lg px-4 py-16">
+          <Card>
+            <CardHeader>
+              <CardTitle>{isAr ? "ربط مكتب سند" : "Sanad office link"}</CardTitle>
+              <CardDescription>
+                {isAr
+                  ? "سجّل الدخول بحساب SmartPRO نفسه المستخدم للوحة مكتبك لربط الإجابات بهذا المكتب."
+                  : "Sign in with the same SmartPRO account you use for your Sanad office dashboard to attribute answers to your office."}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-3">
+              <Button asChild className="w-full">
+                <a
+                  href={getLoginUrl(
+                    typeof window !== "undefined" ? `${window.location.pathname}${window.location.search}` : undefined,
+                  )}
+                >
+                  {isAr ? "تسجيل الدخول" : "Sign in"}
+                </a>
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full"
+                onClick={() => {
+                  startRequestedRef.current = false;
+                  setGuestSkipOfficeLink(true);
+                }}
+              >
+                {isAr ? "المتابعة بدون ربط المكتب" : "Continue without office link"}
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
   // Error: could not start
   if (surveyData && !sessionReady && !resumeToken && startMutation.isError) {
     return (
@@ -373,10 +451,7 @@ export default function SurveyRespondPage() {
                 onClick={() => {
                   startRequestedRef.current = false;
                   startMutation.reset();
-                  startMutation.mutate({
-                    surveyId: surveyData.survey.id,
-                    language: surveyLanguage === "ar" ? "ar" : "en",
-                  });
+                  if (startPayload) startMutation.mutate(startPayload);
                 }}
               >
                 {isAr ? "إعادة المحاولة" : "Try again"}

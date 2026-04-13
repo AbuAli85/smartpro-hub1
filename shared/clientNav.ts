@@ -1,4 +1,5 @@
 import { canAccessGlobalAdminProcedures } from "./rbac";
+import { isTenantUnsafeNavExtensionPath, pathMatchesNavExtensionHref } from "./roleNavConfig";
 
 /** SmartPRO operator / provider tools — not shown to typical business tenants */
 /** Platform sidebar links restricted to global admins (not regional_manager / client_services). */
@@ -475,11 +476,16 @@ export type ClientNavOptions = {
    * If `false`, non-platform users without a portal-only profile see a minimal shell until they join or create a company.
    */
   hasCompanyMembership?: boolean;
+  /**
+   * Optional extra routes (path prefixes) for this membership role, set by company admins
+   * in Company Settings → Role navigation extensions (`companies.roleNavExtensions`).
+   */
+  navExtraAllowedHrefs?: string[] | null;
 };
 
 /**
  * Routes allowed for logged-in users who are not yet in any company (non-platform, non-portal-client).
- * Platform operators and global admins use the full app; portal clients use PORTAL_CLIENT_HREFS.
+ * Declared before `companyNavExtensionAllows` so prereq checks can reference it.
  */
 export const NO_COMPANY_SHELL_HREFS = new Set<string>([
   "/",
@@ -490,6 +496,55 @@ export const NO_COMPANY_SHELL_HREFS = new Set<string>([
   "/preferences",
   "/company/create",
 ]);
+
+/**
+ * Company-configured extra nav paths for the active role. Still respects portal/prereg shells,
+ * auditor blocks, and never grants platform-only URLs to tenant users.
+ */
+function pathMatchesAuditorBlock(path: string): boolean {
+  for (const blocked of Array.from(AUDITOR_BLOCKED_HREFS)) {
+    if (path === blocked || path.startsWith(`${blocked}/`)) return true;
+  }
+  return false;
+}
+
+export function companyNavExtensionAllows(
+  hrefOrPath: string,
+  user: { role?: string | null; platformRole?: string | null } | null,
+  options?: ClientNavOptions,
+): boolean {
+  const extras = options?.navExtraAllowedHrefs;
+  if (!extras?.length || !pathMatchesNavExtensionHref(hrefOrPath, extras)) return false;
+  const path = normalizeClientPath(hrefOrPath);
+  if (isTenantUnsafeNavExtensionPath(path)) {
+    if (!seesPlatformOperatorNav(user) && !canAccessGlobalAdminProcedures(user ?? {})) return false;
+  }
+  if (isExternalAuditorNav(options?.memberRole) && pathMatchesAuditorBlock(path)) return false;
+  if (shouldUsePortalOnlyShell(user, options)) {
+    const portalOk =
+      PORTAL_CLIENT_HREFS.has(path) ||
+      path.startsWith("/contracts") ||
+      path.startsWith("/company/documents") ||
+      path.startsWith("/company/team-access") ||
+      path.startsWith("/hr/documents-dashboard") ||
+      path.startsWith("/hr/letters") ||
+      path.startsWith("/hr/leave-balance") ||
+      path.startsWith("/hr/completeness") ||
+      path.startsWith("/hr/org-structure") ||
+      path.startsWith("/workspace") ||
+      path.startsWith("/hr/tasks") ||
+      path.startsWith("/hr/announcements") ||
+      path.startsWith("/my-portal") ||
+      path.startsWith("/employee");
+    if (!portalOk) return false;
+  }
+  if (shouldUsePreRegistrationShell(user, options)) {
+    const preOk =
+      NO_COMPANY_SHELL_HREFS.has(path) || path.startsWith("/onboarding") || path.startsWith("/invite/");
+    if (!preOk) return false;
+  }
+  return true;
+}
 
 /**
  * Minimal shell until the user belongs to at least one company.
@@ -558,6 +613,9 @@ export function clientNavItemVisible(
   if (shouldUsePreRegistrationShell(user, options)) {
     return NO_COMPANY_SHELL_HREFS.has(href);
   }
+
+  // Company admin — optional extra routes for this role (before role shells below)
+  if (companyNavExtensionAllows(href, user, options)) return true;
 
   // Staff / "Member" company role — employee shell only, even for Super Admin or other platform jobs
   // while this membership is the active workspace role (see PlatformLayout memberRole from myCompany).
@@ -708,8 +766,12 @@ export function clientRouteAccessible(
     return preRegistrationPathAllowed(path);
   }
 
+  if (companyNavExtensionAllows(path, user, options)) return true;
+
   if (isFieldEmployee(options?.memberRole)) {
-    return FIELD_EMPLOYEE_HREFS.has(path) || path.startsWith("/my-portal") || path.startsWith("/preferences");
+    return (
+      FIELD_EMPLOYEE_HREFS.has(path) || path.startsWith("/my-portal") || path.startsWith("/preferences")
+    );
   }
 
   for (const href of Array.from(GLOBAL_ADMIN_PLATFORM_HREFS)) {
@@ -799,6 +861,7 @@ export function clientRouteAccessible(
   }
 
   if (membershipScopedNavDenies(path, user, options)) {
+    if (companyNavExtensionAllows(path, user, options)) return true;
     return false;
   }
 

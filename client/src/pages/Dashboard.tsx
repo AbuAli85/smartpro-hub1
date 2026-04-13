@@ -131,14 +131,31 @@ export default function Dashboard() {
     return () => window.removeEventListener("smartpro-nav-prefs-changed", fn);
   }, []);
 
+  const navExtraAllowedHrefs = useMemo(() => {
+    const ext = (myCompany?.company as { roleNavExtensions?: Record<string, string[]> } | undefined)
+      ?.roleNavExtensions;
+    const r = myCompany?.member?.role ?? activeCompany?.role ?? null;
+    if (!ext || !r) return null;
+    const list = ext[r];
+    return Array.isArray(list) && list.length > 0 ? list : null;
+  }, [myCompany?.company, myCompany?.member?.role, activeCompany?.role]);
+
   const navOpts = useMemo(
     () => ({
       hasCompanyWorkspace: Boolean(myCompany?.company?.id),
       companyWorkspaceLoading: myCompanyLoading,
       hasCompanyMembership: companies.length > 0,
       memberRole: myCompany?.member?.role ?? activeCompany?.role ?? null,
+      navExtraAllowedHrefs,
     }),
-    [myCompany?.company?.id, myCompany?.member?.role, activeCompany?.role, myCompanyLoading, companies.length],
+    [
+      myCompany?.company?.id,
+      myCompany?.member?.role,
+      activeCompany?.role,
+      myCompanyLoading,
+      companies.length,
+      navExtraAllowedHrefs,
+    ],
   );
 
   const showHref = useMemo(() => {

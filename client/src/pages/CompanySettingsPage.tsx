@@ -38,8 +38,10 @@ import {
   LogIn,
   ChevronRight,
   Calendar,
+  LayoutList,
 } from "lucide-react";
 import { getRoleDefaultRoute } from "@shared/clientNav";
+import { NAV_EXTENSION_ROLE_KEYS, ROLE_NAV_SUMMARY } from "@shared/roleNavConfig";
 import { mergeLeavePolicyCaps } from "@shared/leavePolicyCaps";
 
 const INDUSTRIES = [
@@ -136,6 +138,7 @@ const COUNTRIES = [
 
 export default function CompanySettingsPage() {
   const { activeCompany, loading: companyLoading } = useActiveCompany();
+  const utils = trpc.useUtils();
 
   // Fetch full company details
   const { data: companyData, isLoading: detailsLoading, refetch } = trpc.companies.getById.useQuery(
@@ -305,6 +308,65 @@ export default function CompanySettingsPage() {
       setSavingRoleRedirects(false);
     }
   };
+
+  const [navExtDraft, setNavExtDraft] = useState<Record<string, string>>({});
+  const [savingNavExt, setSavingNavExt] = useState(false);
+  const { data: navExtData } = trpc.companies.getRoleNavExtensions.useQuery(
+    { companyId: activeCompany?.id ?? 0 },
+    { enabled: Boolean(activeCompany?.id) },
+  );
+  useEffect(() => {
+    if (!navExtData?.extensions) return;
+    const next: Record<string, string> = {};
+    for (const key of NAV_EXTENSION_ROLE_KEYS) {
+      const arr = navExtData.extensions[key];
+      next[key] = Array.isArray(arr) ? arr.join(", ") : "";
+    }
+    setNavExtDraft(next);
+  }, [navExtData]);
+
+  const updateNavExtMutation = trpc.companies.updateRoleNavExtensions.useMutation({
+    onSuccess: () => {
+      toast.success("Role navigation extensions saved");
+      void utils.companies.myCompany.invalidate();
+      void utils.companies.getRoleNavExtensions.invalidate();
+    },
+    onError: (err) => {
+      toast.error(err.message || "Failed to save navigation extensions");
+    },
+  });
+
+  const handleSaveNavExt = async () => {
+    if (!activeCompany?.id) return;
+    setSavingNavExt(true);
+    try {
+      const out: Record<string, string[]> = {};
+      for (const key of NAV_EXTENSION_ROLE_KEYS) {
+        const raw = navExtDraft[key]?.trim() ?? "";
+        if (!raw) continue;
+        out[key] = raw
+          .split(/[\s,]+/)
+          .filter(Boolean)
+          .map((p) => (p.startsWith("/") ? p : `/${p}`));
+      }
+      await updateNavExtMutation.mutateAsync({ companyId: activeCompany.id, extensions: out });
+    } finally {
+      setSavingNavExt(false);
+    }
+  };
+
+  const handleResetNavExt = async () => {
+    if (!activeCompany?.id) return;
+    setSavingNavExt(true);
+    try {
+      await updateNavExtMutation.mutateAsync({ companyId: activeCompany.id, extensions: {} });
+      setNavExtDraft({});
+    } finally {
+      setSavingNavExt(false);
+    }
+  };
+
+  const canEditNavExtensions = activeCompany?.role === "company_admin";
 
   const handleSaveExpiry = async () => {
     if (!activeCompany?.id) return;
@@ -885,6 +947,53 @@ export default function CompanySettingsPage() {
               >
                 <RotateCcw size={13} />
                 Reset All to Defaults
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <LayoutList size={16} className="text-primary" /> Role navigation extensions
+          </CardTitle>
+          <CardDescription>
+            Optional extra path prefixes for each role (comma or space separated). These add to the built-in role menus
+            in the sidebar and route guard. Platform-only URLs such as /admin or /user-roles are rejected automatically.
+            {!canEditNavExtensions && (
+              <span className="block mt-1 text-amber-700 dark:text-amber-300">
+                Only company administrators can edit these settings.
+              </span>
+            )}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {NAV_EXTENSION_ROLE_KEYS.map((roleKey) => (
+            <div key={roleKey} className="space-y-1.5 p-3 rounded-lg border bg-muted/20">
+              <Label className="text-xs font-semibold">
+                {ROLE_REDIRECT_OPTIONS[roleKey]?.label ?? roleKey}
+              </Label>
+              <p className="text-[11px] text-muted-foreground leading-snug">{ROLE_NAV_SUMMARY[roleKey]}</p>
+              <Textarea
+                placeholder="/hr/tasks, /company/documents"
+                value={navExtDraft[roleKey] ?? ""}
+                onChange={(e) => setNavExtDraft((prev) => ({ ...prev, [roleKey]: e.target.value }))}
+                disabled={!canEditNavExtensions}
+                rows={2}
+                className="text-xs font-mono"
+              />
+            </div>
+          ))}
+          {canEditNavExtensions && (
+            <div className="flex flex-wrap gap-2 pt-2">
+              <Button size="sm" onClick={handleSaveNavExt} disabled={savingNavExt} className="gap-2">
+                <Save size={13} />
+                {savingNavExt ? "Saving…" : "Save navigation extensions"}
+              </Button>
+              <Button size="sm" variant="outline" onClick={handleResetNavExt} disabled={savingNavExt}>
+                <RotateCcw size={13} />
+                Clear all
               </Button>
             </div>
           )}

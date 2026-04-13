@@ -4,6 +4,7 @@ import { nanoid } from "nanoid";
 import { randomBytes } from "crypto";
 import { z } from "zod";
 import { canAccessGlobalAdminProcedures, mapMemberRoleToPlatformRole } from "@shared/rbac";
+import { sanitizeRoleNavExtensions } from "@shared/roleNavConfig";
 import {
   createCompany,
   getCompanies,
@@ -1364,6 +1365,66 @@ export const companiesRouter = router({
         .set({ roleRedirectSettings: input.settings })
         .where(eq(companies.id, input.companyId));
       return { success: true };
+    }),
+
+  /**
+   * Extra navigation path prefixes per membership role (sidebar + route guard).
+   * Company admins may grant additional routes beyond system defaults; platform URLs are stripped server-side.
+   */
+  getRoleNavExtensions: protectedProcedure
+    .input(z.object({ companyId: z.number() }))
+    .query(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const [member] = await db
+        .select({ role: companyMembers.role })
+        .from(companyMembers)
+        .where(
+          and(
+            eq(companyMembers.userId, ctx.user.id),
+            eq(companyMembers.companyId, input.companyId),
+            eq(companyMembers.isActive, true),
+          ),
+        )
+        .limit(1);
+      if (!member) throw new TRPCError({ code: "FORBIDDEN" });
+      const [row] = await db
+        .select({ roleNavExtensions: companies.roleNavExtensions })
+        .from(companies)
+        .where(eq(companies.id, input.companyId))
+        .limit(1);
+      return { extensions: (row?.roleNavExtensions as Record<string, string[]> | null) ?? {} };
+    }),
+
+  updateRoleNavExtensions: protectedProcedure
+    .input(
+      z.object({
+        companyId: z.number(),
+        /** Raw map from role key → path prefixes; sanitized before persist. */
+        extensions: z.record(z.string(), z.array(z.string())),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const [member] = await db
+        .select({ role: companyMembers.role })
+        .from(companyMembers)
+        .where(
+          and(
+            eq(companyMembers.userId, ctx.user.id),
+            eq(companyMembers.companyId, input.companyId),
+            eq(companyMembers.isActive, true),
+          ),
+        )
+        .limit(1);
+      const isAdmin = member?.role === "company_admin" || (member?.role as string) === "owner";
+      if (!isAdmin && !canAccessGlobalAdminProcedures(ctx.user)) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Only company admins can update navigation extensions." });
+      }
+      const cleaned = sanitizeRoleNavExtensions(input.extensions);
+      await db.update(companies).set({ roleNavExtensions: cleaned }).where(eq(companies.id, input.companyId));
+      return { success: true, extensions: cleaned };
     }),
 
   // ── Email Template Preview ─────────────────────────────────────────────────

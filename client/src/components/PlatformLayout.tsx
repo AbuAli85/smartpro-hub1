@@ -337,6 +337,14 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
     { enabled: activeCompanyId != null },
   );
   const effectiveMemberRole = myCompany?.member?.role ?? activeCompany?.role ?? null;
+  const navExtraAllowedHrefs = useMemo(() => {
+    const ext = (myCompany?.company as { roleNavExtensions?: Record<string, string[]> } | undefined)
+      ?.roleNavExtensions;
+    const r = effectiveMemberRole;
+    if (!ext || !r) return null;
+    const list = ext[r];
+    return Array.isArray(list) && list.length > 0 ? list : null;
+  }, [myCompany?.company, effectiveMemberRole]);
   const { data: wfStats } = trpc.workforce.dashboardStats.useQuery(undefined, {
     enabled: activeCompanyId != null && Boolean(myCompany?.company?.id),
     staleTime: 60_000,
@@ -363,6 +371,7 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
             companyWorkspaceLoading: myCompanyLoading,
             memberRole: effectiveMemberRole,
             hasCompanyMembership: companies.length > 0,
+            navExtraAllowedHrefs,
           }),
         ),
       }))
@@ -373,6 +382,7 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
     myCompany?.company?.id,
     myCompany?.member?.role,
     activeCompany?.role,
+    navExtraAllowedHrefs,
     myCompanyLoading,
     companies.length,
   ]);

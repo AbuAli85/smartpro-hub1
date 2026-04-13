@@ -85,6 +85,12 @@ export const companies = mysqlTable("companies", {
   expiryWarningDays: int("expiryWarningDays").default(30).notNull(),
   /** Per-role login redirect overrides. JSON: { hr_admin: "/hr/employees", finance_admin: "/payroll", ... } */
   roleRedirectSettings: json("roleRedirectSettings").$type<Record<string, string>>().default({}),
+  /**
+   * Optional extra sidebar/route prefixes per membership role (company admin–configured).
+   * Keys: company_admin, hr_admin, finance_admin, company_member, reviewer, external_auditor.
+   * Values: path prefixes (e.g. ["/hr/tasks", "/company/documents"]). Platform URLs are rejected on save.
+   */
+  roleNavExtensions: json("roleNavExtensions").$type<Record<string, string[]>>().default({}),
   /** Optional annual/sick/emergency caps for portal + HR leave balances; null = Oman portal defaults in shared code. */
   leavePolicyCaps: json("leavePolicyCaps").$type<Partial<Record<"annual" | "sick" | "emergency", number>> | null>(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),

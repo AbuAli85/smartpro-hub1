@@ -18,6 +18,15 @@ export function ClientAccessGate({ children }: { children: ReactNode }) {
     { companyId: activeCompanyId ?? undefined },
     { enabled: Boolean(user) && !companiesLoading && activeCompanyId != null },
   );
+  const effectiveMemberRole = myCompany?.member?.role ?? activeCompany?.role ?? null;
+  const navExtraAllowedHrefs = useMemo(() => {
+    const ext = (myCompany?.company as { roleNavExtensions?: Record<string, string[]> } | undefined)
+      ?.roleNavExtensions;
+    const r = effectiveMemberRole;
+    if (!ext || !r) return null;
+    const list = ext[r];
+    return Array.isArray(list) && list.length > 0 ? list : null;
+  }, [myCompany?.company, effectiveMemberRole]);
   const [prefsEpoch, setPrefsEpoch] = useState(0);
 
   useEffect(() => {
@@ -31,8 +40,9 @@ export function ClientAccessGate({ children }: { children: ReactNode }) {
     return clientRouteAccessible(location, user, getHiddenNavHrefs(), {
       hasCompanyWorkspace: Boolean(myCompany?.company?.id),
       companyWorkspaceLoading: companiesLoading || (Boolean(user) && activeCompanyId != null && companyLoading),
-      memberRole: myCompany?.member?.role ?? activeCompany?.role ?? null,
+      memberRole: effectiveMemberRole,
       hasCompanyMembership: companies.length > 0,
+      navExtraAllowedHrefs,
     });
   }, [
     location,
@@ -40,6 +50,7 @@ export function ClientAccessGate({ children }: { children: ReactNode }) {
     myCompany?.company?.id,
     myCompany?.member?.role,
     activeCompany?.role,
+    navExtraAllowedHrefs,
     companyLoading,
     companiesLoading,
     activeCompanyId,

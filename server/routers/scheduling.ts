@@ -4,7 +4,7 @@
  */
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { and, eq, gte, inArray, lte, or, isNull } from "drizzle-orm";
+import { and, count, eq, gte, inArray, lte, or, isNull } from "drizzle-orm";
 import { getDb, getUserCompany } from "../db";
 import {
   shiftTemplates,
@@ -37,6 +37,11 @@ import {
   muscatWallDateTimeToUtc,
 } from "@shared/attendanceMuscatTime";
 import { countOverdueOpenCheckoutsOnBoard, muscatShiftWallEndMs } from "@shared/attendanceBoardOverdue";
+import {
+  derivePayrollHintsFromBoardRow,
+  operationalBandFromBoardStatus,
+  riskLevelFromBoardStatus,
+} from "@shared/attendanceIntelligence";
 
 async function requireDb() {
   const db = await getDb();
@@ -145,9 +150,22 @@ export const schedulingRouter = router({
     .query(async ({ ctx, input }) => {
       const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const db = await requireDb();
-      return db.select().from(shiftTemplates)
+      const templates = await db.select().from(shiftTemplates)
         .where(and(eq(shiftTemplates.companyId, companyId), eq(shiftTemplates.isActive, true)))
         .orderBy(shiftTemplates.name);
+      const usageRows = await db
+        .select({
+          shiftTemplateId: employeeSchedules.shiftTemplateId,
+          n: count(),
+        })
+        .from(employeeSchedules)
+        .where(and(eq(employeeSchedules.companyId, companyId), eq(employeeSchedules.isActive, true)))
+        .groupBy(employeeSchedules.shiftTemplateId);
+      const usageByTemplate = new Map(usageRows.map((u) => [u.shiftTemplateId, u.n]));
+      return templates.map((t) => ({
+        ...t,
+        activeScheduleAssignmentCount: usageByTemplate.get(t.id) ?? 0,
+      }));
     }),
 
   createShiftTemplate: protectedProcedure
@@ -965,6 +983,13 @@ export const schedulingRouter = router({
           durationMinutes,
           methodLabel,
           siteName: record?.siteName ?? site?.name ?? null,
+          riskLevel: riskLevelFromBoardStatus(status),
+          operationalBand: operationalBandFromBoardStatus(status),
+          payrollHints: derivePayrollHintsFromBoardRow({
+            status,
+            durationMinutes,
+            delayMinutes,
+          }),
         };
       });
 
@@ -1060,6 +1085,10 @@ export const schedulingRouter = router({
         late: board.filter((b) => b.status === "checked_in_late" || b.status === "late_no_checkin").length,
         /** Muscat wall clock vs server `now` — matches board row open check-outs past shift end */
         overdueOpenCheckoutCount,
+        /** Rows in the critical band (e.g. confirmed absent after shift end) */
+        criticalExceptions: board.filter((b) => b.operationalBand === "critical").length,
+        /** Late / grace / early checkout — needs HR or manager attention */
+        needsAttention: board.filter((b) => b.operationalBand === "needs_attention").length,
       };
 
       return {

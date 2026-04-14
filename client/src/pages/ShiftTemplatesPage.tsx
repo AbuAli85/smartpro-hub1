@@ -200,8 +200,19 @@ export default function ShiftTemplatesPage() {
                     {formatDuration(s.startTime, s.endTime)}
                   </Badge>
                 </div>
-                <div className="text-xs text-muted-foreground">
-                  Grace period: <span className="font-medium text-foreground">{s.gracePeriodMinutes} min</span>
+                <div className="text-xs text-muted-foreground space-y-1.5">
+                  <p>
+                    On-time window: first{" "}
+                    <span className="font-medium text-foreground">{s.gracePeriodMinutes} min</span> after start (late after
+                    that).
+                  </p>
+                  <p className="text-[11px] leading-snug">
+                    Completion vs early leave uses the shared 80% worked rule for closed punches (checkout policy).
+                  </p>
+                  <Badge variant="outline" className="text-[10px] font-normal">
+                    {s.activeScheduleAssignmentCount ?? 0} active roster
+                    {(s.activeScheduleAssignmentCount ?? 0) === 1 ? " link" : " links"}
+                  </Badge>
                 </div>
               </CardContent>
             </Card>

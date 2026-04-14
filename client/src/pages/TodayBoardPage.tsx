@@ -15,76 +15,68 @@ import {
   AlertCircle,
   PartyPopper,
   MapPin,
-  Timer,
   LogOut,
   UserX,
   Sunrise,
+  ListTodo,
 } from "lucide-react";
+import type { AdminBoardRowStatus } from "@shared/attendanceBoardStatus";
+import { operationalBandFromBoardStatus, type OperationalBand } from "@shared/attendanceIntelligence";
 
-const STATUS_ORDER = [
-  "late_no_checkin",
-  "not_checked_in",
+const BAND_ORDER: OperationalBand[] = [
+  "critical",
+  "needs_attention",
+  "active",
+  "completed",
   "upcoming",
-  "checked_in_late",
-  "checked_in_on_time",
-  "checked_out",
-  "absent",
   "holiday",
-] as const;
+];
 
-const STATUS_CONFIG: Record<
-  (typeof STATUS_ORDER)[number],
-  { label: string; icon: typeof CheckCircle2; color: string; bg: string }
+const BAND_CONFIG: Record<
+  OperationalBand,
+  { sectionLabel: string; icon: typeof CheckCircle2; color: string; bg: string }
 > = {
-  late_no_checkin: {
-    label: "Late · no check-in",
-    icon: AlertCircle,
-    color: "text-orange-700",
-    bg: "bg-orange-50 border-orange-200",
-  },
-  not_checked_in: {
-    label: "Awaiting check-in",
-    icon: Timer,
-    color: "text-amber-800",
-    bg: "bg-amber-50 border-amber-200",
-  },
-  upcoming: {
-    label: "Upcoming",
-    icon: Sunrise,
-    color: "text-slate-700",
-    bg: "bg-slate-50 border-slate-200",
-  },
-  checked_in_late: {
-    label: "Checked in · late",
-    icon: AlertCircle,
-    color: "text-yellow-800",
-    bg: "bg-yellow-50 border-yellow-200",
-  },
-  checked_in_on_time: {
-    label: "Checked in",
-    icon: CheckCircle2,
-    color: "text-emerald-700",
-    bg: "bg-emerald-50 border-emerald-200",
-  },
-  checked_out: {
-    label: "Completed",
-    icon: LogOut,
-    color: "text-blue-700",
-    bg: "bg-blue-50 border-blue-200",
-  },
-  absent: {
-    label: "Absent (shift ended)",
+  critical: {
+    sectionLabel: "Critical exceptions",
     icon: UserX,
-    color: "text-red-700",
+    color: "text-red-800",
     bg: "bg-red-50 border-red-200",
   },
+  needs_attention: {
+    sectionLabel: "Needs attention",
+    icon: ListTodo,
+    color: "text-amber-900",
+    bg: "bg-amber-50 border-amber-200",
+  },
+  active: {
+    sectionLabel: "Checked in · active",
+    icon: CheckCircle2,
+    color: "text-emerald-800",
+    bg: "bg-emerald-50 border-emerald-200",
+  },
+  completed: {
+    sectionLabel: "Completed",
+    icon: LogOut,
+    color: "text-blue-800",
+    bg: "bg-blue-50 border-blue-200",
+  },
+  upcoming: {
+    sectionLabel: "Upcoming",
+    icon: Sunrise,
+    color: "text-slate-800",
+    bg: "bg-slate-50 border-slate-200",
+  },
   holiday: {
-    label: "Holiday",
+    sectionLabel: "Holiday",
     icon: PartyPopper,
-    color: "text-purple-700",
+    color: "text-purple-800",
     bg: "bg-purple-50 border-purple-200",
   },
 };
+
+function bandForRow(b: { operationalBand?: OperationalBand; status: string }): OperationalBand {
+  return b.operationalBand ?? operationalBandFromBoardStatus(b.status as AdminBoardRowStatus);
+}
 
 function getInitials(name: string) {
   return (name ?? "?")
@@ -122,12 +114,15 @@ export default function TodayBoardPage() {
 
   const summaryCards = data?.summary
     ? [
+        { key: "criticalExceptions" as const, label: "Critical (live)", color: "text-red-800", bg: "bg-red-50" },
+        { key: "needsAttention" as const, label: "Needs attention", color: "text-amber-900", bg: "bg-amber-50" },
         { key: "total" as const, label: "Scheduled", color: "text-foreground", bg: "bg-card" },
         { key: "checkedInActive" as const, label: "Checked in (active)", color: "text-emerald-700", bg: "bg-emerald-50" },
         { key: "notCheckedIn" as const, label: "Awaiting check-in", color: "text-amber-800", bg: "bg-amber-50" },
         { key: "lateNoCheckin" as const, label: "Late / no arrival", color: "text-orange-700", bg: "bg-orange-50" },
         { key: "absent" as const, label: "Absent (confirmed)", color: "text-red-700", bg: "bg-red-50" },
         { key: "checkedOut" as const, label: "Completed", color: "text-blue-700", bg: "bg-blue-50" },
+        { key: "overdueOpenCheckoutCount" as const, label: "Open past shift end", color: "text-orange-800", bg: "bg-orange-50/80" },
       ]
     : [];
 
@@ -137,7 +132,7 @@ export default function TodayBoardPage() {
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <CalendarDays className="text-primary" size={24} />
-            Today&apos;s Attendance Board
+            Live attendance board
           </h1>
           <p className="text-muted-foreground text-sm mt-1">{today}</p>
           <p className="text-[11px] text-muted-foreground mt-1 max-w-lg">
@@ -203,11 +198,13 @@ export default function TodayBoardPage() {
       ) : (
         <>
           {data?.summary && (
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
               {summaryCards.map(({ key, label, color, bg }) => (
                 <Card key={key} className={`${bg} border`}>
                   <CardContent className="p-4 text-center">
-                    <div className={`text-2xl font-bold ${color}`}>{data.summary[key]}</div>
+                    <div className={`text-2xl font-bold ${color}`}>
+                      {data.summary[key as keyof typeof data.summary] as number}
+                    </div>
                     <div className="text-xs text-muted-foreground mt-1 leading-tight">{label}</div>
                   </CardContent>
                 </Card>
@@ -300,17 +297,17 @@ export default function TodayBoardPage() {
             </Card>
           ) : (
             <div className="space-y-2">
-              {STATUS_ORDER.map((statusKey) => {
-                const group = data.board.filter((b) => b.status === statusKey);
+              {BAND_ORDER.map((bandKey) => {
+                const group = data.board.filter((b) => bandForRow(b) === bandKey);
                 if (!group.length) return null;
-                const cfg = STATUS_CONFIG[statusKey];
+                const cfg = BAND_CONFIG[bandKey];
                 const Icon = cfg.icon;
                 return (
-                  <div key={statusKey}>
+                  <div key={bandKey}>
                     <div className={`flex items-center gap-2 px-3 py-1.5 rounded-t-lg border-b ${cfg.bg} border`}>
                       <Icon size={14} className={cfg.color} />
                       <span className={`text-sm font-semibold ${cfg.color}`}>
-                        {cfg.label} ({group.length})
+                        {cfg.sectionLabel} ({group.length})
                       </span>
                     </div>
                     <div className="space-y-1 mb-4">
@@ -328,6 +325,9 @@ export default function TodayBoardPage() {
                                   <span className="font-medium text-sm">
                                     {b.employeeDisplayName ?? b.employee?.name ?? "Unknown"}
                                   </span>
+                                  <Badge variant="outline" className={`text-[10px] py-0 h-5 ${getAdminBoardRowStatusPresentation(b.status).className}`}>
+                                    {getAdminBoardRowStatusPresentation(b.status).label}
+                                  </Badge>
                                   {b.shift && (
                                     <Badge
                                       style={{ backgroundColor: b.shift.color ?? "#6366f1", color: "white" }}

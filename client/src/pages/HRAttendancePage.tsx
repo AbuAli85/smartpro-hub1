@@ -1,6 +1,7 @@
 ﻿import { trpc } from "@/lib/trpc";
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { OverdueCheckoutsPanel } from "@/components/attendance/OverdueCheckoutsPanel";
+import { AttendanceActionQueue } from "@/components/attendance/AttendanceActionQueue";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import {
   Clock, Users, CheckCircle2, XCircle, AlertCircle, Calendar,
@@ -37,6 +38,7 @@ import {
   ATTENDANCE_AUDIT_SOURCE,
 } from "@shared/attendanceAuditTaxonomy";
 import { getAdminBoardRowStatusPresentation } from "@/lib/adminBoardRowStatus";
+import { buildOperationalActionQueue, ATTENDANCE_ACTION, type AttendanceActionId } from "@shared/attendanceIntelligence";
 
 const AUDIT_ACTION_LABELS: Record<string, string> = {
   [ATTENDANCE_AUDIT_ACTION.HR_ATTENDANCE_CREATE]: "HR attendance · created",
@@ -368,6 +370,7 @@ function ClockInDialog({ employees, onSuccess, companyId }: { employees: { id: n
       utils.hr.attendanceStats.invalidate();
       void utils.attendance.listAttendanceAudit.invalidate();
       void utils.scheduling.getTodayBoard.invalidate();
+      void utils.scheduling.getOverdueCheckouts.invalidate();
       onSuccess();
     },
     onError: (e) => toast.error(e.message),
@@ -456,6 +459,7 @@ function EditAttendanceDialog({ record, onSuccess }: { record: { id: number; sta
       utils.hr.attendanceStats.invalidate();
       void utils.attendance.listAttendanceAudit.invalidate();
       void utils.scheduling.getTodayBoard.invalidate();
+      void utils.scheduling.getOverdueCheckouts.invalidate();
       onSuccess();
     },
     onError: (e) => toast.error(e.message),
@@ -535,6 +539,8 @@ function HrAttendanceExceptionStrip({
   scheduledShiftsToday,
   overdueCheckoutCount,
   missedShiftsCount,
+  criticalExceptions,
+  needsAttention,
 }: {
   companyId: number | null;
   pendingCorrCount: number;
@@ -542,9 +548,13 @@ function HrAttendanceExceptionStrip({
   scheduledShiftsToday: number | null;
   overdueCheckoutCount: number;
   missedShiftsCount: number;
+  criticalExceptions: number | null;
+  needsAttention: number | null;
 }) {
   if (companyId == null) return null;
   const items = [
+    { label: "Critical exceptions (live)", value: criticalExceptions, warn: (criticalExceptions ?? 0) > 0 },
+    { label: "Needs attention (live)", value: needsAttention, warn: (needsAttention ?? 0) > 0 },
     { label: "Pending corrections", value: pendingCorrCount, warn: pendingCorrCount > 0 },
     { label: "Pending manual check-ins", value: pendingManualCount, warn: pendingManualCount > 0 },
     { label: "Open check-outs past shift end", value: overdueCheckoutCount, warn: overdueCheckoutCount > 0 },
@@ -553,8 +563,8 @@ function HrAttendanceExceptionStrip({
   ];
   return (
     <div className="rounded-lg border bg-muted/30 px-3 py-3 sm:px-4">
-      <p className="text-xs font-semibold text-foreground mb-2">Exceptions &amp; coverage</p>
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 text-xs">
+      <p className="text-xs font-semibold text-foreground mb-2">Workforce signals (Muscat day)</p>
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-2 text-xs">
         {items.map((it) => (
           <div
             key={it.label}
@@ -595,6 +605,9 @@ function TodayBoard({ companyId }: { companyId: number | null }) {
   if (!data) return <div className="py-12 text-center text-muted-foreground">No data available</div>;
   const s = data.summary;
   const stats = [
+    { label: "Critical (live)", count: s.criticalExceptions ?? 0, color: "text-red-800", bg: "bg-red-50" },
+    { label: "Needs attention", count: s.needsAttention ?? 0, color: "text-amber-900", bg: "bg-amber-50" },
+    { label: "Open past shift end", count: s.overdueOpenCheckoutCount, color: "text-orange-800", bg: "bg-orange-50/90" },
     { label: "Scheduled", count: s.total, color: "text-slate-700", bg: "bg-slate-50" },
     { label: "Upcoming", count: s.upcoming, color: "text-slate-600", bg: "bg-slate-50/80" },
     { label: "Awaiting check-in", count: s.notCheckedIn, color: "text-amber-700", bg: "bg-amber-50" },
@@ -642,7 +655,7 @@ function TodayBoard({ companyId }: { companyId: number | null }) {
           Refresh
         </Button>
       </div>
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
         {stats.map((st) => (
           <div key={st.label} className={`rounded-lg p-3 ${st.bg}`}>
             <div className={`text-xl font-bold ${st.color}`}>{st.count}</div>
@@ -729,7 +742,7 @@ function TodayBoard({ companyId }: { companyId: number | null }) {
         </div>
       )}
       <div className="rounded-lg border overflow-x-auto">
-        <table className="w-full text-sm min-w-[860px]">
+        <table className="w-full text-sm min-w-[980px]">
           <thead className="bg-muted/50">
             <tr>
               <th className="text-left px-3 py-2.5 font-medium">Employee</th>
@@ -738,8 +751,10 @@ function TodayBoard({ companyId }: { companyId: number | null }) {
               <th className="text-left px-3 py-2.5 font-medium">Check in</th>
               <th className="text-left px-3 py-2.5 font-medium">Check out</th>
               <th className="text-left px-3 py-2.5 font-medium">Delay</th>
-              <th className="text-left px-3 py-2.5 font-medium">Duration</th>
+              <th className="text-left px-3 py-2.5 font-medium">Worked</th>
               <th className="text-left px-3 py-2.5 font-medium">Source</th>
+              <th className="text-left px-3 py-2.5 font-medium">Risk</th>
+              <th className="text-left px-3 py-2.5 font-medium">Payroll</th>
               <th className="text-left px-3 py-2.5 font-medium">Status</th>
             </tr>
           </thead>
@@ -780,10 +795,39 @@ function TodayBoard({ companyId }: { companyId: number | null }) {
                   {row.durationMinutes != null && row.checkInAt ? `${row.durationMinutes}m` : "—"}
                 </td>
                 <td className="px-3 py-2.5 text-xs text-muted-foreground">{row.methodLabel ?? "—"}</td>
+                <td className="px-3 py-2.5">
+                  {row.riskLevel ? (
+                    <Badge
+                      variant="outline"
+                      className={
+                        row.riskLevel === "critical"
+                          ? "text-[10px] border-red-300 bg-red-50 text-red-800"
+                          : row.riskLevel === "warning"
+                            ? "text-[10px] border-amber-300 bg-amber-50 text-amber-900"
+                            : "text-[10px]"
+                      }
+                    >
+                      {row.riskLevel}
+                    </Badge>
+                  ) : (
+                    "—"
+                  )}
+                </td>
+                <td className="px-3 py-2.5 text-[11px] text-muted-foreground capitalize">
+                  {row.payrollHints?.payrollImpact
+                    ? String(row.payrollHints.payrollImpact).replace(/_/g, " ")
+                    : "—"}
+                </td>
                 <td className="px-3 py-2.5">{boardStatusBadge(row.status)}</td>
               </tr>
             ))}
-            {data.board.length === 0 && <tr><td colSpan={9} className="px-4 py-8 text-center text-muted-foreground">No employees scheduled today</td></tr>}
+            {data.board.length === 0 && (
+              <tr>
+                <td colSpan={11} className="px-4 py-8 text-center text-muted-foreground">
+                  No employees scheduled today — assign schedules in Employee schedules, then refresh.
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
@@ -808,6 +852,7 @@ function CorrectionRequests({ companyId }: { companyId: number | null }) {
       void refetch();
       void utils.attendance.listCorrections.invalidate();
       void utils.scheduling.getTodayBoard.invalidate();
+      void utils.scheduling.getOverdueCheckouts.invalidate();
       void utils.hr.listAttendance.invalidate();
       void utils.hr.attendanceStats.invalidate();
       void utils.attendance.listAttendanceAudit.invalidate();
@@ -821,6 +866,7 @@ function CorrectionRequests({ companyId }: { companyId: number | null }) {
       void refetch();
       void utils.attendance.listCorrections.invalidate();
       void utils.scheduling.getTodayBoard.invalidate();
+      void utils.scheduling.getOverdueCheckouts.invalidate();
       void utils.hr.listAttendance.invalidate();
       void utils.hr.attendanceStats.invalidate();
       void utils.attendance.listAttendanceAudit.invalidate();
@@ -917,6 +963,7 @@ function ManualCheckInRequests({ companyId }: { companyId: number | null }) {
       void refetch();
       void utils.attendance.listManualCheckIns.invalidate();
       void utils.scheduling.getTodayBoard.invalidate();
+      void utils.scheduling.getOverdueCheckouts.invalidate();
       void utils.hr.listAttendance.invalidate();
       void utils.hr.attendanceStats.invalidate();
       void utils.attendance.listAttendanceAudit.invalidate();
@@ -930,6 +977,7 @@ function ManualCheckInRequests({ companyId }: { companyId: number | null }) {
       void refetch();
       void utils.attendance.listManualCheckIns.invalidate();
       void utils.scheduling.getTodayBoard.invalidate();
+      void utils.scheduling.getOverdueCheckouts.invalidate();
       void utils.hr.listAttendance.invalidate();
       void utils.hr.attendanceStats.invalidate();
       void utils.attendance.listAttendanceAudit.invalidate();
@@ -1036,6 +1084,7 @@ export default function HRAttendancePage() {
       utils.hr.attendanceStats.invalidate();
       void utils.attendance.listAttendanceAudit.invalidate();
       void utils.scheduling.getTodayBoard.invalidate();
+      void utils.scheduling.getOverdueCheckouts.invalidate();
     },
     onError: (e) => toast.error(e.message),
   });
@@ -1054,6 +1103,10 @@ export default function HRAttendancePage() {
   }, [employees]);
 
   const { data: todayBoardData } = trpc.scheduling.getTodayBoard.useQuery(
+    { companyId: activeCompanyId ?? undefined },
+    { enabled: activeCompanyId != null, refetchInterval: 60_000 },
+  );
+  const { data: overdueCheckoutData } = trpc.scheduling.getOverdueCheckouts.useQuery(
     { companyId: activeCompanyId ?? undefined },
     { enabled: activeCompanyId != null, refetchInterval: 60_000 },
   );
@@ -1081,6 +1134,35 @@ export default function HRAttendancePage() {
   const pendingCorrDot = pendingCorrCount > 0;
   const pendingManualDot = pendingManualCount > 0;
 
+  const actionQueueItems = useMemo(
+    () =>
+      buildOperationalActionQueue({
+        boardRows: (todayBoardData?.board ?? []).map((b) => ({
+          status: b.status,
+          scheduleId: b.scheduleId,
+          employeeDisplayName: b.employeeDisplayName,
+          attendanceRecordId: b.attendanceRecordId,
+          expectedStart: b.expectedStart,
+          expectedEnd: b.expectedEnd,
+          siteName: b.siteName,
+        })),
+        overdueCheckouts: overdueCheckoutData?.overdueEmployees ?? [],
+        pendingCorrectionCount: pendingCorrCount,
+        pendingManualCount: pendingManualCount,
+        limit: 28,
+      }),
+    [todayBoardData?.board, overdueCheckoutData?.overdueEmployees, pendingCorrCount, pendingManualCount],
+  );
+
+  const handleQueueAction = useCallback((action: AttendanceActionId) => {
+    if (action === ATTENDANCE_ACTION.OPEN_CORRECTIONS) setAttendanceTab("corrections");
+    else if (action === ATTENDANCE_ACTION.OPEN_MANUAL_CHECKINS) setAttendanceTab("manual");
+    else if (action === ATTENDANCE_ACTION.VIEW_TODAY_BOARD) setAttendanceTab("today");
+    else if (action === ATTENDANCE_ACTION.SEND_OVERDUE_REMINDER) {
+      document.getElementById("attendance-overdue-checkouts")?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, []);
+
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
       {/* Header */}
@@ -1090,7 +1172,9 @@ export default function HRAttendancePage() {
             <Clock size={24} className="text-[var(--smartpro-orange)]" />
             Attendance Management
           </h1>
-          <p className="text-muted-foreground text-sm mt-1">Monitor daily attendance, review records, and manage correction requests</p>
+          <p className="text-muted-foreground text-sm mt-1">
+            Operational control center — live workforce state, approvals, and legacy HR grid in one place.
+          </p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button size="sm" variant="outline" className="gap-2" onClick={() => toast.info("Export feature coming soon")}>
@@ -1107,12 +1191,18 @@ export default function HRAttendancePage() {
         scheduledShiftsToday={todayBoardData?.summary?.total ?? null}
         overdueCheckoutCount={overdueCheckoutCount}
         missedShiftsCount={todayBoardData?.summary?.absent ?? 0}
+        criticalExceptions={todayBoardData?.summary?.criticalExceptions ?? null}
+        needsAttention={todayBoardData?.summary?.needsAttention ?? null}
       />
 
-      {/* Tabs: Today Board | HR Records | Corrections | Manual Check-ins | Audit Log */}
+      {activeCompanyId != null ? (
+        <AttendanceActionQueue items={actionQueueItems} onAction={(a) => handleQueueAction(a)} />
+      ) : null}
+
+      {/* Tabs: Live today | HR Records | Corrections | Manual Check-ins | Audit Log */}
       <Tabs value={attendanceTab} onValueChange={setAttendanceTab}>
         <TabsList className="flex-wrap h-auto gap-1">
-          <TabsTrigger value="today" className="gap-1.5"><Users className="h-3.5 w-3.5" /> Today's Board</TabsTrigger>
+          <TabsTrigger value="today" className="gap-1.5"><Users className="h-3.5 w-3.5" /> Live today</TabsTrigger>
           <TabsTrigger value="records" className="gap-1.5"><CalendarDays className="h-3.5 w-3.5" /> HR Records</TabsTrigger>
           <TabsTrigger value="corrections" className="gap-1.5"><ClipboardList className="h-3.5 w-3.5" /> Corrections{pendingCorrDot && <span className="ml-1 h-2 w-2 rounded-full bg-red-500 inline-block" />}</TabsTrigger>
           <TabsTrigger value="manual" className="gap-1.5"><AlertCircle className="h-3.5 w-3.5" /> Manual Check-ins{pendingManualDot && <span className="ml-1 h-2 w-2 rounded-full bg-red-500 inline-block" />}</TabsTrigger>

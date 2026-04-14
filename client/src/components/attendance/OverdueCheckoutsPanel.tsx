@@ -279,6 +279,7 @@ export function OverdueCheckoutsPanel({ className }: { className?: string }) {
 
   return (
     <Card
+      id="attendance-overdue-checkouts"
       className={cn(
         overdue.length > 0
           ? "border-orange-300/70 bg-orange-50/30 dark:border-orange-700/40 dark:bg-orange-950/10"

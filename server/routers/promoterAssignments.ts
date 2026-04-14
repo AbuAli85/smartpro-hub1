@@ -14,6 +14,7 @@ import { TRPCError } from "@trpc/server";
 import { and, asc, desc, eq, inArray, ne, or } from "drizzle-orm";
 import { alias } from "drizzle-orm/mysql-core";
 import { canAccessGlobalAdminProcedures } from "@shared/rbac";
+import type { User } from "../../drizzle/schema";
 import { getCompanies, getDb, getUserCompanies } from "../db";
 import {
   attendanceSites,
@@ -22,7 +23,7 @@ import {
   promoterAssignments,
   type InsertPromoterAssignment,
 } from "../../drizzle/schema";
-import { getActiveCompanyMembership, requireNotAuditor } from "../_core/membership";
+import { requireNotAuditor, requireWorkspaceMembership } from "../_core/membership";
 import { optionalActiveWorkspace } from "../_core/workspaceInput";
 import { requireActiveCompanyId } from "../_core/tenant";
 import { protectedProcedure, router } from "../_core/trpc";
@@ -39,8 +40,7 @@ async function requireCanManagePromoterAssignments(
   user: { id: number; role?: string | null; platformRole?: string | null },
   companyId: number
 ): Promise<void> {
-  const m = await getActiveCompanyMembership(user.id, companyId);
-  if (!m) throw new TRPCError({ code: "FORBIDDEN", message: "No company membership" });
+  const m = await requireWorkspaceMembership(user as User, companyId);
   requireNotAuditor(m.role);
   if (
     !canAccessGlobalAdminProcedures(user) &&

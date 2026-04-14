@@ -18,7 +18,9 @@ import {
   getDb,
 } from "../db";
 import { companyInvites, companyMembers, users, employees, companies } from "../../drizzle/schema";
-import { getActiveCompanyMembership } from "../_core/membership";
+import { requireWorkspaceMembership } from "../_core/membership";
+import { requireActiveCompanyId } from "../_core/tenant";
+import type { User } from "../../drizzle/schema";
 import { resolvePublicAppBaseUrl } from "../_core/publicAppUrl";
 import { protectedProcedure, publicProcedure, router } from "../_core/trpc";
 import { notifyOwner } from "../_core/notification";
@@ -43,10 +45,36 @@ function companyIdFromCreateResult(row: unknown): number {
 }
 
 /** Resolves `{ company, member }` for the active or explicit workspace — not arbitrary first membership. */
-async function membershipForActiveWorkspace(userId: number, companyId?: number | null) {
-  const m = await getActiveCompanyMembership(userId, companyId ?? undefined);
-  if (!m) return null;
-  return getUserCompanyById(userId, m.companyId);
+async function membershipForActiveWorkspace(
+  user: User,
+  companyId?: number | null,
+): Promise<NonNullable<Awaited<ReturnType<typeof getUserCompanyById>>>> {
+  const { companyId: cid } = await requireWorkspaceMembership(user, companyId);
+  const row = await getUserCompanyById(user.id, cid);
+  if (!row?.company?.id || !row.member) {
+    throw new TRPCError({ code: "FORBIDDEN", message: "No active company membership." });
+  }
+  return row;
+}
+
+/** Tenant workspace or explicit company id for platform operators (no implicit first membership). */
+async function resolveCompanyWorkspaceOrPlatformTarget(
+  user: User,
+  companyId: number | null | undefined,
+): Promise<{ companyId: number; companyName: string }> {
+  if (canAccessGlobalAdminProcedures(user)) {
+    if (companyId == null) {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: "Select a company workspace — pass companyId for this operation.",
+      });
+    }
+    const c = await getCompanyById(companyId);
+    if (!c) throw new TRPCError({ code: "NOT_FOUND", message: "Company not found." });
+    return { companyId: c.id, companyName: c.name ?? "SmartPRO" };
+  }
+  const membership = await membershipForActiveWorkspace(user, companyId);
+  return { companyId: membership.company.id, companyName: membership.company.name ?? "SmartPRO" };
 }
 
 /** Adds existing platform users as company_member (no email invites for users not yet registered). */
@@ -181,16 +209,14 @@ export const companiesRouter = router({
   myCompany: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }).optional())
     .query(async ({ input, ctx }) => {
-      const m = await getActiveCompanyMembership(ctx.user.id, input?.companyId);
-      if (!m) return null;
-      return getUserCompanyById(ctx.user.id, m.companyId);
+      const cid = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user);
+      return getUserCompanyById(ctx.user.id, cid);
     }),
   myStats: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }).optional())
     .query(async ({ input, ctx }) => {
-      const m = await getActiveCompanyMembership(ctx.user.id, input?.companyId);
-      if (!m) return null;
-      return getCompanyStats(m.companyId);
+      const cid = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user);
+      return getCompanyStats(cid);
     }),
 
   create: protectedProcedure
@@ -324,9 +350,8 @@ export const companiesRouter = router({
   mySubscription: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }).optional())
     .query(async ({ ctx, input }) => {
-    const m = await getActiveCompanyMembership(ctx.user.id, input?.companyId);
-    if (!m) return null;
-    return getCompanySubscription(m.companyId);
+    const cid = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user);
+    return getCompanySubscription(cid);
   }),
 
   // ── Member Management ──────────────────────────────────────────────────────
@@ -335,8 +360,7 @@ export const companiesRouter = router({
   members: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }).optional())
     .query(async ({ input, ctx }) => {
-    const m = await getActiveCompanyMembership(ctx.user.id, input?.companyId);
-    if (!m) return [];
+    const cid = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user);
     const db = await getDb();
     if (!db) return [];
     const rows = await db
@@ -357,7 +381,7 @@ export const companiesRouter = router({
       })
       .from(companyMembers)
       .innerJoin(users, eq(users.id, companyMembers.userId))
-      .where(eq(companyMembers.companyId, m.companyId))
+      .where(eq(companyMembers.companyId, cid))
       .orderBy(desc(companyMembers.joinedAt));
     return rows;
   }),
@@ -372,24 +396,37 @@ export const companiesRouter = router({
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      const membership = await membershipForActiveWorkspace(ctx.user.id, input.companyId);
-      if (!membership) throw new TRPCError({ code: "FORBIDDEN" });
-      if (!canAccessGlobalAdminProcedures(ctx.user)) await assertCompanyAdmin(ctx.user.id, membership.company.id);
+      let companyId: number;
+      if (canAccessGlobalAdminProcedures(ctx.user)) {
+        if (input.companyId == null) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Select a company workspace — pass companyId for this operation.",
+          });
+        }
+        const c = await getCompanyById(input.companyId);
+        if (!c) throw new TRPCError({ code: "NOT_FOUND", message: "Company not found." });
+        companyId = c.id;
+      } else {
+        const membership = await membershipForActiveWorkspace(ctx.user, input.companyId);
+        await assertCompanyAdmin(ctx.user.id, membership.company.id);
+        companyId = membership.company.id;
+      }
       const [target] = await db
         .select({ userId: companyMembers.userId, role: companyMembers.role })
         .from(companyMembers)
-        .where(and(eq(companyMembers.id, input.memberId), eq(companyMembers.companyId, membership.company.id)))
+        .where(and(eq(companyMembers.id, input.memberId), eq(companyMembers.companyId, companyId)))
         .limit(1);
       if (!target) throw new TRPCError({ code: "NOT_FOUND" });
       if (target.userId === ctx.user.id && input.role !== "company_admin") {
         const admins = await db
           .select({ id: companyMembers.id })
           .from(companyMembers)
-          .where(and(eq(companyMembers.companyId, membership.company.id), eq(companyMembers.role, "company_admin"), eq(companyMembers.isActive, true)));
+          .where(and(eq(companyMembers.companyId, companyId), eq(companyMembers.role, "company_admin"), eq(companyMembers.isActive, true)));
         if (admins.length <= 1) throw new TRPCError({ code: "BAD_REQUEST", message: "Cannot demote the last company admin." });
       }
       await db.update(companyMembers).set({ role: input.role }).where(eq(companyMembers.id, input.memberId));
-      await syncPlatformRoleForCompanyMembership(db, target.userId, membership.company.id);
+      await syncPlatformRoleForCompanyMembership(db, target.userId, companyId);
       return { success: true };
     }),
 
@@ -399,13 +436,26 @@ export const companiesRouter = router({
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      const membership = await membershipForActiveWorkspace(ctx.user.id, input.companyId);
-      if (!membership) throw new TRPCError({ code: "FORBIDDEN" });
-      if (!canAccessGlobalAdminProcedures(ctx.user)) await assertCompanyAdmin(ctx.user.id, membership.company.id);
+      let companyId: number;
+      if (canAccessGlobalAdminProcedures(ctx.user)) {
+        if (input.companyId == null) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Select a company workspace — pass companyId for this operation.",
+          });
+        }
+        const c = await getCompanyById(input.companyId);
+        if (!c) throw new TRPCError({ code: "NOT_FOUND", message: "Company not found." });
+        companyId = c.id;
+      } else {
+        const membership = await membershipForActiveWorkspace(ctx.user, input.companyId);
+        await assertCompanyAdmin(ctx.user.id, membership.company.id);
+        companyId = membership.company.id;
+      }
       const [target] = await db
         .select({ userId: companyMembers.userId })
         .from(companyMembers)
-        .where(and(eq(companyMembers.id, input.memberId), eq(companyMembers.companyId, membership.company.id)))
+        .where(and(eq(companyMembers.id, input.memberId), eq(companyMembers.companyId, companyId)))
         .limit(1);
       if (!target) throw new TRPCError({ code: "NOT_FOUND" });
       if (target.userId === ctx.user.id) throw new TRPCError({ code: "BAD_REQUEST", message: "You cannot remove yourself." });
@@ -419,13 +469,26 @@ export const companiesRouter = router({
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      const membership = await membershipForActiveWorkspace(ctx.user.id, input.companyId);
-      if (!membership) throw new TRPCError({ code: "FORBIDDEN" });
-      if (!canAccessGlobalAdminProcedures(ctx.user)) await assertCompanyAdmin(ctx.user.id, membership.company.id);
+      let companyId: number;
+      if (canAccessGlobalAdminProcedures(ctx.user)) {
+        if (input.companyId == null) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Select a company workspace — pass companyId for this operation.",
+          });
+        }
+        const c = await getCompanyById(input.companyId);
+        if (!c) throw new TRPCError({ code: "NOT_FOUND", message: "Company not found." });
+        companyId = c.id;
+      } else {
+        const membership = await membershipForActiveWorkspace(ctx.user, input.companyId);
+        await assertCompanyAdmin(ctx.user.id, membership.company.id);
+        companyId = membership.company.id;
+      }
       const [target] = await db
         .select({ id: companyMembers.id })
         .from(companyMembers)
-        .where(and(eq(companyMembers.id, input.memberId), eq(companyMembers.companyId, membership.company.id)))
+        .where(and(eq(companyMembers.id, input.memberId), eq(companyMembers.companyId, companyId)))
         .limit(1);
       if (!target) throw new TRPCError({ code: "NOT_FOUND" });
       await db.update(companyMembers).set({ isActive: true }).where(eq(companyMembers.id, input.memberId));
@@ -444,10 +507,25 @@ export const companiesRouter = router({
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      const membership = await membershipForActiveWorkspace(ctx.user.id, input.companyId);
-      if (!membership) throw new TRPCError({ code: "FORBIDDEN" });
-      if (!canAccessGlobalAdminProcedures(ctx.user)) await assertCompanyAdmin(ctx.user.id, membership.company.id);
-      const companyId = membership.company.id;
+      let companyId: number;
+      let companyName: string;
+      if (canAccessGlobalAdminProcedures(ctx.user)) {
+        if (input.companyId == null) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Select a company workspace — pass companyId for this operation.",
+          });
+        }
+        const c = await getCompanyById(input.companyId);
+        if (!c) throw new TRPCError({ code: "NOT_FOUND", message: "Company not found." });
+        companyId = c.id;
+        companyName = c.name ?? "SmartPRO";
+      } else {
+        const membership = await membershipForActiveWorkspace(ctx.user, input.companyId);
+        await assertCompanyAdmin(ctx.user.id, membership.company.id);
+        companyId = membership.company.id;
+        companyName = membership.company.name ?? "SmartPRO";
+      }
       const emailNorm = input.email.toLowerCase().trim();
       const [targetUser] = await db
         .select({ id: users.id, name: users.name })
@@ -504,7 +582,6 @@ export const companiesRouter = router({
       });
       const origin = input.origin ?? "https://smartprohub-q4qjnxjv.manus.space";
       const inviteUrl = `${origin}/invite/${token}`;
-      const companyName = membership.company.name ?? "SmartPRO";
       await notifyOwner({
         title: `Team invite sent to ${emailNorm}`,
         content: `${ctx.user.name ?? ctx.user.email} invited ${emailNorm} to join ${companyName} as ${input.role.replace(/_/g, " ")}. Invite link: ${inviteUrl} (expires in 7 days)`,
@@ -537,13 +614,25 @@ export const companiesRouter = router({
     .mutation(async ({ input, ctx }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      const membership = await membershipForActiveWorkspace(ctx.user.id, input.companyId);
-      if (!membership && !canAccessGlobalAdminProcedures(ctx.user)) {
-        throw new TRPCError({ code: "FORBIDDEN", message: "You must belong to a company to invite members." });
+      let companyId: number;
+      let companyName: string;
+      if (canAccessGlobalAdminProcedures(ctx.user)) {
+        if (input.companyId == null) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Select a company workspace — pass companyId for this operation.",
+          });
+        }
+        const c = await getCompanyById(input.companyId);
+        if (!c) throw new TRPCError({ code: "NOT_FOUND", message: "Company not found." });
+        companyId = c.id;
+        companyName = c.name ?? "SmartPRO";
+      } else {
+        const membership = await membershipForActiveWorkspace(ctx.user, input.companyId);
+        companyId = membership.company.id;
+        companyName = membership.company.name ?? "SmartPRO";
+        await assertCompanyAdmin(ctx.user.id, companyId);
       }
-      const companyId = membership?.company.id;
-      if (!companyId) throw new TRPCError({ code: "BAD_REQUEST", message: "No active company found." });
-      if (!canAccessGlobalAdminProcedures(ctx.user)) await assertCompanyAdmin(ctx.user.id, companyId);
       // If user already has an account, suggest addMemberByEmail instead
       const [existingUser] = await db.select({ id: users.id }).from(users).where(eq(users.email, input.email.toLowerCase())).limit(1);
       if (existingUser) {
@@ -570,7 +659,6 @@ export const companiesRouter = router({
         expiresAt,
       });
       const inviteUrl = `${input.origin}/invite/${token}`;
-      const companyName = membership?.company.name ?? "SmartPRO";
       await notifyOwner({
         title: `Team invite sent to ${input.email}`,
         content: `${ctx.user.name ?? ctx.user.email} invited ${input.email} to join ${companyName} as ${input.role.replace(/_/g, " ")}. Invite link: ${inviteUrl} (expires in 7 days)`,
@@ -593,9 +681,22 @@ export const companiesRouter = router({
     .query(async ({ ctx, input }) => {
     const db = await getDb();
     if (!db) return [];
-    const membership = await membershipForActiveWorkspace(ctx.user.id, input?.companyId);
-    if (!membership) return [];
-    if (!canAccessGlobalAdminProcedures(ctx.user)) await assertCompanyAdmin(ctx.user.id, membership.company.id);
+    let targetCompanyId: number;
+    if (canAccessGlobalAdminProcedures(ctx.user)) {
+      if (input?.companyId == null) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Select a company workspace — pass companyId for this operation.",
+        });
+      }
+      const c = await getCompanyById(input.companyId);
+      if (!c) throw new TRPCError({ code: "NOT_FOUND", message: "Company not found." });
+      targetCompanyId = c.id;
+    } else {
+      const membership = await membershipForActiveWorkspace(ctx.user, input?.companyId);
+      await assertCompanyAdmin(ctx.user.id, membership.company.id);
+      targetCompanyId = membership.company.id;
+    }
     return db
       .select({
         id: companyInvites.id,
@@ -610,7 +711,7 @@ export const companiesRouter = router({
       })
       .from(companyInvites)
       .leftJoin(users, eq(users.id, companyInvites.invitedBy))
-      .where(eq(companyInvites.companyId, membership.company.id))
+      .where(eq(companyInvites.companyId, targetCompanyId))
       .orderBy(desc(companyInvites.createdAt));
   }),
 
@@ -632,8 +733,8 @@ export const companiesRouter = router({
         if (input.companyId != null && input.companyId !== invite.companyId) {
           throw new TRPCError({ code: "FORBIDDEN", message: "Invite does not belong to the selected workspace." });
         }
-        const m = await getActiveCompanyMembership(ctx.user.id, invite.companyId);
-        if (!m) throw new TRPCError({ code: "FORBIDDEN" });
+        const m = await getUserCompanyById(ctx.user.id, invite.companyId);
+        if (!m?.member) throw new TRPCError({ code: "FORBIDDEN" });
         await assertCompanyAdmin(ctx.user.id, invite.companyId);
       }
       await db.update(companyInvites).set({ revokedAt: new Date() }).where(eq(companyInvites.id, input.id));
@@ -762,9 +863,22 @@ export const companiesRouter = router({
     .query(async ({ input, ctx }) => {
     const db = await getDb();
     if (!db) return [];
-    const membership = await membershipForActiveWorkspace(ctx.user.id, input?.companyId);
-    if (!membership) return [];
-    return fetchEmployeesWithAccessData(db, membership.company.id);
+    let companyId: number;
+    if (canAccessGlobalAdminProcedures(ctx.user)) {
+      if (input?.companyId == null) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Select a company workspace — pass companyId for this operation.",
+        });
+      }
+      const c = await getCompanyById(input.companyId);
+      if (!c) throw new TRPCError({ code: "NOT_FOUND", message: "Company not found." });
+      companyId = c.id;
+    } else {
+      const membership = await membershipForActiveWorkspace(ctx.user, input?.companyId);
+      companyId = membership.company.id;
+    }
+    return fetchEmployeesWithAccessData(db, companyId);
   }),
 
   /**
@@ -776,9 +890,21 @@ export const companiesRouter = router({
     .query(async ({ input, ctx }) => {
     const db = await getDb();
     if (!db) return null;
-    const membership = await membershipForActiveWorkspace(ctx.user.id, input?.companyId);
-    if (!membership) return null;
-    const companyId = membership.company.id;
+    let companyId: number;
+    if (canAccessGlobalAdminProcedures(ctx.user)) {
+      if (input?.companyId == null) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Select a company workspace — pass companyId for this operation.",
+        });
+      }
+      const c = await getCompanyById(input.companyId);
+      if (!c) throw new TRPCError({ code: "NOT_FOUND", message: "Company not found." });
+      companyId = c.id;
+    } else {
+      const membership = await membershipForActiveWorkspace(ctx.user, input?.companyId);
+      companyId = membership.company.id;
+    }
 
     const employeeRows = await fetchEmployeesWithAccessData(db, companyId);
     const memberRows = await db
@@ -819,14 +945,13 @@ export const companiesRouter = router({
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      const membership = await membershipForActiveWorkspace(ctx.user.id, input.companyId);
-      if (!membership) throw new TRPCError({ code: "FORBIDDEN" });
-      if (!canAccessGlobalAdminProcedures(ctx.user)) await assertCompanyAdmin(ctx.user.id, membership.company.id);
+      const { companyId, companyName } = await resolveCompanyWorkspaceOrPlatformTarget(ctx.user, input.companyId);
+      if (!canAccessGlobalAdminProcedures(ctx.user)) await assertCompanyAdmin(ctx.user.id, companyId);
 
       const [emp] = await db
         .select({ id: employees.id, email: employees.email, userId: employees.userId, firstName: employees.firstName, lastName: employees.lastName })
         .from(employees)
-        .where(and(eq(employees.id, input.employeeId), eq(employees.companyId, membership.company.id)))
+        .where(and(eq(employees.id, input.employeeId), eq(employees.companyId, companyId)))
         .limit(1);
       if (!emp) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found." });
 
@@ -835,12 +960,12 @@ export const companiesRouter = router({
         const [existing] = await db
           .select({ id: companyMembers.id, isActive: companyMembers.isActive })
           .from(companyMembers)
-          .where(and(eq(companyMembers.userId, emp.userId), eq(companyMembers.companyId, membership.company.id)))
+          .where(and(eq(companyMembers.userId, emp.userId), eq(companyMembers.companyId, companyId)))
           .limit(1);
          if (existing) {
           await db.update(companyMembers).set({ isActive: true, role: input.role }).where(eq(companyMembers.id, existing.id));
         } else {
-          await db.insert(companyMembers).values({ companyId: membership.company.id, userId: emp.userId, role: input.role, isActive: true, invitedBy: ctx.user.id });
+          await db.insert(companyMembers).values({ companyId, userId: emp.userId, role: input.role, isActive: true, invitedBy: ctx.user.id });
         }
         // Auto-promote platformRole so the member sees the correct sidebar
         const grantedPlatformRole1 = mapMemberRoleToPlatformRole(input.role);
@@ -856,12 +981,12 @@ export const companiesRouter = router({
           const [existing] = await db
             .select({ id: companyMembers.id, isActive: companyMembers.isActive })
             .from(companyMembers)
-            .where(and(eq(companyMembers.userId, targetUser.id), eq(companyMembers.companyId, membership.company.id)))
+            .where(and(eq(companyMembers.userId, targetUser.id), eq(companyMembers.companyId, companyId)))
             .limit(1);
           if (existing) {
             await db.update(companyMembers).set({ isActive: true, role: input.role }).where(eq(companyMembers.id, existing.id));
           } else {
-            await db.insert(companyMembers).values({ companyId: membership.company.id, userId: targetUser.id, role: input.role, isActive: true, invitedBy: ctx.user.id });
+            await db.insert(companyMembers).values({ companyId, userId: targetUser.id, role: input.role, isActive: true, invitedBy: ctx.user.id });
           }
           // Auto-promote platformRole so the member sees the correct sidebar
           const grantedPlatformRole2 = mapMemberRoleToPlatformRole(input.role);
@@ -876,9 +1001,9 @@ export const companiesRouter = router({
           await db
             .update(companyInvites)
             .set({ revokedAt: new Date() })
-            .where(and(eq(companyInvites.email, emp.email.toLowerCase()), eq(companyInvites.companyId, membership.company.id)));
+            .where(and(eq(companyInvites.email, emp.email.toLowerCase()), eq(companyInvites.companyId, companyId)));
           await db.insert(companyInvites).values({
-            companyId: membership.company.id,
+            companyId,
             email: emp.email.toLowerCase(),
             role: input.role,
             token,
@@ -886,7 +1011,7 @@ export const companiesRouter = router({
             expiresAt,
           });
           const inviteUrl = `${input.origin}/invite/${token}`;
-          const bulkCompanyName = membership?.company.name ?? "SmartPRO";
+          const bulkCompanyName = companyName;
           await notifyOwner({
             title: `Invite sent to employee ${emp.firstName} ${emp.lastName}`,
             content: `Invite link for ${emp.email}: ${inviteUrl} (expires in 7 days)`,
@@ -917,25 +1042,24 @@ export const companiesRouter = router({
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      const membership = await membershipForActiveWorkspace(ctx.user.id, input.companyId);
-      if (!membership) throw new TRPCError({ code: "FORBIDDEN" });
-      if (!canAccessGlobalAdminProcedures(ctx.user)) await assertCompanyAdmin(ctx.user.id, membership.company.id);
+      const { companyId } = await resolveCompanyWorkspaceOrPlatformTarget(ctx.user, input.companyId);
+      if (!canAccessGlobalAdminProcedures(ctx.user)) await assertCompanyAdmin(ctx.user.id, companyId);
 
       const [emp] = await db
         .select({ id: employees.id, email: employees.email, userId: employees.userId })
         .from(employees)
-        .where(and(eq(employees.id, input.employeeId), eq(employees.companyId, membership.company.id)))
+        .where(and(eq(employees.id, input.employeeId), eq(employees.companyId, companyId)))
         .limit(1);
       if (!emp) throw new TRPCError({ code: "NOT_FOUND" });
 
       if (emp.userId) {
-        await db.update(companyMembers).set({ isActive: false }).where(and(eq(companyMembers.userId, emp.userId), eq(companyMembers.companyId, membership.company.id)));
+        await db.update(companyMembers).set({ isActive: false }).where(and(eq(companyMembers.userId, emp.userId), eq(companyMembers.companyId, companyId)));
         return { success: true };
       }
       if (emp.email) {
         const [targetUser] = await db.select({ id: users.id }).from(users).where(eq(users.email, emp.email.toLowerCase())).limit(1);
         if (targetUser) {
-          await db.update(companyMembers).set({ isActive: false }).where(and(eq(companyMembers.userId, targetUser.id), eq(companyMembers.companyId, membership.company.id)));
+          await db.update(companyMembers).set({ isActive: false }).where(and(eq(companyMembers.userId, targetUser.id), eq(companyMembers.companyId, companyId)));
           return { success: true };
         }
       }
@@ -955,14 +1079,13 @@ export const companiesRouter = router({
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      const membership = await membershipForActiveWorkspace(ctx.user.id, input.companyId);
-      if (!membership) throw new TRPCError({ code: "FORBIDDEN" });
-      if (!canAccessGlobalAdminProcedures(ctx.user)) await assertCompanyAdmin(ctx.user.id, membership.company.id);
+      const { companyId } = await resolveCompanyWorkspaceOrPlatformTarget(ctx.user, input.companyId);
+      if (!canAccessGlobalAdminProcedures(ctx.user)) await assertCompanyAdmin(ctx.user.id, companyId);
       // Verify employee belongs to this company
       const [emp] = await db
         .select({ id: employees.id, userId: employees.userId, firstName: employees.firstName, lastName: employees.lastName })
         .from(employees)
-        .where(and(eq(employees.id, input.employeeId), eq(employees.companyId, membership.company.id)))
+        .where(and(eq(employees.id, input.employeeId), eq(employees.companyId, companyId)))
         .limit(1);
       if (!emp) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found." });
       // Find user by email
@@ -982,7 +1105,7 @@ export const companiesRouter = router({
       const [member] = await db
         .select({ id: companyMembers.id, isActive: companyMembers.isActive })
         .from(companyMembers)
-        .where(and(eq(companyMembers.userId, targetUser.id), eq(companyMembers.companyId, membership.company.id)))
+        .where(and(eq(companyMembers.userId, targetUser.id), eq(companyMembers.companyId, companyId)))
         .limit(1);
       if (!member) {
         throw new TRPCError({
@@ -1008,14 +1131,13 @@ export const companiesRouter = router({
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      const membership = await membershipForActiveWorkspace(ctx.user.id, input.companyId);
-      if (!membership) throw new TRPCError({ code: "FORBIDDEN" });
-      if (!canAccessGlobalAdminProcedures(ctx.user)) await assertCompanyAdmin(ctx.user.id, membership.company.id);
+      const { companyId } = await resolveCompanyWorkspaceOrPlatformTarget(ctx.user, input.companyId);
+      if (!canAccessGlobalAdminProcedures(ctx.user)) await assertCompanyAdmin(ctx.user.id, companyId);
 
       const [emp] = await db
         .select({ id: employees.id, email: employees.email, userId: employees.userId })
         .from(employees)
-        .where(and(eq(employees.id, input.employeeId), eq(employees.companyId, membership.company.id)))
+        .where(and(eq(employees.id, input.employeeId), eq(employees.companyId, companyId)))
         .limit(1);
       if (!emp) throw new TRPCError({ code: "NOT_FOUND" });
 
@@ -1034,12 +1156,12 @@ export const companiesRouter = router({
       const [member] = await db
         .select({ id: companyMembers.id })
         .from(companyMembers)
-        .where(and(eq(companyMembers.userId, userId), eq(companyMembers.companyId, membership.company.id)))
+        .where(and(eq(companyMembers.userId, userId), eq(companyMembers.companyId, companyId)))
         .limit(1);
       if (!member) throw new TRPCError({ code: "NOT_FOUND", message: "No active access record found for this employee." });
 
       await db.update(companyMembers).set({ role: input.role }).where(eq(companyMembers.id, member.id));
-      await syncPlatformRoleForCompanyMembership(db, userId, membership.company.id);
+      await syncPlatformRoleForCompanyMembership(db, userId, companyId);
       return { success: true };
     }),
 

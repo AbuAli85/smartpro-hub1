@@ -1,12 +1,8 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import {
-  getActiveCompanyMembership,
-  requireNotAuditor,
-} from "../_core/membership";
+import { requireNotAuditor, requireWorkspaceMembership } from "../_core/membership";
 import { getGoogleDocsEnvDiagnostic } from "../_core/parseServiceAccountJson";
 import { optionalActiveWorkspace } from "../_core/workspaceInput";
-import { requireActiveCompanyId } from "../_core/tenant";
 import { protectedProcedure, router } from "../_core/trpc";
 import {
   DocumentGenerationError,
@@ -65,11 +61,8 @@ export const documentGenerationRouter = router({
         .merge(optionalActiveWorkspace),
     )
     .mutation(async ({ ctx, input }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
-      const membership = await getActiveCompanyMembership(ctx.user.id, companyId);
-      if (!membership) {
-        throw new TRPCError({ code: "FORBIDDEN", message: "No company membership" });
-      }
+      const membership = await requireWorkspaceMembership(ctx.user, input.companyId);
+      const companyId = membership.companyId;
       requireNotAuditor(membership.role);
       if (!canGenerateDocuments(membership.role)) {
         throw new TRPCError({

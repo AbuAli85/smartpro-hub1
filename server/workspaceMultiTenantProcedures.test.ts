@@ -11,6 +11,10 @@ import { employeePortalRouter } from "./routers/employeePortal";
 import { attendanceRouter } from "./routers/attendance";
 import { analyticsRouter } from "./routers/analytics";
 import { alertsRouter } from "./routers/alerts";
+import { companiesRouter } from "./routers/companies";
+import { contractManagementRouter } from "./routers/contractManagement";
+import { documentGenerationRouter } from "./routers/documentGeneration";
+import { promoterAssignmentsRouter } from "./routers/promoterAssignments";
 import * as db from "./db";
 
 vi.mock("./db", async (importOriginal) => {
@@ -162,5 +166,71 @@ describe("workspace authority on user-facing routers", () => {
     vi.mocked(db.getDb).mockResolvedValue(null);
     const caller = employeePortalRouter.createCaller(makeMemberCtx());
     await expect(caller.getMyTasks({ companyId: 9 })).resolves.toEqual([]);
+  });
+
+  it("companies.myCompany rejects when multiple memberships and companyId omitted", async () => {
+    vi.mocked(db.getUserCompanies).mockResolvedValue([
+      { company: { id: 1 }, member: {} },
+      { company: { id: 2 }, member: {} },
+    ] as any);
+    const caller = companiesRouter.createCaller(makeMemberCtx());
+    await expect(caller.myCompany({})).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  });
+
+  it("companies.myCompany resolves when companyId is explicit", async () => {
+    vi.mocked(db.getUserCompanyById).mockResolvedValue({
+      company: { id: 9, name: "Acme" },
+      member: { role: "company_admin" },
+    } as any);
+    const caller = companiesRouter.createCaller(makeMemberCtx());
+    await expect(caller.myCompany({ companyId: 9 })).resolves.toMatchObject({
+      company: expect.objectContaining({ id: 9 }),
+    });
+  });
+
+  it("contractManagement.companiesForPartyPickers rejects when multiple memberships and companyId omitted", async () => {
+    vi.mocked(db.getUserCompanies).mockResolvedValue([
+      { company: { id: 1 }, member: {} },
+      { company: { id: 2 }, member: {} },
+    ] as any);
+    const caller = contractManagementRouter.createCaller(makeMemberCtx());
+    await expect(caller.companiesForPartyPickers({})).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  });
+
+  it("contractManagement.companiesForPartyPickers resolves when companyId is explicit", async () => {
+    vi.mocked(db.getUserCompanyById).mockResolvedValue({
+      company: { id: 9 },
+      member: { role: "company_admin" },
+    } as any);
+    vi.mocked(db.getDb).mockResolvedValue(null);
+    const caller = contractManagementRouter.createCaller(makeMemberCtx());
+    await expect(caller.companiesForPartyPickers({ companyId: 9 })).resolves.toEqual({
+      clientOptions: [],
+      employerOptions: [],
+    });
+  });
+
+  it("documentGeneration.generate rejects when multiple memberships and companyId omitted", async () => {
+    vi.mocked(db.getUserCompanies).mockResolvedValue([
+      { company: { id: 1 }, member: {} },
+      { company: { id: 2 }, member: {} },
+    ] as any);
+    const caller = documentGenerationRouter.createCaller(makeMemberCtx());
+    await expect(
+      caller.generate({
+        templateKey: "test",
+        entityId: "550e8400-e29b-41d4-a716-446655440000",
+        outputFormat: "pdf",
+      }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  });
+
+  it("promoterAssignments.companiesForPartyPickers rejects when multiple memberships and companyId omitted", async () => {
+    vi.mocked(db.getUserCompanies).mockResolvedValue([
+      { company: { id: 1 }, member: {} },
+      { company: { id: 2 }, member: {} },
+    ] as any);
+    const caller = promoterAssignmentsRouter.createCaller(makeMemberCtx());
+    await expect(caller.companiesForPartyPickers({})).rejects.toMatchObject({ code: "BAD_REQUEST" });
   });
 });

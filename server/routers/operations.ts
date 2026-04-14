@@ -34,7 +34,6 @@ import {
 import type { PayrollRun, User } from "../../drizzle/schema";
 import { canAccessGlobalAdminProcedures } from "@shared/rbac";
 import { buildOwnerAttentionQueue } from "../ownerAttentionQueue";
-import { getActiveCompanyMembership } from "../_core/membership";
 import { requireWorkspaceMembership } from "../_core/membership";
 import { getPostSaleSignals } from "../postSaleSignals";
 import { getCompanyAccountPortfolioSnapshot } from "../accountHealth";
@@ -1159,8 +1158,7 @@ export const operationsRouter = router({
       const companyId = await resolvePlatformOrCompanyScope(ctx.user as User, input?.companyId);
       if (companyId === null) return null;
 
-      const membership = await getActiveCompanyMembership(ctx.user.id, companyId);
-      if (!membership) return null;
+      const membership = await requireWorkspaceMembership(ctx.user as User, companyId);
       if (membership.role === "company_member" || membership.role === "client") return null;
 
       const openStages = ["lead", "qualified", "proposal", "negotiation"] as const;
@@ -1441,8 +1439,7 @@ export const operationsRouter = router({
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
       const companyId = await resolvePlatformOrCompanyScope(ctx.user as User, input.companyId);
       if (companyId === null) throw new TRPCError({ code: "BAD_REQUEST", message: "Company required" });
-      const membership = await getActiveCompanyMembership(ctx.user.id, companyId);
-      if (!membership) throw new TRPCError({ code: "FORBIDDEN", message: "No company membership" });
+      const membership = await requireWorkspaceMembership(ctx.user as User, companyId);
       if (membership.role === "company_member" || membership.role === "client") {
         throw new TRPCError({ code: "FORBIDDEN", message: "Insufficient access" });
       }
@@ -1469,8 +1466,7 @@ export const operationsRouter = router({
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
       const companyId = await resolvePlatformOrCompanyScope(ctx.user as User, input.companyId);
       if (companyId === null) throw new TRPCError({ code: "BAD_REQUEST", message: "Company required" });
-      const membership = await getActiveCompanyMembership(ctx.user.id, companyId);
-      if (!membership) throw new TRPCError({ code: "FORBIDDEN", message: "No company membership" });
+      const membership = await requireWorkspaceMembership(ctx.user as User, companyId);
       if (membership.role === "company_member" || membership.role === "client") {
         throw new TRPCError({ code: "FORBIDDEN", message: "Insufficient access" });
       }
@@ -1515,8 +1511,7 @@ export const operationsRouter = router({
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
       const companyId = await resolvePlatformOrCompanyScope(ctx.user as User, input.companyId);
       if (companyId === null) throw new TRPCError({ code: "BAD_REQUEST", message: "Company required" });
-      const membership = await getActiveCompanyMembership(ctx.user.id, companyId);
-      if (!membership) throw new TRPCError({ code: "FORBIDDEN", message: "No company membership" });
+      const membership = await requireWorkspaceMembership(ctx.user as User, companyId);
       if (membership.role === "company_member" || membership.role === "client") {
         throw new TRPCError({ code: "FORBIDDEN", message: "Insufficient access" });
       }

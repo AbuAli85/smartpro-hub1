@@ -7,6 +7,7 @@ vi.mock("./db", async (importOriginal) => {
     ...actual,
     getDb: vi.fn(),
     getUserCompanyById: vi.fn(),
+    getCompanyById: vi.fn(),
   };
 });
 
@@ -14,7 +15,7 @@ vi.mock("./_core/membership", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./_core/membership")>();
   return {
     ...actual,
-    getActiveCompanyMembership: vi.fn(),
+    requireWorkspaceMembership: vi.fn(),
   };
 });
 
@@ -31,7 +32,8 @@ function makeCtx(overrides: Partial<AuthUser> = {}): TrpcContext {
     email: "owner@acme.com",
     name: "Owner",
     loginMethod: "manus",
-    role: "admin",
+    role: "user",
+    platformRole: "company_admin",
     createdAt: new Date(),
     updatedAt: new Date(),
     lastSignedIn: new Date(),
@@ -78,7 +80,7 @@ function makeFakeDb(params: {
 describe("companies.employeesWithAccess integration", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(membershipCore.getActiveCompanyMembership).mockResolvedValue({
+    vi.mocked(membershipCore.requireWorkspaceMembership).mockResolvedValue({
       companyId: 10,
       role: "company_admin",
     });
@@ -86,6 +88,7 @@ describe("companies.employeesWithAccess integration", () => {
       company: { id: 10, name: "Acme LLC" } as any,
       member: { role: "company_admin", isActive: true } as any,
     });
+    vi.mocked(db.getCompanyById).mockResolvedValue({ id: 10, name: "Acme LLC" } as any);
   });
 
   afterEach(() => {

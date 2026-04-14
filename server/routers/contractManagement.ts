@@ -12,11 +12,12 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { and, asc, eq, inArray, ne, or } from "drizzle-orm";
 import { canAccessGlobalAdminProcedures } from "@shared/rbac";
+import type { User } from "../../drizzle/schema";
 import { mergeLifecycleMetadata } from "@shared/agreementLifecycle";
 import { getDb, getCompanies, getUserCompanies } from "../db";
 import { outsourcingContracts } from "../../drizzle/schema";
 import { attendanceSites, companies, employees } from "../../drizzle/schema";
-import { getActiveCompanyMembership, requireNotAuditor } from "../_core/membership";
+import { requireNotAuditor, requireWorkspaceMembership } from "../_core/membership";
 import { optionalActiveWorkspace } from "../_core/workspaceInput";
 import { requireActiveCompanyId } from "../_core/tenant";
 import { protectedProcedure, router } from "../_core/trpc";
@@ -98,8 +99,7 @@ async function requireCanManageContracts(
   user: { id: number; role?: string | null; platformRole?: string | null },
   companyId: number
 ): Promise<void> {
-  const m = await getActiveCompanyMembership(user.id, companyId);
-  if (!m) throw new TRPCError({ code: "FORBIDDEN", message: "No company membership" });
+  const m = await requireWorkspaceMembership(user as User, companyId);
   requireNotAuditor(m.role);
   if (
     !canAccessGlobalAdminProcedures(user) &&

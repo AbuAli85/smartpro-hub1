@@ -192,17 +192,14 @@ describe("companies", () => {
     expect(Array.isArray(result)).toBe(true);
   });
 
-  it("myCompany returns null when user has no company", async () => {
+  it("myCompany rejects when user has no company", async () => {
     const caller = appRouter.createCaller(makeCtx());
-    const result = await caller.companies.myCompany();
-    expect(result).toBeNull();
+    await expect(caller.companies.myCompany()).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
-  it("myStats returns null when no company", async () => {
+  it("myStats rejects when no company", async () => {
     const caller = appRouter.createCaller(makeCtx());
-    const result = await caller.companies.myStats();
-    // Returns null when user has no company linked
-    expect(result).toBeNull();
+    await expect(caller.companies.myStats()).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 });
 
@@ -642,11 +639,9 @@ describe("companies.onboarding", () => {
 
 // ─── Company Member Management Tests ─────────────────────────────────────────
 describe("companies.memberManagement", () => {
-  it("members returns empty array when user has no company", async () => {
+  it("members rejects when user has no company", async () => {
     const caller = appRouter.createCaller(makeCtx());
-    const result = await caller.companies.members();
-    expect(Array.isArray(result)).toBe(true);
-    expect(result.length).toBe(0);
+    await expect(caller.companies.members()).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
   it("members requires authentication", async () => {

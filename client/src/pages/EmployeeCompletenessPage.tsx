@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
+import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -32,10 +33,14 @@ function ScoreBadge({ score }: { score: number }) {
 
 export default function EmployeeCompletenessPage() {
   const [, navigate] = useLocation();
+  const { activeCompanyId } = useActiveCompany();
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | "complete" | "partial" | "incomplete">("all");
 
-  const { data: completeness, isLoading } = trpc.hr.getEmployeeCompleteness.useQuery();
+  const { data: completeness, isLoading } = trpc.hr.getEmployeeCompleteness.useQuery(
+    { companyId: activeCompanyId ?? undefined },
+    { enabled: activeCompanyId != null },
+  );
 
   const filtered = (completeness ?? []).filter((emp) => {
     const matchSearch = `${emp.name} ${emp.department}`.toLowerCase().includes(search.toLowerCase());

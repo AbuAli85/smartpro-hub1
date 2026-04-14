@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
+import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -44,10 +45,14 @@ function BalanceBar({ used, entitled, type }: { used: number; entitled: number; 
 
 export default function LeaveBalancePage() {
   const [, navigate] = useLocation();
+  const { activeCompanyId } = useActiveCompany();
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState<"name" | "annual" | "sick">("name");
 
-  const { data: summaryPayload, isLoading } = trpc.hr.getLeaveBalanceSummary.useQuery();
+  const { data: summaryPayload, isLoading } = trpc.hr.getLeaveBalanceSummary.useQuery(
+    { companyId: activeCompanyId ?? undefined },
+    { enabled: activeCompanyId != null },
+  );
   const summary = summaryPayload?.employees ?? [];
   const policyCaps = summaryPayload?.policyCaps;
 

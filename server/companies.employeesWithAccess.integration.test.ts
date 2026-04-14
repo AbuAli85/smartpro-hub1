@@ -48,7 +48,10 @@ function makeFakeDb(params: {
   employeesRows: any[];
   memberRows: any[];
   userRows: any[];
+  /** 4th query in `fetchEmployeesWithAccessData` — company_invites for the company */
+  inviteRows?: any[];
 }) {
+  const inviteRows = params.inviteRows ?? [];
   let selectCall = 0;
   return {
     select: vi.fn(() => {
@@ -63,6 +66,7 @@ function makeFakeDb(params: {
             }
             if (call === 1) return Promise.resolve(params.memberRows);
             if (call === 2) return Promise.resolve(params.userRows);
+            if (call === 3) return Promise.resolve(inviteRows);
             return Promise.resolve([]);
           }),
         })),

@@ -1,5 +1,8 @@
 import React, { useState } from "react";
-import { trpc } from "@/lib/trpc";
+import { trpc, type RouterOutputs } from "@/lib/trpc";
+
+/** Server row shape for HR + access — avoids `as any` in canonical mapping (Phase 4.4). */
+type EmployeeWithAccessRow = RouterOutputs["companies"]["employeesWithAccess"][number];
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { toast } from "sonner";
@@ -54,6 +57,7 @@ import {
   Lock,
   Unlock,
   AlertTriangle,
+  Link2Off,
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -131,6 +135,44 @@ function RoleBadge({ role }: { role: string }) {
 }
 
 type CanonicalAccessState = "HR_ONLY" | "INVITED" | "ACTIVE" | "SUSPENDED";
+
+/**
+ * Single source of team-access UI copy (Phase 4.3A / 4.4).
+ * Do not hardcode stat, filter, badge, chip, or primary tab labels elsewhere — add a key here first.
+ */
+const TA = {
+  statTotalEmployees: "Total Employees",
+  statDirectAccessOnly: "Direct Access Only",
+  statWithActiveAccess: "With Active Access",
+  statPendingInvites: "Pending Invites",
+  statSuspended: "Suspended",
+  statNeedsAttention: "Needs Attention",
+  filterAll: "All",
+  filterActive: "Active",
+  filterSuspended: "Suspended",
+  filterInvitePending: "Pending Invites",
+  filterHROnlyNoLogin: "HR only (no login)",
+  filterNeedsAttention: "Needs attention",
+  badgeActive: "Active",
+  badgeSuspended: "Suspended",
+  badgeInvitePending: "Invite pending",
+  badgeHROnly: "HR only",
+  chipAccountNotLinked: "Account not linked",
+  chipIdentityConflict: "Identity conflict",
+  chipMissingEmail: "Missing email",
+  cardHrDirectoryTitle: "HR directory — access",
+  tabActiveMembers: "Active Members",
+  tabHrEmployees: "HR Employees",
+  sectionActiveSystemLogins: "Active System Logins",
+  tabRoleGuide: "Role Guide",
+  accessIntelTitle: "Access intelligence",
+  accessIntelHrInviteRows: "HR invite pending (rows)",
+  accessIntelInviteQueue: "Invite queue (all pending)",
+  accessIntelFootnote:
+    "HR invite pending counts employee rows in INVITED state. Invite queue counts all pending company invites (may differ).",
+  accessIntelTopIssue: "Top issue",
+} as const;
+
 type CanonicalPrimaryAction =
   | "NONE"
   | "GRANT_ACCESS"
@@ -144,31 +186,32 @@ function AccessStatusBadge({ state }: { state: CanonicalAccessState }) {
   if (state === "ACTIVE") {
     return (
       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-green-50 text-green-700 border border-green-200">
-        <CheckCircle2 size={11} /> Active
+        <CheckCircle2 size={11} /> {TA.badgeActive}
       </span>
     );
   }
   if (state === "SUSPENDED") {
     return (
       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-500 border border-gray-200">
-        <XCircle size={11} /> Suspended
+        <XCircle size={11} /> {TA.badgeSuspended}
       </span>
     );
   }
   if (state === "INVITED") {
     return (
       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
-        <Mail size={11} /> Invited
+        <Mail size={11} /> {TA.badgeInvitePending}
       </span>
     );
   }
   return (
     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
-      <Clock size={11} /> No Access
+      <Clock size={11} /> {TA.badgeHROnly}
     </span>
   );
 }
 
+/** Prefer server `accessState`; `accessStatus` is only for tests or non-canonical payloads. */
 function toCanonicalAccessState(emp: {
   accessState?: string | null;
   accessStatus?: string | null;
@@ -205,6 +248,150 @@ function derivePrimaryAction(input: {
   return input.flags?.missingEmail ? "NONE" : "GRANT_ACCESS";
 }
 
+/** HR Employees tab filter — canonical accessState plus a flag-based bucket (not email-based). */
+export type EmployeeListFilter = "all" | CanonicalAccessState | "needs_attention";
+
+function employeeNeedsAttention(flags: { needsLink?: boolean; conflict?: boolean; missingEmail?: boolean } | null | undefined): boolean {
+  const f = flags ?? {};
+  return !!(f.conflict || f.needsLink || f.missingEmail);
+}
+
+/**
+ * HR list filter: uses canonical `accessState` and `needs_attention` (flags on the row).
+ * Intentionally does not match by email — same rules as stat cards and Direct Access Only (memberId linkage).
+ */
+export function matchesEmployeeListFilter(
+  emp: {
+    canonicalAccessState: CanonicalAccessState;
+    canonicalFlags?: { needsLink?: boolean; conflict?: boolean; missingEmail?: boolean } | null;
+  },
+  filter: EmployeeListFilter,
+): boolean {
+  if (filter === "all") return true;
+  if (filter === "needs_attention") return employeeNeedsAttention(emp.canonicalFlags);
+  return emp.canonicalAccessState === filter;
+}
+
+/** Phase 4.3B — human-readable conflict diagnostics (mirrors server `stateReason`). */
+function getConflictReviewCopy(stateReason: string | null | undefined): {
+  title: string;
+  intro: string;
+  signals: string[];
+  nextSteps: string[];
+} {
+  switch (stateReason) {
+    case "CONFLICT_EMAIL_MISMATCH":
+      return {
+        title: "Email and account do not match",
+        intro:
+          "The HR profile email is tied to a different SmartPRO login than the company membership we resolved for this employee.",
+        signals: [
+          "The employee record and the membership disagree on which user account should apply.",
+          "Common after an email change on one side but not the other.",
+        ],
+        nextSteps: [
+          "Confirm the correct work email in HR → My Team.",
+          "If the right person already has access, use Link account to attach the correct login to this HR row.",
+          "Revoke duplicate invites or memberships if someone was added twice.",
+        ],
+      };
+    case "CONFLICT_MULTIPLE_MEMBERS":
+      return {
+        title: "Multiple memberships for the same person",
+        intro: "We found more than one company membership that could apply to this employee.",
+        signals: ["Two or more member records overlap—SmartPRO cannot pick a single access row automatically."],
+        nextSteps: [
+          "In Active Members, remove memberships that are clearly duplicates.",
+          "Refresh this page, then use Link account if the HR row still does not match the surviving membership.",
+        ],
+      };
+    case "CONFLICT_MULTIPLE_INVITES":
+      return {
+        title: "Multiple pending invites",
+        intro: "There is more than one outstanding invite for this email address.",
+        signals: ["Invites can accumulate after resends or address changes."],
+        nextSteps: [
+          "Open Pending Invites and revoke extras, keeping a single current invite.",
+          "Refresh this page after cleanup.",
+        ],
+      };
+    case "CONFLICT_IDENTITY_MISMATCH":
+    default:
+      return {
+        title: "HR record and login do not line up",
+        intro: "The employee profile points to a different user identity than the membership we resolved.",
+        signals: [
+          "The HR employee user id and the member login user id are not the same person.",
+          "This is a data conflict, not a missing invite.",
+        ],
+        nextSteps: [
+          "Verify with HR which email and account should be canonical.",
+          "Use Link account when you know which login is correct.",
+          "If the wrong person was granted access, revoke that membership from Active Members first.",
+        ],
+      };
+  }
+}
+
+function ConflictReviewDialogBody({
+  target,
+  onClose,
+  onLinkAccount,
+}: {
+  target: { stateReason: string | null; needsLink: boolean };
+  onClose: () => void;
+  onLinkAccount: () => void;
+}) {
+  const c = getConflictReviewCopy(target.stateReason);
+  return (
+    <>
+      <DialogHeader>
+        <DialogTitle className="flex items-start gap-2 text-left">
+          <AlertTriangle className="text-orange-600 shrink-0 mt-0.5" size={20} />
+          {c.title}
+        </DialogTitle>
+        <DialogDescription className="sr-only">
+          Why this row is flagged, what signals disagree, and safe next steps. This dialog does not change data automatically.
+        </DialogDescription>
+      </DialogHeader>
+      <div className="space-y-4 text-sm text-gray-700">
+        <p>{c.intro}</p>
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">What we detected</p>
+          <ul className="list-disc pl-5 mt-1.5 space-y-1">
+            {c.signals.map((line, i) => (
+              <li key={`sig-${i}`}>{line}</li>
+            ))}
+          </ul>
+        </div>
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">What you can do next</p>
+          <ul className="list-disc pl-5 mt-1.5 space-y-1">
+            {c.nextSteps.map((line, i) => (
+              <li key={`step-${i}`}>{line}</li>
+            ))}
+          </ul>
+        </div>
+      </div>
+      <DialogFooter className="flex-col gap-2 sm:flex-row sm:justify-end">
+        {target.needsLink && (
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full sm:w-auto border-purple-200 text-purple-700 hover:bg-purple-50"
+            onClick={onLinkAccount}
+          >
+            <UserCheck size={14} className="mr-1" /> Link account
+          </Button>
+        )}
+        <Button type="button" variant="secondary" className="w-full sm:w-auto" onClick={onClose}>
+          Close
+        </Button>
+      </DialogFooter>
+    </>
+  );
+}
+
 // ─── Empty State ────────────────────────────────────────────────────────────────
 
 function EmptyEmployeesState({ totalEmployees }: { totalEmployees: number }) {
@@ -212,7 +399,7 @@ function EmptyEmployeesState({ totalEmployees }: { totalEmployees: number }) {
   if (totalEmployees > 0) {
     return (
       <div className="py-12 text-center text-sm text-gray-400">
-        No employees match your search.
+        No employees match your search or filter.
       </div>
     );
   }
@@ -266,14 +453,23 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
     { companyId: activeCompanyId ?? undefined },
     { enabled: activeCompanyId != null }
   );
+  const { data: accessIntel } = trpc.companies.accessAnalyticsOverview.useQuery(
+    { companyId: activeCompanyId ?? undefined },
+    { enabled: activeCompanyId != null }
+  );
   const revokeInviteMutation = trpc.companies.revokeInvite.useMutation({
-    onSuccess: () => { utils.companies.listInvites.invalidate(); toast.success("Invite revoked"); },
+    onSuccess: () => {
+      utils.companies.listInvites.invalidate();
+      utils.companies.employeesWithAccess.invalidate();
+      utils.companies.accessAnalyticsOverview.invalidate();
+      toast.success("Invite revoked");
+    },
     onError: (err) => toast.error(err.message),
   });
 
   // UI state
   const [search, setSearch] = useState("");
-  const [filterStatus, setFilterStatus] = useState<"all" | "active" | "no_access" | "inactive">("all");
+  const [employeeListFilter, setEmployeeListFilter] = useState<EmployeeListFilter>("all");
   const [grantTarget, setGrantTarget] = useState<{ employeeId: number; name: string; email: string | null } | null>(null);
   const [grantRole, setGrantRole] = useState<string>("company_member");
   const [revokeTarget, setRevokeTarget] = useState<{ employeeId: number; name: string } | null>(null);
@@ -294,11 +490,19 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
   // Manual link: link a company member to an employee record
   const [linkTarget, setLinkTarget] = useState<{ employeeId: number; name: string } | null>(null);
   const [linkEmail, setLinkEmail] = useState("");
+  const [conflictReviewTarget, setConflictReviewTarget] = useState<{
+    employeeId: number;
+    name: string;
+    email: string | null;
+    stateReason: string | null;
+    needsLink: boolean;
+  } | null>(null);
 
   // Multi-company grant mutation
   const grantMultiCompanyAccess = trpc.companies.grantMultiCompanyAccess.useMutation({
     onSuccess: (res) => {
       utils.companies.employeesWithAccess.invalidate();
+      utils.companies.accessAnalyticsOverview.invalidate();
       utils.companies.members.invalidate();
       const granted = res.results.filter(r => r.action === 'granted').length;
       const invited = res.results.filter(r => r.action === 'invited').length;
@@ -316,6 +520,7 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
   const grantAccess = trpc.companies.grantEmployeeAccess.useMutation({
     onSuccess: (res) => {
       utils.companies.employeesWithAccess.invalidate();
+      utils.companies.accessAnalyticsOverview.invalidate();
       utils.companies.members.invalidate();
       if (res.action === 'linked') toast.success(res.message);
       else if (res.action === 'invited') toast.success(`Invite sent to ${grantTarget?.email}`);
@@ -328,6 +533,7 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
   const revokeAccess = trpc.companies.revokeEmployeeAccess.useMutation({
     onSuccess: () => {
       utils.companies.employeesWithAccess.invalidate();
+      utils.companies.accessAnalyticsOverview.invalidate();
       utils.companies.members.invalidate();
       toast.success("Access revoked");
       setRevokeTarget(null);
@@ -338,6 +544,7 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
   const updateEmployeeRole = trpc.companies.updateEmployeeAccessRole.useMutation({
     onSuccess: () => {
       utils.companies.employeesWithAccess.invalidate();
+      utils.companies.accessAnalyticsOverview.invalidate();
       utils.companies.members.invalidate();
       utils.auth.me.invalidate();
       toast.success("Role updated — sidebar will refresh automatically");
@@ -350,6 +557,7 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
     onSuccess: (res) => {
       utils.companies.members.invalidate();
       utils.companies.employeesWithAccess.invalidate();
+      utils.companies.accessAnalyticsOverview.invalidate();
       utils.companies.listInvites.invalidate();
       utils.auth.me.invalidate();
       const msg = (res as any).message ?? "Done";
@@ -369,6 +577,7 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
     onSuccess: () => {
       utils.companies.members.invalidate();
       utils.companies.employeesWithAccess.invalidate();
+      utils.companies.accessAnalyticsOverview.invalidate();
       utils.auth.me.invalidate();
       toast.success("Role updated — sidebar will refresh automatically");
       setMemberRoleTarget(null);
@@ -379,6 +588,7 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
   const linkMemberToEmployee = trpc.companies.linkMemberToEmployee.useMutation({
     onSuccess: (res) => {
       utils.companies.employeesWithAccess.invalidate();
+      utils.companies.accessAnalyticsOverview.invalidate();
       utils.companies.members.invalidate();
       toast.success(res.message);
       setLinkTarget(null);
@@ -391,32 +601,65 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
     onSuccess: () => {
       utils.companies.members.invalidate();
       utils.companies.employeesWithAccess.invalidate();
+      utils.companies.accessAnalyticsOverview.invalidate();
       toast.success("Member removed");
       setRemoveMemberTarget(null);
     },
     onError: (err) => toast.error(err.message),
   });
 
-  // Filtered employees
-  const filteredEmployees = employeesWithAccess.filter((emp) => {
+  const canonicalEmployees = employeesWithAccess.map((emp: EmployeeWithAccessRow) => {
+    const accessState = toCanonicalAccessState(emp);
+    const flags = emp.flags;
+    const primaryAction = derivePrimaryAction({
+      accessState,
+      flags: flags ?? undefined,
+      primaryAction: emp.primaryAction,
+    });
+    return {
+      ...emp,
+      canonicalAccessState: accessState,
+      canonicalFlags: flags ?? {},
+      canonicalPrimaryAction: primaryAction,
+    };
+  });
+
+  // Dev-only: surface partial API payloads early (skipped under Vitest — fixtures may omit accessState on purpose).
+  if (import.meta.env.DEV && import.meta.env.MODE !== "test") {
+    for (const row of canonicalEmployees) {
+      if (row.accessState == null) {
+        console.warn("[TeamAccess] Missing accessState on employee row — check API rollout / resolver.", {
+          employeeId: row.employeeId,
+          accessStatus: row.accessStatus,
+        });
+      }
+    }
+  }
+
+  // Filtered employees — with empty search, row counts match the corresponding stat / filter (see stat bar).
+  const filteredEmployees = canonicalEmployees.filter((emp) => {
     const name = `${emp.firstName} ${emp.lastName}`.toLowerCase();
     const matchSearch = !search || name.includes(search.toLowerCase()) || emp.email?.toLowerCase().includes(search.toLowerCase()) || emp.department?.toLowerCase().includes(search.toLowerCase());
-    const matchStatus = filterStatus === "all" || emp.accessStatus === filterStatus;
+    const matchStatus = matchesEmployeeListFilter(emp, employeeListFilter);
     return matchSearch && matchStatus;
   });
 
-  // Stats — combine HR employees + direct members for a complete picture
-  const totalEmployees = employeesWithAccess.length;
-  const withAccess = employeesWithAccess.filter((e) => e.accessStatus === 'active').length;
-  const noAccess = employeesWithAccess.filter((e) => e.accessStatus === 'no_access').length;
-  const suspended = employeesWithAccess.filter((e) => e.accessStatus === 'inactive').length;
+  // Canonical stats
+  const totalEmployees = canonicalEmployees.length;
+  const withAccess = canonicalEmployees.filter((e) => e.canonicalAccessState === "ACTIVE").length;
+  const suspended = canonicalEmployees.filter((e) => e.canonicalAccessState === "SUSPENDED").length;
+  const invited = canonicalEmployees.filter((e) => e.canonicalAccessState === "INVITED").length;
+  const needsAttention = canonicalEmployees.filter((e) => employeeNeedsAttention(e.canonicalFlags)).length;
   const activeMembers = members.filter((m) => m.isActive);
+  /** HR rows that resolve to a company_members row — used to exclude those from “direct only” member counts. */
+  const linkedMemberIds = new Set(
+    canonicalEmployees
+      .map((e) => e.memberId)
+      .filter((id): id is number => typeof id === "number" && Number.isFinite(id)),
+  );
+  /** Active company members with no HR employee row pointing at their membership (Add by Email / legacy). */
+  const directAccessOnly = activeMembers.filter((m) => !linkedMemberIds.has(m.memberId)).length;
   const pendingInvitesList = pendingInvites.filter((i) => !i.acceptedAt && !i.revokedAt && new Date(i.expiresAt) > new Date());
-  // Total unique people = HR employees + direct members not already in HR list
-  // Build set of memberId values already represented in HR employee list
-  const hrMemberIds = new Set(employeesWithAccess.map((e) => e.memberId).filter(Boolean));
-  const directOnlyMembers = activeMembers.filter((m) => !hrMemberIds.has(m.memberId));
-  const totalTeamSize = totalEmployees + directOnlyMembers.length;
 
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-6">
@@ -429,7 +672,15 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => { refetch(); }} className="gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              refetch();
+              utils.companies.accessAnalyticsOverview.invalidate();
+            }}
+            className="gap-2"
+          >
             <RefreshCw size={14} /> Refresh
           </Button>
           <Button onClick={() => setInviteOpen(true)} className="gap-2">
@@ -438,62 +689,153 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
         </div>
       </div>
 
-      {/* Stats Bar */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div className="bg-white border rounded-xl p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center">
+      {accessIntel && (
+        <div className="rounded-lg border border-slate-200 bg-slate-50/90 px-4 py-3 text-xs text-slate-700">
+          <div className="font-semibold text-slate-800 mb-2">{TA.accessIntelTitle}</div>
+          <div className="flex flex-wrap gap-x-5 gap-y-2">
+            <span>
+              {TA.badgeHROnly}: <strong>{accessIntel.core.hrOnly}</strong>
+            </span>
+            <span>
+              {TA.statNeedsAttention}: <strong>{accessIntel.core.needsAttention}</strong>
+            </span>
+            <span>
+              {TA.statDirectAccessOnly}: <strong>{accessIntel.core.directAccessOnly}</strong>
+            </span>
+            <span>
+              {TA.accessIntelHrInviteRows}: <strong>{accessIntel.core.invitePendingHrRows}</strong>
+            </span>
+            <span>
+              {TA.accessIntelInviteQueue}: <strong>{accessIntel.invitesTable.pendingCount}</strong>
+            </span>
+          </div>
+          {accessIntel.invitesTable.soonestExpiryDays != null && (
+            <p className="mt-1.5 text-slate-600">
+              Next invite expires in ~{accessIntel.invitesTable.soonestExpiryDays} days
+              {accessIntel.invitesTable.farthestExpiryDays != null &&
+              accessIntel.invitesTable.farthestExpiryDays !== accessIntel.invitesTable.soonestExpiryDays
+                ? ` (furthest ~${accessIntel.invitesTable.farthestExpiryDays} d)`
+                : null}
+            </p>
+          )}
+          <p className="text-[11px] text-slate-500 mt-2 leading-snug">{TA.accessIntelFootnote}</p>
+          {accessIntel.topIssues[0] && (
+            <p className="mt-2 text-slate-700">
+              <span className="text-slate-500">{TA.accessIntelTopIssue}:</span>{" "}
+              <strong>{accessIntel.topIssues[0].label}</strong> ({accessIntel.topIssues[0].count})
+            </p>
+          )}
+        </div>
+      )}
+
+      {/*
+        Stat bar semantics (product):
+        - Total Employees: HR directory rows in scope (canonicalEmployees.length).
+        - Direct Access Only: active company members not referenced by any HR row (no employee.memberId match).
+        - With Active Access: HR rows in canonical ACTIVE access state.
+        - Needs Attention: rows with conflict / needsLink / missingEmail flags (memberId-based model; email drift may still surface here).
+        Clickable HR stats apply the same filter as the HR Employees dropdown (empty search → count matches visible rows).
+      */}
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+        <button
+          type="button"
+          onClick={() => setEmployeeListFilter("all")}
+          className="bg-white border rounded-xl p-4 flex items-center gap-3 w-full text-left transition-colors hover:bg-gray-50/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center shrink-0">
             <Users size={18} className="text-gray-600" />
           </div>
           <div>
-            <div className="text-2xl font-bold text-gray-900">{totalTeamSize}</div>
-            <div className="text-xs text-gray-500">Total Employees</div>
+            <div className="text-2xl font-bold text-gray-900">{totalEmployees}</div>
+            <div className="text-xs text-gray-500">{TA.statTotalEmployees}</div>
+          </div>
+        </button>
+        <div className="bg-white border rounded-xl p-4 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center shrink-0">
+            <Link2Off size={18} className="text-slate-600" />
+          </div>
+          <div>
+            <div className="text-2xl font-bold text-slate-800">{directAccessOnly}</div>
+            <div className="text-xs text-gray-500">{TA.statDirectAccessOnly}</div>
           </div>
         </div>
-        <div className="bg-white border rounded-xl p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center">
+        <button
+          type="button"
+          onClick={() => setEmployeeListFilter("ACTIVE")}
+          className="bg-white border rounded-xl p-4 flex items-center gap-3 w-full text-left transition-colors hover:bg-gray-50/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center shrink-0">
             <CheckCircle2 size={18} className="text-green-600" />
           </div>
           <div>
-            <div className="text-2xl font-bold text-green-700">{activeMembers.length}</div>
-            <div className="text-xs text-gray-500">With Active Access</div>
+            <div className="text-2xl font-bold text-green-700">{withAccess}</div>
+            <div className="text-xs text-gray-500">{TA.statWithActiveAccess}</div>
           </div>
-        </div>
-        <div className="bg-white border rounded-xl p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center">
+        </button>
+        <button
+          type="button"
+          onClick={() => setEmployeeListFilter("INVITED")}
+          className="bg-white border rounded-xl p-4 flex items-center gap-3 w-full text-left transition-colors hover:bg-gray-50/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <div className="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center shrink-0">
             <Clock size={18} className="text-amber-600" />
           </div>
           <div>
-            <div className="text-2xl font-bold text-amber-700">{pendingInvitesList.length}</div>
-            <div className="text-xs text-gray-500">Pending Invites</div>
+            <div className="text-2xl font-bold text-amber-700">{invited}</div>
+            <div className="text-xs text-gray-500">{TA.statPendingInvites}</div>
           </div>
-        </div>
-        <div className="bg-white border rounded-xl p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-red-100 flex items-center justify-center">
+        </button>
+        <button
+          type="button"
+          onClick={() => setEmployeeListFilter("SUSPENDED")}
+          className="bg-white border rounded-xl p-4 flex items-center gap-3 w-full text-left transition-colors hover:bg-gray-50/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <div className="w-10 h-10 rounded-lg bg-red-100 flex items-center justify-center shrink-0">
             <XCircle size={18} className="text-red-600" />
           </div>
           <div>
             <div className="text-2xl font-bold text-red-700">{suspended}</div>
-            <div className="text-xs text-gray-500">Suspended</div>
+            <div className="text-xs text-gray-500">{TA.statSuspended}</div>
           </div>
-        </div>
+        </button>
+        <button
+          type="button"
+          onClick={() => setEmployeeListFilter("needs_attention")}
+          className={`border rounded-xl p-4 flex items-center gap-3 w-full text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+            needsAttention > 0 ? "bg-orange-50/80 border-orange-200 hover:bg-orange-50" : "bg-white hover:bg-gray-50/90"
+          }`}
+        >
+          <div
+            className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${
+              needsAttention > 0 ? "bg-orange-100" : "bg-gray-100"
+            }`}
+          >
+            <AlertTriangle size={18} className={needsAttention > 0 ? "text-orange-700" : "text-gray-500"} />
+          </div>
+          <div>
+            <div className={`text-2xl font-bold ${needsAttention > 0 ? "text-orange-900" : "text-gray-700"}`}>{needsAttention}</div>
+            <div className="text-xs text-gray-500">{TA.statNeedsAttention}</div>
+          </div>
+        </button>
       </div>
 
       {/* Main Tabs */}
       <Tabs defaultValue={initialTab}>
         <TabsList className="mb-4">
           <TabsTrigger value="members" className="gap-2">
-            <CheckCircle2 size={14} /> Active Members ({activeMembers.length})
+            <CheckCircle2 size={14} /> {TA.tabActiveMembers} ({activeMembers.length})
           </TabsTrigger>
           <TabsTrigger value="employees" className="gap-2">
-            <Users size={14} /> HR Employees ({totalEmployees})
+            <Users size={14} /> {TA.tabHrEmployees} ({totalEmployees})
           </TabsTrigger>
+          {/* Phase 4.3C (product): deliberate IA choice — keep this tab vs unify invites into a single access workspace. */}
           {pendingInvitesList.length > 0 && (
             <TabsTrigger value="invites" className="gap-2">
-              <Clock size={14} /> Pending Invites ({pendingInvitesList.length})
+              <Clock size={14} /> {TA.statPendingInvites} ({pendingInvitesList.length})
             </TabsTrigger>
           )}
           <TabsTrigger value="roles" className="gap-2">
-            <Info size={14} /> Role Guide
+            <Info size={14} /> {TA.tabRoleGuide}
           </TabsTrigger>
         </TabsList>
 
@@ -503,7 +845,7 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
             <CardHeader className="pb-3">
               <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
                 <CardTitle className="text-base font-semibold text-gray-800">
-                  All Employees — Access Status
+                  {TA.cardHrDirectoryTitle}
                 </CardTitle>
                 <div className="flex items-center gap-2 w-full sm:w-auto">
                   <div className="relative flex-1 sm:w-64">
@@ -515,15 +857,20 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
                       className="pl-8 h-9 text-sm"
                     />
                   </div>
-                  <Select value={filterStatus} onValueChange={(v) => setFilterStatus(v as any)}>
-                    <SelectTrigger className="h-9 w-36 text-sm">
+                  <Select
+                    value={employeeListFilter}
+                    onValueChange={(v) => setEmployeeListFilter(v as EmployeeListFilter)}
+                  >
+                    <SelectTrigger className="h-9 min-w-[12.5rem] text-sm">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">All Status</SelectItem>
-                      <SelectItem value="active">Active Access</SelectItem>
-                      <SelectItem value="no_access">No Access</SelectItem>
-                      <SelectItem value="inactive">Suspended</SelectItem>
+                      <SelectItem value="all">{TA.filterAll}</SelectItem>
+                      <SelectItem value="ACTIVE">{TA.filterActive}</SelectItem>
+                      <SelectItem value="SUSPENDED">{TA.filterSuspended}</SelectItem>
+                      <SelectItem value="INVITED">{TA.filterInvitePending}</SelectItem>
+                      <SelectItem value="HR_ONLY">{TA.filterHROnlyNoLogin}</SelectItem>
+                      <SelectItem value="needs_attention">{TA.filterNeedsAttention}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -539,13 +886,9 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
                   {filteredEmployees.map((emp) => {
                     const fullName = `${emp.firstName} ${emp.lastName}`;
                     const initials = `${emp.firstName[0]}${emp.lastName[0]}`.toUpperCase();
-                    const canonicalState = toCanonicalAccessState(emp as any);
-                    const flags = (emp as any).flags as { needsLink?: boolean; conflict?: boolean; missingEmail?: boolean } | undefined;
-                    const primaryAction = derivePrimaryAction({
-                      accessState: canonicalState,
-                      flags,
-                      primaryAction: (emp as any).primaryAction,
-                    });
+                    const canonicalState = emp.canonicalAccessState;
+                    const flags = emp.canonicalFlags;
+                    const primaryAction = emp.canonicalPrimaryAction;
                     const rowInvite =
                       emp.email
                         ? pendingInvitesList.find((i) => i.email?.trim().toLowerCase() === emp.email?.trim().toLowerCase())
@@ -583,18 +926,18 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
                             )}
                             {flags?.needsLink && (
                               <span className="text-xs text-purple-700 bg-purple-50 border border-purple-200 px-1.5 py-0.5 rounded-full">
-                                Needs Link
+                                {TA.chipAccountNotLinked}
                               </span>
                             )}
                             {flags?.missingEmail && (
                               <span className="text-xs text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full">
-                                Missing Email
+                                {TA.chipMissingEmail}
                               </span>
                             )}
                             {flags?.conflict && (
                               <span className="text-xs text-red-700 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded-full inline-flex items-center gap-1">
                                 <AlertTriangle size={10} />
-                                Conflict
+                                {TA.chipIdentityConflict}
                               </span>
                             )}
                           </div>
@@ -617,11 +960,18 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
                             <Button
                               variant="outline"
                               size="sm"
-                              disabled
                               className="h-8 text-xs gap-1 text-red-600 border-red-200"
-                              title={(emp as any).stateReason ?? "Needs review"}
+                              onClick={() =>
+                                setConflictReviewTarget({
+                                  employeeId: emp.employeeId,
+                                  name: fullName,
+                                  email: emp.email ?? null,
+                                  stateReason: emp.stateReason ?? null,
+                                  needsLink: !!flags?.needsLink,
+                                })
+                              }
                             >
-                              <AlertTriangle size={12} /> Review
+                              <AlertTriangle size={12} /> Review conflict
                             </Button>
                           ) : primaryAction === "NONE" ? (
                             <Button
@@ -772,7 +1122,7 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
               <CardTitle className="text-base font-semibold text-gray-800 flex items-center justify-between">
                 <span className="flex items-center gap-2">
                   <CheckCircle2 size={16} className="text-green-500" />
-                  Active System Logins
+                  {TA.sectionActiveSystemLogins}
                 </span>
                 <Badge variant="secondary">{activeMembers.length}</Badge>
               </CardTitle>
@@ -782,7 +1132,7 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
                 <div className="py-8 text-center text-sm text-gray-400">Loading...</div>
               ) : activeMembers.length === 0 ? (
                 <div className="py-8 text-center text-sm text-gray-400">
-                  No active members yet. Add employees in HR → My Team, then grant them system access from the HR Employees tab.
+                  No active members yet. Add employees in HR → My Team, then grant them system access from the {TA.tabHrEmployees} tab.
                 </div>
               ) : (
                 <div className="divide-y divide-gray-100">
@@ -873,7 +1223,7 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
                   <p className="text-sm font-semibold text-blue-800 mb-1">How Access Works</p>
                   <div className="space-y-1.5 text-xs text-blue-700">
                     <p><strong>Step 1:</strong> Add employees in the HR module (My Team / Employees page)</p>
-                    <p><strong>Step 2:</strong> Come to this page → "All Employees" tab → click "Grant Access" on any employee</p>
+                    <p><strong>Step 2:</strong> Come to this page → {TA.tabHrEmployees} tab → click &quot;Grant Access&quot; on any employee</p>
                     <p><strong>Step 3:</strong> Choose their role (Staff, HR Manager, Finance, etc.)</p>
                     <p><strong>Step 4:</strong> If they have a SmartPRO account (same email), they get access immediately. If not, an invite link is generated.</p>
                     <p><strong>Step 5:</strong> They log in at SmartPRO and see only what their role allows.</p>
@@ -891,7 +1241,7 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
               <CardTitle className="text-base font-semibold text-gray-800 flex items-center justify-between">
                 <span className="flex items-center gap-2">
                   <Clock size={16} className="text-amber-500" />
-                  Pending Invites
+                  {TA.statPendingInvites}
                 </span>
                 <Badge variant="secondary">{pendingInvitesList.length}</Badge>
               </CardTitle>
@@ -1246,6 +1596,24 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
         </DialogContent>
       </Dialog>
 
+      {/* ── Conflict review (Phase 4.3B) — diagnostics only; no auto-merge. */}
+      <Dialog open={!!conflictReviewTarget} onOpenChange={(open) => { if (!open) setConflictReviewTarget(null); }}>
+        <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
+          {conflictReviewTarget && (
+            <ConflictReviewDialogBody
+              target={conflictReviewTarget}
+              onClose={() => setConflictReviewTarget(null)}
+              onLinkAccount={() => {
+                const t = conflictReviewTarget;
+                setConflictReviewTarget(null);
+                setLinkTarget({ employeeId: t.employeeId, name: t.name });
+                setLinkEmail(t.email ?? "");
+              }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
       {/* ── Link Account Dialog ── */}
       <Dialog open={!!linkTarget} onOpenChange={(open) => { if (!open) { setLinkTarget(null); setLinkEmail(""); } }}>
         <DialogContent className="sm:max-w-md">
@@ -1256,7 +1624,7 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
             </DialogTitle>
             <DialogDescription>
               Connects this HR employee row to the user account that signs in with the email below. Use when someone is
-              already a company member but the portal still shows &quot;Account Not Linked&quot;.
+              already a company member but the portal still shows the {TA.chipAccountNotLinked.toLowerCase()} chip on this row.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-2">

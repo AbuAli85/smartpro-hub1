@@ -24,7 +24,8 @@ import { protectedProcedure, publicProcedure, router } from "../_core/trpc";
 import { notifyOwner } from "../_core/notification";
 import { sendInviteEmail, sendHRLetterEmail, sendContractSigningEmail } from "../email";
 import { buildInviteEmailHtml, buildHRLetterEmailHtml, buildContractSigningEmailHtml } from "../emailPreview";
-import { resolveEmployeeAccess } from "../employeeAccessResolver";
+import { buildAccessAnalyticsOverview } from "../accessAnalytics";
+import { fetchEmployeesWithAccessData } from "../employeesWithAccessData";
 
 function companyIdFromCreateResult(row: unknown): number {
   if (row && typeof row === "object") {
@@ -702,12 +703,11 @@ export const companiesRouter = router({
 
   /**
    * Returns all employees for the company with their system access status.
-   * Each employee row includes:
-   *  - HR profile data (name, department, position, email, status)
-   *  - accessStatus: 'active' | 'inactive' | 'no_access'
-   *  - memberRole: the role they have in company_members (if any)
-   *  - memberId: the company_members.id (if any)
-   *  - hasLogin: whether they have a users record linked
+   * Each employee row includes HR profile fields plus:
+   *  - accessState / flags / primaryAction / stateReason — canonical access model (from resolveEmployeeAccess)
+   *  - accessStatus — legacy mirror of accessState for older clients ('active' | 'inactive' | 'no_access')
+   *  - memberRole, memberId — company_members link when resolved
+   *  - hasLogin, lastSignedIn, loginEmail — identity / session hints
    */
   employeesWithAccess: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }).optional())
@@ -716,167 +716,43 @@ export const companiesRouter = router({
     if (!db) return [];
     const membership = await membershipForActiveWorkspace(ctx.user.id, input?.companyId);
     if (!membership) return [];
+    return fetchEmployeesWithAccessData(db, membership.company.id);
+  }),
+
+  /**
+   * Live Access Intelligence snapshot — same canonical rows as Team Access + members + pending invites.
+   * Future: time-bounded snapshots can reuse `buildAccessAnalyticsOverview` with stored inputs.
+   */
+  accessAnalyticsOverview: protectedProcedure
+    .input(z.object({ companyId: z.number().optional() }).optional())
+    .query(async ({ input, ctx }) => {
+    const db = await getDb();
+    if (!db) return null;
+    const membership = await membershipForActiveWorkspace(ctx.user.id, input?.companyId);
+    if (!membership) return null;
     const companyId = membership.company.id;
 
-    // Get only active/on_leave employees — terminated/resigned staff no longer need system access
-    const allEmployees = await db
-      .select({
-        id: employees.id,
-        firstName: employees.firstName,
-        lastName: employees.lastName,
-        firstNameAr: employees.firstNameAr,
-        lastNameAr: employees.lastNameAr,
-        email: employees.email,
-        department: employees.department,
-        position: employees.position,
-        status: employees.status,
-        userId: employees.userId,
-        employeeNumber: employees.employeeNumber,
-        nationality: employees.nationality,
-        hireDate: employees.hireDate,
-      })
-      .from(employees)
-      .where(and(
-        eq(employees.companyId, companyId),
-        or(eq(employees.status, 'active'), eq(employees.status, 'on_leave'))
-      ))
-      .orderBy(asc(employees.firstName));
-
-    // Get all company members
-    const allMembers = await db
-      .select({
-        id: companyMembers.id,
-        userId: companyMembers.userId,
-        role: companyMembers.role,
-        isActive: companyMembers.isActive,
-        joinedAt: companyMembers.joinedAt,
-      })
+    const employeeRows = await fetchEmployeesWithAccessData(db, companyId);
+    const memberRows = await db
+      .select({ memberId: companyMembers.id, isActive: companyMembers.isActive })
       .from(companyMembers)
       .where(eq(companyMembers.companyId, companyId));
 
-    // Get user details for members
-    const memberUserIds = allMembers.map((m) => m.userId);
-    const userDetails = memberUserIds.length > 0
-      ? await db
-          .select({ id: users.id, name: users.name, email: users.email, lastSignedIn: users.lastSignedIn })
-          .from(users)
-          .where(or(...memberUserIds.map((uid) => eq(users.id, uid))))
-      : [];
-
-    const userMap = new Map(userDetails.map((u) => [u.id, u]));
-    const userByEmail = new Map(
-      userDetails
-        .filter((u) => !!u.email)
-        .map((u) => [u.email!.trim().toLowerCase(), u]),
-    );
-    const memberByUserId = new Map(allMembers.map((m) => [m.userId, m]));
-    const memberCountByUserId = allMembers.reduce((acc, m) => {
-      acc.set(m.userId, (acc.get(m.userId) ?? 0) + 1);
-      return acc;
-    }, new Map<number, number>());
-    const inviteRows = await db
+    const rawInvites = await db
       .select({
-        id: companyInvites.id,
-        email: companyInvites.email,
-        role: companyInvites.role,
-        token: companyInvites.token,
         expiresAt: companyInvites.expiresAt,
         acceptedAt: companyInvites.acceptedAt,
         revokedAt: companyInvites.revokedAt,
       })
       .from(companyInvites)
       .where(eq(companyInvites.companyId, companyId));
-    const now = Date.now();
-    const pendingInvitesByEmail = inviteRows.reduce((acc, inv) => {
-      const norm = inv.email?.trim().toLowerCase();
-      if (!norm) return acc;
-      if (inv.acceptedAt || inv.revokedAt) return acc;
-      if (new Date(inv.expiresAt).getTime() <= now) return acc;
-      const list = acc.get(norm) ?? [];
-      list.push(inv);
-      acc.set(norm, list);
-      return acc;
-    }, new Map<string, typeof inviteRows>());
-    for (const list of pendingInvitesByEmail.values()) {
-      list.sort((a, b) => new Date(b.expiresAt).getTime() - new Date(a.expiresAt).getTime());
-    }
 
-    return allEmployees.map((emp) => {
-      const normalizedEmail = emp.email?.trim().toLowerCase() ?? null;
-      const emailUser = normalizedEmail ? userByEmail.get(normalizedEmail) ?? null : null;
-      const memberFromEmployeeUser = emp.userId ? memberByUserId.get(emp.userId) ?? null : null;
-      const memberFromEmail = emailUser ? memberByUserId.get(emailUser.id) ?? null : null;
-      const resolvedMember = memberFromEmployeeUser ?? memberFromEmail ?? null;
-      const chosenPendingInvite = normalizedEmail ? (pendingInvitesByEmail.get(normalizedEmail)?.[0] ?? null) : null;
-      const resolved = resolveEmployeeAccess({
-        employee: {
-          employeeId: emp.id,
-          companyId,
-          userId: emp.userId,
-          email: emp.email,
-        },
-        userByEmail: emailUser ? { id: emailUser.id, email: emailUser.email ?? "" } : null,
-        member: resolvedMember
-          ? {
-              id: resolvedMember.id,
-              companyId,
-              userId: resolvedMember.userId,
-              isActive: resolvedMember.isActive,
-              role: resolvedMember.role,
-            }
-          : null,
-        invite: chosenPendingInvite
-          ? {
-              id: chosenPendingInvite.id,
-              companyId,
-              email: chosenPendingInvite.email,
-              role: chosenPendingInvite.role,
-              token: chosenPendingInvite.token,
-              expiresAt: chosenPendingInvite.expiresAt.toISOString(),
-              acceptedAt: chosenPendingInvite.acceptedAt ? chosenPendingInvite.acceptedAt.toISOString() : null,
-              revokedAt: chosenPendingInvite.revokedAt ? chosenPendingInvite.revokedAt.toISOString() : null,
-            }
-          : null,
-        diagnostics: {
-          multipleMembers: !!resolvedMember && (memberCountByUserId.get(resolvedMember.userId) ?? 0) > 1,
-          multiplePendingInvites: !!normalizedEmail && (pendingInvitesByEmail.get(normalizedEmail)?.length ?? 0) > 1,
-          emailIdentityMismatch: !!(emp.userId && emailUser && emp.userId !== emailUser.id),
-        },
-      });
-      const userInfo = resolved.resolvedUserId ? userMap.get(resolved.resolvedUserId) : null;
-      const accessStatus =
-        resolved.accessState === "ACTIVE"
-          ? "active"
-          : resolved.accessState === "SUSPENDED"
-            ? "inactive"
-            : "no_access";
+    const nowMs = Date.now();
+    const pendingInviteExpiresAt = rawInvites
+      .filter((i) => !i.acceptedAt && !i.revokedAt && new Date(i.expiresAt).getTime() > nowMs)
+      .map((i) => i.expiresAt);
 
-      return {
-        employeeId: emp.id,
-        firstName: emp.firstName,
-        lastName: emp.lastName,
-        firstNameAr: emp.firstNameAr,
-        lastNameAr: emp.lastNameAr,
-        email: emp.email,
-        department: emp.department,
-        position: emp.position,
-        employeeStatus: emp.status,
-        employeeNumber: emp.employeeNumber,
-        nationality: emp.nationality,
-        hireDate: emp.hireDate,
-        // Access info
-        accessStatus,
-        memberRole: resolvedMember?.role ?? null,
-        memberId: resolvedMember?.id ?? null,
-        hasLogin: !!resolved.resolvedUserId,
-        lastSignedIn: userInfo?.lastSignedIn ?? null,
-        loginEmail: userInfo?.email ?? null,
-        accessState: resolved.accessState,
-        flags: resolved.flags,
-        primaryAction: resolved.primaryAction,
-        stateReason: resolved.stateReason,
-      };
-    });
+    return buildAccessAnalyticsOverview({ employeeRows, memberRows, pendingInviteExpiresAt });
   }),
 
   /**

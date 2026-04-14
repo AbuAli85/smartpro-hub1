@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
@@ -53,7 +53,7 @@ import {
   RefreshCw,
   Lock,
   Unlock,
-  ChevronDown,
+  AlertTriangle,
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -130,18 +130,35 @@ function RoleBadge({ role }: { role: string }) {
   );
 }
 
-function AccessStatusBadge({ status }: { status: 'active' | 'inactive' | 'no_access' }) {
-  if (status === 'active') {
+type CanonicalAccessState = "HR_ONLY" | "INVITED" | "ACTIVE" | "SUSPENDED";
+type CanonicalPrimaryAction =
+  | "NONE"
+  | "GRANT_ACCESS"
+  | "COPY_INVITE"
+  | "RESTORE_ACCESS"
+  | "CHANGE_ROLE"
+  | "LINK_ACCOUNT"
+  | "RESOLVE_CONFLICT";
+
+function AccessStatusBadge({ state }: { state: CanonicalAccessState }) {
+  if (state === "ACTIVE") {
     return (
       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-green-50 text-green-700 border border-green-200">
         <CheckCircle2 size={11} /> Active
       </span>
     );
   }
-  if (status === 'inactive') {
+  if (state === "SUSPENDED") {
     return (
       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-500 border border-gray-200">
         <XCircle size={11} /> Suspended
+      </span>
+    );
+  }
+  if (state === "INVITED") {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+        <Mail size={11} /> Invited
       </span>
     );
   }
@@ -150,6 +167,42 @@ function AccessStatusBadge({ status }: { status: 'active' | 'inactive' | 'no_acc
       <Clock size={11} /> No Access
     </span>
   );
+}
+
+function toCanonicalAccessState(emp: {
+  accessState?: string | null;
+  accessStatus?: string | null;
+}): CanonicalAccessState {
+  if (emp.accessState === "ACTIVE" || emp.accessState === "SUSPENDED" || emp.accessState === "INVITED" || emp.accessState === "HR_ONLY") {
+    return emp.accessState;
+  }
+  if (emp.accessStatus === "active") return "ACTIVE";
+  if (emp.accessStatus === "inactive") return "SUSPENDED";
+  return "HR_ONLY";
+}
+
+function derivePrimaryAction(input: {
+  accessState: CanonicalAccessState;
+  flags?: { needsLink?: boolean; conflict?: boolean; missingEmail?: boolean } | null;
+  primaryAction?: string | null;
+}): CanonicalPrimaryAction {
+  const primary = input.primaryAction;
+  if (
+    primary === "NONE" ||
+    primary === "GRANT_ACCESS" ||
+    primary === "COPY_INVITE" ||
+    primary === "RESTORE_ACCESS" ||
+    primary === "CHANGE_ROLE" ||
+    primary === "LINK_ACCOUNT" ||
+    primary === "RESOLVE_CONFLICT"
+  ) {
+    return primary;
+  }
+  if (input.flags?.conflict) return "RESOLVE_CONFLICT";
+  if (input.accessState === "ACTIVE") return input.flags?.needsLink ? "LINK_ACCOUNT" : "CHANGE_ROLE";
+  if (input.accessState === "SUSPENDED") return "RESTORE_ACCESS";
+  if (input.accessState === "INVITED") return "COPY_INVITE";
+  return input.flags?.missingEmail ? "NONE" : "GRANT_ACCESS";
 }
 
 // ─── Empty State ────────────────────────────────────────────────────────────────
@@ -195,7 +248,7 @@ function EmptyEmployeesState({ totalEmployees }: { totalEmployees: number }) {
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
-export default function TeamAccessPage() {
+export default function TeamAccessPage({ initialTab = "members" }: { initialTab?: "members" | "employees" | "invites" | "roles" } = {}) {
   const { user } = useAuth();
   const utils = trpc.useUtils();
   const { activeCompanyId } = useActiveCompany();
@@ -426,7 +479,7 @@ export default function TeamAccessPage() {
       </div>
 
       {/* Main Tabs */}
-      <Tabs defaultValue="members">
+      <Tabs defaultValue={initialTab}>
         <TabsList className="mb-4">
           <TabsTrigger value="members" className="gap-2">
             <CheckCircle2 size={14} /> Active Members ({activeMembers.length})
@@ -486,16 +539,25 @@ export default function TeamAccessPage() {
                   {filteredEmployees.map((emp) => {
                     const fullName = `${emp.firstName} ${emp.lastName}`;
                     const initials = `${emp.firstName[0]}${emp.lastName[0]}`.toUpperCase();
+                    const canonicalState = toCanonicalAccessState(emp as any);
+                    const flags = (emp as any).flags as { needsLink?: boolean; conflict?: boolean; missingEmail?: boolean } | undefined;
+                    const primaryAction = derivePrimaryAction({
+                      accessState: canonicalState,
+                      flags,
+                      primaryAction: (emp as any).primaryAction,
+                    });
+                    const rowInvite =
+                      emp.email
+                        ? pendingInvitesList.find((i) => i.email?.trim().toLowerCase() === emp.email?.trim().toLowerCase())
+                        : null;
                     return (
                       <div key={emp.employeeId} className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors">
-                        {/* Avatar */}
                         <Avatar className="w-9 h-9 shrink-0">
                           <AvatarFallback className="bg-gray-200 text-gray-700 text-sm font-semibold">
                             {initials}
                           </AvatarFallback>
                         </Avatar>
 
-                        {/* Employee Info */}
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="text-sm font-medium text-gray-900">{fullName}</span>
@@ -519,15 +581,29 @@ export default function TeamAccessPage() {
                                 {emp.email}
                               </span>
                             )}
+                            {flags?.needsLink && (
+                              <span className="text-xs text-purple-700 bg-purple-50 border border-purple-200 px-1.5 py-0.5 rounded-full">
+                                Needs Link
+                              </span>
+                            )}
+                            {flags?.missingEmail && (
+                              <span className="text-xs text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full">
+                                Missing Email
+                              </span>
+                            )}
+                            {flags?.conflict && (
+                              <span className="text-xs text-red-700 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded-full inline-flex items-center gap-1">
+                                <AlertTriangle size={10} />
+                                Conflict
+                              </span>
+                            )}
                           </div>
                         </div>
 
-                        {/* Access Status */}
                         <div className="shrink-0 hidden sm:block">
-                          <AccessStatusBadge status={emp.accessStatus as any} />
+                          <AccessStatusBadge state={canonicalState} />
                         </div>
 
-                        {/* Role (if has access) */}
                         <div className="shrink-0 hidden md:block">
                           {emp.memberRole ? (
                             <RoleBadge role={emp.memberRole} />
@@ -536,51 +612,41 @@ export default function TeamAccessPage() {
                           )}
                         </div>
 
-                        {/* Actions */}
                         <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
-                          {emp.accessStatus === 'active' ? (
-                            <>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="h-8 text-xs gap-1"
-                                onClick={() => {
-                                  setRoleChangeTarget({ employeeId: emp.employeeId, name: fullName, currentRole: emp.memberRole ?? "company_member" });
-                                  setNewRole(emp.memberRole ?? "company_member");
-                                }}
-                              >
-                                Change Role
-                              </Button>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="h-8 text-xs gap-1 text-blue-600 hover:text-blue-700 hover:border-blue-300"
-                                onClick={() => {
-                                  setMultiGrantTarget({ employeeId: emp.employeeId, name: fullName, email: emp.email ?? null });
-                                  setMultiGrantSelections({});
-                                }}
-                              >
-                                <Building2 size={12} /> Multi-Company
-                              </Button>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="h-8 text-xs gap-1 text-purple-600 hover:text-purple-700 hover:border-purple-300"
-                                onClick={() => { setLinkTarget({ employeeId: emp.employeeId, name: fullName }); setLinkEmail(emp.email ?? ""); }}
-                                title="Manually link this employee to a SmartPRO account by email"
-                              >
-                                <UserCheck size={12} /> Link Account
-                              </Button>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="h-8 text-xs gap-1 text-red-600 hover:text-red-700 hover:border-red-300"
-                                onClick={() => setRevokeTarget({ employeeId: emp.employeeId, name: fullName })}
-                              >
-                                <Lock size={12} /> Revoke
-                              </Button>
-                            </>
-                          ) : emp.accessStatus === 'inactive' ? (
+                          {primaryAction === "RESOLVE_CONFLICT" ? (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled
+                              className="h-8 text-xs gap-1 text-red-600 border-red-200"
+                              title={(emp as any).stateReason ?? "Needs review"}
+                            >
+                              <AlertTriangle size={12} /> Review
+                            </Button>
+                          ) : primaryAction === "NONE" ? (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled
+                              className="h-8 text-xs gap-1"
+                            >
+                              <Mail size={12} /> No Email
+                            </Button>
+                          ) : primaryAction === "COPY_INVITE" ? (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled={!rowInvite}
+                              className="h-8 text-xs gap-1"
+                              onClick={() => {
+                                if (!rowInvite) return;
+                                const url = `${window.location.origin}/invite/${rowInvite.token}`;
+                                navigator.clipboard.writeText(url).then(() => toast.success("Invite link copied!")).catch(() => toast.info(`Link: ${url}`));
+                              }}
+                            >
+                              <Mail size={12} /> Copy Invite
+                            </Button>
+                          ) : primaryAction === "RESTORE_ACCESS" ? (
                             <Button
                               variant="outline"
                               size="sm"
@@ -592,32 +658,102 @@ export default function TeamAccessPage() {
                             >
                               <Unlock size={12} /> Restore
                             </Button>
+                          ) : primaryAction === "LINK_ACCOUNT" ? (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-8 text-xs gap-1 text-purple-600 hover:text-purple-700 hover:border-purple-300"
+                              onClick={() => { setLinkTarget({ employeeId: emp.employeeId, name: fullName }); setLinkEmail(emp.email ?? ""); }}
+                              title="Manually link this employee to a SmartPRO account by email"
+                            >
+                              <UserCheck size={12} /> Link Account
+                            </Button>
+                          ) : primaryAction === "CHANGE_ROLE" ? (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-8 text-xs gap-1"
+                              onClick={() => {
+                                setRoleChangeTarget({ employeeId: emp.employeeId, name: fullName, currentRole: emp.memberRole ?? "company_member" });
+                                setNewRole(emp.memberRole ?? "company_member");
+                              }}
+                            >
+                              Change Role
+                            </Button>
                           ) : (
-                            <>
-                              <Button
-                                size="sm"
-                                className="h-8 text-xs gap-1 bg-gray-900 hover:bg-gray-800 text-white"
-                                onClick={() => {
-                                  setGrantTarget({ employeeId: emp.employeeId, name: fullName, email: emp.email ?? null });
-                                  setGrantRole("company_member");
-                                }}
-                              >
-                                <Unlock size={12} /> Grant Access
-                              </Button>
-                              {allMyCompanies.length > 1 && (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className="h-8 text-xs gap-1 text-blue-600 hover:text-blue-700 hover:border-blue-300"
-                                  onClick={() => {
-                                    setMultiGrantTarget({ employeeId: emp.employeeId, name: fullName, email: emp.email ?? null });
-                                    setMultiGrantSelections({});
-                                  }}
-                                >
-                                  <Building2 size={12} /> Multi-Company
-                                </Button>
-                              )}
-                            </>
+                            <Button
+                              size="sm"
+                              className="h-8 text-xs gap-1 bg-gray-900 hover:bg-gray-800 text-white"
+                              onClick={() => {
+                                setGrantTarget({ employeeId: emp.employeeId, name: fullName, email: emp.email ?? null });
+                                setGrantRole("company_member");
+                              }}
+                            >
+                              <Unlock size={12} /> Grant Access
+                            </Button>
+                          )}
+
+                          {(canonicalState === "ACTIVE" || canonicalState === "SUSPENDED") && primaryAction !== "CHANGE_ROLE" && !flags?.conflict && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-8 text-xs gap-1"
+                              onClick={() => {
+                                setRoleChangeTarget({ employeeId: emp.employeeId, name: fullName, currentRole: emp.memberRole ?? "company_member" });
+                                setNewRole(emp.memberRole ?? "company_member");
+                              }}
+                            >
+                              Change Role
+                            </Button>
+                          )}
+
+                          {(canonicalState === "ACTIVE" || canonicalState === "HR_ONLY") && allMyCompanies.length > 1 && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-8 text-xs gap-1 text-blue-600 hover:text-blue-700 hover:border-blue-300"
+                              onClick={() => {
+                                setMultiGrantTarget({ employeeId: emp.employeeId, name: fullName, email: emp.email ?? null });
+                                setMultiGrantSelections({});
+                              }}
+                            >
+                              <Building2 size={12} /> Multi-Company
+                            </Button>
+                          )}
+
+                          {canonicalState === "ACTIVE" && primaryAction !== "LINK_ACCOUNT" && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-8 text-xs gap-1 text-purple-600 hover:text-purple-700 hover:border-purple-300"
+                              onClick={() => { setLinkTarget({ employeeId: emp.employeeId, name: fullName }); setLinkEmail(emp.email ?? ""); }}
+                              title="Manually link this employee to a SmartPRO account by email"
+                            >
+                              <UserCheck size={12} /> Link Account
+                            </Button>
+                          )}
+
+                          {canonicalState === "ACTIVE" && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-8 text-xs gap-1 text-red-600 hover:text-red-700 hover:border-red-300"
+                              onClick={() => setRevokeTarget({ employeeId: emp.employeeId, name: fullName })}
+                            >
+                              <Lock size={12} /> Revoke
+                            </Button>
+                          )}
+
+                          {canonicalState === "INVITED" && rowInvite && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-8 text-xs gap-1 text-red-600 hover:text-red-700 hover:border-red-300"
+                              disabled={revokeInviteMutation.isPending}
+                              onClick={() => revokeInviteMutation.mutate({ id: rowInvite.id, companyId: activeCompanyId ?? undefined })}
+                            >
+                              Revoke Invite
+                            </Button>
                           )}
                         </div>
                       </div>

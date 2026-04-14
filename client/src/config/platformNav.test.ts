@@ -93,6 +93,7 @@ describe("platformNav IA & routing", () => {
       "/dashboard",
       "/operations",
       "/analytics",
+      "/finance/overview",
       "/compliance",
     ]);
   });
@@ -141,5 +142,12 @@ describe("sidebar active state styling (CSS guard)", () => {
     const end = css.indexOf("}", start);
     const block = css.slice(start, end + 1);
     expect(block).not.toMatch(/text-red-|bg-red-|border-red-|destructive/i);
+  });
+
+  it("does not use destructive red tokens for branch ancestor highlight", () => {
+    const css = readFileSync(join(__dirname, "../index.css"), "utf8");
+    const m = css.match(/\.sidebar-nav-branch-trigger--active\s*\{[^}]*\}/);
+    expect(m?.[0]).toBeDefined();
+    expect(m![0]).not.toMatch(/text-red-|bg-red-|border-red-|destructive/i);
   });
 });

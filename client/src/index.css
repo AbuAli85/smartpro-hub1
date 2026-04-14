@@ -229,6 +229,22 @@
   box-shadow: inset 3px 0 0 color-mix(in oklch, var(--smartpro-orange) 70%, transparent);
 }
 
+/* Nested branch items — logical inline start border (LTR + RTL) */
+.sidebar-nav-branch-nested {
+  padding-inline-start: 0.5rem;
+  margin-inline-start: 0.75rem;
+  border-inline-start: 1px solid rgb(255 255 255 / 0.1);
+}
+
+/* Active row chevron: point toward “forward” in reading direction */
+[dir="rtl"] .sidebar-nav-chevron-forward {
+  transform: scaleX(-1);
+}
+
+[dir="rtl"] .sidebar-nav-branch-trigger--active {
+  box-shadow: inset -3px 0 0 color-mix(in oklch, var(--smartpro-orange) 70%, transparent);
+}
+
 /* ─── KPI stat cards ─────────────────────────────────────────────────────── */
 .stat-gradient-1 {
   background: linear-gradient(135deg, var(--smartpro-charcoal) 0%, oklch(0.26 0.018 250) 100%);

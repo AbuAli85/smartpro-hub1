@@ -79,7 +79,7 @@ function NavLeafLink({
       )}
     >
       <Icon size={16} className="shrink-0 opacity-90" aria-hidden />
-      <span className="flex-1 text-[13px] leading-snug">{t(item.labelKey, item.defaultLabel)}</span>
+      <span className="flex-1 min-w-0 text-[13px] leading-snug text-start">{t(item.labelKey, item.defaultLabel)}</span>
       {item.href === "/workforce/profile-change-requests" && pendingProfileReq > 0 ? (
         <Badge
           variant="secondary"
@@ -88,7 +88,9 @@ function NavLeafLink({
           {pendingProfileReq > 99 ? "99+" : pendingProfileReq}
         </Badge>
       ) : null}
-      {active ? <ChevronRight size={14} className="opacity-55 shrink-0" aria-hidden /> : null}
+      {active ? (
+        <ChevronRight size={14} className="sidebar-nav-chevron-forward opacity-55 shrink-0" aria-hidden />
+      ) : null}
     </Link>
   );
 }
@@ -130,19 +132,19 @@ function NavBranch({
         data-nav-intent={item.intent}
         aria-expanded={open}
         className={cn(
-          "sidebar-nav-item w-full text-left sidebar-nav-branch-trigger",
+          "sidebar-nav-item w-full text-start sidebar-nav-branch-trigger",
           pathActive && "sidebar-nav-branch-trigger--active",
         )}
       >
         <Icon size={18} className="shrink-0 opacity-90" aria-hidden />
-        <span className="flex-1 text-[13px] leading-snug">{t(item.labelKey, item.defaultLabel)}</span>
+        <span className="flex-1 min-w-0 text-[13px] leading-snug text-start">{t(item.labelKey, item.defaultLabel)}</span>
         <ChevronDown
           size={14}
           className={cn("shrink-0 opacity-50 transition-transform", open && "rotate-180")}
           aria-hidden
         />
       </CollapsibleTrigger>
-      <CollapsibleContent className="space-y-0.5 pt-0.5 pl-2 border-l border-white/10 ml-3">
+      <CollapsibleContent className="sidebar-nav-branch-nested space-y-0.5 pt-0.5">
         {item.children.map((child) => (
           <NavLeafLink
             key={child.id}
@@ -193,7 +195,7 @@ function NavItemRow({
       className={cn("sidebar-nav-item", item.hubPrimary && "sidebar-nav-item--hub", active && "active")}
     >
       <Icon size={18} aria-hidden />
-      <span className="flex-1 text-[13px] leading-snug">{t(item.labelKey, item.defaultLabel)}</span>
+      <span className="flex-1 min-w-0 text-[13px] leading-snug text-start">{t(item.labelKey, item.defaultLabel)}</span>
       {item.href === "/workforce/profile-change-requests" && pendingProfileReq > 0 ? (
         <Badge
           variant="secondary"
@@ -202,7 +204,9 @@ function NavItemRow({
           {pendingProfileReq > 99 ? "99+" : pendingProfileReq}
         </Badge>
       ) : null}
-      {active ? <ChevronRight size={14} className="opacity-55 shrink-0" aria-hidden /> : null}
+      {active ? (
+        <ChevronRight size={14} className="sidebar-nav-chevron-forward opacity-55 shrink-0" aria-hidden />
+      ) : null}
     </Link>
   );
 }
@@ -297,12 +301,12 @@ export function PlatformSidebarNav({
                   type="button"
                   aria-expanded={open}
                   className={cn(
-                    "w-full flex items-center gap-2 px-2 py-1 rounded-md text-left transition-colors",
+                    "w-full flex items-center gap-2 px-2 py-1 rounded-md text-start transition-colors",
                     "hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--smartpro-orange)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--sidebar)]",
                     tier === "tertiary" && "opacity-95",
                   )}
                 >
-                  <span className={cn(headerClass, "mb-0 flex-1 text-left px-1")}>{title}</span>
+                  <span className={cn(headerClass, "mb-0 flex-1 text-start px-1 min-w-0 break-words")}>{title}</span>
                   <ChevronDown
                     size={14}
                     className={cn(

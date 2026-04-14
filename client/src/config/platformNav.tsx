@@ -49,6 +49,7 @@ import {
   SlidersHorizontal,
 } from "lucide-react";
 import { clientNavItemVisible, type ClientNavOptions } from "@shared/clientNav";
+import { normalizeAppPath } from "@shared/normalizeAppPath";
 import { getHiddenNavHrefs } from "@/lib/navVisibility";
 
 /**
@@ -70,6 +71,8 @@ export type NavIntent = "overview" | "workspace" | "insight" | "governance" | "m
 /** Section priority: rendering, disclosure, and header weight in PlatformSidebarNav. */
 export type NavTier = "primary" | "secondary" | "tertiary";
 
+export type NavAttentionLevel = "none" | "low" | "medium";
+
 export type NavLeafDef = {
   kind: "leaf";
   id: string;
@@ -80,6 +83,10 @@ export type NavLeafDef = {
   intent: NavIntent;
   activePathPrefixes?: string[];
   hubPrimary?: boolean;
+  /** Reserved for future sidebar badges (counts/alerts); not rendered by default. */
+  badgeMeta?: { count?: number; tone?: "neutral" | "attention" };
+  /** Reserved for future “needs attention” styling tiers. */
+  attentionLevel?: NavAttentionLevel;
 };
 
 export type NavBranchDef = {
@@ -104,7 +111,13 @@ export type NavGroupDef = {
   defaultCollapsed?: boolean;
 };
 
-type LeafOpts = { intent: NavIntent; activePathPrefixes?: string[]; hubPrimary?: boolean };
+type LeafOpts = {
+  intent: NavIntent;
+  activePathPrefixes?: string[];
+  hubPrimary?: boolean;
+  badgeMeta?: NavLeafDef["badgeMeta"];
+  attentionLevel?: NavAttentionLevel;
+};
 
 function leaf(
   id: string,
@@ -124,6 +137,8 @@ function leaf(
     intent: opts.intent,
     activePathPrefixes: opts.activePathPrefixes,
     hubPrimary: opts.hubPrimary,
+    badgeMeta: opts.badgeMeta,
+    attentionLevel: opts.attentionLevel,
   };
 }
 
@@ -140,6 +155,18 @@ function branch(
 
 /**
  * Canonical ordered nav groups (A→J). Role filtering does not reorder — empty groups drop out.
+ *
+ * Route ownership (regression guard — see `platformNavRouteMatrix.test.ts`):
+ * - **control**: executive dashboards & org-wide KPIs (`/operations`, `/finance/overview`, `/compliance` centre, etc.)
+ * - **govPartner**: Sanad office network surfaces (offices, dashboard, partner onboarding)
+ * - **company**: company profile, commercial contracts, workspace settings
+ * - **peopleHr**: HR module (`/hr/*`), employee portal, directory, people-side tasks
+ * - **operations**: revenue execution (hub, CRM, quotes)
+ * - **marketplaceSection**: discovery + Sanad marketplace ops (catalogue admin, ratings moderation live here — platform moderation tooling)
+ * - **complianceWorkforce**: government workforce compliance (`/workforce/*` except profile-change queue grouped under People for HR workflow)
+ * - **access**: membership access & roles
+ * - **proShared**: Omani PRO pillar
+ * - **platform**: internal / global admin
  */
 export const PLATFORM_NAV_GROUP_DEFS: readonly NavGroupDef[] = [
   /* A — Control */
@@ -157,6 +184,9 @@ export const PLATFORM_NAV_GROUP_DEFS: readonly NavGroupDef[] = [
         intent: "overview",
       }),
       leaf("overview.analytics", "analytics", "Analytics", "/analytics", BarChart3, { intent: "overview" }),
+      leaf("control.financeOverview", "financeOverview", "Finance overview", "/finance/overview", TrendingDown, {
+        intent: "insight",
+      }),
       leaf("overview.complianceCentre", "complianceCentre", "Compliance Centre", "/compliance", CheckCircle2, {
         intent: "overview",
       }),
@@ -176,12 +206,6 @@ export const PLATFORM_NAV_GROUP_DEFS: readonly NavGroupDef[] = [
         intent: "system",
       }),
       leaf("gov.partnerOnboarding", "partnerOnboarding", "Partner Onboarding", "/sanad/partner-onboarding", Sparkles, {
-        intent: "system",
-      }),
-      leaf("gov.catalogueAdmin", "catalogueAdmin", "Catalogue Administration", "/sanad/catalogue-admin", BookMarked, {
-        intent: "system",
-      }),
-      leaf("gov.ratingsModeration", "ratingsModeration", "Ratings Moderation", "/sanad/ratings-moderation", Star, {
         intent: "system",
       }),
     ],
@@ -326,14 +350,12 @@ export const PLATFORM_NAV_GROUP_DEFS: readonly NavGroupDef[] = [
         "Profile change requests",
         "/workforce/profile-change-requests",
         ClipboardList,
-        { intent: "governance" },
+        {
+          intent: "governance",
+          badgeMeta: { tone: "attention" },
+          attentionLevel: "low",
+        },
       ),
-      leaf("people.complianceVaultHr", "complianceVault", "Compliance vault", "/workforce/documents", FolderOpen, {
-        intent: "governance",
-      }),
-      leaf("people.financeOverview", "financeOverview", "Finance overview", "/finance/overview", TrendingDown, {
-        intent: "insight",
-      }),
     ],
   },
   /* E — Operations */
@@ -343,7 +365,9 @@ export const PLATFORM_NAV_GROUP_DEFS: readonly NavGroupDef[] = [
     defaultGroupLabel: "Operations",
     tier: "primary",
     items: [
-      leaf("ops.companyHub", "companyHub", "Company hub", "/company/hub", Building2, { intent: "workspace" }),
+      leaf("ops.companyHub", "companyHub", "Company hub", "/company/hub", Building2, {
+        intent: "workspace",
+      }),
       leaf("ops.crm", "crm", "CRM & Pipeline", "/crm", Users, { intent: "workspace" }),
       leaf("ops.quotations", "quotations", "Quotations", "/quotations", Target, { intent: "workspace" }),
     ],
@@ -361,6 +385,12 @@ export const PLATFORM_NAV_GROUP_DEFS: readonly NavGroupDef[] = [
         intent: "marketplace",
       }),
       leaf("mp.sanad", "sanadMarketplace", "Sanad marketplace", "/sanad/marketplace", Store, { intent: "marketplace" }),
+      leaf("mp.catalogueAdmin", "catalogueAdmin", "Catalogue administration", "/sanad/catalogue-admin", BookMarked, {
+        intent: "system",
+      }),
+      leaf("mp.ratingsModeration", "ratingsModeration", "Ratings moderation", "/sanad/ratings-moderation", Star, {
+        intent: "system",
+      }),
     ],
   },
   /* G — Compliance & workforce */
@@ -399,6 +429,14 @@ export const PLATFORM_NAV_GROUP_DEFS: readonly NavGroupDef[] = [
       leaf("compliance.workforceEmployees", "workforceEmployees", "Workforce employees", "/workforce/employees", Briefcase, {
         intent: "governance",
       }),
+      leaf(
+        "compliance.workforceDocVault",
+        "workforceDocumentVault",
+        "Workforce document vault",
+        "/workforce/documents",
+        FolderOpen,
+        { intent: "governance" },
+      ),
     ],
   },
   /* H — Access & permissions */
@@ -465,6 +503,35 @@ export const PLATFORM_NAV_GROUP_DEFS: readonly NavGroupDef[] = [
 /** Stable ordered group ids for tests and diagnostics. */
 export const PLATFORM_NAV_GROUP_IDS: readonly string[] = PLATFORM_NAV_GROUP_DEFS.map((g) => g.id);
 
+function walkItemsForLeaves(items: readonly NavItemDef[], out: NavLeafDef[]): void {
+  for (const item of items) {
+    if (item.kind === "leaf") out.push(item);
+    else walkItemsForLeaves(item.children, out);
+  }
+}
+
+/** All leaves in canonical nav (for most-specific active resolution). */
+export const PLATFORM_NAV_ALL_LEAVES: readonly NavLeafDef[] = (() => {
+  const out: NavLeafDef[] = [];
+  for (const g of PLATFORM_NAV_GROUP_DEFS) walkItemsForLeaves(g.items, out);
+  return out;
+})();
+
+/** Higher score = more specific match for `loc` (disambiguates `/sanad` vs `/sanad/marketplace`, etc.). */
+function navLeafMatchScore(leaf: NavLeafDef, loc: string): number {
+  if (loc === leaf.href) return 1_000_000 + leaf.href.length;
+  if (leaf.href !== "/" && loc.startsWith(`${leaf.href}/`)) return 500_000 + leaf.href.length;
+  if (leaf.activePathPrefixes?.length) {
+    let best = 0;
+    for (const p of leaf.activePathPrefixes) {
+      if (loc === p) best = Math.max(best, 400_000 + p.length);
+      else if (p !== "/" && loc.startsWith(`${p}/`)) best = Math.max(best, 300_000 + p.length);
+    }
+    if (best > 0) return best;
+  }
+  return -1;
+}
+
 function filterItem(
   item: NavItemDef,
   user: Parameters<typeof clientNavItemVisible>[1],
@@ -497,20 +564,25 @@ export function filterVisibleNavGroups(
   })).filter((g) => g.items.length > 0);
 }
 
+/** Normalized pathname for active matching (query/hash stripped, trailing slash collapsed). */
+export function normalizeNavPathForMatching(location: string): string {
+  const n = normalizeAppPath(location);
+  return n || "/";
+}
+
 export function isLeafActive(href: string, location: string): boolean {
-  if (location === href) return true;
-  if (href !== "/" && location.startsWith(`${href}/`)) return true;
+  const loc = normalizeNavPathForMatching(location);
+  if (loc === href) return true;
+  if (href !== "/" && loc.startsWith(`${href}/`)) return true;
   return false;
 }
 
 export function isNavLeafActive(leaf: NavLeafDef, location: string): boolean {
-  if (isLeafActive(leaf.href, location)) return true;
-  if (!leaf.activePathPrefixes?.length) return false;
-  return leaf.activePathPrefixes.some((p) => {
-    if (location === p) return true;
-    if (p !== "/" && location.startsWith(`${p}/`)) return true;
-    return false;
-  });
+  const loc = normalizeNavPathForMatching(location);
+  const candidates = PLATFORM_NAV_ALL_LEAVES.filter((l) => navLeafMatchScore(l, loc) >= 0);
+  if (candidates.length === 0) return false;
+  const best = candidates.reduce((a, b) => (navLeafMatchScore(b, loc) > navLeafMatchScore(a, loc) ? b : a));
+  return best.id === leaf.id;
 }
 
 function subtreeContainsActive(item: NavItemDef, location: string): boolean {

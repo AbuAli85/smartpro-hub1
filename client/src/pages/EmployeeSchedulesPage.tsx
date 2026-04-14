@@ -32,6 +32,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { toast } from "sonner";
 import {
@@ -1007,6 +1008,14 @@ export default function EmployeeSchedulesPage() {
               </div>
               {fieldErrors.workingDays && (
                 <p className="text-xs text-destructive">{fieldErrors.workingDays}</p>
+              )}
+              {form.workingDays.includes(6) && (
+                <Alert variant="warning" className="mt-2">
+                  <AlertDescription>
+                    Saturday is selected as a working day. Confirm this is agreed in the employee&apos;s contract
+                    — Oman&apos;s standard weekend is Friday–Saturday.
+                  </AlertDescription>
+                </Alert>
               )}
             </div>
 

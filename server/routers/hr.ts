@@ -1,7 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { mergeLeavePolicyCaps } from "../../shared/leavePolicyCaps";
-import { eq, and, desc, gte, lte, count, sum } from "drizzle-orm";
+import { eq, and, desc, gte, lte, count, sum, or, isNull } from "drizzle-orm";
 import {
   companies,
   workPermits,
@@ -16,12 +16,17 @@ import {
   positions,
   payrollRecords,
   performanceReviews,
+  companyHolidays,
+  employeeSchedules,
+  shiftTemplates,
+  users,
 } from "../../drizzle/schema";
 import { sendEmployeeNotification } from "./employeePortal";
 import {
   createAttendanceRecordTx,
   getAttendanceRecordById,
   getAttendanceStats,
+  getUserCompanyById,
   createEmployee,
   createJobApplication,
   createJobPosting,
@@ -57,6 +62,92 @@ import {
   ATTENDANCE_AUDIT_SOURCE,
 } from "@shared/attendanceAuditTaxonomy";
 import { attendancePayloadJson, insertAttendanceAuditRow } from "../attendanceAudit";
+import { muscatCalendarYmdFromUtcInstant } from "@shared/attendanceMuscatTime";
+
+function timeToMinutes(t: string): number {
+  const [h, m] = t.split(":").map(Number);
+  return h * 60 + m;
+}
+
+function shiftSpanMinutes(startTime: string, endTime: string): number {
+  const a = timeToMinutes(startTime);
+  const b = timeToMinutes(endTime);
+  let m = b - a;
+  if (m < 0) m += 24 * 60;
+  return m;
+}
+
+function employeeRowFromScheduleRef<E extends { id: number; userId: number | null }>(
+  rawId: number,
+  empById: Map<number, E>,
+  empByLoginUserId: Map<number, E>,
+): E | undefined {
+  return empById.get(rawId) ?? empByLoginUserId.get(rawId);
+}
+
+/** HR / company admin only (matches attendance router guard). */
+async function requireAdminOrHR(ctxUser: User, companyId?: number | null) {
+  const cid = await requireActiveCompanyId(ctxUser.id, companyId, ctxUser);
+  const row = await getUserCompanyById(ctxUser.id, cid);
+  const role = row?.member?.role;
+  if (!role) throw new TRPCError({ code: "FORBIDDEN", message: "No company membership" });
+  if (role !== "company_admin" && role !== "hr_admin") {
+    throw new TRPCError({ code: "FORBIDDEN", message: "HR Admin or Company Admin required" });
+  }
+  return { companyId: cid };
+}
+
+async function countScheduledWorkSlotsForCompanyMonth(
+  db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
+  companyId: number,
+  monthYm: string,
+): Promise<number> {
+  const [yearStr, monthStr] = monthYm.split("-");
+  const year = Number(yearStr);
+  const month = Number(monthStr);
+  const mm = String(month).padStart(2, "0");
+  const startDate = `${year}-${mm}-01`;
+  const lastDay = new Date(year, month, 0).getDate();
+  const endDate = `${year}-${mm}-${String(lastDay).padStart(2, "0")}`;
+
+  const holidays = await db
+    .select()
+    .from(companyHolidays)
+    .where(
+      and(
+        eq(companyHolidays.companyId, companyId),
+        gte(companyHolidays.holidayDate, startDate),
+        lte(companyHolidays.holidayDate, endDate),
+      ),
+    );
+  const holidayDates = new Set(holidays.map((h) => h.holidayDate));
+
+  const allSchedules = await db
+    .select()
+    .from(employeeSchedules)
+    .where(
+      and(
+        eq(employeeSchedules.companyId, companyId),
+        eq(employeeSchedules.isActive, true),
+        lte(employeeSchedules.startDate, endDate),
+        or(isNull(employeeSchedules.endDate), gte(employeeSchedules.endDate, startDate)),
+      ),
+    );
+
+  let slots = 0;
+  for (const s of allSchedules) {
+    for (let d = 1; d <= lastDay; d++) {
+      const dateStr = `${year}-${mm}-${String(d).padStart(2, "0")}`;
+      if (holidayDates.has(dateStr)) continue;
+      const dow = new Date(`${dateStr}T12:00:00Z`).getDay();
+      if (!s.workingDays.split(",").map(Number).includes(dow)) continue;
+      if (s.startDate > dateStr) continue;
+      if (s.endDate != null && s.endDate < dateStr) continue;
+      slots++;
+    }
+  }
+  return slots;
+}
 
 async function getMergedLeaveCapsForCompanyId(
   db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
@@ -732,7 +823,211 @@ export const hrRouter = router({
     .input(z.object({ month: z.string().optional(), companyId: z.number().optional() }))
     .query(async ({ input, ctx }) => {
       const cid = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
-      return getAttendanceStats(cid, input.month);
+      const base = await getAttendanceStats(cid, input.month);
+      if (!input.month) {
+        return {
+          ...base,
+          scheduledSlotsInMonth: null as number | null,
+          attendanceRatePercent: null as number | null,
+        };
+      }
+      const db = await getDb();
+      if (!db) {
+        return {
+          ...base,
+          scheduledSlotsInMonth: 0,
+          attendanceRatePercent: 0,
+        };
+      }
+      const slots = await countScheduledWorkSlotsForCompanyMonth(db, cid, input.month);
+      const attended = base.present + base.late + base.half_day + base.remote;
+      const attendanceRatePercent =
+        slots > 0 ? Math.round(Math.min(100, (attended / slots) * 100)) : 0;
+      return {
+        ...base,
+        scheduledSlotsInMonth: slots,
+        attendanceRatePercent,
+      };
+    }),
+
+  /**
+   * Payroll-oriented monthly export: per-employee attendance vs schedule (clock records + shift templates).
+   */
+  exportMonthlyAttendance: protectedProcedure
+    .input(
+      z.object({
+        companyId: z.number().optional(),
+        month: z.string().regex(/^\d{4}-\d{2}$/),
+        departmentId: z.number().optional(),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      await requireAdminOrHR(ctx.user as User, input.companyId);
+      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+
+      const [yStr, mStr] = input.month.split("-");
+      const year = Number(yStr);
+      const month = Number(mStr);
+      const mm = String(month).padStart(2, "0");
+      const startDate = `${year}-${mm}-01`;
+      const lastDay = new Date(year, month, 0).getDate();
+      const endDate = `${year}-${mm}-${String(lastDay).padStart(2, "0")}`;
+
+      const holidays = await db
+        .select()
+        .from(companyHolidays)
+        .where(
+          and(
+            eq(companyHolidays.companyId, cid),
+            gte(companyHolidays.holidayDate, startDate),
+            lte(companyHolidays.holidayDate, endDate),
+          ),
+        );
+      const holidayDates = new Set(holidays.map((h) => h.holidayDate));
+
+      let depFilter: string | null = null;
+      if (input.departmentId != null) {
+        const [dept] = await db
+          .select()
+          .from(departments)
+          .where(and(eq(departments.id, input.departmentId), eq(departments.companyId, cid)))
+          .limit(1);
+        depFilter = dept?.name ?? "__none__";
+      }
+
+      const allSchedules = await db
+        .select()
+        .from(employeeSchedules)
+        .where(
+          and(
+            eq(employeeSchedules.companyId, cid),
+            eq(employeeSchedules.isActive, true),
+            lte(employeeSchedules.startDate, endDate),
+            or(isNull(employeeSchedules.endDate), gte(employeeSchedules.endDate, startDate)),
+          ),
+        );
+
+      const monthStart = new Date(`${startDate}T00:00:00.000Z`);
+      const monthEnd = new Date(`${endDate}T23:59:59.999Z`);
+      const records = await db
+        .select()
+        .from(attendanceRecords)
+        .where(
+          and(
+            eq(attendanceRecords.companyId, cid),
+            gte(attendanceRecords.checkIn, monthStart),
+            lte(attendanceRecords.checkIn, monthEnd),
+          ),
+        );
+
+      const empWhere =
+        depFilter != null && depFilter !== "__none__"
+          ? and(eq(employees.companyId, cid), eq(employees.department, depFilter))
+          : eq(employees.companyId, cid);
+      const empRows = await db.select().from(employees).where(empWhere);
+
+      const recordMap = new Map<string, (typeof records)[0]>();
+      for (const r of records) {
+        const dateStr = muscatCalendarYmdFromUtcInstant(new Date(r.checkIn));
+        recordMap.set(`${r.employeeId}-${dateStr}`, r);
+      }
+
+      const employeeUserIds = Array.from(new Set(allSchedules.map((s) => s.employeeUserId)));
+      const empById = new Map(empRows.map((e) => [e.id, e]));
+      const empByLoginUserId = new Map(
+        empRows.filter((e) => e.userId != null).map((e) => [e.userId as number, e]),
+      );
+
+      const rows: Array<{
+        employeeName: string;
+        employeeId: number;
+        daysPresent: number;
+        daysAbsent: number;
+        daysLate: number;
+        totalWorkedMinutes: number;
+        scheduledMinutes: number;
+        attendanceRate: number;
+      }> = [];
+
+      for (const empUserId of employeeUserIds) {
+        const empRow = employeeRowFromScheduleRef(empUserId, empById, empByLoginUserId);
+        if (!empRow) continue;
+
+        let displayName = `${empRow.firstName} ${empRow.lastName}`.trim();
+        if (empRow.userId != null) {
+          const [u] = await db.select().from(users).where(eq(users.id, empRow.userId)).limit(1);
+          if (u?.name?.trim()) displayName = u.name.trim();
+        }
+
+        const empSchedules = allSchedules.filter((s) => s.employeeUserId === empUserId);
+        let scheduledDays = 0;
+        let presentDays = 0;
+        let lateDays = 0;
+        let absentDays = 0;
+        let totalWorkedMinutes = 0;
+        let scheduledMinutes = 0;
+
+        for (let d = 1; d <= lastDay; d++) {
+          const dateStr = `${year}-${mm}-${String(d).padStart(2, "0")}`;
+          const dow = new Date(`${dateStr}T12:00:00Z`).getDay();
+          if (holidayDates.has(dateStr)) continue;
+
+          const daySched = empSchedules.find(
+            (s) =>
+              s.workingDays.split(",").map(Number).includes(dow) &&
+              s.startDate <= dateStr &&
+              (s.endDate === null || s.endDate >= dateStr),
+          );
+          if (!daySched) continue;
+
+          scheduledDays++;
+          const [shift] = await db
+            .select()
+            .from(shiftTemplates)
+            .where(eq(shiftTemplates.id, daySched.shiftTemplateId))
+            .limit(1);
+          const span = shift ? shiftSpanMinutes(shift.startTime, shift.endTime) : 0;
+          const br = shift?.breakMinutes ?? 0;
+          scheduledMinutes += Math.max(0, span - br);
+
+          const record = recordMap.get(`${empRow.id}-${dateStr}`);
+          if (record) {
+            presentDays++;
+            const checkInMins = record.checkIn.getHours() * 60 + record.checkIn.getMinutes();
+            const shiftStartMins = timeToMinutes(shift?.startTime ?? "08:00");
+            const grace = shift?.gracePeriodMinutes ?? 15;
+            const isLate = checkInMins > shiftStartMins + grace;
+            if (isLate) lateDays++;
+            if (record.checkOut) {
+              const gross = Math.max(
+                0,
+                Math.round((record.checkOut.getTime() - record.checkIn.getTime()) / 60000),
+              );
+              totalWorkedMinutes += Math.max(0, gross - br);
+            }
+          } else {
+            absentDays++;
+          }
+        }
+
+        const attendanceRate =
+          scheduledDays > 0 ? Math.round((presentDays / scheduledDays) * 100) : 0;
+
+        rows.push({
+          employeeName: displayName,
+          employeeId: empRow.id,
+          daysPresent: presentDays,
+          daysAbsent: absentDays,
+          daysLate: lateDays,
+          totalWorkedMinutes,
+          scheduledMinutes,
+          attendanceRate,
+        });
+      }
+
+      return { month: input.month, rows };
     }),
 
   // ── Leave Balance ─────────────────────────────────────────────────────────

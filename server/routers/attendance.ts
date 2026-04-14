@@ -119,6 +119,69 @@ async function closeAttendanceSessionSafe(
   }
 }
 
+type LegacyAttendanceTx = Parameters<Parameters<Awaited<ReturnType<typeof requireDb>>["transaction"]>[0]>[0];
+
+/**
+ * Sync clock row → legacy `attendance` table (`hr.listAttendance` / HR Records grid).
+ * Mirrors {@link approveCorrection} legacy block; failures are non-fatal for the caller.
+ */
+async function syncCheckoutToLegacyAttendanceTx(
+  tx: LegacyAttendanceTx,
+  params: {
+    companyId: number;
+    employeeId: number;
+    clockRecordId: number;
+    checkIn: Date;
+    checkOut: Date | null;
+    businessDateYmd: string;
+  },
+): Promise<void> {
+  try {
+    const { startUtc: legDayStart, endExclusiveUtc: legDayEnd } = muscatDayUtcRangeExclusiveEnd(
+      params.businessDateYmd,
+    );
+    const [legacyRow] = await tx
+      .select()
+      .from(attendance)
+      .where(
+        and(
+          eq(attendance.employeeId, params.employeeId),
+          eq(attendance.companyId, params.companyId),
+          gte(attendance.date, legDayStart),
+          lt(attendance.date, legDayEnd),
+        ),
+      )
+      .limit(1);
+    const legacyNote = `QR clock record #${params.clockRecordId}`;
+    const baseSet = {
+      checkIn: params.checkIn,
+      status: "present" as const,
+      ...(params.checkOut != null ? { checkOut: params.checkOut } : {}),
+    };
+    if (legacyRow) {
+      await tx
+        .update(attendance)
+        .set({
+          ...baseSet,
+          notes: legacyRow.notes ? `${legacyRow.notes} · ${legacyNote}` : legacyNote,
+        })
+        .where(eq(attendance.id, legacyRow.id));
+    } else {
+      await createAttendanceRecordTx(tx, {
+        companyId: params.companyId,
+        employeeId: params.employeeId,
+        date: muscatWallDateTimeToUtc(params.businessDateYmd, "12:00:00"),
+        checkIn: params.checkIn,
+        checkOut: params.checkOut ?? undefined,
+        status: "present",
+        notes: legacyNote,
+      });
+    }
+  } catch (syncErr) {
+    console.error("[hr-sync] Failed to sync checkout to legacy attendance table:", syncErr);
+  }
+}
+
 /**
  * Infer which `employee_schedules.id` a given timestamp belongs to, so manually-approved
  * attendance records get the same explicit shift attribution as self-service check-ins.
@@ -926,6 +989,16 @@ export const attendanceRouter = router({
           checkOutLng: input.lng ? String(input.lng) : null,
         });
 
+        const checkoutBusinessDate = muscatCalendarYmdFromUtcInstant(checkOutTime);
+        await syncCheckoutToLegacyAttendanceTx(tx, {
+          companyId: membership.companyId,
+          employeeId: emp.id,
+          clockRecordId: existing.id,
+          checkIn: existing.checkIn,
+          checkOut: checkOutTime,
+          businessDateYmd: checkoutBusinessDate,
+        });
+
         await insertAttendanceAuditRow(tx, {
           companyId: membership.companyId,
           employeeId: emp.id,
@@ -1150,11 +1223,9 @@ export const attendanceRouter = router({
       const companyId = membership.company.id;
       const db = await requireDb();
 
-      const targetDate = input.date ? new Date(input.date) : new Date();
-      const dayStart = new Date(targetDate);
-      dayStart.setHours(0, 0, 0, 0);
-      const dayEnd = new Date(targetDate);
-      dayEnd.setHours(23, 59, 59, 999);
+      const businessDateYmd = input.date ?? muscatCalendarYmdNow();
+      const { startUtc: dayStart, endExclusiveUtc: dayEndExclusive } =
+        muscatDayUtcRangeExclusiveEnd(businessDateYmd);
 
       const rows = await db
         .select({
@@ -1173,7 +1244,7 @@ export const attendanceRouter = router({
         .where(and(
           eq(attendanceRecords.companyId, companyId),
           gte(attendanceRecords.checkIn, dayStart),
-          lte(attendanceRecords.checkIn, dayEnd),
+          lt(attendanceRecords.checkIn, dayEndExclusive),
         ))
         .orderBy(desc(attendanceRecords.checkIn));
 
@@ -1593,6 +1664,15 @@ export const attendanceRouter = router({
           checkInLng: req.lng ?? undefined,
           notes: `Manual check-in approved. Justification: ${req.justification}`,
           sourceRecordId: record.id,
+        });
+
+        await syncCheckoutToLegacyAttendanceTx(tx, {
+          companyId: membership.company.id,
+          employeeId: empRow.id,
+          clockRecordId: record.id,
+          checkIn: req.requestedAt,
+          checkOut: null,
+          businessDateYmd: approvedBusinessDate,
         });
 
         await tx
@@ -2931,6 +3011,16 @@ export const attendanceRouter = router({
           checkOutLng: null,
         });
 
+        const forceCheckoutBusinessDate = muscatCalendarYmdFromUtcInstant(checkOutTime);
+        await syncCheckoutToLegacyAttendanceTx(tx, {
+          companyId: membership.companyId,
+          employeeId: rec.employeeId,
+          clockRecordId: rec.id,
+          checkIn: rec.checkIn,
+          checkOut: checkOutTime,
+          businessDateYmd: forceCheckoutBusinessDate,
+        });
+
         await insertAttendanceAuditRow(tx, {
           companyId: membership.companyId,
           employeeId: rec.employeeId,
@@ -3152,3 +3242,5 @@ export const attendanceRouter = router({
       };
     }),
 });
+
+export { syncCheckoutToLegacyAttendanceTx };

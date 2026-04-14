@@ -2493,6 +2493,8 @@ export const shiftTemplates = mysqlTable("shift_templates", {
   name: varchar("name", { length: 100 }).notNull(),
   startTime: varchar("start_time", { length: 5 }).notNull(), // "HH:MM" 24h
   endTime: varchar("end_time", { length: 5 }).notNull(),     // "HH:MM" 24h
+  /** Paid / unpaid break within the shift — deducted from worked time in monthly reports. */
+  breakMinutes: int("break_minutes").notNull().default(0),
   gracePeriodMinutes: int("grace_period_minutes").notNull().default(15),
   color: varchar("color", { length: 20 }).default("#ef4444"),
   isActive: boolean("is_active").notNull().default(true),

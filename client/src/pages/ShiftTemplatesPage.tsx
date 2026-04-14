@@ -35,6 +35,7 @@ interface ShiftForm {
   name: string;
   startTime: string;
   endTime: string;
+  breakMinutes: number;
   gracePeriodMinutes: number;
   color: string;
 }
@@ -43,6 +44,7 @@ const defaultForm: ShiftForm = {
   name: "",
   startTime: "08:00",
   endTime: "17:00",
+  breakMinutes: 0,
   gracePeriodMinutes: 15,
   color: "#6366f1",
 };
@@ -99,6 +101,7 @@ export default function ShiftTemplatesPage() {
       name: s.name,
       startTime: s.startTime,
       endTime: s.endTime,
+      breakMinutes: (s as { breakMinutes?: number }).breakMinutes ?? 0,
       gracePeriodMinutes: s.gracePeriodMinutes,
       color: s.color ?? "#6366f1",
     });
@@ -202,6 +205,12 @@ export default function ShiftTemplatesPage() {
                 </div>
                 <div className="text-xs text-muted-foreground space-y-1.5">
                   <p>
+                    Break (deducted from worked time):{" "}
+                    <span className="font-medium text-foreground">
+                      {(s as { breakMinutes?: number }).breakMinutes ?? 0} min
+                    </span>
+                  </p>
+                  <p>
                     On-time window: first{" "}
                     <span className="font-medium text-foreground">{s.gracePeriodMinutes} min</span> after start (late after
                     that).
@@ -252,6 +261,19 @@ export default function ShiftTemplatesPage() {
                   onChange={(e) => setForm({ ...form, endTime: e.target.value })}
                 />
               </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Break duration (minutes)</Label>
+              <Input
+                type="number"
+                min={0}
+                max={120}
+                value={form.breakMinutes}
+                onChange={(e) => setForm({ ...form, breakMinutes: Number(e.target.value) })}
+              />
+              <p className="text-xs text-muted-foreground">
+                Subtracted from worked hours on monthly reports (unpaid break within the shift).
+              </p>
             </div>
             <div className="space-y-1.5">
               <Label>Grace Period (minutes)</Label>

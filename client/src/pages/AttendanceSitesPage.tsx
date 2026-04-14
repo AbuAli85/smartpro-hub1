@@ -355,8 +355,11 @@ function SiteFormDialog({
                 </div>
                 <div className="flex items-center justify-between rounded-lg border p-3">
                   <div>
-                    <p className="font-medium text-sm">Enforce Geo-fence</p>
-                    <p className="text-xs text-muted-foreground">Block check-ins from outside the radius</p>
+                    <p className="font-medium text-sm">Enforce geo-fence</p>
+                    <p className="text-xs text-muted-foreground">
+                      Block check-ins from outside the radius — employees cannot clock in unless they are within the fence
+                      (when enabled).
+                    </p>
                   </div>
                   <Switch checked={form.enforceGeofence} onCheckedChange={(v) => setForm((f) => ({ ...f, enforceGeofence: v }))} />
                 </div>

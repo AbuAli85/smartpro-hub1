@@ -92,10 +92,9 @@ function getInitials(name: string) {
 
 export default function TodayBoardPage() {
   const { activeCompanyId } = useActiveCompany();
-  const utils = trpc.useUtils();
   const [boardHistoryIssueKey, setBoardHistoryIssueKey] = useState<string | null>(null);
 
-  const { data, isLoading, error, isFetching, dataUpdatedAt } = trpc.scheduling.getTodayBoard.useQuery(
+  const { data, isLoading, error, isFetching, dataUpdatedAt, refetch } = trpc.scheduling.getTodayBoard.useQuery(
     { companyId: activeCompanyId ?? undefined },
     {
       enabled: !!activeCompanyId,
@@ -106,7 +105,7 @@ export default function TodayBoardPage() {
   );
 
   function handleRefresh() {
-    utils.scheduling.getTodayBoard.invalidate();
+    void refetch();
   }
 
   const today = new Date().toLocaleDateString("en", {

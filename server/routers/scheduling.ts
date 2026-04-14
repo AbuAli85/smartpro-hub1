@@ -180,6 +180,7 @@ export const schedulingRouter = router({
       name: z.string().min(1).max(100),
       startTime: z.string().regex(/^\d{2}:\d{2}$/),
       endTime: z.string().regex(/^\d{2}:\d{2}$/),
+      breakMinutes: z.number().min(0).max(120).default(0),
       gracePeriodMinutes: z.number().min(0).max(120).default(15),
       color: z.string().optional(),
     }))
@@ -191,6 +192,7 @@ export const schedulingRouter = router({
         name: input.name,
         startTime: input.startTime,
         endTime: input.endTime,
+        breakMinutes: input.breakMinutes,
         gracePeriodMinutes: input.gracePeriodMinutes,
         color: input.color ?? "#6366f1",
         isActive: true,
@@ -205,6 +207,7 @@ export const schedulingRouter = router({
       name: z.string().min(1).max(100).optional(),
       startTime: z.string().regex(/^\d{2}:\d{2}$/).optional(),
       endTime: z.string().regex(/^\d{2}:\d{2}$/).optional(),
+      breakMinutes: z.number().min(0).max(120).optional(),
       gracePeriodMinutes: z.number().min(0).max(120).optional(),
       color: z.string().optional(),
     }))
@@ -690,19 +693,21 @@ export const schedulingRouter = router({
       const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const db = await requireDb();
       const y = input.year;
+      /** Oman public holidays — Islamic dates vary; some entries are approximate per civil calendar seed. */
       const list = [
         { name: "New Year's Day", date: `${y}-01-01` },
-        { name: "Renaissance Day", date: `${y}-07-23` },
-        { name: "National Day", date: `${y}-11-18` },
-        { name: "National Day Holiday", date: `${y}-11-19` },
-        { name: "Prophet's Birthday (Mawlid)", date: `${y}-09-05` },
+        { name: "Isra Mi'raj (Prophet's Ascension)", date: `${y}-03-09` },
         { name: "Eid Al Fitr (Day 1)", date: `${y}-03-30` },
         { name: "Eid Al Fitr (Day 2)", date: `${y}-03-31` },
         { name: "Eid Al Fitr (Day 3)", date: `${y}-04-01` },
-        { name: "Eid Al Adha (Day 1)", date: `${y}-06-06` },
-        { name: "Eid Al Adha (Day 2)", date: `${y}-06-07` },
-        { name: "Eid Al Adha (Day 3)", date: `${y}-06-08` },
-        { name: "Islamic New Year (Hijri)", date: `${y}-06-27` },
+        { name: "Eid Al Adha (Day 1)", date: `${y}-06-15` },
+        { name: "Eid Al Adha (Day 2)", date: `${y}-06-16` },
+        { name: "Eid Al Adha (Day 3)", date: `${y}-06-17` },
+        { name: "Islamic New Year", date: `${y}-07-16` },
+        { name: "Renaissance Day", date: `${y}-07-23` },
+        { name: "Prophet's Birthday", date: `${y}-09-24` },
+        { name: "National Day (Eve)", date: `${y}-11-17` },
+        { name: "National Day", date: `${y}-11-18` },
       ];
       let seeded = 0;
       for (const h of list) {
@@ -1394,7 +1399,14 @@ export const schedulingRouter = router({
         const empSchedules = allSchedules.filter(s => s.employeeUserId === empUserId);
 
         let scheduledDays = 0, presentDays = 0, lateDays = 0, absentDays = 0, holidayDays = 0;
-        const dailyDetails: Array<{ date: string; status: string; checkIn: string | null; checkOut: string | null; shiftName: string }> = [];
+        const dailyDetails: Array<{
+          date: string;
+          status: string;
+          checkIn: string | null;
+          checkOut: string | null;
+          shiftName: string;
+          workedMinutes?: number;
+        }> = [];
 
         for (let d = 1; d <= lastDay; d++) {
           const dateStr = `${year}-${mm}-${String(d).padStart(2, "0")}`;
@@ -1424,10 +1436,20 @@ export const schedulingRouter = router({
             const grace = shift?.gracePeriodMinutes ?? 15;
             const isLate = checkInMins > shiftStartMins + grace;
             if (isLate) lateDays++;
+            const breakM = shift?.breakMinutes ?? 0;
+            let grossDur = 0;
+            if (record.checkOut) {
+              grossDur = Math.max(
+                0,
+                Math.round((record.checkOut.getTime() - record.checkIn.getTime()) / 60000),
+              );
+            }
+            const workedMinutes = record.checkOut ? Math.max(0, grossDur - breakM) : 0;
             dailyDetails.push({
               date: dateStr, status: isLate ? "late" : "present",
               checkIn: record.checkIn.toISOString(), checkOut: record.checkOut?.toISOString() ?? null,
               shiftName: shift?.name ?? "",
+              workedMinutes,
             });
           } else {
             absentDays++;

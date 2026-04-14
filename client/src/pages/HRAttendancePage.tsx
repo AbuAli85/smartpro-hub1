@@ -6,8 +6,9 @@ import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import {
   Clock, Users, CheckCircle2, XCircle, AlertCircle, Calendar,
   TrendingUp, Download, Pencil, Trash2, CheckCircle, RefreshCw,
-  ClipboardList, CalendarDays, ScrollText,
+  ClipboardList, CalendarDays, ScrollText, MapPin,
 } from "lucide-react";
+import * as XLSX from "xlsx";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { DialogFooter } from "@/components/ui/dialog";
@@ -561,7 +562,12 @@ type AttendanceStatus = "present" | "absent" | "late" | "half_day" | "remote";
 
 function ClockInDialog({ employees, onSuccess, companyId }: { employees: { id: number; firstName: string; lastName: string; department: string | null }[]; onSuccess: () => void; companyId?: number | null }) {
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ employeeId: "", status: "present" as AttendanceStatus, notes: "", date: new Date().toISOString().split("T")[0] });
+  const [form, setForm] = useState({
+    employeeId: "",
+    status: "present" as AttendanceStatus,
+    notes: "",
+    date: muscatCalendarYmdNow(),
+  });
   const reasonOk = form.notes.trim().length >= 10;
 
   const utils = trpc.useUtils();
@@ -1310,6 +1316,95 @@ function ManualCheckInRequests({ companyId }: { companyId: number | null }) {
   );
 }
 
+/** QR / clock punches (`attendance_records`) for a Muscat calendar day — complements the legacy HR grid. */
+function SitePunchesSection({ companyId }: { companyId: number | null }) {
+  const [punchDate, setPunchDate] = useState(() => muscatCalendarYmdNow());
+  const { data = [], isLoading } = trpc.attendance.adminBoard.useQuery(
+    { companyId: companyId ?? undefined, date: punchDate },
+    { enabled: companyId != null },
+  );
+
+  if (companyId == null) {
+    return (
+      <div className="py-12 text-center text-muted-foreground border border-dashed rounded-lg">
+        Select a company in the workspace switcher to load site punches.
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap gap-3 items-end">
+        <div className="space-y-1">
+          <Label className="text-xs text-muted-foreground">Date (Asia/Muscat)</Label>
+          <Input
+            type="date"
+            value={punchDate}
+            onChange={(e) => setPunchDate(e.target.value)}
+            className="h-9 w-44 text-sm"
+          />
+        </div>
+      </div>
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-2">
+            Clock punches — {punchDate}
+            <Badge variant="outline" className="text-xs font-normal">{data.length} rows</Badge>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <p className="text-sm text-muted-foreground py-8 text-center">Loading…</p>
+          ) : data.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-8 text-center">No punches for this date</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm min-w-[800px]">
+                <thead>
+                  <tr className="border-b text-xs text-muted-foreground">
+                    <th className="text-left py-2 px-2 font-medium">Employee</th>
+                    <th className="text-left py-2 px-2 font-medium">Check in</th>
+                    <th className="text-left py-2 px-2 font-medium">Check out</th>
+                    <th className="text-left py-2 px-2 font-medium">Duration</th>
+                    <th className="text-left py-2 px-2 font-medium">Source</th>
+                    <th className="text-left py-2 px-2 font-medium">Geo</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.map((row) => (
+                    <tr key={row.record.id} className="border-t hover:bg-muted/40">
+                      <td className="py-2 px-2">
+                        <span className="font-medium">
+                          {row.employee.firstName} {row.employee.lastName}
+                        </span>
+                        {row.employee.department ? (
+                          <span className="text-xs text-muted-foreground ml-1">· {row.employee.department}</span>
+                        ) : null}
+                      </td>
+                      <td className="py-2 px-2 whitespace-nowrap">{fmtTime(row.record.checkIn)}</td>
+                      <td className="py-2 px-2 whitespace-nowrap">
+                        {row.record.checkOut ? fmtTime(row.record.checkOut) : "—"}
+                      </td>
+                      <td className="py-2 px-2">{row.durationMinutes}m</td>
+                      <td className="py-2 px-2 text-muted-foreground text-xs">{row.methodLabel}</td>
+                      <td className="py-2 px-2">
+                        <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                          <MapPin className="h-3 w-3 shrink-0" />
+                          {row.hasCheckInGeo || row.hasCheckOutGeo ? "In/out GPS" : "No GPS"}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 export default function HRAttendancePage() {
   const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
   const [attendanceTab, setAttendanceTab] = useState("today");
@@ -1334,6 +1429,7 @@ export default function HRAttendancePage() {
   const [triageAssignUserId, setTriageAssignUserId] = useState<string>("");
   const [triageAssignNote, setTriageAssignNote] = useState("");
   const [queueFilter, setQueueFilter] = useState<OperationalQueueFilter>("unresolved");
+  const [exporting, setExporting] = useState(false);
 
   const { data: employees } = trpc.hr.listEmployees.useQuery({ department: deptFilter !== "all" ? deptFilter : undefined, status: "active", companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
   const { data: companyMembers } = trpc.companies.members.useQuery(
@@ -1357,6 +1453,37 @@ export default function HRAttendancePage() {
   );
   const { data: attendance, refetch } = trpc.hr.listAttendance.useQuery({ month: monthFilter, companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
   const { data: stats } = trpc.hr.attendanceStats.useQuery({ month: monthFilter, companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
+
+  const handleAttendanceExport = useCallback(async () => {
+    if (activeCompanyId == null) return;
+    setExporting(true);
+    try {
+      const result = await utils.hr.exportMonthlyAttendance.fetch({
+        companyId: activeCompanyId,
+        month: monthFilter,
+      });
+      const ws = XLSX.utils.json_to_sheet(
+        result.rows.map((r) => ({
+          Employee: r.employeeName,
+          "Days Present": r.daysPresent,
+          "Days Absent": r.daysAbsent,
+          "Days Late": r.daysLate,
+          "Total Hours": (r.totalWorkedMinutes / 60).toFixed(1),
+          "Scheduled Hours": (r.scheduledMinutes / 60).toFixed(1),
+          "Attendance Rate": `${r.attendanceRate}%`,
+        })),
+      );
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, `Attendance ${monthFilter}`);
+      XLSX.writeFile(wb, `attendance-${monthFilter}.xlsx`);
+      toast.success("Export downloaded");
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Export failed";
+      toast.error(msg);
+    } finally {
+      setExporting(false);
+    }
+  }, [activeCompanyId, monthFilter, utils]);
 
   const deleteMutation = trpc.hr.deleteAttendance.useMutation({
     onSuccess: () => {
@@ -1395,12 +1522,18 @@ export default function HRAttendancePage() {
   const overdueCheckoutCount = todayBoardData?.summary?.overdueOpenCheckoutCount ?? 0;
 
   const total = (stats?.present ?? 0) + (stats?.absent ?? 0) + (stats?.late ?? 0) + (stats?.half_day ?? 0) + (stats?.remote ?? 0);
-  const rate = total > 0 ? Math.round(((stats?.present ?? 0) / total) * 100) : 0;
+  const rate =
+    stats?.attendanceRatePercent != null && !Number.isNaN(stats.attendanceRatePercent)
+      ? stats.attendanceRatePercent
+      : total > 0
+        ? Math.round(((stats?.present ?? 0) / total) * 100)
+        : 0;
 
   const businessYmd = muscatCalendarYmdNow();
   const today = businessYmd;
   const todayRecords = (attendance ?? []).filter((r) => {
-    const d = r.date ? new Date(r.date).toISOString().split("T")[0] : "";
+    if (!r.date) return false;
+    const d = muscatCalendarYmdFromUtcInstant(new Date(r.date));
     return d === today;
   });
 
@@ -1549,9 +1682,6 @@ export default function HRAttendancePage() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button size="sm" variant="outline" className="gap-2" onClick={() => toast.info("Export feature coming soon")}>
-            <Download size={14} /> Export
-          </Button>
           <ClockInDialog employees={(employees ?? []).map(e => ({ ...e, department: e.department ?? null }))} onSuccess={refetch} companyId={activeCompanyId} />
         </div>
       </div>
@@ -1577,16 +1707,20 @@ export default function HRAttendancePage() {
         />
       ) : null}
 
-      {/* Tabs: Live today | HR Records | Corrections | Manual Check-ins | Audit Log */}
+      {/* Tabs: Live today | HR Records | Site Punches | Corrections | Manual Check-ins | Audit Log */}
       <Tabs value={attendanceTab} onValueChange={setAttendanceTab}>
         <TabsList className="flex-wrap h-auto gap-1">
           <TabsTrigger value="today" className="gap-1.5"><Users className="h-3.5 w-3.5" /> Live today</TabsTrigger>
           <TabsTrigger value="records" className="gap-1.5"><CalendarDays className="h-3.5 w-3.5" /> HR Records</TabsTrigger>
+          <TabsTrigger value="site-punches" className="gap-1.5"><MapPin className="h-3.5 w-3.5" /> Site Punches</TabsTrigger>
           <TabsTrigger value="corrections" className="gap-1.5"><ClipboardList className="h-3.5 w-3.5" /> Corrections{pendingCorrDot && <span className="ml-1 h-2 w-2 rounded-full bg-red-500 inline-block" />}</TabsTrigger>
           <TabsTrigger value="manual" className="gap-1.5"><AlertCircle className="h-3.5 w-3.5" /> Manual Check-ins{pendingManualDot && <span className="ml-1 h-2 w-2 rounded-full bg-red-500 inline-block" />}</TabsTrigger>
           <TabsTrigger value="audit" className="gap-1.5"><ScrollText className="h-3.5 w-3.5" /> Audit Log</TabsTrigger>
         </TabsList>
         <TabsContent value="today" className="mt-4"><TodayBoard companyId={activeCompanyId} /></TabsContent>
+        <TabsContent value="site-punches" className="mt-4">
+          <SitePunchesSection companyId={activeCompanyId} />
+        </TabsContent>
         <TabsContent value="corrections" className="mt-4"><CorrectionRequests companyId={activeCompanyId} /></TabsContent>
         <TabsContent value="manual" className="mt-4"><ManualCheckInRequests companyId={activeCompanyId} /></TabsContent>
         <TabsContent value="audit" className="mt-4">
@@ -1641,6 +1775,18 @@ export default function HRAttendancePage() {
               {departments.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
             </SelectContent>
           </Select>
+        </div>
+        <div className="space-y-1 flex items-end">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="gap-2 h-8"
+            disabled={exporting || activeCompanyId == null}
+            onClick={() => void handleAttendanceExport()}
+          >
+            <Download size={14} /> {exporting ? "Exporting…" : "Export Excel"}
+          </Button>
         </div>
       </div>
 

@@ -36,10 +36,13 @@ export default function HRInsightsHubPage() {
   );
 
   const { data: execSummary, isLoading: execLoading, isError: execError } =
-    trpc.automationSla.getExecutiveSummary.useQuery(undefined, {
-      enabled: activeCompanyId != null,
-      retry: false,
-    });
+    trpc.automationSla.getExecutiveSummary.useQuery(
+      activeCompanyId != null ? { companyId: activeCompanyId } : undefined,
+      {
+        enabled: activeCompanyId != null,
+        retry: false,
+      },
+    );
 
   const { data: reviews, isLoading: reviewsLoading } = trpc.hr.listReviews.useQuery(
     { companyId: activeCompanyId ?? undefined },

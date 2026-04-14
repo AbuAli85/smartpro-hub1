@@ -49,7 +49,7 @@ import {
 } from "../db";
 import type { User } from "../../drizzle/schema";
 import { assertRowBelongsToActiveCompany, requireActiveCompanyId } from "../_core/tenant";
-import { getActiveCompanyMembership, requireNotAuditor, requireWorkspaceMembership } from "../_core/membership";
+import { requireNotAuditor, requireWorkspaceMembership } from "../_core/membership";
 import { protectedProcedure, router } from "../_core/trpc";
 import {
   ATTENDANCE_AUDIT_ACTION,
@@ -76,8 +76,7 @@ export const hrRouter = router({
     .input(z.object({ status: z.string().optional(), department: z.string().optional(), companyId: z.number().optional() }))
     .query(async ({ input, ctx }) => {
       const { companyId: inputCid, ...filters } = input;
-      const cid = await requireActiveCompanyId(ctx.user.id, inputCid, ctx.user).catch(() => null);
-      if (!cid) return [];
+      const cid = await requireActiveCompanyId(ctx.user.id, inputCid, ctx.user);
       return getEmployees(cid, filters);
     }),
 
@@ -131,8 +130,7 @@ export const hrRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
-      const membership = await getActiveCompanyMembership(ctx.user.id, input.companyId);
-      if (!membership) throw new TRPCError({ code: "FORBIDDEN", message: "No company membership" });
+      const membership = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       requireNotAuditor(membership.role, "External Auditors cannot create employees.");
       const companyId = membership.companyId;
       const { workPermitNumber, visaNumber, occupationCode, occupationName, workPermitExpiry, visaExpiry, passportExpiry,
@@ -285,9 +283,8 @@ export const hrRouter = router({
   listJobs: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }).optional())
     .query(async ({ ctx, input }) => {
-      const m = await getActiveCompanyMembership(ctx.user.id, input?.companyId);
-      if (!m) return [];
-      return getJobPostings(m.companyId);
+      const { companyId } = await requireWorkspaceMembership(ctx.user as User, input?.companyId);
+      return getJobPostings(companyId);
     }),
 
   createJob: protectedProcedure
@@ -342,9 +339,8 @@ export const hrRouter = router({
   listApplications: protectedProcedure
     .input(z.object({ jobId: z.number().optional(), companyId: z.number().optional() }))
     .query(async ({ input, ctx }) => {
-      const m = await getActiveCompanyMembership(ctx.user.id, input.companyId);
-      if (!m) return [];
-      return getJobApplications(input.jobId, m.companyId);
+      const { companyId } = await requireWorkspaceMembership(ctx.user as User, input.companyId);
+      return getJobApplications(input.jobId, companyId);
     }),
 
   updateApplication: protectedProcedure
@@ -368,8 +364,7 @@ export const hrRouter = router({
   listLeave: protectedProcedure
     .input(z.object({ employeeId: z.number().optional(), companyId: z.number().optional() }))
     .query(async ({ input, ctx }) => {
-      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user).catch(() => null);
-      if (!cid) return [];
+      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       return getLeaveRequests(cid, input.employeeId);
     }),
 
@@ -444,8 +439,7 @@ export const hrRouter = router({
   listPayroll: protectedProcedure
     .input(z.object({ year: z.number().optional(), month: z.number().optional(), companyId: z.number().optional() }))
     .query(async ({ input, ctx }) => {
-      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user).catch(() => null);
-      if (!cid) return [];
+      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       return getPayrollRecords(cid, input.year, input.month);
     }),
 
@@ -519,9 +513,8 @@ export const hrRouter = router({
   listReviews: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }).optional())
     .query(async ({ ctx, input }) => {
-      const m = await getActiveCompanyMembership(ctx.user.id, input?.companyId);
-      if (!m) return [];
-      return getPerformanceReviews(m.companyId);
+      const { companyId } = await requireWorkspaceMembership(ctx.user as User, input?.companyId);
+      return getPerformanceReviews(companyId);
     }),
 
   createReview: protectedProcedure
@@ -554,8 +547,7 @@ export const hrRouter = router({
   departments: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }).optional())
     .query(async ({ input, ctx }) => {
-      const cid = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user).catch(() => null);
-      if (!cid) return [];
+      const cid = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user);
       const emps = await getEmployees(cid);
       const depts = Array.from(new Set(emps.map((e) => e.department).filter(Boolean)));
       return depts;
@@ -565,8 +557,7 @@ export const hrRouter = router({
   listAttendance: protectedProcedure
     .input(z.object({ month: z.string().optional(), companyId: z.number().optional() }))
     .query(async ({ input, ctx }) => {
-      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user).catch(() => null);
-      if (!cid) return [];
+      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       return getAttendance(cid, input.month);
     }),
 
@@ -582,9 +573,8 @@ export const hrRouter = router({
       companyId: z.number().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
-      const membership = await getActiveCompanyMembership(ctx.user.id, companyId);
-      if (!membership) throw new TRPCError({ code: "FORBIDDEN", message: "No company membership" });
+      const membership = await requireWorkspaceMembership(ctx.user as User, input.companyId);
+      const companyId = membership.companyId;
       requireNotAuditor(membership.role);
       const emp = await getEmployeeById(input.employeeId);
       if (!emp) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
@@ -647,8 +637,7 @@ export const hrRouter = router({
       const row = await getAttendanceRecordById(id);
       if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Attendance record not found" });
       await assertRowBelongsToActiveCompany(ctx.user, row.companyId, "Attendance record", row.companyId);
-      const membership = await getActiveCompanyMembership(ctx.user.id, row.companyId);
-      if (!membership) throw new TRPCError({ code: "FORBIDDEN", message: "No company membership" });
+      const membership = await requireWorkspaceMembership(ctx.user as User, row.companyId);
       requireNotAuditor(membership.role);
       const nextStatus = input.status ?? row.status;
       const nextNotesTrim = input.notes !== undefined ? input.notes.trim() : (row.notes ?? "").trim();
@@ -716,8 +705,7 @@ export const hrRouter = router({
       const row = await getAttendanceRecordById(input.id);
       if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Attendance record not found" });
       await assertRowBelongsToActiveCompany(ctx.user, row.companyId, "Attendance record", row.companyId);
-      const membership = await getActiveCompanyMembership(ctx.user.id, row.companyId);
-      if (!membership) throw new TRPCError({ code: "FORBIDDEN", message: "No company membership" });
+      const membership = await requireWorkspaceMembership(ctx.user as User, row.companyId);
       requireNotAuditor(membership.role);
       const beforePayload = attendancePayloadJson(row);
       const db = await getDb();
@@ -743,8 +731,7 @@ export const hrRouter = router({
   attendanceStats: protectedProcedure
     .input(z.object({ month: z.string().optional(), companyId: z.number().optional() }))
     .query(async ({ input, ctx }) => {
-      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user).catch(() => null);
-      if (!cid) return { present: 0, absent: 0, late: 0, half_day: 0, remote: 0, byDay: [] };
+      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       return getAttendanceStats(cid, input.month);
     }),
 
@@ -752,8 +739,7 @@ export const hrRouter = router({
   getLeaveBalance: protectedProcedure
     .input(z.object({ employeeId: z.number(), companyId: z.number().optional() }))
     .query(async ({ input, ctx }) => {
-      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user).catch(() => null);
-      if (!cid) throw new TRPCError({ code: "FORBIDDEN", message: "No company" });
+      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
       const caps = await getMergedLeaveCapsForCompanyId(db, cid);
@@ -785,8 +771,7 @@ export const hrRouter = router({
   getLeaveBalanceSummary: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }).optional())
     .query(async ({ input, ctx }) => {
-    const cid = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user).catch(() => null);
-    if (!cid) return { employees: [], policyCaps: mergeLeavePolicyCaps(null) };
+    const cid = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user);
     const db = await getDb();
     if (!db) return { employees: [], policyCaps: mergeLeavePolicyCaps(null) };
     const policyCaps = await getMergedLeaveCapsForCompanyId(db, cid);
@@ -822,8 +807,7 @@ export const hrRouter = router({
   getEmployeeCompleteness: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }).optional())
     .query(async ({ input, ctx }) => {
-    const cid = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user).catch(() => null);
-    if (!cid) return [];
+    const cid = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user);
     const emps = await getEmployees(cid);
     const REQUIRED_FIELDS = ["firstName", "lastName", "email", "phone", "nationality", "department", "position", "hireDate", "salary"];
     const OPTIONAL_FIELDS = ["passportNumber", "nationalId", "dateOfBirth", "gender", "pasiNumber", "bankAccountNumber", "emergencyContactName", "workPermitNumber", "visaNumber"];
@@ -846,8 +830,7 @@ export const hrRouter = router({
   getStats: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }).optional())
     .query(async ({ input, ctx }) => {
-    const cid = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user).catch(() => null);
-    if (!cid) return { total: 0, active: 0, onLeave: 0, terminated: 0, omani: 0, expat: 0, omanisationRate: 0, departments: 0, avgSalary: 0, totalPayroll: 0 };
+    const cid = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user);
     const emps = await getEmployees(cid);
     const active = emps.filter((e) => e.status === "active");
     const onLeave = emps.filter((e) => e.status === "on_leave");
@@ -881,8 +864,7 @@ export const hrRouter = router({
       status: z.enum(["all", "expired", "expiring_soon"]).default("all"),
     }))
     .query(async ({ input, ctx }) => {
-      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user).catch(() => null);
-      if (!cid) return { rows: [], stats: { total: 0, expired: 0, expiringSoon: 0 } };
+      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const db = await getDb();
       if (!db) return { rows: [], stats: { total: 0, expired: 0, expiringSoon: 0 } };
 
@@ -960,7 +942,7 @@ export const hrRouter = router({
   getDashboardStats: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }).optional())
     .query(async ({ input, ctx }) => {
-      const cid = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user).catch(() => null);
+      const cid = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user);
       const emptyResult = {
         todayPresent: 0, todayAbsent: 0, todayTotal: 0,
         pendingLeave: 0, kpiTargetsCount: 0, kpiAvgPct: 0,
@@ -968,7 +950,6 @@ export const hrRouter = router({
         payrollStatus: null as string | null, payrollMonth: null as string | null,
         activeEmployees: 0,
       };
-      if (!cid) return emptyResult;
       const db = await getDb();
       if (!db) return emptyResult;
 
@@ -1087,8 +1068,7 @@ export const hrRouter = router({
   listDepartmentMembers: protectedProcedure
     .input(z.object({ departmentName: z.string(), companyId: z.number().optional() }))
     .query(async ({ input, ctx }) => {
-      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user).catch(() => null);
-      if (!cid) return [];
+      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const db = await getDb();
       if (!db) return [];
       return db.select({
@@ -1112,8 +1092,7 @@ export const hrRouter = router({
   listDepartments: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }).optional())
     .query(async ({ input, ctx }) => {
-      const cid = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user).catch(() => null);
-      if (!cid) return [];
+      const cid = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user);
       const db = await getDb();
       if (!db) return [];
       const depts = await db.select().from(departments).where(and(eq(departments.companyId, cid), eq(departments.isActive, true)));
@@ -1189,8 +1168,7 @@ export const hrRouter = router({
   listPositions: protectedProcedure
     .input(z.object({ departmentId: z.number().optional(), companyId: z.number().optional() }).optional())
     .query(async ({ input, ctx }) => {
-      const cid = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user).catch(() => null);
-      if (!cid) return [];
+      const cid = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user);
       const db = await getDb();
       if (!db) return [];
       const conditions: any[] = [eq(positions.companyId, cid), eq(positions.isActive, true)];
@@ -1234,8 +1212,7 @@ export const hrRouter = router({
   getOrgChart: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }).optional())
     .query(async ({ input, ctx }) => {
-      const cid = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user).catch(() => null);
-      if (!cid) return { departments: [], unassigned: [] };
+      const cid = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user);
       const db = await getDb();
       if (!db) return { departments: [], unassigned: [] };
 
@@ -1412,14 +1389,7 @@ export const hrRouter = router({
   getWorkforceHealth: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }).optional())
     .query(async ({ input, ctx }) => {
-      const cid = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user).catch(() => null);
-      if (!cid) return {
-        total: 0, critical: 0, warning: 0, incomplete: 0, healthy: 0,
-        criticalEmployees: [] as Array<{ id: number; name: string; reason: string }>,
-        warningEmployees: [] as Array<{ id: number; name: string; reason: string }>,
-        incompleteEmployees: [] as Array<{ id: number; name: string; score: number; missing: string[] }>,
-        overallScore: 0,
-      };
+      const cid = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user);
       const emps = await getEmployees(cid);
       const today = new Date();
       const warnDays = 30;

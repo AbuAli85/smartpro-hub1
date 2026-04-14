@@ -2,9 +2,10 @@ import { z } from "zod";
 import { and, desc, eq, or } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { protectedProcedure, router } from "../_core/trpc";
-import { createNotification, getDb, getUserCompany } from "../db";
-import { shiftChangeRequests, employees, shiftTemplates } from "../../drizzle/schema";
+import { createNotification, getDb, getUserCompanyById } from "../db";
+import type { User } from "../../drizzle/schema";
 import { requireActiveCompanyId } from "../_core/tenant";
+import { shiftChangeRequests, employees, shiftTemplates } from "../../drizzle/schema";
 import { notifyOwner } from "../_core/notification";
 import { storagePut } from "../storage";
 
@@ -32,9 +33,12 @@ async function resolveEmployeeUserId(userId: number, companyId: number): Promise
   return empRow?.id ?? userId;
 }
 
-async function requireAdminOrHR(userId: number) {
-  const membership = await getUserCompany(userId);
-  if (!membership) throw new TRPCError({ code: "FORBIDDEN", message: "Not a company member" });
+async function requireAdminOrHR(userId: number, user: User, companyId?: number | null) {
+  const cid = await requireActiveCompanyId(userId, companyId, user);
+  const membership = await getUserCompanyById(userId, cid);
+  if (!membership?.company?.id || !membership.member) {
+    throw new TRPCError({ code: "FORBIDDEN", message: "Not a company member" });
+  }
   const role = membership.member.role;
   if (!["company_admin", "hr_admin"].includes(role)) {
     throw new TRPCError({ code: "FORBIDDEN", message: "HR or Admin access required" });
@@ -200,8 +204,8 @@ export const shiftRequestsRouter = router({
       status: z.enum(["pending", "approved", "rejected", "cancelled", "all"]).default("pending"),
     }))
     .query(async ({ ctx, input }) => {
-      const membership = await requireAdminOrHR(ctx.user.id);
-      const companyId = input.companyId ?? membership.company.id;
+      const membership = await requireAdminOrHR(ctx.user.id, ctx.user, input.companyId);
+      const companyId = membership.company.id;
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
       const requests = await db.select({
@@ -244,8 +248,8 @@ export const shiftRequestsRouter = router({
       companyId: z.number().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const membership = await requireAdminOrHR(ctx.user.id);
-      const companyId = input.companyId ?? membership.company.id;
+      const membership = await requireAdminOrHR(ctx.user.id, ctx.user, input.companyId);
+      const companyId = membership.company.id;
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
       const [req] = await db.select().from(shiftChangeRequests)
@@ -285,8 +289,8 @@ export const shiftRequestsRouter = router({
       companyId: z.number().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const membership = await requireAdminOrHR(ctx.user.id);
-      const companyId = input.companyId ?? membership.company.id;
+      const membership = await requireAdminOrHR(ctx.user.id, ctx.user, input.companyId);
+      const companyId = membership.company.id;
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
       const [req] = await db.select().from(shiftChangeRequests)
@@ -337,8 +341,8 @@ export const shiftRequestsRouter = router({
   adminStats: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }))
     .query(async ({ ctx, input }) => {
-      const membership = await requireAdminOrHR(ctx.user.id);
-      const companyId = input.companyId ?? membership.company.id;
+      const membership = await requireAdminOrHR(ctx.user.id, ctx.user, input.companyId);
+      const companyId = membership.company.id;
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
       const all = await db.select({ status: shiftChangeRequests.status })

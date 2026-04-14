@@ -789,8 +789,14 @@ export default function EmployeeSchedulesPage() {
               adminNote={adminNote}
               onSetAdminNoteId={setAdminNoteId}
               onSetAdminNote={setAdminNote}
-              onApprove={(id, note) => approveShiftReq.mutate({ id, adminNotes: note || undefined })}
-              onReject={(id, note) => rejectShiftReq.mutate({ id, adminNotes: note || "No reason provided" })}
+              onApprove={(id, note) => {
+                if (!activeCompanyId) return toast.error("No active company");
+                approveShiftReq.mutate({ id, adminNotes: note || undefined, companyId: activeCompanyId });
+              }}
+              onReject={(id, note) => {
+                if (!activeCompanyId) return toast.error("No active company");
+                rejectShiftReq.mutate({ id, adminNotes: note || "No reason provided", companyId: activeCompanyId });
+              }}
             />
           </CardContent>
         )}

@@ -1,15 +1,9 @@
 import { z } from "zod";
 import { protectedProcedure, router } from "../_core/trpc";
-import { TRPCError } from "@trpc/server";
 import { checkSLAs, DEFAULT_SLA_THRESHOLDS } from "../engine";
-import { getUserCompany } from "../db";
 import { createPool } from "mysql2/promise";
-
-async function requireCompanyId(userId: number): Promise<number> {
-  const result = await getUserCompany(userId);
-  if (!result) throw new TRPCError({ code: "FORBIDDEN", message: "No active company" });
-  return result.company.id;
-}
+import type { User } from "../../drizzle/schema";
+import { requireActiveCompanyId } from "../_core/tenant";
 
 function getConn() {
   return createPool(process.env.DATABASE_URL!);
@@ -19,27 +13,48 @@ export const automationSlaRouter = router({
   // ─── Live SLA Check ────────────────────────────────────────────────────────
   checkSLAs: protectedProcedure
     .input(
-      z.object({
-        ruleFailureRatePercent: z.number().min(1).max(100).optional(),
-        eventBacklogCount: z.number().min(1).optional(),
-        processingDelaySeconds: z.number().min(1).optional(),
-      }).optional()
+      z
+        .object({
+          ruleFailureRatePercent: z.number().min(1).max(100).optional(),
+          eventBacklogCount: z.number().min(1).optional(),
+          processingDelaySeconds: z.number().min(1).optional(),
+          companyId: z.number().optional(),
+        })
+        .optional()
     )
     .query(async ({ ctx, input }) => {
-      const companyId = await requireCompanyId(ctx.user.id);
+      const companyId = await requireActiveCompanyId(
+        ctx.user.id,
+        input?.companyId,
+        ctx.user as User
+      );
       const thresholds = {
-        ruleFailureRatePercent: input?.ruleFailureRatePercent ?? DEFAULT_SLA_THRESHOLDS.ruleFailureRatePercent,
-        eventBacklogCount: input?.eventBacklogCount ?? DEFAULT_SLA_THRESHOLDS.eventBacklogCount,
-        processingDelaySeconds: input?.processingDelaySeconds ?? DEFAULT_SLA_THRESHOLDS.processingDelaySeconds,
+        ruleFailureRatePercent:
+          input?.ruleFailureRatePercent ??
+          DEFAULT_SLA_THRESHOLDS.ruleFailureRatePercent,
+        eventBacklogCount:
+          input?.eventBacklogCount ?? DEFAULT_SLA_THRESHOLDS.eventBacklogCount,
+        processingDelaySeconds:
+          input?.processingDelaySeconds ??
+          DEFAULT_SLA_THRESHOLDS.processingDelaySeconds,
       };
       return checkSLAs(companyId, thresholds);
     }),
 
   // ─── List Stored SLA Alerts ────────────────────────────────────────────────
   listAlerts: protectedProcedure
-    .input(z.object({ includeAcknowledged: z.boolean().optional() }))
+    .input(
+      z.object({
+        includeAcknowledged: z.boolean().optional(),
+        companyId: z.number().optional(),
+      })
+    )
     .query(async ({ ctx, input }) => {
-      const companyId = await requireCompanyId(ctx.user.id);
+      const companyId = await requireActiveCompanyId(
+        ctx.user.id,
+        input?.companyId,
+        ctx.user as User
+      );
       const conn = getConn();
       const [rows] = await conn.query(
         `SELECT * FROM sla_alerts WHERE company_id = ?${input?.includeAcknowledged ? "" : " AND acknowledged = 0"} ORDER BY created_at DESC LIMIT 100`,
@@ -51,9 +66,13 @@ export const automationSlaRouter = router({
 
   // ─── Acknowledge Alert ─────────────────────────────────────────────────────
   acknowledgeAlert: protectedProcedure
-    .input(z.object({ alertId: z.number() }))
+    .input(z.object({ alertId: z.number(), companyId: z.number().optional() }))
     .mutation(async ({ ctx, input }) => {
-      const companyId = await requireCompanyId(ctx.user.id);
+      const companyId = await requireActiveCompanyId(
+        ctx.user.id,
+        input.companyId,
+        ctx.user as User
+      );
       const conn = getConn();
       await conn.query(
         `UPDATE sla_alerts SET acknowledged = 1, acknowledged_at = NOW() WHERE id = ? AND company_id = ?`,
@@ -67,12 +86,21 @@ export const automationSlaRouter = router({
   listTasks: protectedProcedure
     .input(
       z.object({
-        status: z.enum(["open", "in_progress", "done", "dismissed", "all"]).optional(),
-        priority: z.enum(["low", "medium", "high", "critical", "all"]).optional(),
+        status: z
+          .enum(["open", "in_progress", "done", "dismissed", "all"])
+          .optional(),
+        priority: z
+          .enum(["low", "medium", "high", "critical", "all"])
+          .optional(),
+        companyId: z.number().optional(),
       })
     )
     .query(async ({ ctx, input }) => {
-      const companyId = await requireCompanyId(ctx.user.id);
+      const companyId = await requireActiveCompanyId(
+        ctx.user.id,
+        input?.companyId,
+        ctx.user as User
+      );
       const conn = getConn();
 
       let where = "WHERE pt.company_id = ?";
@@ -112,10 +140,15 @@ export const automationSlaRouter = router({
         taskId: z.number(),
         status: z.enum(["open", "in_progress", "done", "dismissed"]).optional(),
         priority: z.enum(["low", "medium", "high", "critical"]).optional(),
+        companyId: z.number().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const companyId = await requireCompanyId(ctx.user.id);
+      const companyId = await requireActiveCompanyId(
+        ctx.user.id,
+        input.companyId,
+        ctx.user as User
+      );
       const conn = getConn();
 
       const updates: string[] = [];
@@ -142,62 +175,100 @@ export const automationSlaRouter = router({
     }),
 
   // ─── Executive Summary ─────────────────────────────────────────────────────
-  getExecutiveSummary: protectedProcedure.query(async ({ ctx }) => {
-    const companyId = await requireCompanyId(ctx.user.id);
-    const conn = getConn();
-    const startTime = Date.now();
+  getExecutiveSummary: protectedProcedure
+    .input(z.object({ companyId: z.number().optional() }).optional())
+    .query(async ({ ctx, input }) => {
+      const companyId = await requireActiveCompanyId(
+        ctx.user.id,
+        input?.companyId,
+        ctx.user as User
+      );
+      const conn = getConn();
+      const startTime = Date.now();
 
-    const [
-      [empRows],
-      [ruleRows],
-      [logRows],
-      [notifRows],
-      [taskRows],
-      [eventRows],
-      [slaRows],
-      [deptRows],
-    ] = await Promise.all([
-      conn.query(`SELECT COUNT(*) as total, SUM(CASE WHEN status='active' THEN 1 ELSE 0 END) as active FROM employees WHERE company_id = ?`, [companyId]),
-      conn.query(`SELECT COUNT(*) as total, SUM(CASE WHEN is_active=1 THEN 1 ELSE 0 END) as active, SUM(CASE WHEN is_muted=1 THEN 1 ELSE 0 END) as muted FROM automation_rules WHERE company_id = ?`, [companyId]),
-      conn.query(`SELECT COUNT(*) as total, SUM(CASE WHEN status='success' THEN 1 ELSE 0 END) as successes, SUM(CASE WHEN status='failure' THEN 1 ELSE 0 END) as failures, AVG(duration_ms) as avgDuration FROM automation_logs WHERE company_id = ? AND created_at > DATE_SUB(NOW(), INTERVAL 30 DAY)`, [companyId]),
-      conn.query(`SELECT COUNT(*) as total, SUM(CASE WHEN is_read=0 THEN 1 ELSE 0 END) as unread FROM notifications WHERE company_id = ?`, [companyId]),
-      conn.query(`SELECT COUNT(*) as total, SUM(CASE WHEN status='open' THEN 1 ELSE 0 END) as open, SUM(CASE WHEN priority='critical' THEN 1 ELSE 0 END) as critical FROM platform_tasks WHERE company_id = ?`, [companyId]),
-      conn.query(`SELECT COUNT(*) as total, SUM(CASE WHEN status='pending' THEN 1 ELSE 0 END) as pending, SUM(CASE WHEN status='failed' THEN 1 ELSE 0 END) as failed FROM automation_events WHERE company_id = ?`, [companyId]),
-      conn.query(`SELECT COUNT(*) as total, SUM(CASE WHEN acknowledged=0 THEN 1 ELSE 0 END) as unacknowledged FROM sla_alerts WHERE company_id = ?`, [companyId]),
-      conn.query(`SELECT (SELECT COUNT(*) FROM employees WHERE company_id = ? AND department IS NULL) as unassigned`, [companyId]),
-    ]);
+      const [
+        [empRows],
+        [ruleRows],
+        [logRows],
+        [notifRows],
+        [taskRows],
+        [eventRows],
+        [slaRows],
+        [deptRows],
+      ] = await Promise.all([
+        conn.query(
+          `SELECT COUNT(*) as total, SUM(CASE WHEN status='active' THEN 1 ELSE 0 END) as active FROM employees WHERE company_id = ?`,
+          [companyId]
+        ),
+        conn.query(
+          `SELECT COUNT(*) as total, SUM(CASE WHEN is_active=1 THEN 1 ELSE 0 END) as active, SUM(CASE WHEN is_muted=1 THEN 1 ELSE 0 END) as muted FROM automation_rules WHERE company_id = ?`,
+          [companyId]
+        ),
+        conn.query(
+          `SELECT COUNT(*) as total, SUM(CASE WHEN status='success' THEN 1 ELSE 0 END) as successes, SUM(CASE WHEN status='failure' THEN 1 ELSE 0 END) as failures, AVG(duration_ms) as avgDuration FROM automation_logs WHERE company_id = ? AND created_at > DATE_SUB(NOW(), INTERVAL 30 DAY)`,
+          [companyId]
+        ),
+        conn.query(
+          `SELECT COUNT(*) as total, SUM(CASE WHEN is_read=0 THEN 1 ELSE 0 END) as unread FROM notifications WHERE company_id = ?`,
+          [companyId]
+        ),
+        conn.query(
+          `SELECT COUNT(*) as total, SUM(CASE WHEN status='open' THEN 1 ELSE 0 END) as open, SUM(CASE WHEN priority='critical' THEN 1 ELSE 0 END) as critical FROM platform_tasks WHERE company_id = ?`,
+          [companyId]
+        ),
+        conn.query(
+          `SELECT COUNT(*) as total, SUM(CASE WHEN status='pending' THEN 1 ELSE 0 END) as pending, SUM(CASE WHEN status='failed' THEN 1 ELSE 0 END) as failed FROM automation_events WHERE company_id = ?`,
+          [companyId]
+        ),
+        conn.query(
+          `SELECT COUNT(*) as total, SUM(CASE WHEN acknowledged=0 THEN 1 ELSE 0 END) as unacknowledged FROM sla_alerts WHERE company_id = ?`,
+          [companyId]
+        ),
+        conn.query(
+          `SELECT (SELECT COUNT(*) FROM employees WHERE company_id = ? AND department IS NULL) as unassigned`,
+          [companyId]
+        ),
+      ]);
 
-    const totalEmp = Number((empRows as any)[0]?.total ?? 0);
-    const activeEmp = Number((empRows as any)[0]?.active ?? 0);
-    const unassignedEmp = Number((deptRows as any)[0]?.unassigned ?? 0);
-    const totalRules = Number((ruleRows as any)[0]?.total ?? 0);
-    const activeRules = Number((ruleRows as any)[0]?.active ?? 0);
-    const mutedRules = Number((ruleRows as any)[0]?.muted ?? 0);
-    const totalLogs = Number((logRows as any)[0]?.total ?? 0);
-    const successLogs = Number((logRows as any)[0]?.successes ?? 0);
-    const failureLogs = Number((logRows as any)[0]?.failures ?? 0);
-    const avgDuration = Number((logRows as any)[0]?.avgDuration ?? 0);
-    const unreadNotifs = Number((notifRows as any)[0]?.unread ?? 0);
-    const openTasks = Number((taskRows as any)[0]?.open ?? 0);
-    const criticalTasks = Number((taskRows as any)[0]?.critical ?? 0);
-    const pendingEvents = Number((eventRows as any)[0]?.pending ?? 0);
-    const failedEvents = Number((eventRows as any)[0]?.failed ?? 0);
-    const unacknowledgedSLAs = Number((slaRows as any)[0]?.unacknowledged ?? 0);
+      const totalEmp = Number((empRows as any)[0]?.total ?? 0);
+      const activeEmp = Number((empRows as any)[0]?.active ?? 0);
+      const unassignedEmp = Number((deptRows as any)[0]?.unassigned ?? 0);
+      const totalRules = Number((ruleRows as any)[0]?.total ?? 0);
+      const activeRules = Number((ruleRows as any)[0]?.active ?? 0);
+      const mutedRules = Number((ruleRows as any)[0]?.muted ?? 0);
+      const totalLogs = Number((logRows as any)[0]?.total ?? 0);
+      const successLogs = Number((logRows as any)[0]?.successes ?? 0);
+      const failureLogs = Number((logRows as any)[0]?.failures ?? 0);
+      const avgDuration = Number((logRows as any)[0]?.avgDuration ?? 0);
+      const unreadNotifs = Number((notifRows as any)[0]?.unread ?? 0);
+      const openTasks = Number((taskRows as any)[0]?.open ?? 0);
+      const criticalTasks = Number((taskRows as any)[0]?.critical ?? 0);
+      const pendingEvents = Number((eventRows as any)[0]?.pending ?? 0);
+      const failedEvents = Number((eventRows as any)[0]?.failed ?? 0);
+      const unacknowledgedSLAs = Number(
+        (slaRows as any)[0]?.unacknowledged ?? 0
+      );
 
-    const automationSuccessRate = totalLogs > 0 ? (successLogs / totalLogs) * 100 : 100;
-    const employeeActivityRate = totalEmp > 0 ? (activeEmp / totalEmp) * 100 : 100;
-    const departmentCoverage = totalEmp > 0 ? ((totalEmp - unassignedEmp) / totalEmp) * 100 : 100;
+      const automationSuccessRate =
+        totalLogs > 0 ? (successLogs / totalLogs) * 100 : 100;
+      const employeeActivityRate =
+        totalEmp > 0 ? (activeEmp / totalEmp) * 100 : 100;
+      const departmentCoverage =
+        totalEmp > 0 ? ((totalEmp - unassignedEmp) / totalEmp) * 100 : 100;
 
-    const healthScore = Math.round(
-      automationSuccessRate * 0.3 +
-      employeeActivityRate * 0.2 +
-      departmentCoverage * 0.2 +
-      (unacknowledgedSLAs === 0 ? 100 : Math.max(0, 100 - unacknowledgedSLAs * 10)) * 0.15 +
-      (openTasks === 0 ? 100 : Math.max(0, 100 - openTasks * 2)) * 0.15
-    );
+      const healthScore = Math.round(
+        automationSuccessRate * 0.3 +
+          employeeActivityRate * 0.2 +
+          departmentCoverage * 0.2 +
+          (unacknowledgedSLAs === 0
+            ? 100
+            : Math.max(0, 100 - unacknowledgedSLAs * 10)) *
+            0.15 +
+          (openTasks === 0 ? 100 : Math.max(0, 100 - openTasks * 2)) * 0.15
+      );
 
-    const [trendRows] = await conn.query(
-      `SELECT DATE(created_at) as day,
+      const [trendRows] = await conn.query(
+        `SELECT DATE(created_at) as day,
          COUNT(*) as total,
          SUM(CASE WHEN status='success' THEN 1 ELSE 0 END) as successes,
          SUM(CASE WHEN status='failure' THEN 1 ELSE 0 END) as failures
@@ -205,21 +276,53 @@ export const automationSlaRouter = router({
        WHERE company_id = ? AND created_at > DATE_SUB(NOW(), INTERVAL 30 DAY)
        GROUP BY DATE(created_at)
        ORDER BY day ASC`,
-      [companyId]
-    );
+        [companyId]
+      );
 
-    conn.end();
+      conn.end();
 
-    return {
-      queryTimeMs: Date.now() - startTime,
-      healthScore,
-      employees: { total: totalEmp, active: activeEmp, unassigned: unassignedEmp },
-      automation: { totalRules, activeRules, mutedRules, totalLogs, successLogs, failureLogs, successRate: automationSuccessRate, avgDurationMs: avgDuration },
-      notifications: { total: Number((notifRows as any)[0]?.total ?? 0), unread: unreadNotifs },
-      tasks: { total: Number((taskRows as any)[0]?.total ?? 0), open: openTasks, critical: criticalTasks },
-      events: { total: Number((eventRows as any)[0]?.total ?? 0), pending: pendingEvents, failed: failedEvents },
-      sla: { total: Number((slaRows as any)[0]?.total ?? 0), unacknowledged: unacknowledgedSLAs },
-      trend: (trendRows as any[]).map((r) => ({ day: r.day, total: Number(r.total), successes: Number(r.successes), failures: Number(r.failures) })),
-    };
-  }),
+      return {
+        queryTimeMs: Date.now() - startTime,
+        healthScore,
+        employees: {
+          total: totalEmp,
+          active: activeEmp,
+          unassigned: unassignedEmp,
+        },
+        automation: {
+          totalRules,
+          activeRules,
+          mutedRules,
+          totalLogs,
+          successLogs,
+          failureLogs,
+          successRate: automationSuccessRate,
+          avgDurationMs: avgDuration,
+        },
+        notifications: {
+          total: Number((notifRows as any)[0]?.total ?? 0),
+          unread: unreadNotifs,
+        },
+        tasks: {
+          total: Number((taskRows as any)[0]?.total ?? 0),
+          open: openTasks,
+          critical: criticalTasks,
+        },
+        events: {
+          total: Number((eventRows as any)[0]?.total ?? 0),
+          pending: pendingEvents,
+          failed: failedEvents,
+        },
+        sla: {
+          total: Number((slaRows as any)[0]?.total ?? 0),
+          unacknowledged: unacknowledgedSLAs,
+        },
+        trend: (trendRows as any[]).map(r => ({
+          day: r.day,
+          total: Number(r.total),
+          successes: Number(r.successes),
+          failures: Number(r.failures),
+        })),
+      };
+    }),
 });

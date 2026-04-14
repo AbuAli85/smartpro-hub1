@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
+import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -128,13 +129,24 @@ function KpiCard({
 // ─── Main Component ──────────────────────────────────────────────────────────
 export default function ExecutiveDashboardPage() {
   const [activeTab, setActiveTab] = useState("overview");
+  const { activeCompanyId } = useActiveCompany();
+  const workspaceSlaInput = activeCompanyId != null ? { companyId: activeCompanyId } : undefined;
 
-  const { data: summary, isLoading, refetch } = trpc.automationSla.getExecutiveSummary.useQuery(undefined, {
+  const { data: summary, isLoading, refetch } = trpc.automationSla.getExecutiveSummary.useQuery(workspaceSlaInput, {
     refetchInterval: 60_000,
+    enabled: activeCompanyId != null,
   });
-  const { data: slaAlerts } = trpc.automationSla.listAlerts.useQuery({ includeAcknowledged: false });
-  const { data: tasks } = trpc.automationSla.listTasks.useQuery({ status: "open" });
-  const { data: slaCheck } = trpc.automationSla.checkSLAs.useQuery(undefined);
+  const { data: slaAlerts } = trpc.automationSla.listAlerts.useQuery(
+    { includeAcknowledged: false, ...workspaceSlaInput },
+    { enabled: activeCompanyId != null },
+  );
+  const { data: tasks } = trpc.automationSla.listTasks.useQuery(
+    { status: "open", ...workspaceSlaInput },
+    { enabled: activeCompanyId != null },
+  );
+  const { data: slaCheck } = trpc.automationSla.checkSLAs.useQuery(workspaceSlaInput, {
+    enabled: activeCompanyId != null,
+  });
 
   const acknowledgeAlert = trpc.automationSla.acknowledgeAlert.useMutation({
     onSuccess: () => {
@@ -158,6 +170,19 @@ export default function ExecutiveDashboardPage() {
 
   const slaBreaches = useMemo(() => slaCheck?.alerts ?? [], [slaCheck]);
   const hasCriticalIssues = slaBreaches.length > 0 || (summary?.sla.unacknowledged ?? 0) > 0;
+
+  if (activeCompanyId == null) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center px-6">
+        <div className="text-center max-w-md">
+          <p className="text-slate-200 font-medium mb-2">Select a company workspace</p>
+          <p className="text-slate-400 text-sm">
+            HR operations health is scoped to one company. Choose a workspace from the company switcher, then open this page again.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (
@@ -518,14 +543,22 @@ export default function ExecutiveDashboardPage() {
                           size="sm"
                           variant="outline"
                           className="h-7 text-xs border-slate-600 text-slate-300 hover:bg-slate-700"
-                          onClick={() => updateTask.mutate({ taskId: task.id, status: "in_progress" })}
+                          onClick={() =>
+                            updateTask.mutate({
+                              taskId: task.id,
+                              status: "in_progress",
+                              companyId: activeCompanyId,
+                            })
+                          }
                         >
                           Start
                         </Button>
                         <Button
                           size="sm"
                           className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
-                          onClick={() => updateTask.mutate({ taskId: task.id, status: "done" })}
+                          onClick={() =>
+                            updateTask.mutate({ taskId: task.id, status: "done", companyId: activeCompanyId })
+                          }
                         >
                           Done
                         </Button>
@@ -569,7 +602,9 @@ export default function ExecutiveDashboardPage() {
                         size="sm"
                         variant="outline"
                         className="h-7 text-xs border-slate-600 text-slate-300 hover:bg-slate-700 shrink-0"
-                        onClick={() => acknowledgeAlert.mutate({ alertId: alert.id })}
+                        onClick={() =>
+                          acknowledgeAlert.mutate({ alertId: alert.id, companyId: activeCompanyId })
+                        }
                       >
                         Acknowledge
                       </Button>

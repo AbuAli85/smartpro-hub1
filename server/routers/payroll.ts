@@ -14,7 +14,11 @@ import {
   employeeDocuments,
   type User,
 } from "../../drizzle/schema";
-import { recordPayrollRunApprovedAudit } from "../tenantGovernanceAudit";
+import {
+  recordPayrollRunApprovedAudit,
+  recordPayrollRunMarkedPaidAudit,
+  recordPayslipExportedAudit,
+} from "../tenantGovernanceAudit";
 import { storagePut } from "../storage";
 import { requireNotAuditor, requireWorkspaceMembership } from "../_core/membership";
 
@@ -393,11 +397,28 @@ export const payrollRouter = router({
       if (!m) throw new TRPCError({ code: "FORBIDDEN", message: "Not a company member" });
       requireNotAuditor(m.role, "External Auditors cannot mark payroll as paid.");
       if (m.role !== "company_admin") throw new TRPCError({ code: "FORBIDDEN", message: "Only admins can mark payroll paid" });
+      const [runBefore] = await db
+        .select({
+          id: payrollRuns.id,
+          periodMonth: payrollRuns.periodMonth,
+          periodYear: payrollRuns.periodYear,
+        })
+        .from(payrollRuns)
+        .where(and(eq(payrollRuns.id, input.runId), eq(payrollRuns.companyId, m.companyId)))
+        .limit(1);
+      if (!runBefore) throw new TRPCError({ code: "NOT_FOUND", message: "Payroll run not found" });
       await db.update(payrollRuns).set({ status: "paid", paidAt: new Date() })
         .where(and(eq(payrollRuns.id, input.runId), eq(payrollRuns.companyId, m.companyId)));
       await db.update(payrollLineItems).set({ status: "paid" }).where(
         and(eq(payrollLineItems.payrollRunId, input.runId), eq(payrollLineItems.companyId, m.companyId)),
       );
+      await recordPayrollRunMarkedPaidAudit(db as never, {
+        companyId: m.companyId,
+        actorUserId: ctx.user.id,
+        payrollRunId: runBefore.id,
+        periodMonth: runBefore.periodMonth,
+        periodYear: runBefore.periodYear,
+      });
       return { success: true };
     }),
 
@@ -449,6 +470,18 @@ export const payrollRouter = router({
         .update(payrollLineItems)
         .set({ payslipUrl: url, payslipKey: key })
         .where(and(eq(payrollLineItems.id, input.lineId), eq(payrollLineItems.companyId, m.companyId)));
+      const pm = row.run?.periodMonth ?? 1;
+      const py = row.run?.periodYear ?? new Date().getFullYear();
+      await recordPayslipExportedAudit(db as never, {
+        companyId: m.companyId,
+        actorUserId: ctx.user.id,
+        payrollLineItemId: input.lineId,
+        payrollRunId: row.line.payrollRunId,
+        employeeId: row.line.employeeId,
+        periodMonth: pm,
+        periodYear: py,
+        payslipKey: key,
+      });
       return { url };
     }),
 

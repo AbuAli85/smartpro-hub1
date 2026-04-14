@@ -29,7 +29,10 @@ import { buildInviteEmailHtml, buildHRLetterEmailHtml, buildContractSigningEmail
 import { buildAccessAnalyticsOverview } from "../accessAnalytics";
 import { fetchEmployeesWithAccessData } from "../employeesWithAccessData";
 import {
+  recordInviteAcceptedAudit,
+  recordInviteCreatedAudit,
   recordInviteRevokedAudit,
+  recordMemberRemovedAudit,
   recordMemberRoleChangedAudit,
 } from "../tenantGovernanceAudit";
 
@@ -46,6 +49,17 @@ function companyIdFromCreateResult(row: unknown): number {
     }
   }
   throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to resolve new company id" });
+}
+
+function inviteIdFromInsertResult(row: unknown): number | null {
+  if (row && typeof row === "object") {
+    const r = row as { insertId?: unknown };
+    if (r.insertId != null) {
+      const n = Number(r.insertId);
+      if (Number.isFinite(n) && n > 0) return n;
+    }
+  }
+  return null;
 }
 
 /** Resolves `{ company, member }` for the active or explicit workspace — not arbitrary first membership. */
@@ -473,6 +487,13 @@ export const companiesRouter = router({
       if (!target) throw new TRPCError({ code: "NOT_FOUND" });
       if (target.userId === ctx.user.id) throw new TRPCError({ code: "BAD_REQUEST", message: "You cannot remove yourself." });
       await db.update(companyMembers).set({ isActive: false }).where(eq(companyMembers.id, input.memberId));
+      await recordMemberRemovedAudit(db as never, {
+        companyId,
+        actorUserId: ctx.user.id,
+        memberRowId: input.memberId,
+        targetUserId: target.userId,
+        platformOperator: canAccessGlobalAdminProcedures(ctx.user),
+      });
       return { success: true };
     }),
 
@@ -663,7 +684,7 @@ export const companiesRouter = router({
         .where(and(eq(companyInvites.email, input.email.toLowerCase()), eq(companyInvites.companyId, companyId)));
       const token = randomBytes(32).toString("hex");
       const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
-      await db.insert(companyInvites).values({
+      const [insertInviteResult] = await db.insert(companyInvites).values({
         companyId,
         email: input.email.toLowerCase(),
         role: input.role,
@@ -671,6 +692,17 @@ export const companiesRouter = router({
         invitedBy: ctx.user.id,
         expiresAt,
       });
+      const newInviteId = inviteIdFromInsertResult(insertInviteResult);
+      if (newInviteId != null) {
+        await recordInviteCreatedAudit(db as never, {
+          companyId,
+          actorUserId: ctx.user.id,
+          inviteId: newInviteId,
+          email: input.email.toLowerCase(),
+          role: input.role,
+          platformOperator: canAccessGlobalAdminProcedures(ctx.user),
+        });
+      }
       const inviteUrl = `${input.origin}/invite/${token}`;
       await notifyOwner({
         title: `Team invite sent to ${input.email}`,
@@ -841,6 +873,12 @@ export const companiesRouter = router({
       } catch {
         // Non-critical — don't fail the accept if auto-link fails
       }
+      await recordInviteAcceptedAudit(db as never, {
+        companyId: invite.companyId,
+        actorUserId: ctx.user.id,
+        inviteId: invite.id,
+        assignedRole: memberRole,
+      });
       return { success: true, companyId: invite.companyId, role: invite.role };
     }),
 

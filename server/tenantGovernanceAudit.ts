@@ -13,13 +13,19 @@ export const TENANT_GOVERNANCE_ENTITY = {
   COMPANY_MEMBER: "company_member",
   COMPANY_INVITE: "company_invite",
   PAYROLL_RUN: "payroll_run",
+  PAYROLL_LINE_ITEM: "payroll_line_item",
   CONTRACT: "contract",
 } as const;
 
 export const TENANT_GOVERNANCE_ACTION = {
   MEMBER_ROLE_CHANGED: "member_role_changed",
+  INVITE_CREATED: "invite_created",
   INVITE_REVOKED: "invite_revoked",
+  INVITE_ACCEPTED: "invite_accepted",
+  MEMBER_REMOVED: "member_removed",
   PAYROLL_RUN_APPROVED: "payroll_run_approved",
+  PAYROLL_RUN_MARKED_PAID: "payroll_run_marked_paid",
+  PAYSLIP_EXPORTED: "payslip_exported",
   CONTRACT_STATUS_UPDATED: "contract_status_updated",
 } as const;
 
@@ -51,6 +57,30 @@ export async function recordMemberRoleChangedAudit(
   });
 }
 
+export async function recordInviteCreatedAudit(
+  db: DbInsert,
+  params: {
+    companyId: number;
+    actorUserId: number;
+    inviteId: number;
+    email: string;
+    role: string;
+    /** True when a platform operator creates an invite for a tenant workspace */
+    platformOperator: boolean;
+  },
+): Promise<void> {
+  await db.insert(auditEvents).values({
+    companyId: params.companyId,
+    actorUserId: params.actorUserId,
+    entityType: TENANT_GOVERNANCE_ENTITY.COMPANY_INVITE,
+    entityId: params.inviteId,
+    action: TENANT_GOVERNANCE_ACTION.INVITE_CREATED,
+    beforeState: null,
+    afterState: { email: params.email, role: params.role },
+    metadata: { platformOperator: params.platformOperator },
+  });
+}
+
 export async function recordInviteRevokedAudit(
   db: DbInsert,
   params: {
@@ -69,6 +99,49 @@ export async function recordInviteRevokedAudit(
     beforeState: null,
     afterState: { revokedAt: new Date().toISOString() },
     metadata: { platformOperator: params.platformOperator },
+  });
+}
+
+export async function recordInviteAcceptedAudit(
+  db: DbInsert,
+  params: {
+    companyId: number;
+    actorUserId: number;
+    inviteId: number;
+    assignedRole: string;
+  },
+): Promise<void> {
+  await db.insert(auditEvents).values({
+    companyId: params.companyId,
+    actorUserId: params.actorUserId,
+    entityType: TENANT_GOVERNANCE_ENTITY.COMPANY_INVITE,
+    entityId: params.inviteId,
+    action: TENANT_GOVERNANCE_ACTION.INVITE_ACCEPTED,
+    beforeState: null,
+    afterState: { acceptedAt: new Date().toISOString(), role: params.assignedRole },
+    metadata: { targetUserId: params.actorUserId },
+  });
+}
+
+export async function recordMemberRemovedAudit(
+  db: DbInsert,
+  params: {
+    companyId: number;
+    actorUserId: number;
+    memberRowId: number;
+    targetUserId: number;
+    platformOperator: boolean;
+  },
+): Promise<void> {
+  await db.insert(auditEvents).values({
+    companyId: params.companyId,
+    actorUserId: params.actorUserId,
+    entityType: TENANT_GOVERNANCE_ENTITY.COMPANY_MEMBER,
+    entityId: params.memberRowId,
+    action: TENANT_GOVERNANCE_ACTION.MEMBER_REMOVED,
+    beforeState: { isActive: true, targetUserId: params.targetUserId },
+    afterState: { isActive: false, targetUserId: params.targetUserId },
+    metadata: { targetUserId: params.targetUserId, platformOperator: params.platformOperator },
   });
 }
 
@@ -93,6 +166,64 @@ export async function recordPayrollRunApprovedAudit(
       status: "approved",
       periodMonth: params.periodMonth,
       periodYear: params.periodYear,
+    },
+    metadata: null,
+  });
+}
+
+export async function recordPayrollRunMarkedPaidAudit(
+  db: DbInsert,
+  params: {
+    companyId: number;
+    actorUserId: number;
+    payrollRunId: number;
+    periodMonth: number;
+    periodYear: number;
+  },
+): Promise<void> {
+  await db.insert(auditEvents).values({
+    companyId: params.companyId,
+    actorUserId: params.actorUserId,
+    entityType: TENANT_GOVERNANCE_ENTITY.PAYROLL_RUN,
+    entityId: params.payrollRunId,
+    action: TENANT_GOVERNANCE_ACTION.PAYROLL_RUN_MARKED_PAID,
+    beforeState: null,
+    afterState: {
+      status: "paid",
+      periodMonth: params.periodMonth,
+      periodYear: params.periodYear,
+      paidAt: new Date().toISOString(),
+    },
+    metadata: null,
+  });
+}
+
+export async function recordPayslipExportedAudit(
+  db: DbInsert,
+  params: {
+    companyId: number;
+    actorUserId: number;
+    payrollLineItemId: number;
+    payrollRunId: number;
+    employeeId: number;
+    periodMonth: number;
+    periodYear: number;
+    payslipKey: string;
+  },
+): Promise<void> {
+  await db.insert(auditEvents).values({
+    companyId: params.companyId,
+    actorUserId: params.actorUserId,
+    entityType: TENANT_GOVERNANCE_ENTITY.PAYROLL_LINE_ITEM,
+    entityId: params.payrollLineItemId,
+    action: TENANT_GOVERNANCE_ACTION.PAYSLIP_EXPORTED,
+    beforeState: null,
+    afterState: {
+      payrollRunId: params.payrollRunId,
+      employeeId: params.employeeId,
+      periodMonth: params.periodMonth,
+      periodYear: params.periodYear,
+      payslipKey: params.payslipKey,
     },
     metadata: null,
   });

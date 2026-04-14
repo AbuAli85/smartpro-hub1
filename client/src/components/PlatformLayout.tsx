@@ -53,6 +53,7 @@ import { useOnboardingAutoComplete } from "@/hooks/useOnboardingAutoComplete";
 import { filterVisibleNavGroups } from "@/config/platformNav";
 import { PlatformSidebarNav } from "@/components/PlatformSidebarNav";
 import type { ClientNavOptions } from "@shared/clientNav";
+import { resolveSidebarBadgeMap } from "@/lib/sidebarBadgeResolver";
 function SidebarContent({ onClose }: { onClose?: () => void }) {
   const { user, logout } = useAuth();
   const { t } = useTranslation("nav");
@@ -74,6 +75,18 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
     enabled: activeCompanyId != null && Boolean(myCompany?.company?.id),
     staleTime: 60_000,
   });
+  const { data: pendingInvites = [] } = trpc.companies.listInvites.useQuery(
+    { companyId: activeCompanyId ?? undefined },
+    { enabled: activeCompanyId != null },
+  );
+  const { data: renewalsBadge } = trpc.alerts.getAlertBadgeCount.useQuery(
+    { companyId: activeCompanyId ?? undefined },
+    { enabled: activeCompanyId != null && Boolean(myCompany?.company?.id), staleTime: 60_000 },
+  );
+  const { data: taskStats } = trpc.tasks.getTaskStats.useQuery(
+    { companyId: activeCompanyId ?? undefined },
+    { enabled: activeCompanyId != null && Boolean(myCompany?.company?.id), staleTime: 60_000 },
+  );
   const [navPrefsEpoch, setNavPrefsEpoch] = useState(0);
 
   useEffect(() => {
@@ -103,6 +116,19 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
     myCompanyLoading,
     companies.length,
   ]);
+
+  const sidebarBadgeValues = useMemo(
+    () =>
+      resolveSidebarBadgeMap({
+        pendingInvites: pendingInvites.length,
+        renewalsExpiringSoon: renewalsBadge?.count ?? 0,
+        renewalsCritical: renewalsBadge?.critical ?? 0,
+        openGovernmentCases: wfStats?.openGovernmentCases ?? 0,
+        tasksOpen: (taskStats?.pending ?? 0) + (taskStats?.inProgress ?? 0) + (taskStats?.blocked ?? 0),
+        tasksOverdue: taskStats?.overdue ?? 0,
+      }),
+    [pendingInvites.length, renewalsBadge?.count, renewalsBadge?.critical, wfStats?.openGovernmentCases, taskStats?.pending, taskStats?.inProgress, taskStats?.blocked, taskStats?.overdue],
+  );
 
   return (
     <div className="flex flex-col h-full sidebar-nav">
@@ -135,6 +161,7 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
         t={t}
         platformNav={platformNav}
         pendingProfileReq={wfStats?.pendingProfileChangeRequests ?? 0}
+        badgeValues={sidebarBadgeValues}
       />
 
       {/* Onboarding progress widget */}

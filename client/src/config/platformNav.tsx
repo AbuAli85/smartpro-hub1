@@ -72,6 +72,12 @@ export type NavIntent = "overview" | "workspace" | "insight" | "governance" | "m
 export type NavTier = "primary" | "secondary" | "tertiary";
 
 export type NavAttentionLevel = "none" | "low" | "medium";
+export type NavBadgeTone = "neutral" | "warning" | "critical";
+export type NavBadgeKey =
+  | "teamAccessPendingInvites"
+  | "renewalsAttention"
+  | "governmentCasesOpen"
+  | "taskManagerOpen";
 
 export type NavLeafDef = {
   kind: "leaf";
@@ -83,8 +89,8 @@ export type NavLeafDef = {
   intent: NavIntent;
   activePathPrefixes?: string[];
   hubPrimary?: boolean;
-  /** Reserved for future sidebar badges (counts/alerts); not rendered by default. */
-  badgeMeta?: { count?: number; tone?: "neutral" | "attention" };
+  /** Optional V1 sidebar badge metadata (count/tone is resolved at runtime). */
+  badgeMeta?: { key: NavBadgeKey };
   /** Reserved for future “needs attention” styling tiers. */
   attentionLevel?: NavAttentionLevel;
 };
@@ -352,7 +358,6 @@ export const PLATFORM_NAV_GROUP_DEFS: readonly NavGroupDef[] = [
         ClipboardList,
         {
           intent: "governance",
-          badgeMeta: { tone: "attention" },
           attentionLevel: "low",
         },
       ),
@@ -368,7 +373,10 @@ export const PLATFORM_NAV_GROUP_DEFS: readonly NavGroupDef[] = [
       leaf("ops.companyHub", "companyHub", "Company hub", "/company/hub", Building2, {
         intent: "workspace",
       }),
-      leaf("ops.tasks", "taskManager", "Task Manager", "/hr/tasks", ListTodo, { intent: "workspace" }),
+      leaf("ops.tasks", "taskManager", "Task Manager", "/hr/tasks", ListTodo, {
+        intent: "workspace",
+        badgeMeta: { key: "taskManagerOpen" },
+      }),
       leaf("ops.crm", "crm", "CRM & Pipeline", "/crm", Users, { intent: "workspace" }),
       leaf("ops.quotations", "quotations", "Quotations", "/quotations", Target, { intent: "workspace" }),
     ],
@@ -414,11 +422,13 @@ export const PLATFORM_NAV_GROUP_DEFS: readonly NavGroupDef[] = [
             "/renewal-workflows",
             "/subscriptions",
           ],
+          badgeMeta: { key: "renewalsAttention" },
         },
       ),
       leaf("compliance.workPermits", "workPermits", "Work permits", "/workforce/permits", Shield, { intent: "governance" }),
       leaf("compliance.governmentCases", "governmentCases", "Government cases", "/workforce/cases", ClipboardCheck, {
         intent: "governance",
+        badgeMeta: { key: "governmentCasesOpen" },
       }),
       leaf("compliance.portalSync", "portalSync", "Portal sync", "/workforce/sync", RefreshCw, { intent: "governance" }),
       leaf("compliance.workforceDashboard", "workforceDashboard", "Workforce overview", "/workforce", BarChart3, {
@@ -448,6 +458,7 @@ export const PLATFORM_NAV_GROUP_DEFS: readonly NavGroupDef[] = [
     items: [
       leaf("access.teamAccess", "teamAccess", "Team access", "/company/team-access", UserCheck, {
         intent: "governance",
+        badgeMeta: { key: "teamAccessPendingInvites" },
       }),
       leaf("access.rolesPermissions", "rolesPermissions", "Roles & permissions", "/company-admin", Shield, {
         intent: "governance",

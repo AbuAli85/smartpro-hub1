@@ -14,6 +14,7 @@ import {
   branchShouldShowOpen,
   groupContainsActiveRoute,
 } from "@/config/platformNav";
+import type { SidebarBadgeMap } from "@/lib/sidebarBadgeResolver";
 
 const NAV_GROUP_OPEN_STORAGE_KEY = "smartpro-nav-group-open";
 
@@ -57,15 +58,24 @@ function NavLeafLink({
   onClose,
   t,
   pendingProfileReq,
+  badgeValues,
 }: {
   item: NavLeafDef;
   location: string;
   onClose?: () => void;
   t: (key: string, defaultLabel: string) => string;
   pendingProfileReq: number;
+  badgeValues: SidebarBadgeMap;
 }) {
   const active = isNavLeafActive(item, location);
   const Icon = item.icon;
+  const navBadge = item.badgeMeta ? badgeValues[item.badgeMeta.key] : undefined;
+  const badgeToneClass =
+    navBadge?.tone === "critical"
+      ? "sidebar-nav-badge--critical"
+      : navBadge?.tone === "warning"
+        ? "sidebar-nav-badge--warning"
+        : "sidebar-nav-badge--neutral";
   return (
     <Link
       href={item.href}
@@ -80,7 +90,18 @@ function NavLeafLink({
     >
       <Icon size={16} className="shrink-0 opacity-90" aria-hidden />
       <span className="flex-1 min-w-0 text-[13px] leading-snug text-start">{t(item.labelKey, item.defaultLabel)}</span>
-      {item.href === "/workforce/profile-change-requests" && pendingProfileReq > 0 ? (
+      {navBadge ? (
+        <Badge
+          variant="secondary"
+          className={cn(
+            "sidebar-nav-badge text-[10px] px-1.5 py-0 h-5 min-w-[1.25rem] justify-center shrink-0 border",
+            badgeToneClass,
+          )}
+          aria-label={`${navBadge.count} items`}
+        >
+          {navBadge.label}
+        </Badge>
+      ) : item.href === "/workforce/profile-change-requests" && pendingProfileReq > 0 ? (
         <Badge
           variant="secondary"
           className="text-[10px] px-1.5 py-0 h-5 min-w-[1.25rem] justify-center shrink-0 bg-white/15 text-white border-white/20"
@@ -101,12 +122,14 @@ function NavBranch({
   onClose,
   t,
   pendingProfileReq,
+  badgeValues,
 }: {
   item: NavBranchDef;
   location: string;
   onClose?: () => void;
   t: (key: string, defaultLabel: string) => string;
   pendingProfileReq: number;
+  badgeValues: SidebarBadgeMap;
 }) {
   const pathActive = branchShouldShowOpen(item, location);
   const [peekOpen, setPeekOpen] = useState(false);
@@ -153,6 +176,7 @@ function NavBranch({
             onClose={onClose}
             t={t}
             pendingProfileReq={pendingProfileReq}
+            badgeValues={badgeValues}
           />
         ))}
       </CollapsibleContent>
@@ -166,12 +190,14 @@ function NavItemRow({
   onClose,
   t,
   pendingProfileReq,
+  badgeValues,
 }: {
   item: NavItemDef;
   location: string;
   onClose?: () => void;
   t: (key: string, defaultLabel: string) => string;
   pendingProfileReq: number;
+  badgeValues: SidebarBadgeMap;
 }) {
   if (item.kind === "branch") {
     return (
@@ -181,11 +207,19 @@ function NavItemRow({
         onClose={onClose}
         t={t}
         pendingProfileReq={pendingProfileReq}
+        badgeValues={badgeValues}
       />
     );
   }
   const Icon = item.icon;
   const active = isNavLeafActive(item, location);
+  const navBadge = item.badgeMeta ? badgeValues[item.badgeMeta.key] : undefined;
+  const badgeToneClass =
+    navBadge?.tone === "critical"
+      ? "sidebar-nav-badge--critical"
+      : navBadge?.tone === "warning"
+        ? "sidebar-nav-badge--warning"
+        : "sidebar-nav-badge--neutral";
   return (
     <Link
       href={item.href}
@@ -196,7 +230,18 @@ function NavItemRow({
     >
       <Icon size={18} aria-hidden />
       <span className="flex-1 min-w-0 text-[13px] leading-snug text-start">{t(item.labelKey, item.defaultLabel)}</span>
-      {item.href === "/workforce/profile-change-requests" && pendingProfileReq > 0 ? (
+      {navBadge ? (
+        <Badge
+          variant="secondary"
+          className={cn(
+            "sidebar-nav-badge text-[10px] px-1.5 py-0 h-5 min-w-[1.25rem] justify-center shrink-0 border",
+            badgeToneClass,
+          )}
+          aria-label={`${navBadge.count} items`}
+        >
+          {navBadge.label}
+        </Badge>
+      ) : item.href === "/workforce/profile-change-requests" && pendingProfileReq > 0 ? (
         <Badge
           variant="secondary"
           className="text-[10px] px-1.5 py-0 h-5 min-w-[1.25rem] justify-center shrink-0 bg-white/15 text-white border-white/20"
@@ -217,12 +262,14 @@ export function PlatformSidebarNav({
   t,
   platformNav,
   pendingProfileReq,
+  badgeValues = {},
 }: {
   groups: NavGroupDef[];
   onClose?: () => void;
   t: (key: string, defaultLabel: string) => string;
   platformNav: boolean;
   pendingProfileReq: number;
+  badgeValues?: SidebarBadgeMap;
 }) {
   const [location] = useLocation();
   const [groupOpenOverride, setGroupOpenOverride] = useState<Record<string, boolean>>(() => readStoredGroupOpen());
@@ -275,6 +322,7 @@ export function PlatformSidebarNav({
                 onClose={onClose}
                 t={t}
                 pendingProfileReq={pendingProfileReq}
+                badgeValues={badgeValues}
               />
             ))}
           </div>

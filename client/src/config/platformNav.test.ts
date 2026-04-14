@@ -66,6 +66,7 @@ describe("platformNav IA & routing", () => {
     const teamAccess = leaves.find((l) => l.href === "/company/team-access");
     const roles = leaves.find((l) => l.href === "/company-admin");
     expect(teamAccess?.labelKey).toBe("teamAccess");
+    expect(teamAccess?.badgeMeta?.key).toBe("teamAccessPendingInvites");
     expect(roles?.labelKey).toBe("rolesPermissions");
     expect(leaves.map((l) => l.href).join()).not.toContain("/my-team");
   });
@@ -100,12 +101,14 @@ describe("platformNav IA & routing", () => {
 
   it("keeps Operations section to hub, task manager, CRM, and quotations", () => {
     const ops = findGroup("operations")!;
-    expect(walkLeaves(ops.items).map((l) => l.href)).toEqual([
+    const leaves = walkLeaves(ops.items);
+    expect(leaves.map((l) => l.href)).toEqual([
       "/company/hub",
       "/hr/tasks",
       "/crm",
       "/quotations",
     ]);
+    expect(leaves.find((l) => l.href === "/hr/tasks")?.badgeMeta?.key).toBe("taskManagerOpen");
   });
 
   it("tertiary platform group defaults collapsed in config", () => {
@@ -119,6 +122,14 @@ describe("platformNav IA & routing", () => {
     const plat = findGroup("platform")!;
     expect(groupContainsActiveRoute(plat, "/admin")).toBe(true);
     expect(groupContainsActiveRoute(plat, "/audit-log")).toBe(true);
+    expect(walkLeaves(plat.items).find((l) => l.href === "/sanad/ratings-moderation")).toBeDefined();
+  });
+
+  it("wires renewals and government cases badge metadata", () => {
+    const cw = findGroup("complianceWorkforce")!;
+    const leaves = walkLeaves(cw.items);
+    expect(leaves.find((l) => l.href === "/compliance/renewals")?.badgeMeta?.key).toBe("renewalsAttention");
+    expect(leaves.find((l) => l.href === "/workforce/cases")?.badgeMeta?.key).toBe("governmentCasesOpen");
   });
 
   it("role-based filtering: company_admin retains primary business groups", () => {

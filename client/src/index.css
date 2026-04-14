@@ -229,6 +229,26 @@
   box-shadow: inset 3px 0 0 color-mix(in oklch, var(--smartpro-orange) 70%, transparent);
 }
 
+.sidebar-nav-badge {
+  font-weight: 600;
+  line-height: 1;
+}
+.sidebar-nav-badge--neutral {
+  background: rgb(255 255 255 / 0.12);
+  color: rgb(255 255 255 / 0.86);
+  border-color: rgb(255 255 255 / 0.18);
+}
+.sidebar-nav-badge--warning {
+  background: color-mix(in oklch, var(--smartpro-orange) 24%, transparent);
+  color: rgb(255 255 255 / 0.93);
+  border-color: color-mix(in oklch, var(--smartpro-orange) 45%, transparent);
+}
+.sidebar-nav-badge--critical {
+  background: color-mix(in oklch, #ef4444 24%, transparent);
+  color: rgb(255 255 255 / 0.95);
+  border-color: color-mix(in oklch, #ef4444 45%, transparent);
+}
+
 /* Nested branch items — logical inline start border (LTR + RTL) */
 .sidebar-nav-branch-nested {
   padding-inline-start: 0.5rem;

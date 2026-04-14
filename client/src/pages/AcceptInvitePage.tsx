@@ -278,11 +278,18 @@ export default function AcceptInvitePage() {
           {emailMismatch && (
             <div className="flex items-start gap-2 text-sm text-muted-foreground bg-destructive/5 border border-destructive/20 rounded-lg p-3">
               <AlertTriangle className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
-              <span>
-                You are signed in as <strong className="text-foreground">{user.email}</strong>, but this invite was sent to{" "}
-                <strong className="text-foreground">{invite.email}</strong>. For security, you cannot accept with this account.
-                Sign out, then sign in with the invited email (choose the correct Google or Microsoft profile).
-              </span>
+              <div className="space-y-2 min-w-0">
+                <p className="font-medium text-foreground">You need to use the invited email</p>
+                <p>
+                  This link was issued for <strong className="text-foreground">{invite.email}</strong> because that is the address your
+                  admin entered when they sent the invite. Only that address can join, so someone else cannot accept the invite if they open
+                  the link while logged into another account.
+                </p>
+                <p>
+                  You are currently signed in as <strong className="text-foreground">{user.email}</strong>. Sign out below, then sign in
+                  again and choose the Google or Microsoft profile for <strong className="text-foreground">{invite.email}</strong>.
+                </p>
+              </div>
             </div>
           )}
 

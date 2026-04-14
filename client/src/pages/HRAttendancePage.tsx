@@ -37,6 +37,7 @@ import {
   ATTENDANCE_AUDIT_ACTION,
   ATTENDANCE_AUDIT_SOURCE,
 } from "@shared/attendanceAuditTaxonomy";
+import { OPERATIONAL_TRIAGE_AUDIT_LABELS } from "@shared/attendanceOperationalAuditPresentation";
 import { getAdminBoardRowStatusPresentation } from "@/lib/adminBoardRowStatus";
 import {
   buildOperationalActionQueue,
@@ -55,6 +56,7 @@ import { operationalIssueKey } from "@shared/attendanceOperationalIssueKeys";
 import { OperationalIssueMetaStrip } from "@/components/attendance/OperationalIssueMetaStrip";
 import { OperationalIssueHistorySheet } from "@/components/attendance/OperationalIssueHistorySheet";
 const AUDIT_ACTION_LABELS: Record<string, string> = {
+  ...OPERATIONAL_TRIAGE_AUDIT_LABELS,
   [ATTENDANCE_AUDIT_ACTION.HR_ATTENDANCE_CREATE]: "HR attendance · created",
   [ATTENDANCE_AUDIT_ACTION.HR_ATTENDANCE_UPDATE]: "HR attendance · updated",
   [ATTENDANCE_AUDIT_ACTION.HR_ATTENDANCE_DELETE]: "HR attendance · deleted",
@@ -68,9 +70,6 @@ const AUDIT_ACTION_LABELS: Record<string, string> = {
   [ATTENDANCE_AUDIT_ACTION.SELF_CHECKOUT]: "Self check-out",
   [ATTENDANCE_AUDIT_ACTION.MANUAL_CHECKIN_SUBMIT]: "Manual check-in · submitted",
   [ATTENDANCE_AUDIT_ACTION.FORCE_CHECKOUT]: "Force checkout (HR)",
-  [ATTENDANCE_AUDIT_ACTION.OPERATIONAL_ISSUE_ACKNOWLEDGE]: "Operational issue · acknowledged",
-  [ATTENDANCE_AUDIT_ACTION.OPERATIONAL_ISSUE_RESOLVE]: "Operational issue · resolved",
-  [ATTENDANCE_AUDIT_ACTION.OPERATIONAL_ISSUE_ASSIGN]: "Operational issue · assigned",
 };
 
 const AUDIT_SOURCE_LABELS: Record<string, string> = {
@@ -113,10 +112,16 @@ function AttendanceAuditLog({
   enabled,
   companyId,
   employees,
+  assigneeFilterOptions,
+  persistQueryString,
 }: {
   enabled: boolean;
   companyId: number | null;
   employees: { id: number; firstName: string; lastName: string; userId: number | null }[];
+  /** Same eligible company members as triage assignment; overrides employee-based assignee list when set. */
+  assigneeFilterOptions?: { userId: number; label: string }[];
+  /** Persist operational lens + issue-kind filters in the page URL (same pattern as HR Performance tab). */
+  persistQueryString?: boolean;
 }) {
   const defaultTo = new Date().toISOString().slice(0, 10);
   const defaultFrom = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
@@ -148,6 +153,51 @@ function AttendanceAuditLog({
     () => employees.filter((e) => e.userId != null) as { id: number; firstName: string; lastName: string; userId: number }[],
     [employees],
   );
+  const assigneeSelectOptions =
+    assigneeFilterOptions && assigneeFilterOptions.length > 0
+      ? assigneeFilterOptions
+      : assigneeOptions.map((e) => ({
+          userId: e.userId,
+          label: `${e.firstName} ${e.lastName}`,
+        }));
+
+  const [auditUrlReady, setAuditUrlReady] = useState(() => !persistQueryString);
+  useEffect(() => {
+    if (!persistQueryString) {
+      setAuditUrlReady(true);
+      return;
+    }
+    if (typeof window === "undefined") {
+      setAuditUrlReady(true);
+      return;
+    }
+    const p = new URLSearchParams(window.location.search);
+    const lens = p.get("auditLens");
+    if (lens === "operational" || lens === "all") setAuditLens(lens);
+    const kind = p.get("opIssueKind");
+    if (
+      kind === "overdue_checkout" ||
+      kind === "missed_shift" ||
+      kind === "correction_pending" ||
+      kind === "manual_pending" ||
+      kind === "all"
+    ) {
+      setOperationalIssueKind(kind);
+    }
+    setAuditUrlReady(true);
+  }, [persistQueryString]);
+
+  useEffect(() => {
+    if (!persistQueryString || !auditUrlReady || typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    url.searchParams.set("auditLens", auditLens);
+    if (auditLens === "operational" && operationalIssueKind !== "all") {
+      url.searchParams.set("opIssueKind", operationalIssueKind);
+    } else {
+      url.searchParams.delete("opIssueKind");
+    }
+    window.history.replaceState({}, "", url.toString());
+  }, [persistQueryString, auditUrlReady, auditLens, operationalIssueKind]);
 
   const auditQuery = useMemo(
     () => ({
@@ -324,9 +374,9 @@ function AttendanceAuditLog({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Anyone</SelectItem>
-                  {assigneeOptions.map((e) => (
+                  {assigneeSelectOptions.map((e) => (
                     <SelectItem key={e.userId} value={String(e.userId)}>
-                      {e.firstName} {e.lastName}
+                      {e.label}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -1288,12 +1338,23 @@ export default function HRAttendancePage() {
   const { data: employees } = trpc.hr.listEmployees.useQuery({ department: deptFilter !== "all" ? deptFilter : undefined, status: "active", companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
   const { data: companyMembers } = trpc.companies.members.useQuery(
     { companyId: activeCompanyId ?? undefined },
-    { enabled: activeCompanyId != null && triageAssignItem != null },
+    {
+      enabled:
+        activeCompanyId != null && (attendanceTab === "audit" || triageAssignItem != null),
+    },
   );
   const assignableCompanyMembers = useMemo(() => {
     const eligible = new Set(["company_admin", "hr_admin", "finance_admin", "reviewer"]);
     return (companyMembers ?? []).filter((m) => m.isActive !== false && eligible.has(m.role));
   }, [companyMembers]);
+  const eligibleAuditAssigneeOptions = useMemo(
+    () =>
+      assignableCompanyMembers.map((m) => ({
+        userId: m.userId,
+        label: (m.name ?? "").trim() || `User #${m.userId}`,
+      })),
+    [assignableCompanyMembers],
+  );
   const { data: attendance, refetch } = trpc.hr.listAttendance.useQuery({ month: monthFilter, companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
   const { data: stats } = trpc.hr.attendanceStats.useQuery({ month: monthFilter, companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
 
@@ -1538,6 +1599,8 @@ export default function HRAttendancePage() {
               lastName: e.lastName,
               userId: e.userId ?? null,
             }))}
+            assigneeFilterOptions={eligibleAuditAssigneeOptions}
+            persistQueryString={attendanceTab === "audit"}
           />
         </TabsContent>
         <TabsContent value="records" className="mt-4">

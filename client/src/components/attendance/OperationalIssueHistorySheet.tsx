@@ -1,12 +1,9 @@
 import { trpc } from "@/lib/trpc";
 import { fmtDateTimeShort } from "@/lib/dateUtils";
+import { formatOperationalIssueHistoryAuditActionLabel } from "@shared/attendanceOperationalAuditPresentation";
 import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
-
-function auditLabel(actionType: string): string {
-  return actionType.replace(/_/g, " ");
-}
 
 export function OperationalIssueHistorySheet({
   open,
@@ -91,7 +88,7 @@ export function OperationalIssueHistorySheet({
                         <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px]">
                           <span className="font-medium">{fmtDateTimeShort(new Date(e.createdAt))}</span>
                           <Badge variant="secondary" className="text-[10px] h-5 font-normal">
-                            {auditLabel(e.actionType)}
+                            {formatOperationalIssueHistoryAuditActionLabel(e.actionType)}
                           </Badge>
                           {e.source ? (
                             <span className="text-muted-foreground capitalize">{e.source.replace(/_/g, " ")}</span>

@@ -3,6 +3,7 @@
  */
 import { and, desc, eq, inArray, or } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
+import { describeOperationalIssueHistoryAuditBranches } from "@shared/attendanceOperationalIssueHistoryLinks";
 import { attendanceAudit, attendanceOperationalIssues, users } from "../drizzle/schema";
 
 type Db = MySql2Database<any>;
@@ -110,18 +111,25 @@ export async function loadOperationalIssueHistoryBundle(
   const summary = map.get(issue.issueKey);
   if (!summary) return null;
 
-  const clauses = [
-    and(eq(attendanceAudit.entityType, "attendance_operational_issue"), eq(attendanceAudit.entityId, issue.id)),
-  ];
-  if (issue.correctionId != null) {
-    clauses.push(eq(attendanceAudit.correctionId, issue.correctionId));
-  }
-  if (issue.manualCheckinRequestId != null) {
-    clauses.push(eq(attendanceAudit.manualCheckinRequestId, issue.manualCheckinRequestId));
-  }
-  if (issue.attendanceRecordId != null) {
-    clauses.push(eq(attendanceAudit.attendanceRecordId, issue.attendanceRecordId));
-  }
+  const branches = describeOperationalIssueHistoryAuditBranches({
+    id: issue.id,
+    correctionId: issue.correctionId ?? null,
+    manualCheckinRequestId: issue.manualCheckinRequestId ?? null,
+    attendanceRecordId: issue.attendanceRecordId ?? null,
+  });
+  const clauses = branches.map((b) => {
+    if (b.kind === "entity_operational_issue") {
+      return and(
+        eq(attendanceAudit.entityType, "attendance_operational_issue"),
+        eq(attendanceAudit.entityId, b.operationalIssueRowId),
+      );
+    }
+    if (b.kind === "correction_id") return eq(attendanceAudit.correctionId, b.correctionId);
+    if (b.kind === "manual_checkin_request_id") {
+      return eq(attendanceAudit.manualCheckinRequestId, b.manualCheckinRequestId);
+    }
+    return eq(attendanceAudit.attendanceRecordId, b.attendanceRecordId);
+  });
 
   const auditWhere =
     clauses.length === 1

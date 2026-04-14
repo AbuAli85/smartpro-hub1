@@ -51,6 +51,11 @@ import {
   loadOperationalIssueHistoryBundle,
   loadOperationalIssueSummariesByKeys,
 } from "../attendanceOperationalIssueQueries";
+import {
+  operationalIssueKindToIssueKeyLikePattern,
+  OPERATIONAL_TRIAGE_AUDIT_ACTIONS,
+  resolveOperationalAuditLensFilter,
+} from "../attendanceAuditOperational";
 
 async function requireDb() {
   const db = await getDb();
@@ -2219,27 +2224,20 @@ export const attendanceRouter = router({
     .query(async ({ ctx, input }) => {
       const membership = await requireAdminOrHR(ctx.user as User, input.companyId);
       const db = await requireDb();
-      const opAuditActions = [
-        ATTENDANCE_AUDIT_ACTION.OPERATIONAL_ISSUE_ACKNOWLEDGE,
-        ATTENDANCE_AUDIT_ACTION.OPERATIONAL_ISSUE_RESOLVE,
-        ATTENDANCE_AUDIT_ACTION.OPERATIONAL_ISSUE_ASSIGN,
-      ] as const;
 
       const conditions = [eq(attendanceAudit.companyId, membership.company.id)];
 
-      if (input.auditLens === "operational") {
-        if (input.operationalAction && input.operationalAction !== "all") {
-          const map = {
-            acknowledge: ATTENDANCE_AUDIT_ACTION.OPERATIONAL_ISSUE_ACKNOWLEDGE,
-            resolve: ATTENDANCE_AUDIT_ACTION.OPERATIONAL_ISSUE_RESOLVE,
-            assign: ATTENDANCE_AUDIT_ACTION.OPERATIONAL_ISSUE_ASSIGN,
-          } as const;
-          conditions.push(eq(attendanceAudit.actionType, map[input.operationalAction]));
-        } else {
-          conditions.push(inArray(attendanceAudit.actionType, [...opAuditActions]));
-        }
-      } else if (input.actionType) {
-        conditions.push(eq(attendanceAudit.actionType, input.actionType as AttendanceAuditActionType));
+      const lens = resolveOperationalAuditLensFilter({
+        auditLens: input.auditLens,
+        operationalAction: input.operationalAction,
+        actionType: input.actionType,
+      });
+      if (lens.kind === "operational_all") {
+        conditions.push(inArray(attendanceAudit.actionType, [...OPERATIONAL_TRIAGE_AUDIT_ACTIONS]));
+      } else if (lens.kind === "operational_one") {
+        conditions.push(eq(attendanceAudit.actionType, lens.action));
+      } else if (lens.kind === "generic") {
+        conditions.push(eq(attendanceAudit.actionType, lens.action as AttendanceAuditActionType));
       }
 
       if (input.employeeId != null) {
@@ -2257,17 +2255,8 @@ export const attendanceRouter = router({
         input.operationalIssueKind &&
         input.operationalIssueKind !== "all"
       ) {
-        const kindPrefix: Record<
-          "overdue_checkout" | "missed_shift" | "correction_pending" | "manual_pending",
-          string
-        > = {
-          overdue_checkout: "overdue_checkout:%",
-          missed_shift: "missed_shift:%",
-          correction_pending: "correction_pending:%",
-          manual_pending: "manual_pending:%",
-        };
         conditions.push(
-          sql`JSON_UNQUOTE(JSON_EXTRACT(${attendanceAudit.afterPayload}, '$.issueKey')) LIKE ${kindPrefix[input.operationalIssueKind]}`,
+          sql`JSON_UNQUOTE(JSON_EXTRACT(${attendanceAudit.afterPayload}, '$.issueKey')) LIKE ${operationalIssueKindToIssueKeyLikePattern(input.operationalIssueKind)}`,
         );
       }
 

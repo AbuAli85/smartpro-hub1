@@ -2,8 +2,9 @@ import { z } from "zod";
 import { canAccessGlobalAdminProcedures } from "@shared/rbac";
 import { protectedProcedure, router } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
-import { getDb, getUserCompany } from "../db";
-import { requireActiveCompanyMembership } from "../_core/membership";
+import { getDb } from "../db";
+import { requireWorkspaceMembership } from "../_core/membership";
+import type { User } from "../../drizzle/schema";
 import { eq, and, gte, lte, inArray, desc } from "drizzle-orm";
 import {
   companies, proBillingCycles, omaniProOfficers, officerCompanyAssignments,
@@ -81,6 +82,21 @@ function addFooter(doc: PDFKit.PDFDocument) {
     .text("Confidential — For internal use only", 50, y + 20);
 }
 
+/** Tenant users must pass workspace companyId when multi-member; platform must pass explicit companyId. */
+async function resolveReportCompanyId(ctx: { user: User }, inputCompanyId?: number | null): Promise<number> {
+  if (canAccessGlobalAdminProcedures(ctx.user)) {
+    if (inputCompanyId == null) {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: "Select a company workspace — pass companyId for this report.",
+      });
+    }
+    return inputCompanyId;
+  }
+  const { companyId } = await requireWorkspaceMembership(ctx.user, inputCompanyId);
+  return companyId;
+}
+
 // ── Router ────────────────────────────────────────────────────────────────────
 export const reportsRouter = router({
 
@@ -88,7 +104,7 @@ export const reportsRouter = router({
   generateBillingSummary: protectedProcedure
     .input(z.object({ month: z.number().min(1).max(12), year: z.number().min(2020), companyId: z.number().optional() }))
     .mutation(async ({ ctx, input }) => {
-      const { companyId } = await requireActiveCompanyMembership(ctx.user.id, input.companyId);
+      const companyId = await resolveReportCompanyId(ctx, input.companyId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
 
@@ -168,7 +184,7 @@ export const reportsRouter = router({
   generatePayslip: protectedProcedure
     .input(z.object({ runId: z.number(), employeeId: z.number(), companyId: z.number().optional() }))
     .mutation(async ({ ctx, input }) => {
-      const { companyId } = await requireActiveCompanyMembership(ctx.user.id, input.companyId);
+      const companyId = await resolveReportCompanyId(ctx, input.companyId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
 
@@ -277,19 +293,7 @@ export const reportsRouter = router({
   generateWorkforceReport: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }))
     .mutation(async ({ ctx, input }) => {
-      const membership = await getUserCompany(ctx.user.id);
-      const memberCompanyId = membership?.company?.id;
-      let companyId: number;
-      if (canAccessGlobalAdminProcedures(ctx.user)) {
-        companyId = input.companyId ?? memberCompanyId!;
-        if (!companyId) throw new TRPCError({ code: "NOT_FOUND", message: "No company found" });
-      } else {
-        const { companyId: activeCid } = await requireActiveCompanyMembership(ctx.user.id);
-        if (input.companyId != null && input.companyId !== activeCid) {
-          throw new TRPCError({ code: "NOT_FOUND", message: "Report not found" });
-        }
-        companyId = activeCid;
-      }
+      const companyId = await resolveReportCompanyId(ctx, input.companyId);
 
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
@@ -381,7 +385,7 @@ export const reportsRouter = router({
   generateComplianceReport: protectedProcedure
     .input(z.object({ month: z.number().min(1).max(12), year: z.number().min(2020), companyId: z.number().optional() }))
     .mutation(async ({ ctx, input }) => {
-      const { companyId } = await requireActiveCompanyMembership(ctx.user.id, input.companyId);
+      const companyId = await resolveReportCompanyId(ctx, input.companyId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
 

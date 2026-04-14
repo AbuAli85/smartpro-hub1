@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
+import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -137,6 +138,11 @@ const PRIORITY_COLORS: Record<Priority, string> = {
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function WorkforceIntelligencePage() {
   const [, navigate] = useLocation();
+  const { activeCompanyId } = useActiveCompany();
+  const workspaceInput = useMemo(
+    () => (activeCompanyId != null ? { companyId: activeCompanyId } : {}),
+    [activeCompanyId],
+  );
   const [activeTab, setActiveTab] = useState("overview");
   const [showRuleDialog, setShowRuleDialog] = useState(false);
   const [editingRule, setEditingRule] = useState<null | { id: number; name: string; description?: string; triggerType: TriggerType; conditionValue?: string; actionType: ActionType; isActive: boolean }>(null);
@@ -156,13 +162,13 @@ export default function WorkforceIntelligencePage() {
   const utils = trpc.useUtils();
 
   // Queries
-  const { data: kpi, isLoading: kpiLoading, refetch: refetchKPI } = trpc.automation.getWorkforceKPI.useQuery(undefined, {
+  const { data: kpi, isLoading: kpiLoading, refetch: refetchKPI } = trpc.automation.getWorkforceKPI.useQuery(workspaceInput, {
     refetchOnWindowFocus: false,
   });
-  const { data: rules, isLoading: rulesLoading } = trpc.automation.listRules.useQuery();
-  const { data: logs } = trpc.automation.getLogs.useQuery({ limit: 30 });
-  const { data: trend } = trpc.automation.getHealthTrend.useQuery();
-  const { data: templates = [], isLoading: templatesLoading } = trpc.automation.getTemplates.useQuery();
+  const { data: rules, isLoading: rulesLoading } = trpc.automation.listRules.useQuery(workspaceInput);
+  const { data: logs } = trpc.automation.getLogs.useQuery({ limit: 30, ...workspaceInput });
+  const { data: trend } = trpc.automation.getHealthTrend.useQuery(workspaceInput);
+  const { data: templates = [], isLoading: templatesLoading } = trpc.automation.getTemplates.useQuery(workspaceInput);
   const installTemplate = trpc.automation.installTemplate.useMutation({
     onSuccess: () => {
       utils.automation.getTemplates.invalidate();
@@ -204,14 +210,14 @@ export default function WorkforceIntelligencePage() {
     onSuccess: () => { utils.automation.listRules.invalidate(); toast.success("Rule snoozed for 24 hours"); setSnoozeRuleId(null); },
     onError: (e) => toast.error(e.message),
   });
-  const { data: ruleStats = [] } = trpc.automation.getRuleStats.useQuery();
-  const { data: perfMetrics } = trpc.automation.getPerformanceMetrics.useQuery();
+  const { data: ruleStats = [] } = trpc.automation.getRuleStats.useQuery(workspaceInput);
+  const { data: perfMetrics } = trpc.automation.getPerformanceMetrics.useQuery(workspaceInput);
   const { data: simulation, isLoading: simLoading } = trpc.automation.simulateRule.useQuery(
-    { id: simulatingRuleId! },
+    { id: simulatingRuleId!, ...workspaceInput },
     { enabled: simulatingRuleId !== null }
   );
-  const { data: failureSummary } = trpc.automation.getFailureSummary.useQuery();
-  const { data: platformSummary } = trpc.automation.getPlatformTriggerSummary.useQuery();
+  const { data: failureSummary } = trpc.automation.getFailureSummary.useQuery(workspaceInput);
+  const { data: platformSummary } = trpc.automation.getPlatformTriggerSummary.useQuery(workspaceInput);
   const processEvents = trpc.automation.processEvents.useMutation({
     onSuccess: (data) => {
       utils.automation.getLogs.invalidate();
@@ -249,9 +255,9 @@ export default function WorkforceIntelligencePage() {
   function saveRule() {
     if (!ruleForm.name.trim()) { toast.error("Rule name is required"); return; }
     if (editingRule) {
-      updateRule.mutate({ id: editingRule.id, ...ruleForm });
+      updateRule.mutate({ id: editingRule.id, ...ruleForm, ...workspaceInput });
     } else {
-      createRule.mutate(ruleForm);
+      createRule.mutate({ ...ruleForm, ...workspaceInput });
     }
   }
 
@@ -296,7 +302,7 @@ export default function WorkforceIntelligencePage() {
             <RefreshCw className={`h-4 w-4 mr-1 ${kpiLoading ? "animate-spin" : ""}`} />
             Refresh
           </Button>
-          <Button size="sm" onClick={() => runRules.mutate({ dryRun: false })} disabled={runRules.isPending}>
+          <Button size="sm" onClick={() => runRules.mutate({ dryRun: false, ...workspaceInput })} disabled={runRules.isPending}>
             <Play className="h-4 w-4 mr-1" />
             {runRules.isPending ? "Running..." : "Run All Rules"}
           </Button>
@@ -609,7 +615,7 @@ export default function WorkforceIntelligencePage() {
                       <div className="flex items-center gap-2 shrink-0">
                         <Switch
                           checked={rule.isActive}
-                          onCheckedChange={(v) => toggleRule.mutate({ id: rule.id, isActive: v })}
+                          onCheckedChange={(v) => toggleRule.mutate({ id: rule.id, isActive: v, ...workspaceInput })}
                         />
                         <Button
                           variant="ghost" size="icon" className="h-7 w-7"
@@ -621,7 +627,7 @@ export default function WorkforceIntelligencePage() {
                         <Button
                           variant="ghost" size="icon" className="h-7 w-7"
                           title={(rule as any).isMuted ? "Unmute rule" : "Mute rule"}
-                          onClick={() => muteRule.mutate({ id: rule.id, muted: !(rule as any).isMuted })}
+                          onClick={() => muteRule.mutate({ id: rule.id, muted: !(rule as any).isMuted, ...workspaceInput })}
                         >
                           <Bell className={`h-3.5 w-3.5 ${(rule as any).isMuted ? "text-muted-foreground line-through" : ""}`} />
                         </Button>
@@ -630,7 +636,7 @@ export default function WorkforceIntelligencePage() {
                         </Button>
                         <Button
                           variant="ghost" size="icon" className="h-7 w-7 text-red-500 hover:text-red-600 hover:bg-red-50"
-                          onClick={() => { if (confirm(`Delete rule "${rule.name}"?`)) deleteRule.mutate({ id: rule.id }); }}
+                          onClick={() => { if (confirm(`Delete rule "${rule.name}"?`)) deleteRule.mutate({ id: rule.id, ...workspaceInput }); }}
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </Button>
@@ -686,7 +692,7 @@ export default function WorkforceIntelligencePage() {
                           size="sm"
                           variant={tpl.installed ? "outline" : "default"}
                           disabled={tpl.installed || installTemplate.isPending}
-                          onClick={() => installTemplate.mutate({ templateKey: tpl.key })}
+                          onClick={() => installTemplate.mutate({ templateKey: tpl.key, ...workspaceInput })}
                           className="shrink-0"
                         >
                           {tpl.installed ? <CheckCircle2 className="h-4 w-4" /> : <Plus className="h-4 w-4 mr-1" />}
@@ -1010,7 +1016,7 @@ export default function WorkforceIntelligencePage() {
                     <GitBranch className="h-4 w-4 text-amber-600" />
                     <span><strong>{platformSummary.pendingEvents}</strong> unprocessed event(s) in the queue</span>
                   </div>
-                  <Button size="sm" onClick={() => processEvents.mutate()} disabled={processEvents.isPending}>
+                  <Button size="sm" onClick={() => processEvents.mutate(workspaceInput)} disabled={processEvents.isPending}>
                     <Play className="h-3.5 w-3.5 mr-1" />
                     {processEvents.isPending ? "Processing..." : "Process Now"}
                   </Button>
@@ -1038,11 +1044,11 @@ export default function WorkforceIntelligencePage() {
                     <span className="font-medium text-sm">Automation Logs</span>
                   </div>
                   <p className="text-xs text-muted-foreground">All rule execution logs with status, failure details, duration, and retry counts.</p>
-                  <Button size="sm" className="w-full" onClick={() => exportLogsCsv.mutate({ days: 30 })} disabled={exportLogsCsv.isPending}>
+                  <Button size="sm" className="w-full" onClick={() => exportLogsCsv.mutate({ days: 30, ...workspaceInput })} disabled={exportLogsCsv.isPending}>
                     <Download className="h-3.5 w-3.5 mr-1" />
                     {exportLogsCsv.isPending ? "Generating..." : "Export Logs (30 days)"}
                   </Button>
-                  <Button size="sm" variant="outline" className="w-full" onClick={() => exportLogsCsv.mutate({ days: 90 })} disabled={exportLogsCsv.isPending}>
+                  <Button size="sm" variant="outline" className="w-full" onClick={() => exportLogsCsv.mutate({ days: 90, ...workspaceInput })} disabled={exportLogsCsv.isPending}>
                     <Download className="h-3.5 w-3.5 mr-1" />
                     Export Logs (90 days)
                   </Button>
@@ -1053,7 +1059,7 @@ export default function WorkforceIntelligencePage() {
                     <span className="font-medium text-sm">Rule History</span>
                   </div>
                   <p className="text-xs text-muted-foreground">Full rule configuration with success/failure counts, priority, recipients, and execution statistics.</p>
-                  <Button size="sm" className="w-full" onClick={() => exportRuleHistoryCsv.mutate()} disabled={exportRuleHistoryCsv.isPending}>
+                  <Button size="sm" className="w-full" onClick={() => exportRuleHistoryCsv.mutate(workspaceInput)} disabled={exportRuleHistoryCsv.isPending}>
                     <Download className="h-3.5 w-3.5 mr-1" />
                     {exportRuleHistoryCsv.isPending ? "Generating..." : "Export Rule History"}
                   </Button>

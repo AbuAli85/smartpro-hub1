@@ -17,16 +17,17 @@ import {
 } from "../../drizzle/schema";
 import { eq, and, desc, asc, lte, gte, or, isNotNull } from "drizzle-orm";
 import { requireActiveCompanyId } from "../_core/tenant";
+import { optionalActiveWorkspace } from "../_core/workspaceInput";
 import type { User } from "../../drizzle/schema";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 /** Client portal is company-only; platform staff must use admin routers. */
-async function requirePortalCompanyId(user: User): Promise<number> {
+async function requirePortalCompanyId(user: User, companyId?: number | null): Promise<number> {
   if (canAccessGlobalAdminProcedures(user)) {
     throw new TRPCError({ code: "FORBIDDEN", message: "Client portal is for company accounts" });
   }
-  return requireActiveCompanyId(user.id, undefined, user);
+  return requireActiveCompanyId(user.id, companyId, user);
 }
 
 // ─── Router ───────────────────────────────────────────────────────────────────
@@ -36,8 +37,10 @@ export const clientPortalRouter = router({
   /**
    * Dashboard KPI summary for the client's company
    */
-  getDashboard: protectedProcedure.query(async ({ ctx }) => {
-    const companyId = await requirePortalCompanyId(ctx.user as User);
+  getDashboard: protectedProcedure
+    .input(optionalActiveWorkspace.optional())
+    .query(async ({ ctx, input }) => {
+    const companyId = await requirePortalCompanyId(ctx.user as User, input?.companyId);
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
@@ -117,9 +120,9 @@ export const clientPortalRouter = router({
       status: z.string().optional(),
       page: z.number().default(1),
       pageSize: z.number().default(20),
-    }))
+    }).merge(optionalActiveWorkspace))
     .query(async ({ ctx, input }) => {
-      const companyId = await requirePortalCompanyId(ctx.user as User);
+      const companyId = await requirePortalCompanyId(ctx.user as User, input?.companyId);
       const db = await getDb();
       if (!db) return { items: [], total: 0 };
 
@@ -150,9 +153,9 @@ export const clientPortalRouter = router({
       status: z.enum(["pending", "paid", "overdue", "cancelled", "waived"]).optional(),
       page: z.number().default(1),
       pageSize: z.number().default(20),
-    }))
+    }).merge(optionalActiveWorkspace))
     .query(async ({ ctx, input }) => {
-      const companyId = await requirePortalCompanyId(ctx.user as User);
+      const companyId = await requirePortalCompanyId(ctx.user as User, input?.companyId);
       const db = await getDb();
       if (!db) return { items: [], total: 0 };
 
@@ -189,9 +192,9 @@ export const clientPortalRouter = router({
       status: z.string().optional(),
       page: z.number().default(1),
       pageSize: z.number().default(20),
-    }))
+    }).merge(optionalActiveWorkspace))
     .query(async ({ ctx, input }) => {
-      const companyId = await requirePortalCompanyId(ctx.user as User);
+      const companyId = await requirePortalCompanyId(ctx.user as User, input?.companyId);
       const db = await getDb();
       if (!db) return { items: [], total: 0 };
 
@@ -216,9 +219,9 @@ export const clientPortalRouter = router({
       status: z.string().optional(),
       page: z.number().default(1),
       pageSize: z.number().default(20),
-    }))
+    }).merge(optionalActiveWorkspace))
     .query(async ({ ctx, input }) => {
-      const companyId = await requirePortalCompanyId(ctx.user as User);
+      const companyId = await requirePortalCompanyId(ctx.user as User, input?.companyId);
       const db = await getDb();
       if (!db) return { items: [], total: 0 };
 
@@ -252,9 +255,9 @@ export const clientPortalRouter = router({
       status: z.string().optional(),
       page: z.number().default(1),
       pageSize: z.number().default(20),
-    }))
+    }).merge(optionalActiveWorkspace))
     .query(async ({ ctx, input }) => {
-      const companyId = await requirePortalCompanyId(ctx.user as User);
+      const companyId = await requirePortalCompanyId(ctx.user as User, input?.companyId);
       const db = await getDb();
       if (!db) return { items: [], total: 0 };
 
@@ -283,9 +286,9 @@ export const clientPortalRouter = router({
    * Get expiry alerts specific to this company
    */
   getExpiryAlerts: protectedProcedure
-    .input(z.object({ daysAhead: z.number().default(90) }))
+    .input(z.object({ daysAhead: z.number().default(90) }).merge(optionalActiveWorkspace))
     .query(async ({ ctx, input }) => {
-      const companyId = await requirePortalCompanyId(ctx.user as User);
+      const companyId = await requirePortalCompanyId(ctx.user as User, input?.companyId);
       const db = await getDb();
       if (!db) return { items: [] };
 
@@ -359,9 +362,9 @@ export const clientPortalRouter = router({
       subject: z.string().min(1).max(200),
       message: z.string().min(1).max(2000),
       category: z.enum(["general", "billing", "contract", "pro_service", "government_case", "technical"]).default("general"),
-    }))
+    }).merge(optionalActiveWorkspace))
     .mutation(async ({ ctx, input }) => {
-      const companyId = await requirePortalCompanyId(ctx.user as User);
+      const companyId = await requirePortalCompanyId(ctx.user as User, input?.companyId);
 
       const notificationId = await createNotification(
         {
@@ -436,11 +439,11 @@ export const clientPortalRouter = router({
       contactPhone: z.string().min(1),
       contactEmail: z.string().email().optional(),
       urgency: z.enum(["normal", "urgent", "critical"]).default("normal"),
-    }))
+    }).merge(optionalActiveWorkspace))
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      const companyId = await requirePortalCompanyId(ctx.user as User);
+      const companyId = await requirePortalCompanyId(ctx.user as User, input?.companyId);
       let companyName = "Unknown Company";
       let companyCr: string | undefined;
       const [co] = await db.select({ name: companies.name, regNumber: companies.registrationNumber })
@@ -472,10 +475,12 @@ export const clientPortalRouter = router({
   /**
    * List all documents available to this company
    */
-  listMyDocuments: protectedProcedure.query(async ({ ctx }) => {
+  listMyDocuments: protectedProcedure
+    .input(optionalActiveWorkspace.optional())
+    .query(async ({ ctx, input }) => {
     const db = await getDb();
     if (!db) return [];
-    const companyId = await requirePortalCompanyId(ctx.user as User);
+    const companyId = await requirePortalCompanyId(ctx.user as User, input?.companyId);
     const contractDocs = await db.select({
       id: contracts.id,
       type: contracts.type,
@@ -504,10 +509,12 @@ export const clientPortalRouter = router({
   /**
    * Get upcoming renewals for this company in the next 90 days
    */
-  getUpcomingRenewals: protectedProcedure.query(async ({ ctx }) => {
+  getUpcomingRenewals: protectedProcedure
+    .input(optionalActiveWorkspace.optional())
+    .query(async ({ ctx, input }) => {
     const db = await getDb();
     if (!db) return [];
-    const companyId = await requirePortalCompanyId(ctx.user as User);
+    const companyId = await requirePortalCompanyId(ctx.user as User, input?.companyId);
     const now = new Date();
     const in90 = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000);
     const permits = await db.select({

@@ -24,6 +24,7 @@ import { protectedProcedure, publicProcedure, router } from "../_core/trpc";
 import { notifyOwner } from "../_core/notification";
 import { sendInviteEmail, sendHRLetterEmail, sendContractSigningEmail } from "../email";
 import { buildInviteEmailHtml, buildHRLetterEmailHtml, buildContractSigningEmailHtml } from "../emailPreview";
+import { resolveEmployeeAccess } from "../employeeAccessResolver";
 
 function companyIdFromCreateResult(row: unknown): number {
   if (row && typeof row === "object") {
@@ -763,25 +764,44 @@ export const companiesRouter = router({
       : [];
 
     const userMap = new Map(userDetails.map((u) => [u.id, u]));
+    const userByEmail = new Map(
+      userDetails
+        .filter((u) => !!u.email)
+        .map((u) => [u.email!.trim().toLowerCase(), u]),
+    );
     const memberByUserId = new Map(allMembers.map((m) => [m.userId, m]));
 
     return allEmployees.map((emp) => {
-      const member = emp.userId ? memberByUserId.get(emp.userId) : null;
-      const userInfo = emp.userId ? userMap.get(emp.userId) : null;
-
-      // Also try to match by email if userId not set
-      let emailMatchedMember: typeof member = null;
-      if (!member && emp.email) {
-        const emailUser = userDetails.find((u) => u.email?.toLowerCase() === emp.email?.toLowerCase());
-        if (emailUser) {
-          emailMatchedMember = memberByUserId.get(emailUser.id) ?? null;
-        }
-      }
-
-      const activeMember = member ?? emailMatchedMember;
-      const accessStatus = activeMember
-        ? activeMember.isActive ? 'active' : 'inactive'
-        : 'no_access';
+      const normalizedEmail = emp.email?.trim().toLowerCase() ?? null;
+      const emailUser = normalizedEmail ? userByEmail.get(normalizedEmail) ?? null : null;
+      const resolvedUserId = emp.userId ?? emailUser?.id ?? null;
+      const resolvedMember = resolvedUserId ? memberByUserId.get(resolvedUserId) ?? null : null;
+      const resolved = resolveEmployeeAccess({
+        employee: {
+          employeeId: emp.id,
+          companyId,
+          userId: emp.userId,
+          email: emp.email,
+        },
+        userByEmail: emailUser ? { id: emailUser.id, email: emailUser.email ?? "" } : null,
+        member: resolvedMember
+          ? {
+              id: resolvedMember.id,
+              companyId,
+              userId: resolvedMember.userId,
+              isActive: resolvedMember.isActive,
+              role: resolvedMember.role,
+            }
+          : null,
+        invite: null,
+      });
+      const userInfo = resolved.resolvedUserId ? userMap.get(resolved.resolvedUserId) : null;
+      const accessStatus =
+        resolved.accessState === "ACTIVE"
+          ? "active"
+          : resolved.accessState === "SUSPENDED"
+            ? "inactive"
+            : "no_access";
 
       return {
         employeeId: emp.id,
@@ -798,9 +818,9 @@ export const companiesRouter = router({
         hireDate: emp.hireDate,
         // Access info
         accessStatus,
-        memberRole: activeMember?.role ?? null,
-        memberId: activeMember?.id ?? null,
-        hasLogin: !!(emp.userId || emailMatchedMember),
+        memberRole: resolvedMember?.role ?? null,
+        memberId: resolvedMember?.id ?? null,
+        hasLogin: !!resolved.resolvedUserId,
         lastSignedIn: userInfo?.lastSignedIn ?? null,
         loginEmail: userInfo?.email ?? null,
       };

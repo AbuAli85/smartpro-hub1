@@ -123,9 +123,9 @@ export const financeHRRouter = router({
   myExpenses: protectedProcedure
     .input(z.object({ status: z.string().optional() }).merge(optionalActiveWorkspace).optional())
     .query(async ({ ctx, input }) => {
+      const companyId = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user);
       const db = await getDb();
       if (!db) return [];
-      const companyId = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user);
       const emp = await resolveEmployee(ctx.user.id, companyId);
       const empUserId = emp?.id ?? ctx.user.id;
       const conditions = [eq(expenseClaims.companyId, companyId), eq(expenseClaims.employeeUserId, empUserId)];

@@ -203,7 +203,17 @@ function RequestServiceDialog({ open, onClose, officeId, officeName, services, c
 }
 
 // ─── Write Review Dialog ─────────────────────────────────────────────────────
-function WriteReviewDialog({ officeId, onClose, onDone }: { officeId: number; onClose: () => void; onDone: () => void }) {
+function WriteReviewDialog({
+  officeId,
+  companyId,
+  onClose,
+  onDone,
+}: {
+  officeId: number;
+  companyId: number | null;
+  onClose: () => void;
+  onDone: () => void;
+}) {
   const [form, setForm] = useState({ overallRating: 5, speedRating: 4, qualityRating: 4, communicationRating: 4, reviewTitle: "", reviewBody: "" });
   const submit = trpc.ratings.submitRating.useMutation({
     onSuccess: () => { toast.success("Review submitted! Thank you for your feedback."); onDone(); onClose(); },
@@ -243,7 +253,23 @@ function WriteReviewDialog({ officeId, onClose, onDone }: { officeId: number; on
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button onClick={() => submit.mutate({ officeId, ...form, reviewTitle: form.reviewTitle || undefined, reviewBody: form.reviewBody || undefined })} disabled={submit.isPending} className="bg-red-600 hover:bg-red-700 text-white">
+          <Button
+            onClick={() => {
+              if (companyId == null) {
+                toast.error("Select a company workspace before submitting a review.");
+                return;
+              }
+              submit.mutate({
+                officeId,
+                companyId,
+                ...form,
+                reviewTitle: form.reviewTitle || undefined,
+                reviewBody: form.reviewBody || undefined,
+              });
+            }}
+            disabled={submit.isPending || companyId == null}
+            className="bg-red-600 hover:bg-red-700 text-white"
+          >
             {submit.isPending ? "Processing..." : "Submit Review"}
           </Button>
         </DialogFooter>
@@ -263,7 +289,10 @@ export default function SanadCentreProfilePage() {
 
   const { data: profileData, isLoading } = trpc.sanad.getPublicProfile.useQuery({ officeId }, { enabled: !!officeId });
   const { data: ratingsData } = trpc.ratings.getOfficeRatings.useQuery({ officeId, limit: 10 }, { enabled: !!officeId });
-  const { data: myRating } = trpc.ratings.getMyRating.useQuery({ officeId }, { enabled: !!officeId && !!user });
+  const { data: myRating } = trpc.ratings.getMyRating.useQuery(
+    { officeId, companyId: activeCompanyId ?? undefined },
+    { enabled: !!officeId && !!user && activeCompanyId != null },
+  );
   const markHelpful = trpc.ratings.markHelpful.useMutation({ onSuccess: () => utils.ratings.getOfficeRatings.invalidate() });
 
   if (isLoading) {
@@ -646,6 +675,7 @@ export default function SanadCentreProfilePage() {
       {reviewOpen && (
         <WriteReviewDialog
           officeId={officeId}
+          companyId={activeCompanyId}
           onClose={() => setReviewOpen(false)}
           onDone={() => utils.ratings.getOfficeRatings.invalidate()}
         />

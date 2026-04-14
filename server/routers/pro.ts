@@ -1,5 +1,8 @@
 import { TRPCError } from "@trpc/server";
-import { getActiveCompanyMembership, requireNotAuditor } from "../_core/membership";
+import {
+  requireNotAuditor,
+  requireWorkspaceMembership,
+} from "../_core/membership";
 import { nanoid } from "nanoid";
 import { z } from "zod";
 import { canAccessGlobalAdminProcedures } from "@shared/rbac";
@@ -11,8 +14,12 @@ import {
   getProServices,
   updateProService,
 } from "../db";
-import { assertRowBelongsToActiveCompany, requireActiveCompanyId } from "../_core/tenant";
+import {
+  assertRowBelongsToActiveCompany,
+  requireActiveCompanyId,
+} from "../_core/tenant";
 import { protectedProcedure, router } from "../_core/trpc";
+import type { User } from "../../drizzle/schema";
 
 const SERVICE_TYPE_ENUM = z.enum([
   "visa_processing",
@@ -35,67 +42,107 @@ export const proRouter = router({
         status: z.string().optional(),
         serviceType: z.string().optional(),
         companyId: z.number().optional(),
-      }),
+      })
     )
     .query(async ({ input, ctx }) => {
-      if (canAccessGlobalAdminProcedures(ctx.user)) return getAllProServices({ status: input.status });
-      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
-      return getProServices(companyId, { status: input.status, serviceType: input.serviceType });
+      if (canAccessGlobalAdminProcedures(ctx.user))
+        return getAllProServices({ status: input.status });
+      const companyId = await requireActiveCompanyId(
+        ctx.user.id,
+        input.companyId,
+        ctx.user
+      );
+      return getProServices(companyId, {
+        status: input.status,
+        serviceType: input.serviceType,
+      });
     }),
 
   getById: protectedProcedure
     .input(z.object({ id: z.number() }))
     .query(async ({ input, ctx }) => {
       const row = await getProServiceById(input.id);
-      if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "PRO service not found" });
-      await assertRowBelongsToActiveCompany(ctx.user, row.companyId, "PRO service", row.companyId);
+      if (!row)
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "PRO service not found",
+        });
+      await assertRowBelongsToActiveCompany(
+        ctx.user,
+        row.companyId,
+        "PRO service",
+        row.companyId
+      );
       return row;
     }),
 
   getStats: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }).optional())
     .query(async ({ ctx, input }) => {
-    const all =
-      canAccessGlobalAdminProcedures(ctx.user)
+      const all = canAccessGlobalAdminProcedures(ctx.user)
         ? await getAllProServices({})
-        : await getProServices(await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user), {});
-    const now = new Date();
-    const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-    return {
-      total: all.length,
-      pending: all.filter((s) => s.status === "pending").length,
-      inProgress: all.filter((s) =>
-        ["assigned", "in_progress", "awaiting_documents"].includes(s.status ?? "")
-      ).length,
-      submittedToAuthority: all.filter((s) => s.status === "submitted_to_authority").length,
-      completedThisMonth: all.filter(
-        (s) => s.status === "completed" && s.completedAt && s.completedAt >= thisMonthStart
-      ).length,
-      rejected: all.filter((s) => s.status === "rejected").length,
-      urgent: all.filter(
-        (s) =>
-          s.priority === "urgent" &&
-          !["completed", "cancelled", "rejected"].includes(s.status ?? "")
-      ).length,
-      totalFeesCollected: all
-        .filter((s) => s.status === "completed")
-        .reduce((sum, s) => sum + parseFloat(s.fees ?? "0"), 0),
-      feesPending: all
-        .filter((s) => !["completed", "cancelled"].includes(s.status ?? ""))
-        .reduce((sum, s) => sum + parseFloat(s.fees ?? "0"), 0),
-    };
-  }),
+        : await getProServices(
+            await requireActiveCompanyId(
+              ctx.user.id,
+              input?.companyId,
+              ctx.user
+            ),
+            {}
+          );
+      const now = new Date();
+      const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+      return {
+        total: all.length,
+        pending: all.filter(s => s.status === "pending").length,
+        inProgress: all.filter(s =>
+          ["assigned", "in_progress", "awaiting_documents"].includes(
+            s.status ?? ""
+          )
+        ).length,
+        submittedToAuthority: all.filter(
+          s => s.status === "submitted_to_authority"
+        ).length,
+        completedThisMonth: all.filter(
+          s =>
+            s.status === "completed" &&
+            s.completedAt &&
+            s.completedAt >= thisMonthStart
+        ).length,
+        rejected: all.filter(s => s.status === "rejected").length,
+        urgent: all.filter(
+          s =>
+            s.priority === "urgent" &&
+            !["completed", "cancelled", "rejected"].includes(s.status ?? "")
+        ).length,
+        totalFeesCollected: all
+          .filter(s => s.status === "completed")
+          .reduce((sum, s) => sum + parseFloat(s.fees ?? "0"), 0),
+        feesPending: all
+          .filter(s => !["completed", "cancelled"].includes(s.status ?? ""))
+          .reduce((sum, s) => sum + parseFloat(s.fees ?? "0"), 0),
+      };
+    }),
 
   expiringDocuments: protectedProcedure
-    .input(z.object({ daysAhead: z.number().default(30), companyId: z.number().optional() }))
+    .input(
+      z.object({
+        daysAhead: z.number().default(30),
+        companyId: z.number().optional(),
+      })
+    )
     .query(async ({ input, ctx }) => {
       const rows = await getExpiringDocuments(input.daysAhead);
       if (canAccessGlobalAdminProcedures(ctx.user)) {
-        if (input.companyId != null) return rows.filter((r) => r.companyId === input.companyId);
+        if (input.companyId != null)
+          return rows.filter(r => r.companyId === input.companyId);
         return rows;
       }
-      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
-      return rows.filter((r) => r.companyId === companyId);
+      const companyId = await requireActiveCompanyId(
+        ctx.user.id,
+        input.companyId,
+        ctx.user
+      );
+      return rows.filter(r => r.companyId === companyId);
     }),
 
   create: protectedProcedure
@@ -115,12 +162,18 @@ export const proRouter = router({
         notes: z.string().optional(),
         fees: z.number().optional(),
         dueDate: z.string().optional(),
+        companyId: z.number().optional(),
       })
     )
     .mutation(async ({ input, ctx }) => {
-      const membership = await getActiveCompanyMembership(ctx.user.id);
-      if (!membership) throw new TRPCError({ code: "FORBIDDEN", message: "No company membership" });
-      requireNotAuditor(membership.role, "External Auditors cannot create PRO service cases.");
+      const membership = await requireWorkspaceMembership(
+        ctx.user as User,
+        input.companyId
+      );
+      requireNotAuditor(
+        membership.role,
+        "External Auditors cannot create PRO service cases."
+      );
       const companyId = membership.companyId;
       const serviceNumber = "PRO-" + Date.now() + "-" + nanoid(4).toUpperCase();
       await createProService({
@@ -129,7 +182,9 @@ export const proRouter = router({
         requestedBy: ctx.user.id,
         serviceNumber,
         fees: input.fees ? String(input.fees) : undefined,
-        passportExpiry: input.passportExpiry ? new Date(input.passportExpiry) : undefined,
+        passportExpiry: input.passportExpiry
+          ? new Date(input.passportExpiry)
+          : undefined,
         expiryDate: input.expiryDate ? new Date(input.expiryDate) : undefined,
         dueDate: input.dueDate ? new Date(input.dueDate) : undefined,
       });
@@ -164,12 +219,27 @@ export const proRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
-      const _m = await getActiveCompanyMembership(ctx.user.id);
-      if (_m) requireNotAuditor(_m.role, "External Auditors cannot update PRO service cases.");
       const { id, ...data } = input;
       const existing = await getProServiceById(id);
-      if (!existing) throw new TRPCError({ code: "NOT_FOUND", message: "PRO service not found" });
-      await assertRowBelongsToActiveCompany(ctx.user, existing.companyId, "PRO service", existing.companyId);
+      if (!existing)
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "PRO service not found",
+        });
+      await assertRowBelongsToActiveCompany(
+        ctx.user,
+        existing.companyId,
+        "PRO service",
+        existing.companyId
+      );
+      const m = await requireWorkspaceMembership(
+        ctx.user as User,
+        existing.companyId
+      );
+      requireNotAuditor(
+        m.role,
+        "External Auditors cannot update PRO service cases."
+      );
       const updateData: any = { ...data };
       if (data.status === "completed") updateData.completedAt = new Date();
       if (data.expiryDate) updateData.expiryDate = new Date(data.expiryDate);

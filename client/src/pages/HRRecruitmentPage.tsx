@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
 import { DateInput } from "@/components/ui/date-input";
+import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 
 const STAGES = ["applied","screening","interview","assessment","offer","hired","rejected"] as const;
 type Stage = typeof STAGES[number];
@@ -40,6 +41,8 @@ const fmt = (n: number | string | null | undefined) => `OMR ${Number(n ?? 0).toF
 
 export default function HRRecruitmentPage() {
   const { user } = useAuth();
+  const { activeCompanyId } = useActiveCompany();
+  const workspace = activeCompanyId != null ? { companyId: activeCompanyId } : undefined;
   const [activeTab, setActiveTab] = useState("pipeline");
   const [selectedJobId, setSelectedJobId] = useState<number | undefined>();
   const [selectedApp, setSelectedApp] = useState<any | null>(null);
@@ -51,13 +54,22 @@ export default function HRRecruitmentPage() {
   const [interviewForm, setInterviewForm] = useState({ interviewType: "video" as const, scheduledAt: "", durationMinutes: 60, location: "", meetingLink: "", interviewerNames: "", notes: "" });
   const [offerForm, setOfferForm] = useState({ basicSalary: "", housingAllowance: "0", transportAllowance: "0", otherAllowances: "0", probationMonths: 3, annualLeave: 21, startDate: "", additionalTerms: "" });
 
-  const { data: summary, refetch: refetchSummary } = trpc.recruitment.getPipelineSummary.useQuery();
-  const { data: jobs, refetch: refetchJobs } = trpc.recruitment.listJobs.useQuery();
+  const { data: summary, refetch: refetchSummary } = trpc.recruitment.getPipelineSummary.useQuery(workspace, {
+    enabled: activeCompanyId != null,
+  });
+  const { data: jobs, refetch: refetchJobs } = trpc.recruitment.listJobs.useQuery(workspace, {
+    enabled: activeCompanyId != null,
+  });
   const { data: kanban, refetch: refetchKanban } = trpc.recruitment.getPipelineKanban.useQuery(
-    selectedJobId ? { jobId: selectedJobId } : undefined
+    selectedJobId && workspace ? { jobId: selectedJobId, ...workspace } : workspace,
+    { enabled: activeCompanyId != null },
   );
-  const { data: interviews, refetch: refetchInterviews } = trpc.recruitment.listInterviews.useQuery();
-  const { data: offers, refetch: refetchOffers } = trpc.recruitment.listOffers.useQuery();
+  const { data: interviews, refetch: refetchInterviews } = trpc.recruitment.listInterviews.useQuery(workspace, {
+    enabled: activeCompanyId != null,
+  });
+  const { data: offers, refetch: refetchOffers } = trpc.recruitment.listOffers.useQuery(workspace, {
+    enabled: activeCompanyId != null,
+  });
 
   const createJob = trpc.recruitment.createJob.useMutation({
     onSuccess: () => { toast.success("Job posting created"); setCreateJobOpen(false); refetchJobs(); refetchSummary(); },
@@ -109,6 +121,17 @@ export default function HRRecruitmentPage() {
     onSuccess: () => { toast.success("Offer status updated"); refetchOffers(); refetchKanban(); refetchSummary(); },
     onError: (e) => toast.error(e.message),
   });
+
+  if (activeCompanyId == null) {
+    return (
+      <div className="p-6 max-w-lg mx-auto text-center space-y-2">
+        <h1 className="text-lg font-semibold">Select a company workspace</h1>
+        <p className="text-sm text-muted-foreground">
+          Recruitment is scoped to one company. Choose a workspace from the company switcher, then return here.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
@@ -222,19 +245,19 @@ export default function HRRecruitmentPage() {
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     {job.status === "draft" && (
-                      <Button size="sm" variant="outline" onClick={() => updateJob.mutate({ id: job.id, status: "open" })} className="text-green-600 gap-1">
+                      <Button size="sm" variant="outline" onClick={() => updateJob.mutate({ companyId: activeCompanyId, id: job.id, status: "open" })} className="text-green-600 gap-1">
                         <CheckCircle size={14} /> Publish
                       </Button>
                     )}
                     {job.status === "open" && (
-                      <Button size="sm" variant="outline" onClick={() => updateJob.mutate({ id: job.id, status: "closed" })} className="text-gray-600">
+                      <Button size="sm" variant="outline" onClick={() => updateJob.mutate({ companyId: activeCompanyId, id: job.id, status: "closed" })} className="text-gray-600">
                         Close
                       </Button>
                     )}
                     <Button size="sm" variant="ghost" onClick={() => { setSelectedJobId(job.id); setActiveTab("pipeline"); }}>
                       <Eye size={14} />
                     </Button>
-                    <Button size="sm" variant="ghost" className="text-red-500" onClick={() => deleteJob.mutate({ id: job.id })}>
+                    <Button size="sm" variant="ghost" className="text-red-500" onClick={() => deleteJob.mutate({ companyId: activeCompanyId, id: job.id })}>
                       <Trash2 size={14} />
                     </Button>
                   </div>
@@ -278,10 +301,10 @@ export default function HRRecruitmentPage() {
                   <div className="flex items-center gap-2 shrink-0">
                     {interview.status === "scheduled" && (
                       <>
-                        <Button size="sm" variant="outline" onClick={() => updateInterview.mutate({ id: interview.id, status: "completed" })} className="text-green-600 gap-1">
+                        <Button size="sm" variant="outline" onClick={() => updateInterview.mutate({ companyId: activeCompanyId, id: interview.id, status: "completed" })} className="text-green-600 gap-1">
                           <CheckCircle size={14} /> Done
                         </Button>
-                        <Button size="sm" variant="outline" onClick={() => updateInterview.mutate({ id: interview.id, status: "cancelled" })} className="text-red-500">
+                        <Button size="sm" variant="outline" onClick={() => updateInterview.mutate({ companyId: activeCompanyId, id: interview.id, status: "cancelled" })} className="text-red-500">
                           <XCircle size={14} />
                         </Button>
                       </>
@@ -324,16 +347,16 @@ export default function HRRecruitmentPage() {
                       </a>
                     )}
                     {offer.status === "draft" && (
-                      <Button size="sm" variant="outline" onClick={() => sendOffer.mutate({ id: offer.id })} className="text-blue-600 gap-1">
+                      <Button size="sm" variant="outline" onClick={() => sendOffer.mutate({ companyId: activeCompanyId, id: offer.id })} className="text-blue-600 gap-1">
                         <Send size={14} /> Send
                       </Button>
                     )}
                     {offer.status === "sent" && (
                       <>
-                        <Button size="sm" variant="outline" onClick={() => updateOfferStatus.mutate({ id: offer.id, status: "accepted" })} className="text-green-600 gap-1">
+                        <Button size="sm" variant="outline" onClick={() => updateOfferStatus.mutate({ companyId: activeCompanyId, id: offer.id, status: "accepted" })} className="text-green-600 gap-1">
                           <CheckCircle size={14} /> Accept
                         </Button>
-                        <Button size="sm" variant="outline" onClick={() => updateOfferStatus.mutate({ id: offer.id, status: "rejected" })} className="text-red-500 gap-1">
+                        <Button size="sm" variant="outline" onClick={() => updateOfferStatus.mutate({ companyId: activeCompanyId, id: offer.id, status: "rejected" })} className="text-red-500 gap-1">
                           <XCircle size={14} /> Reject
                         </Button>
                       </>
@@ -369,7 +392,7 @@ export default function HRRecruitmentPage() {
                   {STAGES.filter(s => s !== selectedApp.app.stage).map(s => (
                     <Button key={s} size="sm" variant="outline"
                       className={`text-xs ${STAGE_COLORS[s]}`}
-                      onClick={() => { updateStage.mutate({ id: selectedApp.app.id, stage: s }); setSelectedApp(null); }}>
+                      onClick={() => { updateStage.mutate({ companyId: activeCompanyId, id: selectedApp.app.id, stage: s }); setSelectedApp(null); }}>
                       {STAGE_LABELS[s]}
                     </Button>
                   ))}
@@ -405,7 +428,7 @@ export default function HRRecruitmentPage() {
                   <FileText size={14} /> Create Offer
                 </Button>
                 <Button variant="outline" size="sm"
-                  onClick={() => { setAiReport(null); screenApp.mutate({ applicationId: selectedApp.app.id }); }}
+                  onClick={() => { setAiReport(null); screenApp.mutate({ companyId: activeCompanyId, applicationId: selectedApp.app.id }); }}
                   disabled={screenApp.isPending}
                   className="gap-1 text-blue-600 border-blue-300 hover:bg-blue-50">
                   {screenApp.isPending ? <RefreshCw size={13} className="animate-spin" /> : <Sparkles size={13} />}
@@ -413,7 +436,7 @@ export default function HRRecruitmentPage() {
                 </Button>
                 {selectedApp?.app?.stage === "offer" && (
                   <Button size="sm"
-                    onClick={() => convertToEmployee.mutate({ applicationId: selectedApp.app.id, startDate: new Date().toISOString().slice(0,10) })}
+                    onClick={() => convertToEmployee.mutate({ companyId: activeCompanyId, applicationId: selectedApp.app.id, startDate: new Date().toISOString().slice(0,10) })}
                     disabled={convertToEmployee.isPending}
                     className="gap-1 bg-green-600 hover:bg-green-700">
                     <CheckCircle size={13} /> Convert to Employee
@@ -459,7 +482,7 @@ export default function HRRecruitmentPage() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setCreateJobOpen(false)}>Cancel</Button>
-            <Button onClick={() => createJob.mutate({ ...jobForm, salaryMin: jobForm.salaryMin ? Number(jobForm.salaryMin) : undefined, salaryMax: jobForm.salaryMax ? Number(jobForm.salaryMax) : undefined })} disabled={!jobForm.title || createJob.isPending}>
+            <Button onClick={() => createJob.mutate({ companyId: activeCompanyId, ...jobForm, salaryMin: jobForm.salaryMin ? Number(jobForm.salaryMin) : undefined, salaryMax: jobForm.salaryMax ? Number(jobForm.salaryMax) : undefined })} disabled={!jobForm.title || createJob.isPending}>
               {createJob.isPending ? <RefreshCw size={14} className="animate-spin mr-2" /> : null} Create Job
             </Button>
           </DialogFooter>
@@ -494,7 +517,7 @@ export default function HRRecruitmentPage() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setScheduleOpen(false)}>Cancel</Button>
-            <Button onClick={() => selectedApp && scheduleInterview.mutate({ applicationId: selectedApp.app.id, ...interviewForm })} disabled={!interviewForm.scheduledAt || scheduleInterview.isPending}>
+            <Button onClick={() => selectedApp && scheduleInterview.mutate({ companyId: activeCompanyId, applicationId: selectedApp.app.id, ...interviewForm })} disabled={!interviewForm.scheduledAt || scheduleInterview.isPending}>
               {scheduleInterview.isPending ? <RefreshCw size={14} className="animate-spin mr-2" /> : null} Schedule
             </Button>
           </DialogFooter>
@@ -525,6 +548,7 @@ export default function HRRecruitmentPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setOfferOpen(false)}>Cancel</Button>
             <Button onClick={() => selectedApp && createOffer.mutate({
+              companyId: activeCompanyId,
               applicationId: selectedApp.app.id,
               jobId: selectedApp.app.jobId,
               applicantName: selectedApp.app.applicantName,

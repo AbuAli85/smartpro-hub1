@@ -3,65 +3,98 @@ import { TRPCError } from "@trpc/server";
 import { protectedProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
 import {
-  jobPostings, jobApplications, interviewSchedules, offerLetters,
+  jobPostings,
+  jobApplications,
+  interviewSchedules,
+  offerLetters,
   employees,
 } from "../../drizzle/schema";
 import { eq, and, desc, asc, inArray, sql, count } from "drizzle-orm";
 import { storagePut } from "../storage";
 import { invokeLLM } from "../_core/llm";
 import { publicProcedure } from "../_core/trpc";
-import { getActiveCompanyMembership } from "../_core/membership";
+import { requireActiveCompanyId } from "../_core/tenant";
+import type { User } from "../../drizzle/schema";
 
-function randomSuffix() { return Math.random().toString(36).slice(2, 8).toUpperCase(); }
+function randomSuffix() {
+  return Math.random().toString(36).slice(2, 8).toUpperCase();
+}
 
-async function getMemberCompanyId(userId: number) {
-  const m = await getActiveCompanyMembership(userId);
-  return m?.companyId ?? null;
+const recruitmentWorkspace = z.object({ companyId: z.number().optional() });
+
+async function recruitmentCompanyId(user: User, explicit?: number | null) {
+  return requireActiveCompanyId(user.id, explicit, user);
 }
 
 export const recruitmentRouter = router({
   // ── Job Postings ────────────────────────────────────────────────────────────
   listJobs: protectedProcedure
-    .input(z.object({ status: z.enum(["draft","open","closed","on_hold","all"]).default("all") }).optional())
+    .input(
+      z
+        .object({
+          status: z
+            .enum(["draft", "open", "closed", "on_hold", "all"])
+            .default("all"),
+        })
+        .merge(recruitmentWorkspace)
+        .optional()
+    )
     .query(async ({ ctx, input }) => {
+      const companyId = await recruitmentCompanyId(
+        ctx.user as User,
+        input?.companyId
+      );
       const db = await getDb();
       if (!db) return [];
-      const companyId = await getMemberCompanyId(ctx.user.id);
-      if (!companyId) return [];
-      const rows = await db.select().from(jobPostings)
+      const rows = await db
+        .select()
+        .from(jobPostings)
         .where(
           input?.status && input.status !== "all"
-            ? and(eq(jobPostings.companyId, companyId), eq(jobPostings.status, input.status as any))
+            ? and(
+                eq(jobPostings.companyId, companyId),
+                eq(jobPostings.status, input.status as any)
+              )
             : eq(jobPostings.companyId, companyId)
         )
         .orderBy(desc(jobPostings.createdAt));
       // Attach application counts
       const ids = rows.map(r => r.id);
       if (!ids.length) return rows.map(r => ({ ...r, applicationCount: 0 }));
-      const counts = await db.select({ jobId: jobApplications.jobId, cnt: count() })
-        .from(jobApplications).where(inArray(jobApplications.jobId, ids))
+      const counts = await db
+        .select({ jobId: jobApplications.jobId, cnt: count() })
+        .from(jobApplications)
+        .where(inArray(jobApplications.jobId, ids))
         .groupBy(jobApplications.jobId);
       const countMap = Object.fromEntries(counts.map(c => [c.jobId, c.cnt]));
       return rows.map(r => ({ ...r, applicationCount: countMap[r.id] ?? 0 }));
     }),
 
   createJob: protectedProcedure
-    .input(z.object({
-      title: z.string().min(2),
-      department: z.string().optional(),
-      location: z.string().optional(),
-      type: z.enum(["full_time","part_time","contract","intern"]).default("full_time"),
-      description: z.string().optional(),
-      requirements: z.string().optional(),
-      salaryMin: z.number().optional(),
-      salaryMax: z.number().optional(),
-      applicationDeadline: z.string().optional(),
-    }))
+    .input(
+      z
+        .object({
+          title: z.string().min(2),
+          department: z.string().optional(),
+          location: z.string().optional(),
+          type: z
+            .enum(["full_time", "part_time", "contract", "intern"])
+            .default("full_time"),
+          description: z.string().optional(),
+          requirements: z.string().optional(),
+          salaryMin: z.number().optional(),
+          salaryMax: z.number().optional(),
+          applicationDeadline: z.string().optional(),
+        })
+        .merge(recruitmentWorkspace)
+    )
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      const companyId = await getMemberCompanyId(ctx.user.id);
-      if (!companyId) throw new TRPCError({ code: "FORBIDDEN" });
+      const companyId = await recruitmentCompanyId(
+        ctx.user as User,
+        input.companyId
+      );
       const [result] = await db.insert(jobPostings).values({
         companyId,
         title: input.title,
@@ -73,70 +106,117 @@ export const recruitmentRouter = router({
         requirements: input.requirements,
         salaryMin: input.salaryMin ? String(input.salaryMin) : null,
         salaryMax: input.salaryMax ? String(input.salaryMax) : null,
-        applicationDeadline: input.applicationDeadline ? new Date(input.applicationDeadline) : null,
+        applicationDeadline: input.applicationDeadline
+          ? new Date(input.applicationDeadline)
+          : null,
         createdBy: ctx.user.id,
       });
       return { id: (result as any).insertId };
     }),
 
   updateJob: protectedProcedure
-    .input(z.object({
-      id: z.number(),
-      title: z.string().optional(),
-      department: z.string().optional(),
-      location: z.string().optional(),
-      type: z.enum(["full_time","part_time","contract","intern"]).optional(),
-      status: z.enum(["draft","open","closed","on_hold"]).optional(),
-      description: z.string().optional(),
-      requirements: z.string().optional(),
-      salaryMin: z.number().optional(),
-      salaryMax: z.number().optional(),
-      applicationDeadline: z.string().optional(),
-    }))
+    .input(
+      z
+        .object({
+          id: z.number(),
+          title: z.string().optional(),
+          department: z.string().optional(),
+          location: z.string().optional(),
+          type: z
+            .enum(["full_time", "part_time", "contract", "intern"])
+            .optional(),
+          status: z.enum(["draft", "open", "closed", "on_hold"]).optional(),
+          description: z.string().optional(),
+          requirements: z.string().optional(),
+          salaryMin: z.number().optional(),
+          salaryMax: z.number().optional(),
+          applicationDeadline: z.string().optional(),
+        })
+        .merge(recruitmentWorkspace)
+    )
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      const companyId = await getMemberCompanyId(ctx.user.id);
-      if (!companyId) throw new TRPCError({ code: "FORBIDDEN" });
-      const { id, salaryMin, salaryMax, applicationDeadline, ...rest } = input;
-      await db.update(jobPostings).set({
-        ...rest,
-        ...(salaryMin !== undefined && { salaryMin: String(salaryMin) }),
-        ...(salaryMax !== undefined && { salaryMax: String(salaryMax) }),
-        ...(applicationDeadline !== undefined && { applicationDeadline: new Date(applicationDeadline) }),
-      }).where(and(eq(jobPostings.id, id), eq(jobPostings.companyId, companyId)));
+      const companyId = await recruitmentCompanyId(
+        ctx.user as User,
+        input.companyId
+      );
+      const { id, salaryMin, salaryMax, applicationDeadline, companyId: _workspace, ...rest } =
+        input;
+      await db
+        .update(jobPostings)
+        .set({
+          ...rest,
+          ...(salaryMin !== undefined && { salaryMin: String(salaryMin) }),
+          ...(salaryMax !== undefined && { salaryMax: String(salaryMax) }),
+          ...(applicationDeadline !== undefined && {
+            applicationDeadline: new Date(applicationDeadline),
+          }),
+        })
+        .where(
+          and(eq(jobPostings.id, id), eq(jobPostings.companyId, companyId))
+        );
       return { ok: true };
     }),
 
   deleteJob: protectedProcedure
-    .input(z.object({ id: z.number() }))
+    .input(z.object({ id: z.number() }).merge(recruitmentWorkspace))
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      const companyId = await getMemberCompanyId(ctx.user.id);
-      if (!companyId) throw new TRPCError({ code: "FORBIDDEN" });
-      await db.delete(jobPostings).where(and(eq(jobPostings.id, input.id), eq(jobPostings.companyId, companyId)));
+      const companyId = await recruitmentCompanyId(
+        ctx.user as User,
+        input.companyId
+      );
+      await db
+        .delete(jobPostings)
+        .where(
+          and(
+            eq(jobPostings.id, input.id),
+            eq(jobPostings.companyId, companyId)
+          )
+        );
       return { ok: true };
     }),
 
   // ── Applications ────────────────────────────────────────────────────────────
   listApplications: protectedProcedure
-    .input(z.object({
-      jobId: z.number().optional(),
-      stage: z.enum(["applied","screening","interview","assessment","offer","hired","rejected","all"]).default("all"),
-    }).optional())
+    .input(
+      z
+        .object({
+          jobId: z.number().optional(),
+          stage: z
+            .enum([
+              "applied",
+              "screening",
+              "interview",
+              "assessment",
+              "offer",
+              "hired",
+              "rejected",
+              "all",
+            ])
+            .default("all"),
+        })
+        .merge(recruitmentWorkspace)
+        .optional()
+    )
     .query(async ({ ctx, input }) => {
+      const companyId = await recruitmentCompanyId(
+        ctx.user as User,
+        input?.companyId
+      );
       const db = await getDb();
       if (!db) return [];
-      const companyId = await getMemberCompanyId(ctx.user.id);
-      if (!companyId) return [];
       const conditions = [eq(jobApplications.companyId, companyId)];
       if (input?.jobId) conditions.push(eq(jobApplications.jobId, input.jobId));
-      if (input?.stage && input.stage !== "all") conditions.push(eq(jobApplications.stage, input.stage as any));
-      const apps = await db.select({
-        app: jobApplications,
-        job: { title: jobPostings.title, department: jobPostings.department },
-      })
+      if (input?.stage && input.stage !== "all")
+        conditions.push(eq(jobApplications.stage, input.stage as any));
+      const apps = await db
+        .select({
+          app: jobApplications,
+          job: { title: jobPostings.title, department: jobPostings.department },
+        })
         .from(jobApplications)
         .leftJoin(jobPostings, eq(jobApplications.jobId, jobPostings.id))
         .where(and(...conditions))
@@ -145,23 +225,39 @@ export const recruitmentRouter = router({
     }),
 
   getPipelineKanban: protectedProcedure
-    .input(z.object({ jobId: z.number().optional() }).optional())
+    .input(
+      z
+        .object({ jobId: z.number().optional() })
+        .merge(recruitmentWorkspace)
+        .optional()
+    )
     .query(async ({ ctx, input }) => {
+      const companyId = await recruitmentCompanyId(
+        ctx.user as User,
+        input?.companyId
+      );
       const db = await getDb();
       if (!db) return {};
-      const companyId = await getMemberCompanyId(ctx.user.id);
-      if (!companyId) return {};
       const conditions = [eq(jobApplications.companyId, companyId)];
       if (input?.jobId) conditions.push(eq(jobApplications.jobId, input.jobId));
-      const apps = await db.select({
-        app: jobApplications,
-        job: { title: jobPostings.title },
-      })
+      const apps = await db
+        .select({
+          app: jobApplications,
+          job: { title: jobPostings.title },
+        })
         .from(jobApplications)
         .leftJoin(jobPostings, eq(jobApplications.jobId, jobPostings.id))
         .where(and(...conditions))
         .orderBy(asc(jobApplications.createdAt));
-      const stages = ["applied","screening","interview","assessment","offer","hired","rejected"] as const;
+      const stages = [
+        "applied",
+        "screening",
+        "interview",
+        "assessment",
+        "offer",
+        "hired",
+        "rejected",
+      ] as const;
       const kanban: Record<string, typeof apps> = {};
       for (const s of stages) kanban[s] = [];
       for (const row of apps) kanban[row.app.stage]?.push(row);
@@ -169,65 +265,121 @@ export const recruitmentRouter = router({
     }),
 
   updateApplicationStage: protectedProcedure
-    .input(z.object({
-      id: z.number(),
-      stage: z.enum(["applied","screening","interview","assessment","offer","hired","rejected"]),
-      notes: z.string().optional(),
-    }))
+    .input(
+      z
+        .object({
+          id: z.number(),
+          stage: z.enum([
+            "applied",
+            "screening",
+            "interview",
+            "assessment",
+            "offer",
+            "hired",
+            "rejected",
+          ]),
+          notes: z.string().optional(),
+        })
+        .merge(recruitmentWorkspace)
+    )
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      const companyId = await getMemberCompanyId(ctx.user.id);
-      if (!companyId) throw new TRPCError({ code: "FORBIDDEN" });
-      await db.update(jobApplications).set({ stage: input.stage, notes: input.notes })
-        .where(and(eq(jobApplications.id, input.id), eq(jobApplications.companyId, companyId)));
+      const companyId = await recruitmentCompanyId(
+        ctx.user as User,
+        input.companyId
+      );
+      await db
+        .update(jobApplications)
+        .set({ stage: input.stage, notes: input.notes })
+        .where(
+          and(
+            eq(jobApplications.id, input.id),
+            eq(jobApplications.companyId, companyId)
+          )
+        );
       return { ok: true };
     }),
 
   // ── Interview Scheduling ────────────────────────────────────────────────────
   listInterviews: protectedProcedure
-    .input(z.object({ applicationId: z.number().optional() }).optional())
+    .input(
+      z
+        .object({ applicationId: z.number().optional() })
+        .merge(recruitmentWorkspace)
+        .optional()
+    )
     .query(async ({ ctx, input }) => {
+      const companyId = await recruitmentCompanyId(
+        ctx.user as User,
+        input?.companyId
+      );
       const db = await getDb();
       if (!db) return [];
-      const companyId = await getMemberCompanyId(ctx.user.id);
-      if (!companyId) return [];
       const conditions = [eq(interviewSchedules.companyId, companyId)];
-      if (input?.applicationId) conditions.push(eq(interviewSchedules.applicationId, input.applicationId));
-      return db.select({
-        interview: interviewSchedules,
-        app: { applicantName: jobApplications.applicantName, applicantEmail: jobApplications.applicantEmail, stage: jobApplications.stage },
-        job: { title: jobPostings.title },
-      })
+      if (input?.applicationId)
+        conditions.push(
+          eq(interviewSchedules.applicationId, input.applicationId)
+        );
+      return db
+        .select({
+          interview: interviewSchedules,
+          app: {
+            applicantName: jobApplications.applicantName,
+            applicantEmail: jobApplications.applicantEmail,
+            stage: jobApplications.stage,
+          },
+          job: { title: jobPostings.title },
+        })
         .from(interviewSchedules)
-        .leftJoin(jobApplications, eq(interviewSchedules.applicationId, jobApplications.id))
+        .leftJoin(
+          jobApplications,
+          eq(interviewSchedules.applicationId, jobApplications.id)
+        )
         .leftJoin(jobPostings, eq(jobApplications.jobId, jobPostings.id))
         .where(and(...conditions))
         .orderBy(asc(interviewSchedules.scheduledAt));
     }),
 
   scheduleInterview: protectedProcedure
-    .input(z.object({
-      applicationId: z.number(),
-      interviewType: z.enum(["phone","video","in_person","technical","panel"]).default("video"),
-      scheduledAt: z.string(),
-      durationMinutes: z.number().default(60),
-      location: z.string().optional(),
-      meetingLink: z.string().optional(),
-      interviewerNames: z.string().optional(),
-      notes: z.string().optional(),
-    }))
+    .input(
+      z
+        .object({
+          applicationId: z.number(),
+          interviewType: z
+            .enum(["phone", "video", "in_person", "technical", "panel"])
+            .default("video"),
+          scheduledAt: z.string(),
+          durationMinutes: z.number().default(60),
+          location: z.string().optional(),
+          meetingLink: z.string().optional(),
+          interviewerNames: z.string().optional(),
+          notes: z.string().optional(),
+        })
+        .merge(recruitmentWorkspace)
+    )
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      const companyId = await getMemberCompanyId(ctx.user.id);
-      if (!companyId) throw new TRPCError({ code: "FORBIDDEN" });
+      const companyId = await recruitmentCompanyId(
+        ctx.user as User,
+        input.companyId
+      );
       const [appRow] = await db
         .select({ id: jobApplications.id, jobId: jobApplications.jobId })
         .from(jobApplications)
-        .where(and(eq(jobApplications.id, input.applicationId), eq(jobApplications.companyId, companyId)))
+        .where(
+          and(
+            eq(jobApplications.id, input.applicationId),
+            eq(jobApplications.companyId, companyId)
+          )
+        )
         .limit(1);
-      if (!appRow) throw new TRPCError({ code: "NOT_FOUND", message: "Application not found" });
+      if (!appRow)
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Application not found",
+        });
       const [result] = await db.insert(interviewSchedules).values({
         applicationId: input.applicationId,
         companyId,
@@ -241,88 +393,159 @@ export const recruitmentRouter = router({
         status: "scheduled",
       });
       // Auto-advance application stage to interview
-      await db.update(jobApplications).set({ stage: "interview" })
-        .where(and(eq(jobApplications.id, input.applicationId), eq(jobApplications.companyId, companyId)));
+      await db
+        .update(jobApplications)
+        .set({ stage: "interview" })
+        .where(
+          and(
+            eq(jobApplications.id, input.applicationId),
+            eq(jobApplications.companyId, companyId)
+          )
+        );
       return { id: (result as any).insertId };
     }),
 
   updateInterview: protectedProcedure
-    .input(z.object({
-      id: z.number(),
-      status: z.enum(["scheduled","completed","cancelled","no_show"]).optional(),
-      feedback: z.string().optional(),
-      rating: z.number().min(1).max(5).optional(),
-      notes: z.string().optional(),
-      scheduledAt: z.string().optional(),
-      meetingLink: z.string().optional(),
-    }))
+    .input(
+      z
+        .object({
+          id: z.number(),
+          status: z
+            .enum(["scheduled", "completed", "cancelled", "no_show"])
+            .optional(),
+          feedback: z.string().optional(),
+          rating: z.number().min(1).max(5).optional(),
+          notes: z.string().optional(),
+          scheduledAt: z.string().optional(),
+          meetingLink: z.string().optional(),
+        })
+        .merge(recruitmentWorkspace)
+    )
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      const companyId = await getMemberCompanyId(ctx.user.id);
-      if (!companyId) throw new TRPCError({ code: "FORBIDDEN" });
-      const { id, scheduledAt, ...rest } = input;
-      await db.update(interviewSchedules).set({
-        ...rest,
-        ...(scheduledAt && { scheduledAt: new Date(scheduledAt) }),
-      }).where(and(eq(interviewSchedules.id, id), eq(interviewSchedules.companyId, companyId)));
+      const companyId = await recruitmentCompanyId(
+        ctx.user as User,
+        input.companyId
+      );
+      const { id, scheduledAt, companyId: _cw, ...rest } = input;
+      await db
+        .update(interviewSchedules)
+        .set({
+          ...rest,
+          ...(scheduledAt && { scheduledAt: new Date(scheduledAt) }),
+        })
+        .where(
+          and(
+            eq(interviewSchedules.id, id),
+            eq(interviewSchedules.companyId, companyId)
+          )
+        );
       return { ok: true };
     }),
 
   // ── Offer Letters ───────────────────────────────────────────────────────────
   listOffers: protectedProcedure
-    .input(z.object({ status: z.enum(["draft","sent","accepted","rejected","expired","all"]).default("all") }).optional())
+    .input(
+      z
+        .object({
+          status: z
+            .enum(["draft", "sent", "accepted", "rejected", "expired", "all"])
+            .default("all"),
+        })
+        .merge(recruitmentWorkspace)
+        .optional()
+    )
     .query(async ({ ctx, input }) => {
+      const companyId = await recruitmentCompanyId(
+        ctx.user as User,
+        input?.companyId
+      );
       const db = await getDb();
       if (!db) return [];
-      const companyId = await getMemberCompanyId(ctx.user.id);
-      if (!companyId) return [];
       const conditions = [eq(offerLetters.companyId, companyId)];
-      if (input?.status && input.status !== "all") conditions.push(eq(offerLetters.status, input.status as any));
-      return db.select().from(offerLetters).where(and(...conditions)).orderBy(desc(offerLetters.createdAt));
+      if (input?.status && input.status !== "all")
+        conditions.push(eq(offerLetters.status, input.status as any));
+      return db
+        .select()
+        .from(offerLetters)
+        .where(and(...conditions))
+        .orderBy(desc(offerLetters.createdAt));
     }),
 
   createOffer: protectedProcedure
-    .input(z.object({
-      applicationId: z.number(),
-      jobId: z.number(),
-      applicantName: z.string(),
-      applicantEmail: z.string().email(),
-      position: z.string(),
-      department: z.string().optional(),
-      startDate: z.string().optional(),
-      basicSalary: z.number(),
-      housingAllowance: z.number().default(0),
-      transportAllowance: z.number().default(0),
-      otherAllowances: z.number().default(0),
-      probationMonths: z.number().default(3),
-      annualLeave: z.number().default(21),
-      additionalTerms: z.string().optional(),
-      expiresAt: z.string().optional(),
-    }))
+    .input(
+      z
+        .object({
+          applicationId: z.number(),
+          jobId: z.number(),
+          applicantName: z.string(),
+          applicantEmail: z.string().email(),
+          position: z.string(),
+          department: z.string().optional(),
+          startDate: z.string().optional(),
+          basicSalary: z.number(),
+          housingAllowance: z.number().default(0),
+          transportAllowance: z.number().default(0),
+          otherAllowances: z.number().default(0),
+          probationMonths: z.number().default(3),
+          annualLeave: z.number().default(21),
+          additionalTerms: z.string().optional(),
+          expiresAt: z.string().optional(),
+        })
+        .merge(recruitmentWorkspace)
+    )
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      const companyId = await getMemberCompanyId(ctx.user.id);
-      if (!companyId) throw new TRPCError({ code: "FORBIDDEN" });
+      const companyId = await recruitmentCompanyId(
+        ctx.user as User,
+        input.companyId
+      );
       const [appRow] = await db
         .select({ id: jobApplications.id, jobId: jobApplications.jobId })
         .from(jobApplications)
-        .where(and(eq(jobApplications.id, input.applicationId), eq(jobApplications.companyId, companyId)))
+        .where(
+          and(
+            eq(jobApplications.id, input.applicationId),
+            eq(jobApplications.companyId, companyId)
+          )
+        )
         .limit(1);
-      if (!appRow) throw new TRPCError({ code: "NOT_FOUND", message: "Application not found" });
+      if (!appRow)
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Application not found",
+        });
       if (appRow.jobId !== input.jobId) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "Job does not match application" });
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Job does not match application",
+        });
       }
       const [jobRow] = await db
         .select({ id: jobPostings.id })
         .from(jobPostings)
-        .where(and(eq(jobPostings.id, input.jobId), eq(jobPostings.companyId, companyId)))
+        .where(
+          and(
+            eq(jobPostings.id, input.jobId),
+            eq(jobPostings.companyId, companyId)
+          )
+        )
         .limit(1);
-      if (!jobRow) throw new TRPCError({ code: "NOT_FOUND", message: "Job not found" });
-      const totalPackage = input.basicSalary + input.housingAllowance + input.transportAllowance + input.otherAllowances;
+      if (!jobRow)
+        throw new TRPCError({ code: "NOT_FOUND", message: "Job not found" });
+      const totalPackage =
+        input.basicSalary +
+        input.housingAllowance +
+        input.transportAllowance +
+        input.otherAllowances;
       // Generate offer letter HTML and store in S3
-      const html = generateOfferLetterHtml({ ...input, totalPackage, companyId });
+      const html = generateOfferLetterHtml({
+        ...input,
+        totalPackage,
+        companyId,
+      });
       const key = `offer-letters/${companyId}/${input.applicationId}-${randomSuffix()}.html`;
       const { url } = await storagePut(key, html, "text/html");
       const [result] = await db.insert(offerLetters).values({
@@ -348,42 +571,86 @@ export const recruitmentRouter = router({
         status: "draft",
       });
       // Advance application to offer stage
-      await db.update(jobApplications).set({ stage: "offer" })
-        .where(and(eq(jobApplications.id, input.applicationId), eq(jobApplications.companyId, companyId)));
+      await db
+        .update(jobApplications)
+        .set({ stage: "offer" })
+        .where(
+          and(
+            eq(jobApplications.id, input.applicationId),
+            eq(jobApplications.companyId, companyId)
+          )
+        );
       return { id: (result as any).insertId, url };
     }),
 
   sendOffer: protectedProcedure
-    .input(z.object({ id: z.number() }))
+    .input(z.object({ id: z.number() }).merge(recruitmentWorkspace))
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      const companyId = await getMemberCompanyId(ctx.user.id);
-      if (!companyId) throw new TRPCError({ code: "FORBIDDEN" });
-      await db.update(offerLetters).set({ status: "sent", sentAt: new Date() })
-        .where(and(eq(offerLetters.id, input.id), eq(offerLetters.companyId, companyId)));
+      const companyId = await recruitmentCompanyId(
+        ctx.user as User,
+        input.companyId
+      );
+      await db
+        .update(offerLetters)
+        .set({ status: "sent", sentAt: new Date() })
+        .where(
+          and(
+            eq(offerLetters.id, input.id),
+            eq(offerLetters.companyId, companyId)
+          )
+        );
       return { ok: true };
     }),
 
   updateOfferStatus: protectedProcedure
-    .input(z.object({
-      id: z.number(),
-      status: z.enum(["draft","sent","accepted","rejected","expired"]),
-    }))
+    .input(
+      z
+        .object({
+          id: z.number(),
+          status: z.enum(["draft", "sent", "accepted", "rejected", "expired"]),
+        })
+        .merge(recruitmentWorkspace)
+    )
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      const companyId = await getMemberCompanyId(ctx.user.id);
-      if (!companyId) throw new TRPCError({ code: "FORBIDDEN" });
-      const [offer] = await db.select().from(offerLetters)
-        .where(and(eq(offerLetters.id, input.id), eq(offerLetters.companyId, companyId))).limit(1);
+      const companyId = await recruitmentCompanyId(
+        ctx.user as User,
+        input.companyId
+      );
+      const [offer] = await db
+        .select()
+        .from(offerLetters)
+        .where(
+          and(
+            eq(offerLetters.id, input.id),
+            eq(offerLetters.companyId, companyId)
+          )
+        )
+        .limit(1);
       if (!offer) throw new TRPCError({ code: "NOT_FOUND" });
-      await db.update(offerLetters).set({ status: input.status, respondedAt: new Date() })
-        .where(and(eq(offerLetters.id, input.id), eq(offerLetters.companyId, companyId)));
+      await db
+        .update(offerLetters)
+        .set({ status: input.status, respondedAt: new Date() })
+        .where(
+          and(
+            eq(offerLetters.id, input.id),
+            eq(offerLetters.companyId, companyId)
+          )
+        );
       // If accepted, advance application to hired
       if (input.status === "accepted") {
-        await db.update(jobApplications).set({ stage: "hired" })
-          .where(and(eq(jobApplications.id, offer.applicationId), eq(jobApplications.companyId, companyId)));
+        await db
+          .update(jobApplications)
+          .set({ stage: "hired" })
+          .where(
+            and(
+              eq(jobApplications.id, offer.applicationId),
+              eq(jobApplications.companyId, companyId)
+            )
+          );
       }
       return { ok: true };
     }),
@@ -391,38 +658,48 @@ export const recruitmentRouter = router({
   // ── Public Job Board ────────────────────────────────────────────────────────
   /** Public job listings — no auth required */
   listPublicJobs: publicProcedure
-    .input(z.object({
-      query: z.string().optional(),
-      type: z.enum(["full_time","part_time","contract","intern","all"]).default("all"),
-    }).optional())
+    .input(
+      z
+        .object({
+          query: z.string().optional(),
+          type: z
+            .enum(["full_time", "part_time", "contract", "intern", "all"])
+            .default("all"),
+        })
+        .optional()
+    )
     .query(async ({ input }) => {
       const db = await getDb();
       if (!db) return [];
       const conditions: any[] = [sql`${jobPostings.status} = 'open'`];
-      if (input?.type && input.type !== "all") conditions.push(eq(jobPostings.type, input.type as any));
-      const rows = await db.select({
-        id: jobPostings.id,
-        title: jobPostings.title,
-        department: jobPostings.department,
-        location: jobPostings.location,
-        type: jobPostings.type,
-        description: jobPostings.description,
-        requirements: jobPostings.requirements,
-        salaryMin: jobPostings.salaryMin,
-        salaryMax: jobPostings.salaryMax,
-        applicationDeadline: jobPostings.applicationDeadline,
-        createdAt: jobPostings.createdAt,
-      }).from(jobPostings)
+      if (input?.type && input.type !== "all")
+        conditions.push(eq(jobPostings.type, input.type as any));
+      const rows = await db
+        .select({
+          id: jobPostings.id,
+          title: jobPostings.title,
+          department: jobPostings.department,
+          location: jobPostings.location,
+          type: jobPostings.type,
+          description: jobPostings.description,
+          requirements: jobPostings.requirements,
+          salaryMin: jobPostings.salaryMin,
+          salaryMax: jobPostings.salaryMax,
+          applicationDeadline: jobPostings.applicationDeadline,
+          createdAt: jobPostings.createdAt,
+        })
+        .from(jobPostings)
         .where(and(...conditions))
         .orderBy(desc(jobPostings.createdAt))
         .limit(50);
       // Filter by query client-side for simplicity
       if (input?.query) {
         const q = input.query.toLowerCase();
-        return rows.filter(r =>
-          r.title?.toLowerCase().includes(q) ||
-          r.department?.toLowerCase().includes(q) ||
-          r.location?.toLowerCase().includes(q)
+        return rows.filter(
+          r =>
+            r.title?.toLowerCase().includes(q) ||
+            r.department?.toLowerCase().includes(q) ||
+            r.location?.toLowerCase().includes(q)
         );
       }
       return rows;
@@ -430,28 +707,56 @@ export const recruitmentRouter = router({
 
   /** Submit a job application — public (no auth required) */
   applyForJob: publicProcedure
-    .input(z.object({
-      jobId: z.number(),
-      applicantName: z.string().min(2),
-      applicantEmail: z.string().email(),
-      applicantPhone: z.string().optional(),
-      coverLetter: z.string().optional(),
-      cvUrl: z.string().url().optional(),
-      currentCompany: z.string().optional(),
-      yearsExperience: z.number().optional(),
-      skills: z.string().optional(),
-    }))
+    .input(
+      z.object({
+        jobId: z.number(),
+        applicantName: z.string().min(2),
+        applicantEmail: z.string().email(),
+        applicantPhone: z.string().optional(),
+        coverLetter: z.string().optional(),
+        cvUrl: z.string().url().optional(),
+        currentCompany: z.string().optional(),
+        yearsExperience: z.number().optional(),
+        skills: z.string().optional(),
+      })
+    )
     .mutation(async ({ input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       // Verify job is open
-      const [job] = await db.select({ id: jobPostings.id, companyId: jobPostings.companyId, title: jobPostings.title })
-        .from(jobPostings).where(and(eq(jobPostings.id, input.jobId), sql`${jobPostings.status} = 'open'`));
-      if (!job) throw new TRPCError({ code: "NOT_FOUND", message: "Job not found or no longer accepting applications" });
+      const [job] = await db
+        .select({
+          id: jobPostings.id,
+          companyId: jobPostings.companyId,
+          title: jobPostings.title,
+        })
+        .from(jobPostings)
+        .where(
+          and(
+            eq(jobPostings.id, input.jobId),
+            sql`${jobPostings.status} = 'open'`
+          )
+        );
+      if (!job)
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Job not found or no longer accepting applications",
+        });
       // Check for duplicate application
-      const [existing] = await db.select({ id: jobApplications.id }).from(jobApplications)
-        .where(and(eq(jobApplications.jobId, input.jobId), eq(jobApplications.applicantEmail, input.applicantEmail)));
-      if (existing) throw new TRPCError({ code: "CONFLICT", message: "You have already applied for this position" });
+      const [existing] = await db
+        .select({ id: jobApplications.id })
+        .from(jobApplications)
+        .where(
+          and(
+            eq(jobApplications.jobId, input.jobId),
+            eq(jobApplications.applicantEmail, input.applicantEmail)
+          )
+        );
+      if (existing)
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: "You have already applied for this position",
+        });
       const [result] = await db.insert(jobApplications).values({
         jobId: input.jobId,
         companyId: job!.companyId,
@@ -461,27 +766,51 @@ export const recruitmentRouter = router({
         coverLetter: input.coverLetter,
         resumeUrl: input.cvUrl,
         stage: "applied",
-        notes: [input.currentCompany && `Current: ${input.currentCompany}`, input.yearsExperience && `${input.yearsExperience} yrs exp`, input.skills && `Skills: ${input.skills}`].filter(Boolean).join(" | ") || undefined,
+        notes:
+          [
+            input.currentCompany && `Current: ${input.currentCompany}`,
+            input.yearsExperience && `${input.yearsExperience} yrs exp`,
+            input.skills && `Skills: ${input.skills}`,
+          ]
+            .filter(Boolean)
+            .join(" | ") || undefined,
       });
       return { id: (result as any).insertId, jobTitle: job!.title };
     }),
 
   /** AI-powered CV screening — score 0-100, extract skills, flag gaps */
   screenApplication: protectedProcedure
-    .input(z.object({
-      applicationId: z.number(),
-    }))
+    .input(
+      z
+        .object({
+          applicationId: z.number(),
+        })
+        .merge(recruitmentWorkspace)
+    )
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      const companyId = await getMemberCompanyId(ctx.user.id);
-      if (!companyId) throw new TRPCError({ code: "FORBIDDEN" });
-      const [appRow] = await db.select({
-        app: jobApplications,
-        job: { title: jobPostings.title, requirements: jobPostings.requirements, description: jobPostings.description },
-      }).from(jobApplications)
+      const companyId = await recruitmentCompanyId(
+        ctx.user as User,
+        input.companyId
+      );
+      const [appRow] = await db
+        .select({
+          app: jobApplications,
+          job: {
+            title: jobPostings.title,
+            requirements: jobPostings.requirements,
+            description: jobPostings.description,
+          },
+        })
+        .from(jobApplications)
         .leftJoin(jobPostings, eq(jobApplications.jobId, jobPostings.id))
-        .where(and(eq(jobApplications.id, input.applicationId), eq(jobApplications.companyId, companyId)));
+        .where(
+          and(
+            eq(jobApplications.id, input.applicationId),
+            eq(jobApplications.companyId, companyId)
+          )
+        );
       if (!appRow) throw new TRPCError({ code: "NOT_FOUND" });
       const { app, job } = appRow;
       const prompt = `You are an expert HR recruiter. Evaluate this job application and return a JSON screening report.
@@ -503,64 +832,102 @@ Return a JSON object with:
 - extractedSkills: string[] (skills identified from the application)`;
       const response = await invokeLLM({
         messages: [
-          { role: "system", content: "You are an expert HR recruiter. Always respond with valid JSON only." },
+          {
+            role: "system",
+            content:
+              "You are an expert HR recruiter. Always respond with valid JSON only.",
+          },
           { role: "user", content: prompt },
         ],
-        response_format: { type: "json_schema", json_schema: {
-          name: "screening_report",
-          strict: true,
-          schema: {
-            type: "object",
-            properties: {
-              score: { type: "number" },
-              recommendation: { type: "string" },
-              strengths: { type: "array", items: { type: "string" } },
-              gaps: { type: "array", items: { type: "string" } },
-              summary: { type: "string" },
-              extractedSkills: { type: "array", items: { type: "string" } },
+        response_format: {
+          type: "json_schema",
+          json_schema: {
+            name: "screening_report",
+            strict: true,
+            schema: {
+              type: "object",
+              properties: {
+                score: { type: "number" },
+                recommendation: { type: "string" },
+                strengths: { type: "array", items: { type: "string" } },
+                gaps: { type: "array", items: { type: "string" } },
+                summary: { type: "string" },
+                extractedSkills: { type: "array", items: { type: "string" } },
+              },
+              required: [
+                "score",
+                "recommendation",
+                "strengths",
+                "gaps",
+                "summary",
+                "extractedSkills",
+              ],
+              additionalProperties: false,
             },
-            required: ["score", "recommendation", "strengths", "gaps", "summary", "extractedSkills"],
-            additionalProperties: false,
           },
-        }},
+        },
       });
       const content = response.choices[0]?.message?.content ?? "{}";
-      const report = JSON.parse(typeof content === "string" ? content : JSON.stringify(content));
+      const report = JSON.parse(
+        typeof content === "string" ? content : JSON.stringify(content)
+      );
       // Save screening result to application
       // Store screening report in notes field (schema doesn't have dedicated AI fields)
-      await db.update(jobApplications)
+      await db
+        .update(jobApplications)
         .set({
           notes: `AI_SCREEN:${JSON.stringify(report)}`,
           stage: app.stage === "applied" ? "screening" : app.stage,
         })
-        .where(and(eq(jobApplications.id, input.applicationId), eq(jobApplications.companyId, companyId)));
+        .where(
+          and(
+            eq(jobApplications.id, input.applicationId),
+            eq(jobApplications.companyId, companyId)
+          )
+        );
       return report;
     }),
 
   /** Convert accepted application to employee record */
   convertToEmployee: protectedProcedure
-    .input(z.object({
-      applicationId: z.number(),
-      startDate: z.string(),
-      salary: z.number().optional(),
-      jobTitle: z.string().optional(),
-      department: z.string().optional(),
-    }))
+    .input(
+      z
+        .object({
+          applicationId: z.number(),
+          startDate: z.string(),
+          salary: z.number().optional(),
+          jobTitle: z.string().optional(),
+          department: z.string().optional(),
+        })
+        .merge(recruitmentWorkspace)
+    )
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      const companyId = await getMemberCompanyId(ctx.user.id);
-      if (!companyId) throw new TRPCError({ code: "FORBIDDEN" });
-      const [appRow] = await db.select({
-        app: jobApplications,
-        job: { title: jobPostings.title, department: jobPostings.department },
-      }).from(jobApplications)
+      const companyId = await recruitmentCompanyId(
+        ctx.user as User,
+        input.companyId
+      );
+      const [appRow] = await db
+        .select({
+          app: jobApplications,
+          job: { title: jobPostings.title, department: jobPostings.department },
+        })
+        .from(jobApplications)
         .leftJoin(jobPostings, eq(jobApplications.jobId, jobPostings.id))
-        .where(and(eq(jobApplications.id, input.applicationId), eq(jobApplications.companyId, companyId)));
+        .where(
+          and(
+            eq(jobApplications.id, input.applicationId),
+            eq(jobApplications.companyId, companyId)
+          )
+        );
       if (!appRow) throw new TRPCError({ code: "NOT_FOUND" });
       const { app, job } = appRow;
       if (app.stage !== "hired" && app.stage !== "offer") {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "Application must be in offer or hired stage" });
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Application must be in offer or hired stage",
+        });
       }
       // Create employee record
       const nameParts = (app.applicantName ?? "").split(" ");
@@ -578,47 +945,93 @@ Return a JSON object with:
         salary: input.salary ? String(input.salary) : null,
         status: "active",
       });
-      await db.update(jobApplications).set({ stage: "hired" })
+      await db
+        .update(jobApplications)
+        .set({ stage: "hired" })
         .where(eq(jobApplications.id, input.applicationId));
-      return { employeeId: (empResult as any).insertId, name: `${firstName} ${lastName}` };
+      return {
+        employeeId: (empResult as any).insertId,
+        name: `${firstName} ${lastName}`,
+      };
     }),
 
   // ── Pipeline Summary ────────────────────────────────────────────────────────
-  getPipelineSummary: protectedProcedure.query(async ({ ctx }) => {
-    const db = await getDb();
-    if (!db) return null;
-    const companyId = await getMemberCompanyId(ctx.user.id);
-    if (!companyId) return null;
-    const [openJobs] = await db.select({ cnt: count() }).from(jobPostings)
-      .where(and(eq(jobPostings.companyId, companyId), eq(jobPostings.status, "open")));
-    const stageCounts = await db.select({ stage: jobApplications.stage, cnt: count() })
-      .from(jobApplications).where(eq(jobApplications.companyId, companyId))
-      .groupBy(jobApplications.stage);
-    const stageMap = Object.fromEntries(stageCounts.map(s => [s.stage, s.cnt]));
-    const [pendingInterviews] = await db.select({ cnt: count() }).from(interviewSchedules)
-      .where(and(eq(interviewSchedules.companyId, companyId), eq(interviewSchedules.status, "scheduled")));
-    const [pendingOffers] = await db.select({ cnt: count() }).from(offerLetters)
-      .where(and(eq(offerLetters.companyId, companyId), eq(offerLetters.status, "sent")));
-    return {
-      openJobs: openJobs?.cnt ?? 0,
-      totalApplications: Object.values(stageMap).reduce((a, b) => a + b, 0),
-      stageMap,
-      pendingInterviews: pendingInterviews?.cnt ?? 0,
-      pendingOffers: pendingOffers?.cnt ?? 0,
-    };
-  }),
+  getPipelineSummary: protectedProcedure
+    .input(z.object({ companyId: z.number().optional() }).optional())
+    .query(async ({ ctx, input }) => {
+      const companyId = await recruitmentCompanyId(
+        ctx.user as User,
+        input?.companyId
+      );
+      const db = await getDb();
+      if (!db) return null;
+      const [openJobs] = await db
+        .select({ cnt: count() })
+        .from(jobPostings)
+        .where(
+          and(
+            eq(jobPostings.companyId, companyId),
+            eq(jobPostings.status, "open")
+          )
+        );
+      const stageCounts = await db
+        .select({ stage: jobApplications.stage, cnt: count() })
+        .from(jobApplications)
+        .where(eq(jobApplications.companyId, companyId))
+        .groupBy(jobApplications.stage);
+      const stageMap = Object.fromEntries(
+        stageCounts.map(s => [s.stage, s.cnt])
+      );
+      const [pendingInterviews] = await db
+        .select({ cnt: count() })
+        .from(interviewSchedules)
+        .where(
+          and(
+            eq(interviewSchedules.companyId, companyId),
+            eq(interviewSchedules.status, "scheduled")
+          )
+        );
+      const [pendingOffers] = await db
+        .select({ cnt: count() })
+        .from(offerLetters)
+        .where(
+          and(
+            eq(offerLetters.companyId, companyId),
+            eq(offerLetters.status, "sent")
+          )
+        );
+      return {
+        openJobs: openJobs?.cnt ?? 0,
+        totalApplications: Object.values(stageMap).reduce((a, b) => a + b, 0),
+        stageMap,
+        pendingInterviews: pendingInterviews?.cnt ?? 0,
+        pendingOffers: pendingOffers?.cnt ?? 0,
+      };
+    }),
 });
 
 // ── Offer Letter HTML Template ──────────────────────────────────────────────
 function generateOfferLetterHtml(data: {
-  applicantName: string; position: string; department?: string;
-  startDate?: string; basicSalary: number; housingAllowance: number;
-  transportAllowance: number; otherAllowances: number; totalPackage: number;
-  probationMonths: number; annualLeave: number; additionalTerms?: string;
+  applicantName: string;
+  position: string;
+  department?: string;
+  startDate?: string;
+  basicSalary: number;
+  housingAllowance: number;
+  transportAllowance: number;
+  otherAllowances: number;
+  totalPackage: number;
+  probationMonths: number;
+  annualLeave: number;
+  additionalTerms?: string;
   companyId: number;
 }) {
   const fmt = (n: number) => `OMR ${n.toFixed(3)}`;
-  const today = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
+  const today = new Date().toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  });
   return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
 <title>Offer Letter — ${data.applicantName}</title>
 <style>

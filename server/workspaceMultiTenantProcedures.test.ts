@@ -4,6 +4,9 @@ import { automationSlaRouter } from "./routers/automationSla";
 import { officersRouter } from "./routers/officers";
 import { shiftRequestsRouter } from "./routers/shiftRequests";
 import { hrRouter } from "./routers/hr";
+import { contractsRouter } from "./routers/contracts";
+import { financeHRRouter } from "./routers/financeHR";
+import { recruitmentRouter } from "./routers/recruitment";
 import * as db from "./db";
 
 vi.mock("./db", async (importOriginal) => {
@@ -71,6 +74,33 @@ describe("workspace authority on user-facing routers", () => {
       { company: { id: 2 }, member: {} },
     ] as any);
     const caller = hrRouter.createCaller(makeMemberCtx());
+    await expect(caller.listJobs({})).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  });
+
+  it("contracts.list rejects when multiple memberships and companyId omitted", async () => {
+    vi.mocked(db.getUserCompanies).mockResolvedValue([
+      { company: { id: 1 }, member: {} },
+      { company: { id: 2 }, member: {} },
+    ] as any);
+    const caller = contractsRouter.createCaller(makeMemberCtx());
+    await expect(caller.list({})).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  });
+
+  it("financeHR.myExpenses rejects when multiple memberships and companyId omitted", async () => {
+    vi.mocked(db.getUserCompanies).mockResolvedValue([
+      { company: { id: 1 }, member: {} },
+      { company: { id: 2 }, member: {} },
+    ] as any);
+    const caller = financeHRRouter.createCaller(makeMemberCtx());
+    await expect(caller.myExpenses({})).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  });
+
+  it("recruitment.listJobs rejects when multiple memberships and companyId omitted", async () => {
+    vi.mocked(db.getUserCompanies).mockResolvedValue([
+      { company: { id: 1 }, member: {} },
+      { company: { id: 2 }, member: {} },
+    ] as any);
+    const caller = recruitmentRouter.createCaller(makeMemberCtx());
     await expect(caller.listJobs({})).rejects.toMatchObject({ code: "BAD_REQUEST" });
   });
 

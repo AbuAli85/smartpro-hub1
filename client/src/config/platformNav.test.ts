@@ -98,9 +98,14 @@ describe("platformNav IA & routing", () => {
     ]);
   });
 
-  it("keeps Operations section to hub, CRM, and quotations only", () => {
+  it("keeps Operations section to hub, task manager, CRM, and quotations", () => {
     const ops = findGroup("operations")!;
-    expect(walkLeaves(ops.items).map((l) => l.href)).toEqual(["/company/hub", "/crm", "/quotations"]);
+    expect(walkLeaves(ops.items).map((l) => l.href)).toEqual([
+      "/company/hub",
+      "/hr/tasks",
+      "/crm",
+      "/quotations",
+    ]);
   });
 
   it("tertiary platform group defaults collapsed in config", () => {

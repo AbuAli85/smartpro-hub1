@@ -41,13 +41,13 @@ function writeStoredGroupOpen(next: Record<string, boolean>): void {
 function tierHeaderClass(tier: NavTier | undefined): string {
   switch (tier ?? "primary") {
     case "primary":
-      return "text-white/42";
+      return "text-white/52 font-semibold tracking-[0.14em]";
     case "secondary":
-      return "text-white/32";
+      return "text-white/40 font-semibold tracking-[0.14em]";
     case "tertiary":
-      return "text-white/24";
+      return "text-white/32 font-medium tracking-[0.12em]";
     default:
-      return "text-white/42";
+      return "text-white/52 font-semibold tracking-[0.14em]";
   }
 }
 

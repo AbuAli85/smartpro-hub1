@@ -160,9 +160,10 @@ function branch(
  * - **control**: executive dashboards & org-wide KPIs (`/operations`, `/finance/overview`, `/compliance` centre, etc.)
  * - **govPartner**: Sanad office network surfaces (offices, dashboard, partner onboarding)
  * - **company**: company profile, commercial contracts, workspace settings
- * - **peopleHr**: HR module (`/hr/*`), employee portal, directory, people-side tasks
- * - **operations**: revenue execution (hub, CRM, quotes)
- * - **marketplaceSection**: discovery + Sanad marketplace ops (catalogue admin, ratings moderation live here — platform moderation tooling)
+ * - **peopleHr**: HR module (`/hr/*`), employee portal, directory (excludes `/hr/tasks` — company ops live under Operations)
+ * - **operations**: revenue execution + company task manager (hub, CRM, quotes, `/hr/tasks`)
+ * - **marketplaceSection**: service discovery + Sanad marketplace + catalogue administration
+ * - **platform**: ratings moderation (platform governance) lives with other admin tools
  * - **complianceWorkforce**: government workforce compliance (`/workforce/*` except profile-change queue grouped under People for HR workflow)
  * - **access**: membership access & roles
  * - **proShared**: Omani PRO pillar
@@ -317,7 +318,6 @@ export const PLATFORM_NAV_GROUP_DEFS: readonly NavGroupDef[] = [
         },
       ),
       leaf("people.payroll", "payrollEngine", "Payroll Engine", "/payroll", Banknote, { intent: "workspace" }),
-      leaf("people.tasks", "taskManager", "Task Manager", "/hr/tasks", ListTodo, { intent: "workspace" }),
       leaf("people.recruitment", "recruitment", "Recruitment", "/hr/recruitment", BookOpen, { intent: "workspace" }),
       leaf("people.announcements", "announcements", "Announcements", "/hr/announcements", Megaphone, {
         intent: "workspace",
@@ -368,6 +368,7 @@ export const PLATFORM_NAV_GROUP_DEFS: readonly NavGroupDef[] = [
       leaf("ops.companyHub", "companyHub", "Company hub", "/company/hub", Building2, {
         intent: "workspace",
       }),
+      leaf("ops.tasks", "taskManager", "Task Manager", "/hr/tasks", ListTodo, { intent: "workspace" }),
       leaf("ops.crm", "crm", "CRM & Pipeline", "/crm", Users, { intent: "workspace" }),
       leaf("ops.quotations", "quotations", "Quotations", "/quotations", Target, { intent: "workspace" }),
     ],
@@ -386,9 +387,6 @@ export const PLATFORM_NAV_GROUP_DEFS: readonly NavGroupDef[] = [
       }),
       leaf("mp.sanad", "sanadMarketplace", "Sanad marketplace", "/sanad/marketplace", Store, { intent: "marketplace" }),
       leaf("mp.catalogueAdmin", "catalogueAdmin", "Catalogue administration", "/sanad/catalogue-admin", BookMarked, {
-        intent: "system",
-      }),
-      leaf("mp.ratingsModeration", "ratingsModeration", "Ratings moderation", "/sanad/ratings-moderation", Star, {
         intent: "system",
       }),
     ],
@@ -462,11 +460,11 @@ export const PLATFORM_NAV_GROUP_DEFS: readonly NavGroupDef[] = [
       }),
     ],
   },
-  /* I — Shared Omani PRO */
+  /* I — Omani PRO (network) */
   {
     id: "proShared",
     labelKey: "proSharedGroup",
-    defaultGroupLabel: "Shared Omani PRO",
+    defaultGroupLabel: "Omani PRO services",
     tier: "secondary",
     collapsible: true,
     defaultCollapsed: false,
@@ -492,6 +490,9 @@ export const PLATFORM_NAV_GROUP_DEFS: readonly NavGroupDef[] = [
       leaf("plat.navIntegrity", "navIntegrity", "Nav integrity", "/nav-integrity", ShieldCheck, { intent: "system" }),
       leaf("plat.pdfReports", "pdfReports", "PDF reports", "/reports", BarChart2, { intent: "system" }),
       leaf("plat.auditLog", "auditLog", "Audit log", "/audit-log", Shield, { intent: "system" }),
+      leaf("plat.ratingsModeration", "ratingsModeration", "Ratings moderation", "/sanad/ratings-moderation", Star, {
+        intent: "system",
+      }),
       leaf("plat.adminPanel", "adminPanel", "Admin panel", "/admin", Settings, { intent: "system" }),
       leaf("plat.sanadIntelligence", "sanadIntelligence", "Sanad intelligence", "/admin/sanad", Network, {
         intent: "system",

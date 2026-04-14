@@ -32,8 +32,25 @@ describe("clientNavItemVisible", () => {
     expect(clientNavItemVisible("/renewal-workflows", member, new Set())).toBe(false);
   });
 
-  it("shows owner paths to company_admin", () => {
-    expect(clientNavItemVisible("/company-admin", owner, new Set())).toBe(true);
+  it("shows owner paths to company_admin when active workspace membership is company_admin", () => {
+    const ownerOpts = { hasCompanyWorkspace: true, hasCompanyMembership: true, memberRole: "company_admin" as const };
+    expect(clientNavItemVisible("/company-admin", owner, new Set(), ownerOpts)).toBe(true);
+  });
+
+  it("does not show owner paths from stale platformRole when membership is company_member (multi-company)", () => {
+    const syncedOwnerPlatform = { role: "user" as const, platformRole: "company_admin" as const };
+    expect(
+      clientNavItemVisible("/company-admin", syncedOwnerPlatform, new Set(), {
+        hasCompanyWorkspace: true,
+        hasCompanyMembership: true,
+        memberRole: "company_member",
+      }),
+    ).toBe(false);
+    expect(
+      clientRouteAccessible("/company/settings", syncedOwnerPlatform, new Set(), {
+        memberRole: "company_member",
+      }),
+    ).toBe(false);
   });
 
   it("hides payroll and reports from company_member", () => {
@@ -41,16 +58,18 @@ describe("clientNavItemVisible", () => {
     expect(clientNavItemVisible("/reports", member, new Set())).toBe(false);
   });
 
-  it("shows payroll and reports to finance_admin", () => {
-    expect(clientNavItemVisible("/payroll", finance, new Set())).toBe(true);
-    expect(clientNavItemVisible("/reports", finance, new Set())).toBe(true);
+  it("shows payroll and reports to finance_admin membership", () => {
+    const financeOpts = { hasCompanyWorkspace: true, hasCompanyMembership: true, memberRole: "finance_admin" as const };
+    expect(clientNavItemVisible("/payroll", finance, new Set(), financeOpts)).toBe(true);
+    expect(clientNavItemVisible("/reports", finance, new Set(), financeOpts)).toBe(true);
   });
 
   it("respects optional hidden preferences", () => {
     const hidden = new Set(["/analytics"]);
+    const ownerOpts = { hasCompanyWorkspace: true, hasCompanyMembership: true, memberRole: "company_admin" as const };
     expect(OPTIONAL_NAV_HREFS.has("/analytics")).toBe(true);
-    expect(clientNavItemVisible("/analytics", owner, hidden)).toBe(false);
-    expect(clientNavItemVisible("/dashboard", owner, hidden)).toBe(true);
+    expect(clientNavItemVisible("/analytics", owner, hidden, ownerOpts)).toBe(false);
+    expect(clientNavItemVisible("/dashboard", owner, hidden, ownerOpts)).toBe(true);
   });
 
   it("restricts portal client to allow-list when no company workspace", () => {
@@ -182,6 +201,16 @@ describe("shouldUsePortalOnlyShell", () => {
     expect(shouldUsePortalOnlyShell(portalClient, { hasCompanyWorkspace: true })).toBe(true);
   });
 
+  it("when membership is known, ignores platformRole for portal shell (non-client membership wins)", () => {
+    const stalePortalPlatform = { role: "user" as const, platformRole: "client" as const };
+    expect(
+      shouldUsePortalOnlyShell(stalePortalPlatform, {
+        hasCompanyWorkspace: true,
+        memberRole: "company_admin",
+      }),
+    ).toBe(false);
+  });
+
   it("is false for platform operators (SANAD / regional staff)", () => {
     const regional = { role: "user" as const, platformRole: "regional_manager" as const };
     expect(shouldUsePortalOnlyShell(regional, { hasCompanyWorkspace: false })).toBe(false);
@@ -201,8 +230,9 @@ describe("clientRouteAccessible", () => {
 
   it("respects hidden optional nav subtrees", () => {
     const hidden = new Set(["/analytics"]);
-    expect(clientRouteAccessible("/analytics/overview", owner, hidden)).toBe(false);
-    expect(clientRouteAccessible("/dashboard", owner, hidden)).toBe(true);
+    const ownerOpts = { memberRole: "company_admin" as const };
+    expect(clientRouteAccessible("/analytics/overview", owner, hidden, ownerOpts)).toBe(false);
+    expect(clientRouteAccessible("/dashboard", owner, hidden, ownerOpts)).toBe(true);
   });
 
   it("blocks analytics for pre-registration users with no company", () => {

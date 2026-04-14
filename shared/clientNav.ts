@@ -200,26 +200,21 @@ export function isReviewer(memberRole?: string | null): boolean {
   return memberRole === "reviewer";
 }
 
-/** Active company membership role OR legacy platform-only role (before membership loads). */
-function readsAsHrManager(
-  user: { platformRole?: string | null } | null,
-  memberRole?: string | null,
-): boolean {
-  return isHrAdminMember(memberRole) || user?.platformRole === "hr_admin";
+/** Tenant HR/Finance/Reviewer nav — active membership only (never platformRole; avoids multi-company stale UI). */
+function readsAsHrManager(memberRole?: string | null): boolean {
+  return isHrAdminMember(memberRole);
 }
 
-function readsAsFinanceManager(
-  user: { platformRole?: string | null } | null,
-  memberRole?: string | null,
-): boolean {
-  return isFinanceAdminMember(memberRole) || user?.platformRole === "finance_admin";
+function readsAsFinanceManager(memberRole?: string | null): boolean {
+  return isFinanceAdminMember(memberRole);
 }
 
-function readsAsReviewerRole(
-  user: { platformRole?: string | null } | null,
-  memberRole?: string | null,
-): boolean {
-  return isReviewer(memberRole) || user?.platformRole === "reviewer";
+function readsAsReviewerRole(memberRole?: string | null): boolean {
+  return isReviewer(memberRole);
+}
+
+function hasResolvedMemberRole(memberRole?: string | null): boolean {
+  return memberRole != null && memberRole !== "";
 }
 
 function isHrModuleHref(href: string): boolean {
@@ -368,13 +363,13 @@ function membershipScopedNavDenies(
   const mr = options?.memberRole ?? null;
   if (isCompanyAdminMember(mr) || isFieldEmployee(mr) || isCustomerPortalMemberRole(mr)) return false;
 
-  if (readsAsHrManager(user, mr)) {
+  if (readsAsHrManager(mr)) {
     return !hrManagerSurfaceAllowed(href);
   }
-  if (readsAsFinanceManager(user, mr)) {
+  if (readsAsFinanceManager(mr)) {
     return !financeManagerSurfaceAllowed(href);
   }
-  if (readsAsReviewerRole(user, mr)) {
+  if (readsAsReviewerRole(mr)) {
     return !reviewerSurfaceAllowed(href);
   }
   if (isExternalAuditorNav(mr)) {
@@ -393,13 +388,17 @@ export function seesPlatformOperatorNav(user: {
   return pr === "regional_manager" || pr === "client_services";
 }
 
+/**
+ * @deprecated Legacy helper: `platformRole === "company_admin"`. Do not use for tenant nav;
+ * use {@link isCompanyAdminMember} with active workspace `memberRole`.
+ */
 export function isCompanyOwnerNav(user: { platformRole?: string | null } | null): boolean {
   return user?.platformRole === "company_admin";
 }
 
-export function seesLeadershipCompanyNav(user: { platformRole?: string | null } | null): boolean {
-  const pr = user?.platformRole;
-  return pr === "company_admin" || pr === "finance_admin" || pr === "hr_admin";
+/** Finance/leadership surfaces: company owner or finance manager in the active workspace. */
+export function seesLeadershipCompanyNav(memberRole?: string | null): boolean {
+  return isCompanyAdminMember(memberRole) || isFinanceAdminMember(memberRole);
 }
 
 export function isPortalClientNav(user: { platformRole?: string | null } | null): boolean {
@@ -569,12 +568,15 @@ export function shouldUsePortalOnlyShell(
 ): boolean {
   if (canAccessGlobalAdminProcedures(user ?? {})) return false;
   if (seesPlatformOperatorNav(user)) return false;
+  const mr = options?.memberRole;
+  if (hasResolvedMemberRole(mr)) {
+    return isCustomerPortalMemberRole(mr);
+  }
   if (options?.companyWorkspaceLoading) {
     if (isPortalClientNav(user)) return true;
     return false;
   }
   if (isPortalClientNav(user)) return true;
-  if (isCustomerPortalMemberRole(options?.memberRole)) return true;
   return false;
 }
 
@@ -623,15 +625,14 @@ export function clientNavItemVisible(
   }
 
   if (COMPANY_OWNER_HREFS.has(href)) {
-    return seesPlatformOperatorNav(user) || isCompanyOwnerNav(user) || isCompanyAdminMember(options?.memberRole);
+    return seesPlatformOperatorNav(user) || isCompanyAdminMember(options?.memberRole);
   }
 
   if (COMPANY_LEADERSHIP_HREFS.has(href)) {
     return (
       seesPlatformOperatorNav(user) ||
       isCompanyAdminMember(options?.memberRole) ||
-      isFinanceAdminMember(options?.memberRole) ||
-      user?.platformRole === "finance_admin"
+      isFinanceAdminMember(options?.memberRole)
     );
   }
 
@@ -639,20 +640,13 @@ export function clientNavItemVisible(
   if (isHrModuleHref(href)) {
     if (seesPlatformOperatorNav(user)) return true;
     const mr = options?.memberRole;
-    if (!mr && (isCompanyOwnerNav(user) || canAccessGlobalAdminProcedures(user ?? {}))) return true;
-    if (
-      !mr &&
-      options?.companyWorkspaceLoading &&
-      (isCompanyOwnerNav(user) || canAccessGlobalAdminProcedures(user ?? {}))
-    ) {
-      return true;
-    }
-    if (readsAsFinanceManager(user, mr) && !readsAsHrManager(user, mr) && !isCompanyAdminMember(mr)) {
+    if (!hasResolvedMemberRole(mr)) return false;
+    if (readsAsFinanceManager(mr) && !readsAsHrManager(mr) && !isCompanyAdminMember(mr)) {
       return false;
     }
     return (
       isCompanyAdminMember(mr) ||
-      readsAsHrManager(user, mr) ||
+      readsAsHrManager(mr) ||
       isExternalAuditorNav(mr)
     );
   }
@@ -661,7 +655,6 @@ export function clientNavItemVisible(
   if (GOVERNMENT_SERVICES_HREFS.has(href)) {
     return (
       seesPlatformOperatorNav(user) ||
-      isCompanyOwnerNav(user) ||
       isCompanyAdminMember(options?.memberRole) ||
       isExternalAuditorNav(options?.memberRole)
     );
@@ -671,16 +664,17 @@ export function clientNavItemVisible(
   if (BUSINESS_MGMT_HREFS.has(href)) {
     if (seesPlatformOperatorNav(user)) return true;
     const mr = options?.memberRole;
+    if (!hasResolvedMemberRole(mr)) return false;
     if (isCustomerPortalMemberRole(mr)) return false;
-    if (readsAsHrManager(user, mr) && !isCompanyAdminMember(mr)) return false;
-    if (readsAsFinanceManager(user, mr) && !isCompanyAdminMember(mr)) return false;
+    if (readsAsHrManager(mr) && !isCompanyAdminMember(mr)) return false;
+    if (readsAsFinanceManager(mr) && !isCompanyAdminMember(mr)) return false;
     if (isFieldEmployee(mr)) return false;
     return true;
   }
 
   // Operations overview — company_admin and platform operators only
   if (COMPANY_ADMIN_OVERVIEW_HREFS.has(href)) {
-    return seesPlatformOperatorNav(user) || isCompanyOwnerNav(user) || isCompanyAdminMember(options?.memberRole);
+    return seesPlatformOperatorNav(user) || isCompanyAdminMember(options?.memberRole);
   }
 
   if (membershipScopedNavDenies(href, user, options)) {
@@ -783,7 +777,6 @@ export function clientRouteAccessible(
     if (
       pathMatchesRestrictedPrefix(path, href) &&
       !seesPlatformOperatorNav(user) &&
-      !isCompanyOwnerNav(user) &&
       !isCompanyAdminMember(options?.memberRole)
     ) {
       return false;
@@ -795,8 +788,7 @@ export function clientRouteAccessible(
       pathMatchesRestrictedPrefix(path, href) &&
       !seesPlatformOperatorNav(user) &&
       !isCompanyAdminMember(options?.memberRole) &&
-      !isFinanceAdminMember(options?.memberRole) &&
-      user?.platformRole !== "finance_admin"
+      !isFinanceAdminMember(options?.memberRole)
     ) {
       return false;
     }
@@ -806,15 +798,16 @@ export function clientRouteAccessible(
   if (path === "/hr" || path.startsWith("/hr/")) {
     if (seesPlatformOperatorNav(user)) return true;
     const mr = options?.memberRole;
+    if (!hasResolvedMemberRole(mr)) return false;
     if (
-      readsAsFinanceManager(user, mr) &&
-      !readsAsHrManager(user, mr) &&
+      readsAsFinanceManager(mr) &&
+      !readsAsHrManager(mr) &&
       !isCompanyAdminMember(mr)
     ) {
       return false;
     }
     if (isExternalAuditorNav(mr)) return true;
-    if (!isCompanyAdminMember(mr) && !readsAsHrManager(user, mr)) return false;
+    if (!isCompanyAdminMember(mr) && !readsAsHrManager(mr)) return false;
     return true;
   }
 
@@ -823,7 +816,6 @@ export function clientRouteAccessible(
     if (pathMatchesRestrictedPrefix(path, href)) {
       if (seesPlatformOperatorNav(user)) return true;
       if (
-        isCompanyOwnerNav(user) ||
         isCompanyAdminMember(options?.memberRole) ||
         isExternalAuditorNav(options?.memberRole)
       ) {
@@ -838,9 +830,10 @@ export function clientRouteAccessible(
     if (pathMatchesRestrictedPrefix(path, href)) {
       if (seesPlatformOperatorNav(user)) return true;
       const mr = options?.memberRole;
+      if (!hasResolvedMemberRole(mr)) return false;
       if (isCustomerPortalMemberRole(mr)) return false;
-      if (readsAsHrManager(user, mr) && !isCompanyAdminMember(mr)) return false;
-      if (readsAsFinanceManager(user, mr) && !isCompanyAdminMember(mr)) return false;
+      if (readsAsHrManager(mr) && !isCompanyAdminMember(mr)) return false;
+      if (readsAsFinanceManager(mr) && !isCompanyAdminMember(mr)) return false;
       if (isFieldEmployee(mr)) return false;
       return true;
     }
@@ -849,7 +842,7 @@ export function clientRouteAccessible(
   // Operations overview: company_admin and platform operators only
   for (const href of Array.from(COMPANY_ADMIN_OVERVIEW_HREFS)) {
     if (pathMatchesRestrictedPrefix(path, href)) {
-      return seesPlatformOperatorNav(user) || isCompanyOwnerNav(user) || isCompanyAdminMember(options?.memberRole);
+      return seesPlatformOperatorNav(user) || isCompanyAdminMember(options?.memberRole);
     }
   }
 

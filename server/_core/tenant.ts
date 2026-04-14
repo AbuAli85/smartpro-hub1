@@ -1,6 +1,6 @@
 import { TRPCError } from "@trpc/server";
 import { eq } from "drizzle-orm";
-import { getContractById, getDb, getUserCompanies, getUserCompany, getUserCompanyById } from "../db";
+import { getContractById, getDb, getUserCompanies, getUserCompanyById } from "../db";
 import { canAccessGlobalAdminProcedures } from "@shared/rbac";
 import type { User } from "../../drizzle/schema";
 import { contractSignatures } from "../../drizzle/schema";
@@ -79,8 +79,9 @@ async function assertContractPartyOrCompany(user: User, contractId: number): Pro
   if (!c) throw new TRPCError({ code: "NOT_FOUND", message: "Contract not found" });
   if (c.companyId == null) throw new TRPCError({ code: "NOT_FOUND", message: "Contract not found" });
   if (canAccessGlobalAdminProcedures(user)) return;
-  const m = await getUserCompany(user.id);
-  if (m?.company.id === c.companyId) return;
+  /** Owning-company access: membership in the contract's company only (no implicit first-workspace). */
+  const m = await getUserCompanyById(user.id, c.companyId);
+  if (m?.company?.id === c.companyId) return;
 
   const email = normalizeEmail(user.email);
   if (!email) {

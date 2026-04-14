@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import {
+  assertContractReadable,
   assertQuotationTenantAccess,
   assertRowBelongsToActiveCompany,
   normalizeEmail,
@@ -161,6 +162,67 @@ describe("resolveStatsCompanyFilter", () => {
     await expect(resolveStatsCompanyFilter(memberUser as any, undefined)).rejects.toMatchObject({
       code: "BAD_REQUEST",
     });
+  });
+});
+
+describe("assertContractReadable", () => {
+  beforeEach(() => {
+    vi.mocked(db.getContractById).mockReset();
+    vi.mocked(db.getUserCompanyById).mockReset();
+    vi.mocked(db.getUserCompany).mockReset();
+    vi.mocked(db.getDb).mockReset();
+  });
+
+  const tenantUser = {
+    id: 7,
+    role: "user" as const,
+    platformRole: "company_member" as const,
+    email: "signer@co.com",
+  };
+
+  it("allows member of the contract owning company via explicit company membership lookup", async () => {
+    vi.mocked(db.getContractById).mockResolvedValue({ companyId: 42, id: 1 } as any);
+    vi.mocked(db.getUserCompanyById).mockResolvedValue({
+      company: { id: 42 },
+      member: {},
+    } as any);
+    await expect(assertContractReadable(tenantUser as any, 1)).resolves.toBeUndefined();
+    expect(db.getUserCompanyById).toHaveBeenCalledWith(7, 42);
+    expect(db.getUserCompany).not.toHaveBeenCalled();
+    expect(db.getDb).not.toHaveBeenCalled();
+  });
+
+  it("allows invited signer by email when not a company member", async () => {
+    vi.mocked(db.getContractById).mockResolvedValue({ companyId: 42, id: 99 } as any);
+    vi.mocked(db.getUserCompanyById).mockResolvedValue(null);
+    vi.mocked(db.getDb).mockResolvedValue({
+      select: vi.fn(() => ({
+        from: vi.fn(() => ({
+          where: vi.fn(() => Promise.resolve([{ signerEmail: "Signer@co.com" }])),
+        })),
+      })),
+    } as any);
+    await expect(assertContractReadable(tenantUser as any, 99)).resolves.toBeUndefined();
+  });
+
+  it("denies when not a member and signer email does not match", async () => {
+    vi.mocked(db.getContractById).mockResolvedValue({ companyId: 42, id: 3 } as any);
+    vi.mocked(db.getUserCompanyById).mockResolvedValue(null);
+    vi.mocked(db.getDb).mockResolvedValue({
+      select: vi.fn(() => ({
+        from: vi.fn(() => ({
+          where: vi.fn(() => Promise.resolve([{ signerEmail: "other@else.com" }])),
+        })),
+      })),
+    } as any);
+    await expect(assertContractReadable(tenantUser as any, 3)).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+
+  it("allows platform super_admin without membership checks", async () => {
+    vi.mocked(db.getContractById).mockResolvedValue({ companyId: 1, id: 5 } as any);
+    const admin = { id: 1, role: "user" as const, platformRole: "super_admin" as const, email: "a@b.c" };
+    await expect(assertContractReadable(admin as any, 5)).resolves.toBeUndefined();
+    expect(db.getUserCompanyById).not.toHaveBeenCalled();
   });
 });
 

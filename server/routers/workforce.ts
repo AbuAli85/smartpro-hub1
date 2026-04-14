@@ -33,7 +33,7 @@ import {
   HR_AUDIT_SENSITIVE_ENTITY_TYPES,
   isHrPerformanceSensitiveEntityType,
 } from "../hrPerformanceAuditReadPolicy";
-import { getActiveCompanyMembership, requireNotAuditor, requireWorkspaceMembership } from "../_core/membership";
+import { requireNotAuditor, requireWorkspaceMembership } from "../_core/membership";
 import { requireActiveCompanyId } from "../_core/tenant";
 import { protectedProcedure, router } from "../_core/trpc";
 import { invokeLLM } from "../_core/llm";
@@ -42,9 +42,8 @@ import { fileUrlMatchesConfiguredStorage, storagePut } from "../storage";
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 /**
- * Returns the companyId for a user via their company_members row.
- * For admin/company_admin users with no membership yet, auto-provisions
- * a default company and membership so they can use the platform immediately.
+ * Onboarding-only: first active membership row, or auto-provision for provisioning admins.
+ * Do not use for normal tenant authorization — use {@link requireActiveCompanyId} / {@link requireWorkspaceMembership}.
  */
 async function getMemberCompanyId(user: Pick<User, "id" | "name" | "email" | "role" | "platformRole">): Promise<number | null> {
   const existing = await getUserCompany(user.id);
@@ -1080,8 +1079,7 @@ export const workforceRouter = router({
         pageSize: z.number().default(20),
       }))
       .query(async ({ ctx, input }) => {
-        const membership = await getActiveCompanyMembership(ctx.user.id, input.companyId);
-        if (!membership) return { items: [], total: 0 };
+        const membership = await requireWorkspaceMembership(ctx.user, input.companyId);
         const companyId = membership.companyId;
         // Permission check: work_permits.read
         if (!(await hasPermission(ctx.user, companyId, "work_permits.read"))) {
@@ -1212,8 +1210,7 @@ export const workforceRouter = router({
         }),
       )
       .query(async ({ ctx, input }) => {
-        const membership = await getActiveCompanyMembership(ctx.user.id, input.companyId);
-        if (!membership) throw new TRPCError({ code: "NOT_FOUND", message: "Work permit not found" });
+        const membership = await requireWorkspaceMembership(ctx.user, input.companyId);
         const companyId = membership.companyId;
         if (!(await hasPermission(ctx.user, companyId, "work_permits.read"))) {
           throw new TRPCError({ code: "FORBIDDEN", message: "You do not have permission to view work permits" });

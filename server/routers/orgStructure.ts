@@ -4,7 +4,8 @@ import { eq, and, asc } from "drizzle-orm";
 import { departments, positions, employees } from "../../drizzle/schema";
 import { getDb } from "../db";
 import { protectedProcedure, router } from "../_core/trpc";
-import { getActiveCompanyMembership } from "../_core/membership";
+import { requireWorkspaceMembership } from "../_core/membership";
+import type { User } from "../../drizzle/schema";
 
 async function requireDb() {
   const db = await getDb();
@@ -12,9 +13,8 @@ async function requireDb() {
   return db;
 }
 
-async function getMembership(userId: number, companyId?: number | null) {
-  const m = await getActiveCompanyMembership(userId, companyId ?? undefined);
-  if (!m) return null;
+async function getMembership(user: User, companyId?: number | null) {
+  const m = await requireWorkspaceMembership(user, companyId);
   return { company: { id: m.companyId }, member: { role: m.role } };
 }
 
@@ -23,7 +23,7 @@ export const orgStructureRouter = router({
   listDepartments: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }).optional())
     .query(async ({ ctx, input }) => {
-      const membership = await getMembership(ctx.user.id, input?.companyId);
+      const membership = await getMembership(ctx.user, input?.companyId);
       if (!membership) return [];
       const db = await requireDb();
       const depts = await db
@@ -52,7 +52,7 @@ export const orgStructureRouter = router({
       companyId: z.number().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const membership = await getMembership(ctx.user.id, input.companyId);
+      const membership = await getMembership(ctx.user, input.companyId);
       if (!membership) throw new TRPCError({ code: "FORBIDDEN", message: "No active company" });
       const db = await requireDb();
       const { companyId: _cid, ...rest } = input;
@@ -76,7 +76,7 @@ export const orgStructureRouter = router({
       companyId: z.number().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const membership = await getMembership(ctx.user.id, input.companyId);
+      const membership = await getMembership(ctx.user, input.companyId);
       if (!membership) throw new TRPCError({ code: "FORBIDDEN" });
       const db = await requireDb();
       const [existing] = await db.select().from(departments).where(eq(departments.id, input.id));
@@ -90,7 +90,7 @@ export const orgStructureRouter = router({
   deleteDepartment: protectedProcedure
     .input(z.object({ id: z.number(), companyId: z.number().optional() }))
     .mutation(async ({ input, ctx }) => {
-      const membership = await getMembership(ctx.user.id, input.companyId);
+      const membership = await getMembership(ctx.user, input.companyId);
       if (!membership) throw new TRPCError({ code: "FORBIDDEN" });
       const db = await requireDb();
       const [existing] = await db.select().from(departments).where(eq(departments.id, input.id));
@@ -104,7 +104,7 @@ export const orgStructureRouter = router({
   listPositions: protectedProcedure
     .input(z.object({ departmentId: z.number().optional(), companyId: z.number().optional() }))
     .query(async ({ input, ctx }) => {
-      const membership = await getMembership(ctx.user.id, input.companyId);
+      const membership = await getMembership(ctx.user, input.companyId);
       if (!membership) return [];
       const db = await requireDb();
       const rows = await db
@@ -125,7 +125,7 @@ export const orgStructureRouter = router({
       companyId: z.number().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const membership = await getMembership(ctx.user.id, input.companyId);
+      const membership = await getMembership(ctx.user, input.companyId);
       if (!membership) throw new TRPCError({ code: "FORBIDDEN" });
       const db = await requireDb();
       const { companyId: _cid, ...rest } = input;
@@ -149,7 +149,7 @@ export const orgStructureRouter = router({
       companyId: z.number().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const membership = await getMembership(ctx.user.id, input.companyId);
+      const membership = await getMembership(ctx.user, input.companyId);
       if (!membership) throw new TRPCError({ code: "FORBIDDEN" });
       const db = await requireDb();
       const [existing] = await db.select().from(positions).where(eq(positions.id, input.id));
@@ -163,7 +163,7 @@ export const orgStructureRouter = router({
   deletePosition: protectedProcedure
     .input(z.object({ id: z.number(), companyId: z.number().optional() }))
     .mutation(async ({ input, ctx }) => {
-      const membership = await getMembership(ctx.user.id, input.companyId);
+      const membership = await getMembership(ctx.user, input.companyId);
       if (!membership) throw new TRPCError({ code: "FORBIDDEN" });
       const db = await requireDb();
       const [existing] = await db.select().from(positions).where(eq(positions.id, input.id));
@@ -177,7 +177,7 @@ export const orgStructureRouter = router({
   getOrgChartData: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }))
     .query(async ({ input, ctx }) => {
-      const membership = await getMembership(ctx.user.id, input.companyId);
+      const membership = await getMembership(ctx.user, input.companyId);
       if (!membership) return { departments: [], unassigned: [] };
       const db = await requireDb();
       const cid = membership.company.id;

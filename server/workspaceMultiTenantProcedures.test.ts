@@ -15,6 +15,9 @@ import { companiesRouter } from "./routers/companies";
 import { contractManagementRouter } from "./routers/contractManagement";
 import { documentGenerationRouter } from "./routers/documentGeneration";
 import { promoterAssignmentsRouter } from "./routers/promoterAssignments";
+import { employeeRequestsRouter } from "./routers/employeeRequests";
+import { orgStructureRouter } from "./routers/orgStructure";
+import { workforceRouter } from "./routers/workforce";
 import * as db from "./db";
 
 vi.mock("./db", async (importOriginal) => {
@@ -232,5 +235,38 @@ describe("workspace authority on user-facing routers", () => {
     ] as any);
     const caller = promoterAssignmentsRouter.createCaller(makeMemberCtx());
     await expect(caller.companiesForPartyPickers({})).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  });
+
+  it("employeeRequests.myRequests rejects when multiple memberships and companyId omitted", async () => {
+    vi.mocked(db.getUserCompanies).mockResolvedValue([
+      { company: { id: 1 }, member: {} },
+      { company: { id: 2 }, member: {} },
+    ] as any);
+    const caller = employeeRequestsRouter.createCaller(makeMemberCtx());
+    await expect(caller.myRequests({})).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  });
+
+  it("employeeRequests.adminList rejects when explicit companyId is not a membership", async () => {
+    vi.mocked(db.getUserCompanyById).mockResolvedValue(null);
+    const caller = employeeRequestsRouter.createCaller(makeMemberCtx());
+    await expect(caller.adminList({ companyId: 99 })).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("orgStructure.listDepartments rejects when multiple memberships and companyId omitted", async () => {
+    vi.mocked(db.getUserCompanies).mockResolvedValue([
+      { company: { id: 1 }, member: {} },
+      { company: { id: 2 }, member: {} },
+    ] as any);
+    const caller = orgStructureRouter.createCaller(makeMemberCtx());
+    await expect(caller.listDepartments({})).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  });
+
+  it("workforce.workPermits.list rejects when multiple memberships and companyId omitted", async () => {
+    vi.mocked(db.getUserCompanies).mockResolvedValue([
+      { company: { id: 1 }, member: {} },
+      { company: { id: 2 }, member: {} },
+    ] as any);
+    const caller = workforceRouter.createCaller(makeMemberCtx());
+    await expect(caller.workPermits.list({})).rejects.toMatchObject({ code: "BAD_REQUEST" });
   });
 });

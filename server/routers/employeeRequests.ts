@@ -11,7 +11,8 @@ import {
 import { getDb } from "../db";
 import { protectedProcedure, router } from "../_core/trpc";
 import { requireActiveCompanyId } from "../_core/tenant";
-import { getActiveCompanyMembership } from "../_core/membership";
+import { requireWorkspaceMembership } from "../_core/membership";
+import type { User } from "../../drizzle/schema";
 import { Resend } from "resend";
 import { ENV } from "../_core/env";
 
@@ -129,8 +130,7 @@ export const employeeRequestsRouter = router({
   myRequests: protectedProcedure
     .input(z.object({ limit: z.number().min(1).max(100).default(20), companyId: z.number().optional() }))
     .query(async ({ ctx, input }) => {
-      const m = await getActiveCompanyMembership(ctx.user.id, input.companyId);
-      if (!m) return [];
+      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       const db = await requireDb();
       const emp = await resolveMyEmployee(ctx.user.id, ctx.user.email ?? "", m.companyId);
       if (!emp) return [];
@@ -151,8 +151,7 @@ export const employeeRequestsRouter = router({
       limit: z.number().min(1).max(200).default(50),
     }))
     .query(async ({ ctx, input }) => {
-      const m = await getActiveCompanyMembership(ctx.user.id, input.companyId);
-      if (!m) throw new TRPCError({ code: "FORBIDDEN" });
+      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       const role = m.role;
       if (role !== "company_admin" && role !== "hr_admin") {
         throw new TRPCError({ code: "FORBIDDEN", message: "HR Admin or Company Admin required" });
@@ -270,8 +269,7 @@ export const employeeRequestsRouter = router({
       companyId: z.number().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const m = await getActiveCompanyMembership(ctx.user.id, input.companyId);
-      if (!m) throw new TRPCError({ code: "FORBIDDEN" });
+      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       const role = m.role;
       if (role !== "company_admin" && role !== "hr_admin") {
         throw new TRPCError({ code: "FORBIDDEN", message: "HR Admin or Company Admin required" });

@@ -84,6 +84,8 @@ describe("buildOperationalActionQueue", () => {
           expectedEnd: "13:00",
           checkInAt: new Date(),
           minutesOverdue: 30,
+          attendanceRecordId: 500,
+          operationalIssue: { status: "open" },
         },
       ],
       pendingCorrectionCount: 0,

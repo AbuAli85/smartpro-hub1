@@ -13,6 +13,7 @@ import {
   companyHolidays,
   attendanceSites,
   attendanceRecords,
+  attendanceOperationalIssues,
   employees,
   users,
 } from "../../drizzle/schema";
@@ -37,6 +38,7 @@ import {
   muscatWallDateTimeToUtc,
 } from "@shared/attendanceMuscatTime";
 import { countOverdueOpenCheckoutsOnBoard, muscatShiftWallEndMs } from "@shared/attendanceBoardOverdue";
+import { operationalIssueKey } from "@shared/attendanceOperationalIssueKeys";
 import {
   derivePayrollHintsFromBoardRow,
   operationalBandFromBoardStatus,
@@ -1425,6 +1427,7 @@ export const schedulingRouter = router({
         expectedEnd: string;
         checkInAt: Date;
         minutesOverdue: number;
+        attendanceRecordId: number;
       };
       const overdueMap = new Map<number, OverdueEntry>();
 
@@ -1454,12 +1457,39 @@ export const schedulingRouter = router({
           expectedEnd: shift.endTime,
           checkInAt: record.checkIn,
           minutesOverdue: Math.floor((nowMs - shiftEndMs) / 60_000),
+          attendanceRecordId: record.id,
         });
       }
 
-      const overdueEmployees = Array.from(overdueMap.values()).sort(
+      let overdueEmployees = Array.from(overdueMap.values()).sort(
         (a, b) => b.minutesOverdue - a.minutesOverdue
       );
+
+      const recordIds = overdueEmployees.map((e) => e.attendanceRecordId);
+      if (recordIds.length > 0) {
+        const keys = recordIds.map((id) =>
+          operationalIssueKey({ kind: "overdue_checkout", attendanceRecordId: id }),
+        );
+        const issueRows = await db
+          .select()
+          .from(attendanceOperationalIssues)
+          .where(
+            and(
+              eq(attendanceOperationalIssues.companyId, companyId),
+              inArray(attendanceOperationalIssues.issueKey, keys),
+            ),
+          );
+        const issueByKey = new Map(issueRows.map((r) => [r.issueKey, r]));
+        overdueEmployees = overdueEmployees.map((row) => ({
+          ...row,
+          operationalIssue: issueByKey.get(
+            operationalIssueKey({ kind: "overdue_checkout", attendanceRecordId: row.attendanceRecordId }),
+          ) ?? null,
+        }));
+      } else {
+        overdueEmployees = overdueEmployees.map((row) => ({ ...row, operationalIssue: null as null }));
+      }
+
       return { date: today, overdueEmployees };
     }),
 

@@ -16,6 +16,11 @@ export const ATTENDANCE_AUDIT_ACTION = {
   SELF_CHECKIN_DENIED: "self_checkin_denied",
   SELF_CHECKOUT: "self_checkout",
   MANUAL_CHECKIN_SUBMIT: "manual_checkin_submit",
+  /** HR closed an open punch at an explicit time (compliance). */
+  FORCE_CHECKOUT: "force_checkout",
+  OPERATIONAL_ISSUE_ACKNOWLEDGE: "operational_issue_acknowledge",
+  OPERATIONAL_ISSUE_RESOLVE: "operational_issue_resolve",
+  OPERATIONAL_ISSUE_ASSIGN: "operational_issue_assign",
 } as const;
 
 export type AttendanceAuditActionType =

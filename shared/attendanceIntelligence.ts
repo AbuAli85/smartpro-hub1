@@ -32,6 +32,10 @@ export const ATTENDANCE_ACTION = {
   OPEN_CORRECTIONS: "open_corrections",
   OPEN_MANUAL_CHECKINS: "open_manual_checkins",
   SEND_OVERDUE_REMINDER: "send_overdue_reminder",
+  /** HR closes an open punch (requires confirmation + reason in UI). */
+  FORCE_CHECKOUT_OPEN: "force_checkout_open",
+  /** Mark overdue operational issue as acknowledged (triage). */
+  ACKNOWLEDGE_OVERDUE: "acknowledge_overdue",
 } as const;
 
 export type AttendanceActionId = (typeof ATTENDANCE_ACTION)[keyof typeof ATTENDANCE_ACTION];
@@ -146,9 +150,20 @@ export interface OperationalExceptionItem {
   employeeLabel: string;
   scheduleId?: number;
   attendanceRecordId?: number | null;
+  /** From `attendance_operational_issues` when loaded (e.g. overdue checkout). */
+  issueResolutionStatus?: string | null;
+  assignedToUserId?: number | null;
   /** Suggested actions for the client — resolve buttons from this list. */
   actions: AttendanceActionId[];
 }
+
+/** Optional triage row from `attendance_operational_issues` (subset for UI). */
+export type OperationalIssueLite = {
+  status: string;
+  assignedToUserId?: number | null;
+  acknowledgedByUserId?: number | null;
+  reviewedByUserId?: number | null;
+} | null;
 
 /** Overdue checkout row shape (matches scheduling.getOverdueCheckouts items). */
 export type OverdueCheckoutRow = {
@@ -159,6 +174,8 @@ export type OverdueCheckoutRow = {
   expectedEnd: string;
   minutesOverdue: number;
   checkInAt: Date | string;
+  attendanceRecordId: number;
+  operationalIssue?: OperationalIssueLite;
 };
 
 /**
@@ -183,13 +200,31 @@ export function buildOperationalActionQueue(params: {
   const out: OperationalExceptionItem[] = [];
 
   for (const o of params.overdueCheckouts) {
+    const issueSt = o.operationalIssue?.status ?? "open";
+    const statusSuffix =
+      issueSt === "acknowledged"
+        ? " · Acknowledged"
+        : issueSt === "resolved"
+          ? " · Resolved"
+          : "";
+    const actions: AttendanceActionId[] = [
+      ATTENDANCE_ACTION.FORCE_CHECKOUT_OPEN,
+      ATTENDANCE_ACTION.SEND_OVERDUE_REMINDER,
+      ATTENDANCE_ACTION.VIEW_TODAY_BOARD,
+    ];
+    if (issueSt === "open") {
+      actions.splice(1, 0, ATTENDANCE_ACTION.ACKNOWLEDGE_OVERDUE);
+    }
     out.push({
       kind: "open_checkout_overdue",
       riskLevel: "critical",
-      title: "Still clocked in after shift end",
+      title: `Still clocked in after shift end${statusSuffix}`,
       detail: `${o.shiftName ? `${o.shiftName} · ` : ""}Ended ${o.expectedEnd} · ${o.minutesOverdue}m overdue`,
       employeeLabel: o.employeeDisplayName,
-      actions: [ATTENDANCE_ACTION.SEND_OVERDUE_REMINDER, ATTENDANCE_ACTION.VIEW_TODAY_BOARD],
+      attendanceRecordId: o.attendanceRecordId,
+      issueResolutionStatus: issueSt,
+      assignedToUserId: o.operationalIssue?.assignedToUserId ?? null,
+      actions,
     });
   }
 

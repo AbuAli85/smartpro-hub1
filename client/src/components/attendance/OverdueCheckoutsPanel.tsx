@@ -8,6 +8,7 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
+import { useAttendanceOperationalMutations } from "@/hooks/useAttendanceOperationalMutations";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -22,7 +23,7 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { AlertTriangle, Bell, BellRing, Check, Clock, MapPin, RefreshCw, Send } from "lucide-react";
+import { AlertTriangle, Bell, BellRing, Check, Clock, LogOut, MapPin, RefreshCw, Send, UserCheck } from "lucide-react";
 import { fmtTime } from "@/lib/dateUtils";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -243,8 +244,30 @@ function ReminderButton({
   );
 }
 
+type OverdueEmp = {
+  employeeId: number | null;
+  employeeUserId: number;
+  employeeDisplayName: string;
+  shiftName: string | null;
+  siteName: string | null;
+  expectedEnd: string;
+  checkInAt: Date;
+  minutesOverdue: number;
+  attendanceRecordId: number;
+  operationalIssue?: {
+    status: string;
+    assignedToUserId?: number | null;
+  } | null;
+};
+
 export function OverdueCheckoutsPanel({ className }: { className?: string }) {
   const { activeCompanyId } = useActiveCompany();
+  const { acknowledgeOverdueCheckout, forceCheckout, isPending: operationalPending } =
+    useAttendanceOperationalMutations(activeCompanyId);
+  const [forceTarget, setForceTarget] = useState<OverdueEmp | null>(null);
+  const [forceReason, setForceReason] = useState("");
+  const [ackTarget, setAckTarget] = useState<OverdueEmp | null>(null);
+  const [ackNote, setAckNote] = useState("");
 
   const { data, isLoading, isFetching, dataUpdatedAt, refetch } =
     trpc.scheduling.getOverdueCheckouts.useQuery(
@@ -256,7 +279,7 @@ export function OverdueCheckoutsPanel({ className }: { className?: string }) {
       }
     );
 
-  const overdue = data?.overdueEmployees ?? [];
+  const overdue = (data?.overdueEmployees ?? []) as OverdueEmp[];
   const updatedAt = dataUpdatedAt ? new Date(dataUpdatedAt) : null;
 
   if (isLoading) {
@@ -278,6 +301,7 @@ export function OverdueCheckoutsPanel({ className }: { className?: string }) {
   }
 
   return (
+    <>
     <Card
       id="attendance-overdue-checkouts"
       className={cn(
@@ -340,10 +364,11 @@ export function OverdueCheckoutsPanel({ className }: { className?: string }) {
           <div className="space-y-2">
             {overdue.map((emp) => {
               const sev = overdueSeverity(emp.minutesOverdue);
+              const triage = emp.operationalIssue?.status ?? "open";
               return (
                 <div
-                  key={emp.employeeUserId}
-                  className="flex items-center gap-3 rounded-lg border border-border/60 bg-background/70 px-3 py-2.5"
+                  key={emp.attendanceRecordId}
+                  className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 rounded-lg border border-border/60 bg-background/70 px-3 py-2.5"
                 >
                   <Avatar className="h-8 w-8 shrink-0">
                     <AvatarFallback className={cn("text-xs font-semibold", SEVERITY_AVATAR[sev])}>
@@ -356,6 +381,9 @@ export function OverdueCheckoutsPanel({ className }: { className?: string }) {
                       {emp.employeeDisplayName}
                     </p>
                     <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
+                      <Badge variant="outline" className="text-[9px] h-5 capitalize border-slate-300">
+                        Issue: {triage}
+                      </Badge>
                       {emp.shiftName && (
                         <span className="text-[11px] text-muted-foreground truncate">
                           {emp.shiftName}
@@ -374,13 +402,41 @@ export function OverdueCheckoutsPanel({ className }: { className?: string }) {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 shrink-0">
+                  <div className="flex flex-wrap items-center gap-2 shrink-0 justify-end sm:justify-start">
                     <Badge
                       variant="outline"
                       className={cn("text-[10px] font-semibold whitespace-nowrap hidden sm:inline-flex", SEVERITY_BADGE[sev])}
                     >
                       {overdueLabel(emp.minutesOverdue)}
                     </Badge>
+                    {triage === "open" ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-[10px] gap-1"
+                        onClick={() => {
+                          setAckTarget(emp);
+                          setAckNote("");
+                        }}
+                      >
+                        <UserCheck className="w-3 h-3" />
+                        Ack
+                      </Button>
+                    ) : null}
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="destructive"
+                      className="h-7 text-[10px] gap-1"
+                      onClick={() => {
+                        setForceTarget(emp);
+                        setForceReason("");
+                      }}
+                    >
+                      <LogOut className="w-3 h-3" />
+                      Force out
+                    </Button>
                     <ReminderButton
                       employeeUserId={emp.employeeUserId}
                       employeeDisplayName={emp.employeeDisplayName}
@@ -397,5 +453,90 @@ export function OverdueCheckoutsPanel({ className }: { className?: string }) {
         )}
       </CardContent>
     </Card>
+
+    <Dialog open={forceTarget != null} onOpenChange={(o) => !o && setForceTarget(null)}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Force checkout</DialogTitle>
+          <DialogDescription>
+            Closes the open punch for <span className="font-medium text-foreground">{forceTarget?.employeeDisplayName}</span>{" "}
+            at the current time. Requires an audit reason (min. 10 characters).
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-2">
+          <Label htmlFor="ov-force-reason">Reason</Label>
+          <Textarea
+            id="ov-force-reason"
+            value={forceReason}
+            onChange={(e) => setForceReason(e.target.value)}
+            rows={4}
+            className="text-sm"
+            placeholder="Compliance note — who asked, or why this close is justified…"
+          />
+        </div>
+        <DialogFooter className="gap-2">
+          <Button type="button" variant="outline" onClick={() => setForceTarget(null)}>
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            disabled={
+              forceReason.trim().length < 10 || operationalPending || !forceTarget || activeCompanyId == null
+            }
+            onClick={async () => {
+              if (!forceTarget || activeCompanyId == null) return;
+              try {
+                await forceCheckout.mutateAsync({
+                  companyId: activeCompanyId,
+                  attendanceRecordId: forceTarget.attendanceRecordId,
+                  reason: forceReason.trim(),
+                });
+                setForceTarget(null);
+              } catch {
+                /* toast via mutation */
+              }
+            }}
+          >
+            Confirm
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
+    <Dialog open={ackTarget != null} onOpenChange={(o) => !o && setAckTarget(null)}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Acknowledge</DialogTitle>
+          <DialogDescription>
+            Mark this overdue case as acknowledged for {ackTarget?.employeeDisplayName} (does not close the punch).
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-2">
+          <Label htmlFor="ov-ack-note">Note (optional)</Label>
+          <Textarea id="ov-ack-note" value={ackNote} onChange={(e) => setAckNote(e.target.value)} rows={3} className="text-sm" />
+        </div>
+        <DialogFooter className="gap-2">
+          <Button type="button" variant="outline" onClick={() => setAckTarget(null)}>
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            disabled={operationalPending || !ackTarget}
+            onClick={async () => {
+              if (!ackTarget) return;
+              try {
+                await acknowledgeOverdueCheckout({ attendanceRecordId: ackTarget.attendanceRecordId, note: ackNote });
+                setAckTarget(null);
+              } catch {
+                /* toast via mutation */
+              }
+            }}
+          >
+            Acknowledge
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }

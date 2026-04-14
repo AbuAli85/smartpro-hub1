@@ -1022,6 +1022,10 @@ export const attendanceAudit = mysqlTable(
       "self_checkin_denied",
       "self_checkout",
       "manual_checkin_submit",
+      "force_checkout",
+      "operational_issue_acknowledge",
+      "operational_issue_resolve",
+      "operational_issue_assign",
     ]).notNull(),
     entityType: varchar("entity_type", { length: 64 }).notNull(),
     entityId: int("entity_id"),
@@ -1045,6 +1049,48 @@ export const attendanceAudit = mysqlTable(
 );
 export type AttendanceAuditRow = typeof attendanceAudit.$inferSelect;
 export type InsertAttendanceAudit = typeof attendanceAudit.$inferInsert;
+
+/** HR triage / resolution for operational attendance exceptions (overdue checkout, missed shift, approvals). */
+export const attendanceOperationalIssues = mysqlTable(
+  "attendance_operational_issues",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    companyId: int("company_id").notNull(),
+    /** Muscat calendar day this issue belongs to (query/filter). */
+    businessDateYmd: varchar("business_date_ymd", { length: 10 }).notNull(),
+    issueKind: mysqlEnum("issue_kind", [
+      "overdue_checkout",
+      "missed_shift",
+      "correction_pending",
+      "manual_pending",
+    ]).notNull(),
+    /** Stable natural key, e.g. overdue_checkout:ar:123 */
+    issueKey: varchar("issue_key", { length: 160 }).notNull(),
+    attendanceRecordId: int("attendance_record_id"),
+    scheduleId: int("schedule_id"),
+    correctionId: int("correction_id"),
+    manualCheckinRequestId: int("manual_checkin_request_id"),
+    employeeId: int("employee_id"),
+    status: mysqlEnum("status", ["open", "acknowledged", "resolved"]).notNull().default("open"),
+    assignedToUserId: int("assigned_to_user_id"),
+    acknowledgedByUserId: int("acknowledged_by_user_id"),
+    acknowledgedAt: timestamp("acknowledged_at"),
+    reviewedByUserId: int("reviewed_by_user_id"),
+    reviewedAt: timestamp("reviewed_at"),
+    resolutionNote: text("resolution_note"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  },
+  (t) => [
+    unique("uq_aoi_company_issue_key").on(t.companyId, t.issueKey),
+    index("idx_aoi_company_date").on(t.companyId, t.businessDateYmd),
+    index("idx_aoi_employee").on(t.employeeId),
+    index("idx_aoi_record").on(t.attendanceRecordId),
+    index("idx_aoi_status").on(t.companyId, t.status),
+  ],
+);
+export type AttendanceOperationalIssue = typeof attendanceOperationalIssues.$inferSelect;
+export type InsertAttendanceOperationalIssue = typeof attendanceOperationalIssues.$inferInsert;
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // WORKFORCE & GOVERNMENT SERVICES HUB (MOL-Aligned)

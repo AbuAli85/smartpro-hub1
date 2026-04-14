@@ -11,6 +11,7 @@ import {
   employees,
   manualCheckinRequests,
   attendanceAudit,
+  attendanceOperationalIssues,
   shiftTemplates,
   employeeSchedules,
 } from "../../drizzle/schema";
@@ -41,6 +42,7 @@ import {
   muscatDayUtcRangeExclusiveEnd,
   muscatWallDateTimeToUtc,
 } from "@shared/attendanceMuscatTime";
+import { operationalIssueKey, type OperationalIssueKind } from "@shared/attendanceOperationalIssueKeys";
 
 async function requireDb() {
   const db = await getDb();
@@ -2378,6 +2380,418 @@ export const attendanceRouter = router({
         patchedRows: totalPatched,
         dryRun: input.dryRun,
         groups: summary,
+      };
+    }),
+
+  // ─── Operational issues & force checkout (HR / company admin) ─────────────
+  listOperationalIssuesForBusinessDate: protectedProcedure
+    .input(
+      z.object({
+        companyId: z.number().optional(),
+        businessDateYmd: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      const membership = await requireAdminOrHR(ctx.user as User, input.companyId);
+      const db = await requireDb();
+      return db
+        .select()
+        .from(attendanceOperationalIssues)
+        .where(
+          and(
+            eq(attendanceOperationalIssues.companyId, membership.companyId),
+            eq(attendanceOperationalIssues.businessDateYmd, input.businessDateYmd),
+          ),
+        )
+        .orderBy(desc(attendanceOperationalIssues.updatedAt));
+    }),
+
+  setOperationalIssueStatus: protectedProcedure
+    .input(
+      z
+        .object({
+          companyId: z.number().optional(),
+          businessDateYmd: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+          kind: z.enum(["overdue_checkout", "missed_shift", "correction_pending", "manual_pending"]),
+          attendanceRecordId: z.number().optional(),
+          scheduleId: z.number().optional(),
+          correctionId: z.number().optional(),
+          manualCheckinRequestId: z.number().optional(),
+          action: z.enum(["acknowledge", "resolve", "assign"]),
+          note: z.string().max(2000).optional(),
+          assignedToUserId: z.number().optional(),
+        })
+        .superRefine((d, ctx) => {
+          try {
+            operationalIssueKey({
+              kind: d.kind,
+              attendanceRecordId: d.attendanceRecordId,
+              scheduleId: d.scheduleId,
+              businessDateYmd: d.kind === "missed_shift" ? d.businessDateYmd : undefined,
+              correctionId: d.correctionId,
+              manualCheckinRequestId: d.manualCheckinRequestId,
+            });
+          } catch {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: "Missing target id(s) for this issue kind",
+            });
+          }
+          if (d.action === "assign" && (d.assignedToUserId == null || d.assignedToUserId <= 0)) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: "assignedToUserId is required for assign",
+            });
+          }
+          if (d.action === "resolve" && (!d.note || d.note.trim().length < 3)) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: "Resolution note is required (min 3 characters)",
+            });
+          }
+        }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const membership = await requireAdminOrHR(ctx.user as User, input.companyId);
+      const db = await requireDb();
+      const issueKey = operationalIssueKey({
+        kind: input.kind,
+        attendanceRecordId: input.attendanceRecordId,
+        scheduleId: input.scheduleId,
+        businessDateYmd: input.kind === "missed_shift" ? input.businessDateYmd : undefined,
+        correctionId: input.correctionId,
+        manualCheckinRequestId: input.manualCheckinRequestId,
+      });
+
+      let employeeId: number | null = null;
+      if (input.kind === "overdue_checkout" && input.attendanceRecordId != null) {
+        const [r] = await db
+          .select({ employeeId: attendanceRecords.employeeId })
+          .from(attendanceRecords)
+          .where(
+            and(
+              eq(attendanceRecords.id, input.attendanceRecordId),
+              eq(attendanceRecords.companyId, membership.companyId),
+            ),
+          )
+          .limit(1);
+        if (!r) throw new TRPCError({ code: "NOT_FOUND", message: "Attendance record not found" });
+        employeeId = r.employeeId;
+      } else if (input.kind === "missed_shift" && input.scheduleId != null) {
+        const [sch] = await db
+          .select({ employeeUserId: employeeSchedules.employeeUserId })
+          .from(employeeSchedules)
+          .where(
+            and(
+              eq(employeeSchedules.id, input.scheduleId),
+              eq(employeeSchedules.companyId, membership.companyId),
+            ),
+          )
+          .limit(1);
+        if (!sch) throw new TRPCError({ code: "NOT_FOUND", message: "Schedule not found" });
+        const [emp] = await db
+          .select({ id: employees.id })
+          .from(employees)
+          .where(
+            and(
+              eq(employees.companyId, membership.companyId),
+              or(eq(employees.id, sch.employeeUserId), eq(employees.userId, sch.employeeUserId)),
+            ),
+          )
+          .limit(1);
+        employeeId = emp?.id ?? null;
+      } else if (input.kind === "correction_pending" && input.correctionId != null) {
+        const [c] = await db
+          .select({ employeeId: attendanceCorrections.employeeId })
+          .from(attendanceCorrections)
+          .where(
+            and(
+              eq(attendanceCorrections.id, input.correctionId),
+              eq(attendanceCorrections.companyId, membership.companyId),
+            ),
+          )
+          .limit(1);
+        if (!c) throw new TRPCError({ code: "NOT_FOUND", message: "Correction not found" });
+        employeeId = c.employeeId;
+      } else if (input.kind === "manual_pending" && input.manualCheckinRequestId != null) {
+        const [m] = await db
+          .select({ employeeUserId: manualCheckinRequests.employeeUserId })
+          .from(manualCheckinRequests)
+          .where(
+            and(
+              eq(manualCheckinRequests.id, input.manualCheckinRequestId),
+              eq(manualCheckinRequests.companyId, membership.companyId),
+            ),
+          )
+          .limit(1);
+        if (!m) throw new TRPCError({ code: "NOT_FOUND", message: "Manual check-in request not found" });
+        const [emp] = await db
+          .select({ id: employees.id })
+          .from(employees)
+          .where(
+            and(eq(employees.companyId, membership.companyId), eq(employees.userId, m.employeeUserId)),
+          )
+          .limit(1);
+        employeeId = emp?.id ?? null;
+      }
+
+      const now = new Date();
+      const basePayload = {
+        companyId: membership.companyId,
+        businessDateYmd: input.businessDateYmd,
+        issueKind: input.kind,
+        issueKey,
+        attendanceRecordId: input.attendanceRecordId ?? null,
+        scheduleId: input.scheduleId ?? null,
+        correctionId: input.correctionId ?? null,
+        manualCheckinRequestId: input.manualCheckinRequestId ?? null,
+        employeeId,
+      };
+
+      await db.transaction(async (tx) => {
+        const [existing] = await tx
+          .select()
+          .from(attendanceOperationalIssues)
+          .where(
+            and(
+              eq(attendanceOperationalIssues.companyId, membership.companyId),
+              eq(attendanceOperationalIssues.issueKey, issueKey),
+            ),
+          )
+          .limit(1);
+
+        if (existing?.status === "resolved" && input.action !== "assign") {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Issue already resolved" });
+        }
+
+        if (input.action === "assign") {
+          if (existing) {
+            await tx
+              .update(attendanceOperationalIssues)
+              .set({
+                assignedToUserId: input.assignedToUserId ?? null,
+                updatedAt: now,
+              })
+              .where(eq(attendanceOperationalIssues.id, existing.id));
+          } else {
+            await tx.insert(attendanceOperationalIssues).values({
+              ...basePayload,
+              status: "open",
+              assignedToUserId: input.assignedToUserId ?? null,
+            });
+          }
+          await insertAttendanceAuditRow(tx, {
+            companyId: membership.companyId,
+            employeeId,
+            actorUserId: ctx.user.id,
+            actorRole: membership.member.role,
+            actionType: ATTENDANCE_AUDIT_ACTION.OPERATIONAL_ISSUE_ASSIGN,
+            entityType: "attendance_operational_issue",
+            entityId: existing?.id ?? null,
+            afterPayload: attendancePayloadJson({
+              issueKey,
+              assignedToUserId: input.assignedToUserId,
+            }) ?? undefined,
+            reason: input.note ?? null,
+            source: ATTENDANCE_AUDIT_SOURCE.ADMIN_PANEL,
+          });
+          return;
+        }
+
+        if (input.action === "acknowledge") {
+          if (!existing) {
+            await tx.insert(attendanceOperationalIssues).values({
+              ...basePayload,
+              status: "acknowledged",
+              acknowledgedByUserId: ctx.user.id,
+              acknowledgedAt: now,
+              resolutionNote: input.note?.trim() ?? null,
+            });
+          } else {
+            await tx
+              .update(attendanceOperationalIssues)
+              .set({
+                status: "acknowledged",
+                acknowledgedByUserId: ctx.user.id,
+                acknowledgedAt: now,
+                resolutionNote: input.note?.trim() ?? existing.resolutionNote,
+                updatedAt: now,
+              })
+              .where(eq(attendanceOperationalIssues.id, existing.id));
+          }
+          await insertAttendanceAuditRow(tx, {
+            companyId: membership.companyId,
+            employeeId,
+            actorUserId: ctx.user.id,
+            actorRole: membership.member.role,
+            actionType: ATTENDANCE_AUDIT_ACTION.OPERATIONAL_ISSUE_ACKNOWLEDGE,
+            entityType: "attendance_operational_issue",
+            entityId: existing?.id ?? null,
+            afterPayload: attendancePayloadJson({ issueKey, note: input.note ?? null }) ?? undefined,
+            reason: input.note ?? null,
+            source: ATTENDANCE_AUDIT_SOURCE.ADMIN_PANEL,
+          });
+          return;
+        }
+
+        if (input.action === "resolve") {
+          if (!existing) {
+            await tx.insert(attendanceOperationalIssues).values({
+              ...basePayload,
+              status: "resolved",
+              reviewedByUserId: ctx.user.id,
+              reviewedAt: now,
+              resolutionNote: input.note!.trim(),
+            });
+          } else {
+            await tx
+              .update(attendanceOperationalIssues)
+              .set({
+                status: "resolved",
+                reviewedByUserId: ctx.user.id,
+                reviewedAt: now,
+                resolutionNote: input.note!.trim(),
+                updatedAt: now,
+              })
+              .where(eq(attendanceOperationalIssues.id, existing.id));
+          }
+          await insertAttendanceAuditRow(tx, {
+            companyId: membership.companyId,
+            employeeId,
+            actorUserId: ctx.user.id,
+            actorRole: membership.member.role,
+            actionType: ATTENDANCE_AUDIT_ACTION.OPERATIONAL_ISSUE_RESOLVE,
+            entityType: "attendance_operational_issue",
+            entityId: existing?.id ?? null,
+            afterPayload: attendancePayloadJson({ issueKey, note: input.note }) ?? undefined,
+            reason: input.note ?? null,
+            source: ATTENDANCE_AUDIT_SOURCE.ADMIN_PANEL,
+          });
+        }
+      });
+
+      return { success: true, issueKey };
+    }),
+
+  forceCheckout: protectedProcedure
+    .input(
+      z.object({
+        companyId: z.number().optional(),
+        attendanceRecordId: z.number(),
+        reason: z.string().min(10).max(2000),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const membership = await requireAdminOrHR(ctx.user as User, input.companyId);
+      const db = await requireDb();
+      const [rec] = await db
+        .select()
+        .from(attendanceRecords)
+        .where(
+          and(
+            eq(attendanceRecords.id, input.attendanceRecordId),
+            eq(attendanceRecords.companyId, membership.companyId),
+          ),
+        )
+        .limit(1);
+      if (!rec) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Attendance record not found" });
+      }
+      if (rec.checkOut != null) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Session already closed" });
+      }
+
+      const checkOutTime = new Date();
+      const businessDate = muscatCalendarYmdNow();
+      const issueKey = operationalIssueKey({
+        kind: "overdue_checkout",
+        attendanceRecordId: rec.id,
+      });
+
+      await db.transaction(async (tx) => {
+        await tx
+          .update(attendanceRecords)
+          .set({
+            checkOut: checkOutTime,
+            method: "admin",
+          })
+          .where(eq(attendanceRecords.id, rec.id));
+
+        const [after] = await tx
+          .select()
+          .from(attendanceRecords)
+          .where(eq(attendanceRecords.id, rec.id))
+          .limit(1);
+
+        await closeAttendanceSessionSafe(tx, {
+          sourceRecordId: rec.id,
+          checkOutAt: checkOutTime,
+          checkOutLat: null,
+          checkOutLng: null,
+        });
+
+        await insertAttendanceAuditRow(tx, {
+          companyId: membership.companyId,
+          employeeId: rec.employeeId,
+          attendanceRecordId: rec.id,
+          actorUserId: ctx.user.id,
+          actorRole: membership.member.role,
+          actionType: ATTENDANCE_AUDIT_ACTION.FORCE_CHECKOUT,
+          entityType: ATTENDANCE_AUDIT_ENTITY.ATTENDANCE_RECORD,
+          entityId: rec.id,
+          beforePayload: attendancePayloadJson(rec) ?? undefined,
+          afterPayload:
+            attendancePayloadJson({
+              record: after,
+              forcedCheckoutAt: checkOutTime.toISOString(),
+              businessDate,
+            }) ?? undefined,
+          reason: input.reason,
+          source: ATTENDANCE_AUDIT_SOURCE.ADMIN_PANEL,
+        });
+
+        const [existingIssue] = await tx
+          .select()
+          .from(attendanceOperationalIssues)
+          .where(
+            and(
+              eq(attendanceOperationalIssues.companyId, membership.companyId),
+              eq(attendanceOperationalIssues.issueKey, issueKey),
+            ),
+          )
+          .limit(1);
+
+        if (existingIssue) {
+          await tx
+            .update(attendanceOperationalIssues)
+            .set({
+              status: "resolved",
+              reviewedByUserId: ctx.user.id,
+              reviewedAt: checkOutTime,
+              resolutionNote: `Force checkout: ${input.reason}`,
+              updatedAt: checkOutTime,
+            })
+            .where(eq(attendanceOperationalIssues.id, existingIssue.id));
+        } else {
+          await tx.insert(attendanceOperationalIssues).values({
+            companyId: membership.companyId,
+            businessDateYmd: businessDate,
+            issueKind: "overdue_checkout",
+            issueKey,
+            attendanceRecordId: rec.id,
+            employeeId: rec.employeeId,
+            status: "resolved",
+            reviewedByUserId: ctx.user.id,
+            reviewedAt: checkOutTime,
+            resolutionNote: `Force checkout: ${input.reason}`,
+          });
+        }
+      });
+
+      return {
+        success: true,
+        attendanceRecordId: rec.id,
+        checkOutAt: checkOutTime.toISOString(),
       };
     }),
 

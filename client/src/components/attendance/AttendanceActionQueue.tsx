@@ -15,17 +15,23 @@ const RISK_BADGE: Record<string, string> = {
   normal: "border-border bg-muted/50 text-foreground",
 };
 
-const ACTION_LABEL: Partial<Record<AttendanceActionId, string>> = {
-  [ATTENDANCE_ACTION.VIEW_TODAY_BOARD]: "Open live board",
-  [ATTENDANCE_ACTION.OPEN_CORRECTIONS]: "Review corrections",
-  [ATTENDANCE_ACTION.OPEN_MANUAL_CHECKINS]: "Review manual",
-  [ATTENDANCE_ACTION.SEND_OVERDUE_REMINDER]: "Remind (below)",
+const RES_STATUS_BADGE: Record<string, string> = {
+  open: "border-slate-300 bg-slate-50 text-slate-800",
+  acknowledged: "border-blue-300 bg-blue-50 text-blue-900",
+  resolved: "border-emerald-300 bg-emerald-50 text-emerald-900",
 };
 
-function primaryActionLabel(actions: AttendanceActionId[]): string {
-  const a = actions[0];
-  if (!a) return "View";
-  return ACTION_LABEL[a] ?? "View";
+const ACTION_LABEL: Partial<Record<AttendanceActionId, string>> = {
+  [ATTENDANCE_ACTION.VIEW_TODAY_BOARD]: "Live board",
+  [ATTENDANCE_ACTION.OPEN_CORRECTIONS]: "Corrections",
+  [ATTENDANCE_ACTION.OPEN_MANUAL_CHECKINS]: "Manual",
+  [ATTENDANCE_ACTION.SEND_OVERDUE_REMINDER]: "Remind",
+  [ATTENDANCE_ACTION.FORCE_CHECKOUT_OPEN]: "Force checkout",
+  [ATTENDANCE_ACTION.ACKNOWLEDGE_OVERDUE]: "Acknowledge",
+};
+
+function actionButtonLabel(act: AttendanceActionId): string {
+  return ACTION_LABEL[act] ?? act.replace(/_/g, " ");
 }
 
 export function AttendanceActionQueue({
@@ -50,8 +56,8 @@ export function AttendanceActionQueue({
           ) : null}
         </CardTitle>
         <p className="text-[11px] text-muted-foreground font-normal leading-snug">
-          Prioritized exceptions and approvals. Resolved by reviewing corrections, manual check-ins, or addressing live
-          board rows.
+          Triage and resolve: force checkout for open punches past shift end, acknowledge items you are tracking, and
+          route approvals from here.
         </p>
       </CardHeader>
       <CardContent className="pt-0">
@@ -68,51 +74,67 @@ export function AttendanceActionQueue({
             {items.map((item, idx) => (
               <li
                 key={`${item.kind}-${item.title}-${idx}`}
-                className="flex flex-col sm:flex-row sm:items-start gap-2 rounded-lg border bg-background/80 px-3 py-2.5"
+                className="flex flex-col gap-2 rounded-lg border bg-background/80 px-3 py-2.5"
               >
-                <div className="flex items-start gap-2 min-w-0 flex-1">
+                <div className="flex items-start gap-2 min-w-0">
                   <AlertTriangle
                     className={cn(
                       "h-4 w-4 shrink-0 mt-0.5",
                       item.riskLevel === "critical" ? "text-red-600" : "text-amber-600",
                     )}
                   />
-                  <div className="min-w-0 space-y-0.5">
+                  <div className="min-w-0 space-y-0.5 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="text-sm font-medium leading-tight">{item.title}</span>
                       <Badge variant="outline" className={cn("text-[10px] font-normal", RISK_BADGE[item.riskLevel])}>
                         {item.riskLevel}
                       </Badge>
+                      {item.issueResolutionStatus ? (
+                        <Badge
+                          variant="outline"
+                          className={cn(
+                            "text-[10px] font-normal capitalize",
+                            RES_STATUS_BADGE[item.issueResolutionStatus] ?? "border-muted",
+                          )}
+                        >
+                          {item.issueResolutionStatus}
+                        </Badge>
+                      ) : null}
                     </div>
                     <p className="text-xs text-muted-foreground leading-snug">{item.detail}</p>
                     {item.employeeLabel !== "—" ? (
                       <p className="text-[11px] text-foreground/90">
                         <span className="text-muted-foreground">Employee:</span> {item.employeeLabel}
+                        {item.assignedToUserId != null ? (
+                          <span className="text-muted-foreground"> · Assigned user #{item.assignedToUserId}</span>
+                        ) : null}
                       </p>
                     ) : null}
                   </div>
                 </div>
-                <div className="flex flex-wrap gap-1.5 shrink-0 sm:justify-end">
-                  {item.actions.slice(0, 2).map((act) => (
+                <div className="flex flex-wrap gap-1.5 justify-end sm:justify-start">
+                  {item.actions.map((act) => (
                     <Button
                       key={act}
                       type="button"
                       size="sm"
-                      variant={act === item.actions[0] ? "default" : "outline"}
+                      variant={
+                        act === ATTENDANCE_ACTION.FORCE_CHECKOUT_OPEN
+                          ? "destructive"
+                          : act === item.actions[0]
+                            ? "default"
+                            : "outline"
+                      }
                       className="h-8 text-[11px] gap-1"
                       onClick={() => onAction(act, item)}
                     >
                       {act === ATTENDANCE_ACTION.SEND_OVERDUE_REMINDER ? (
-                        <>
-                          <ClipboardList className="h-3 w-3" />
-                          {primaryActionLabel([act])}
-                        </>
-                      ) : (
-                        <>
-                          {primaryActionLabel([act])}
-                          <ArrowRight className="h-3 w-3 opacity-70" />
-                        </>
-                      )}
+                        <ClipboardList className="h-3 w-3" />
+                      ) : null}
+                      {actionButtonLabel(act)}
+                      {act !== ATTENDANCE_ACTION.SEND_OVERDUE_REMINDER ? (
+                        <ArrowRight className="h-3 w-3 opacity-60" />
+                      ) : null}
                     </Button>
                   ))}
                 </div>

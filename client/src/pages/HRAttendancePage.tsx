@@ -15,7 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -38,8 +38,13 @@ import {
   ATTENDANCE_AUDIT_SOURCE,
 } from "@shared/attendanceAuditTaxonomy";
 import { getAdminBoardRowStatusPresentation } from "@/lib/adminBoardRowStatus";
-import { buildOperationalActionQueue, ATTENDANCE_ACTION, type AttendanceActionId } from "@shared/attendanceIntelligence";
-
+import {
+  buildOperationalActionQueue,
+  ATTENDANCE_ACTION,
+  type AttendanceActionId,
+  type OperationalExceptionItem,
+} from "@shared/attendanceIntelligence";
+import { useAttendanceOperationalMutations } from "@/hooks/useAttendanceOperationalMutations";
 const AUDIT_ACTION_LABELS: Record<string, string> = {
   [ATTENDANCE_AUDIT_ACTION.HR_ATTENDANCE_CREATE]: "HR attendance · created",
   [ATTENDANCE_AUDIT_ACTION.HR_ATTENDANCE_UPDATE]: "HR attendance · updated",
@@ -53,6 +58,10 @@ const AUDIT_ACTION_LABELS: Record<string, string> = {
   [ATTENDANCE_AUDIT_ACTION.SELF_CHECKIN_DENIED]: "Self check-in · denied",
   [ATTENDANCE_AUDIT_ACTION.SELF_CHECKOUT]: "Self check-out",
   [ATTENDANCE_AUDIT_ACTION.MANUAL_CHECKIN_SUBMIT]: "Manual check-in · submitted",
+  [ATTENDANCE_AUDIT_ACTION.FORCE_CHECKOUT]: "Force checkout (HR)",
+  [ATTENDANCE_AUDIT_ACTION.OPERATIONAL_ISSUE_ACKNOWLEDGE]: "Operational issue · acknowledged",
+  [ATTENDANCE_AUDIT_ACTION.OPERATIONAL_ISSUE_RESOLVE]: "Operational issue · resolved",
+  [ATTENDANCE_AUDIT_ACTION.OPERATIONAL_ISSUE_ASSIGN]: "Operational issue · assigned",
 };
 
 const AUDIT_SOURCE_LABELS: Record<string, string> = {
@@ -1072,6 +1081,13 @@ export default function HRAttendancePage() {
 
   const utils = trpc.useUtils();
   const { activeCompanyId } = useActiveCompany();
+  const { acknowledgeOverdueCheckout, forceCheckout, isPending: operationalPending } =
+    useAttendanceOperationalMutations(activeCompanyId);
+  const [forceDialogRecordId, setForceDialogRecordId] = useState<number | null>(null);
+  const [forceDialogReason, setForceDialogReason] = useState("");
+  const [ackDialogRecordId, setAckDialogRecordId] = useState<number | null>(null);
+  const [ackDialogNote, setAckDialogNote] = useState("");
+
   const { data: employees } = trpc.hr.listEmployees.useQuery({ department: deptFilter !== "all" ? deptFilter : undefined, status: "active", companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
   const { data: attendance, refetch } = trpc.hr.listAttendance.useQuery({ month: monthFilter, companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
   const { data: stats } = trpc.hr.attendanceStats.useQuery({ month: monthFilter, companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
@@ -1154,12 +1170,24 @@ export default function HRAttendancePage() {
     [todayBoardData?.board, overdueCheckoutData?.overdueEmployees, pendingCorrCount, pendingManualCount],
   );
 
-  const handleQueueAction = useCallback((action: AttendanceActionId) => {
+  const handleQueueAction = useCallback((action: AttendanceActionId, item: OperationalExceptionItem) => {
     if (action === ATTENDANCE_ACTION.OPEN_CORRECTIONS) setAttendanceTab("corrections");
     else if (action === ATTENDANCE_ACTION.OPEN_MANUAL_CHECKINS) setAttendanceTab("manual");
     else if (action === ATTENDANCE_ACTION.VIEW_TODAY_BOARD) setAttendanceTab("today");
     else if (action === ATTENDANCE_ACTION.SEND_OVERDUE_REMINDER) {
       document.getElementById("attendance-overdue-checkouts")?.scrollIntoView({ behavior: "smooth", block: "center" });
+    } else if (action === ATTENDANCE_ACTION.FORCE_CHECKOUT_OPEN) {
+      const id = item.attendanceRecordId;
+      if (id != null) {
+        setForceDialogRecordId(id);
+        setForceDialogReason("");
+      }
+    } else if (action === ATTENDANCE_ACTION.ACKNOWLEDGE_OVERDUE) {
+      const id = item.attendanceRecordId;
+      if (id != null) {
+        setAckDialogRecordId(id);
+        setAckDialogNote("");
+      }
     }
   }, []);
 
@@ -1196,7 +1224,7 @@ export default function HRAttendancePage() {
       />
 
       {activeCompanyId != null ? (
-        <AttendanceActionQueue items={actionQueueItems} onAction={(a) => handleQueueAction(a)} />
+        <AttendanceActionQueue items={actionQueueItems} onAction={(a, item) => handleQueueAction(a, item)} />
       ) : null}
 
       {/* Tabs: Live today | HR Records | Corrections | Manual Check-ins | Audit Log */}
@@ -1417,6 +1445,95 @@ export default function HRAttendancePage() {
 
         </TabsContent>
       </Tabs>
+
+      <Dialog open={forceDialogRecordId != null} onOpenChange={(o) => !o && setForceDialogRecordId(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Force checkout</DialogTitle>
+            <DialogDescription>
+              This closes the open attendance punch at the current time (Asia/Muscat wall clock). The employee is notified
+              implicitly via their record; a full audit entry is stored.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="force-reason">Reason (required, min. 10 characters)</Label>
+            <Textarea
+              id="force-reason"
+              value={forceDialogReason}
+              onChange={(e) => setForceDialogReason(e.target.value)}
+              rows={4}
+              placeholder="Why you are closing this session (compliance)…"
+              className="text-sm"
+            />
+          </div>
+          <DialogFooter className="gap-2">
+            <Button type="button" variant="outline" onClick={() => setForceDialogRecordId(null)}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              disabled={forceDialogReason.trim().length < 10 || operationalPending || activeCompanyId == null}
+              onClick={async () => {
+                if (forceDialogRecordId == null || activeCompanyId == null) return;
+                try {
+                  await forceCheckout.mutateAsync({
+                    companyId: activeCompanyId,
+                    attendanceRecordId: forceDialogRecordId,
+                    reason: forceDialogReason.trim(),
+                  });
+                  setForceDialogRecordId(null);
+                } catch {
+                  /* toast via mutation */
+                }
+              }}
+            >
+              Confirm force checkout
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={ackDialogRecordId != null} onOpenChange={(o) => !o && setAckDialogRecordId(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Acknowledge overdue checkout</DialogTitle>
+            <DialogDescription>
+              Marks this operational issue as acknowledged so the team knows it was triaged (does not close the punch).
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="ack-note">Note (optional)</Label>
+            <Textarea
+              id="ack-note"
+              value={ackDialogNote}
+              onChange={(e) => setAckDialogNote(e.target.value)}
+              rows={3}
+              className="text-sm"
+              placeholder="Who is handling this, or context…"
+            />
+          </div>
+          <DialogFooter className="gap-2">
+            <Button type="button" variant="outline" onClick={() => setAckDialogRecordId(null)}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              disabled={operationalPending}
+              onClick={async () => {
+                if (ackDialogRecordId == null) return;
+                try {
+                  await acknowledgeOverdueCheckout({ attendanceRecordId: ackDialogRecordId, note: ackDialogNote });
+                  setAckDialogRecordId(null);
+                } catch {
+                  /* toast via mutation */
+                }
+              }}
+            >
+              Acknowledge
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog open={deleteTargetId != null} onOpenChange={(open) => !open && setDeleteTargetId(null)}>
         <AlertDialogContent>

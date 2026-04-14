@@ -18,6 +18,8 @@ import { promoterAssignmentsRouter } from "./routers/promoterAssignments";
 import { employeeRequestsRouter } from "./routers/employeeRequests";
 import { orgStructureRouter } from "./routers/orgStructure";
 import { workforceRouter } from "./routers/workforce";
+import { announcementsRouter } from "./routers/announcements";
+import { sanadRouter } from "./routers/sanad";
 import * as db from "./db";
 
 vi.mock("./db", async (importOriginal) => {
@@ -268,5 +270,43 @@ describe("workspace authority on user-facing routers", () => {
     ] as any);
     const caller = workforceRouter.createCaller(makeMemberCtx());
     await expect(caller.workPermits.list({})).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  });
+
+  it("announcements.listAnnouncements rejects when multiple memberships and companyId omitted", async () => {
+    vi.mocked(db.getUserCompanies).mockResolvedValue([
+      { company: { id: 1 }, member: {} },
+      { company: { id: 2 }, member: {} },
+    ] as any);
+    const caller = announcementsRouter.createCaller(makeMemberCtx());
+    await expect(caller.listAnnouncements({})).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  });
+
+  it("announcements.listAnnouncements resolves when companyId is explicit", async () => {
+    vi.mocked(db.getUserCompanyById).mockResolvedValue({
+      company: { id: 9 },
+      member: { role: "company_admin" },
+    } as any);
+    vi.mocked(db.getDb).mockResolvedValue({
+      select: vi.fn(() => ({
+        from: vi.fn(() => ({
+          leftJoin: vi.fn(() => ({
+            where: vi.fn(() => ({
+              orderBy: vi.fn(() => Promise.resolve([])),
+            })),
+          })),
+        })),
+      })),
+    } as any);
+    const caller = announcementsRouter.createCaller(makeMemberCtx());
+    await expect(caller.listAnnouncements({ companyId: 9 })).resolves.toEqual([]);
+  });
+
+  it("sanad.listWorkOrders rejects when multiple memberships and companyId omitted", async () => {
+    vi.mocked(db.getUserCompanies).mockResolvedValue([
+      { company: { id: 1 }, member: {} },
+      { company: { id: 2 }, member: {} },
+    ] as any);
+    const caller = sanadRouter.createCaller(makeMemberCtx());
+    await expect(caller.listWorkOrders({})).rejects.toMatchObject({ code: "BAD_REQUEST" });
   });
 });

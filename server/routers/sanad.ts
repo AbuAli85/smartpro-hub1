@@ -37,7 +37,8 @@ import {
   updateSanadApplication,
   updateSanadOffice,
 } from "../db";
-import { getActiveCompanyMembership } from "../_core/membership";
+import { requireWorkspaceMembership } from "../_core/membership";
+import type { User } from "../../drizzle/schema";
 import { assertRowBelongsToActiveCompany, requireActiveCompanyId } from "../_core/tenant";
 import { protectedProcedure, publicProcedure, router } from "../_core/trpc";
 import { getCenterDetail } from "../sanad-intelligence/queries";
@@ -327,9 +328,8 @@ export const sanadRouter = router({
       if (canAccessGlobalAdminProcedures(ctx.user)) {
         return getAllSanadApplications({ status: input?.status });
       }
-      const m = await getActiveCompanyMembership(ctx.user.id, input?.companyId);
-      if (!m) return [];
-      return getSanadApplications(m.companyId, {
+      const { companyId } = await requireWorkspaceMembership(ctx.user as User, input?.companyId);
+      return getSanadApplications(companyId, {
         status: input?.status,
         type: input?.serviceType,
       });
@@ -1105,18 +1105,15 @@ export const sanadRouter = router({
     .mutation(async ({ input, ctx }) => {
       const db = await getDb();
       if (!db) throw new Error("DB unavailable");
-      const m = await getActiveCompanyMembership(ctx.user.id, input.companyId ?? undefined);
-      if (!m) {
-        throw new TRPCError({ code: "FORBIDDEN", message: "Select a company workspace to submit a service request." });
-      }
+      const { companyId } = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       const [co] = await db
         .select({ name: companies.name })
         .from(companies)
-        .where(eq(companies.id, m.companyId))
+        .where(eq(companies.id, companyId))
         .limit(1);
       const [result] = await db.insert(sanadServiceRequests).values({
         officeId: input.officeId,
-        requesterCompanyId: m.companyId,
+        requesterCompanyId: companyId,
         requesterUserId: ctx.user.id,
         serviceType: input.serviceType,
         serviceCatalogueId: input.serviceCatalogueId ?? null,
@@ -1722,9 +1719,8 @@ export const sanadRouter = router({
     )
     .query(async ({ input, ctx }) => {
       if (canAccessGlobalAdminProcedures(ctx.user)) return getAllSanadApplications({ status: input?.status });
-      const m = await getActiveCompanyMembership(ctx.user.id, input?.companyId);
-      if (!m) return [];
-      return getSanadApplications(m.companyId, input ?? {});
+      const { companyId } = await requireWorkspaceMembership(ctx.user as User, input?.companyId);
+      return getSanadApplications(companyId, input ?? {});
     }),
 
   /** Network intelligence (KPIs, directory, opportunity) — also mounted at root `sanadIntelligence` for tRPC path parity */

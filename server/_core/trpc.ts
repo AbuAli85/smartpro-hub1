@@ -4,12 +4,15 @@ import { seesPlatformOperatorNav } from "@shared/clientNav";
 import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
 import type { TrpcContext } from "./context";
+import type { User } from "../../drizzle/schema";
 import {
   extractCompanyIdFromRawInput,
   isAccessV2ShadowCompanyEnabled,
   recordCompanyShadowMismatch,
 } from "./accessShadow";
 import { getImplicitWorkspaceCompanyIdForShadow } from "./membership";
+
+type AuthenticatedContext = Omit<TrpcContext, "user"> & { user: User };
 
 /** Base tRPC instance (for composing feature-specific middleware). */
 export const t = initTRPC.context<TrpcContext>().create({
@@ -27,34 +30,35 @@ const requireUser = t.middleware(async opts => {
   }
 
   return next({
-    ctx: {
-      ...ctx,
-      user: ctx.user,
-    },
+    ctx: ctx as AuthenticatedContext,
   });
 });
 
 /**
  * When `ACCESS_V2_SHADOW_COMPANY` is set, compares legacy implicit workspace (first membership)
  * to explicit `input.companyId` and aggregates mismatches (no enforcement).
+ *
+ * Note: intentionally calls `next()` without a `ctx` argument so that TypeScript preserves
+ * the context-override type accumulated by prior middleware (e.g. the non-null user from
+ * `requireUser`).  Passing `{ ctx }` here would widen the override back to `TrpcContext`.
  */
 const shadowCompanyMismatchLogger = t.middleware(async (opts) => {
   if (!isAccessV2ShadowCompanyEnabled()) {
-    return opts.next({ ctx: opts.ctx });
+    return opts.next();
   }
   const ctx = opts.ctx;
   if (!ctx.user) {
-    return opts.next({ ctx });
+    return opts.next();
   }
   let raw: unknown;
   try {
     raw = await opts.getRawInput();
   } catch {
-    return opts.next({ ctx });
+    return opts.next();
   }
   const explicit = extractCompanyIdFromRawInput(raw);
   if (explicit === undefined) {
-    return opts.next({ ctx });
+    return opts.next();
   }
   const implicit = await getImplicitWorkspaceCompanyIdForShadow(ctx.user.id);
   if (implicit !== explicit) {
@@ -65,7 +69,7 @@ const shadowCompanyMismatchLogger = t.middleware(async (opts) => {
       explicitCompanyId: explicit,
     });
   }
-  return opts.next({ ctx });
+  return opts.next();
 });
 
 export const protectedProcedure = t.procedure.use(requireUser).use(shadowCompanyMismatchLogger);
@@ -80,7 +84,7 @@ const assertPlatformOperatorRead = t.middleware(async (opts) => {
     throw new TRPCError({ code: "UNAUTHORIZED", message: UNAUTHED_ERR_MSG });
   }
   if (seesPlatformOperatorNav(ctx.user)) {
-    return next({ ctx });
+    return next({ ctx: ctx as AuthenticatedContext });
   }
   throw new TRPCError({ code: "FORBIDDEN", message: NOT_ADMIN_ERR_MSG });
 });
@@ -103,10 +107,7 @@ export const adminProcedure = t.procedure.use(
     }
 
     return next({
-      ctx: {
-        ...ctx,
-        user: ctx.user,
-      },
+      ctx: ctx as AuthenticatedContext,
     });
   }),
 );

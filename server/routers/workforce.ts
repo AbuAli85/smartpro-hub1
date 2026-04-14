@@ -84,7 +84,7 @@ async function getMemberCompanyId(user: Pick<User, "id" | "name" | "email" | "ro
  * {@link getMemberCompanyId} once so provisioning admins can still auto-create a default company.
  */
 async function resolveWorkforceCompanyId(
-  user: Pick<User, "id" | "name" | "email" | "role" | "platformRole">,
+  user: User,
   inputCompanyId?: number | null,
 ): Promise<number> {
   try {

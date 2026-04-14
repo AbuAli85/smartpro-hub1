@@ -106,6 +106,7 @@ import HolidayCalendarPage from "./pages/HolidayCalendarPage";
 import TodayBoardPage from "./pages/TodayBoardPage";
 import MonthlyReportPage from "./pages/MonthlyReportPage";
 import TeamAccessPage from "./pages/TeamAccessPage";
+const TeamAccessRoute = () => <TeamAccessPage />;
 import MultiCompanyRolesPage from "./pages/MultiCompanyRolesPage";
 import EmailPreviewPage from "./pages/EmailPreviewPage";
 import UserRolesPage from "./pages/UserRolesPage";
@@ -250,7 +251,7 @@ function AppRoutes() {
         <Route path="/hr/announcements" component={AnnouncementsPage} />
         <Route path="/workspace" component={WorkspacePage} />
         <Route path="/my-portal" component={EmployeePortalPage} />
-        <Route path="/company/team-access" component={TeamAccessPage} />
+        <Route path="/company/team-access" component={TeamAccessRoute} />
         <Route path="/company/multi-company-roles" component={MultiCompanyRolesPage} />
         <Route path="/my-team" component={MyTeamPage} />
         <Route path="/business/dashboard" component={BusinessDashboardPage} />

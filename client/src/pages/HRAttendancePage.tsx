@@ -51,6 +51,9 @@ import {
 import { muscatCalendarYmdFromUtcInstant, muscatCalendarYmdNow } from "@shared/attendanceMuscatTime";
 import { useAttendanceOperationalMutations } from "@/hooks/useAttendanceOperationalMutations";
 import { useAuth } from "@/_core/hooks/useAuth";
+import { operationalIssueKey } from "@shared/attendanceOperationalIssueKeys";
+import { OperationalIssueMetaStrip } from "@/components/attendance/OperationalIssueMetaStrip";
+import { OperationalIssueHistorySheet } from "@/components/attendance/OperationalIssueHistorySheet";
 const AUDIT_ACTION_LABELS: Record<string, string> = {
   [ATTENDANCE_AUDIT_ACTION.HR_ATTENDANCE_CREATE]: "HR attendance · created",
   [ATTENDANCE_AUDIT_ACTION.HR_ATTENDANCE_UPDATE]: "HR attendance · updated",
@@ -855,6 +858,7 @@ function CorrectionRequests({ companyId }: { companyId: number | null }) {
   const [statusFilter, setStatusFilter] = useState<"pending" | "approved" | "rejected" | "all">("pending");
   const [reviewTarget, setReviewTarget] = useState<{ id: number; action: "approve" | "reject" } | null>(null);
   const [adminNote, setAdminNote] = useState("");
+  const [issueHistoryKey, setIssueHistoryKey] = useState<string | null>(null);
   const utils = trpc.useUtils();
   const { data, isLoading, refetch } = trpc.attendance.listCorrections.useQuery(
     { companyId: companyId ?? undefined, status: statusFilter },
@@ -871,6 +875,8 @@ function CorrectionRequests({ companyId }: { companyId: number | null }) {
       void utils.hr.listAttendance.invalidate();
       void utils.hr.attendanceStats.invalidate();
       void utils.attendance.listAttendanceAudit.invalidate();
+      void utils.attendance.getOperationalIssueHistory.invalidate();
+      void utils.attendance.listOperationalIssuesByIssueKeys.invalidate();
     },
     onError: (e) => toast.error(e.message),
   });
@@ -885,6 +891,8 @@ function CorrectionRequests({ companyId }: { companyId: number | null }) {
       void utils.hr.listAttendance.invalidate();
       void utils.hr.attendanceStats.invalidate();
       void utils.attendance.listAttendanceAudit.invalidate();
+      void utils.attendance.getOperationalIssueHistory.invalidate();
+      void utils.attendance.listOperationalIssuesByIssueKeys.invalidate();
     },
     onError: (e) => toast.error(e.message),
   });
@@ -915,7 +923,7 @@ function CorrectionRequests({ companyId }: { companyId: number | null }) {
         <div className="py-12 text-center text-muted-foreground">Select a company to review correction requests.</div>
       ) : isLoading ? <div className="py-12 text-center text-muted-foreground">Loading…</div> : (
         <div className="space-y-3">
-          {(data ?? []).map(({ correction, employee }) => (
+          {(data ?? []).map(({ correction, employee, operationalIssue }) => (
             <Card key={correction.id}><CardContent className="p-4">
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1 min-w-0">
@@ -931,6 +939,16 @@ function CorrectionRequests({ companyId }: { companyId: number | null }) {
                     <div><span className="font-medium text-foreground">Reason:</span> {correction.reason}</div>
                     {correction.adminNote && <div><span className="font-medium text-foreground">Note:</span> {correction.adminNote}</div>}
                   </div>
+                  <OperationalIssueMetaStrip
+                    operationalIssue={operationalIssue}
+                    pendingHint={correction.status === "pending" && operationalIssue == null}
+                    onOpenHistory={() =>
+                      setIssueHistoryKey(
+                        operationalIssue?.issueKey ??
+                          operationalIssueKey({ kind: "correction_pending", correctionId: correction.id }),
+                      )
+                    }
+                  />
                 </div>
                 {correction.status === "pending" && (
                   <div className="flex gap-2 shrink-0">
@@ -957,6 +975,14 @@ function CorrectionRequests({ companyId }: { companyId: number | null }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <OperationalIssueHistorySheet
+        open={issueHistoryKey != null}
+        onOpenChange={(o) => {
+          if (!o) setIssueHistoryKey(null);
+        }}
+        companyId={companyId}
+        issueKey={issueHistoryKey}
+      />
     </div>
   );
 }
@@ -966,6 +992,7 @@ function ManualCheckInRequests({ companyId }: { companyId: number | null }) {
   const [statusFilter, setStatusFilter] = useState<"pending" | "approved" | "rejected" | "all">("pending");
   const [reviewTarget, setReviewTarget] = useState<{ id: number; action: "approve" | "reject" } | null>(null);
   const [adminNote, setAdminNote] = useState("");
+  const [issueHistoryKey, setIssueHistoryKey] = useState<string | null>(null);
   const utils = trpc.useUtils();
   const { data, isLoading, refetch } = trpc.attendance.listManualCheckIns.useQuery(
     { companyId: companyId ?? undefined, status: statusFilter },
@@ -982,6 +1009,8 @@ function ManualCheckInRequests({ companyId }: { companyId: number | null }) {
       void utils.hr.listAttendance.invalidate();
       void utils.hr.attendanceStats.invalidate();
       void utils.attendance.listAttendanceAudit.invalidate();
+      void utils.attendance.getOperationalIssueHistory.invalidate();
+      void utils.attendance.listOperationalIssuesByIssueKeys.invalidate();
     },
     onError: (e) => toast.error(e.message),
   });
@@ -996,6 +1025,8 @@ function ManualCheckInRequests({ companyId }: { companyId: number | null }) {
       void utils.hr.listAttendance.invalidate();
       void utils.hr.attendanceStats.invalidate();
       void utils.attendance.listAttendanceAudit.invalidate();
+      void utils.attendance.getOperationalIssueHistory.invalidate();
+      void utils.attendance.listOperationalIssuesByIssueKeys.invalidate();
     },
     onError: (e) => toast.error(e.message),
   });
@@ -1026,7 +1057,7 @@ function ManualCheckInRequests({ companyId }: { companyId: number | null }) {
         <div className="py-12 text-center text-muted-foreground">Select a company to review manual check-in requests.</div>
       ) : isLoading ? <div className="py-12 text-center text-muted-foreground">Loading…</div> : (
         <div className="space-y-3">
-          {(data ?? []).map(({ req, site, employee }) => (
+          {(data ?? []).map(({ req, site, employee, operationalIssue }) => (
             <Card key={req.id}><CardContent className="p-4">
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1 min-w-0">
@@ -1046,6 +1077,16 @@ function ManualCheckInRequests({ companyId }: { companyId: number | null }) {
                     {req.adminNote && <div><span className="font-medium text-foreground">Admin Note:</span> {req.adminNote}</div>}
                     <div className="text-xs">{req.requestedAt ? new Date(req.requestedAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : ""}</div>
                   </div>
+                  <OperationalIssueMetaStrip
+                    operationalIssue={operationalIssue}
+                    pendingHint={req.status === "pending" && operationalIssue == null}
+                    onOpenHistory={() =>
+                      setIssueHistoryKey(
+                        operationalIssue?.issueKey ??
+                          operationalIssueKey({ kind: "manual_pending", manualCheckinRequestId: req.id }),
+                      )
+                    }
+                  />
                 </div>
                 {req.status === "pending" && (
                   <div className="flex gap-2 shrink-0">
@@ -1072,6 +1113,14 @@ function ManualCheckInRequests({ companyId }: { companyId: number | null }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <OperationalIssueHistorySheet
+        open={issueHistoryKey != null}
+        onOpenChange={(o) => {
+          if (!o) setIssueHistoryKey(null);
+        }}
+        companyId={companyId}
+        issueKey={issueHistoryKey}
+      />
     </div>
   );
 }
@@ -1102,6 +1151,14 @@ export default function HRAttendancePage() {
   const [queueFilter, setQueueFilter] = useState<OperationalQueueFilter>("unresolved");
 
   const { data: employees } = trpc.hr.listEmployees.useQuery({ department: deptFilter !== "all" ? deptFilter : undefined, status: "active", companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
+  const { data: companyMembers } = trpc.companies.members.useQuery(
+    { companyId: activeCompanyId ?? undefined },
+    { enabled: activeCompanyId != null && triageAssignItem != null },
+  );
+  const assignableCompanyMembers = useMemo(() => {
+    const eligible = new Set(["company_admin", "hr_admin", "finance_admin", "reviewer"]);
+    return (companyMembers ?? []).filter((m) => m.isActive !== false && eligible.has(m.role));
+  }, [companyMembers]);
   const { data: attendance, refetch } = trpc.hr.listAttendance.useQuery({ month: monthFilter, companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
   const { data: stats } = trpc.hr.attendanceStats.useQuery({ month: monthFilter, companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
 
@@ -1719,19 +1776,22 @@ export default function HRAttendancePage() {
                 <SelectTrigger>
                   <SelectValue placeholder="Select user" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="max-h-64">
                   {authUser?.id != null ? (
                     <SelectItem value={String(authUser.id)}>Me ({authUser.name ?? `User #${authUser.id}`})</SelectItem>
                   ) : null}
-                  {(employees ?? [])
-                    .filter((e) => e.userId != null && e.userId !== authUser?.id)
-                    .map((e) => (
-                      <SelectItem key={e.id} value={String(e.userId)}>
-                        {`${e.firstName} ${e.lastName}`.trim()}
+                  {assignableCompanyMembers
+                    .filter((m) => m.userId !== authUser?.id)
+                    .map((m) => (
+                      <SelectItem key={m.memberId} value={String(m.userId)}>
+                        {(m.name ?? "").trim() || `User #${m.userId}`} ({String(m.role).replace(/_/g, " ")})
                       </SelectItem>
                     ))}
                 </SelectContent>
               </Select>
+              <p className="text-[10px] text-muted-foreground leading-snug">
+                Workspace admins, HR, finance, and reviewers. Employees without a login are not listed.
+              </p>
             </div>
             <div className="space-y-1">
               <Label htmlFor="assign-note">Note (optional)</Label>

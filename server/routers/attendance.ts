@@ -47,6 +47,10 @@ import {
   resolveOperationalIssueForCorrectionTx,
   resolveOperationalIssueForManualTx,
 } from "../attendanceOperationalIssueSync";
+import {
+  loadOperationalIssueHistoryBundle,
+  loadOperationalIssueSummariesByKeys,
+} from "../attendanceOperationalIssueQueries";
 
 async function requireDb() {
   const db = await getDb();
@@ -1442,7 +1446,17 @@ export const attendanceRouter = router({
         .orderBy(desc(manualCheckinRequests.requestedAt))
         .limit(input.limit);
 
-      return rows;
+      const manualKeys = rows.map((r) =>
+        operationalIssueKey({ kind: "manual_pending", manualCheckinRequestId: r.req.id }),
+      );
+      const manualIssueByKey = await loadOperationalIssueSummariesByKeys(db, membership.company.id, manualKeys);
+      return rows.map((row) => ({
+        ...row,
+        operationalIssue:
+          manualIssueByKey.get(
+            operationalIssueKey({ kind: "manual_pending", manualCheckinRequestId: row.req.id }),
+          ) ?? null,
+      }));
     }),
 
   /**
@@ -1867,7 +1881,17 @@ export const attendanceRouter = router({
         .where(and(...conditions))
         .orderBy(desc(attendanceCorrections.createdAt))
         .limit(input.limit);
-      return rows;
+      const issueKeys = rows.map((r) =>
+        operationalIssueKey({ kind: "correction_pending", correctionId: r.correction.id }),
+      );
+      const issueByKey = await loadOperationalIssueSummariesByKeys(db, membership.company.id, issueKeys);
+      return rows.map((row) => ({
+        ...row,
+        operationalIssue:
+          issueByKey.get(
+            operationalIssueKey({ kind: "correction_pending", correctionId: row.correction.id }),
+          ) ?? null,
+      }));
     }),
 
   // ─── Admin: Approve a correction request ───────────────────────────────────────────
@@ -2484,6 +2508,29 @@ export const attendanceRouter = router({
             inArray(attendanceOperationalIssues.issueKey, uniq),
           ),
         );
+    }),
+
+  /**
+   * HR drilldown: current operational issue row + merged audit timeline (triage + domain actions for linked entities).
+   */
+  getOperationalIssueHistory: protectedProcedure
+    .input(
+      z.object({
+        companyId: z.number().optional(),
+        issueKey: z.string().min(8).max(200),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      const membership = await requireAdminOrHR(ctx.user as User, input.companyId);
+      const db = await requireDb();
+      const bundle = await loadOperationalIssueHistoryBundle(db, {
+        companyId: membership.companyId,
+        issueKey: input.issueKey,
+      });
+      if (!bundle) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Operational issue not found" });
+      }
+      return bundle;
     }),
 
   setOperationalIssueStatus: protectedProcedure

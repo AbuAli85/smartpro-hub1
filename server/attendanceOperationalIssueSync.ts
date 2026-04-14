@@ -103,18 +103,20 @@ export async function syncAttendanceOperationalIssuesFromSnapshot(
     )
     .limit(500);
 
-  for (const iss of staleMissed) {
-    if (iss.scheduleId != null && !absentScheduleIds.has(iss.scheduleId)) {
-      await db
-        .update(attendanceOperationalIssues)
-        .set({
-          status: "resolved",
-          reviewedAt: now,
-          resolutionNote: "Shift no longer marked absent on the live board.",
-          updatedAt: now,
-        })
-        .where(eq(attendanceOperationalIssues.id, iss.id));
-    }
+  const toResolveIds = missedShiftIssueIdsToAutoResolve(
+    staleMissed.map((i) => ({ id: i.id, scheduleId: i.scheduleId })),
+    absentScheduleIds,
+  );
+  for (const id of toResolveIds) {
+    await db
+      .update(attendanceOperationalIssues)
+      .set({
+        status: "resolved",
+        reviewedAt: now,
+        resolutionNote: "Shift no longer marked absent on the live board.",
+        updatedAt: now,
+      })
+      .where(eq(attendanceOperationalIssues.id, id));
   }
 
   for (const c of pendingCorrections) {
@@ -292,6 +294,16 @@ export async function resolveOperationalIssueForManualTx(
  * Ensure an `open` operational row exists for each overdue checkout so triage/assign targets a stable row.
  * Does not reopen resolved issues (HR may have triaged while payroll still shows overdue until next poll).
  */
+/** Pure predicate helper — used by sync and unit tests. */
+export function missedShiftIssueIdsToAutoResolve(
+  staleMissed: Array<{ id: number; scheduleId: number | null }>,
+  absentScheduleIds: Set<number>,
+): number[] {
+  return staleMissed
+    .filter((iss) => iss.scheduleId != null && !absentScheduleIds.has(iss.scheduleId))
+    .map((iss) => iss.id);
+}
+
 export async function ensureOverdueCheckoutOperationalIssuesOpen(
   db: Db,
   params: {

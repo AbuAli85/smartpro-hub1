@@ -17,6 +17,7 @@ import { getDb, getCompanies, getUserCompanies } from "../db";
 import { outsourcingContracts } from "../../drizzle/schema";
 import { attendanceSites, companies, employees } from "../../drizzle/schema";
 import { getActiveCompanyMembership, requireNotAuditor } from "../_core/membership";
+import { optionalActiveWorkspace } from "../_core/workspaceInput";
 import { requireActiveCompanyId } from "../_core/tenant";
 import { protectedProcedure, router } from "../_core/trpc";
 import {
@@ -139,6 +140,7 @@ const createPromoterAssignmentInput = z
     nationality: z.string().max(100).optional(),
     jobTitleEn: z.string().max(255).optional(),
     jobTitleAr: z.string().max(255).optional(),
+    companyId: z.number().int().positive().optional(),
   })
   .superRefine((val, ctx) => {
     if (val.clientKind === "external_party") {
@@ -160,6 +162,7 @@ const createPromoterAssignmentInput = z
 
 const updatePromoterAssignmentInput = z.object({
   id: z.string().uuid(),
+  companyId: z.number().int().positive().optional(),
   locationEn: z.string().min(1).optional(),
   locationAr: z.string().min(1).optional(),
   effectiveDate: z.string().optional(),
@@ -187,9 +190,14 @@ export const contractManagementRouter = router({
    * employer options = other active companies.
    */
   companiesForPartyPickers: protectedProcedure
-    .input(z.object({ clientCompanyId: z.number().int().positive().optional() }).optional())
+    .input(
+      z
+        .object({ clientCompanyId: z.number().int().positive().optional() })
+        .merge(optionalActiveWorkspace)
+        .optional(),
+    )
     .query(async ({ ctx, input }) => {
-      const activeId = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
+      const activeId = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user);
       await requireCanManageContracts(ctx.user, activeId);
       const db = await getDb();
       if (!db) return { clientOptions: [], employerOptions: [] };
@@ -229,13 +237,13 @@ export const contractManagementRouter = router({
 
   /** Attendance sites belonging to the first_party (client) company — for work location picker. */
   listClientWorkLocations: protectedProcedure
-    .input(z.object({ clientCompanyId: z.number().int().positive() }))
+    .input(z.object({ clientCompanyId: z.number().int().positive() }).merge(optionalActiveWorkspace))
     .query(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) return [];
       const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
       if (!isPlatform) {
-        await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
+        await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
         await requireCanManageContracts(ctx.user, input.clientCompanyId);
       }
       return db
@@ -257,18 +265,20 @@ export const contractManagementRouter = router({
   /** Active and on-leave employees of the employer (second_party) company — promoter candidates. */
   listEmployerEmployees: protectedProcedure
     .input(
-      z.object({
-        employerCompanyId: z.number().int().positive(),
-        clientCompanyId: z.number().int().positive().optional(),
-        /** When true, RBAC is anchored on the employer (external client has no platform company id). */
-        forEmployerPerspective: z.boolean().optional(),
-      })
+      z
+        .object({
+          employerCompanyId: z.number().int().positive(),
+          clientCompanyId: z.number().int().positive().optional(),
+          /** When true, RBAC is anchored on the employer (external client has no platform company id). */
+          forEmployerPerspective: z.boolean().optional(),
+        })
+        .merge(optionalActiveWorkspace),
     )
     .query(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) return [];
       const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
-      const activeId = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
+      const activeId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
 
       if (isPlatform && input.clientCompanyId == null && !input.forEmployerPerspective) {
         throw new TRPCError({
@@ -328,14 +338,19 @@ export const contractManagementRouter = router({
    * active platform tenants (except self) plus employer-managed external parties.
    */
   promoterFlowClientOptions: protectedProcedure
-    .input(z.object({ employerCompanyId: z.number().int().positive().optional() }).optional())
+    .input(
+      z
+        .object({ employerCompanyId: z.number().int().positive().optional() })
+        .merge(optionalActiveWorkspace)
+        .optional(),
+    )
     .query(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) return [] as Awaited<ReturnType<typeof listPromoterFlowClientOptions>>;
       const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
       const employerCompanyId = isPlatform
         ? input?.employerCompanyId
-        : await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
+        : await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user);
       if (employerCompanyId == null) {
         throw new TRPCError({
           code: "BAD_REQUEST",
@@ -351,24 +366,26 @@ export const contractManagementRouter = router({
   /** Create an external client/counterparty managed by the active employer company. */
   createManagedExternalClient: protectedProcedure
     .input(
-      z.object({
-        displayNameEn: z.string().min(1, "Display name (English) is required"),
-        displayNameAr: z.string().max(255).optional(),
-        legalNameEn: z.string().max(255).optional(),
-        legalNameAr: z.string().max(255).optional(),
-        registrationNumber: z.string().max(100).optional(),
-        phone: z.string().max(64).optional(),
-        email: z
-          .string()
-          .max(320)
-          .optional()
-          .transform((s) => (s == null || s.trim() === "" ? undefined : s.trim())),
-      })
+      z
+        .object({
+          displayNameEn: z.string().min(1, "Display name (English) is required"),
+          displayNameAr: z.string().max(255).optional(),
+          legalNameEn: z.string().max(255).optional(),
+          legalNameAr: z.string().max(255).optional(),
+          registrationNumber: z.string().max(100).optional(),
+          phone: z.string().max(64).optional(),
+          email: z
+            .string()
+            .max(320)
+            .optional()
+            .transform((s) => (s == null || s.trim() === "" ? undefined : s.trim())),
+        })
+        .merge(optionalActiveWorkspace),
     )
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
-      const activeId = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
+      const activeId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       await requireCanManageContracts(ctx.user, activeId);
       const partyId = await createManagedExternalParty(db, {
         managedByCompanyId: activeId,
@@ -635,27 +652,32 @@ export const contractManagementRouter = router({
   /** List contracts where the active company is first_party OR second_party. */
   list: protectedProcedure
     .input(
-      z.object({
-        status: contractStatusEnum.optional(),
-        contractTypeId: z.string().optional(),
-      }).optional()
+      z
+        .object({
+          status: contractStatusEnum.optional(),
+          contractTypeId: z.string().optional(),
+        })
+        .merge(optionalActiveWorkspace)
+        .optional(),
     )
     .query(async ({ ctx, input }) => {
-      const activeId = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
-      await requireCanManageContracts(ctx.user, activeId);
       const db = await getDb();
       if (!db) return [];
 
       const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
-      return listOutsourcingContracts(
-        db,
-        isPlatform ? 0 : activeId,
-        isPlatform,
-        {
+      if (isPlatform) {
+        return listOutsourcingContracts(db, 0, true, {
           status: input?.status,
           contractTypeId: input?.contractTypeId,
-        }
-      );
+        });
+      }
+
+      const activeId = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user);
+      await requireCanManageContracts(ctx.user, activeId);
+      return listOutsourcingContracts(db, activeId, false, {
+        status: input?.status,
+        contractTypeId: input?.contractTypeId,
+      });
     }),
 
   /**
@@ -670,7 +692,7 @@ export const contractManagementRouter = router({
    * the action buttons that are actually valid.
    */
   getById: protectedProcedure
-    .input(z.object({ id: z.string().uuid() }))
+    .input(z.object({ id: z.string().uuid() }).merge(optionalActiveWorkspace))
     .query(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
@@ -680,7 +702,7 @@ export const contractManagementRouter = router({
 
       const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
       if (!isPlatform) {
-        const activeId = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
+        const activeId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
         if (
           !activeCompanyInvolvedInContract(
             activeId,
@@ -723,7 +745,7 @@ export const contractManagementRouter = router({
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
 
       const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
-      const activeId = isPlatform ? null : await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
+      const activeId = isPlatform ? null : await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
 
       if (!isPlatform) {
         if (input.creationPerspective === "employer") {
@@ -973,7 +995,7 @@ export const contractManagementRouter = router({
 
       const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
       if (!isPlatform) {
-        const activeId = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
+        const activeId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
         if (
           !activeCompanyInvolvedInContract(
             activeId,
@@ -1088,11 +1110,13 @@ export const contractManagementRouter = router({
    */
   activate: protectedProcedure
     .input(
-      z.object({
-        id: z.string().uuid(),
-        /** Optional note recorded in the audit event */
-        note: z.string().max(500).optional(),
-      })
+      z
+        .object({
+          id: z.string().uuid(),
+          /** Optional note recorded in the audit event */
+          note: z.string().max(500).optional(),
+        })
+        .merge(optionalActiveWorkspace),
     )
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
@@ -1103,7 +1127,7 @@ export const contractManagementRouter = router({
 
       const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
       if (!isPlatform) {
-        const activeId = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
+        const activeId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
         if (
           !activeCompanyInvolvedInContract(
             activeId,
@@ -1149,12 +1173,14 @@ export const contractManagementRouter = router({
    */
   renew: protectedProcedure
     .input(
-      z.object({
-        originalContractId: z.string().uuid(),
-        newEffectiveDate: z.string().min(1),
-        newExpiryDate: z.string().min(1),
-        newContractNumber: z.string().max(100).optional(),
-      })
+      z
+        .object({
+          originalContractId: z.string().uuid(),
+          newEffectiveDate: z.string().min(1),
+          newExpiryDate: z.string().min(1),
+          newContractNumber: z.string().max(100).optional(),
+        })
+        .merge(optionalActiveWorkspace),
     )
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
@@ -1165,7 +1191,7 @@ export const contractManagementRouter = router({
 
       const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
       if (!isPlatform) {
-        const activeId = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
+        const activeId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
         if (
           !activeCompanyInvolvedInContract(
             activeId,
@@ -1296,14 +1322,16 @@ export const contractManagementRouter = router({
    */
   createAmendmentDraft: protectedProcedure
     .input(
-      z.object({
-        baseContractId: z.string().uuid(),
-        newEffectiveDate: z.string(),
-        newExpiryDate: z.string(),
-        newContractNumber: z.string().max(100).optional(),
-        locationEn: z.string().max(500).optional(),
-        locationAr: z.string().max(500).optional(),
-      })
+      z
+        .object({
+          baseContractId: z.string().uuid(),
+          newEffectiveDate: z.string(),
+          newExpiryDate: z.string(),
+          newContractNumber: z.string().max(100).optional(),
+          locationEn: z.string().max(500).optional(),
+          locationAr: z.string().max(500).optional(),
+        })
+        .merge(optionalActiveWorkspace),
     )
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
@@ -1314,7 +1342,7 @@ export const contractManagementRouter = router({
 
       const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
       if (!isPlatform) {
-        const activeId = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
+        const activeId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
         if (
           !activeCompanyInvolvedInContract(
             activeId,
@@ -1457,10 +1485,12 @@ export const contractManagementRouter = router({
    */
   terminate: protectedProcedure
     .input(
-      z.object({
-        id: z.string().uuid(),
-        reason: z.string().max(500).optional(),
-      })
+      z
+        .object({
+          id: z.string().uuid(),
+          reason: z.string().max(500).optional(),
+        })
+        .merge(optionalActiveWorkspace),
     )
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
@@ -1471,7 +1501,7 @@ export const contractManagementRouter = router({
 
       const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
       if (!isPlatform) {
-        const activeId = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
+        const activeId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
         if (
           !activeCompanyInvolvedInContract(
             activeId,
@@ -1523,39 +1553,40 @@ export const contractManagementRouter = router({
    */
   uploadDocument: protectedProcedure
     .input(
-      z.object({
-        contractId: z.string().uuid(),
-        documentKind: z.enum(UPLOADABLE_DOCUMENT_KINDS),
-        fileBase64: z.string().min(1, "File data is required"),
-        fileName: z.string().min(1).max(500),
-        mimeType: z.string().min(1).max(200),
-        /** Declared file size in bytes — used for server-side validation */
-        fileSize: z.number().int().positive(),
-      })
+      z
+        .object({
+          contractId: z.string().uuid(),
+          documentKind: z.enum(UPLOADABLE_DOCUMENT_KINDS),
+          fileBase64: z.string().min(1, "File data is required"),
+          fileName: z.string().min(1).max(500),
+          mimeType: z.string().min(1).max(200),
+          /** Declared file size in bytes — used for server-side validation */
+          fileSize: z.number().int().positive(),
+        })
+        .merge(optionalActiveWorkspace),
     )
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+
+      const contractRow = await getOutsourcingContractById(db, input.contractId);
+      if (!contractRow) throw new TRPCError({ code: "NOT_FOUND", message: "Contract not found" });
 
       // ── Tenant / RBAC ──────────────────────────────────────────────────────
       const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
       let uploaderCompanyId: number;
 
       if (!isPlatform) {
-        const activeId = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
+        const activeId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
         uploaderCompanyId = activeId;
         await requireCanManageContracts(ctx.user, activeId);
-
-        // Confirm the active company is involved in this contract
-        const result = await getOutsourcingContractById(db, input.contractId);
-        if (!result) throw new TRPCError({ code: "NOT_FOUND", message: "Contract not found" });
 
         if (
           !activeCompanyInvolvedInContract(
             activeId,
-            result.contract,
-            result.parties,
-            result.promoterDetail?.employerCompanyId
+            contractRow.contract,
+            contractRow.parties,
+            contractRow.promoterDetail?.employerCompanyId
           )
         ) {
           throw new TRPCError({
@@ -1564,8 +1595,14 @@ export const contractManagementRouter = router({
           });
         }
       } else {
-        const activeId = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user).catch(() => 0);
-        uploaderCompanyId = activeId;
+        const headerId = contractRow.contract.companyId;
+        uploaderCompanyId = input.companyId ?? (headerId != null ? headerId : 0);
+        if (uploaderCompanyId === 0) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Pass companyId for storage scoping when the contract has no header company id.",
+          });
+        }
       }
 
       // ── File validation ────────────────────────────────────────────────────
@@ -1636,7 +1673,7 @@ export const contractManagementRouter = router({
    * System-generated PDFs (documentKind = "generated_pdf") cannot be deleted.
    */
   deleteDocument: protectedProcedure
-    .input(z.object({ documentId: z.string().uuid() }))
+    .input(z.object({ documentId: z.string().uuid() }).merge(optionalActiveWorkspace))
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
@@ -1653,7 +1690,7 @@ export const contractManagementRouter = router({
 
       const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
       if (!isPlatform) {
-        const activeId = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
+        const activeId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
         await requireCanManageContracts(ctx.user, activeId);
 
         const contract = await getOutsourcingContractById(db, doc.contractId);
@@ -1681,7 +1718,7 @@ export const contractManagementRouter = router({
 
   /** Delete a contract (first_party or platform admin only). */
   delete: protectedProcedure
-    .input(z.object({ id: z.string().uuid() }))
+    .input(z.object({ id: z.string().uuid() }).merge(optionalActiveWorkspace))
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
@@ -1691,7 +1728,7 @@ export const contractManagementRouter = router({
 
       const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
       if (!isPlatform) {
-        const activeId = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
+        const activeId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
         if (
           !activeCompanyInvolvedInContract(
             activeId,
@@ -1714,7 +1751,7 @@ export const contractManagementRouter = router({
 
   /** Get the audit event timeline for a contract. */
   getTimeline: protectedProcedure
-    .input(z.object({ id: z.string().uuid() }))
+    .input(z.object({ id: z.string().uuid() }).merge(optionalActiveWorkspace))
     .query(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
@@ -1724,7 +1761,7 @@ export const contractManagementRouter = router({
 
       const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
       if (!isPlatform) {
-        const activeId = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
+        const activeId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
         if (
           !activeCompanyInvolvedInContract(
             activeId,

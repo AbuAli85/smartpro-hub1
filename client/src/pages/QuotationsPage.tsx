@@ -143,8 +143,12 @@ export default function QuotationsPage() {
   const { activeCompanyId } = useActiveCompany();
   const utils = trpc.useUtils();
 
-  const { data: quotations, isLoading } = trpc.quotations.list.useQuery({});
-  const { data: summary } = trpc.quotations.getSummary.useQuery();
+  const { data: quotations, isLoading } = trpc.quotations.list.useQuery({
+    companyId: activeCompanyId ?? undefined,
+  });
+  const { data: summary } = trpc.quotations.getSummary.useQuery({
+    companyId: activeCompanyId ?? undefined,
+  });
   const { data: crmContacts } = trpc.crm.listContacts.useQuery(
     { companyId: activeCompanyId ?? undefined },
     { enabled: activeCompanyId != null },

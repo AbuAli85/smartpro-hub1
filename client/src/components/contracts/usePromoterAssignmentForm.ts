@@ -187,16 +187,22 @@ export function usePromoterAssignmentForm({
       ? { clientCompanyId: state.clientCompanyId }
       : undefined;
 
+  const activeWorkspacePayload =
+    activeCompanyId != null ? { companyId: activeCompanyId } : {};
+
   const { data: pickers, isLoading: pickersLoading } =
-    trpc.promoterAssignments.companiesForPartyPickers.useQuery(pickersInput, {
-      enabled:
-        enabled &&
-        state.creationPerspective === "client" &&
-        activeCompanyId != null,
-    });
+    trpc.promoterAssignments.companiesForPartyPickers.useQuery(
+      { ...pickersInput, ...activeWorkspacePayload },
+      {
+        enabled:
+          enabled &&
+          state.creationPerspective === "client" &&
+          activeCompanyId != null,
+      },
+    );
 
   const { data: flowClientOptions = [], isLoading: flowClientOptionsLoading } =
-    trpc.contractManagement.promoterFlowClientOptions.useQuery(undefined, {
+    trpc.contractManagement.promoterFlowClientOptions.useQuery(activeWorkspacePayload, {
       enabled:
         enabled &&
         state.creationPerspective === "employer" &&
@@ -214,7 +220,10 @@ export function usePromoterAssignmentForm({
 
   const { data: clientSites = [], isLoading: sitesLoading } =
     trpc.contractManagement.listClientWorkLocations.useQuery(
-      { clientCompanyId: platformClientIdForSites },
+      {
+        clientCompanyId: platformClientIdForSites,
+        ...activeWorkspacePayload,
+      },
       {
         enabled:
           enabled &&
@@ -254,6 +263,7 @@ export function usePromoterAssignmentForm({
             ? state.clientCompanyId
             : undefined,
       forEmployerPerspective: state.creationPerspective === "employer",
+      ...activeWorkspacePayload,
     },
     { enabled: employerEmployeesEnabled }
   );

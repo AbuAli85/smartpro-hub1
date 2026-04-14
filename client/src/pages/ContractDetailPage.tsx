@@ -13,6 +13,7 @@
 
 import { useRef, useState } from "react";
 import { Link, useParams } from "wouter";
+import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { trpc } from "@/lib/trpc";
 import { parseOutsourcingContractLifecycleMetadata } from "@shared/agreementLifecycle";
 import { Button } from "@/components/ui/button";
@@ -227,6 +228,8 @@ const ORDERED_UPLOAD_KINDS: UploadableKind[] = [
 
 export default function ContractDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const { activeCompanyId } = useActiveCompany();
+  const workspaceCompanyId = activeCompanyId ?? undefined;
   const [showEdit, setShowEdit] = useState(false);
   const [showRenew, setShowRenew] = useState(false);
   const [showAmendment, setShowAmendment] = useState(false);
@@ -244,7 +247,7 @@ export default function ContractDetailPage() {
     error,
     refetch,
   } = trpc.contractManagement.getById.useQuery(
-    { id: id! },
+    { id: id!, companyId: workspaceCompanyId },
     { enabled: !!id, retry: 1 }
   );
 
@@ -281,17 +284,6 @@ export default function ContractDetailPage() {
       setTerminateReason("");
     },
     onError: (e) => toast.error("Terminate failed", { description: e.message }),
-  });
-
-  const renewMutation = trpc.contractManagement.renew.useMutation({
-    onSuccess: (result) => {
-      toast.success("Contract renewed", {
-        description: `New draft contract created. ID: ${result.id.slice(0, 8)}…`,
-      });
-      setShowRenew(false);
-      refetch();
-    },
-    onError: (e) => toast.error("Renew failed", { description: e.message }),
   });
 
   const amendmentMutation = trpc.contractManagement.createAmendmentDraft.useMutation({
@@ -365,6 +357,7 @@ export default function ContractDetailPage() {
     const s = editForm.state;
     updateMutation.mutate({
       id,
+      companyId: workspaceCompanyId,
       locationEn: s.locationEn.trim() || undefined,
       locationAr: s.locationAr.trim() || undefined,
       effectiveDate: s.effectiveDate || undefined,
@@ -382,7 +375,7 @@ export default function ContractDetailPage() {
 
   function handleTerminate() {
     if (!id) return;
-    terminateMutation.mutate({ id, reason: terminateReason.trim() || undefined });
+    terminateMutation.mutate({ id, companyId: workspaceCompanyId, reason: terminateReason.trim() || undefined });
   }
 
   function handleGeneratePdf() {
@@ -392,6 +385,7 @@ export default function ContractDetailPage() {
       templateKey: "outsourcing_contract_promoter_bilingual",
       entityId: id,
       outputFormat: "pdf",
+      companyId: workspaceCompanyId,
     });
   }
 
@@ -868,6 +862,7 @@ export default function ContractDetailPage() {
                   const fileBase64 = await readFileAsBase64(file);
                   await uploadDocumentMutation.mutateAsync({
                     contractId: id,
+                    companyId: workspaceCompanyId,
                     documentKind: kind,
                     fileBase64,
                     fileName: file.name,
@@ -953,7 +948,7 @@ export default function ContractDetailPage() {
                                 disabled={deleteDocumentMutation.isPending}
                                 onClick={() => {
                                   if (!confirm(`Remove "${doc.fileName ?? "this document"}"?`)) return;
-                                  deleteDocumentMutation.mutate({ documentId: doc.id });
+                                  deleteDocumentMutation.mutate({ documentId: doc.id, companyId: workspaceCompanyId });
                                 }}
                               >
                                 <Trash2 className="h-3.5 w-3.5" />
@@ -1042,7 +1037,7 @@ export default function ContractDetailPage() {
               Cancel — keep as draft
             </AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => activateMutation.mutate({ id: id! })}
+              onClick={() => activateMutation.mutate({ id: id!, companyId: workspaceCompanyId })}
               disabled={activateMutation.isPending}
               className="bg-emerald-600 hover:bg-emerald-700 gap-2"
             >
@@ -1108,6 +1103,7 @@ export default function ContractDetailPage() {
           </DialogHeader>
           <RenewForm
             contractId={id!}
+            companyId={workspaceCompanyId}
             currentExpiryDate={fmtDate(contract!.expiryDate)}
             onSuccess={() => { setShowRenew(false); refetch(); }}
             onCancel={() => setShowRenew(false)}
@@ -1128,6 +1124,7 @@ export default function ContractDetailPage() {
           </DialogHeader>
           <AmendmentDraftForm
             baseContractId={id!}
+            companyId={workspaceCompanyId}
             suggestedEffectiveDate={fmtDate(contract!.effectiveDate)}
             suggestedExpiryDate={fmtDate(contract!.expiryDate)}
             mutation={amendmentMutation}
@@ -1242,12 +1239,14 @@ function TimelineEvent({ event: ev }: { event: EventRow }) {
 
 function AmendmentDraftForm({
   baseContractId,
+  companyId,
   suggestedEffectiveDate,
   suggestedExpiryDate,
   mutation,
   onCancel,
 }: {
   baseContractId: string;
+  companyId?: number;
   suggestedEffectiveDate: string;
   suggestedExpiryDate: string;
   mutation: ReturnType<typeof trpc.contractManagement.createAmendmentDraft.useMutation>;
@@ -1292,6 +1291,7 @@ function AmendmentDraftForm({
           onClick={() =>
             mutation.mutate({
               baseContractId,
+              companyId,
               newEffectiveDate,
               newExpiryDate,
               newContractNumber: newContractNumber.trim() || undefined,
@@ -1312,11 +1312,13 @@ function AmendmentDraftForm({
 
 function RenewForm({
   contractId,
+  companyId,
   currentExpiryDate,
   onSuccess,
   onCancel,
 }: {
   contractId: string;
+  companyId?: number;
   currentExpiryDate: string;
   onSuccess: () => void;
   onCancel: () => void;
@@ -1362,6 +1364,7 @@ function RenewForm({
           onClick={() =>
             renewMutation.mutate({
               originalContractId: contractId,
+              companyId,
               newEffectiveDate,
               newExpiryDate,
               newContractNumber: newContractNumber.trim() || undefined,

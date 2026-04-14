@@ -162,6 +162,7 @@ function googleDocsReadinessDiagnosis(issue: string | undefined): string | null 
 
 function CreateContractDialog({ onSuccess }: { onSuccess: () => void }) {
   const [open, setOpen] = useState(false);
+  const { activeCompanyId } = useActiveCompany();
   const form = usePromoterAssignmentForm({ enabled: open, creationPerspective: "employer" });
   const utils = trpc.useUtils();
 
@@ -186,6 +187,7 @@ function CreateContractDialog({ onSuccess }: { onSuccess: () => void }) {
     const s = form.state;
     createMutation.mutate({
       creationPerspective: "employer",
+      companyId: activeCompanyId ?? undefined,
       clientKind: s.clientSelectionKind === "external_party" ? "external_party" : "platform",
       clientCompanyId:
         s.clientSelectionKind === "platform" ? (s.clientCompanyId as number) : undefined,
@@ -266,7 +268,10 @@ export default function ContractManagementPage() {
     error,
     refetch,
   } = trpc.contractManagement.list.useQuery(
-    statusFilter !== "all" ? { status: statusFilter as any } : undefined,
+    {
+      ...(activeCompanyId != null ? { companyId: activeCompanyId } : {}),
+      ...(statusFilter !== "all" ? { status: statusFilter as "draft" | "active" | "expired" | "terminated" | "renewed" | "suspended" } : {}),
+    },
     { retry: 1 }
   );
   type ContractRow = (typeof rawContracts)[number];
@@ -336,6 +341,7 @@ export default function ContractManagementPage() {
       templateKey: "outsourcing_contract_promoter_bilingual",
       entityId: row.id,
       outputFormat: "pdf",
+      companyId: activeCompanyId ?? undefined,
     });
   }
 

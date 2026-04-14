@@ -7,6 +7,7 @@ import { eq, and, desc, sql, or, isNull } from "drizzle-orm";
 import { invokeLLM } from "../_core/llm";
 import { storagePut } from "../storage";
 import { canAccessGlobalAdminProcedures } from "@shared/rbac";
+import { optionalActiveWorkspace } from "../_core/workspaceInput";
 import { assertQuotationTenantAccess, requireActiveCompanyId } from "../_core/tenant";
 
 type DbClient = NonNullable<Awaited<ReturnType<typeof getDb>>>;
@@ -95,7 +96,7 @@ export const quotationsRouter = router({
 
       const companyId = canAccessGlobalAdminProcedures(ctx.user)
         ? input.companyId ?? null
-        : await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
+        : await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
 
       const { crmDealId, crmContactId } = await resolveQuotationCrmLinks(db, companyId, {
         crmDealId: input.crmDealId ?? null,
@@ -165,7 +166,7 @@ export const quotationsRouter = router({
       if (canAccessGlobalAdminProcedures(ctx.user)) {
         if (input.companyId != null) conditions.push(eq(serviceQuotations.companyId, input.companyId));
       } else {
-        const cid = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
+        const cid = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
         conditions.push(
           or(
             eq(serviceQuotations.companyId, cid),
@@ -463,7 +464,9 @@ Terms: ${quotation.terms ?? "Payment due within 30 days. All prices in Omani Ria
     }),
 
   // ── Summary stats ────────────────────────────────────────────────────────────
-  getSummary: protectedProcedure.query(async ({ ctx }) => {
+  getSummary: protectedProcedure
+    .input(optionalActiveWorkspace.optional())
+    .query(async ({ ctx, input }) => {
     const db = await getDb();
     if (!db) return { total: 0, draft: 0, sent: 0, accepted: 0, declined: 0, totalValueOmr: 0 };
 
@@ -480,7 +483,10 @@ Terms: ${quotation.terms ?? "Payment due within 30 days. All prices in Omani Ria
       : await base
           .where(
             or(
-              eq(serviceQuotations.companyId, await requireActiveCompanyId(ctx.user.id, undefined, ctx.user)),
+              eq(
+                serviceQuotations.companyId,
+                await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user),
+              ),
               and(isNull(serviceQuotations.companyId), eq(serviceQuotations.createdBy, ctx.user.id)),
             )!,
           )

@@ -5,6 +5,7 @@ import {
   requireNotAuditor,
 } from "../_core/membership";
 import { getGoogleDocsEnvDiagnostic } from "../_core/parseServiceAccountJson";
+import { optionalActiveWorkspace } from "../_core/workspaceInput";
 import { requireActiveCompanyId } from "../_core/tenant";
 import { protectedProcedure, router } from "../_core/trpc";
 import {
@@ -53,16 +54,18 @@ export const documentGenerationRouter = router({
 
   generate: protectedProcedure
     .input(
-      z.object({
-        templateKey: z.string().min(1),
-        entityId: z.string().uuid(),
-        outputFormat: z.enum(["pdf"]),
-        /** Force a new Google run even if a recent PDF already exists for this fingerprint. */
-        regenerate: z.boolean().optional(),
-      })
+      z
+        .object({
+          templateKey: z.string().min(1),
+          entityId: z.string().uuid(),
+          outputFormat: z.enum(["pdf"]),
+          /** Force a new Google run even if a recent PDF already exists for this fingerprint. */
+          regenerate: z.boolean().optional(),
+        })
+        .merge(optionalActiveWorkspace),
     )
     .mutation(async ({ ctx, input }) => {
-      const companyId = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const membership = await getActiveCompanyMembership(ctx.user.id, companyId);
       if (!membership) {
         throw new TRPCError({ code: "FORBIDDEN", message: "No company membership" });

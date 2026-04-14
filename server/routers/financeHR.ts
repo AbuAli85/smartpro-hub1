@@ -8,6 +8,7 @@ import {
   employees, payrollRuns, payrollLineItems, companyMembers,
 } from "../../drizzle/schema";
 import type { User } from "../../drizzle/schema";
+import { optionalActiveWorkspace } from "../_core/workspaceInput";
 import { requireActiveCompanyId } from "../_core/tenant";
 import { canAccessGlobalAdminProcedures } from "@shared/rbac";
 import { HR_PERF, memberHasHrPerformancePermission } from "@shared/hrPerformancePermissions";
@@ -98,11 +99,11 @@ export const financeHRRouter = router({
       currency: z.string().default("OMR"),
       description: z.string().min(3),
       receiptUrl: z.string().optional(),
-    }))
+    }).merge(optionalActiveWorkspace))
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      const companyId = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const emp = await resolveEmployee(ctx.user.id, companyId);
       const empUserId = emp?.id ?? ctx.user.id;
       await db.insert(expenseClaims).values({
@@ -120,11 +121,11 @@ export const financeHRRouter = router({
     }),
 
   myExpenses: protectedProcedure
-    .input(z.object({ status: z.string().optional() }).optional())
+    .input(z.object({ status: z.string().optional() }).merge(optionalActiveWorkspace).optional())
     .query(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) return [];
-      const companyId = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
+      const companyId = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user);
       const emp = await resolveEmployee(ctx.user.id, companyId);
       const empUserId = emp?.id ?? ctx.user.id;
       const conditions = [eq(expenseClaims.companyId, companyId), eq(expenseClaims.employeeUserId, empUserId)];
@@ -135,11 +136,11 @@ export const financeHRRouter = router({
     }),
 
   cancelExpense: protectedProcedure
-    .input(z.object({ id: z.number() }))
+    .input(z.object({ id: z.number() }).merge(optionalActiveWorkspace))
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      const companyId = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const emp = await resolveEmployee(ctx.user.id, companyId);
       const empUserId = emp?.id ?? ctx.user.id;
       await db.update(expenseClaims)
@@ -163,7 +164,7 @@ export const financeHRRouter = router({
     .query(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) return [];
-      const companyId = input?.companyId ?? await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
+      const companyId = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user);
       const conditions = [eq(expenseClaims.companyId, companyId)];
       if (input?.status && input.status !== "all") {
         conditions.push(eq(expenseClaims.expenseStatus, input.status as "pending" | "approved" | "rejected" | "cancelled"));
@@ -191,11 +192,11 @@ export const financeHRRouter = router({
       id: z.number(),
       action: z.enum(["approved", "rejected"]),
       adminNotes: z.string().optional(),
-    }))
+    }).merge(optionalActiveWorkspace))
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      const companyId = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       await db.update(expenseClaims)
         .set({
           expenseStatus: input.action,
@@ -212,7 +213,7 @@ export const financeHRRouter = router({
     .query(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) return { total: 0, pending: 0, approved: 0, rejected: 0, byCategory: [] };
-      const companyId = input?.companyId ?? await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
+      const companyId = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user);
       const year = input?.year ?? new Date().getFullYear();
       const fromDate = `${year}-01-01`;
       const toDate = `${year}-12-31`;
@@ -240,7 +241,7 @@ export const financeHRRouter = router({
     .query(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) return null;
-      const companyId = input?.companyId ?? await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
+      const companyId = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user);
       const year = input?.year ?? new Date().getFullYear();
       // Payroll cost per month from payrollRuns
       const payrollData = await db.select().from(payrollRuns)
@@ -291,10 +292,12 @@ export const financeHRRouter = router({
     }),
 
   // ─── Training Records (Employee) ─────────────────────────────────────────
-  myTraining: protectedProcedure.query(async ({ ctx }) => {
+  myTraining: protectedProcedure
+    .input(optionalActiveWorkspace.optional())
+    .query(async ({ ctx, input }) => {
     const db = await getDb();
     if (!db) return [];
-    const companyId = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
+    const companyId = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user);
     const emp = await resolveEmployee(ctx.user.id, companyId);
     const empUserId = emp?.id ?? ctx.user.id;
     return db.select().from(trainingRecords)
@@ -306,11 +309,11 @@ export const financeHRRouter = router({
     .input(z.object({
       id: z.number(),
       status: z.enum(["assigned", "in_progress", "completed", "overdue"]),
-    }))
+    }).merge(optionalActiveWorkspace))
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      const companyId = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const emp = await resolveEmployee(ctx.user.id, companyId);
       const empUserId = emp?.id ?? ctx.user.id;
       const [row] = await db
@@ -361,7 +364,7 @@ export const financeHRRouter = router({
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      const companyId = input.companyId ?? await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       await assertCanManageTraining(ctx.user, companyId);
 
       await db.transaction(async (tx) => {
@@ -409,7 +412,7 @@ export const financeHRRouter = router({
     .query(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) return [];
-      const companyId = input?.companyId ?? await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
+      const companyId = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user);
       await assertCanReadHrPerformanceOverview(ctx.user, companyId);
       const rows = await db.select({
         training: trainingRecords,
@@ -428,10 +431,12 @@ export const financeHRRouter = router({
     }),
 
   // ─── Self Reviews ─────────────────────────────────────────────────────────
-  mySelfReviews: protectedProcedure.query(async ({ ctx }) => {
+  mySelfReviews: protectedProcedure
+    .input(optionalActiveWorkspace.optional())
+    .query(async ({ ctx, input }) => {
     const db = await getDb();
     if (!db) return [];
-    const companyId = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
+    const companyId = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user);
     const emp = await resolveEmployee(ctx.user.id, companyId);
     const empUserId = emp?.id ?? ctx.user.id;
     return db.select().from(employeeSelfReviews)
@@ -445,11 +450,11 @@ export const financeHRRouter = router({
       selfRating: z.number().min(1).max(5),
       selfAchievements: z.string().min(10),
       selfGoals: z.string().min(10),
-    }))
+    }).merge(optionalActiveWorkspace))
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      const companyId = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const emp = await resolveEmployee(ctx.user.id, companyId);
       const empUserId = emp?.id ?? ctx.user.id;
       await db.insert(employeeSelfReviews).values({
@@ -471,11 +476,11 @@ export const financeHRRouter = router({
       trainingStatus: z.enum(["assigned", "in_progress", "completed", "overdue"]).optional(),
       score: z.number().min(0).max(100).optional(),
       certificateUrl: z.string().max(1000).optional().nullable(),
-    }))
+    }).merge(optionalActiveWorkspace))
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      const companyId = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       await assertCanManageTraining(ctx.user, companyId);
 
       const [row] = await db.select().from(trainingRecords).where(eq(trainingRecords.id, input.id)).limit(1);
@@ -542,7 +547,7 @@ export const financeHRRouter = router({
     .query(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) return [];
-      const companyId = input?.companyId ?? await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
+      const companyId = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user);
       await assertCanReadSelfReviews(ctx.user, companyId);
 
       const rows = await db
@@ -572,11 +577,11 @@ export const financeHRRouter = router({
       managerFeedback: z.string().optional(),
       goalsNextPeriod: z.string().optional(),
       reviewStatus: z.enum(["draft", "submitted", "reviewed", "acknowledged"]).optional(),
-    }))
+    }).merge(optionalActiveWorkspace))
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      const companyId = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
+      const companyId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       await assertCanReviewSelfReviews(ctx.user, companyId);
 
       const [row] = await db.select().from(employeeSelfReviews).where(eq(employeeSelfReviews.id, input.id)).limit(1);
@@ -648,7 +653,7 @@ export const financeHRRouter = router({
     .query(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) return null;
-      const companyId = input?.companyId ?? (await requireActiveCompanyId(ctx.user.id, undefined, ctx.user));
+      const companyId = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user);
       await assertCanReadHrPerformanceOverview(ctx.user, companyId);
       const year = input?.year ?? new Date().getFullYear();
       const month = input?.month ?? new Date().getMonth() + 1;

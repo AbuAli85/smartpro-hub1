@@ -30,6 +30,7 @@ describe("normalizeEmail", () => {
 describe("requireActiveCompanyId", () => {
   beforeEach(() => {
     vi.mocked(db.getUserCompanies).mockReset();
+    vi.mocked(db.getUserCompanyById).mockReset();
   });
 
   it("throws FORBIDDEN when user has no company", async () => {
@@ -48,6 +49,13 @@ describe("requireActiveCompanyId", () => {
       { company: { id: 2 }, member: {} },
     ] as any);
     await expect(requireActiveCompanyId(10)).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  });
+
+  it("resolves to explicit companyId via membership lookup when user has multiple companies", async () => {
+    vi.mocked(db.getUserCompanyById).mockResolvedValue({ company: { id: 2 }, member: {} } as any);
+    await expect(requireActiveCompanyId(10, 2)).resolves.toBe(2);
+    expect(db.getUserCompanyById).toHaveBeenCalledWith(10, 2);
+    expect(db.getUserCompanies).not.toHaveBeenCalled();
   });
 
   it("does not let super_admin implicit workspace skip multi-membership disambiguation", async () => {

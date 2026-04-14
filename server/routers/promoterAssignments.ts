@@ -23,6 +23,7 @@ import {
   type InsertPromoterAssignment,
 } from "../../drizzle/schema";
 import { getActiveCompanyMembership, requireNotAuditor } from "../_core/membership";
+import { optionalActiveWorkspace } from "../_core/workspaceInput";
 import { requireActiveCompanyId } from "../_core/tenant";
 import { protectedProcedure, router } from "../_core/trpc";
 import {
@@ -56,9 +57,14 @@ export const promoterAssignmentsRouter = router({
   // ─── COMPANY / PARTY PICKERS ────────────────────────────────────────────────
 
   companiesForPartyPickers: protectedProcedure
-    .input(z.object({ clientCompanyId: z.number().int().positive().optional() }).optional())
+    .input(
+      z
+        .object({ clientCompanyId: z.number().int().positive().optional() })
+        .merge(optionalActiveWorkspace)
+        .optional(),
+    )
     .query(async ({ ctx, input }) => {
-      const activeId = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
+      const activeId = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user);
       await requireCanManagePromoterAssignments(ctx.user, activeId);
       const db = await getDb();
       if (!db) {
@@ -105,13 +111,13 @@ export const promoterAssignmentsRouter = router({
 
   /** Attendance sites belonging to the first party (client) — work location picker. */
   listClientWorkLocations: protectedProcedure
-    .input(z.object({ clientCompanyId: z.number().int().positive() }))
+    .input(z.object({ clientCompanyId: z.number().int().positive() }).merge(optionalActiveWorkspace))
     .query(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) return [];
       const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
       if (!isPlatform) {
-        await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
+        await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
         await requireCanManagePromoterAssignments(ctx.user, input.clientCompanyId);
       }
       return db
@@ -136,17 +142,19 @@ export const promoterAssignmentsRouter = router({
   /** Active and on-leave employees of the employer (second party). */
   listEmployerEmployees: protectedProcedure
     .input(
-      z.object({
-        employerCompanyId: z.number().int().positive(),
-        clientCompanyId: z.number().int().positive().optional(),
-        forEmployerPerspective: z.boolean().optional(),
-      })
+      z
+        .object({
+          employerCompanyId: z.number().int().positive(),
+          clientCompanyId: z.number().int().positive().optional(),
+          forEmployerPerspective: z.boolean().optional(),
+        })
+        .merge(optionalActiveWorkspace),
     )
     .query(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) return [];
       const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
-      const activeId = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
+      const activeId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
 
       if (isPlatform && input.clientCompanyId == null && !input.forEmployerPerspective) {
         throw new TRPCError({
@@ -205,8 +213,10 @@ export const promoterAssignmentsRouter = router({
    * ADR-001: a company sees contracts where it is either first_party OR second_party.
    * Previously only first_party (companyId) was checked — employer was invisible.
    */
-  list: protectedProcedure.query(async ({ ctx }) => {
-    const activeId = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
+  list: protectedProcedure
+    .input(optionalActiveWorkspace.optional())
+    .query(async ({ ctx, input }) => {
+    const activeId = await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user);
     await requireCanManagePromoterAssignments(ctx.user, activeId);
     const db = await getDb();
     if (!db) return [];
@@ -295,12 +305,12 @@ export const promoterAssignmentsRouter = router({
   // ─── DELETE ────────────────────────────────────────────────────────────────
 
   delete: protectedProcedure
-    .input(z.object({ id: z.string().min(1) }))
+    .input(z.object({ id: z.string().min(1) }).merge(optionalActiveWorkspace))
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
 
-      const activeId = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
+      const activeId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
       const [row] = await db
         .select({ id: promoterAssignments.id, companyId: promoterAssignments.companyId })
         .from(promoterAssignments)
@@ -330,25 +340,27 @@ export const promoterAssignmentsRouter = router({
    */
   create: protectedProcedure
     .input(
-      z.object({
-        clientCompanyId: z.number().int().positive(),
-        employerCompanyId: z.number().int().positive(),
-        promoterEmployeeId: z.number().int().positive(),
-        locationAr: z.string().min(1),
-        locationEn: z.string().min(1),
-        startDate: z.string(),
-        endDate: z.string(),
-        contractReferenceNumber: z.string().optional(),
-        issueDate: z.string().optional(),
-        clientSiteId: z.number().int().positive().optional(),
-        status: z.enum(["active", "inactive", "expired"]).optional(),
-        // Identity fields — optional for back-compat, encouraged going forward
-        civilId: z.string().max(50).optional(),
-        passportNumber: z.string().max(50).optional(),
-        passportExpiry: z.string().optional(),
-        nationality: z.string().max(100).optional(),
-        jobTitleEn: z.string().max(255).optional(),
-      })
+      z
+        .object({
+          clientCompanyId: z.number().int().positive(),
+          employerCompanyId: z.number().int().positive(),
+          promoterEmployeeId: z.number().int().positive(),
+          locationAr: z.string().min(1),
+          locationEn: z.string().min(1),
+          startDate: z.string(),
+          endDate: z.string(),
+          contractReferenceNumber: z.string().optional(),
+          issueDate: z.string().optional(),
+          clientSiteId: z.number().int().positive().optional(),
+          status: z.enum(["active", "inactive", "expired"]).optional(),
+          // Identity fields — optional for back-compat, encouraged going forward
+          civilId: z.string().max(50).optional(),
+          passportNumber: z.string().max(50).optional(),
+          passportExpiry: z.string().optional(),
+          nationality: z.string().max(100).optional(),
+          jobTitleEn: z.string().max(255).optional(),
+        })
+        .merge(optionalActiveWorkspace),
     )
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
@@ -356,7 +368,7 @@ export const promoterAssignmentsRouter = router({
 
       const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
       if (!isPlatform) {
-        await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
+        await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
         await requireCanManagePromoterAssignments(ctx.user, input.clientCompanyId);
       }
 
@@ -521,21 +533,23 @@ export const promoterAssignmentsRouter = router({
    */
   update: protectedProcedure
     .input(
-      z.object({
-        id: z.string().min(1),
-        locationAr: z.string().min(1).optional(),
-        locationEn: z.string().min(1).optional(),
-        startDate: z.string().optional(),
-        endDate: z.string().optional(),
-        contractReferenceNumber: z.string().optional(),
-        issueDate: z.string().optional(),
-        status: z.enum(["active", "inactive", "expired"]).optional(),
-        civilId: z.string().max(50).optional(),
-        passportNumber: z.string().max(50).optional(),
-        passportExpiry: z.string().optional(),
-        nationality: z.string().max(100).optional(),
-        jobTitleEn: z.string().max(255).optional(),
-      })
+      z
+        .object({
+          id: z.string().min(1),
+          locationAr: z.string().min(1).optional(),
+          locationEn: z.string().min(1).optional(),
+          startDate: z.string().optional(),
+          endDate: z.string().optional(),
+          contractReferenceNumber: z.string().optional(),
+          issueDate: z.string().optional(),
+          status: z.enum(["active", "inactive", "expired"]).optional(),
+          civilId: z.string().max(50).optional(),
+          passportNumber: z.string().max(50).optional(),
+          passportExpiry: z.string().optional(),
+          nationality: z.string().max(100).optional(),
+          jobTitleEn: z.string().max(255).optional(),
+        })
+        .merge(optionalActiveWorkspace),
     )
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
@@ -554,7 +568,7 @@ export const promoterAssignmentsRouter = router({
 
       const isPlatform = canAccessGlobalAdminProcedures(ctx.user);
       if (!isPlatform) {
-        const activeId = await requireActiveCompanyId(ctx.user.id, undefined, ctx.user);
+        const activeId = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
         // Only first party can edit
         if (existing.companyId !== activeId) {
           throw new TRPCError({ code: "FORBIDDEN", message: "Only the first party can edit this assignment" });

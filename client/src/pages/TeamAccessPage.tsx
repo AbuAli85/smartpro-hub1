@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { trpc, type RouterOutputs } from "@/lib/trpc";
 
 /** Server row shape for HR + access — avoids `as any` in canonical mapping (Phase 4.4). */
@@ -173,6 +173,8 @@ const TA = {
   accessIntelTopIssue: "Top issue",
 } as const;
 
+type MainTab = "members" | "employees" | "invites" | "roles";
+
 type CanonicalPrimaryAction =
   | "NONE"
   | "GRANT_ACCESS"
@@ -270,6 +272,23 @@ export function matchesEmployeeListFilter(
   if (filter === "all") return true;
   if (filter === "needs_attention") return employeeNeedsAttention(emp.canonicalFlags);
   return emp.canonicalAccessState === filter;
+}
+
+/** Map Access Intelligence `topIssues[].key` to the closest HR Employees filter. */
+export function topIssueKeyToEmployeeFilter(key: string): EmployeeListFilter {
+  if (key === "ACCOUNT_NOT_LINKED" || key === "MISSING_EMAIL" || key === "IDENTITY_CONFLICT") {
+    return "needs_attention";
+  }
+  if (key.startsWith("STATE_REASON:")) {
+    const r = key.slice("STATE_REASON:".length);
+    if (r === "INVITED_PENDING") return "INVITED";
+    if (r.startsWith("HR_ONLY")) return "HR_ONLY";
+    if (r.startsWith("CONFLICT_")) return "needs_attention";
+    if (r === "ACTIVE_MEMBER_LINK_DRIFT" || r === "SUSPENDED_MEMBER_LINK_DRIFT") return "needs_attention";
+    if (r === "ACTIVE_MEMBER") return "ACTIVE";
+    if (r === "SUSPENDED_MEMBER") return "SUSPENDED";
+  }
+  return "needs_attention";
 }
 
 /** Phase 4.3B — human-readable conflict diagnostics (mirrors server `stateReason`). */
@@ -439,6 +458,8 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
   const { user } = useAuth();
   const utils = trpc.useUtils();
   const { activeCompanyId } = useActiveCompany();
+  const hrDirectoryRef = useRef<HTMLDivElement>(null);
+  const [mainTab, setMainTab] = useState<MainTab>(() => initialTab as MainTab);
 
   // Data
   const { data: employeesWithAccess = [], isLoading: loadingEmployees, refetch } = trpc.companies.employeesWithAccess.useQuery(
@@ -661,6 +682,32 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
   const directAccessOnly = activeMembers.filter((m) => !linkedMemberIds.has(m.memberId)).length;
   const pendingInvitesList = pendingInvites.filter((i) => !i.acceptedAt && !i.revokedAt && new Date(i.expiresAt) > new Date());
 
+  const focusHrDirectory = () => {
+    requestAnimationFrame(() => {
+      hrDirectoryRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  };
+
+  const goToHrEmployees = (filter: EmployeeListFilter) => {
+    setMainTab("employees");
+    setEmployeeListFilter(filter);
+    setSearch("");
+    focusHrDirectory();
+  };
+
+  const goToMembersTab = () => {
+    setMainTab("members");
+    setSearch("");
+  };
+
+  const goToInvitesTab = () => {
+    if (pendingInvitesList.length === 0) {
+      toast.info("No pending invites in the queue.");
+      return;
+    }
+    setMainTab("invites");
+  };
+
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-6">
       {/* Header */}
@@ -693,21 +740,46 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
         <div className="rounded-lg border border-slate-200 bg-slate-50/90 px-4 py-3 text-xs text-slate-700">
           <div className="font-semibold text-slate-800 mb-2">{TA.accessIntelTitle}</div>
           <div className="flex flex-wrap gap-x-5 gap-y-2">
-            <span>
+            <button
+              type="button"
+              title="Open HR Employees tab with HR only (no login) filter"
+              onClick={() => goToHrEmployees("HR_ONLY")}
+              className="text-left rounded-sm hover:underline hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
               {TA.badgeHROnly}: <strong>{accessIntel.core.hrOnly}</strong>
-            </span>
-            <span>
+            </button>
+            <button
+              type="button"
+              title="Open HR Employees tab with Needs attention filter"
+              onClick={() => goToHrEmployees("needs_attention")}
+              className="text-left rounded-sm hover:underline hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
               {TA.statNeedsAttention}: <strong>{accessIntel.core.needsAttention}</strong>
-            </span>
-            <span>
+            </button>
+            <button
+              type="button"
+              title="Open Active Members tab"
+              onClick={goToMembersTab}
+              className="text-left rounded-sm hover:underline hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
               {TA.statDirectAccessOnly}: <strong>{accessIntel.core.directAccessOnly}</strong>
-            </span>
-            <span>
+            </button>
+            <button
+              type="button"
+              title="Open HR Employees tab with Pending invites (HR rows) filter"
+              onClick={() => goToHrEmployees("INVITED")}
+              className="text-left rounded-sm hover:underline hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
               {TA.accessIntelHrInviteRows}: <strong>{accessIntel.core.invitePendingHrRows}</strong>
-            </span>
-            <span>
+            </button>
+            <button
+              type="button"
+              title="Open Pending Invites tab"
+              onClick={goToInvitesTab}
+              className="text-left rounded-sm hover:underline hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
               {TA.accessIntelInviteQueue}: <strong>{accessIntel.invitesTable.pendingCount}</strong>
-            </span>
+            </button>
           </div>
           {accessIntel.invitesTable.soonestExpiryDays != null && (
             <p className="mt-1.5 text-slate-600">
@@ -720,10 +792,15 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
           )}
           <p className="text-[11px] text-slate-500 mt-2 leading-snug">{TA.accessIntelFootnote}</p>
           {accessIntel.topIssues[0] && (
-            <p className="mt-2 text-slate-700">
+            <button
+              type="button"
+              title="Open HR Employees tab with the closest matching filter for this issue"
+              onClick={() => goToHrEmployees(topIssueKeyToEmployeeFilter(accessIntel.topIssues[0].key))}
+              className="mt-2 block w-full text-left rounded-sm hover:underline hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring text-slate-700"
+            >
               <span className="text-slate-500">{TA.accessIntelTopIssue}:</span>{" "}
               <strong>{accessIntel.topIssues[0].label}</strong> ({accessIntel.topIssues[0].count})
-            </p>
+            </button>
           )}
         </div>
       )}
@@ -739,7 +816,7 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
         <button
           type="button"
-          onClick={() => setEmployeeListFilter("all")}
+          onClick={() => goToHrEmployees("all")}
           className="bg-white border rounded-xl p-4 flex items-center gap-3 w-full text-left transition-colors hover:bg-gray-50/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center shrink-0">
@@ -750,7 +827,11 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
             <div className="text-xs text-gray-500">{TA.statTotalEmployees}</div>
           </div>
         </button>
-        <div className="bg-white border rounded-xl p-4 flex items-center gap-3">
+        <button
+          type="button"
+          onClick={goToMembersTab}
+          className="bg-white border rounded-xl p-4 flex items-center gap-3 w-full text-left transition-colors hover:bg-gray-50/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
           <div className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center shrink-0">
             <Link2Off size={18} className="text-slate-600" />
           </div>
@@ -758,10 +839,10 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
             <div className="text-2xl font-bold text-slate-800">{directAccessOnly}</div>
             <div className="text-xs text-gray-500">{TA.statDirectAccessOnly}</div>
           </div>
-        </div>
+        </button>
         <button
           type="button"
-          onClick={() => setEmployeeListFilter("ACTIVE")}
+          onClick={() => goToHrEmployees("ACTIVE")}
           className="bg-white border rounded-xl p-4 flex items-center gap-3 w-full text-left transition-colors hover:bg-gray-50/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center shrink-0">
@@ -774,7 +855,7 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
         </button>
         <button
           type="button"
-          onClick={() => setEmployeeListFilter("INVITED")}
+          onClick={() => goToHrEmployees("INVITED")}
           className="bg-white border rounded-xl p-4 flex items-center gap-3 w-full text-left transition-colors hover:bg-gray-50/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <div className="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center shrink-0">
@@ -787,7 +868,7 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
         </button>
         <button
           type="button"
-          onClick={() => setEmployeeListFilter("SUSPENDED")}
+          onClick={() => goToHrEmployees("SUSPENDED")}
           className="bg-white border rounded-xl p-4 flex items-center gap-3 w-full text-left transition-colors hover:bg-gray-50/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <div className="w-10 h-10 rounded-lg bg-red-100 flex items-center justify-center shrink-0">
@@ -800,7 +881,7 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
         </button>
         <button
           type="button"
-          onClick={() => setEmployeeListFilter("needs_attention")}
+          onClick={() => goToHrEmployees("needs_attention")}
           className={`border rounded-xl p-4 flex items-center gap-3 w-full text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
             needsAttention > 0 ? "bg-orange-50/80 border-orange-200 hover:bg-orange-50" : "bg-white hover:bg-gray-50/90"
           }`}
@@ -820,7 +901,7 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
       </div>
 
       {/* Main Tabs */}
-      <Tabs defaultValue={initialTab}>
+      <Tabs value={mainTab} onValueChange={(v) => setMainTab(v as MainTab)}>
         <TabsList className="mb-4">
           <TabsTrigger value="members" className="gap-2">
             <CheckCircle2 size={14} /> {TA.tabActiveMembers} ({activeMembers.length})
@@ -841,7 +922,7 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
 
         {/* ── Tab 1: All Employees ── */}
         <TabsContent value="employees">
-          <Card>
+          <Card ref={hrDirectoryRef}>
             <CardHeader className="pb-3">
               <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
                 <CardTitle className="text-base font-semibold text-gray-800">

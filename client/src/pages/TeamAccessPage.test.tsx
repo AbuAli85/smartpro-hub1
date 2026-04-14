@@ -3,7 +3,7 @@ import "@testing-library/jest-dom/vitest";
 import React from "react";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import TeamAccessPage, { matchesEmployeeListFilter } from "./TeamAccessPage";
+import TeamAccessPage, { matchesEmployeeListFilter, topIssueKeyToEmployeeFilter } from "./TeamAccessPage";
 
 const { mockState, mockMutation } = vi.hoisted(() => ({
   mockState: {
@@ -332,5 +332,26 @@ describe("matchesEmployeeListFilter", () => {
     expect(count("SUSPENDED")).toBe(1);
     expect(count("HR_ONLY")).toBe(1);
     expect(count("needs_attention")).toBe(2);
+  });
+});
+
+describe("topIssueKeyToEmployeeFilter", () => {
+  it("maps synthetic keys to needs_attention", () => {
+    expect(topIssueKeyToEmployeeFilter("ACCOUNT_NOT_LINKED")).toBe("needs_attention");
+    expect(topIssueKeyToEmployeeFilter("MISSING_EMAIL")).toBe("needs_attention");
+    expect(topIssueKeyToEmployeeFilter("IDENTITY_CONFLICT")).toBe("needs_attention");
+  });
+
+  it("maps STATE_REASON keys to the closest HR Employees filter", () => {
+    expect(topIssueKeyToEmployeeFilter("STATE_REASON:INVITED_PENDING")).toBe("INVITED");
+    expect(topIssueKeyToEmployeeFilter("STATE_REASON:HR_ONLY")).toBe("HR_ONLY");
+    expect(topIssueKeyToEmployeeFilter("STATE_REASON:CONFLICT_EMAIL_MISMATCH")).toBe("needs_attention");
+    expect(topIssueKeyToEmployeeFilter("STATE_REASON:ACTIVE_MEMBER_LINK_DRIFT")).toBe("needs_attention");
+    expect(topIssueKeyToEmployeeFilter("STATE_REASON:ACTIVE_MEMBER")).toBe("ACTIVE");
+    expect(topIssueKeyToEmployeeFilter("STATE_REASON:SUSPENDED_MEMBER")).toBe("SUSPENDED");
+  });
+
+  it("defaults unknown keys to needs_attention", () => {
+    expect(topIssueKeyToEmployeeFilter("UNKNOWN_BUCKET")).toBe("needs_attention");
   });
 });

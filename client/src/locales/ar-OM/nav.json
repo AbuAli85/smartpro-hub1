@@ -1,4 +1,13 @@
 {
+  "controlGroup": "التحكم",
+  "companyGroup": "الشركة",
+  "peopleHrGroup": "الأشخاص والموارد البشرية",
+  "govComplianceGroup": "الحكومة والامتثال",
+  "proSharedGroup": "المندوب والمندوب العماني",
+  "sanadPartnersGroup": "سند والشركاء",
+  "accessPermissionsGroup": "الوصول والصلاحيات",
+  "platformAdminGroup": "المنصة والإدارة",
+  "operationsHub": "مركز العمليات",
   "overview": "نظرة عامة",
   "people": "الأشخاص",
   "access": "صلاحيات الوصول",

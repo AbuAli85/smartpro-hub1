@@ -1,16 +1,55 @@
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { Link, useLocation } from "wouter";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { cn } from "@/lib/utils";
 import {
   type NavGroupDef,
   type NavItemDef,
   type NavLeafDef,
   type NavBranchDef,
+  type NavTier,
   isNavLeafActive,
   branchShouldShowOpen,
+  groupContainsActiveRoute,
 } from "@/config/platformNav";
+
+const NAV_GROUP_OPEN_STORAGE_KEY = "smartpro-nav-group-open";
+
+function readStoredGroupOpen(): Record<string, boolean> {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = sessionStorage.getItem(NAV_GROUP_OPEN_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as unknown;
+    if (parsed == null || typeof parsed !== "object") return {};
+    return parsed as Record<string, boolean>;
+  } catch {
+    return {};
+  }
+}
+
+function writeStoredGroupOpen(next: Record<string, boolean>): void {
+  try {
+    sessionStorage.setItem(NAV_GROUP_OPEN_STORAGE_KEY, JSON.stringify(next));
+  } catch {
+    /* ignore quota */
+  }
+}
+
+function tierHeaderClass(tier: NavTier | undefined): string {
+  switch (tier ?? "primary") {
+    case "primary":
+      return "text-white/42";
+    case "secondary":
+      return "text-white/32";
+    case "tertiary":
+      return "text-white/24";
+    default:
+      return "text-white/42";
+  }
+}
 
 function NavLeafLink({
   item,
@@ -33,10 +72,14 @@ function NavLeafLink({
       onClick={onClose}
       data-nav-intent={item.intent}
       data-hub-primary={item.hubPrimary ? "true" : undefined}
-      className={`sidebar-nav-item sidebar-nav-item--child ${item.hubPrimary ? "sidebar-nav-item--hub" : ""} ${active ? "active" : ""}`}
+      className={cn(
+        "sidebar-nav-item sidebar-nav-item--child",
+        item.hubPrimary && "sidebar-nav-item--hub",
+        active && "active",
+      )}
     >
       <Icon size={16} className="shrink-0 opacity-90" aria-hidden />
-      <span className="flex-1 text-[13px]">{t(item.labelKey, item.defaultLabel)}</span>
+      <span className="flex-1 text-[13px] leading-snug">{t(item.labelKey, item.defaultLabel)}</span>
       {item.href === "/workforce/profile-change-requests" && pendingProfileReq > 0 ? (
         <Badge
           variant="secondary"
@@ -45,7 +88,7 @@ function NavLeafLink({
           {pendingProfileReq > 99 ? "99+" : pendingProfileReq}
         </Badge>
       ) : null}
-      {active ? <ChevronRight size={14} className="opacity-60 shrink-0" aria-hidden /> : null}
+      {active ? <ChevronRight size={14} className="opacity-55 shrink-0" aria-hidden /> : null}
     </Link>
   );
 }
@@ -85,13 +128,17 @@ function NavBranch({
       <CollapsibleTrigger
         type="button"
         data-nav-intent={item.intent}
-        className={`sidebar-nav-item w-full text-left ${pathActive ? "bg-white/8 ring-1 ring-white/10" : ""}`}
+        aria-expanded={open}
+        className={cn(
+          "sidebar-nav-item w-full text-left sidebar-nav-branch-trigger",
+          pathActive && "sidebar-nav-branch-trigger--active",
+        )}
       >
         <Icon size={18} className="shrink-0 opacity-90" aria-hidden />
-        <span className="flex-1">{t(item.labelKey, item.defaultLabel)}</span>
+        <span className="flex-1 text-[13px] leading-snug">{t(item.labelKey, item.defaultLabel)}</span>
         <ChevronDown
           size={14}
-          className={`shrink-0 opacity-50 transition-transform ${open ? "rotate-180" : ""}`}
+          className={cn("shrink-0 opacity-50 transition-transform", open && "rotate-180")}
           aria-hidden
         />
       </CollapsibleTrigger>
@@ -143,10 +190,10 @@ function NavItemRow({
       onClick={onClose}
       data-nav-intent={item.intent}
       data-hub-primary={item.hubPrimary ? "true" : undefined}
-      className={`sidebar-nav-item ${item.hubPrimary ? "sidebar-nav-item--hub" : ""} ${active ? "active" : ""}`}
+      className={cn("sidebar-nav-item", item.hubPrimary && "sidebar-nav-item--hub", active && "active")}
     >
       <Icon size={18} aria-hidden />
-      <span className="flex-1">{t(item.labelKey, item.defaultLabel)}</span>
+      <span className="flex-1 text-[13px] leading-snug">{t(item.labelKey, item.defaultLabel)}</span>
       {item.href === "/workforce/profile-change-requests" && pendingProfileReq > 0 ? (
         <Badge
           variant="secondary"
@@ -155,7 +202,7 @@ function NavItemRow({
           {pendingProfileReq > 99 ? "99+" : pendingProfileReq}
         </Badge>
       ) : null}
-      {active ? <ChevronRight size={14} className="opacity-60 shrink-0" aria-hidden /> : null}
+      {active ? <ChevronRight size={14} className="opacity-55 shrink-0" aria-hidden /> : null}
     </Link>
   );
 }
@@ -174,31 +221,102 @@ export function PlatformSidebarNav({
   pendingProfileReq: number;
 }) {
   const [location] = useLocation();
+  const [groupOpenOverride, setGroupOpenOverride] = useState<Record<string, boolean>>(() => readStoredGroupOpen());
+
+  const resolveGroupOpen = useCallback(
+    (group: NavGroupDef): boolean => {
+      const active = groupContainsActiveRoute(group, location);
+      if (active) return true;
+      if (!group.collapsible) return true;
+      const o = groupOpenOverride[group.id];
+      if (o !== undefined) return o;
+      return !group.defaultCollapsed;
+    },
+    [groupOpenOverride, location],
+  );
+
+  const setGroupOpen = useCallback((group: NavGroupDef, nextOpen: boolean) => {
+    if (groupContainsActiveRoute(group, location)) return;
+    setGroupOpenOverride((prev) => {
+      const n = { ...prev, [group.id]: nextOpen };
+      writeStoredGroupOpen(n);
+      return n;
+    });
+  }, [location]);
 
   return (
-    <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-5" aria-label="Primary">
-      {groups.map((group) => {
+    <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-6" aria-label="Primary">
+      {groups.map((group, index) => {
+        const tier = group.tier ?? "primary";
         const title =
           group.id === "platform" && !platformNav
             ? t("yourCompanyShell", "Your company")
             : t(group.labelKey, group.defaultGroupLabel);
+        const isFirstTertiary = tier === "tertiary" && (groups[index - 1]?.tier ?? "primary") !== "tertiary";
+        const collapsible = Boolean(group.collapsible);
+        const open = resolveGroupOpen(group);
+
+        const headerClass = cn(
+          "px-3 mb-1.5 text-[10px] font-semibold uppercase tracking-widest",
+          tierHeaderClass(tier),
+        );
+
+        const itemsBlock = (
+          <div className="space-y-0.5">
+            {group.items.map((item) => (
+              <NavItemRow
+                key={item.id}
+                item={item}
+                location={location}
+                onClose={onClose}
+                t={t}
+                pendingProfileReq={pendingProfileReq}
+              />
+            ))}
+          </div>
+        );
+
         return (
-          <div key={group.id}>
-            <div className="px-3 mb-1.5 text-[10px] font-semibold uppercase tracking-widest text-white/30">
-              {title}
-            </div>
-            <div className="space-y-0.5">
-              {group.items.map((item) => (
-                <NavItemRow
-                  key={item.id}
-                  item={item}
-                  location={location}
-                  onClose={onClose}
-                  t={t}
-                  pendingProfileReq={pendingProfileReq}
-                />
-              ))}
-            </div>
+          <div
+            key={group.id}
+            data-nav-tier={tier}
+            className={cn(isFirstTertiary && "pt-5 mt-1 border-t border-white/8")}
+          >
+            {!collapsible ? (
+              <>
+                <div className={headerClass}>{title}</div>
+                {itemsBlock}
+              </>
+            ) : (
+              <Collapsible
+                open={open}
+                onOpenChange={(next) => setGroupOpen(group, next)}
+                className="space-y-0"
+              >
+                <CollapsibleTrigger
+                  type="button"
+                  aria-expanded={open}
+                  className={cn(
+                    "w-full flex items-center gap-2 px-2 py-1 rounded-md text-left transition-colors",
+                    "hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--smartpro-orange)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--sidebar)]",
+                    tier === "tertiary" && "opacity-95",
+                  )}
+                >
+                  <span className={cn(headerClass, "mb-0 flex-1 text-left px-1")}>{title}</span>
+                  <ChevronDown
+                    size={14}
+                    className={cn(
+                      "shrink-0 opacity-45 text-white/50 transition-transform",
+                      open && "rotate-180",
+                    )}
+                    aria-hidden
+                  />
+                </CollapsibleTrigger>
+                <CollapsibleContent className="pt-1 data-[state=closed]:animate-none">
+                  {itemsBlock}
+                </CollapsibleContent>
+              </Collapsible>
+            )}
           </div>
         );
       })}

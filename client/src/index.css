@@ -188,13 +188,21 @@
   background-color: oklch(0.26 0.018 250);
   opacity: 1;
 }
+.sidebar-nav-item:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px oklch(0.22 0.02 250), 0 0 0 4px var(--smartpro-orange);
+  opacity: 1;
+}
+/* Selected route: brand accent, not error/destructive red */
 .sidebar-nav-item.active {
-  background: linear-gradient(90deg, var(--smartpro-orange) 0%, var(--smartpro-orange-dk) 100%);
+  background: oklch(0.30 0.04 250);
   color: #fff;
   opacity: 1;
-  box-shadow: 0 2px 8px oklch(0.63 0.20 28 / 35%);
+  box-shadow: inset 3px 0 0 var(--smartpro-orange);
 }
-.sidebar-nav-item.active svg { color: #fff; }
+.sidebar-nav-item.active svg {
+  color: color-mix(in oklch, var(--smartpro-orange) 88%, white 12%);
+}
 .sidebar-nav-item--child {
   @apply py-2 gap-2.5;
 }
@@ -205,6 +213,19 @@
 }
 .sidebar-nav-item--hub:not(.active):hover {
   opacity: 1;
+}
+
+.sidebar-nav-branch-trigger {
+  opacity: 0.78;
+}
+.sidebar-nav-branch-trigger:hover {
+  background-color: oklch(0.26 0.018 250);
+  opacity: 1;
+}
+.sidebar-nav-branch-trigger--active {
+  background: oklch(0.28 0.035 250);
+  opacity: 1;
+  box-shadow: inset 3px 0 0 color-mix(in oklch, var(--smartpro-orange) 70%, transparent);
 }
 
 /* ─── KPI stat cards ─────────────────────────────────────────────────────── */
@@ -407,10 +428,9 @@
 /* Form labels */
 [dir="rtl"] label { display: block; text-align: right; }
 
-/* Navigation active indicator */
+/* Navigation active indicator — logical start edge */
 [dir="rtl"] .sidebar-nav-item.active {
-  border-right: 3px solid var(--smartpro-orange);
-  border-left: none;
+  box-shadow: inset -3px 0 0 var(--smartpro-orange);
 }
 
 /* Toast notifications */

@@ -8,6 +8,8 @@ vi.mock("./db", async (importOriginal) => {
     ...actual,
     getDb: vi.fn(),
     getUserCompanyById: vi.fn(),
+    /** Used by platform-operator paths in `updateMemberRole` / `resolveCompanyWorkspaceOrPlatformTarget`. */
+    getCompanyById: vi.fn(),
   };
 });
 
@@ -239,6 +241,7 @@ describe("companiesRouter role mutations sync platformRole", () => {
       company: { id: 10, name: "Acme LLC" } as any,
       member: { role: "company_admin", isActive: true } as any,
     });
+    vi.mocked(db.getCompanyById).mockResolvedValue({ id: 10, name: "Acme LLC" } as any);
   });
 
   afterEach(() => {
@@ -283,6 +286,9 @@ describe("companiesRouter role mutations sync platformRole", () => {
             if ("platformRole" in (data as object)) userSets.push(data);
           }),
         })),
+      })),
+      insert: vi.fn(() => ({
+        values: vi.fn(async () => {}),
       })),
     };
 
@@ -345,6 +351,9 @@ describe("companiesRouter role mutations sync platformRole", () => {
             if ("platformRole" in (data as object)) userSets.push(data);
           }),
         })),
+      })),
+      insert: vi.fn(() => ({
+        values: vi.fn(async () => {}),
       })),
     };
 

@@ -148,6 +148,25 @@ function makePublicCtx(): TrpcContext {
   };
 }
 
+/** `requireActiveCompanyId` with no explicit `companyId` needs exactly one row from `getUserCompanies`. */
+function seedSingleCompanyWorkspace() {
+  vi.mocked(db.getUserCompanies).mockResolvedValueOnce([
+    {
+      company: { id: 1, name: "Test Co", slug: "test-co", status: "active" },
+      member: { role: "company_admin", isActive: true },
+    } as any,
+  ]);
+}
+
+/** `requireWorkspaceMembership` also needs `getUserCompanyById(user, cid)` after active company resolution. */
+function seedWorkspaceMembershipPair() {
+  seedSingleCompanyWorkspace();
+  vi.mocked(db.getUserCompanyById).mockResolvedValueOnce({
+    company: { id: 1, name: "Test Co", slug: "test-co", status: "active" },
+    member: { role: "company_admin", isActive: true },
+  } as any);
+}
+
 // ─── Auth Tests ───────────────────────────────────────────────────────────────
 describe("auth", () => {
   it("me returns null for unauthenticated user", async () => {
@@ -246,6 +265,7 @@ describe("analytics", () => {
   });
 
   it("auditLogs returns company-scoped logs for non-admin", async () => {
+    seedWorkspaceMembershipPair();
     const caller = appRouter.createCaller(makeCtx({ role: "user" }));
     // Non-admin gets company-scoped logs (empty when no company)
     const result = await caller.analytics.auditLogs({ limit: 10 });
@@ -306,18 +326,21 @@ describe("contracts", () => {
 // ─── HR Tests ─────────────────────────────────────────────────────────────────
 describe("hr", () => {
   it("listEmployees returns empty array when no company", async () => {
+    seedSingleCompanyWorkspace();
     const caller = appRouter.createCaller(makeCtx());
     const result = await caller.hr.listEmployees({});
     expect(Array.isArray(result)).toBe(true);
   });
 
   it("listJobs returns empty array when no company", async () => {
+    seedWorkspaceMembershipPair();
     const caller = appRouter.createCaller(makeCtx());
     const result = await caller.hr.listJobs();
     expect(Array.isArray(result)).toBe(true);
   });
 
   it("listLeave returns empty array when no company", async () => {
+    seedSingleCompanyWorkspace();
     const caller = appRouter.createCaller(makeCtx());
     const result = await caller.hr.listLeave({});
     expect(Array.isArray(result)).toBe(true);
@@ -414,26 +437,19 @@ describe("officers.listCertificates", () => {
   });
 
   it("returns empty when DB is unavailable", async () => {
-    vi.mocked(db.getUserCompany).mockResolvedValueOnce({
-      company: { id: 1 },
-      member: { role: "company_admin" },
-    } as any);
+    seedWorkspaceMembershipPair();
     const caller = appRouter.createCaller(
       makeCtx({ role: "user", platformRole: "company_member" }),
     );
     await expect(caller.officers.listCertificates({})).resolves.toEqual([]);
   });
 
-  it("returns NOT_FOUND when tenant passes another companyId", async () => {
-    vi.mocked(db.getUserCompany).mockResolvedValueOnce({
-      company: { id: 5 },
-      member: { role: "company_admin" },
-    } as any);
+  it("returns FORBIDDEN when tenant passes another companyId", async () => {
     const caller = appRouter.createCaller(
       makeCtx({ role: "user", platformRole: "company_member" }),
     );
     await expect(caller.officers.listCertificates({ companyId: 99 })).rejects.toMatchObject({
-      code: "NOT_FOUND",
+      code: "FORBIDDEN",
     });
   });
 
@@ -495,12 +511,14 @@ describe("subscriptions", () => {
 // ─── Attendance Tests ─────────────────────────────────────────────────────────
 describe("hr.attendance", () => {
   it("listAttendance returns empty array when no company", async () => {
+    seedSingleCompanyWorkspace();
     const caller = appRouter.createCaller(makeCtx());
     const result = await caller.hr.listAttendance({ month: "2026-03" });
     expect(Array.isArray(result)).toBe(true);
   });
 
   it("attendanceStats returns zero stats when no company", async () => {
+    seedSingleCompanyWorkspace();
     const caller = appRouter.createCaller(makeCtx());
     const result = await caller.hr.attendanceStats({ month: "2026-03" });
     // Returns zero-filled stats object (not null) when no company
@@ -995,7 +1013,7 @@ describe("sanad.addCatalogueItem", () => {
 });
 
 describe("officers.generateCertificate tenant guard", () => {
-  it("returns NOT_FOUND when company user targets another company", async () => {
+  it("returns FORBIDDEN when company user targets another company", async () => {
     const m = {
       company: { id: 5, name: "Co", slug: "co", country: "OM", status: "active" },
       member: { role: "company_member" },
@@ -1004,7 +1022,7 @@ describe("officers.generateCertificate tenant guard", () => {
     const ctx = makeCtx({ role: "user", platformRole: "company_member" });
     await expect(
       appRouter.createCaller(ctx).officers.generateCertificate({ companyId: 99, month: 1, year: 2026 }),
-    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 });
 

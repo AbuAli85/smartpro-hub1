@@ -9,6 +9,16 @@ import { requireActiveCompanyId } from "./tenant";
  * If omitted, uses first membership only — legacy-friendly; for tRPC handlers with `ctx.user`, prefer
  * {@link requireWorkspaceMembership} so multi-company tenants must pass an explicit workspace.
  */
+/**
+ * Legacy “implicit” workspace: first membership row order from {@link getUserCompany}.
+ * **Shadow / diagnostics only** — compares to explicit `input.companyId` to find client/server drift.
+ * Do not use for authorization once explicit workspace is enforced.
+ */
+export async function getImplicitWorkspaceCompanyIdForShadow(userId: number): Promise<number | null> {
+  const m = await getActiveCompanyMembership(userId);
+  return m?.companyId ?? null;
+}
+
 export async function getActiveCompanyMembership(
   userId: number,
   companyId?: number | null

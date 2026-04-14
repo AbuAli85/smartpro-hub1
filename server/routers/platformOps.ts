@@ -14,7 +14,8 @@ import {
   sanadOffices,
   users,
 } from "../../drizzle/schema";
-import { adminProcedure, router } from "../_core/trpc";
+import { adminProcedure, platformOperatorReadProcedure, router } from "../_core/trpc";
+import { getAccessShadowSnapshot } from "../_core/accessShadow";
 import { runNavIntegrityChecks } from "../navIntegrityChecks";
 import { mapMemberRoleToPlatformRole } from "../../shared/rbac";
 import {
@@ -443,7 +444,7 @@ export const platformOpsRouter = router({
    * Full role audit report: every user with platformRole, company memberships,
    * and a hasMismatch flag when platformRole doesn't match the best membership role.
    */
-  getRoleAuditReport: adminProcedure
+  getRoleAuditReport: platformOperatorReadProcedure
     .input(z.object({
       search: z.string().optional(),
       filterMismatches: z.boolean().optional(),
@@ -728,7 +729,7 @@ export const platformOpsRouter = router({
   /**
    * Get recent role change audit logs.
    */
-  getRoleAuditLogs: adminProcedure
+  getRoleAuditLogs: platformOperatorReadProcedure
     .input(z.object({ limit: z.number().min(1).max(100).default(20), userId: z.number().optional() }).optional())
     .query(async ({ input }) => {
       const db = await getDb();
@@ -776,9 +777,12 @@ export const platformOpsRouter = router({
   /**
    * List all companies (for dropdowns in role management).
    */
-  listCompanies: adminProcedure.query(async () => {
+  listCompanies: platformOperatorReadProcedure.query(async () => {
     const db = await getDb();
     if (!db) return [];
     return db.select({ id: companies.id, name: companies.name }).from(companies).orderBy(asc(companies.name));
   }),
+
+  /** In-memory snapshot of shadow mismatch aggregates (global admin only). */
+  getAccessShadowSnapshot: adminProcedure.query(() => getAccessShadowSnapshot()),
 });

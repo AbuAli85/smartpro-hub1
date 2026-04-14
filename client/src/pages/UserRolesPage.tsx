@@ -1,5 +1,7 @@
 import { useState } from "react";
+import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
+import { canAccessGlobalAdminProcedures } from "../../../shared/rbac";
 import {
   ACCOUNT_TYPE_UI_CONFIG,
   WARNING_STYLES,
@@ -14,6 +16,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
@@ -204,11 +207,12 @@ function AddToCompanyDialog({
 
 // ─── User Row ─────────────────────────────────────────────────────────────────
 function UserRow({
-  user, companies, onRefresh,
+  user, companies, onRefresh, canMutate,
 }: {
   user: AuditUser;
   companies: { id: number; name: string }[];
   onRefresh: () => void;
+  canMutate: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [showAddDialog, setShowAddDialog] = useState(false);
@@ -285,7 +289,7 @@ function UserRow({
                 : <><Building2 size={11} /><span className="truncate">{user.scope}</span></>
             }
           </div>
-          {user.hasMismatch && (
+          {canMutate && user.hasMismatch && (
             <Button
               size="sm"
               variant="outline"
@@ -334,14 +338,16 @@ function UserRow({
                     Platform role is <strong>{user.platformRole}</strong> but company membership suggests it should be <strong>{user.expectedPlatformRole}</strong>.
                   </p>
                 </div>
-                <Button
-                  size="sm"
-                  className="shrink-0 bg-amber-600 hover:bg-amber-700 text-white h-7 text-xs"
-                  onClick={() => fixMismatch.mutate({ userId: user.id })}
-                  disabled={fixMismatch.isPending}
-                >
-                  Fix Now
-                </Button>
+                {canMutate && (
+                  <Button
+                    size="sm"
+                    className="shrink-0 bg-amber-600 hover:bg-amber-700 text-white h-7 text-xs"
+                    onClick={() => fixMismatch.mutate({ userId: user.id })}
+                    disabled={fixMismatch.isPending}
+                  >
+                    Fix Now
+                  </Button>
+                )}
               </div>
             )}
             {/* Edge case: business role but no company membership */}
@@ -368,14 +374,16 @@ function UserRow({
                     Consider fixing the platformRole to match their membership role.
                   </p>
                 </div>
-                <Button
-                  size="sm"
-                  className="shrink-0 bg-purple-600 hover:bg-purple-700 text-white h-7 text-xs"
-                  onClick={() => fixMismatch.mutate({ userId: user.id })}
-                  disabled={fixMismatch.isPending}
-                >
-                  Fix Role
-                </Button>
+                {canMutate && (
+                  <Button
+                    size="sm"
+                    className="shrink-0 bg-purple-600 hover:bg-purple-700 text-white h-7 text-xs"
+                    onClick={() => fixMismatch.mutate({ userId: user.id })}
+                    disabled={fixMismatch.isPending}
+                  >
+                    Fix Role
+                  </Button>
+                )}
               </div>
             )}
 
@@ -383,33 +391,39 @@ function UserRow({
             <div>
               <p className="text-xs font-medium text-muted-foreground mb-2">Change Platform Role</p>
               <div className="flex items-center gap-3 flex-wrap">
-                <Select
-                  value={user.platformRole ?? "client"}
-                  onValueChange={(v) =>
-                    updatePlatformRole.mutate({
-                      userId: user.id,
-                      platformRole: v as PlatformRoleValue,
-                    })
-                  }
-                >
-                  <SelectTrigger className="h-8 text-xs w-56"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="super_admin">Super Admin (Platform Staff)</SelectItem>
-                    <SelectItem value="platform_admin">Platform Admin (Platform Staff)</SelectItem>
-                    <SelectItem value="regional_manager">Regional Manager (Platform Staff)</SelectItem>
-                    <SelectItem value="client_services">Client Services (Platform Staff)</SelectItem>
-                    <SelectItem value="company_admin">Company Admin (Business User)</SelectItem>
-                    <SelectItem value="hr_admin">HR Manager (Business User)</SelectItem>
-                    <SelectItem value="finance_admin">Finance Manager (Business User)</SelectItem>
-                    <SelectItem value="company_member">Company Member (Business User)</SelectItem>
-                    <SelectItem value="reviewer">Reviewer</SelectItem>
-                    <SelectItem value="external_auditor">External Auditor</SelectItem>
-                    <SelectItem value="client">Customer Portal</SelectItem>
-                    <SelectItem value="sanad_network_admin">SANAD Network Admin</SelectItem>
-                    <SelectItem value="sanad_compliance_reviewer">SANAD Compliance Reviewer</SelectItem>
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">Use "Fix Mismatch" for auto-correction.</p>
+                {canMutate ? (
+                  <>
+                    <Select
+                      value={user.platformRole ?? "client"}
+                      onValueChange={(v) =>
+                        updatePlatformRole.mutate({
+                          userId: user.id,
+                          platformRole: v as PlatformRoleValue,
+                        })
+                      }
+                    >
+                      <SelectTrigger className="h-8 text-xs w-56"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="super_admin">Super Admin (Platform Staff)</SelectItem>
+                        <SelectItem value="platform_admin">Platform Admin (Platform Staff)</SelectItem>
+                        <SelectItem value="regional_manager">Regional Manager (Platform Staff)</SelectItem>
+                        <SelectItem value="client_services">Client Services (Platform Staff)</SelectItem>
+                        <SelectItem value="company_admin">Company Admin (Business User)</SelectItem>
+                        <SelectItem value="hr_admin">HR Manager (Business User)</SelectItem>
+                        <SelectItem value="finance_admin">Finance Manager (Business User)</SelectItem>
+                        <SelectItem value="company_member">Company Member (Business User)</SelectItem>
+                        <SelectItem value="reviewer">Reviewer</SelectItem>
+                        <SelectItem value="external_auditor">External Auditor</SelectItem>
+                        <SelectItem value="client">Customer Portal</SelectItem>
+                        <SelectItem value="sanad_network_admin">SANAD Network Admin</SelectItem>
+                        <SelectItem value="sanad_compliance_reviewer">SANAD Compliance Reviewer</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">Use "Fix Mismatch" for auto-correction.</p>
+                  </>
+                ) : (
+                  <p className="text-sm font-medium">{user.platformRole ?? "—"}</p>
+                )}
               </div>
             </div>
 
@@ -431,9 +445,11 @@ function UserRow({
             <div>
               <div className="flex items-center justify-between mb-2">
                 <p className="text-xs font-medium text-muted-foreground">Company Memberships</p>
-                <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setShowAddDialog(true)}>
-                  <Plus size={11} className="mr-1" />Add to Company
-                </Button>
+                {canMutate && (
+                  <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setShowAddDialog(true)}>
+                    <Plus size={11} className="mr-1" />Add to Company
+                  </Button>
+                )}
               </div>
               {user.companies.length === 0 ? (
                 <p className="text-xs text-muted-foreground italic">No company memberships — Customer Portal access only.</p>
@@ -460,34 +476,40 @@ function UserRow({
                         </div>
                         {!m.isActive && <p className="text-xs text-muted-foreground">Inactive membership</p>}
                       </div>
-                      <Select
-                        value={m.memberRole}
-                        onValueChange={(v) =>
-                          updateMemberRole.mutate({
-                            memberId: m.memberId,
-                            role: v as "company_admin" | "company_member" | "finance_admin" | "hr_admin" | "reviewer" | "external_auditor",
-                          })
-                        }
-                      >
-                        <SelectTrigger className="h-7 text-xs w-40"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="company_admin">Company Admin</SelectItem>
-                          <SelectItem value="hr_admin">HR Manager</SelectItem>
-                          <SelectItem value="finance_admin">Finance Manager</SelectItem>
-                          <SelectItem value="company_member">Member</SelectItem>
-                          <SelectItem value="reviewer">Reviewer</SelectItem>
-                          <SelectItem value="external_auditor">External Auditor</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-7 w-7 p-0 text-muted-foreground hover:text-red-600"
-                        onClick={() => removeMember.mutate({ memberId: m.memberId })}
-                        disabled={removeMember.isPending}
-                      >
-                        <Trash2 size={13} />
-                      </Button>
+                      {canMutate ? (
+                        <>
+                          <Select
+                            value={m.memberRole}
+                            onValueChange={(v) =>
+                              updateMemberRole.mutate({
+                                memberId: m.memberId,
+                                role: v as "company_admin" | "company_member" | "finance_admin" | "hr_admin" | "reviewer" | "external_auditor",
+                              })
+                            }
+                          >
+                            <SelectTrigger className="h-7 text-xs w-40"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="company_admin">Company Admin</SelectItem>
+                              <SelectItem value="hr_admin">HR Manager</SelectItem>
+                              <SelectItem value="finance_admin">Finance Manager</SelectItem>
+                              <SelectItem value="company_member">Member</SelectItem>
+                              <SelectItem value="reviewer">Reviewer</SelectItem>
+                              <SelectItem value="external_auditor">External Auditor</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 w-7 p-0 text-muted-foreground hover:text-red-600"
+                            onClick={() => removeMember.mutate({ memberId: m.memberId })}
+                            disabled={removeMember.isPending}
+                          >
+                            <Trash2 size={13} />
+                          </Button>
+                        </>
+                      ) : (
+                        <span className="text-xs font-medium text-muted-foreground shrink-0">{m.memberRole}</span>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -496,18 +518,20 @@ function UserRow({
 
             {/* Account actions */}
             <div className="flex items-center gap-2 pt-1 border-t">
-              <Button
-                size="sm"
-                variant="outline"
-                className={`h-8 text-xs ${user.isActive ? "text-red-600 border-red-300 hover:bg-red-50" : "text-green-700 border-green-300 hover:bg-green-50"}`}
-                onClick={() => toggleActive.mutate({ userId: user.id, isActive: !user.isActive })}
-                disabled={toggleActive.isPending}
-              >
-                {user.isActive
-                  ? <><XCircle size={12} className="mr-1" />Suspend Account</>
-                  : <><CheckCircle2 size={12} className="mr-1" />Reactivate Account</>
-                }
-              </Button>
+              {canMutate && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className={`h-8 text-xs ${user.isActive ? "text-red-600 border-red-300 hover:bg-red-50" : "text-green-700 border-green-300 hover:bg-green-50"}`}
+                  onClick={() => toggleActive.mutate({ userId: user.id, isActive: !user.isActive })}
+                  disabled={toggleActive.isPending}
+                >
+                  {user.isActive
+                    ? <><XCircle size={12} className="mr-1" />Suspend Account</>
+                    : <><CheckCircle2 size={12} className="mr-1" />Reactivate Account</>
+                  }
+                </Button>
+              )}
               <p className="text-xs text-muted-foreground">
                 Joined {new Date(user.createdAt).toLocaleDateString("en-GB")}
                 {user.lastSignedIn ? ` · Last seen ${new Date(user.lastSignedIn).toLocaleDateString("en-GB")}` : ""}
@@ -533,12 +557,13 @@ function UserRow({
 
 // ─── Grouped Section ──────────────────────────────────────────────────────────
 function UserGroup({
-  accountType, users, companies, onRefresh,
+  accountType, users, companies, onRefresh, canMutate,
 }: {
   accountType: string;
   users: AuditUser[];
   companies: { id: number; name: string }[];
   onRefresh: () => void;
+  canMutate: boolean;
 }) {
   const [collapsed, setCollapsed] = useState(false);
   const cfg = ACCOUNT_TYPE_UI_CONFIG[accountType as AccountType] ?? { label: accountType, color: "border-gray-200 bg-gray-50", description: "", borderColor: "border-l-gray-400" };
@@ -586,7 +611,7 @@ function UserGroup({
       {!collapsed && (
         <div className="px-4 pb-3 pt-1 bg-background/60">
           {users.map((user) => (
-            <UserRow key={user.id} user={user} companies={companies} onRefresh={onRefresh} />
+            <UserRow key={user.id} user={user} companies={companies} onRefresh={onRefresh} canMutate={canMutate} />
           ))}
         </div>
       )}
@@ -643,6 +668,9 @@ function AuditLogPanel() {
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function UserRolesPage() {
+  const { user: authUser } = useAuth();
+  const canMutate = authUser ? canAccessGlobalAdminProcedures(authUser) : false;
+
   const [search, setSearch] = useState("");
   const [filterAccountType, setFilterAccountType] = useState<string>("all");
   const [filterMismatches, setFilterMismatches] = useState(false);
@@ -698,12 +726,21 @@ export default function UserRolesPage() {
       {/* Header */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-xl font-bold flex items-center gap-2">
-            <Shield size={20} className="text-primary" />
-            User Roles &amp; Access
-          </h1>
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-xl font-bold flex items-center gap-2">
+              <Shield size={20} className="text-primary" />
+              User Roles &amp; Access
+            </h1>
+            {!canMutate && (
+              <Badge variant="secondary" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Read-only mode
+              </Badge>
+            )}
+          </div>
           <p className="text-sm text-muted-foreground mt-1">
-            Review and manage all user identities, effective access levels, and company memberships.
+            {canMutate
+              ? "Review and manage all user identities, effective access levels, and company memberships."
+              : "View user identities, effective access levels, and company memberships. Editing requires a platform administrator account."}
           </p>
         </div>
         <Button variant="outline" size="sm" onClick={() => { handleRefresh(); refetch(); }} className="gap-1 shrink-0">
@@ -771,7 +808,7 @@ export default function UserRolesPage() {
       </div>
 
       {/* Mismatch alert banner */}
-      {stats.mismatches > 0 && (
+      {canMutate && stats.mismatches > 0 && (
         <div className="flex items-center justify-between gap-4 p-4 rounded-lg border border-amber-300 bg-amber-50">
           <div className="flex items-center gap-3">
             <AlertTriangle size={18} className="text-amber-600 shrink-0" />
@@ -881,6 +918,7 @@ export default function UserRolesPage() {
                   users={groupUsers}
                   companies={companies}
                   onRefresh={handleRefresh}
+                  canMutate={canMutate}
                 />
               ))}
             </div>

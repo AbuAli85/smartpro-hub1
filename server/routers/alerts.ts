@@ -3,7 +3,8 @@ import { and, asc, eq, gte, lte, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { canAccessGlobalAdminProcedures } from "@shared/rbac";
 import { getDb } from "../db";
-import { getActiveCompanyMembership } from "../_core/membership";
+import { requireActiveCompanyId } from "../_core/tenant";
+import type { User } from "../../drizzle/schema";
 import {
   companies,
   employeeDocuments,
@@ -85,19 +86,16 @@ export const alertsRouter = router({
       }).optional()
     )
     .query(async ({ input, ctx }) => {
+      const isGlobal = canAccessGlobalAdminProcedures(ctx.user);
+      const tenantCompanyId = isGlobal
+        ? undefined
+        : await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user as User);
+
       const db = await getDb();
       if (!db) return { alerts: [], summary: { critical: 0, high: 0, medium: 0, low: 0, total: 0 } };
 
-      const isGlobal = canAccessGlobalAdminProcedures(ctx.user);
-      const tenantM = await getActiveCompanyMembership(ctx.user.id, input?.companyId);
-      const tenantCompanyId = tenantM?.companyId ?? null;
-
-      if (!isGlobal && tenantCompanyId == null) {
-        return { alerts: [], summary: { critical: 0, high: 0, medium: 0, low: 0, total: 0 } };
-      }
-
       /** When set, restrict rows to this company. When undefined, platform sees all tenants (no company filter). */
-      const effectiveCompanyFilter: number | undefined = isGlobal ? input?.companyId : tenantCompanyId ?? undefined;
+      const effectiveCompanyFilter: number | undefined = isGlobal ? input?.companyId : tenantCompanyId;
 
       const maxDays = input?.maxDays ?? 90;
       const now = new Date();
@@ -367,18 +365,13 @@ export const alertsRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
+      const isGlobal = canAccessGlobalAdminProcedures(ctx.user);
+      const tenantCompanyId = isGlobal
+        ? undefined
+        : await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user as User);
+
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-
-      const isGlobal = canAccessGlobalAdminProcedures(ctx.user);
-      const tenantM = await getActiveCompanyMembership(ctx.user.id, input.companyId);
-      const tenantCompanyId = tenantM?.companyId ?? null;
-
-      if (!isGlobal) {
-        if (tenantCompanyId == null) {
-          throw new TRPCError({ code: "FORBIDDEN", message: "No company membership" });
-        }
-      }
 
       const companyScopedCategories = [
         "work_permit",
@@ -507,19 +500,14 @@ export const alertsRouter = router({
   getAlertBadgeCount: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }).optional())
     .query(async ({ input, ctx }) => {
-    const db = await getDb();
-    if (!db) return { count: 0, critical: 0 };
-
     const isGlobal = canAccessGlobalAdminProcedures(ctx.user);
-    const tenantM = await getActiveCompanyMembership(ctx.user.id, input?.companyId);
-    /** Tenant users: membership company. Global users: optional explicit company filter (no filter = all tenants). */
+    /** Tenant users: resolved workspace. Global users: optional explicit company filter (no filter = all tenants). */
     const filterCompanyId = isGlobal
       ? (input?.companyId ?? null)
-      : (tenantM?.companyId ?? null);
+      : await requireActiveCompanyId(ctx.user.id, input?.companyId, ctx.user as User);
 
-    if (!isGlobal && filterCompanyId == null) {
-      return { count: 0, critical: 0 };
-    }
+    const db = await getDb();
+    if (!db) return { count: 0, critical: 0 };
 
     const now = new Date();
     const cutoff30 = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);

@@ -18,7 +18,8 @@ import {
 } from "../db";
 import { protectedProcedure, router } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
-import { getActiveCompanyMembership, requireActiveCompanyMembership } from "../_core/membership";
+import { requireWorkspaceMembership } from "../_core/membership";
+import type { User } from "../../drizzle/schema";
 import { loadUnifiedAuditTimeline } from "../unifiedAuditTimeline";
 
 async function assertScheduledReportInCompany(reportId: number, companyId: number): Promise<void> {
@@ -46,8 +47,7 @@ export const analyticsRouter = router({
         if (input?.companyId != null) return getCompanyStats(input.companyId);
         return null;
       }
-      const m = await getActiveCompanyMembership(ctx.user.id, input?.companyId);
-      if (!m) return null;
+      const m = await requireWorkspaceMembership(ctx.user as User, input?.companyId);
       return getCompanyStats(m.companyId);
     }),
 
@@ -63,8 +63,7 @@ export const analyticsRouter = router({
           count: allContracts.filter((c) => c.status === status).length,
         }));
       }
-      const m = await getActiveCompanyMembership(ctx.user.id, input?.companyId);
-      if (!m) return [];
+      const m = await requireWorkspaceMembership(ctx.user as User, input?.companyId);
       const allContracts = await getContracts(m.companyId);
       const statuses = ["draft", "pending_review", "pending_signature", "signed", "active", "expired", "terminated"] as const;
       return statuses.map((status) => ({
@@ -92,8 +91,7 @@ export const analyticsRouter = router({
           count: services.filter((s) => s.serviceType === type).length,
         }));
       }
-      const m = await getActiveCompanyMembership(ctx.user.id, input?.companyId);
-      if (!m) return [];
+      const m = await requireWorkspaceMembership(ctx.user as User, input?.companyId);
       const services = await getProServices(m.companyId, {});
       const types = [
         "visa_processing",
@@ -125,8 +123,7 @@ export const analyticsRouter = router({
           };
         });
       }
-      const m = await getActiveCompanyMembership(ctx.user.id, input?.companyId);
-      if (!m) return [];
+      const m = await requireWorkspaceMembership(ctx.user as User, input?.companyId);
       const deals = await getCrmDeals(m.companyId);
       const stages = ["lead", "qualified", "proposal", "negotiation", "closed_won", "closed_lost"] as const;
       return stages.map((stage) => {
@@ -161,8 +158,7 @@ export const analyticsRouter = router({
           byDepartment: Object.entries(byDept).map(([dept, count]) => ({ dept, count })),
         };
       }
-      const m = await getActiveCompanyMembership(ctx.user.id, input?.companyId);
-      if (!m) return null;
+      const m = await requireWorkspaceMembership(ctx.user as User, input?.companyId);
       const cid = m.companyId;
       const emps = await getEmployees(cid);
       const leaves = await getLeaveRequests(cid);
@@ -202,8 +198,7 @@ export const analyticsRouter = router({
           memberRole: null,
         });
       }
-      const m = await getActiveCompanyMembership(ctx.user.id, input.companyId);
-      if (!m) return [];
+      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       return loadUnifiedAuditTimeline(ctx, input.limit, {
         companyId: m.companyId,
         memberRole: m.role ?? null,
@@ -218,8 +213,7 @@ export const analyticsRouter = router({
         if (input?.companyId == null) return [];
         return getAnalyticsReports(input.companyId);
       }
-      const m = await getActiveCompanyMembership(ctx.user.id, input?.companyId);
-      if (!m) return [];
+      const m = await requireWorkspaceMembership(ctx.user as User, input?.companyId);
       return getAnalyticsReports(m.companyId);
     }),
 
@@ -233,7 +227,7 @@ export const analyticsRouter = router({
       recipients: z.string().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const m = await requireActiveCompanyMembership(ctx.user.id, input.companyId);
+      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       const now = new Date();
       const nextRun = new Date(now);
       if (input.frequency === "daily") nextRun.setDate(now.getDate() + 1);
@@ -258,7 +252,7 @@ export const analyticsRouter = router({
   updateReportStatus: protectedProcedure
     .input(z.object({ id: z.number(), status: z.enum(["active", "paused"]), companyId: z.number().optional() }))
     .mutation(async ({ input, ctx }) => {
-      const m = await requireActiveCompanyMembership(ctx.user.id, input.companyId);
+      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       await assertScheduledReportInCompany(input.id, m.companyId);
       await updateAnalyticsReport(input.id, { status: input.status });
       return { success: true };
@@ -267,7 +261,7 @@ export const analyticsRouter = router({
   deleteReport: protectedProcedure
     .input(z.object({ id: z.number(), companyId: z.number().optional() }))
     .mutation(async ({ input, ctx }) => {
-      const m = await requireActiveCompanyMembership(ctx.user.id, input.companyId);
+      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       await assertScheduledReportInCompany(input.id, m.companyId);
       await deleteAnalyticsReport(input.id);
       return { success: true };
@@ -276,7 +270,7 @@ export const analyticsRouter = router({
   runReportNow: protectedProcedure
     .input(z.object({ id: z.number(), companyId: z.number().optional() }))
     .mutation(async ({ input, ctx }) => {
-      const m = await requireActiveCompanyMembership(ctx.user.id, input.companyId);
+      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       await assertScheduledReportInCompany(input.id, m.companyId);
       await updateAnalyticsReport(input.id, { lastRunAt: new Date() });
       return { success: true };
@@ -299,7 +293,7 @@ export const analyticsRouter = router({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      const m = await requireActiveCompanyMembership(ctx.user.id, input.companyId);
+      const m = await requireWorkspaceMembership(ctx.user as User, input.companyId);
       const trimmedName = input.name?.trim();
       const generatedAt = new Date().toISOString();
       return {

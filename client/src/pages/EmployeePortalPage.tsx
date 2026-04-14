@@ -1985,7 +1985,7 @@ export default function EmployeePortalPage() {
   const { data: operationalHints, isSuccess: operationalHintsSuccess } =
     trpc.employeePortal.getMyOperationalHints.useQuery(
       { companyId: activeCompanyId ?? undefined },
-      { enabled: isAuthenticated }
+      { enabled: isAuthenticated && activeCompanyId != null },
     );
   const { data: workStatusSummary, isLoading: workStatusLoading } =
     trpc.employeePortal.getMyWorkStatusSummary.useQuery(

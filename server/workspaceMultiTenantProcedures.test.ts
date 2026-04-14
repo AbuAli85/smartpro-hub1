@@ -7,6 +7,10 @@ import { hrRouter } from "./routers/hr";
 import { contractsRouter } from "./routers/contracts";
 import { financeHRRouter } from "./routers/financeHR";
 import { recruitmentRouter } from "./routers/recruitment";
+import { employeePortalRouter } from "./routers/employeePortal";
+import { attendanceRouter } from "./routers/attendance";
+import { analyticsRouter } from "./routers/analytics";
+import { alertsRouter } from "./routers/alerts";
 import * as db from "./db";
 
 vi.mock("./db", async (importOriginal) => {
@@ -112,5 +116,51 @@ describe("workspace authority on user-facing routers", () => {
     vi.mocked(db.getDb).mockResolvedValue(null);
     const caller = officersRouter.createCaller(makeMemberCtx());
     await expect(caller.listCertificates({ companyId: 9 })).resolves.toEqual([]);
+  });
+
+  it("employeePortal.getMyTasks rejects when multiple memberships and companyId omitted", async () => {
+    vi.mocked(db.getUserCompanies).mockResolvedValue([
+      { company: { id: 1 }, member: {} },
+      { company: { id: 2 }, member: {} },
+    ] as any);
+    const caller = employeePortalRouter.createCaller(makeMemberCtx());
+    await expect(caller.getMyTasks({})).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  });
+
+  it("attendance.myHistory rejects when multiple memberships and companyId omitted", async () => {
+    vi.mocked(db.getUserCompanies).mockResolvedValue([
+      { company: { id: 1 }, member: {} },
+      { company: { id: 2 }, member: {} },
+    ] as any);
+    const caller = attendanceRouter.createCaller(makeMemberCtx());
+    await expect(caller.myHistory({})).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  });
+
+  it("analytics.contractsOverview rejects when multiple memberships and companyId omitted", async () => {
+    vi.mocked(db.getUserCompanies).mockResolvedValue([
+      { company: { id: 1 }, member: {} },
+      { company: { id: 2 }, member: {} },
+    ] as any);
+    const caller = analyticsRouter.createCaller(makeMemberCtx());
+    await expect(caller.contractsOverview({})).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  });
+
+  it("alerts.getAlertBadgeCount rejects when multiple memberships and companyId omitted", async () => {
+    vi.mocked(db.getUserCompanies).mockResolvedValue([
+      { company: { id: 1 }, member: {} },
+      { company: { id: 2 }, member: {} },
+    ] as any);
+    const caller = alertsRouter.createCaller(makeMemberCtx());
+    await expect(caller.getAlertBadgeCount({})).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  });
+
+  it("employeePortal.getMyTasks returns empty list when workspace is explicit and employee unresolved", async () => {
+    vi.mocked(db.getUserCompanyById).mockResolvedValue({
+      company: { id: 9 },
+      member: { role: "company_admin" },
+    } as any);
+    vi.mocked(db.getDb).mockResolvedValue(null);
+    const caller = employeePortalRouter.createCaller(makeMemberCtx());
+    await expect(caller.getMyTasks({ companyId: 9 })).resolves.toEqual([]);
   });
 });

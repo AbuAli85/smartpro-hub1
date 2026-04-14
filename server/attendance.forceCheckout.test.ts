@@ -126,3 +126,65 @@ describe("attendance.setOperationalIssueStatus validation", () => {
     ).rejects.toMatchObject({ code: "BAD_REQUEST" });
   });
 });
+
+describe("attendance.setOperationalIssueStatus company scope", () => {
+  beforeEach(() => {
+    vi.mocked(db.getUserCompanyById).mockResolvedValue({
+      company: { id: 10 },
+      member: { role: "hr_admin" },
+    } as never);
+  });
+
+  it("throws NOT_FOUND when the correction is not in the active company", async () => {
+    vi.mocked(db.getDb).mockResolvedValue({
+      select: vi.fn(() => ({
+        from: vi.fn(() => ({
+          where: vi.fn(() => ({
+            limit: vi.fn(() => Promise.resolve([])),
+          })),
+        })),
+      })),
+      transaction: vi.fn(),
+    } as never);
+
+    const caller = attendanceRouter.createCaller(makeHrCtx());
+    await expect(
+      caller.setOperationalIssueStatus({
+        companyId: 10,
+        businessDateYmd: "2026-04-14",
+        kind: "correction_pending",
+        correctionId: 999,
+        action: "acknowledge",
+      }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+});
+
+describe("attendance.getOperationalIssueHistory", () => {
+  beforeEach(() => {
+    vi.mocked(db.getUserCompanyById).mockResolvedValue({
+      company: { id: 10 },
+      member: { role: "hr_admin" },
+    } as never);
+  });
+
+  it("throws NOT_FOUND when no operational issue row exists for this company and key", async () => {
+    vi.mocked(db.getDb).mockResolvedValue({
+      select: vi.fn(() => ({
+        from: vi.fn(() => ({
+          where: vi.fn(() => ({
+            limit: vi.fn(() => Promise.resolve([])),
+          })),
+        })),
+      })),
+    } as never);
+
+    const caller = attendanceRouter.createCaller(makeHrCtx());
+    await expect(
+      caller.getOperationalIssueHistory({
+        companyId: 10,
+        issueKey: "correction_pending:cor:999999",
+      }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+});

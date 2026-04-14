@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { fmtTime } from "@/lib/dateUtils";
 import { OverdueCheckoutsPanel } from "@/components/attendance/OverdueCheckoutsPanel";
@@ -22,6 +23,8 @@ import {
 } from "lucide-react";
 import type { AdminBoardRowStatus } from "@shared/attendanceBoardStatus";
 import { operationalBandFromBoardStatus, type OperationalBand } from "@shared/attendanceIntelligence";
+import { OperationalIssueHistorySheet } from "@/components/attendance/OperationalIssueHistorySheet";
+import { OperationalIssueHistoryTrigger } from "@/components/attendance/OperationalIssueHistoryTrigger";
 
 const BAND_ORDER: OperationalBand[] = [
   "critical",
@@ -90,6 +93,7 @@ function getInitials(name: string) {
 export default function TodayBoardPage() {
   const { activeCompanyId } = useActiveCompany();
   const utils = trpc.useUtils();
+  const [boardHistoryIssueKey, setBoardHistoryIssueKey] = useState<string | null>(null);
 
   const { data, isLoading, error, isFetching, dataUpdatedAt } = trpc.scheduling.getTodayBoard.useQuery(
     { companyId: activeCompanyId ?? undefined },
@@ -363,7 +367,12 @@ export default function TodayBoardPage() {
                                   )}
                                 </div>
                               </div>
-                              <div className="text-right text-xs space-y-0.5">
+                              <div className="text-right text-xs space-y-0.5 shrink-0 flex flex-col items-end gap-1">
+                                {b.operationalIssue != null ? (
+                                  <OperationalIssueHistoryTrigger
+                                    onClick={() => setBoardHistoryIssueKey(b.operationalIssue.issueKey)}
+                                  />
+                                ) : null}
                                 {b.delayMinutes != null && b.delayMinutes > 0 && (
                                   <div className="text-orange-700 font-medium">+{b.delayMinutes}m</div>
                                 )}
@@ -405,6 +414,15 @@ export default function TodayBoardPage() {
           )}
         </>
       )}
+
+      <OperationalIssueHistorySheet
+        open={boardHistoryIssueKey != null}
+        onOpenChange={(o) => {
+          if (!o) setBoardHistoryIssueKey(null);
+        }}
+        companyId={activeCompanyId}
+        issueKey={boardHistoryIssueKey}
+      />
     </div>
   );
 }

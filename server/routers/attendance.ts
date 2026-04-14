@@ -2201,17 +2201,49 @@ export const attendanceRouter = router({
         createdOnOrAfter: z.string().optional(),
         createdOnOrBefore: z.string().optional(),
         limit: z.number().min(1).max(200).default(100),
+        /** When `operational`, restrict to triage audit actions (ack / resolve / assign). */
+        auditLens: z.enum(["all", "operational"]).optional().default("all"),
+        /** Only when `auditLens === "operational"`. */
+        operationalAction: z.enum(["all", "acknowledge", "resolve", "assign"]).optional(),
+        /** Filter operational audit rows by `afterPayload.issueKey` prefix (operational lens only). */
+        operationalIssueKind: z
+          .enum(["all", "overdue_checkout", "missed_shift", "correction_pending", "manual_pending"])
+          .optional()
+          .default("all"),
+        /** Current issue row status (operational lens; requires join to `attendance_operational_issues`). */
+        operationalIssueStatus: z.enum(["open", "acknowledged", "resolved"]).optional(),
+        /** Filter by `attendance_operational_issues.assigned_to_user_id` (operational lens). */
+        operationalAssigneeUserId: z.number().optional(),
       }),
     )
     .query(async ({ ctx, input }) => {
       const membership = await requireAdminOrHR(ctx.user as User, input.companyId);
       const db = await requireDb();
+      const opAuditActions = [
+        ATTENDANCE_AUDIT_ACTION.OPERATIONAL_ISSUE_ACKNOWLEDGE,
+        ATTENDANCE_AUDIT_ACTION.OPERATIONAL_ISSUE_RESOLVE,
+        ATTENDANCE_AUDIT_ACTION.OPERATIONAL_ISSUE_ASSIGN,
+      ] as const;
+
       const conditions = [eq(attendanceAudit.companyId, membership.company.id)];
+
+      if (input.auditLens === "operational") {
+        if (input.operationalAction && input.operationalAction !== "all") {
+          const map = {
+            acknowledge: ATTENDANCE_AUDIT_ACTION.OPERATIONAL_ISSUE_ACKNOWLEDGE,
+            resolve: ATTENDANCE_AUDIT_ACTION.OPERATIONAL_ISSUE_RESOLVE,
+            assign: ATTENDANCE_AUDIT_ACTION.OPERATIONAL_ISSUE_ASSIGN,
+          } as const;
+          conditions.push(eq(attendanceAudit.actionType, map[input.operationalAction]));
+        } else {
+          conditions.push(inArray(attendanceAudit.actionType, [...opAuditActions]));
+        }
+      } else if (input.actionType) {
+        conditions.push(eq(attendanceAudit.actionType, input.actionType as AttendanceAuditActionType));
+      }
+
       if (input.employeeId != null) {
         conditions.push(eq(attendanceAudit.employeeId, input.employeeId));
-      }
-      if (input.actionType) {
-        conditions.push(eq(attendanceAudit.actionType, input.actionType as AttendanceAuditActionType));
       }
       if (input.createdOnOrAfter) {
         conditions.push(gte(attendanceAudit.createdAt, new Date(input.createdOnOrAfter + "T00:00:00.000Z")));
@@ -2219,6 +2251,59 @@ export const attendanceRouter = router({
       if (input.createdOnOrBefore) {
         conditions.push(lte(attendanceAudit.createdAt, new Date(input.createdOnOrBefore + "T23:59:59.999Z")));
       }
+
+      if (
+        input.auditLens === "operational" &&
+        input.operationalIssueKind &&
+        input.operationalIssueKind !== "all"
+      ) {
+        const kindPrefix: Record<
+          "overdue_checkout" | "missed_shift" | "correction_pending" | "manual_pending",
+          string
+        > = {
+          overdue_checkout: "overdue_checkout:%",
+          missed_shift: "missed_shift:%",
+          correction_pending: "correction_pending:%",
+          manual_pending: "manual_pending:%",
+        };
+        conditions.push(
+          sql`JSON_UNQUOTE(JSON_EXTRACT(${attendanceAudit.afterPayload}, '$.issueKey')) LIKE ${kindPrefix[input.operationalIssueKind]}`,
+        );
+      }
+
+      const needsOperationalIssueJoin =
+        input.auditLens === "operational" &&
+        (input.operationalIssueStatus != null || input.operationalAssigneeUserId != null);
+
+      if (needsOperationalIssueJoin) {
+        const joinOnParts = [
+          eq(attendanceOperationalIssues.companyId, membership.company.id),
+          or(
+            and(
+              eq(attendanceAudit.entityType, "attendance_operational_issue"),
+              eq(attendanceAudit.entityId, attendanceOperationalIssues.id),
+            ),
+            sql`(${attendanceOperationalIssues.issueKey} = JSON_UNQUOTE(JSON_EXTRACT(${attendanceAudit.afterPayload}, '$.issueKey')))`,
+          ),
+        ];
+        if (input.operationalIssueStatus != null) {
+          joinOnParts.push(eq(attendanceOperationalIssues.status, input.operationalIssueStatus));
+        }
+        if (input.operationalAssigneeUserId != null) {
+          joinOnParts.push(
+            eq(attendanceOperationalIssues.assignedToUserId, input.operationalAssigneeUserId),
+          );
+        }
+        const rows = await db
+          .select({ audit: attendanceAudit })
+          .from(attendanceAudit)
+          .innerJoin(attendanceOperationalIssues, and(...joinOnParts))
+          .where(and(...conditions))
+          .orderBy(desc(attendanceAudit.createdAt))
+          .limit(input.limit);
+        return rows.map((r) => r.audit);
+      }
+
       return db
         .select()
         .from(attendanceAudit)

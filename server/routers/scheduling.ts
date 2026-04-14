@@ -1046,6 +1046,7 @@ export const schedulingRouter = router({
 
       board = board.map((row) => {
         let operationalIssue: {
+          issueKey: string;
           status: string;
           assignedToUserId: number | null;
           acknowledgedByUserId: number | null;
@@ -1057,6 +1058,7 @@ export const schedulingRouter = router({
           const oi = overdueByRecordId.get(row.attendanceRecordId);
           if (oi) {
             operationalIssue = {
+              issueKey: oi.issueKey,
               status: oi.status,
               assignedToUserId: oi.assignedToUserId ?? null,
               acknowledgedByUserId: oi.acknowledgedByUserId ?? null,
@@ -1075,6 +1077,7 @@ export const schedulingRouter = router({
           const oi = missedByKey.get(k);
           if (oi) {
             operationalIssue = {
+              issueKey: oi.issueKey,
               status: oi.status,
               assignedToUserId: oi.assignedToUserId ?? null,
               acknowledgedByUserId: oi.acknowledgedByUserId ?? null,
@@ -1581,12 +1584,23 @@ export const schedulingRouter = router({
             ),
           );
         const issueByKey = new Map(issueRows.map((r) => [r.issueKey, r]));
-        overdueEmployees = overdueEmployees.map((row) => ({
-          ...row,
-          operationalIssue: issueByKey.get(
-            operationalIssueKey({ kind: "overdue_checkout", attendanceRecordId: row.attendanceRecordId }),
-          ) ?? null,
-        }));
+        overdueEmployees = overdueEmployees.map((row) => {
+          const key = operationalIssueKey({
+            kind: "overdue_checkout",
+            attendanceRecordId: row.attendanceRecordId,
+          });
+          const oi = issueByKey.get(key);
+          return {
+            ...row,
+            operationalIssue: oi
+              ? {
+                  issueKey: oi.issueKey,
+                  status: oi.status,
+                  assignedToUserId: oi.assignedToUserId ?? null,
+                }
+              : null,
+          };
+        });
       } else {
         overdueEmployees = overdueEmployees.map((row) => ({ ...row, operationalIssue: null as null }));
       }

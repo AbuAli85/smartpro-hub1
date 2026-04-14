@@ -1,7 +1,6 @@
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { fmtDateTimeShort } from "@/lib/dateUtils";
-import { History } from "lucide-react";
+import { OperationalIssueHistoryTrigger } from "@/components/attendance/OperationalIssueHistoryTrigger";
 
 export type OperationalIssueSummaryLike = {
   issueKey: string;
@@ -67,16 +66,7 @@ export function OperationalIssueMetaStrip({
           {oi.resolutionNote}
         </span>
       ) : null}
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        className="h-7 text-[11px] gap-1 ml-auto shrink-0"
-        onClick={onOpenHistory}
-      >
-        <History className="h-3 w-3" />
-        History
-      </Button>
+      <OperationalIssueHistoryTrigger onClick={onOpenHistory} className="ml-auto" />
     </div>
   );
 }

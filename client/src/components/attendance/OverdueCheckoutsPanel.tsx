@@ -27,6 +27,9 @@ import { AlertTriangle, Bell, BellRing, Check, Clock, LogOut, MapPin, RefreshCw,
 import { fmtTime } from "@/lib/dateUtils";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { operationalIssueKey } from "@shared/attendanceOperationalIssueKeys";
+import { OperationalIssueHistorySheet } from "@/components/attendance/OperationalIssueHistorySheet";
+import { OperationalIssueHistoryTrigger } from "@/components/attendance/OperationalIssueHistoryTrigger";
 
 function initials(name: string): string {
   return name
@@ -255,6 +258,7 @@ type OverdueEmp = {
   minutesOverdue: number;
   attendanceRecordId: number;
   operationalIssue?: {
+    issueKey: string;
     status: string;
     assignedToUserId?: number | null;
   } | null;
@@ -268,6 +272,7 @@ export function OverdueCheckoutsPanel({ className }: { className?: string }) {
   const [forceReason, setForceReason] = useState("");
   const [ackTarget, setAckTarget] = useState<OverdueEmp | null>(null);
   const [ackNote, setAckNote] = useState("");
+  const [historyIssueKey, setHistoryIssueKey] = useState<string | null>(null);
 
   const { data, isLoading, isFetching, dataUpdatedAt, refetch } =
     trpc.scheduling.getOverdueCheckouts.useQuery(
@@ -445,6 +450,17 @@ export function OverdueCheckoutsPanel({ className }: { className?: string }) {
                       minutesOverdue={emp.minutesOverdue}
                       companyId={activeCompanyId ?? undefined}
                     />
+                    <OperationalIssueHistoryTrigger
+                      onClick={() =>
+                        setHistoryIssueKey(
+                          emp.operationalIssue?.issueKey ??
+                            operationalIssueKey({
+                              kind: "overdue_checkout",
+                              attendanceRecordId: emp.attendanceRecordId,
+                            }),
+                        )
+                      }
+                    />
                   </div>
                 </div>
               );
@@ -537,6 +553,15 @@ export function OverdueCheckoutsPanel({ className }: { className?: string }) {
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    <OperationalIssueHistorySheet
+      open={historyIssueKey != null}
+      onOpenChange={(o) => {
+        if (!o) setHistoryIssueKey(null);
+      }}
+      companyId={activeCompanyId}
+      issueKey={historyIssueKey}
+    />
     </>
   );
 }

@@ -116,7 +116,7 @@ function AttendanceAuditLog({
 }: {
   enabled: boolean;
   companyId: number | null;
-  employees: { id: number; firstName: string; lastName: string }[];
+  employees: { id: number; firstName: string; lastName: string; userId: number | null }[];
 }) {
   const defaultTo = new Date().toISOString().slice(0, 10);
   const defaultFrom = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
@@ -124,6 +124,15 @@ function AttendanceAuditLog({
   const [to, setTo] = useState(defaultTo);
   const [employeeId, setEmployeeId] = useState<string>("all");
   const [actionType, setActionType] = useState<string>("all");
+  const [auditLens, setAuditLens] = useState<"all" | "operational">("all");
+  const [operationalAction, setOperationalAction] = useState<"all" | "acknowledge" | "resolve" | "assign">("all");
+  const [operationalIssueKind, setOperationalIssueKind] = useState<
+    "all" | "overdue_checkout" | "missed_shift" | "correction_pending" | "manual_pending"
+  >("all");
+  const [operationalIssueStatus, setOperationalIssueStatus] = useState<
+    "all" | "open" | "acknowledged" | "resolved"
+  >("all");
+  const [operationalAssigneeUserId, setOperationalAssigneeUserId] = useState<string>("all");
   const [detail, setDetail] = useState<AuditRow | null>(null);
 
   const actionOptions = useMemo(
@@ -135,17 +144,46 @@ function AttendanceAuditLog({
     [],
   );
 
-  const { data, isLoading, refetch, isFetching } = trpc.attendance.listAttendanceAudit.useQuery(
-    {
+  const assigneeOptions = useMemo(
+    () => employees.filter((e) => e.userId != null) as { id: number; firstName: string; lastName: string; userId: number }[],
+    [employees],
+  );
+
+  const auditQuery = useMemo(
+    () => ({
       companyId: companyId ?? undefined,
       createdOnOrAfter: from,
       createdOnOrBefore: to,
       employeeId: employeeId !== "all" ? Number(employeeId) : undefined,
-      actionType: actionType !== "all" ? actionType : undefined,
-      limit: 50,
-    },
-    { enabled: enabled && companyId != null },
+      actionType: auditLens === "all" && actionType !== "all" ? actionType : undefined,
+      auditLens,
+      operationalAction: auditLens === "operational" ? operationalAction : undefined,
+      operationalIssueKind: auditLens === "operational" ? operationalIssueKind : "all",
+      operationalIssueStatus:
+        auditLens === "operational" && operationalIssueStatus !== "all" ? operationalIssueStatus : undefined,
+      operationalAssigneeUserId:
+        auditLens === "operational" && operationalAssigneeUserId !== "all"
+          ? Number(operationalAssigneeUserId)
+          : undefined,
+      limit: auditLens === "operational" ? 100 : 50,
+    }),
+    [
+      companyId,
+      from,
+      to,
+      employeeId,
+      actionType,
+      auditLens,
+      operationalAction,
+      operationalIssueKind,
+      operationalIssueStatus,
+      operationalAssigneeUserId,
+    ],
   );
+
+  const { data, isLoading, refetch, isFetching } = trpc.attendance.listAttendanceAudit.useQuery(auditQuery, {
+    enabled: enabled && companyId != null,
+  });
 
   const empName = (id: number | null | undefined) => {
     if (id == null) return "—";
@@ -191,21 +229,111 @@ function AttendanceAuditLog({
           </Select>
         </div>
         <div className="space-y-1">
-          <Label className="text-xs text-muted-foreground">Action</Label>
-          <Select value={actionType} onValueChange={setActionType}>
-            <SelectTrigger className="h-8 text-sm w-[220px]">
-              <SelectValue placeholder="All actions" />
+          <Label className="text-xs text-muted-foreground">View</Label>
+          <Select
+            value={auditLens}
+            onValueChange={(v) => {
+              setAuditLens(v as "all" | "operational");
+              if (v === "operational") setActionType("all");
+            }}
+          >
+            <SelectTrigger className="h-8 text-sm w-[200px]">
+              <SelectValue />
             </SelectTrigger>
-            <SelectContent className="max-h-72">
-              <SelectItem value="all">All actions</SelectItem>
-              {actionOptions.map((o) => (
-                <SelectItem key={o.value} value={o.value}>
-                  {o.label}
-                </SelectItem>
-              ))}
+            <SelectContent>
+              <SelectItem value="all">All audit types</SelectItem>
+              <SelectItem value="operational">Operational triage only</SelectItem>
             </SelectContent>
           </Select>
         </div>
+        {auditLens === "all" ? (
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">Action</Label>
+            <Select value={actionType} onValueChange={setActionType}>
+              <SelectTrigger className="h-8 text-sm w-[220px]">
+                <SelectValue placeholder="All actions" />
+              </SelectTrigger>
+              <SelectContent className="max-h-72">
+                <SelectItem value="all">All actions</SelectItem>
+                {actionOptions.map((o) => (
+                  <SelectItem key={o.value} value={o.value}>
+                    {o.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        ) : (
+          <>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Op action</Label>
+              <Select value={operationalAction} onValueChange={(v) => setOperationalAction(v as typeof operationalAction)}>
+                <SelectTrigger className="h-8 text-sm w-[180px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All (ack / resolve / assign)</SelectItem>
+                  <SelectItem value="acknowledge">Acknowledge</SelectItem>
+                  <SelectItem value="resolve">Resolve</SelectItem>
+                  <SelectItem value="assign">Assign</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Issue kind</Label>
+              <Select
+                value={operationalIssueKind}
+                onValueChange={(v) =>
+                  setOperationalIssueKind(v as typeof operationalIssueKind)
+                }
+              >
+                <SelectTrigger className="h-8 text-sm w-[200px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All kinds</SelectItem>
+                  <SelectItem value="overdue_checkout">Overdue checkout</SelectItem>
+                  <SelectItem value="missed_shift">Missed shift</SelectItem>
+                  <SelectItem value="correction_pending">Correction pending</SelectItem>
+                  <SelectItem value="manual_pending">Manual pending</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Issue status</Label>
+              <Select
+                value={operationalIssueStatus}
+                onValueChange={(v) => setOperationalIssueStatus(v as typeof operationalIssueStatus)}
+              >
+                <SelectTrigger className="h-8 text-sm w-[160px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Any status</SelectItem>
+                  <SelectItem value="open">Open</SelectItem>
+                  <SelectItem value="acknowledged">Acknowledged</SelectItem>
+                  <SelectItem value="resolved">Resolved</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Assigned to (user)</Label>
+              <Select value={operationalAssigneeUserId} onValueChange={setOperationalAssigneeUserId}>
+                <SelectTrigger className="h-8 text-sm w-[200px]">
+                  <SelectValue placeholder="Any" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Anyone</SelectItem>
+                  {assigneeOptions.map((e) => (
+                    <SelectItem key={e.userId} value={String(e.userId)}>
+                      {e.firstName} {e.lastName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </>
+        )}
         <Button
           type="button"
           size="sm"
@@ -220,7 +348,14 @@ function AttendanceAuditLog({
       </div>
 
       <p className="text-xs text-muted-foreground">
-        Structural audit trail (last 50 rows for the selected filters). Open a row for before/after payloads and linked IDs.
+        Structural audit trail (last {auditLens === "operational" ? 100 : 50} rows for the selected filters). Open a row
+        for before/after payloads and linked IDs.
+        {auditLens === "operational" ? (
+          <span className="block mt-1">
+            Operational triage lens shows acknowledge, resolve, and assign audit entries. Issue kind filters the
+            stable key on the triage payload; status and assignee match the current operational issue row when present.
+          </span>
+        ) : null}
       </p>
 
       {isLoading ? (
@@ -1397,7 +1532,12 @@ export default function HRAttendancePage() {
           <AttendanceAuditLog
             enabled={attendanceTab === "audit" && activeCompanyId != null}
             companyId={activeCompanyId}
-            employees={(employees ?? []).map((e) => ({ id: e.id, firstName: e.firstName, lastName: e.lastName }))}
+            employees={(employees ?? []).map((e) => ({
+              id: e.id,
+              firstName: e.firstName,
+              lastName: e.lastName,
+              userId: e.userId ?? null,
+            }))}
           />
         </TabsContent>
         <TabsContent value="records" className="mt-4">

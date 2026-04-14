@@ -144,6 +144,18 @@ describe("clientNavItemVisible", () => {
     expect(clientNavItemVisible("/payroll", rev, new Set(), opts)).toBe(false);
   });
 
+  it("allows company-admin routes when platformRole is still client but membership is company_admin", () => {
+    const staleClientPlatform = { role: "user" as const, platformRole: "client" as const };
+    const opts = {
+      hasCompanyWorkspace: true,
+      hasCompanyMembership: true,
+      memberRole: "company_admin" as const,
+    };
+    expect(clientNavItemVisible("/company/settings", staleClientPlatform, new Set(), opts)).toBe(true);
+    expect(clientRouteAccessible("/company/settings", staleClientPlatform, new Set(), opts)).toBe(true);
+    expect(clientNavItemVisible("/hr/employees", staleClientPlatform, new Set(), opts)).toBe(true);
+  });
+
   it('uses the Member (company_member) shell even for Super Admin when that is the active membership role', () => {
     const opts = { hasCompanyWorkspace: true, memberRole: "company_member" as const };
     expect(clientNavItemVisible("/user-roles", superAdmin, new Set(), opts)).toBe(false);

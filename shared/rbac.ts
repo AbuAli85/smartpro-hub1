@@ -86,6 +86,18 @@ export function isExternalAuditor(membershipRole: string | null | undefined): bo
 }
 
 /**
+ * Tenant-side operator roles (HR/Finance/Owner) — must come from **company_members.role**, not `users.platformRole`.
+ * Used by workspace UI and server helpers so a stale or default global platform role cannot imply tenant admin access.
+ */
+export function hasTenantOperatorMembership(memberRole: string | null | undefined): boolean {
+  return (
+    memberRole === "company_admin" ||
+    memberRole === "hr_admin" ||
+    memberRole === "finance_admin"
+  );
+}
+
+/**
  * Throws a FORBIDDEN TRPCError when the caller is an external_auditor.
  * Import TRPCError from @trpc/server at the call site.
  *

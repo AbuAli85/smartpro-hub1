@@ -18,7 +18,7 @@ import {
   type InterventionSignalContext,
   type UniversalPerformanceSignal,
 } from "./universalPerformanceSignal";
-import { canAccessGlobalAdminProcedures } from "@shared/rbac";
+import { canAccessGlobalAdminProcedures, hasTenantOperatorMembership } from "@shared/rbac";
 
 export type MyWorkspaceTask = {
   id: number;
@@ -83,15 +83,8 @@ function isWorkspaceOperatorContext(
   companyMemberRole: string | null | undefined,
   user: Pick<User, "role" | "platformRole"> | null | undefined
 ): boolean {
-  if (
-    companyMemberRole === "company_admin" ||
-    companyMemberRole === "hr_admin" ||
-    companyMemberRole === "finance_admin"
-  ) {
-    return true;
-  }
+  if (hasTenantOperatorMembership(companyMemberRole)) return true;
   if (!user) return false;
-  if (user.platformRole === "company_admin") return true;
   return canAccessGlobalAdminProcedures(user);
 }
 

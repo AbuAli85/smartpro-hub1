@@ -30,11 +30,11 @@ export function normalizeEmail(e: string | null | undefined): string {
 /**
  * Resolves the workspace company for tenant-scoped operations.
  * - If `companyId` is set, validates membership in that company.
- * - If `user` is passed and unset: platform operators use first membership; **non-platform** users with
- *   **multiple** memberships must pass `companyId` (selected workspace); a single membership resolves to it.
- * - If `user` is **omitted** (legacy internal callers), falls back to `getUserCompany` (first membership).
+ * - If omitted: requires exactly one active membership, **including for global platform admins** (no implicit
+ *   “pick first company” for multi-tenant users — avoids acting on the wrong workspace).
+ * - The optional `user` argument is kept for call-site clarity and compatibility; resolution is membership-based.
  */
-export async function requireActiveCompanyId(userId: number, companyId?: number | null, user?: User): Promise<number> {
+export async function requireActiveCompanyId(userId: number, companyId?: number | null, _user?: User): Promise<number> {
   if (companyId != null) {
     const m = await getUserCompanyById(userId, companyId);
     if (!m?.company?.id) {
@@ -42,31 +42,17 @@ export async function requireActiveCompanyId(userId: number, companyId?: number 
     }
     return m.company.id;
   }
-  if (user && canAccessGlobalAdminProcedures(user)) {
-    const m = await getUserCompany(userId);
-    if (!m?.company?.id) {
-      throw new TRPCError({ code: "FORBIDDEN", message: "No company membership" });
-    }
-    return m.company.id;
-  }
-  if (user) {
-    const list = await getUserCompanies(userId);
-    if (list.length === 0) {
-      throw new TRPCError({ code: "FORBIDDEN", message: "No company membership" });
-    }
-    if (list.length > 1) {
-      throw new TRPCError({
-        code: "BAD_REQUEST",
-        message: "Select a company workspace — pass companyId for this operation.",
-      });
-    }
-    return list[0].company.id;
-  }
-  const m = await getUserCompany(userId);
-  if (!m?.company?.id) {
+  const list = await getUserCompanies(userId);
+  if (list.length === 0) {
     throw new TRPCError({ code: "FORBIDDEN", message: "No company membership" });
   }
-  return m.company.id;
+  if (list.length > 1) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "Select a company workspace — pass companyId for this operation.",
+    });
+  }
+  return list[0].company.id;
 }
 
 /**

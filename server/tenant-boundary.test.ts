@@ -29,17 +29,36 @@ describe("normalizeEmail", () => {
 
 describe("requireActiveCompanyId", () => {
   beforeEach(() => {
-    vi.mocked(db.getUserCompany).mockReset();
+    vi.mocked(db.getUserCompanies).mockReset();
   });
 
   it("throws FORBIDDEN when user has no company", async () => {
-    vi.mocked(db.getUserCompany).mockResolvedValue(null);
+    vi.mocked(db.getUserCompanies).mockResolvedValue([]);
     await expect(requireActiveCompanyId(1)).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
-  it("returns active company id", async () => {
-    vi.mocked(db.getUserCompany).mockResolvedValue({ company: { id: 7 }, member: {} } as any);
+  it("returns active company id when user has exactly one membership", async () => {
+    vi.mocked(db.getUserCompanies).mockResolvedValue([{ company: { id: 7 }, member: {} }] as any);
     await expect(requireActiveCompanyId(2)).resolves.toBe(7);
+  });
+
+  it("throws BAD_REQUEST when user has multiple memberships and companyId is omitted", async () => {
+    vi.mocked(db.getUserCompanies).mockResolvedValue([
+      { company: { id: 1 }, member: {} },
+      { company: { id: 2 }, member: {} },
+    ] as any);
+    await expect(requireActiveCompanyId(10)).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  });
+
+  it("does not let super_admin implicit workspace skip multi-membership disambiguation", async () => {
+    vi.mocked(db.getUserCompanies).mockResolvedValue([
+      { company: { id: 10 }, member: {} },
+      { company: { id: 20 }, member: {} },
+    ] as any);
+    const superAdmin = { id: 1, role: "user" as const, platformRole: "super_admin" as const };
+    await expect(requireActiveCompanyId(1, undefined, superAdmin as any)).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+    });
   });
 });
 

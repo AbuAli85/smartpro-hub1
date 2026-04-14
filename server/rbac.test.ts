@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   canAccessGlobalAdminProcedures,
+  hasTenantOperatorMembership,
   isCompanyProvisioningAdmin,
   mapMemberRoleToPlatformRole,
 } from "@shared/rbac";
@@ -24,6 +25,17 @@ describe("canAccessGlobalAdminProcedures", () => {
 describe("isCompanyProvisioningAdmin", () => {
   it("includes company_admin", () => {
     expect(isCompanyProvisioningAdmin({ role: "user", platformRole: "company_admin" })).toBe(true);
+  });
+});
+
+describe("hasTenantOperatorMembership", () => {
+  it("is true only for tenant operator membership roles", () => {
+    expect(hasTenantOperatorMembership("company_admin")).toBe(true);
+    expect(hasTenantOperatorMembership("hr_admin")).toBe(true);
+    expect(hasTenantOperatorMembership("finance_admin")).toBe(true);
+    expect(hasTenantOperatorMembership("company_member")).toBe(false);
+    expect(hasTenantOperatorMembership("client")).toBe(false);
+    expect(hasTenantOperatorMembership(null)).toBe(false);
   });
 });
 

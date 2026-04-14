@@ -6,6 +6,7 @@ import {
   Banknote,
   Bell,
   BookOpen,
+  BookMarked,
   Briefcase,
   Building2,
   Calendar,
@@ -45,34 +46,28 @@ import {
   UserCircle,
   UserSquare2,
   Users,
-  BookMarked,
   SlidersHorizontal,
 } from "lucide-react";
 import { clientNavItemVisible, type ClientNavOptions } from "@shared/clientNav";
 import { getHiddenNavHrefs } from "@/lib/navVisibility";
 
 /**
- * Platform sidebar — implementation notes (2026 refactor)
+ * Platform sidebar — final Business OS tree (labels + routes + icons).
  *
  * **Sources of truth**
- * - `PLATFORM_NAV_GROUP_DEFS`: canonical tree (labels, routes, icons, hub prefixes, tiers).
- * - `shared/clientNav.ts` (`clientNavItemVisible`): role, portal shell, optional prefs, platform-only hrefs.
- * - `shared/roleNavConfig.ts`: company-configured nav extensions (not duplicated here).
+ * - This file: structure, `NavTier`, hub `activePathPrefixes`, default labels.
+ * - `shared/clientNav.ts` (`clientNavItemVisible`): RBAC, shells, optional hidden prefs.
+ * - `shared/roleNavConfig.ts`: tenant `roleNavExtensions` allowlists.
  *
- * **What changed**
- * - Information architecture: business-first sections (Control → Company → People → Operations → Gov),
- *   then PRO, Marketplace, Sanad partners, Access, Platform/admin — instead of a long flat mix.
- * - Group metadata: `tier`, `collapsible`, `defaultCollapsed` for progressive disclosure (see PlatformSidebarNav).
- * - Naming aligned to business language; routes preserved unless already shared by hub prefixes.
- *
- * **Policy**
- * - Do not encode RBAC duplicates here; visibility stays centralized in `clientNavItemVisible`.
+ * **Naming**
+ * - **Team Directory** (`/my-team`) = HR people directory; **Team Access** (`/company/team-access`) = access;
+ *   **Roles & permissions** (`/company-admin`) = membership roles & roster (distinct from directory).
  */
 
 /** Semantic layer for analytics, onboarding, and future AI routing. */
 export type NavIntent = "overview" | "workspace" | "insight" | "governance" | "marketplace" | "system";
 
-/** Sidebar section priority — drives disclosure + header emphasis in the shell. */
+/** Section priority: rendering, disclosure, and header weight in PlatformSidebarNav. */
 export type NavTier = "primary" | "secondary" | "tertiary";
 
 export type NavLeafDef = {
@@ -83,9 +78,7 @@ export type NavLeafDef = {
   href: string;
   icon: LucideIcon;
   intent: NavIntent;
-  /** Treat these paths as active for this item (hub + legacy deep links). */
   activePathPrefixes?: string[];
-  /** Stronger sidebar emphasis — primary hub entry points. */
   hubPrimary?: boolean;
 };
 
@@ -106,11 +99,8 @@ export type NavGroupDef = {
   labelKey: string;
   defaultGroupLabel: string;
   items: NavItemDef[];
-  /** Default: primary. */
   tier?: NavTier;
-  /** Whole-group disclosure (secondary/tertiary); primary groups stay always open. */
   collapsible?: boolean;
-  /** When `collapsible`, start collapsed until route-active or user expands. */
   defaultCollapsed?: boolean;
 };
 
@@ -149,13 +139,10 @@ function branch(
 }
 
 /**
- * Canonical platform navigation tree (labels + routes + icons).
- * Role gating is applied in filterVisibleNavGroups — do not duplicate rules here.
- *
- * Order: executive control → company → people → operations → government/compliance →
- * PRO → marketplace → Sanad network → access → platform/admin.
+ * Canonical ordered nav groups (A→J). Role filtering does not reorder — empty groups drop out.
  */
 export const PLATFORM_NAV_GROUP_DEFS: readonly NavGroupDef[] = [
+  /* A — Control */
   {
     id: "control",
     labelKey: "controlGroup",
@@ -166,9 +153,40 @@ export const PLATFORM_NAV_GROUP_DEFS: readonly NavGroupDef[] = [
       leaf("overview.businessOverview", "businessOverview", "Business Overview", "/dashboard", LayoutDashboard, {
         intent: "overview",
       }),
+      leaf("overview.operationsOverview", "operationsOverview", "Operations Overview", "/operations", Activity, {
+        intent: "overview",
+      }),
       leaf("overview.analytics", "analytics", "Analytics", "/analytics", BarChart3, { intent: "overview" }),
+      leaf("overview.complianceCentre", "complianceCentre", "Compliance Centre", "/compliance", CheckCircle2, {
+        intent: "overview",
+      }),
     ],
   },
+  /* B — Government services / partner (Sanad) */
+  {
+    id: "govPartner",
+    labelKey: "govPartnerGroup",
+    defaultGroupLabel: "Government services & partners",
+    tier: "secondary",
+    collapsible: true,
+    defaultCollapsed: false,
+    items: [
+      leaf("gov.sanadOffices", "sanadOffices", "Sanad Offices", "/sanad", Building2, { intent: "system" }),
+      leaf("gov.officeDashboard", "officeDashboard", "Office Dashboard", "/sanad/office-dashboard", BarChart3, {
+        intent: "system",
+      }),
+      leaf("gov.partnerOnboarding", "partnerOnboarding", "Partner Onboarding", "/sanad/partner-onboarding", Sparkles, {
+        intent: "system",
+      }),
+      leaf("gov.catalogueAdmin", "catalogueAdmin", "Catalogue Administration", "/sanad/catalogue-admin", BookMarked, {
+        intent: "system",
+      }),
+      leaf("gov.ratingsModeration", "ratingsModeration", "Ratings Moderation", "/sanad/ratings-moderation", Star, {
+        intent: "system",
+      }),
+    ],
+  },
+  /* C — Company */
   {
     id: "company",
     labelKey: "companyGroup",
@@ -180,13 +198,14 @@ export const PLATFORM_NAV_GROUP_DEFS: readonly NavGroupDef[] = [
       leaf("co.companyDocuments", "companyDocuments", "Company Documents", "/company/documents", FolderOpen, {
         intent: "workspace",
       }),
-      leaf("co.companyAdmin", "companyAdmin", "Member administration", "/company-admin", Users, { intent: "workspace" }),
+      leaf("co.contracts", "contracts", "Contracts", "/contracts", FileText, { intent: "workspace" }),
       leaf("co.companySettings", "companySettings", "Workspace Settings", "/company/settings", SlidersHorizontal, {
         intent: "workspace",
       }),
       leaf("co.emailTemplates", "emailTemplates", "Email Templates", "/company/email-preview", Mail, { intent: "workspace" }),
     ],
   },
+  /* D — People & HR */
   {
     id: "peopleHr",
     labelKey: "peopleHrGroup",
@@ -198,7 +217,7 @@ export const PLATFORM_NAV_GROUP_DEFS: readonly NavGroupDef[] = [
       branch(
         "people.scheduling",
         "schedulingTime",
-        "Attendance & scheduling",
+        "Scheduling & Attendance",
         CalendarClock,
         "workspace",
         [
@@ -274,15 +293,13 @@ export const PLATFORM_NAV_GROUP_DEFS: readonly NavGroupDef[] = [
         },
       ),
       leaf("people.payroll", "payrollEngine", "Payroll Engine", "/payroll", Banknote, { intent: "workspace" }),
+      leaf("people.tasks", "taskManager", "Task Manager", "/hr/tasks", ListTodo, { intent: "workspace" }),
       leaf("people.recruitment", "recruitment", "Recruitment", "/hr/recruitment", BookOpen, { intent: "workspace" }),
       leaf("people.announcements", "announcements", "Announcements", "/hr/announcements", Megaphone, {
         intent: "workspace",
       }),
       leaf("people.profileCompleteness", "profileCompleteness", "Profile completeness", "/hr/completeness", UserCheck, {
         intent: "workspace",
-      }),
-      leaf("people.financeOverview", "financeOverview", "Finance overview", "/finance/overview", TrendingDown, {
-        intent: "insight",
       }),
       branch(
         "people.hrDocs",
@@ -303,37 +320,60 @@ export const PLATFORM_NAV_GROUP_DEFS: readonly NavGroupDef[] = [
           }),
         ],
       ),
+      leaf(
+        "people.profileChangeReq",
+        "profileChangeRequests",
+        "Profile change requests",
+        "/workforce/profile-change-requests",
+        ClipboardList,
+        { intent: "governance" },
+      ),
+      leaf("people.complianceVaultHr", "complianceVault", "Compliance vault", "/workforce/documents", FolderOpen, {
+        intent: "governance",
+      }),
+      leaf("people.financeOverview", "financeOverview", "Finance overview", "/finance/overview", TrendingDown, {
+        intent: "insight",
+      }),
     ],
   },
+  /* E — Operations */
   {
     id: "operations",
     labelKey: "operations",
     defaultGroupLabel: "Operations",
     tier: "primary",
     items: [
-      leaf("overview.operationsOverview", "operationsOverview", "Operations overview", "/operations", Activity, {
-        intent: "overview",
-      }),
-      leaf("ops.companyHub", "operationsHub", "Operations hub", "/company/hub", Building2, { intent: "workspace" }),
+      leaf("ops.companyHub", "companyHub", "Company hub", "/company/hub", Building2, { intent: "workspace" }),
       leaf("ops.crm", "crm", "CRM & Pipeline", "/crm", Users, { intent: "workspace" }),
       leaf("ops.quotations", "quotations", "Quotations", "/quotations", Target, { intent: "workspace" }),
-      leaf("ops.contracts", "contracts", "Contracts", "/contracts", FileText, { intent: "workspace" }),
-      leaf("ops.tasks", "taskManager", "Task Manager", "/hr/tasks", ListTodo, { intent: "workspace" }),
     ],
   },
+  /* F — Marketplace */
   {
-    id: "govCompliance",
-    labelKey: "govComplianceGroup",
-    defaultGroupLabel: "Government & compliance",
+    id: "marketplaceSection",
+    labelKey: "marketplaceSection",
+    defaultGroupLabel: "Marketplace",
+    tier: "secondary",
+    collapsible: true,
+    defaultCollapsed: false,
+    items: [
+      leaf("mp.service", "serviceMarketplace", "Service marketplace", "/marketplace", ShoppingBag, {
+        intent: "marketplace",
+      }),
+      leaf("mp.sanad", "sanadMarketplace", "Sanad marketplace", "/sanad/marketplace", Store, { intent: "marketplace" }),
+    ],
+  },
+  /* G — Compliance & workforce */
+  {
+    id: "complianceWorkforce",
+    labelKey: "complianceWorkforceGroup",
+    defaultGroupLabel: "Compliance & workforce",
     tier: "primary",
     items: [
-      leaf("overview.complianceCentre", "complianceCentre", "Compliance Centre", "/compliance", CheckCircle2, {
-        intent: "overview",
-      }),
       leaf(
         "compliance.renewalsHub",
         "renewalsExpiryHub",
-        "Renewals & expiry",
+        "Renewals & Expiry",
         "/compliance/renewals",
         Bell,
         {
@@ -359,71 +399,9 @@ export const PLATFORM_NAV_GROUP_DEFS: readonly NavGroupDef[] = [
       leaf("compliance.workforceEmployees", "workforceEmployees", "Workforce employees", "/workforce/employees", Briefcase, {
         intent: "governance",
       }),
-      leaf(
-        "compliance.profileRequests",
-        "profileChangeRequests",
-        "Profile change requests",
-        "/workforce/profile-change-requests",
-        ClipboardList,
-        { intent: "governance" },
-      ),
-      leaf("compliance.complianceVault", "complianceVault", "Compliance vault", "/workforce/documents", FolderOpen, {
-        intent: "governance",
-      }),
     ],
   },
-  {
-    id: "proShared",
-    labelKey: "proSharedGroup",
-    defaultGroupLabel: "PRO & Omani PRO",
-    tier: "secondary",
-    collapsible: true,
-    defaultCollapsed: false,
-    items: [
-      leaf("gov.proServices", "proServices", "PRO Services", "/pro", Shield, { intent: "system" }),
-      leaf("sop.officers", "officerRegistry", "Officer registry", "/omani-officers", UserCheck, { intent: "workspace" }),
-      leaf("sop.assignments", "assignments", "Assignments", "/officer-assignments", Building2, { intent: "workspace" }),
-      leaf("sop.billing", "billingEngine", "Billing engine", "/billing", CreditCard, { intent: "workspace" }),
-      leaf("sop.sla", "slaManagement", "SLA management", "/sla-management", Shield, { intent: "workspace" }),
-    ],
-  },
-  {
-    id: "marketplaceSection",
-    labelKey: "marketplaceSection",
-    defaultGroupLabel: "Marketplace",
-    tier: "secondary",
-    collapsible: true,
-    defaultCollapsed: false,
-    items: [
-      leaf("mp.service", "serviceMarketplace", "Service marketplace", "/marketplace", ShoppingBag, {
-        intent: "marketplace",
-      }),
-      leaf("mp.sanad", "sanadMarketplace", "Sanad marketplace", "/sanad/marketplace", Store, { intent: "marketplace" }),
-      leaf("gov.ratingsModeration", "ratingsModeration", "Ratings moderation", "/sanad/ratings-moderation", Star, {
-        intent: "system",
-      }),
-      leaf("gov.catalogueAdmin", "catalogueAdmin", "Catalogue administration", "/sanad/catalogue-admin", BookMarked, {
-        intent: "system",
-      }),
-    ],
-  },
-  {
-    id: "sanadPartners",
-    labelKey: "sanadPartnersGroup",
-    defaultGroupLabel: "Sanad & partners",
-    tier: "secondary",
-    collapsible: true,
-    defaultCollapsed: false,
-    items: [
-      leaf("gov.sanadOffices", "sanadOffices", "Sanad offices", "/sanad", Building2, { intent: "system" }),
-      leaf("gov.partnerOnboarding", "partnerOnboarding", "Partner onboarding", "/sanad/partner-onboarding", Sparkles, {
-        intent: "system",
-      }),
-      leaf("gov.officeDashboard", "officeDashboard", "Office dashboard", "/sanad/office-dashboard", BarChart3, {
-        intent: "system",
-      }),
-    ],
-  },
+  /* H — Access & permissions */
   {
     id: "access",
     labelKey: "accessPermissionsGroup",
@@ -435,6 +413,9 @@ export const PLATFORM_NAV_GROUP_DEFS: readonly NavGroupDef[] = [
       leaf("access.teamAccess", "teamAccess", "Team access", "/company/team-access", UserCheck, {
         intent: "governance",
       }),
+      leaf("access.rolesPermissions", "rolesPermissions", "Roles & permissions", "/company-admin", Shield, {
+        intent: "governance",
+      }),
       leaf("access.crossCompany", "crossCompanyAccess", "Cross-company access", "/company/multi-company-roles", ShieldCheck, {
         intent: "governance",
       }),
@@ -443,6 +424,23 @@ export const PLATFORM_NAV_GROUP_DEFS: readonly NavGroupDef[] = [
       }),
     ],
   },
+  /* I — Shared Omani PRO */
+  {
+    id: "proShared",
+    labelKey: "proSharedGroup",
+    defaultGroupLabel: "Shared Omani PRO",
+    tier: "secondary",
+    collapsible: true,
+    defaultCollapsed: false,
+    items: [
+      leaf("gov.proServices", "proServices", "PRO Services", "/pro", Shield, { intent: "system" }),
+      leaf("sop.officers", "officerRegistry", "Officer registry", "/omani-officers", UserCheck, { intent: "workspace" }),
+      leaf("sop.assignments", "assignments", "Assignments", "/officer-assignments", Building2, { intent: "workspace" }),
+      leaf("sop.billing", "billingEngine", "Billing engine", "/billing", CreditCard, { intent: "workspace" }),
+      leaf("sop.sla", "slaManagement", "SLA management", "/sla-management", Shield, { intent: "workspace" }),
+    ],
+  },
+  /* J — Platform & admin */
   {
     id: "platform",
     labelKey: "platformAdminGroup",
@@ -451,18 +449,21 @@ export const PLATFORM_NAV_GROUP_DEFS: readonly NavGroupDef[] = [
     collapsible: true,
     defaultCollapsed: true,
     items: [
-      leaf("plat.adminPanel", "adminPanel", "Admin panel", "/admin", Settings, { intent: "system" }),
-      leaf("plat.auditLog", "auditLog", "Audit log", "/audit-log", Shield, { intent: "system" }),
-      leaf("plat.pdfReports", "pdfReports", "PDF reports", "/reports", BarChart2, { intent: "system" }),
+      leaf("plat.clientPortal", "clientPortal", "Client portal", "/client-portal", UserCircle, { intent: "system" }),
       leaf("plat.platformOps", "platformOpsLabel", "Platform operations", "/platform-ops", Globe, { intent: "system" }),
       leaf("plat.navIntegrity", "navIntegrity", "Nav integrity", "/nav-integrity", ShieldCheck, { intent: "system" }),
+      leaf("plat.pdfReports", "pdfReports", "PDF reports", "/reports", BarChart2, { intent: "system" }),
+      leaf("plat.auditLog", "auditLog", "Audit log", "/audit-log", Shield, { intent: "system" }),
+      leaf("plat.adminPanel", "adminPanel", "Admin panel", "/admin", Settings, { intent: "system" }),
       leaf("plat.sanadIntelligence", "sanadIntelligence", "Sanad intelligence", "/admin/sanad", Network, {
         intent: "system",
       }),
-      leaf("plat.clientPortal", "clientPortal", "Client portal", "/client-portal", UserCircle, { intent: "system" }),
     ],
   },
 ];
+
+/** Stable ordered group ids for tests and diagnostics. */
+export const PLATFORM_NAV_GROUP_IDS: readonly string[] = PLATFORM_NAV_GROUP_DEFS.map((g) => g.id);
 
 function filterItem(
   item: NavItemDef,
@@ -496,14 +497,12 @@ export function filterVisibleNavGroups(
   })).filter((g) => g.items.length > 0);
 }
 
-/** Active if current path matches this exact leaf or a deeper segment under it. */
 export function isLeafActive(href: string, location: string): boolean {
   if (location === href) return true;
   if (href !== "/" && location.startsWith(`${href}/`)) return true;
   return false;
 }
 
-/** Sidebar active state including hub `activePathPrefixes`. */
 export function isNavLeafActive(leaf: NavLeafDef, location: string): boolean {
   if (isLeafActive(leaf.href, location)) return true;
   if (!leaf.activePathPrefixes?.length) return false;
@@ -519,7 +518,6 @@ function subtreeContainsActive(item: NavItemDef, location: string): boolean {
   return item.children.some((c) => subtreeContainsActive(c, location));
 }
 
-/** True if any visible item under this group matches the current location (for section expansion). */
 export function groupContainsActiveRoute(group: NavGroupDef, location: string): boolean {
   for (const item of group.items) {
     if (subtreeContainsActive(item, location)) return true;

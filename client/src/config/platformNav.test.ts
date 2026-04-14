@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import {
   PLATFORM_NAV_GROUP_DEFS,
+  PLATFORM_NAV_GROUP_IDS,
   filterVisibleNavGroups,
   groupContainsActiveRoute,
   isNavLeafActive,
@@ -37,47 +38,84 @@ describe("platformNav IA & routing", () => {
     expect(() => assertPlatformNavIntegrity(PLATFORM_NAV_GROUP_DEFS)).not.toThrow();
   });
 
-  it("expands the correct section for nested hub routes (HR Insights)", () => {
-    const people = findGroup("peopleHr");
-    expect(people).toBeDefined();
-    const leaf = walkLeaves(people!.items).find((l) => l.href === "/hr/insights");
+  it("uses the final canonical section order (A→J)", () => {
+    expect(PLATFORM_NAV_GROUP_IDS).toEqual([
+      "control",
+      "govPartner",
+      "company",
+      "peopleHr",
+      "operations",
+      "marketplaceSection",
+      "complianceWorkforce",
+      "access",
+      "proShared",
+      "platform",
+    ]);
+  });
+
+  it("places Team Directory under People & HR, not under Access", () => {
+    const people = findGroup("peopleHr")!;
+    const access = findGroup("access")!;
+    expect(walkLeaves(people.items).some((l) => l.href === "/my-team")).toBe(true);
+    expect(walkLeaves(access.items).some((l) => l.href === "/my-team")).toBe(false);
+  });
+
+  it("maps Team access to Access & permissions (/company/team-access), distinct from Roles & permissions", () => {
+    const access = findGroup("access")!;
+    const leaves = walkLeaves(access.items);
+    const teamAccess = leaves.find((l) => l.href === "/company/team-access");
+    const roles = leaves.find((l) => l.href === "/company-admin");
+    expect(teamAccess?.labelKey).toBe("teamAccess");
+    expect(roles?.labelKey).toBe("rolesPermissions");
+    expect(leaves.map((l) => l.href).join()).not.toContain("/my-team");
+  });
+
+  it("expands People & HR for HR Insights hub deep links", () => {
+    const people = findGroup("peopleHr")!;
+    const leaf = walkLeaves(people.items).find((l) => l.href === "/hr/insights");
     expect(leaf).toBeDefined();
     expect(isNavLeafActive(leaf!, "/hr/workforce-intelligence")).toBe(true);
-    expect(groupContainsActiveRoute(people!, "/hr/workforce-intelligence")).toBe(true);
+    expect(groupContainsActiveRoute(people, "/hr/workforce-intelligence")).toBe(true);
   });
 
-  it("expands Government & compliance for renewals deep links", () => {
-    const gov = findGroup("govCompliance");
-    expect(gov).toBeDefined();
-    expect(groupContainsActiveRoute(gov!, "/compliance/renewals")).toBe(true);
-    expect(groupContainsActiveRoute(gov!, "/alerts")).toBe(true);
+  it("expands Compliance & workforce for renewals and portal sync", () => {
+    const cw = findGroup("complianceWorkforce")!;
+    expect(groupContainsActiveRoute(cw, "/compliance/renewals")).toBe(true);
+    expect(groupContainsActiveRoute(cw, "/alerts")).toBe(true);
+    expect(groupContainsActiveRoute(cw, "/workforce/sync")).toBe(true);
   });
 
-  it("maps Team access under Access & permissions (no duplicate href)", () => {
-    const access = findGroup("access");
-    expect(access).toBeDefined();
-    const leaves = walkLeaves(access!.items);
-    const hrefs = leaves.map((l) => l.href);
-    expect(new Set(hrefs).size).toBe(hrefs.length);
-    expect(hrefs).toContain("/company/team-access");
+  it("places Control overview routes together (incl. Operations Overview)", () => {
+    const control = findGroup("control")!;
+    const hrefs = walkLeaves(control.items).map((l) => l.href);
+    expect(hrefs).toEqual([
+      "/control-tower",
+      "/dashboard",
+      "/operations",
+      "/analytics",
+      "/compliance",
+    ]);
   });
 
-  it("keeps Operations overview and Operations hub as distinct routes", () => {
-    const ops = findGroup("operations");
-    const hrefs = walkLeaves(ops!.items).map((l) => l.href);
-    expect(hrefs).toContain("/operations");
-    expect(hrefs).toContain("/company/hub");
+  it("keeps Operations section to hub, CRM, and quotations only", () => {
+    const ops = findGroup("operations")!;
+    expect(walkLeaves(ops.items).map((l) => l.href)).toEqual(["/company/hub", "/crm", "/quotations"]);
   });
 
-  it("tertiary platform group defaults collapsed in config (progressive disclosure)", () => {
+  it("tertiary platform group defaults collapsed in config", () => {
     const plat = findGroup("platform");
     expect(plat?.tier).toBe("tertiary");
     expect(plat?.collapsible).toBe(true);
     expect(plat?.defaultCollapsed).toBe(true);
   });
 
+  it("expands Platform & admin for /admin and /audit-log", () => {
+    const plat = findGroup("platform")!;
+    expect(groupContainsActiveRoute(plat, "/admin")).toBe(true);
+    expect(groupContainsActiveRoute(plat, "/audit-log")).toBe(true);
+  });
+
   it("role-based filtering: company_admin retains primary business groups", () => {
-    const hidden = new Set<string>();
     const groups = filterVisibleNavGroups(ownerUser, companyOpts);
     expect(groups.some((g) => g.id === "control")).toBe(true);
     expect(groups.some((g) => g.id === "company")).toBe(true);

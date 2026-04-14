@@ -245,7 +245,7 @@ export function PlatformSidebarNav({
   }, [location]);
 
   return (
-    <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-6" aria-label="Primary">
+    <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-7" aria-label="Primary">
       {groups.map((group, index) => {
         const tier = group.tier ?? "primary";
         const title =
@@ -257,7 +257,7 @@ export function PlatformSidebarNav({
         const open = resolveGroupOpen(group);
 
         const headerClass = cn(
-          "px-3 mb-1.5 text-[10px] font-semibold uppercase tracking-widest",
+          "px-3 mb-2 text-[10px] font-semibold uppercase tracking-widest",
           tierHeaderClass(tier),
         );
 

@@ -4,10 +4,11 @@ import type { CompanyMember, User } from "../../drizzle/schema";
 import { requireActiveCompanyId } from "./tenant";
 
 /**
- * Canonical active company membership (one row: `company_members.isActive` + join to `companies`).
- * If companyId is provided, validates the user is a member of that specific company.
- * If omitted, uses first membership only — legacy-friendly; for tRPC handlers with `ctx.user`, prefer
- * {@link requireWorkspaceMembership} so multi-company tenants must pass an explicit workspace.
+ * Policy (post–workspace migration):
+ * - **Authorization in routers** must use {@link requireWorkspaceMembership} or {@link requireActiveCompanyId},
+ *   not first-membership guessing.
+ * - **`getActiveCompanyMembership` without `companyId`** remains for legacy call sites, tests, and
+ *   **non-authority** helpers only; do not add new tenant-sensitive reads/mutations on implicit selection.
  */
 /**
  * Legacy “implicit” workspace: first membership row order from {@link getUserCompany}.

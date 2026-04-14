@@ -28,6 +28,10 @@ import { sendInviteEmail, sendHRLetterEmail, sendContractSigningEmail } from "..
 import { buildInviteEmailHtml, buildHRLetterEmailHtml, buildContractSigningEmailHtml } from "../emailPreview";
 import { buildAccessAnalyticsOverview } from "../accessAnalytics";
 import { fetchEmployeesWithAccessData } from "../employeesWithAccessData";
+import {
+  recordInviteRevokedAudit,
+  recordMemberRoleChangedAudit,
+} from "../tenantGovernanceAudit";
 
 function companyIdFromCreateResult(row: unknown): number {
   if (row && typeof row === "object") {
@@ -427,6 +431,15 @@ export const companiesRouter = router({
       }
       await db.update(companyMembers).set({ role: input.role }).where(eq(companyMembers.id, input.memberId));
       await syncPlatformRoleForCompanyMembership(db, target.userId, companyId);
+      await recordMemberRoleChangedAudit(db as never, {
+        companyId,
+        actorUserId: ctx.user.id,
+        memberRowId: input.memberId,
+        targetUserId: target.userId,
+        previousRole: target.role,
+        nextRole: input.role,
+        platformOperator: canAccessGlobalAdminProcedures(ctx.user),
+      });
       return { success: true };
     }),
 
@@ -738,6 +751,12 @@ export const companiesRouter = router({
         await assertCompanyAdmin(ctx.user.id, invite.companyId);
       }
       await db.update(companyInvites).set({ revokedAt: new Date() }).where(eq(companyInvites.id, input.id));
+      await recordInviteRevokedAudit(db as never, {
+        companyId: invite.companyId,
+        actorUserId: ctx.user.id,
+        inviteId: invite.id,
+        platformOperator: global,
+      });
       return { success: true };
     }),
 

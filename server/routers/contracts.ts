@@ -24,6 +24,7 @@ import {
 } from "../_core/tenant";
 import { invokeLLM } from "../_core/llm";
 import { contractSignatures, contractSignatureAudit, contracts } from "../../drizzle/schema";
+import { recordContractStatusUpdatedAudit } from "../tenantGovernanceAudit";
 
 export const contractsRouter = router({
   list: protectedProcedure
@@ -112,6 +113,18 @@ export const contractsRouter = router({
       if (data.endDate) updateData.endDate = new Date(data.endDate);
       if (data.status === "signed") updateData.signedAt = new Date();
       await updateContract(id, updateData);
+      if (data.status !== undefined && data.status !== existing.status) {
+        const db = await getDb();
+        if (db && existing.companyId != null) {
+          await recordContractStatusUpdatedAudit(db as never, {
+            companyId: existing.companyId,
+            actorUserId: ctx.user.id,
+            contractId: id,
+            previousStatus: existing.status ?? null,
+            nextStatus: data.status,
+          });
+        }
+      }
       return { success: true };
     }),
 

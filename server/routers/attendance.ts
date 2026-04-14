@@ -43,6 +43,10 @@ import {
   muscatWallDateTimeToUtc,
 } from "@shared/attendanceMuscatTime";
 import { operationalIssueKey, type OperationalIssueKind } from "@shared/attendanceOperationalIssueKeys";
+import {
+  resolveOperationalIssueForCorrectionTx,
+  resolveOperationalIssueForManualTx,
+} from "../attendanceOperationalIssueSync";
 
 async function requireDb() {
   const db = await getDb();
@@ -1403,6 +1407,8 @@ export const attendanceRouter = router({
             employeeUserId: manualCheckinRequests.employeeUserId,
             siteId: manualCheckinRequests.siteId,
             requestedAt: manualCheckinRequests.requestedAt,
+            requestedBusinessDate: manualCheckinRequests.requestedBusinessDate,
+            requestedScheduleId: manualCheckinRequests.requestedScheduleId,
             justification: manualCheckinRequests.justification,
             lat: manualCheckinRequests.lat,
             lng: manualCheckinRequests.lng,
@@ -1601,6 +1607,18 @@ export const attendanceRouter = router({
           reason: input.adminNote?.trim() || req.justification,
           source: ATTENDANCE_AUDIT_SOURCE.ADMIN_PANEL,
         });
+
+        await resolveOperationalIssueForManualTx(tx, {
+          companyId: membership.company.id,
+          requestId: input.requestId,
+          requestedBusinessDateYmd: approvedBusinessDate,
+          employeeUserId: req.employeeUserId,
+          resolvedByUserId: ctx.user.id,
+          resolutionNote: `Manual check-in approved. ${[input.adminNote?.trim(), req.justification].filter(Boolean).join(" · ")}`.slice(
+            0,
+            2000,
+          ),
+        });
       });
 
       return { success: true, attendanceRecordId: recordIdOut };
@@ -1664,6 +1682,17 @@ export const attendanceRouter = router({
             }) ?? undefined,
           reason: input.adminNote,
           source: ATTENDANCE_AUDIT_SOURCE.ADMIN_PANEL,
+        });
+
+        const manualBd =
+          req.requestedBusinessDate ?? muscatCalendarYmdFromUtcInstant(req.requestedAt);
+        await resolveOperationalIssueForManualTx(tx, {
+          companyId: membership.company.id,
+          requestId: input.requestId,
+          requestedBusinessDateYmd: manualBd,
+          employeeUserId: req.employeeUserId,
+          resolvedByUserId: ctx.user.id,
+          resolutionNote: `Manual check-in rejected: ${input.adminNote}`,
         });
       });
 
@@ -2057,6 +2086,17 @@ export const attendanceRouter = router({
           reason: input.adminNote?.trim() || req.reason,
           source: ATTENDANCE_AUDIT_SOURCE.ADMIN_PANEL,
         });
+
+        await resolveOperationalIssueForCorrectionTx(tx, {
+          companyId: membership.company.id,
+          correctionId: input.correctionId,
+          requestedDateYmd: req.requestedDate,
+          resolvedByUserId: ctx.user.id,
+          resolutionNote: `Correction approved. ${[input.adminNote?.trim(), req.reason].filter(Boolean).join(" · ")}`.slice(
+            0,
+            2000,
+          ),
+        });
       });
 
       return { success: true };
@@ -2111,6 +2151,14 @@ export const attendanceRouter = router({
           afterPayload: attendancePayloadJson(corAfter) ?? undefined,
           reason: input.adminNote,
           source: ATTENDANCE_AUDIT_SOURCE.ADMIN_PANEL,
+        });
+
+        await resolveOperationalIssueForCorrectionTx(tx, {
+          companyId: membership.company.id,
+          correctionId: input.correctionId,
+          requestedDateYmd: req.requestedDate,
+          resolvedByUserId: ctx.user.id,
+          resolutionNote: `Correction rejected: ${input.adminNote}`,
         });
       });
       return { success: true };
@@ -2404,6 +2452,38 @@ export const attendanceRouter = router({
           ),
         )
         .orderBy(desc(attendanceOperationalIssues.updatedAt));
+    }),
+
+  /** Batch-load triage rows for the action queue (keyed by `issue_key`). */
+  listOperationalIssuesByIssueKeys: protectedProcedure
+    .input(
+      z.object({
+        companyId: z.number().optional(),
+        issueKeys: z.array(z.string()).max(200),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      const membership = await requireAdminOrHR(ctx.user as User, input.companyId);
+      const db = await requireDb();
+      const uniq = [...new Set(input.issueKeys)];
+      if (uniq.length === 0) return [];
+      return db
+        .select({
+          issueKey: attendanceOperationalIssues.issueKey,
+          status: attendanceOperationalIssues.status,
+          assignedToUserId: attendanceOperationalIssues.assignedToUserId,
+          acknowledgedByUserId: attendanceOperationalIssues.acknowledgedByUserId,
+          reviewedByUserId: attendanceOperationalIssues.reviewedByUserId,
+          reviewedAt: attendanceOperationalIssues.reviewedAt,
+          resolutionNote: attendanceOperationalIssues.resolutionNote,
+        })
+        .from(attendanceOperationalIssues)
+        .where(
+          and(
+            eq(attendanceOperationalIssues.companyId, membership.companyId),
+            inArray(attendanceOperationalIssues.issueKey, uniq),
+          ),
+        );
     }),
 
   setOperationalIssueStatus: protectedProcedure

@@ -40,11 +40,17 @@ import {
 import { getAdminBoardRowStatusPresentation } from "@/lib/adminBoardRowStatus";
 import {
   buildOperationalActionQueue,
+  collectOperationalIssueKeysForQueue,
+  filterOperationalQueueItems,
   ATTENDANCE_ACTION,
   type AttendanceActionId,
   type OperationalExceptionItem,
+  type OperationalIssueLite,
+  type OperationalQueueFilter,
 } from "@shared/attendanceIntelligence";
+import { muscatCalendarYmdFromUtcInstant, muscatCalendarYmdNow } from "@shared/attendanceMuscatTime";
 import { useAttendanceOperationalMutations } from "@/hooks/useAttendanceOperationalMutations";
+import { useAuth } from "@/_core/hooks/useAuth";
 const AUDIT_ACTION_LABELS: Record<string, string> = {
   [ATTENDANCE_AUDIT_ACTION.HR_ATTENDANCE_CREATE]: "HR attendance · created",
   [ATTENDANCE_AUDIT_ACTION.HR_ATTENDANCE_UPDATE]: "HR attendance · updated",
@@ -1081,12 +1087,19 @@ export default function HRAttendancePage() {
 
   const utils = trpc.useUtils();
   const { activeCompanyId } = useActiveCompany();
-  const { acknowledgeOverdueCheckout, forceCheckout, isPending: operationalPending } =
+  const { forceCheckout, setIssueStatus, isPending: operationalPending } =
     useAttendanceOperationalMutations(activeCompanyId);
+  const { user: authUser } = useAuth();
   const [forceDialogRecordId, setForceDialogRecordId] = useState<number | null>(null);
   const [forceDialogReason, setForceDialogReason] = useState("");
-  const [ackDialogRecordId, setAckDialogRecordId] = useState<number | null>(null);
-  const [ackDialogNote, setAckDialogNote] = useState("");
+  const [triageAckItem, setTriageAckItem] = useState<OperationalExceptionItem | null>(null);
+  const [triageAckNote, setTriageAckNote] = useState("");
+  const [triageResolveItem, setTriageResolveItem] = useState<OperationalExceptionItem | null>(null);
+  const [triageResolveNote, setTriageResolveNote] = useState("");
+  const [triageAssignItem, setTriageAssignItem] = useState<OperationalExceptionItem | null>(null);
+  const [triageAssignUserId, setTriageAssignUserId] = useState<string>("");
+  const [triageAssignNote, setTriageAssignNote] = useState("");
+  const [queueFilter, setQueueFilter] = useState<OperationalQueueFilter>("unresolved");
 
   const { data: employees } = trpc.hr.listEmployees.useQuery({ department: deptFilter !== "all" ? deptFilter : undefined, status: "active", companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
   const { data: attendance, refetch } = trpc.hr.listAttendance.useQuery({ month: monthFilter, companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
@@ -1131,7 +1144,8 @@ export default function HRAttendancePage() {
   const total = (stats?.present ?? 0) + (stats?.absent ?? 0) + (stats?.late ?? 0) + (stats?.half_day ?? 0) + (stats?.remote ?? 0);
   const rate = total > 0 ? Math.round(((stats?.present ?? 0) / total) * 100) : 0;
 
-  const today = new Date().toISOString().split("T")[0];
+  const businessYmd = muscatCalendarYmdNow();
+  const today = businessYmd;
   const todayRecords = (attendance ?? []).filter((r) => {
     const d = r.date ? new Date(r.date).toISOString().split("T")[0] : "";
     return d === today;
@@ -1150,9 +1164,57 @@ export default function HRAttendancePage() {
   const pendingCorrDot = pendingCorrCount > 0;
   const pendingManualDot = pendingManualCount > 0;
 
-  const actionQueueItems = useMemo(
+  const issueKeys = useMemo(
+    () =>
+      collectOperationalIssueKeysForQueue({
+        businessDateYmd: businessYmd,
+        boardRows: (todayBoardData?.board ?? []).map((b) => ({ status: b.status, scheduleId: b.scheduleId })),
+        overdueCheckouts: (overdueCheckoutData?.overdueEmployees ?? []).map((o) => ({
+          attendanceRecordId: o.attendanceRecordId,
+        })),
+        pendingCorrections: (pendingCorrections ?? []).map((r) => ({ id: r.correction.id })),
+        pendingManual: (pendingManual ?? []).map((r) => ({ id: r.req.id })),
+      }),
+    [businessYmd, todayBoardData?.board, overdueCheckoutData?.overdueEmployees, pendingCorrections, pendingManual],
+  );
+
+  const { data: issueRows } = trpc.attendance.listOperationalIssuesByIssueKeys.useQuery(
+    { companyId: activeCompanyId ?? undefined, issueKeys },
+    { enabled: activeCompanyId != null && issueKeys.length > 0 },
+  );
+
+  const issuesByKey = useMemo(() => {
+    const m: Record<string, OperationalIssueLite> = {};
+    for (const r of issueRows ?? []) {
+      m[r.issueKey] = {
+        status: r.status,
+        assignedToUserId: r.assignedToUserId,
+        acknowledgedByUserId: r.acknowledgedByUserId,
+        reviewedByUserId: r.reviewedByUserId,
+        reviewedAt: r.reviewedAt,
+        resolutionNote: r.resolutionNote,
+      };
+    }
+    return m;
+  }, [issueRows]);
+
+  const assigneeNameByUserId = useMemo(() => {
+    const m: Record<number, string> = {};
+    for (const e of employees ?? []) {
+      if (e.userId != null) {
+        m[e.userId] = `${e.firstName} ${e.lastName}`.trim();
+      }
+    }
+    if (authUser?.id != null) {
+      m[authUser.id] = authUser.name?.trim() || m[authUser.id] || `User #${authUser.id}`;
+    }
+    return m;
+  }, [employees, authUser]);
+
+  const actionQueueItemsRaw = useMemo(
     () =>
       buildOperationalActionQueue({
+        businessDateYmd: businessYmd,
         boardRows: (todayBoardData?.board ?? []).map((b) => ({
           status: b.status,
           scheduleId: b.scheduleId,
@@ -1163,11 +1225,36 @@ export default function HRAttendancePage() {
           siteName: b.siteName,
         })),
         overdueCheckouts: overdueCheckoutData?.overdueEmployees ?? [],
-        pendingCorrectionCount: pendingCorrCount,
-        pendingManualCount: pendingManualCount,
-        limit: 28,
+        pendingCorrections: (pendingCorrections ?? []).map((r) => ({
+          id: r.correction.id,
+          employeeLabel:
+            `${r.employee?.firstName ?? ""} ${r.employee?.lastName ?? ""}`.trim() ||
+            `Employee #${r.correction.employeeId}`,
+          businessDateYmd: r.correction.requestedDate,
+        })),
+        pendingManual: (pendingManual ?? []).map((r) => ({
+          id: r.req.id,
+          employeeLabel:
+            `${r.employee?.firstName ?? ""} ${r.employee?.lastName ?? ""}`.trim() || `User #${r.req.employeeUserId}`,
+          businessDateYmd:
+            r.req.requestedBusinessDate ?? muscatCalendarYmdFromUtcInstant(r.req.requestedAt),
+        })),
+        issuesByKey,
+        limit: 32,
       }),
-    [todayBoardData?.board, overdueCheckoutData?.overdueEmployees, pendingCorrCount, pendingManualCount],
+    [
+      businessYmd,
+      todayBoardData?.board,
+      overdueCheckoutData?.overdueEmployees,
+      pendingCorrections,
+      pendingManual,
+      issuesByKey,
+    ],
+  );
+
+  const actionQueueItems = useMemo(
+    () => filterOperationalQueueItems(actionQueueItemsRaw, queueFilter, authUser?.id ?? null),
+    [actionQueueItemsRaw, queueFilter, authUser?.id],
   );
 
   const handleQueueAction = useCallback((action: AttendanceActionId, item: OperationalExceptionItem) => {
@@ -1182,14 +1269,18 @@ export default function HRAttendancePage() {
         setForceDialogRecordId(id);
         setForceDialogReason("");
       }
-    } else if (action === ATTENDANCE_ACTION.ACKNOWLEDGE_OVERDUE) {
-      const id = item.attendanceRecordId;
-      if (id != null) {
-        setAckDialogRecordId(id);
-        setAckDialogNote("");
-      }
+    } else if (action === ATTENDANCE_ACTION.ACKNOWLEDGE_OPERATIONAL_ISSUE) {
+      setTriageAckItem(item);
+      setTriageAckNote("");
+    } else if (action === ATTENDANCE_ACTION.RESOLVE_OPERATIONAL_ISSUE) {
+      setTriageResolveItem(item);
+      setTriageResolveNote("");
+    } else if (action === ATTENDANCE_ACTION.ASSIGN_OPERATIONAL_ISSUE) {
+      setTriageAssignItem(item);
+      setTriageAssignUserId(authUser?.id != null ? String(authUser.id) : "");
+      setTriageAssignNote("");
     }
-  }, []);
+  }, [authUser?.id]);
 
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
@@ -1224,7 +1315,13 @@ export default function HRAttendancePage() {
       />
 
       {activeCompanyId != null ? (
-        <AttendanceActionQueue items={actionQueueItems} onAction={(a, item) => handleQueueAction(a, item)} />
+        <AttendanceActionQueue
+          items={actionQueueItems}
+          filter={queueFilter}
+          onFilterChange={setQueueFilter}
+          assigneeNameByUserId={assigneeNameByUserId}
+          onAction={(a, item) => handleQueueAction(a, item)}
+        />
       ) : null}
 
       {/* Tabs: Live today | HR Records | Corrections | Manual Check-ins | Audit Log */}
@@ -1451,8 +1548,9 @@ export default function HRAttendancePage() {
           <DialogHeader>
             <DialogTitle>Force checkout</DialogTitle>
             <DialogDescription>
-              This closes the open attendance punch at the current time (Asia/Muscat wall clock). The employee is notified
-              implicitly via their record; a full audit entry is stored.
+              This closes the open attendance punch at the current time (Asia/Muscat wall clock). Checkout-at-shift-end is
+              not offered here yet — it needs explicit payroll policy review before we stamp a synthetic end time. The
+              employee is notified implicitly via their record; a full audit entry is stored.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
@@ -1493,43 +1591,195 @@ export default function HRAttendancePage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={ackDialogRecordId != null} onOpenChange={(o) => !o && setAckDialogRecordId(null)}>
+      <Dialog open={triageAckItem != null} onOpenChange={(o) => !o && setTriageAckItem(null)}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Acknowledge overdue checkout</DialogTitle>
+            <DialogTitle>Acknowledge issue</DialogTitle>
             <DialogDescription>
-              Marks this operational issue as acknowledged so the team knows it was triaged (does not close the punch).
+              Marks this operational issue as acknowledged so the team knows it was triaged (does not approve requests or
+              close punches by itself).
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
             <Label htmlFor="ack-note">Note (optional)</Label>
             <Textarea
               id="ack-note"
-              value={ackDialogNote}
-              onChange={(e) => setAckDialogNote(e.target.value)}
+              value={triageAckNote}
+              onChange={(e) => setTriageAckNote(e.target.value)}
               rows={3}
               className="text-sm"
               placeholder="Who is handling this, or context…"
             />
           </div>
           <DialogFooter className="gap-2">
-            <Button type="button" variant="outline" onClick={() => setAckDialogRecordId(null)}>
+            <Button type="button" variant="outline" onClick={() => setTriageAckItem(null)}>
               Cancel
             </Button>
             <Button
               type="button"
-              disabled={operationalPending}
+              disabled={operationalPending || triageAckItem?.triage == null || activeCompanyId == null}
               onClick={async () => {
-                if (ackDialogRecordId == null) return;
+                const item = triageAckItem;
+                if (item?.triage == null || activeCompanyId == null) return;
                 try {
-                  await acknowledgeOverdueCheckout({ attendanceRecordId: ackDialogRecordId, note: ackDialogNote });
-                  setAckDialogRecordId(null);
+                  await setIssueStatus.mutateAsync({
+                    companyId: activeCompanyId,
+                    businessDateYmd: item.triage.businessDateYmd,
+                    kind: item.triage.kind,
+                    attendanceRecordId: item.triage.attendanceRecordId,
+                    scheduleId: item.triage.scheduleId,
+                    correctionId: item.triage.correctionId,
+                    manualCheckinRequestId: item.triage.manualCheckinRequestId,
+                    action: "acknowledge",
+                    note: triageAckNote.trim() || undefined,
+                  });
+                  setTriageAckItem(null);
                 } catch {
                   /* toast via mutation */
                 }
               }}
             >
               Acknowledge
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={triageResolveItem != null} onOpenChange={(o) => !o && setTriageResolveItem(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Resolve issue</DialogTitle>
+            <DialogDescription>
+              Records resolution in the operational issue log (min. 3 characters). Use this when no further action is
+              needed on the triage row.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="resolve-note">Resolution note</Label>
+            <Textarea
+              id="resolve-note"
+              value={triageResolveNote}
+              onChange={(e) => setTriageResolveNote(e.target.value)}
+              rows={4}
+              className="text-sm"
+              placeholder="What was decided or done…"
+            />
+          </div>
+          <DialogFooter className="gap-2">
+            <Button type="button" variant="outline" onClick={() => setTriageResolveItem(null)}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              disabled={
+                operationalPending ||
+                triageResolveItem?.triage == null ||
+                activeCompanyId == null ||
+                triageResolveNote.trim().length < 3
+              }
+              onClick={async () => {
+                const item = triageResolveItem;
+                if (item?.triage == null || activeCompanyId == null) return;
+                try {
+                  await setIssueStatus.mutateAsync({
+                    companyId: activeCompanyId,
+                    businessDateYmd: item.triage.businessDateYmd,
+                    kind: item.triage.kind,
+                    attendanceRecordId: item.triage.attendanceRecordId,
+                    scheduleId: item.triage.scheduleId,
+                    correctionId: item.triage.correctionId,
+                    manualCheckinRequestId: item.triage.manualCheckinRequestId,
+                    action: "resolve",
+                    note: triageResolveNote.trim(),
+                  });
+                  setTriageResolveItem(null);
+                } catch {
+                  /* toast via mutation */
+                }
+              }}
+            >
+              Resolve
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={triageAssignItem != null} onOpenChange={(o) => !o && setTriageAssignItem(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Assign issue</DialogTitle>
+            <DialogDescription>
+              Sends ownership to a user for follow-up. Optional note is stored on the assignment audit entry.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <Label>Assignee</Label>
+              <Select value={triageAssignUserId} onValueChange={setTriageAssignUserId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select user" />
+                </SelectTrigger>
+                <SelectContent>
+                  {authUser?.id != null ? (
+                    <SelectItem value={String(authUser.id)}>Me ({authUser.name ?? `User #${authUser.id}`})</SelectItem>
+                  ) : null}
+                  {(employees ?? [])
+                    .filter((e) => e.userId != null && e.userId !== authUser?.id)
+                    .map((e) => (
+                      <SelectItem key={e.id} value={String(e.userId)}>
+                        {`${e.firstName} ${e.lastName}`.trim()}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="assign-note">Note (optional)</Label>
+              <Textarea
+                id="assign-note"
+                value={triageAssignNote}
+                onChange={(e) => setTriageAssignNote(e.target.value)}
+                rows={2}
+                className="text-sm"
+              />
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button type="button" variant="outline" onClick={() => setTriageAssignItem(null)}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              disabled={
+                operationalPending ||
+                triageAssignItem?.triage == null ||
+                activeCompanyId == null ||
+                !triageAssignUserId
+              }
+              onClick={async () => {
+                const item = triageAssignItem;
+                const uid = parseInt(triageAssignUserId, 10);
+                if (item?.triage == null || activeCompanyId == null || !Number.isFinite(uid) || uid <= 0) return;
+                try {
+                  await setIssueStatus.mutateAsync({
+                    companyId: activeCompanyId,
+                    businessDateYmd: item.triage.businessDateYmd,
+                    kind: item.triage.kind,
+                    attendanceRecordId: item.triage.attendanceRecordId,
+                    scheduleId: item.triage.scheduleId,
+                    correctionId: item.triage.correctionId,
+                    manualCheckinRequestId: item.triage.manualCheckinRequestId,
+                    action: "assign",
+                    assignedToUserId: uid,
+                    note: triageAssignNote.trim() || undefined,
+                  });
+                  setTriageAssignItem(null);
+                } catch {
+                  /* toast via mutation */
+                }
+              }}
+            >
+              Assign
             </Button>
           </DialogFooter>
         </DialogContent>

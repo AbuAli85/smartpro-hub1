@@ -40,6 +40,10 @@ import {
 import { countOverdueOpenCheckoutsOnBoard, muscatShiftWallEndMs } from "@shared/attendanceBoardOverdue";
 import { operationalIssueKey } from "@shared/attendanceOperationalIssueKeys";
 import {
+  ensureOverdueCheckoutOperationalIssuesOpen,
+  syncAttendanceOperationalIssuesFromSnapshot,
+} from "../attendanceOperationalIssueSync";
+import {
   derivePayrollHintsFromBoardRow,
   operationalBandFromBoardStatus,
   riskLevelFromBoardStatus,
@@ -821,7 +825,7 @@ export const schedulingRouter = router({
         now.getTime()
       );
 
-      const board = drafts.map((d) => {
+      let board = drafts.map((d) => {
         const { schedule: s, shift, site, empRow, emp, startT, endT, grace } = d;
         let record = empRow ? recordByScheduleId.get(s.id) : undefined;
 
@@ -993,6 +997,94 @@ export const schedulingRouter = router({
             delayMinutes,
           }),
         };
+      });
+
+      await syncAttendanceOperationalIssuesFromSnapshot(db, {
+        companyId,
+        businessDateYmd: today,
+        boardRows: board.map((b) => ({
+          scheduleId: b.scheduleId,
+          status: b.status,
+          employeeId: b.employeeId,
+        })),
+      });
+
+      const absentKeys = board
+        .filter((b) => b.status === "absent")
+        .map((b) =>
+          operationalIssueKey({ kind: "missed_shift", scheduleId: b.scheduleId, businessDateYmd: today }),
+        );
+      const missedIssueRows =
+        absentKeys.length > 0
+          ? await db
+              .select()
+              .from(attendanceOperationalIssues)
+              .where(
+                and(
+                  eq(attendanceOperationalIssues.companyId, companyId),
+                  inArray(attendanceOperationalIssues.issueKey, absentKeys),
+                ),
+              )
+          : [];
+      const missedByKey = new Map(missedIssueRows.map((r) => [r.issueKey, r]));
+
+      const overdueIssueRows = await db
+        .select()
+        .from(attendanceOperationalIssues)
+        .where(
+          and(
+            eq(attendanceOperationalIssues.companyId, companyId),
+            eq(attendanceOperationalIssues.businessDateYmd, today),
+            eq(attendanceOperationalIssues.issueKind, "overdue_checkout"),
+          ),
+        );
+      const overdueByRecordId = new Map(
+        overdueIssueRows
+          .filter((r) => r.attendanceRecordId != null)
+          .map((r) => [r.attendanceRecordId as number, r]),
+      );
+
+      board = board.map((row) => {
+        let operationalIssue: {
+          status: string;
+          assignedToUserId: number | null;
+          acknowledgedByUserId: number | null;
+          reviewedByUserId: number | null;
+          reviewedAt: Date | null;
+          resolutionNote: string | null;
+        } | null = null;
+        if (row.attendanceRecordId != null) {
+          const oi = overdueByRecordId.get(row.attendanceRecordId);
+          if (oi) {
+            operationalIssue = {
+              status: oi.status,
+              assignedToUserId: oi.assignedToUserId ?? null,
+              acknowledgedByUserId: oi.acknowledgedByUserId ?? null,
+              reviewedByUserId: oi.reviewedByUserId ?? null,
+              reviewedAt: oi.reviewedAt ?? null,
+              resolutionNote: oi.resolutionNote ?? null,
+            };
+          }
+        }
+        if (!operationalIssue && row.status === "absent") {
+          const k = operationalIssueKey({
+            kind: "missed_shift",
+            scheduleId: row.scheduleId,
+            businessDateYmd: today,
+          });
+          const oi = missedByKey.get(k);
+          if (oi) {
+            operationalIssue = {
+              status: oi.status,
+              assignedToUserId: oi.assignedToUserId ?? null,
+              acknowledgedByUserId: oi.acknowledgedByUserId ?? null,
+              reviewedByUserId: oi.reviewedByUserId ?? null,
+              reviewedAt: oi.reviewedAt ?? null,
+              resolutionNote: oi.resolutionNote ?? null,
+            };
+          }
+        }
+        return { ...row, operationalIssue };
       });
 
       type BoardRow = (typeof board)[number];
@@ -1464,6 +1556,15 @@ export const schedulingRouter = router({
       let overdueEmployees = Array.from(overdueMap.values()).sort(
         (a, b) => b.minutesOverdue - a.minutesOverdue
       );
+
+      await ensureOverdueCheckoutOperationalIssuesOpen(db, {
+        companyId,
+        businessDateYmd: today,
+        items: overdueEmployees.map((e) => ({
+          attendanceRecordId: e.attendanceRecordId,
+          employeeId: e.employeeId,
+        })),
+      });
 
       const recordIds = overdueEmployees.map((e) => e.attendanceRecordId);
       if (recordIds.length > 0) {

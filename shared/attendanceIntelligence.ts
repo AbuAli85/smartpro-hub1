@@ -8,6 +8,7 @@
  * - Payroll numbers stay non-financial until rules are finalized — expose flags + minutes only.
  */
 import type { AdminBoardRowStatus } from "./attendanceBoardStatus";
+import { operationalIssueKey, type OperationalIssueKind } from "./attendanceOperationalIssueKeys";
 
 /** Severity for exceptions and queue rows — use consistently across HR UI. */
 export type AttendanceRiskLevel = "critical" | "warning" | "normal";
@@ -34,8 +35,14 @@ export const ATTENDANCE_ACTION = {
   SEND_OVERDUE_REMINDER: "send_overdue_reminder",
   /** HR closes an open punch (requires confirmation + reason in UI). */
   FORCE_CHECKOUT_OPEN: "force_checkout_open",
-  /** Mark overdue operational issue as acknowledged (triage). */
-  ACKNOWLEDGE_OVERDUE: "acknowledge_overdue",
+  /** Triage: mark operational issue acknowledged (all issue kinds). */
+  ACKNOWLEDGE_OPERATIONAL_ISSUE: "acknowledge_operational_issue",
+  /** Triage: resolve with a note (all issue kinds). */
+  RESOLVE_OPERATIONAL_ISSUE: "resolve_operational_issue",
+  /** Triage: assign to a company user. */
+  ASSIGN_OPERATIONAL_ISSUE: "assign_operational_issue",
+  /** @deprecated Use ACKNOWLEDGE_OPERATIONAL_ISSUE */
+  ACKNOWLEDGE_OVERDUE: "acknowledge_operational_issue",
 } as const;
 
 export type AttendanceActionId = (typeof ATTENDANCE_ACTION)[keyof typeof ATTENDANCE_ACTION];
@@ -150,9 +157,23 @@ export interface OperationalExceptionItem {
   employeeLabel: string;
   scheduleId?: number;
   attendanceRecordId?: number | null;
+  /** Stable key matching `attendance_operational_issues.issue_key`. */
+  issueKey?: string;
+  /** Payload for `attendance.setOperationalIssueStatus` (avoid duplicating switch logic in pages). */
+  triage?: {
+    businessDateYmd: string;
+    kind: OperationalIssueKind;
+    attendanceRecordId?: number;
+    scheduleId?: number;
+    correctionId?: number;
+    manualCheckinRequestId?: number;
+  };
   /** From `attendance_operational_issues` when loaded (e.g. overdue checkout). */
   issueResolutionStatus?: string | null;
   assignedToUserId?: number | null;
+  reviewedByUserId?: number | null;
+  reviewedAt?: string | Date | null;
+  resolutionNote?: string | null;
   /** Suggested actions for the client — resolve buttons from this list. */
   actions: AttendanceActionId[];
 }
@@ -163,6 +184,8 @@ export type OperationalIssueLite = {
   assignedToUserId?: number | null;
   acknowledgedByUserId?: number | null;
   reviewedByUserId?: number | null;
+  reviewedAt?: Date | string | null;
+  resolutionNote?: string | null;
 } | null;
 
 /** Overdue checkout row shape (matches scheduling.getOverdueCheckouts items). */
@@ -178,10 +201,98 @@ export type OverdueCheckoutRow = {
   operationalIssue?: OperationalIssueLite;
 };
 
+function issueFromIndex(
+  issuesByKey: Record<string, OperationalIssueLite | undefined>,
+  key: string,
+): OperationalIssueLite {
+  return issuesByKey[key] ?? { status: "open" };
+}
+
+function statusSuffix(st: string): string {
+  if (st === "acknowledged") return " · Acknowledged";
+  if (st === "resolved") return " · Resolved";
+  return "";
+}
+
+function appendTriageActions(
+  actions: AttendanceActionId[],
+  issueSt: string,
+  opts: { includeForceCheckout?: boolean; includeRemind?: boolean },
+) {
+  const triageOpen = issueSt === "open" || issueSt === "acknowledged";
+  if (opts.includeForceCheckout) {
+    actions.push(ATTENDANCE_ACTION.FORCE_CHECKOUT_OPEN);
+  }
+  if (triageOpen) {
+    actions.push(ATTENDANCE_ACTION.ACKNOWLEDGE_OPERATIONAL_ISSUE);
+    actions.push(ATTENDANCE_ACTION.ASSIGN_OPERATIONAL_ISSUE);
+    actions.push(ATTENDANCE_ACTION.RESOLVE_OPERATIONAL_ISSUE);
+  }
+  if (opts.includeRemind) {
+    actions.push(ATTENDANCE_ACTION.SEND_OVERDUE_REMINDER);
+  }
+  actions.push(ATTENDANCE_ACTION.VIEW_TODAY_BOARD);
+}
+
+/**
+ * Keys needed to hydrate triage state for the queue (batch with `listOperationalIssuesByIssueKeys`).
+ */
+export function collectOperationalIssueKeysForQueue(params: {
+  businessDateYmd: string;
+  boardRows: Array<{ status: AdminBoardRowStatus; scheduleId: number }>;
+  overdueCheckouts: Array<{ attendanceRecordId: number }>;
+  pendingCorrections: Array<{ id: number }>;
+  pendingManual: Array<{ id: number }>;
+}): string[] {
+  const keys: string[] = [];
+  for (const o of params.overdueCheckouts) {
+    keys.push(operationalIssueKey({ kind: "overdue_checkout", attendanceRecordId: o.attendanceRecordId }));
+  }
+  for (const row of params.boardRows) {
+    if (row.status === "absent") {
+      keys.push(
+        operationalIssueKey({
+          kind: "missed_shift",
+          scheduleId: row.scheduleId,
+          businessDateYmd: params.businessDateYmd,
+        }),
+      );
+    }
+  }
+  for (const c of params.pendingCorrections) {
+    keys.push(operationalIssueKey({ kind: "correction_pending", correctionId: c.id }));
+  }
+  for (const m of params.pendingManual) {
+    keys.push(operationalIssueKey({ kind: "manual_pending", manualCheckinRequestId: m.id }));
+  }
+  return keys;
+}
+
+export type OperationalQueueFilter = "all" | "unresolved" | "assigned_to_me" | "acknowledged" | "resolved";
+
+export function filterOperationalQueueItems(
+  items: OperationalExceptionItem[],
+  filter: OperationalQueueFilter,
+  currentUserId: number | null,
+): OperationalExceptionItem[] {
+  if (filter === "all") return items;
+  return items.filter((it) => {
+    const st = it.issueResolutionStatus ?? "open";
+    if (filter === "resolved") return st === "resolved";
+    if (filter === "acknowledged") return st === "acknowledged";
+    if (filter === "assigned_to_me") {
+      return currentUserId != null && it.assignedToUserId === currentUserId;
+    }
+    if (filter === "unresolved") return st !== "resolved";
+    return true;
+  });
+}
+
 /**
  * Build a prioritized action queue for HR (max `limit` items). Pure — safe to run on client or server.
  */
 export function buildOperationalActionQueue(params: {
+  businessDateYmd: string;
   boardRows: Array<{
     status: AdminBoardRowStatus;
     scheduleId: number;
@@ -192,53 +303,82 @@ export function buildOperationalActionQueue(params: {
     siteName: string | null;
   }>;
   overdueCheckouts: OverdueCheckoutRow[];
-  pendingCorrectionCount: number;
-  pendingManualCount: number;
+  /** `businessDateYmd` must match the persisted issue row (e.g. correction requested date). */
+  pendingCorrections: Array<{ id: number; employeeLabel: string; businessDateYmd: string }>;
+  pendingManual: Array<{ id: number; employeeLabel: string; businessDateYmd: string }>;
+  /** From `attendance.listOperationalIssuesByIssueKeys` keyed by `issue_key`. */
+  issuesByKey: Record<string, OperationalIssueLite | undefined>;
   limit?: number;
 }): OperationalExceptionItem[] {
   const limit = params.limit ?? 24;
   const out: OperationalExceptionItem[] = [];
+  const bd = params.businessDateYmd;
 
   for (const o of params.overdueCheckouts) {
-    const issueSt = o.operationalIssue?.status ?? "open";
-    const statusSuffix =
-      issueSt === "acknowledged"
-        ? " · Acknowledged"
-        : issueSt === "resolved"
-          ? " · Resolved"
-          : "";
-    const actions: AttendanceActionId[] = [
-      ATTENDANCE_ACTION.FORCE_CHECKOUT_OPEN,
-      ATTENDANCE_ACTION.SEND_OVERDUE_REMINDER,
-      ATTENDANCE_ACTION.VIEW_TODAY_BOARD,
-    ];
-    if (issueSt === "open") {
-      actions.splice(1, 0, ATTENDANCE_ACTION.ACKNOWLEDGE_OVERDUE);
+    const ikey = operationalIssueKey({ kind: "overdue_checkout", attendanceRecordId: o.attendanceRecordId });
+    const iss = issueFromIndex(params.issuesByKey, ikey);
+    const issueSt = iss?.status ?? o.operationalIssue?.status ?? "open";
+    const actions: AttendanceActionId[] = [];
+    if (issueSt === "resolved") {
+      actions.push(ATTENDANCE_ACTION.VIEW_TODAY_BOARD);
+    } else {
+      appendTriageActions(actions, issueSt, { includeForceCheckout: true, includeRemind: true });
     }
     out.push({
       kind: "open_checkout_overdue",
       riskLevel: "critical",
-      title: `Still clocked in after shift end${statusSuffix}`,
+      title: `Still clocked in after shift end${statusSuffix(issueSt)}`,
       detail: `${o.shiftName ? `${o.shiftName} · ` : ""}Ended ${o.expectedEnd} · ${o.minutesOverdue}m overdue`,
       employeeLabel: o.employeeDisplayName,
       attendanceRecordId: o.attendanceRecordId,
+      issueKey: ikey,
+      triage: { businessDateYmd: bd, kind: "overdue_checkout", attendanceRecordId: o.attendanceRecordId },
       issueResolutionStatus: issueSt,
-      assignedToUserId: o.operationalIssue?.assignedToUserId ?? null,
+      assignedToUserId: iss?.assignedToUserId ?? o.operationalIssue?.assignedToUserId ?? null,
+      reviewedByUserId: iss?.reviewedByUserId ?? null,
+      reviewedAt: iss?.reviewedAt ?? null,
+      resolutionNote: iss?.resolutionNote ?? null,
       actions,
     });
   }
 
   for (const row of params.boardRows) {
     if (row.status === "absent") {
+      const ikey = operationalIssueKey({
+        kind: "missed_shift",
+        scheduleId: row.scheduleId,
+        businessDateYmd: bd,
+      });
+      const iss = issueFromIndex(params.issuesByKey, ikey);
+      const issueSt = iss?.status ?? "open";
+      const actions: AttendanceActionId[] = [];
+      if (issueSt === "resolved") {
+        actions.push(ATTENDANCE_ACTION.VIEW_TODAY_BOARD, ATTENDANCE_ACTION.OPEN_MANUAL_CHECKINS);
+      } else {
+        actions.push(
+          ATTENDANCE_ACTION.VIEW_TODAY_BOARD,
+          ATTENDANCE_ACTION.OPEN_MANUAL_CHECKINS,
+          ATTENDANCE_ACTION.ACKNOWLEDGE_OPERATIONAL_ISSUE,
+          ATTENDANCE_ACTION.ASSIGN_OPERATIONAL_ISSUE,
+          ATTENDANCE_ACTION.RESOLVE_OPERATIONAL_ISSUE,
+        );
+      }
       out.push({
         kind: "missed_shift",
         riskLevel: "critical",
-        title: "No check-in after shift end",
+        title: `No check-in after shift end${statusSuffix(issueSt)}`,
         detail: `Scheduled ${row.expectedStart}–${row.expectedEnd}${row.siteName ? ` · ${row.siteName}` : ""}`,
         employeeLabel: row.employeeDisplayName,
         scheduleId: row.scheduleId,
         attendanceRecordId: row.attendanceRecordId,
-        actions: [ATTENDANCE_ACTION.VIEW_TODAY_BOARD, ATTENDANCE_ACTION.OPEN_MANUAL_CHECKINS],
+        issueKey: ikey,
+        triage: { businessDateYmd: bd, kind: "missed_shift", scheduleId: row.scheduleId },
+        issueResolutionStatus: issueSt,
+        assignedToUserId: iss?.assignedToUserId ?? null,
+        reviewedByUserId: iss?.reviewedByUserId ?? null,
+        reviewedAt: iss?.reviewedAt ?? null,
+        resolutionNote: iss?.resolutionNote ?? null,
+        actions,
       });
     } else if (row.status === "late_no_checkin") {
       out.push({
@@ -253,31 +393,61 @@ export function buildOperationalActionQueue(params: {
     }
   }
 
-  if (params.pendingCorrectionCount > 0) {
+  for (const c of params.pendingCorrections) {
+    const ikey = operationalIssueKey({ kind: "correction_pending", correctionId: c.id });
+    const iss = issueFromIndex(params.issuesByKey, ikey);
+    const issueSt = iss?.status ?? "open";
+    const actions: AttendanceActionId[] = [ATTENDANCE_ACTION.OPEN_CORRECTIONS];
+    if (issueSt !== "resolved") {
+      actions.push(
+        ATTENDANCE_ACTION.ACKNOWLEDGE_OPERATIONAL_ISSUE,
+        ATTENDANCE_ACTION.ASSIGN_OPERATIONAL_ISSUE,
+        ATTENDANCE_ACTION.RESOLVE_OPERATIONAL_ISSUE,
+      );
+    }
     out.push({
       kind: "correction_pending",
       riskLevel: "warning",
-      title:
-        params.pendingCorrectionCount === 1
-          ? "1 correction awaiting review"
-          : `${params.pendingCorrectionCount} corrections awaiting review`,
+      title: `Correction review${statusSuffix(issueSt)}`,
       detail: "Approve or reject time adjustments before payroll close.",
-      employeeLabel: "—",
-      actions: [ATTENDANCE_ACTION.OPEN_CORRECTIONS],
+      employeeLabel: c.employeeLabel,
+      issueKey: ikey,
+      triage: { businessDateYmd: c.businessDateYmd, kind: "correction_pending", correctionId: c.id },
+      issueResolutionStatus: issueSt,
+      assignedToUserId: iss?.assignedToUserId ?? null,
+      reviewedByUserId: iss?.reviewedByUserId ?? null,
+      reviewedAt: iss?.reviewedAt ?? null,
+      resolutionNote: iss?.resolutionNote ?? null,
+      actions,
     });
   }
 
-  if (params.pendingManualCount > 0) {
+  for (const m of params.pendingManual) {
+    const ikey = operationalIssueKey({ kind: "manual_pending", manualCheckinRequestId: m.id });
+    const iss = issueFromIndex(params.issuesByKey, ikey);
+    const issueSt = iss?.status ?? "open";
+    const actions: AttendanceActionId[] = [ATTENDANCE_ACTION.OPEN_MANUAL_CHECKINS];
+    if (issueSt !== "resolved") {
+      actions.push(
+        ATTENDANCE_ACTION.ACKNOWLEDGE_OPERATIONAL_ISSUE,
+        ATTENDANCE_ACTION.ASSIGN_OPERATIONAL_ISSUE,
+        ATTENDANCE_ACTION.RESOLVE_OPERATIONAL_ISSUE,
+      );
+    }
     out.push({
       kind: "manual_checkin_pending",
       riskLevel: "warning",
-      title:
-        params.pendingManualCount === 1
-          ? "1 manual check-in awaiting approval"
-          : `${params.pendingManualCount} manual check-ins awaiting approval`,
-      detail: "Employees could not self check-in — review and approve or reject.",
-      employeeLabel: "—",
-      actions: [ATTENDANCE_ACTION.OPEN_MANUAL_CHECKINS],
+      title: `Manual check-in approval${statusSuffix(issueSt)}`,
+      detail: "Employee could not self check-in — review and approve or reject.",
+      employeeLabel: m.employeeLabel,
+      issueKey: ikey,
+      triage: { businessDateYmd: m.businessDateYmd, kind: "manual_pending", manualCheckinRequestId: m.id },
+      issueResolutionStatus: issueSt,
+      assignedToUserId: iss?.assignedToUserId ?? null,
+      reviewedByUserId: iss?.reviewedByUserId ?? null,
+      reviewedAt: iss?.reviewedAt ?? null,
+      resolutionNote: iss?.resolutionNote ?? null,
+      actions,
     });
   }
 

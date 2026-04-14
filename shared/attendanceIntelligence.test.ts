@@ -1,12 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
   buildOperationalActionQueue,
+  collectOperationalIssueKeysForQueue,
   compareOperationalBands,
   derivePayrollHintsFromBoardRow,
+  filterOperationalQueueItems,
   operationalBandFromBoardStatus,
   OPERATIONAL_BAND_ORDER,
   riskLevelFromBoardStatus,
 } from "./attendanceIntelligence";
+import { operationalIssueKey } from "./attendanceOperationalIssueKeys";
 import type { AdminBoardRowStatus } from "./attendanceBoardStatus";
 
 describe("riskLevelFromBoardStatus", () => {
@@ -61,9 +64,65 @@ describe("derivePayrollHintsFromBoardRow", () => {
   });
 });
 
+describe("collectOperationalIssueKeysForQueue", () => {
+  it("returns stable keys for all major kinds", () => {
+    const keys = collectOperationalIssueKeysForQueue({
+      businessDateYmd: "2026-04-14",
+      boardRows: [{ status: "absent" as const, scheduleId: 7 }],
+      overdueCheckouts: [{ attendanceRecordId: 500 }],
+      pendingCorrections: [{ id: 99 }],
+      pendingManual: [{ id: 3 }],
+    });
+    expect(keys).toContain(operationalIssueKey({ kind: "overdue_checkout", attendanceRecordId: 500 }));
+    expect(keys).toContain(
+      operationalIssueKey({ kind: "missed_shift", scheduleId: 7, businessDateYmd: "2026-04-14" }),
+    );
+    expect(keys).toContain(operationalIssueKey({ kind: "correction_pending", correctionId: 99 }));
+    expect(keys).toContain(operationalIssueKey({ kind: "manual_pending", manualCheckinRequestId: 3 }));
+  });
+});
+
+describe("filterOperationalQueueItems", () => {
+  const sample = [
+    {
+      kind: "open_checkout_overdue" as const,
+      riskLevel: "critical" as const,
+      title: "t",
+      detail: "d",
+      employeeLabel: "e",
+      issueResolutionStatus: "resolved",
+      assignedToUserId: 1 as number | null,
+      actions: [],
+    },
+    {
+      kind: "missed_shift" as const,
+      riskLevel: "critical" as const,
+      title: "m",
+      detail: "d",
+      employeeLabel: "e",
+      issueResolutionStatus: "open",
+      assignedToUserId: 2 as number | null,
+      actions: [],
+    },
+  ];
+
+  it("filters unresolved", () => {
+    const f = filterOperationalQueueItems(sample, "unresolved", null);
+    expect(f.length).toBe(1);
+    expect(f[0]?.kind).toBe("missed_shift");
+  });
+
+  it("filters assigned to me", () => {
+    const f = filterOperationalQueueItems(sample, "assigned_to_me", 2);
+    expect(f.length).toBe(1);
+    expect(f[0]?.kind).toBe("missed_shift");
+  });
+});
+
 describe("buildOperationalActionQueue", () => {
   it("prioritizes overdue checkouts and absent rows", () => {
     const q = buildOperationalActionQueue({
+      businessDateYmd: "2026-04-14",
       boardRows: [
         {
           status: "absent" as AdminBoardRowStatus,
@@ -88,23 +147,33 @@ describe("buildOperationalActionQueue", () => {
           operationalIssue: { status: "open" },
         },
       ],
-      pendingCorrectionCount: 0,
-      pendingManualCount: 0,
+      pendingCorrections: [],
+      pendingManual: [],
+      issuesByKey: {},
       limit: 10,
     });
     expect(q[0]?.kind).toBe("open_checkout_overdue");
     expect(q.find((x) => x.kind === "missed_shift")).toBeTruthy();
   });
 
-  it("includes aggregate correction and manual rows", () => {
+  it("emits one row per pending correction and manual with triage keys", () => {
     const q = buildOperationalActionQueue({
+      businessDateYmd: "2026-04-14",
       boardRows: [],
       overdueCheckouts: [],
-      pendingCorrectionCount: 2,
-      pendingManualCount: 1,
+      pendingCorrections: [
+        { id: 10, employeeLabel: "E1", businessDateYmd: "2026-04-14" },
+        { id: 11, employeeLabel: "E2", businessDateYmd: "2026-04-15" },
+      ],
+      pendingManual: [{ id: 20, employeeLabel: "M1", businessDateYmd: "2026-04-14" }],
+      issuesByKey: {
+        [operationalIssueKey({ kind: "correction_pending", correctionId: 10 })]: { status: "acknowledged" },
+      },
       limit: 20,
     });
-    expect(q.some((x) => x.kind === "correction_pending")).toBe(true);
-    expect(q.some((x) => x.kind === "manual_checkin_pending")).toBe(true);
+    expect(q.filter((x) => x.kind === "correction_pending").length).toBe(2);
+    expect(q.filter((x) => x.kind === "manual_checkin_pending").length).toBe(1);
+    const c10 = q.find((x) => x.triage?.correctionId === 10);
+    expect(c10?.issueResolutionStatus).toBe("acknowledged");
   });
 });

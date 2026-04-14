@@ -336,6 +336,19 @@ export default function TodayBoardPage() {
                                       {b.shift.name}
                                     </Badge>
                                   )}
+                                  {b.operationalIssue != null ? (
+                                    <Badge
+                                      variant="outline"
+                                      className="text-[10px] py-0 h-5 border-violet-200 bg-violet-50 text-violet-900 dark:bg-violet-950/30 capitalize"
+                                      title={
+                                        b.operationalIssue.resolutionNote
+                                          ? String(b.operationalIssue.resolutionNote)
+                                          : "Operational triage state"
+                                      }
+                                    >
+                                      Ops · {b.operationalIssue.status}
+                                    </Badge>
+                                  ) : null}
                                 </div>
                                 <div className="flex items-center gap-3 mt-0.5 text-xs text-muted-foreground flex-wrap">
                                   {b.site && (

@@ -12,6 +12,7 @@ export function useAttendanceOperationalMutations(companyId: number | null) {
     void utils.scheduling.getOverdueCheckouts.invalidate();
     void utils.scheduling.getTodayBoard.invalidate();
     void utils.attendance.listOperationalIssuesForBusinessDate.invalidate();
+    void utils.attendance.listOperationalIssuesByIssueKeys.invalidate();
     void utils.attendance.listAttendanceAudit.invalidate();
   };
 

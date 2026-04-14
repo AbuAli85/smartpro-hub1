@@ -116,6 +116,53 @@ async function assertCompanyAdmin(userId: number, companyId: number) {
   }
 }
 
+type CompaniesDb = NonNullable<Awaited<ReturnType<typeof getDb>>>;
+
+/**
+ * PR2 — After `company_members.role` changes, align `users.platformRole` with that membership row
+ * for this (companyId, userId) pair only. Local to this router until a global sync phase.
+ * Exported for unit tests.
+ */
+export async function syncPlatformRoleForCompanyMembership(
+  db: CompaniesDb,
+  userId: number,
+  companyId: number,
+): Promise<void> {
+  const rows = await db
+    .select({ id: companyMembers.id, role: companyMembers.role })
+    .from(companyMembers)
+    .where(and(eq(companyMembers.companyId, companyId), eq(companyMembers.userId, userId)))
+    .orderBy(asc(companyMembers.id));
+
+  if (rows.length === 0) return;
+
+  const chosenMemberId = rows[0]!.id;
+  if (rows.length > 1) {
+    console.warn("[companies] duplicate company_members rows for (companyId, userId); using first row by id asc", {
+      companyId,
+      userId,
+      memberIds: rows.map((r) => r.id),
+      chosenMemberId,
+    });
+  }
+
+  const membership = rows[0]!;
+  const nextPlatformRole = mapMemberRoleToPlatformRole(membership.role);
+
+  const [u] = await db.select({ platformRole: users.platformRole }).from(users).where(eq(users.id, userId)).limit(1);
+  if (!u) {
+    console.warn("[companies] syncPlatformRoleForCompanyMembership: users row missing for userId", {
+      companyId,
+      userId,
+    });
+    return;
+  }
+
+  if (u.platformRole === nextPlatformRole) return;
+
+  await db.update(users).set({ platformRole: nextPlatformRole }).where(eq(users.id, userId));
+}
+
 export const companiesRouter = router({
   list: protectedProcedure.query(async ({ ctx }) => {
     if (!canAccessGlobalAdminProcedures(ctx.user)) {
@@ -342,6 +389,7 @@ export const companiesRouter = router({
         if (admins.length <= 1) throw new TRPCError({ code: "BAD_REQUEST", message: "Cannot demote the last company admin." });
       }
       await db.update(companyMembers).set({ role: input.role }).where(eq(companyMembers.id, input.memberId));
+      await syncPlatformRoleForCompanyMembership(db, target.userId, membership.company.id);
       return { success: true };
     }),
 
@@ -991,6 +1039,7 @@ export const companiesRouter = router({
       if (!member) throw new TRPCError({ code: "NOT_FOUND", message: "No active access record found for this employee." });
 
       await db.update(companyMembers).set({ role: input.role }).where(eq(companyMembers.id, member.id));
+      await syncPlatformRoleForCompanyMembership(db, userId, membership.company.id);
       return { success: true };
     }),
 

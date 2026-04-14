@@ -64,6 +64,25 @@ describe("buildAccessAnalyticsOverview", () => {
     expect(out.topIssues.length).toBeGreaterThan(0);
   });
 
+  it("uses an explicit unlabeled topIssue label when stateReason is not in STATE_REASON_INTEL", () => {
+    const out = buildAccessAnalyticsOverview({
+      employeeRows: [
+        row({
+          employeeId: 99,
+          accessState: "ACTIVE",
+          stateReason: "NEW_REASON_FROM_RESOLVER",
+          memberId: 1,
+        }),
+      ],
+      memberRows: [{ memberId: 1, isActive: true }],
+      pendingInviteExpiresAt: [],
+    });
+    const srIssue = out.topIssues.find((t) => t.key === "STATE_REASON:NEW_REASON_FROM_RESOLVER");
+    expect(srIssue).toBeDefined();
+    expect(srIssue?.label).toBe("Unlabeled: NEW_REASON_FROM_RESOLVER");
+    expect(srIssue?.severity).toBe("info");
+  });
+
   it("sets expiry days to null when there are no pending invites", () => {
     const out = buildAccessAnalyticsOverview({
       employeeRows: [row({ employeeId: 1, accessState: "ACTIVE", stateReason: "ACTIVE_MEMBER", memberId: 1 })],

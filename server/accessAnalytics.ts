@@ -42,8 +42,8 @@ export type AccessAnalyticsOverview = {
   };
   diagnostics: {
     /**
-     * Counts keyed by resolver `stateReason` string. Prefer `KNOWN_STATE_REASONS` for UI;
-     * unknown keys may appear if the resolver adds reasons before labels are updated.
+     * Counts keyed by resolver `stateReason`. Prefer keys in `STATE_REASON_INTEL` for labels;
+     * unknown keys still appear here; in development, missing labels log a console warning.
      */
     stateReasonCounts: Record<string, number>;
     accountNotLinked: number;
@@ -73,6 +73,20 @@ export type AccessAnalyticsOverview = {
 
 function employeeNeedsAttention(flags: { needsLink?: boolean; conflict?: boolean; missingEmail?: boolean }): boolean {
   return !!(flags.conflict || flags.needsLink || flags.missingEmail);
+}
+
+/** Dev-only: surface resolver/taxonomy drift when `stateReason` is not in `STATE_REASON_INTEL`. Skips test runs. */
+export function warnUnknownStateReasonLabels(stateReasonCounts: Record<string, number>): void {
+  if (process.env.NODE_ENV !== "development") return;
+  for (const [key, count] of Object.entries(stateReasonCounts)) {
+    if (count <= 0 || key === "UNKNOWN") continue;
+    if (!Object.prototype.hasOwnProperty.call(STATE_REASON_INTEL, key)) {
+      console.warn("[AccessAnalytics] stateReason has no STATE_REASON_INTEL entry — add a label in accessIntelLabels.ts", {
+        stateReason: key,
+        count,
+      });
+    }
+  }
 }
 
 function buildTopIssues(input: {
@@ -110,13 +124,15 @@ function buildTopIssues(input: {
   }
 
   for (const [reason, count] of Object.entries(stateReasonCounts)) {
-    if (count <= 0) continue;
+    if (count <= 0 || reason === "UNKNOWN") continue;
     const meta = STATE_REASON_INTEL[reason];
+    const unknown = !meta;
     candidates.push({
       key: `STATE_REASON:${reason}`,
       count,
+      /** Unknown resolver reasons stay info-severity until `STATE_REASON_INTEL` is updated */
       severity: meta?.severity ?? "info",
-      label: meta?.label ?? reason,
+      label: unknown ? `Unlabeled: ${reason}` : (meta?.label ?? reason),
     });
   }
 
@@ -194,6 +210,8 @@ export function buildAccessAnalyticsOverview(input: {
     if (sr === "CONFLICT_MULTIPLE_INVITES") conflictMultipleInvites += 1;
     if (sr === "CONFLICT_EMAIL_MISMATCH") conflictEmailMismatch += 1;
   }
+
+  warnUnknownStateReasonLabels(stateReasonCounts);
 
   const pendingCount = pendingInviteExpiresAt.length;
 

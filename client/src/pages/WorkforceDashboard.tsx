@@ -1,4 +1,5 @@
 import { trpc } from "@/lib/trpc";
+import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { useLocation } from "wouter";
 import { buildProfileChangeQueueHref } from "@shared/profileChangeRequestQueueUrl";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,10 +14,15 @@ import {
 
 export default function WorkforceDashboard() {
   const [, navigate] = useLocation();
-  const { data: stats, isLoading } = trpc.workforce.dashboardStats.useQuery();
-  const { data: pcrQueueKpis } = trpc.workforce.profileChangeRequests.queueKpis.useQuery(undefined, {
-    staleTime: 60_000,
-  });
+  const { activeCompanyId } = useActiveCompany();
+  const { data: stats, isLoading } = trpc.workforce.dashboardStats.useQuery(
+    { companyId: activeCompanyId ?? undefined },
+    { enabled: activeCompanyId != null, staleTime: 60_000 },
+  );
+  const { data: pcrQueueKpis } = trpc.workforce.profileChangeRequests.queueKpis.useQuery(
+    { companyId: activeCompanyId ?? undefined },
+    { enabled: activeCompanyId != null, staleTime: 60_000 },
+  );
 
   const statCards = [
     {

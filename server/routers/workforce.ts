@@ -34,6 +34,7 @@ import {
   isHrPerformanceSensitiveEntityType,
 } from "../hrPerformanceAuditReadPolicy";
 import { getActiveCompanyMembership, requireNotAuditor, requireWorkspaceMembership } from "../_core/membership";
+import { requireActiveCompanyId } from "../_core/tenant";
 import { protectedProcedure, router } from "../_core/trpc";
 import { invokeLLM } from "../_core/llm";
 import { fileUrlMatchesConfiguredStorage, storagePut } from "../storage";
@@ -75,6 +76,27 @@ async function getMemberCompanyId(user: Pick<User, "id" | "name" | "email" | "ro
   });
 
   return companyId;
+}
+
+/**
+ * Resolves tenant for workforce reads: explicit workspace via {@link requireActiveCompanyId}
+ * (multi-company users must pass `companyId`). If the user has no membership yet, delegates to
+ * {@link getMemberCompanyId} once so provisioning admins can still auto-create a default company.
+ */
+async function resolveWorkforceCompanyId(
+  user: Pick<User, "id" | "name" | "email" | "role" | "platformRole">,
+  inputCompanyId?: number | null,
+): Promise<number> {
+  try {
+    return await requireActiveCompanyId(user.id, inputCompanyId, user);
+  } catch (e) {
+    if (e instanceof TRPCError && e.code === "FORBIDDEN" && e.message === "No company membership") {
+      const provisioned = await getMemberCompanyId(user);
+      if (!provisioned) throw e;
+      return await requireActiveCompanyId(user.id, inputCompanyId, user);
+    }
+    throw e;
+  }
 }
 
 /**
@@ -650,9 +672,10 @@ export const workforceRouter = router({
      * Pending-queue operational metrics grouped by `fieldKey` (not raw labels).
      * Future reclassification would UPDATE `fieldKey` only; `fieldLabel` stays immutable for audit.
      */
-    queueKpis: protectedProcedure.query(async ({ ctx }) => {
-      const companyId = await getMemberCompanyId(ctx.user);
-      if (!companyId) return null;
+    queueKpis: protectedProcedure
+      .input(z.object({ companyId: z.number().optional() }).optional())
+      .query(async ({ ctx, input }) => {
+      const companyId = await resolveWorkforceCompanyId(ctx.user, input?.companyId);
       if (!(await hasPermission(ctx.user, companyId, "employees.read"))) {
         throw new TRPCError({
           code: "FORBIDDEN",
@@ -2100,9 +2123,10 @@ Return ONLY valid JSON matching the schema, no extra text.`,
     }),
 
   // ── Dashboard Stats ───────────────────────────────────────────────────────
-  dashboardStats: protectedProcedure.query(async ({ ctx }) => {
-    const companyId = await getMemberCompanyId(ctx.user);
-    if (!companyId) return null;
+  dashboardStats: protectedProcedure
+    .input(z.object({ companyId: z.number().optional() }).optional())
+    .query(async ({ ctx, input }) => {
+    const companyId = await resolveWorkforceCompanyId(ctx.user, input?.companyId);
     const db = await getDb();
     if (!db) return null;
 

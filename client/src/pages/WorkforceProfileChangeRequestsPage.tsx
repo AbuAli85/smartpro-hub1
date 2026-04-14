@@ -168,10 +168,10 @@ export default function WorkforceProfileChangeRequestsPage() {
     { enabled: activeCompanyId != null },
   );
 
-  const { data: queueKpis } = trpc.workforce.profileChangeRequests.queueKpis.useQuery(undefined, {
-    enabled: activeCompanyId != null,
-    staleTime: 30_000,
-  });
+  const { data: queueKpis } = trpc.workforce.profileChangeRequests.queueKpis.useQuery(
+    { companyId: activeCompanyId ?? undefined },
+    { enabled: activeCompanyId != null, staleTime: 30_000 },
+  );
 
   const topPending = useMemo(
     () => pickTopPendingFieldKey(queueKpis?.pendingByFieldKey ?? []),

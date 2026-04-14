@@ -51,10 +51,10 @@ export default function WorkforceEmployeesPage() {
     companyId: activeCompanyId ?? undefined,
   }, { enabled: activeCompanyId != null });
 
-  const { data: wfStats } = trpc.workforce.dashboardStats.useQuery(undefined, {
-    enabled: activeCompanyId != null,
-    staleTime: 60_000,
-  });
+  const { data: wfStats } = trpc.workforce.dashboardStats.useQuery(
+    { companyId: activeCompanyId ?? undefined },
+    { enabled: activeCompanyId != null, staleTime: 60_000 },
+  );
   const pendingProfileRequests = wfStats?.pendingProfileChangeRequests ?? 0;
 
   const employees = data?.items ?? [];

@@ -71,10 +71,13 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
     const list = ext[r];
     return Array.isArray(list) && list.length > 0 ? list : null;
   }, [myCompany?.company, effectiveMemberRole]);
-  const { data: wfStats } = trpc.workforce.dashboardStats.useQuery(undefined, {
-    enabled: activeCompanyId != null && Boolean(myCompany?.company?.id),
-    staleTime: 60_000,
-  });
+  const { data: wfStats } = trpc.workforce.dashboardStats.useQuery(
+    { companyId: activeCompanyId ?? undefined },
+    {
+      enabled: activeCompanyId != null && Boolean(myCompany?.company?.id),
+      staleTime: 60_000,
+    },
+  );
   const { data: pendingInvites = [] } = trpc.companies.listInvites.useQuery(
     { companyId: activeCompanyId ?? undefined },
     { enabled: activeCompanyId != null },

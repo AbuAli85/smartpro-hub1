@@ -1220,6 +1220,45 @@
   },
 
   "lifecycle": {
+    "expiry": {
+      "expiredToday": "انتهى اليوم",
+      "expiredDaysAgo": "منتهٍ منذ {{days}} يوماً",
+      "expiresIn": "ينتهي خلال {{days}} يوماً",
+      "validDaysLeft": "ساري (متبقٍ {{days}} يوماً)"
+    },
+    "currencyOmr": "{{amount}} ر.ع.",
+    "hoursShort": "{{hours}} س",
+    "docVerification": {
+      "pending": "قيد المراجعة",
+      "verified": "معتمد",
+      "rejected": "مرفوض",
+      "expired": "منتهٍ"
+    },
+    "docTypes": {
+      "mol_work_permit_certificate": "شهادة تصريح العمل",
+      "passport": "جواز السفر",
+      "visa": "التأشيرة",
+      "resident_card": "بطاقة المقيم",
+      "labour_card": "بطاقة العمل",
+      "employment_contract": "عقد العمل",
+      "civil_id": "البطاقة المدنية",
+      "medical_certificate": "الشهادة الطبية",
+      "photo": "صورة شخصية",
+      "other": "أخرى"
+    },
+    "permitStatusValue": {
+      "active": "ساري",
+      "expiring_soon": "قارب على الانتهاء",
+      "expired": "منتهٍ",
+      "in_grace": "ضمن فترة السماح",
+      "cancelled": "ملغى",
+      "transferred": "محوّل",
+      "pending_update": "بانتظار التحديث",
+      "unknown": "غير معروف"
+    },
+    "currencyCodeLabel": {
+      "OMR": "ر.ع."
+    },
     "backToTeam": "العودة إلى فريقي",
     "edit": "تعديل",
     "email": "البريد",

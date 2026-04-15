@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useLocation, useParams } from "wouter";
 import { useTranslation } from "react-i18next";
 import { trpc } from "@/lib/trpc";
@@ -19,13 +19,74 @@ import {
   CheckCircle2, Clock, Edit2, UserX, TrendingUp, Shield,
   Hash,
 } from "lucide-react";
-import { fmtDate, fmtTime, expiryStatus, expiryLabel, EXPIRY_BADGE } from "@/lib/dateUtils";
+import { expiryStatus, EXPIRY_BADGE, daysUntilExpiry } from "@/lib/dateUtils";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
+import { cn } from "@/lib/utils";
+
+const MUSCAT_TZ = "Asia/Muscat";
+
+function useLocaleFormatDate() {
+  const { i18n } = useTranslation("hr");
+  return useCallback((d: Date | string | number | null | undefined) => {
+    if (!d) return "—";
+    const date = new Date(d as Date);
+    if (isNaN(date.getTime())) return "—";
+    const loc = i18n.language === "ar-OM" ? "ar-OM" : "en-GB";
+    return date.toLocaleDateString(loc, { day: "2-digit", month: "2-digit", year: "numeric", timeZone: MUSCAT_TZ });
+  }, [i18n.language]);
+}
+
+function useLocaleFormatTime() {
+  const { i18n } = useTranslation("hr");
+  return useCallback((d: Date | string | number | null | undefined) => {
+    if (!d) return "—";
+    const date = new Date(d as Date);
+    if (isNaN(date.getTime())) return "—";
+    const loc = i18n.language === "ar-OM" ? "ar-OM" : "en-GB";
+    return date.toLocaleTimeString(loc, { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: MUSCAT_TZ });
+  }, [i18n.language]);
+}
+
+function useLocaleFormatCurrency() {
+  const { t, i18n } = useTranslation("hr");
+  return useCallback((n: number | string | null | undefined) => {
+    const num = Number(n ?? 0);
+    const amount = num.toLocaleString(i18n.language === "ar-OM" ? "ar-OM" : "en-OM", { minimumFractionDigits: 3, maximumFractionDigits: 3 });
+    return t("lifecycle.currencyOmr", { amount });
+  }, [i18n.language, t]);
+}
+
+function useLocaleExpiryLabel() {
+  const { t } = useTranslation("hr");
+  const { expiryWarningDays } = useActiveCompany();
+  return useCallback((d: Date | string | number | null | undefined, warnDaysOverride?: number) => {
+    const warnDays = warnDaysOverride ?? expiryWarningDays;
+    const status = expiryStatus(d, warnDays);
+    if (status === "none") return "—";
+    const days = daysUntilExpiry(d);
+    if (days === null) return "—";
+    if (status === "expired") {
+      const abs = Math.abs(days);
+      return abs === 0 ? t("lifecycle.expiry.expiredToday") : t("lifecycle.expiry.expiredDaysAgo", { days: abs });
+    }
+    if (status === "expiring-soon") return t("lifecycle.expiry.expiresIn", { days });
+    return t("lifecycle.expiry.validDaysLeft", { days });
+  }, [t, expiryWarningDays]);
+}
+
+function useLocaleHoursBetween() {
+  const { t } = useTranslation("hr");
+  return useCallback((checkIn: unknown, checkOut: unknown) => {
+    if (!checkIn || !checkOut) return null;
+    const a = new Date(checkIn as Date).getTime();
+    const b = new Date(checkOut as Date).getTime();
+    if (!Number.isFinite(a) || !Number.isFinite(b) || b <= a) return null;
+    const h = ((b - a) / 3600000).toFixed(1);
+    return t("lifecycle.hoursShort", { hours: h });
+  }, [t]);
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-function fmtOMR(n: number | string | null | undefined) {
-  return `OMR ${Number(n ?? 0).toLocaleString("en-OM", { minimumFractionDigits: 3, maximumFractionDigits: 3 })}`;
-}
 function statusBadge(status: string) {
   const s = status?.toLowerCase();
   if (s === "active") return "bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800";
@@ -49,19 +110,20 @@ function InfoRow({ label, value, icon: Icon, expiryDate, warnDays = 30 }: {
   label: string; value?: string | null; icon?: React.ElementType;
   expiryDate?: Date | string | null; warnDays?: number;
 }) {
+  const expiryLabelLoc = useLocaleExpiryLabel();
   if (!value) return null;
   const status = expiryDate ? expiryStatus(expiryDate, warnDays) : "none";
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-1 py-2.5 border-b border-muted/50 last:border-0 items-start">
-      <div className="flex items-center gap-2 text-sm text-muted-foreground min-w-0">
+    <div className="flex flex-row justify-between items-start gap-3 py-2.5 border-b border-muted/50 last:border-0">
+      <div className="flex items-center gap-2 text-sm text-muted-foreground min-w-0 shrink">
         {Icon && <Icon size={13} className="shrink-0" />}
         <span className="text-start">{label}</span>
       </div>
-      <div className="flex flex-col items-end gap-0.5 min-w-0">
-        <span className="text-sm font-medium text-foreground text-end break-words">{value}</span>
+      <div className="flex min-w-0 flex-col items-end gap-0.5 ps-2">
+        <span className="text-sm font-medium text-foreground text-end break-words" dir="auto">{value}</span>
         {status !== "none" && (
           <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${EXPIRY_BADGE[status]}`}>
-            {status === "expired" ? "⚠ " : status === "expiring-soon" ? "⏰ " : "✓ "}{expiryLabel(expiryDate, warnDays)}
+            {status === "expired" ? "⚠ " : status === "expiring-soon" ? "⏰ " : "✓ "}{expiryLabelLoc(expiryDate, warnDays)}
           </span>
         )}
       </div>
@@ -90,12 +152,24 @@ function formatMonthYear(year: number, month: number, locale: string) {
   return new Intl.DateTimeFormat(locale, { month: "long", year: "numeric" }).format(new Date(year, month - 1, 1));
 }
 
-function hoursBetween(checkIn: unknown, checkOut: unknown): string | null {
-  if (!checkIn || !checkOut) return null;
-  const a = new Date(checkIn as Date).getTime();
-  const b = new Date(checkOut as Date).getTime();
-  if (!Number.isFinite(a) || !Number.isFinite(b) || b <= a) return null;
-  return `${((b - a) / 3600000).toFixed(1)}h`;
+function displayLeaveTypeLabel(type: string | null | undefined, t: Translate) {
+  if (!type) return "—";
+  return t(`leave.${type}` as "leave.annual", { defaultValue: type });
+}
+
+function displayDocumentTypeLabel(type: string | null | undefined, t: Translate) {
+  if (!type) return "—";
+  return t(`lifecycle.docTypes.${type}` as "lifecycle.docTypes.passport", { defaultValue: type.replace(/_/g, " ") });
+}
+
+function displayVerificationStatusLabel(status: string | null | undefined, t: Translate) {
+  if (!status) return "—";
+  return t(`lifecycle.docVerification.${status}` as "lifecycle.docVerification.pending", { defaultValue: status });
+}
+
+function displayPermitStatusLabel(status: string | null | undefined, t: Translate) {
+  if (!status) return "—";
+  return t(`lifecycle.permitStatusValue.${status}` as "lifecycle.permitStatusValue.active", { defaultValue: status.replace(/_/g, " ") });
 }
 
 // ─── Status Timeline ──────────────────────────────────────────────────────────
@@ -103,6 +177,7 @@ function StatusTimeline({ status, hireDate, terminationDate }: {
   status: string; hireDate?: Date | string | null; terminationDate?: Date | string | null;
 }) {
   const { t } = useTranslation("hr");
+  const formatDate = useLocaleFormatDate();
   const steps = [
     { key: "hired",   label: t("lifecycle.timeline.hired"),   date: hireDate,         icon: CheckCircle2, color: "text-emerald-500" },
     { key: "active",  label: t("lifecycle.timeline.active"),  date: null,             icon: Briefcase,    color: "text-blue-500" },
@@ -115,7 +190,7 @@ function StatusTimeline({ status, hireDate, terminationDate }: {
     (status === "terminated" || status === "resigned") ? 3 : 1;
 
   return (
-    <div dir="ltr" className="w-full overflow-x-auto">
+    <div className="w-full overflow-x-auto">
     <div className="flex items-center gap-0 min-w-[280px]">
       {steps.map((step, i) => {
         const Icon = step.icon;
@@ -135,7 +210,7 @@ function StatusTimeline({ status, hireDate, terminationDate }: {
               <span className={`text-xs font-medium ${isActive ? "text-primary" : isPast ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"}`}>
                 {step.label}
               </span>
-              {step.date && <span className="text-xs text-muted-foreground">{fmtDate(step.date)}</span>}
+              {step.date && <span className="text-xs text-muted-foreground">{formatDate(step.date)}</span>}
             </div>
             {i < steps.length - 1 && (
               <div className={`flex-1 h-0.5 mx-1 ${i < currentIdx ? "bg-emerald-400" : "bg-muted"}`} />
@@ -150,7 +225,7 @@ function StatusTimeline({ status, hireDate, terminationDate }: {
 
 // ─── Edit Dialog ──────────────────────────────────────────────────────────────
 function EditDialog({ employee, onClose }: { employee: any; onClose: () => void }) {
-  const { t } = useTranslation("hr");
+  const { t, i18n } = useTranslation("hr");
   const utils = trpc.useUtils();
   const [form, setForm] = useState({
     firstName: employee.firstName ?? "",
@@ -235,7 +310,7 @@ function EditDialog({ employee, onClose }: { employee: any; onClose: () => void 
             </Select>
           </div>
         </div>
-        <DialogFooter>
+        <DialogFooter className={cn(i18n.dir() === "rtl" && "sm:justify-start")}>
           <Button variant="outline" onClick={onClose}>{t("lifecycle.editDialog.cancel")}</Button>
           <Button
             onClick={() => update.mutate({
@@ -257,6 +332,10 @@ function EditDialog({ employee, onClose }: { employee: any; onClose: () => void 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function EmployeeLifecyclePage() {
   const { t, i18n } = useTranslation("hr");
+  const formatDate = useLocaleFormatDate();
+  const formatTime = useLocaleFormatTime();
+  const fmtCurrency = useLocaleFormatCurrency();
+  const hoursBetweenLocale = useLocaleHoursBetween();
   const params = useParams<{ id: string }>();
   const [, navigate] = useLocation();
   const employeeId = parseInt(params.id || "0");
@@ -415,7 +494,7 @@ export default function EmployeeLifecyclePage() {
         {/* ── KPI Summary ── */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div className="p-3 rounded-xl border border-border bg-card text-center">
-            <div className="text-lg font-bold text-foreground">{fmtOMR(employee.salary)}</div>
+            <div className="text-lg font-bold text-foreground">{fmtCurrency(employee.salary)}</div>
             <div className="text-xs text-muted-foreground mt-0.5">{t("lifecycle.kpi.monthlySalary")}</div>
           </div>
           <div className="p-3 rounded-xl border border-border bg-card text-center">
@@ -456,7 +535,7 @@ export default function EmployeeLifecyclePage() {
                 <span className="text-sm font-semibold text-foreground">{t("lifecycle.completeness.title")}</span>
                 <span className={`text-sm font-bold ${color}`}>{score}%</span>
               </div>
-              <div dir="ltr" className="w-full">
+              <div className="w-full rtl:scale-x-[-1]">
                 <Progress value={score} className="h-2" />
               </div>
               {missing.length > 0 ? (
@@ -505,7 +584,7 @@ export default function EmployeeLifecyclePage() {
                   <InfoRow label={t("lifecycle.profile.phone")} value={employee.phone} icon={Phone} />
                   <InfoRow label={t("lifecycle.profile.nationality")} value={employee.nationality} icon={Globe} />
                   <InfoRow label={t("lifecycle.profile.gender")} value={displayGender((employee as any).gender, t) ?? undefined} />
-                  <InfoRow label={t("lifecycle.profile.dateOfBirth")} value={(employee as any).dateOfBirth ? fmtDate((employee as any).dateOfBirth) : null} icon={Calendar} />
+                  <InfoRow label={t("lifecycle.profile.dateOfBirth")} value={(employee as any).dateOfBirth ? formatDate((employee as any).dateOfBirth) : null} icon={Calendar} />
                   <InfoRow label={t("lifecycle.profile.maritalStatus")} value={displayMarital((employee as any).maritalStatus, t) ?? undefined} />
                   <InfoRow label={t("lifecycle.profile.passportNo")} value={employee.passportNumber} icon={CreditCard} />
                   <InfoRow label={t("lifecycle.profile.civilId")} value={employee.nationalId} icon={Hash} />
@@ -525,10 +604,10 @@ export default function EmployeeLifecyclePage() {
                   <InfoRow label={t("lifecycle.profile.position")} value={employee.position} icon={Briefcase} />
                   <InfoRow label={t("lifecycle.profile.department")} value={employee.department} icon={Building2} />
                   <InfoRow label={t("lifecycle.profile.employmentType")} value={displayEmploymentType(employee.employmentType, t)} />
-                  <InfoRow label={t("lifecycle.profile.hireDate")} value={employee.hireDate ? fmtDate(employee.hireDate) : null} icon={Calendar} />
+                  <InfoRow label={t("lifecycle.profile.hireDate")} value={employee.hireDate ? formatDate(employee.hireDate) : null} icon={Calendar} />
                   <InfoRow label={t("lifecycle.profile.status")} value={displayEmpStatus(employee.status, t)} />
                   {employee.terminationDate && (
-                    <InfoRow label={t("lifecycle.profile.exitDate")} value={fmtDate(employee.terminationDate)} />
+                    <InfoRow label={t("lifecycle.profile.exitDate")} value={formatDate(employee.terminationDate)} />
                   )}
                 </CardContent>
               </Card>
@@ -539,8 +618,11 @@ export default function EmployeeLifecyclePage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="pt-0">
-                  <InfoRow label={t("lifecycle.profile.basicSalary")} value={fmtOMR(employee.salary)} />
-                  <InfoRow label={t("lifecycle.profile.currency")} value={employee.currency ?? "OMR"} />
+                  <InfoRow label={t("lifecycle.profile.basicSalary")} value={fmtCurrency(employee.salary)} />
+                  <InfoRow
+                    label={t("lifecycle.profile.currency")}
+                    value={t(`lifecycle.currencyCodeLabel.${employee.currency ?? "OMR"}` as "lifecycle.currencyCodeLabel.OMR", { defaultValue: employee.currency ?? "OMR" })}
+                  />
                   {!employee.salary && (
                     <p className="text-xs text-muted-foreground py-2 text-start" lang={i18n.language}>{t("lifecycle.profile.noSalary")}</p>
                   )}
@@ -558,10 +640,18 @@ export default function EmployeeLifecyclePage() {
                       <InfoRow label={t("lifecycle.profile.workPermitNo")} value={employee.permit.workPermitNumber} icon={Hash} />
                       <InfoRow label={t("lifecycle.profile.labourAuthNo")} value={employee.permit.labourAuthorisationNumber} icon={FileText} />
                       <InfoRow label={t("lifecycle.profile.occupationCode")} value={employee.permit.occupationCode} icon={Briefcase} />
-                      <InfoRow label={t("lifecycle.profile.occupation")} value={employee.permit.occupationTitleEn} icon={Briefcase} />
-                      <InfoRow label={t("lifecycle.profile.issueDate")} value={fmtDate(employee.permit.issueDate)} icon={Calendar} />
-                      <InfoRow label={t("lifecycle.profile.expiryDate")} value={fmtDate(employee.permit.expiryDate)} icon={Calendar} expiryDate={employee.permit.expiryDate} warnDays={expiryWarningDays} />
-                      <InfoRow label={t("lifecycle.profile.permitStatus")} value={employee.permit.permitStatus} />
+                      <InfoRow
+                        label={t("lifecycle.profile.occupation")}
+                        value={
+                          i18n.language === "ar-OM" && (employee.permit as any).occupationTitleAr
+                            ? String((employee.permit as any).occupationTitleAr)
+                            : employee.permit.occupationTitleEn
+                        }
+                        icon={Briefcase}
+                      />
+                      <InfoRow label={t("lifecycle.profile.issueDate")} value={formatDate(employee.permit.issueDate)} icon={Calendar} />
+                      <InfoRow label={t("lifecycle.profile.expiryDate")} value={formatDate(employee.permit.expiryDate)} icon={Calendar} expiryDate={employee.permit.expiryDate} warnDays={expiryWarningDays} />
+                      <InfoRow label={t("lifecycle.profile.permitStatus")} value={displayPermitStatusLabel(employee.permit.permitStatus, t)} />
                     </div>
                   </CardContent>
                 </Card>
@@ -617,11 +707,11 @@ export default function EmployeeLifecyclePage() {
                             leave.status === "pending" ? "bg-amber-500" : "bg-red-500"
                           }`} />
                           <div>
-                            <p className="text-sm font-medium text-foreground capitalize">
-                              {leave.leaveType.replace("_", " ")} {t("lifecycle.leave.leave")}
+                            <p className="text-sm font-medium text-foreground">
+                              {displayLeaveTypeLabel(leave.leaveType, t)} {t("lifecycle.leave.leave")}
                             </p>
                             <p className="text-xs text-muted-foreground">
-                              {fmtDate(leave.startDate)} → {fmtDate(leave.endDate)}
+                              {formatDate(leave.startDate)} → {formatDate(leave.endDate)}
                               {leave.days != null && leave.days !== "" ? ` · ${t("lifecycle.leave.days", { count: Number(leave.days) })}` : ""}
                             </p>
                           </div>
@@ -673,9 +763,9 @@ export default function EmployeeLifecyclePage() {
                             <td className="py-2.5 text-foreground font-medium">
                               {formatMonthYear(p.periodYear ?? new Date().getFullYear(), p.periodMonth ?? 1, i18n.language)}
                             </td>
-                            <td className="py-2.5 text-end text-foreground">{fmtOMR(p.basicSalary)}</td>
-                            <td className="py-2.5 text-end text-red-600 dark:text-red-400">-{fmtOMR(p.deductions)}</td>
-                            <td className="py-2.5 text-end font-semibold text-foreground">{fmtOMR(p.netSalary)}</td>
+                            <td className="py-2.5 text-end text-foreground">{fmtCurrency(p.basicSalary)}</td>
+                            <td className="py-2.5 text-end text-red-600 dark:text-red-400">-{fmtCurrency(p.deductions)}</td>
+                            <td className="py-2.5 text-end font-semibold text-foreground">{fmtCurrency(p.netSalary)}</td>
                             <td className="py-2.5 text-end">
                               <Badge className={`text-xs px-2 py-0 h-5 ${payrollStatusBadge(p.status)}`}>
                                 {t(`lifecycle.payroll.statusValue.${p.status}` as "lifecycle.payroll.statusValue.paid", { defaultValue: p.status })}
@@ -752,7 +842,7 @@ export default function EmployeeLifecyclePage() {
                         <tbody>
                           {empAttendance.map((a: any) => (
                             <tr key={a.id} className="border-b border-muted/50 last:border-0">
-                              <td className="py-2.5 text-foreground">{fmtDate(a.date)}</td>
+                              <td className="py-2.5 text-foreground">{formatDate(a.date)}</td>
                               <td className="py-2.5">
                                 <Badge className={`text-xs px-2 py-0 h-5 ${
                                   a.status === "present" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" :
@@ -764,9 +854,9 @@ export default function EmployeeLifecyclePage() {
                                   {t(`lifecycle.attendance.statusValue.${a.status}` as "lifecycle.attendance.statusValue.present", { defaultValue: a.status })}
                                 </Badge>
                               </td>
-                              <td className="py-2.5 text-muted-foreground">{a.checkIn ? fmtTime(new Date(a.checkIn)) : "—"}</td>
-                              <td className="py-2.5 text-muted-foreground">{a.checkOut ? fmtTime(new Date(a.checkOut)) : "—"}</td>
-                              <td className="py-2.5 text-muted-foreground">{hoursBetween(a.checkIn, a.checkOut) ?? "—"}</td>
+                              <td className="py-2.5 text-muted-foreground">{a.checkIn ? formatTime(new Date(a.checkIn)) : "—"}</td>
+                              <td className="py-2.5 text-muted-foreground">{a.checkOut ? formatTime(new Date(a.checkOut)) : "—"}</td>
+                              <td className="py-2.5 text-muted-foreground">{hoursBetweenLocale(a.checkIn, a.checkOut) ?? "—"}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -841,11 +931,11 @@ export default function EmployeeLifecyclePage() {
                         <tbody>
                           {uploadedDocs.map((doc: any) => (
                             <tr key={doc.id} className="border-b border-muted/50 last:border-0">
-                              <td className="py-2.5 text-foreground capitalize">{String(doc.documentType ?? "").replace(/_/g, " ")}</td>
+                              <td className="py-2.5 text-foreground">{displayDocumentTypeLabel(doc.documentType, t)}</td>
                               <td className="py-2.5 text-muted-foreground max-w-[200px] truncate">{doc.fileName ?? "—"}</td>
-                              <td className="py-2.5 text-muted-foreground">{doc.expiresAt ? fmtDate(doc.expiresAt) : "—"}</td>
+                              <td className="py-2.5 text-muted-foreground">{doc.expiresAt ? formatDate(doc.expiresAt) : "—"}</td>
                               <td className="py-2.5">
-                                <Badge variant="outline" className="text-xs h-5 capitalize">{doc.verificationStatus ?? "—"}</Badge>
+                                <Badge variant="outline" className="text-xs h-5">{displayVerificationStatusLabel(doc.verificationStatus, t)}</Badge>
                               </td>
                             </tr>
                           ))}

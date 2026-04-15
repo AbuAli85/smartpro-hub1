@@ -1220,6 +1220,45 @@
   },
 
   "lifecycle": {
+    "expiry": {
+      "expiredToday": "Expired today",
+      "expiredDaysAgo": "Expired {{days}} days ago",
+      "expiresIn": "Expires in {{days}} days",
+      "validDaysLeft": "Valid ({{days}} days left)"
+    },
+    "currencyOmr": "OMR {{amount}}",
+    "hoursShort": "{{hours}} h",
+    "docVerification": {
+      "pending": "Pending",
+      "verified": "Verified",
+      "rejected": "Rejected",
+      "expired": "Expired"
+    },
+    "docTypes": {
+      "mol_work_permit_certificate": "Work permit certificate",
+      "passport": "Passport",
+      "visa": "Visa",
+      "resident_card": "Resident card",
+      "labour_card": "Labour card",
+      "employment_contract": "Employment contract",
+      "civil_id": "Civil ID",
+      "medical_certificate": "Medical certificate",
+      "photo": "Photo",
+      "other": "Other"
+    },
+    "permitStatusValue": {
+      "active": "Active",
+      "expiring_soon": "Expiring soon",
+      "expired": "Expired",
+      "in_grace": "In grace period",
+      "cancelled": "Cancelled",
+      "transferred": "Transferred",
+      "pending_update": "Pending update",
+      "unknown": "Unknown"
+    },
+    "currencyCodeLabel": {
+      "OMR": "OMR"
+    },
     "backToTeam": "Back to My Team",
     "edit": "Edit",
     "email": "Email",

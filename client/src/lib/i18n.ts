@@ -141,7 +141,7 @@ i18n
       // In development, surface missing keys as visible warnings so they can
       // be caught during review rather than silently falling back to English
       // in an Arabic context.
-      missingKeyHandler: (lngs, ns, key, fallbackValue) => {
+      missingKeyHandler: (lngs: readonly string[], ns: string, key: string, fallbackValue: string) => {
         console.warn(
           `[i18n] Missing translation key — lng: ${lngs.join(", ")} | ns: ${ns} | key: ${key} | fallback: "${fallbackValue}"`,
         );

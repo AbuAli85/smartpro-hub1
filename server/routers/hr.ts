@@ -1726,6 +1726,12 @@ export const hrRouter = router({
       if (input.description !== undefined) updateData.description = input.description;
       if (input.headEmployeeId !== undefined) updateData.headEmployeeId = input.headEmployeeId;
       await db.update(departments).set(updateData).where(eq(departments.id, input.id));
+      // Keep employee.department string in sync when the canonical department name changes
+      if (input.name !== undefined && input.name !== existing.name) {
+        await db.update(employees).set({ department: input.name }).where(
+          and(eq(employees.companyId, cid), eq(employees.department, existing.name)),
+        );
+      }
       return { success: true };
     }),
 
@@ -1738,6 +1744,9 @@ export const hrRouter = router({
       const [existing] = await db.select().from(departments).where(and(eq(departments.id, input.id), eq(departments.companyId, cid)));
       if (!existing) throw new TRPCError({ code: "NOT_FOUND", message: "Department not found" });
       await db.update(departments).set({ isActive: false }).where(eq(departments.id, input.id));
+      await db.update(employees).set({ department: null }).where(
+        and(eq(employees.companyId, cid), eq(employees.department, existing.name)),
+      );
       return { success: true };
     }),
 
@@ -1755,6 +1764,7 @@ export const hrRouter = router({
   createPosition: protectedProcedure
     .input(z.object({
       title: z.string().min(1).max(128),
+      titleAr: z.string().max(128).optional(),
       departmentId: z.number().optional(),
       description: z.string().optional(),
       companyId: z.number().optional(),
@@ -1766,6 +1776,7 @@ export const hrRouter = router({
       const [result] = await db.insert(positions).values({
         companyId: cid,
         title: input.title,
+        titleAr: input.titleAr,
         departmentId: input.departmentId,
         description: input.description,
       });

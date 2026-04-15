@@ -46,6 +46,122 @@
     "expiryWarnings_plural": "{{count}} تنبيهات تصاريح / جوازات سفر (القائمة)"
   },
 
+  "departmentsPage": {
+    "title": "الأقسام والمناصب",
+    "subtitle": "أنشئ الأقسام وحدِّثها، وعيِّن المسؤولين، وعرِّف المسمّيات الوظيفية.",
+    "addDepartment": "إضافة قسم",
+    "stats": {
+      "departments": "الأقسام",
+      "totalEmployees": "إجمالي الموظفين",
+      "staffedDepts": "أقسام فاعلة",
+      "avgPerDept": "متوسط الموظف / قسم",
+      "dash": "—"
+    },
+    "searchPlaceholder": "البحث في الأقسام…",
+    "clearSearch": "مسح البحث",
+    "list": {
+      "emptyTitle": "لا توجد أقسام بعد",
+      "emptyHint": "أضف أول قسم لتنظيم فريقك.",
+      "searchEmptyTitle": "لا يوجد قسم يطابق البحث",
+      "searchEmptyHint": "جرّب كلمة بحث أخرى."
+    },
+    "detail": {
+      "panelTitle": "تفاصيل القسم",
+      "noneSelectedTitle": "اختر قسماً",
+      "noneSelectedHint": "انقر أي قسم في القائمة لعرض أعضائه والمسميات الوظيفية.",
+      "members": "الأعضاء",
+      "positions": "المسميات",
+      "assign": "تعيين",
+      "addRole": "إضافة مسمى",
+      "membersBadge": "{{count}} أعضاء",
+      "rolesBadge": "{{count}} مسميات",
+      "noMembers": "لا يوجد أعضاء بعد",
+      "noMembersHint": "عيِّن موظفين إلى هذا القسم.",
+      "assignEmployees": "تعيين موظفين",
+      "noPositions": "لا توجد مسميات بعد",
+      "noPositionsHint": "أضف مسميات وظيفية لهذا القسم.",
+      "addPosition": "إضافة مسمى",
+      "headLabel": "رئيس القسم",
+      "headNotAssigned": "غير معيَّن",
+      "footerMembers": "{{count}} عضو",
+      "footerMembers_plural": "{{count}} أعضاء"
+    },
+    "deptForm": {
+      "newTitle": "قسم جديد",
+      "editTitle": "تعديل القسم",
+      "newSubtitle": "عرّف قسماً جديداً ضمن منظمتك.",
+      "editSubtitle": "تعديل: {{name}}",
+      "englishName": "الاسم بالإنجليزية",
+      "arabicName": "الاسم بالعربية",
+      "nameRequired": "الاسم الإنجليزي مطلوب",
+      "description": "الوصف",
+      "descriptionPlaceholder": "نبذة عن دور القسم ومسؤولياته…",
+      "head": "رئيس القسم",
+      "noEmployeesForHead": "لا يوجد موظفون بعد — يمكن تعيين الرئيس بعد إضافة موظفين.",
+      "headPlaceholder": "اختر رئيس القسم…",
+      "noHead": "بدون رئيس",
+      "colour": "اللون",
+      "icon": "الأيقونة",
+      "cancel": "إلغاء",
+      "create": "إنشاء القسم",
+      "save": "حفظ التغييرات",
+      "creating": "جارٍ الإنشاء…",
+      "saving": "جارٍ الحفظ…",
+      "namePlaceholderEn": "مثال: Human Resources",
+      "namePlaceholderAr": "الموارد البشرية"
+    },
+    "positionForm": {
+      "title": "إضافة مسمى — {{department}}",
+      "titleEn": "المسمى (إنجليزي)",
+      "titleAr": "المسمى (عربي)",
+      "description": "الوصف",
+      "placeholderEn": "مثال: Senior Accountant",
+      "placeholderAr": "مثال: محاسب أول",
+      "descPlaceholder": "نبذة عن الدور…",
+      "cancel": "إلغاء",
+      "create": "إنشاء المسمى",
+      "creating": "جارٍ الإنشاء…"
+    },
+    "assignDialog": {
+      "title": "تعيين موظفين — {{department}}",
+      "subtitle": "اختر الموظفين لإضافتهم إلى هذا القسم.",
+      "searchPlaceholder": "البحث عن موظفين…",
+      "noMatch": "لا يوجد موظف يطابق البحث.",
+      "allAssigned": "كل الموظفين في هذا القسم بالفعل.",
+      "selected": "{{count}} محدد",
+      "noneSelected": "لم يُحدد أحد",
+      "cancel": "إلغاء",
+      "assign": "تعيين",
+      "assigning": "جارٍ التعيين…",
+      "assignCount": "تعيين ({{count}})"
+    },
+    "delete": {
+      "deptTitle": "حذف القسم؟",
+      "posTitle": "حذف المسمى؟",
+      "confirm": "هل أنت متأكد أنك تريد حذف «{{name}}»؟",
+      "deptExtra": "ستبقى ملفات الموظفين؛ وسيُفرّغ حقل القسم لمن كانوا ضمن هذا القسم.",
+      "irreversible": "لا يمكن التراجع عن ذلك.",
+      "cancel": "إلغاء",
+      "confirmBtn": "حذف"
+    },
+    "row": {
+      "employeeCount": "{{count}} موظف",
+      "employeeCount_plural": "{{count}} موظف"
+    },
+    "toasts": {
+      "deptCreated": "تم إنشاء القسم",
+      "deptUpdated": "تم تحديث القسم",
+      "deptDeleted": "تم حذف القسم",
+      "posCreated": "تم إنشاء المسمى",
+      "posDeleted": "تم حذف المسمى",
+      "removedMember": "تمت إزالة الموظف من القسم",
+      "nameRequired": "اسم القسم بالإنجليزية مطلوب",
+      "posTitleRequired": "عنوان المسمى مطلوب",
+      "selectEmployees": "اختر موظفاً واحداً على الأقل",
+      "assigned": "تم تعيين {{count}} موظف في قسم {{department}}"
+    }
+  },
+
   "employeeWizard": {
     "steps": {
       "personalInfo": "المعلومات الشخصية",

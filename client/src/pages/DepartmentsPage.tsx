@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { trpc } from "@/lib/trpc";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { Card, CardContent } from "@/components/ui/card";
@@ -20,10 +21,10 @@ import {
 import { toast } from "sonner";
 import {
   Building2, Plus, Pencil, Trash2, Users, Briefcase, Search,
-  ChevronRight, UserCheck, BarChart3, TrendingUp, X, Palette,
+  ChevronRight, ChevronLeft, UserCheck, BarChart3, TrendingUp, X, Palette,
   Layers, Globe, Shield, Wrench, HeartPulse, BookOpen, Truck,
   DollarSign, Megaphone, Code2, FlaskConical, Headphones,
-  UserPlus, UserMinus, CheckCircle2, ListFilter,
+  UserPlus, UserMinus, CheckCircle2,
 } from "lucide-react";
 import { HubBreadcrumb } from "@/components/hub/HubBreadcrumb";
 import { organizationTrail } from "@/components/hub/hubCrumbs";
@@ -112,11 +113,13 @@ function StatCard({ icon, label, value, color }: { icon: React.ReactNode; label:
 
 // ─── Department Row ───────────────────────────────────────────────────────────
 function DeptRow({
-  dept, isSelected, headName, onSelect, onEdit, onDelete,
+  dept, isSelected, headName, onSelect, onEdit, onDelete, isRtl,
 }: {
   dept: Dept; isSelected: boolean; headName?: string;
   onSelect: () => void; onEdit: () => void; onDelete: () => void;
+  isRtl: boolean;
 }) {
+  const { t } = useTranslation("hr");
   const DeptIcon = getDeptIcon((dept as any).icon);
   const colorEntry = getDeptColorEntry((dept as any).color);
 
@@ -143,7 +146,8 @@ function DeptRow({
         </div>
         <div className="flex items-center gap-3 mt-0.5">
           <span className="flex items-center gap-1 text-xs text-muted-foreground">
-            <Users size={11} /> {dept.employeeCount} employee{dept.employeeCount !== 1 ? "s" : ""}
+            <Users size={11} />{" "}
+            {t("departmentsPage.row.employeeCount", { count: dept.employeeCount })}
           </span>
           {headName && (
             <span className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -165,7 +169,11 @@ function DeptRow({
         >
           <Trash2 size={13} />
         </Button>
-        <ChevronRight size={14} className={`text-muted-foreground transition-transform ${isSelected ? "rotate-90 text-primary" : ""}`} />
+        {isRtl ? (
+          <ChevronLeft size={14} className={`text-muted-foreground transition-transform ${isSelected ? "rotate-90 text-primary" : ""}`} />
+        ) : (
+          <ChevronRight size={14} className={`text-muted-foreground transition-transform ${isSelected ? "rotate-90 text-primary" : ""}`} />
+        )}
       </div>
     </div>
   );
@@ -203,6 +211,7 @@ function DeptDialog({
   open: boolean; onClose: () => void; initial?: Dept;
   employees: Employee[]; companyId?: number | null;
 }) {
+  const { t } = useTranslation("hr");
   const utils = trpc.useUtils();
 
   // Reset all state when dialog opens/closes or initial changes
@@ -212,8 +221,6 @@ function DeptDialog({
   const [headId, setHeadId] = useState<string>("none");
   const [color, setColor] = useState("blue");
   const [iconVal, setIconVal] = useState("building");
-  // Validation: only show error after user has interacted (touched) or tried to submit
-  const [touched, setTouched] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
   // Populate fields when editing an existing dept
@@ -225,27 +232,26 @@ function DeptDialog({
       setHeadId(initial?.headEmployeeId?.toString() ?? "none");
       setColor((initial as any)?.color ?? "blue");
       setIconVal((initial as any)?.icon ?? "building");
-      setTouched(false);
       setSubmitted(false);
     }
   }, [open, initial]);
 
-  const nameError = (touched || submitted) && !name.trim();
+  const nameError = submitted && !name.trim();
   const colorEntry = getDeptColorEntry(color);
   const PreviewIcon = getDeptIcon(iconVal);
 
   const create = trpc.hr.createDepartment.useMutation({
-    onSuccess: () => { utils.hr.listDepartments.invalidate(); toast.success("Department created"); onClose(); },
+    onSuccess: () => { utils.hr.listDepartments.invalidate(); toast.success(t("departmentsPage.toasts.deptCreated")); onClose(); },
     onError: (e) => toast.error(e.message),
   });
   const update = trpc.hr.updateDepartment.useMutation({
-    onSuccess: () => { utils.hr.listDepartments.invalidate(); toast.success("Department updated"); onClose(); },
+    onSuccess: () => { utils.hr.listDepartments.invalidate(); toast.success(t("departmentsPage.toasts.deptUpdated")); onClose(); },
     onError: (e) => toast.error(e.message),
   });
 
   const handleSave = () => {
     setSubmitted(true);
-    if (!name.trim()) return toast.error("Department name is required");
+    if (!name.trim()) return toast.error(t("departmentsPage.toasts.nameRequired"));
     const payload = {
       name: name.trim(),
       nameAr: nameAr.trim() || undefined,
@@ -262,7 +268,7 @@ function DeptDialog({
   const isPending = create.isPending || update.isPending;
 
   return (
-    <Dialog open={open} onOpenChange={onClose}>
+    <Dialog open={open} onOpenChange={(isOpen) => { if (!isOpen) onClose(); }}>
       <DialogContent className="max-w-lg p-0 overflow-hidden flex flex-col max-h-[90vh]">
         {/* Coloured header — uses Tailwind class via inline style fallback for dynamic colours */}
         <div className={`px-6 pt-5 pb-4 border-b shrink-0 ${colorEntry.header} text-white`}>
@@ -272,10 +278,12 @@ function DeptDialog({
             </div>
             <div>
               <h2 className="text-lg font-bold leading-tight text-white">
-                {initial ? "Edit Department" : "New Department"}
+                {initial ? t("departmentsPage.deptForm.editTitle") : t("departmentsPage.deptForm.newTitle")}
               </h2>
               <p className="text-xs text-white/70 mt-0.5">
-                {initial ? `Editing: ${initial.name}` : "Define a new department for your organisation"}
+                {initial
+                  ? t("departmentsPage.deptForm.editSubtitle", { name: initial.name })
+                  : t("departmentsPage.deptForm.newSubtitle")}
               </p>
             </div>
           </div>
@@ -284,27 +292,26 @@ function DeptDialog({
         {/* Scrollable body */}
         <div className="px-6 py-4 space-y-4 overflow-y-auto flex-1">
           {/* Names row */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                English Name <span className="text-destructive">*</span>
+                {t("departmentsPage.deptForm.englishName")} <span className="text-destructive">*</span>
               </Label>
               <Input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                onBlur={() => setTouched(true)}
-                placeholder="e.g. Human Resources"
+                placeholder={t("departmentsPage.deptForm.namePlaceholderEn")}
                 className={nameError ? "border-destructive ring-1 ring-destructive" : ""}
-                autoFocus
+                autoFocus={!initial}
               />
-              {nameError && <p className="text-xs text-destructive mt-0.5">Name is required</p>}
+              {nameError && <p className="text-xs text-destructive mt-0.5">{t("departmentsPage.deptForm.nameRequired")}</p>}
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Arabic Name</Label>
+              <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t("departmentsPage.deptForm.arabicName")}</Label>
               <Input
                 value={nameAr}
                 onChange={(e) => setNameAr(e.target.value)}
-                placeholder="الموارد البشرية"
+                placeholder={t("departmentsPage.deptForm.namePlaceholderAr")}
                 dir="rtl"
               />
             </div>
@@ -312,12 +319,12 @@ function DeptDialog({
 
           {/* Description */}
           <div className="space-y-1.5">
-            <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Description</Label>
+            <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t("departmentsPage.deptForm.description")}</Label>
             <Textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={2}
-              placeholder="Brief description of this department's role and responsibilities..."
+              placeholder={t("departmentsPage.deptForm.descriptionPlaceholder")}
               className="resize-none"
             />
           </div>
@@ -325,20 +332,20 @@ function DeptDialog({
           {/* Department Head */}
           <div className="space-y-1.5">
             <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
-              <UserCheck size={11} /> Department Head
+              <UserCheck size={11} /> {t("departmentsPage.deptForm.head")}
             </Label>
             {employees.length === 0 ? (
               <div className="flex items-center gap-2 px-3 py-2.5 rounded-lg border bg-muted/30 text-sm text-muted-foreground">
                 <Users size={14} className="shrink-0" />
-                <span>No employees yet — assign a head after adding employees</span>
+                <span>{t("departmentsPage.deptForm.noEmployeesForHead")}</span>
               </div>
             ) : (
               <Select value={headId} onValueChange={setHeadId}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select department head..." />
+                  <SelectValue placeholder={t("departmentsPage.deptForm.headPlaceholder")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">No Head Assigned</SelectItem>
+                  <SelectItem value="none">{t("departmentsPage.deptForm.noHead")}</SelectItem>
                   {employees.map((e) => (
                     <SelectItem key={e.id} value={e.id.toString()}>
                       {e.firstName} {e.lastName}
@@ -353,7 +360,7 @@ function DeptDialog({
           {/* Colour picker */}
           <div className="space-y-2">
             <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
-              <Palette size={11} /> Colour
+              <Palette size={11} /> {t("departmentsPage.deptForm.colour")}
             </Label>
             <div className="flex flex-wrap gap-2">
               {DEPT_COLORS.map((opt) => (
@@ -374,7 +381,7 @@ function DeptDialog({
 
           {/* Icon picker */}
           <div className="space-y-2">
-            <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Icon</Label>
+            <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t("departmentsPage.deptForm.icon")}</Label>
             <div className="grid grid-cols-5 gap-2">
               {DEPT_ICONS.map(({ value, Icon, label }) => (
                 <button
@@ -398,15 +405,15 @@ function DeptDialog({
 
         {/* Footer */}
         <div className="px-6 py-4 border-t bg-muted/20 flex justify-end gap-2 shrink-0">
-          <Button variant="outline" onClick={onClose} disabled={isPending}>Cancel</Button>
+          <Button variant="outline" onClick={onClose} disabled={isPending}>{t("departmentsPage.deptForm.cancel")}</Button>
           <Button
             onClick={handleSave}
             disabled={isPending}
             className="min-w-[150px] bg-red-700 hover:bg-red-800 text-white border-0"
           >
             {isPending
-              ? (initial ? "Saving..." : "Creating...")
-              : initial ? "Save Changes" : "Create Department"}
+              ? (initial ? t("departmentsPage.deptForm.saving") : t("departmentsPage.deptForm.creating"))
+              : initial ? t("departmentsPage.deptForm.save") : t("departmentsPage.deptForm.create")}
           </Button>
         </div>
       </DialogContent>
@@ -421,6 +428,7 @@ function PosDialog({
   open: boolean; onClose: () => void;
   departmentId: number; departmentName: string; companyId?: number | null;
 }) {
+  const { t } = useTranslation("hr");
   const utils = trpc.useUtils();
   const [title, setTitle] = useState("");
   const [titleAr, setTitleAr] = useState("");
@@ -429,7 +437,7 @@ function PosDialog({
   const create = trpc.hr.createPosition.useMutation({
     onSuccess: () => {
       utils.hr.listPositions.invalidate();
-      toast.success("Position created");
+      toast.success(t("departmentsPage.toasts.posCreated"));
       onClose();
       setTitle(""); setTitleAr(""); setDescription("");
     },
@@ -437,9 +445,10 @@ function PosDialog({
   });
 
   const handleSave = () => {
-    if (!title.trim()) return toast.error("Position title is required");
+    if (!title.trim()) return toast.error(t("departmentsPage.toasts.posTitleRequired"));
     create.mutate({
       title: title.trim(),
+      titleAr: titleAr.trim() || undefined,
       description: description.trim() || undefined,
       departmentId,
       companyId: companyId ?? undefined,
@@ -447,30 +456,30 @@ function PosDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onClose}>
+    <Dialog open={open} onOpenChange={(isOpen) => { if (!isOpen) onClose(); }}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Add Position to {departmentName}</DialogTitle>
+          <DialogTitle>{t("departmentsPage.positionForm.title", { department: departmentName })}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4 py-2">
           <div className="space-y-1.5">
-            <Label>Position Title (English) <span className="text-destructive">*</span></Label>
-            <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Senior Accountant" autoFocus />
+            <Label>{t("departmentsPage.positionForm.titleEn")} <span className="text-destructive">*</span></Label>
+            <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder={t("departmentsPage.positionForm.placeholderEn")} autoFocus />
           </div>
           <div className="space-y-1.5">
-            <Label>Position Title (Arabic)</Label>
-            <Input value={titleAr} onChange={(e) => setTitleAr(e.target.value)} placeholder="e.g. محاسب أول" dir="rtl" />
+            <Label>{t("departmentsPage.positionForm.titleAr")}</Label>
+            <Input value={titleAr} onChange={(e) => setTitleAr(e.target.value)} placeholder={t("departmentsPage.positionForm.placeholderAr")} dir="rtl" />
           </div>
           <div className="space-y-1.5">
-            <Label>Description</Label>
-            <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} placeholder="Brief description of this role..." className="resize-none" />
+            <Label>{t("departmentsPage.positionForm.description")}</Label>
+            <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} placeholder={t("departmentsPage.positionForm.descPlaceholder")} className="resize-none" />
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button variant="outline" onClick={onClose}>{t("departmentsPage.positionForm.cancel")}</Button>
           <Button onClick={handleSave} disabled={!title.trim() || create.isPending}
             className="bg-red-700 hover:bg-red-800 text-white border-0">
-            {create.isPending ? "Creating..." : "Create Position"}
+            {create.isPending ? t("departmentsPage.positionForm.creating") : t("departmentsPage.positionForm.create")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -485,6 +494,7 @@ function AssignEmployeeDialog({
   open: boolean; onClose: () => void;
   dept: Dept; allEmployees: Employee[]; companyId?: number | null;
 }) {
+  const { t } = useTranslation("hr");
   const utils = trpc.useUtils();
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Set<number>>(new Set());
@@ -502,7 +512,7 @@ function AssignEmployeeDialog({
       utils.hr.listDepartments.invalidate();
       utils.hr.listDepartmentMembers.invalidate();
       utils.hr.listEmployees.invalidate();
-      toast.success(`${res.updated} employee${res.updated !== 1 ? "s" : ""} assigned to ${dept.name}`);
+      toast.success(t("departmentsPage.toasts.assigned", { count: res.updated, department: dept.name }));
       onClose();
     },
     onError: (e) => toast.error(e.message),
@@ -517,29 +527,29 @@ function AssignEmployeeDialog({
   }, []);
 
   const handleAssign = () => {
-    if (selected.size === 0) return toast.error("Select at least one employee");
+    if (selected.size === 0) return toast.error(t("departmentsPage.toasts.selectEmployees"));
     assign.mutate({ employeeIds: Array.from(selected), departmentName: dept.name, companyId: companyId ?? undefined });
   };
 
   return (
-    <Dialog open={open} onOpenChange={onClose}>
+    <Dialog open={open} onOpenChange={(isOpen) => { if (!isOpen) onClose(); }}>
       <DialogContent className="max-w-md p-0 flex flex-col max-h-[85vh]">
         <div className="px-5 pt-5 pb-3 border-b shrink-0">
           <DialogTitle className="flex items-center gap-2 text-base">
             <UserPlus size={16} className="text-red-700" />
-            Assign Employees to {dept.name}
+            {t("departmentsPage.assignDialog.title", { department: dept.name })}
           </DialogTitle>
-          <p className="text-xs text-muted-foreground mt-1">Select employees to move into this department</p>
+          <p className="text-xs text-muted-foreground mt-1">{t("departmentsPage.assignDialog.subtitle")}</p>
           <div className="relative mt-3">
-            <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <Input className="pl-8 h-8 text-sm" placeholder="Search employees..." value={search} onChange={(e) => setSearch(e.target.value)} />
+            <Search size={13} className="absolute start-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <Input className="ps-8 h-8 text-sm" placeholder={t("departmentsPage.assignDialog.searchPlaceholder")} value={search} onChange={(e) => setSearch(e.target.value)} />
           </div>
         </div>
         <div className="flex-1 overflow-y-auto p-2">
           {unassigned.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               <Users size={28} className="mx-auto mb-2 opacity-25" />
-              <p className="text-sm">{search ? "No employees match" : "All employees are already assigned"}</p>
+              <p className="text-sm">{search ? t("departmentsPage.assignDialog.noMatch") : t("departmentsPage.assignDialog.allAssigned")}</p>
             </div>
           ) : (
             unassigned.map((emp) => (
@@ -566,17 +576,17 @@ function AssignEmployeeDialog({
             ))
           )}
         </div>
-        <div className="px-5 py-3 border-t bg-muted/20 flex items-center justify-between shrink-0">
+        <div className="px-5 py-3 border-t bg-muted/20 flex items-center justify-between shrink-0 gap-2">
           <span className="text-xs text-muted-foreground">
-            {selected.size > 0 ? `${selected.size} selected` : "None selected"}
+            {selected.size > 0 ? t("departmentsPage.assignDialog.selected", { count: selected.size }) : t("departmentsPage.assignDialog.noneSelected")}
           </span>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
+          <div className="flex gap-2 shrink-0">
+            <Button variant="outline" size="sm" onClick={onClose}>{t("departmentsPage.assignDialog.cancel")}</Button>
             <Button size="sm" disabled={selected.size === 0 || assign.isPending}
               className="bg-red-700 hover:bg-red-800 text-white border-0 gap-1.5"
               onClick={handleAssign}>
               <UserPlus size={13} />
-              {assign.isPending ? "Assigning..." : `Assign ${selected.size > 0 ? selected.size : ""}`}
+              {assign.isPending ? t("departmentsPage.assignDialog.assigning") : t("departmentsPage.assignDialog.assignCount", { count: selected.size })}
             </Button>
           </div>
         </div>
@@ -587,8 +597,11 @@ function AssignEmployeeDialog({
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function DepartmentsPage() {
+  const { t, i18n } = useTranslation("hr");
+  const { t: tNav } = useTranslation("nav");
   const { activeCompanyId } = useActiveCompany();
   const utils = trpc.useUtils();
+  const isRtl = i18n.dir() === "rtl";
 
   const { data: departments = [], isLoading: deptsLoading } = trpc.hr.listDepartments.useQuery(
     { companyId: activeCompanyId ?? undefined },
@@ -622,14 +635,14 @@ export default function DepartmentsPage() {
   const deleteDept = trpc.hr.deleteDepartment.useMutation({
     onSuccess: () => {
       utils.hr.listDepartments.invalidate();
-      toast.success("Department deleted");
+      toast.success(t("departmentsPage.toasts.deptDeleted"));
       setDeleteTarget(null);
       if (selectedDeptId) setSelectedDeptId(null);
     },
     onError: (e) => toast.error(e.message),
   });
   const deletePos = trpc.hr.deletePosition.useMutation({
-    onSuccess: () => { utils.hr.listPositions.invalidate(); toast.success("Position deleted"); setDeleteTarget(null); },
+    onSuccess: () => { utils.hr.listPositions.invalidate(); toast.success(t("departmentsPage.toasts.posDeleted")); setDeleteTarget(null); },
     onError: (e) => toast.error(e.message),
   });
   const removeMember = trpc.hr.assignDepartment.useMutation({
@@ -637,7 +650,7 @@ export default function DepartmentsPage() {
       utils.hr.listDepartments.invalidate();
       utils.hr.listDepartmentMembers.invalidate();
       utils.hr.listEmployees.invalidate();
-      toast.success("Employee removed from department");
+      toast.success(t("departmentsPage.toasts.removedMember"));
     },
     onError: (e) => toast.error(e.message),
   });
@@ -648,11 +661,16 @@ export default function DepartmentsPage() {
   const [deleteTarget, setDeleteTarget] = useState<{ type: "dept" | "pos"; id: number; name: string } | null>(null);
 
   const [search, setSearch] = useState("");
-  const filtered = useMemo(() =>
-    departments.filter((d) =>
-      d.name.toLowerCase().includes(search.toLowerCase()) ||
-      (d.description ?? "").toLowerCase().includes(search.toLowerCase())
-    ), [departments, search]);
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return departments;
+    return departments.filter((d) => {
+      const nameHit = d.name.toLowerCase().includes(q);
+      const descHit = (d.description ?? "").toLowerCase().includes(q);
+      const arHit = d.nameAr ? d.nameAr.includes(search.trim()) : false;
+      return nameHit || descHit || arHit;
+    });
+  }, [departments, search]);
 
   const staffedDepts = departments.filter((d) => d.employeeCount > 0).length;
   const avgPerDept = departments.length > 0
@@ -666,24 +684,24 @@ export default function DepartmentsPage() {
   };
 
   return (
-    <div className="p-6 space-y-5">
-      <HubBreadcrumb items={organizationTrail("Departments")} />
+    <div className="p-6 space-y-5" dir={i18n.dir()}>
+      <HubBreadcrumb items={organizationTrail(tNav("departments"), tNav)} />
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
           <h1 className="text-2xl font-bold flex items-center gap-2.5">
-            <Building2 size={24} className="text-red-700" />
-            Departments & Positions
+            <Building2 size={24} className="text-red-700 shrink-0" />
+            {t("departmentsPage.title")}
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Create and manage departments, assign heads, and define job positions
+            {t("departmentsPage.subtitle")}
           </p>
         </div>
         <Button
           onClick={() => setDeptDialog({ open: true })}
-          className="gap-2 bg-red-700 hover:bg-red-800 text-white border-0"
+          className="gap-2 bg-red-700 hover:bg-red-800 text-white border-0 shrink-0 self-start"
         >
-          <Plus size={16} /> Add Department
+          <Plus size={16} /> {t("departmentsPage.addDepartment")}
         </Button>
       </div>
 
@@ -691,42 +709,45 @@ export default function DepartmentsPage() {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <StatCard
           icon={<Building2 size={18} className="text-blue-500" />}
-          label="Departments" value={departments.length}
+          label={t("departmentsPage.stats.departments")} value={departments.length}
           color="bg-blue-500/10"
         />
         <StatCard
           icon={<Users size={18} className="text-emerald-500" />}
-          label="Total Employees" value={employees.length}
+          label={t("departmentsPage.stats.totalEmployees")} value={employees.length}
           color="bg-emerald-500/10"
         />
         <StatCard
           icon={<BarChart3 size={18} className="text-amber-500" />}
-          label="Staffed Depts" value={staffedDepts}
+          label={t("departmentsPage.stats.staffedDepts")} value={staffedDepts}
           color="bg-amber-500/10"
         />
         <StatCard
           icon={<TrendingUp size={18} className="text-violet-500" />}
-          label="Avg / Dept" value={avgPerDept || "—"}
+          label={t("departmentsPage.stats.avgPerDept")} value={avgPerDept || t("departmentsPage.stats.dash")}
           color="bg-violet-500/10"
         />
       </div>
 
-      {/* Main content: dept list (wider) + positions panel */}
+      {/* Main content: list + detail — order follows reading direction (detail follows list in DOM for screen readers) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-        {/* Left: Department list — 7/12 */}
-        <div className="lg:col-span-7 space-y-3">
+        {/* Department list — 7/12 */}
+        <div className="lg:col-span-7 space-y-3 min-w-0">
           <div className="relative">
-            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <Search size={15} className="absolute start-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
             <Input
-              className="pl-9"
-              placeholder="Search departments..."
+              className="ps-9"
+              placeholder={t("departmentsPage.searchPlaceholder")}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
+              aria-label={t("departmentsPage.searchPlaceholder")}
             />
             {search && (
               <button
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                type="button"
+                className="absolute end-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground rounded p-0.5"
                 onClick={() => setSearch("")}
+                aria-label={t("departmentsPage.clearSearch")}
               >
                 <X size={14} />
               </button>
@@ -743,17 +764,17 @@ export default function DepartmentsPage() {
             <div className="text-center py-16 text-muted-foreground border-2 border-dashed rounded-xl">
               <Building2 size={40} className="mx-auto mb-3 opacity-25" />
               <p className="font-medium">
-                {search ? "No departments match your search" : "No departments yet"}
+                {search ? t("departmentsPage.list.searchEmptyTitle") : t("departmentsPage.list.emptyTitle")}
               </p>
               <p className="text-sm mt-1">
-                {search ? "Try a different search term" : "Add your first department to organise your team"}
+                {search ? t("departmentsPage.list.searchEmptyHint") : t("departmentsPage.list.emptyHint")}
               </p>
               {!search && (
                 <Button
                   className="mt-4 gap-2 bg-red-700 hover:bg-red-800 text-white border-0"
                   onClick={() => setDeptDialog({ open: true })}
                 >
-                  <Plus size={15} /> Add Department
+                  <Plus size={15} /> {t("departmentsPage.addDepartment")}
                 </Button>
               )}
             </div>
@@ -768,36 +789,39 @@ export default function DepartmentsPage() {
                   onSelect={() => setSelectedDeptId(selectedDeptId === dept.id ? null : dept.id)}
                   onEdit={() => setDeptDialog({ open: true, item: dept })}
                   onDelete={() => setDeleteTarget({ type: "dept", id: dept.id, name: dept.name })}
+                  isRtl={isRtl}
                 />
               ))}
             </div>
           )}
         </div>
 
-        {/* Right: Members + Positions panel — 5/12 */}
-        <div className="lg:col-span-5">
+        {/* Members + Positions panel — 5/12 */}
+        <div className="lg:col-span-5 min-w-0">
           <div className="border rounded-xl overflow-hidden h-full min-h-[320px] flex flex-col">
             {/* Panel header */}
-            <div className="flex items-center justify-between px-4 py-3 border-b bg-muted/30">
-              <div className="flex items-center gap-2">
-                <span className="font-semibold text-sm truncate max-w-[140px]">
-                  {selectedDept ? selectedDept.name : "Department Detail"}
+            <div className="flex items-center justify-between px-4 py-3 border-b bg-muted/30 gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="font-semibold text-sm truncate max-w-[min(180px,50vw)]">
+                  {selectedDept ? selectedDept.name : t("departmentsPage.detail.panelTitle")}
                 </span>
                 {selectedDept && (
                   <Badge variant="secondary" className="text-xs shrink-0">
-                    {rightTab === "members" ? `${deptMembers.length} members` : `${positions.length} roles`}
+                    {rightTab === "members"
+                      ? t("departmentsPage.detail.membersBadge", { count: deptMembers.length })
+                      : t("departmentsPage.detail.rolesBadge", { count: positions.length })}
                   </Badge>
                 )}
               </div>
               {selectedDept && (
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1.5 shrink-0">
                   {rightTab === "members" ? (
                     <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs" onClick={() => setAssignDialog(true)}>
-                      <UserPlus size={12} /> Assign
+                      <UserPlus size={12} /> {t("departmentsPage.detail.assign")}
                     </Button>
                   ) : (
                     <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs" onClick={() => setPosDialog(true)}>
-                      <Plus size={12} /> Add Role
+                      <Plus size={12} /> {t("departmentsPage.detail.addRole")}
                     </Button>
                   )}
                 </div>
@@ -808,30 +832,32 @@ export default function DepartmentsPage() {
             {selectedDept && (
               <div className="flex border-b">
                 <button
+                  type="button"
                   className={`flex-1 py-2 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors ${
                     rightTab === "members" ? "border-b-2 border-red-700 text-red-700" : "text-muted-foreground hover:text-foreground"
                   }`}
                   onClick={() => setRightTab("members")}
                 >
-                  <Users size={12} /> Members
+                  <Users size={12} /> {t("departmentsPage.detail.members")}
                 </button>
                 <button
+                  type="button"
                   className={`flex-1 py-2 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors ${
                     rightTab === "positions" ? "border-b-2 border-red-700 text-red-700" : "text-muted-foreground hover:text-foreground"
                   }`}
                   onClick={() => setRightTab("positions")}
                 >
-                  <Briefcase size={12} /> Positions
+                  <Briefcase size={12} /> {t("departmentsPage.detail.positions")}
                 </button>
               </div>
             )}
 
             <div className="flex-1 overflow-y-auto p-2">
               {!selectedDept ? (
-                <div className="flex flex-col items-center justify-center h-full py-12 text-center text-muted-foreground">
+                <div className="flex flex-col items-center justify-center h-full py-12 text-center text-muted-foreground px-2">
                   <Building2 size={32} className="mb-3 opacity-25" />
-                  <p className="text-sm font-medium">Select a department</p>
-                  <p className="text-xs mt-1">Click any department to view its members and roles</p>
+                  <p className="text-sm font-medium">{t("departmentsPage.detail.noneSelectedTitle")}</p>
+                  <p className="text-xs mt-1">{t("departmentsPage.detail.noneSelectedHint")}</p>
                 </div>
               ) : rightTab === "members" ? (
                 // ── Members tab ──────────────────────────────────────────
@@ -840,12 +866,12 @@ export default function DepartmentsPage() {
                     {[1, 2, 3].map((i) => <div key={i} className="h-12 bg-muted animate-pulse rounded-lg" />)}
                   </div>
                 ) : deptMembers.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center h-full py-10 text-center text-muted-foreground">
+                  <div className="flex flex-col items-center justify-center h-full py-10 text-center text-muted-foreground px-2">
                     <Users size={28} className="mb-3 opacity-25" />
-                    <p className="text-sm font-medium">No members yet</p>
-                    <p className="text-xs mt-1">Assign employees to this department</p>
+                    <p className="text-sm font-medium">{t("departmentsPage.detail.noMembers")}</p>
+                    <p className="text-xs mt-1">{t("departmentsPage.detail.noMembersHint")}</p>
                     <Button size="sm" className="mt-3 gap-1.5 bg-red-700 hover:bg-red-800 text-white border-0" onClick={() => setAssignDialog(true)}>
-                      <UserPlus size={13} /> Assign Employees
+                      <UserPlus size={13} /> {t("departmentsPage.detail.assignEmployees")}
                     </Button>
                   </div>
                 ) : (
@@ -878,12 +904,12 @@ export default function DepartmentsPage() {
                     {[1, 2, 3].map((i) => <div key={i} className="h-10 bg-muted animate-pulse rounded-lg" />)}
                   </div>
                 ) : positions.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center h-full py-10 text-center text-muted-foreground">
+                  <div className="flex flex-col items-center justify-center h-full py-10 text-center text-muted-foreground px-2">
                     <Briefcase size={28} className="mb-3 opacity-25" />
-                    <p className="text-sm font-medium">No positions yet</p>
-                    <p className="text-xs mt-1">Add job roles to this department</p>
+                    <p className="text-sm font-medium">{t("departmentsPage.detail.noPositions")}</p>
+                    <p className="text-xs mt-1">{t("departmentsPage.detail.noPositionsHint")}</p>
                     <Button size="sm" className="mt-3 gap-1.5 bg-red-700 hover:bg-red-800 text-white border-0" onClick={() => setPosDialog(true)}>
-                      <Plus size={13} /> Add Position
+                      <Plus size={13} /> {t("departmentsPage.detail.addPosition")}
                     </Button>
                   </div>
                 ) : (
@@ -901,16 +927,16 @@ export default function DepartmentsPage() {
             </div>
 
             {selectedDept && (
-              <div className="border-t px-4 py-2.5 bg-muted/20 flex items-center gap-2">
+              <div className="border-t px-4 py-2.5 bg-muted/20 flex items-center gap-2 flex-wrap">
                 <UserCheck size={13} className="text-muted-foreground shrink-0" />
                 <span className="text-xs text-muted-foreground">
-                  Head:{" "}
+                  {t("departmentsPage.detail.headLabel")}:{" "}
                   <span className="font-medium text-foreground">
-                    {getHeadName(selectedDept.headEmployeeId) ?? "Not assigned"}
+                    {getHeadName(selectedDept.headEmployeeId) ?? t("departmentsPage.detail.headNotAssigned")}
                   </span>
                 </span>
-                <span className="ml-auto text-xs text-muted-foreground">
-                  {deptMembers.length} member{deptMembers.length !== 1 ? "s" : ""}
+                <span className="ms-auto text-xs text-muted-foreground tabular-nums">
+                  {t("departmentsPage.detail.footerMembers", { count: deptMembers.length })}
                 </span>
               </div>
             )}
@@ -956,16 +982,20 @@ export default function DepartmentsPage() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              Delete {deleteTarget?.type === "dept" ? "Department" : "Position"}?
+              {deleteTarget?.type === "dept" ? t("departmentsPage.delete.deptTitle") : t("departmentsPage.delete.posTitle")}
             </AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete <strong>{deleteTarget?.name}</strong>?
-              {deleteTarget?.type === "dept" && " Employees assigned to this department will not be deleted, but their department assignment will be cleared."}
-              {" "}This action cannot be undone.
+            <AlertDialogDescription className="space-y-2">
+              <span className="block">
+                {t("departmentsPage.delete.confirm", { name: deleteTarget?.name ?? "" })}
+              </span>
+              {deleteTarget?.type === "dept" && (
+                <span className="block">{t("departmentsPage.delete.deptExtra")}</span>
+              )}
+              <span className="block">{t("departmentsPage.delete.irreversible")}</span>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t("departmentsPage.delete.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={() => {
@@ -974,7 +1004,7 @@ export default function DepartmentsPage() {
                 else deletePos.mutate({ id: deleteTarget.id });
               }}
             >
-              Delete
+              {t("departmentsPage.delete.confirmBtn")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

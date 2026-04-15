@@ -46,6 +46,122 @@
     "expiryWarnings_plural": "{{count}} permit / passport signals (roster)"
   },
 
+  "departmentsPage": {
+    "title": "Departments & Positions",
+    "subtitle": "Create and manage departments, assign heads, and define job positions.",
+    "addDepartment": "Add Department",
+    "stats": {
+      "departments": "Departments",
+      "totalEmployees": "Total Employees",
+      "staffedDepts": "Staffed Depts",
+      "avgPerDept": "Avg / Dept",
+      "dash": "—"
+    },
+    "searchPlaceholder": "Search departments…",
+    "clearSearch": "Clear search",
+    "list": {
+      "emptyTitle": "No departments yet",
+      "emptyHint": "Add your first department to organise your team.",
+      "searchEmptyTitle": "No departments match your search",
+      "searchEmptyHint": "Try a different search term."
+    },
+    "detail": {
+      "panelTitle": "Department detail",
+      "noneSelectedTitle": "Select a department",
+      "noneSelectedHint": "Click any department in the list to view its members and job roles.",
+      "members": "Members",
+      "positions": "Positions",
+      "assign": "Assign",
+      "addRole": "Add role",
+      "membersBadge": "{{count}} members",
+      "rolesBadge": "{{count}} roles",
+      "noMembers": "No members yet",
+      "noMembersHint": "Assign employees to this department.",
+      "assignEmployees": "Assign employees",
+      "noPositions": "No positions yet",
+      "noPositionsHint": "Add job roles to this department.",
+      "addPosition": "Add position",
+      "headLabel": "Head",
+      "headNotAssigned": "Not assigned",
+      "footerMembers": "{{count}} member",
+      "footerMembers_plural": "{{count}} members"
+    },
+    "deptForm": {
+      "newTitle": "New department",
+      "editTitle": "Edit department",
+      "newSubtitle": "Define a new department for your organisation.",
+      "editSubtitle": "Editing: {{name}}",
+      "englishName": "English name",
+      "arabicName": "Arabic name",
+      "nameRequired": "English name is required",
+      "description": "Description",
+      "descriptionPlaceholder": "Brief description of this department's role and responsibilities…",
+      "head": "Department head",
+      "noEmployeesForHead": "No employees yet — you can assign a head after adding staff.",
+      "headPlaceholder": "Select department head…",
+      "noHead": "No head assigned",
+      "colour": "Colour",
+      "icon": "Icon",
+      "cancel": "Cancel",
+      "create": "Create department",
+      "save": "Save changes",
+      "creating": "Creating…",
+      "saving": "Saving…",
+      "namePlaceholderEn": "e.g. Human Resources",
+      "namePlaceholderAr": "الموارد البشرية"
+    },
+    "positionForm": {
+      "title": "Add position — {{department}}",
+      "titleEn": "Title (English)",
+      "titleAr": "Title (Arabic)",
+      "description": "Description",
+      "placeholderEn": "e.g. Senior Accountant",
+      "placeholderAr": "e.g. محاسب أول",
+      "descPlaceholder": "Brief description of this role…",
+      "cancel": "Cancel",
+      "create": "Create position",
+      "creating": "Creating…"
+    },
+    "assignDialog": {
+      "title": "Assign employees — {{department}}",
+      "subtitle": "Select employees to add to this department.",
+      "searchPlaceholder": "Search employees…",
+      "noMatch": "No employees match your search.",
+      "allAssigned": "Everyone is already in this department.",
+      "selected": "{{count}} selected",
+      "noneSelected": "None selected",
+      "cancel": "Cancel",
+      "assign": "Assign",
+      "assigning": "Assigning…",
+      "assignCount": "Assign ({{count}})"
+    },
+    "delete": {
+      "deptTitle": "Delete department?",
+      "posTitle": "Delete position?",
+      "confirm": "Are you sure you want to delete “{{name}}”?",
+      "deptExtra": "Employees in this department will keep their profiles; their department field will be cleared.",
+      "irreversible": "This cannot be undone.",
+      "cancel": "Cancel",
+      "confirmBtn": "Delete"
+    },
+    "row": {
+      "employeeCount": "{{count}} employee",
+      "employeeCount_plural": "{{count}} employees"
+    },
+    "toasts": {
+      "deptCreated": "Department created",
+      "deptUpdated": "Department updated",
+      "deptDeleted": "Department deleted",
+      "posCreated": "Position created",
+      "posDeleted": "Position deleted",
+      "removedMember": "Employee removed from department",
+      "nameRequired": "Department name is required",
+      "posTitleRequired": "Position title is required",
+      "selectEmployees": "Select at least one employee",
+      "assigned": "{{count}} employee(s) assigned to {{department}}"
+    }
+  },
+
   "employeeWizard": {
     "steps": {
       "personalInfo": "Personal Info",

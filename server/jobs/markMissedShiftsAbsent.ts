@@ -43,6 +43,7 @@ import { getDb } from "../db";
 import {
   attendance,
   attendanceRecords,
+  attendanceSites,
   companyHolidays,
   employeeSchedules,
   employees,
@@ -101,6 +102,15 @@ export async function runMarkMissedShiftsAbsent(): Promise<MarkMissedShiftsResul
     ? await db.select().from(shiftTemplates).where(inArray(shiftTemplates.id, templateIds))
     : [];
   const shiftById = new Map(shifts.map((s) => [s.id, s]));
+
+  const siteIds = [...new Set(todaySchedules.map((s) => s.siteId).filter((id): id is number => id != null))];
+  const sites = siteIds.length
+    ? await db
+        .select({ id: attendanceSites.id, name: attendanceSites.name })
+        .from(attendanceSites)
+        .where(inArray(attendanceSites.id, siteIds))
+    : [];
+  const siteById = new Map(sites.map((s) => [s.id, s]));
 
   const companyIds = [...new Set(todaySchedules.map((s) => s.companyId))];
   const todayHolidays = companyIds.length
@@ -217,7 +227,7 @@ export async function runMarkMissedShiftsAbsent(): Promise<MarkMissedShiftsResul
           void sendAttendanceAbsentAlert({
             managerPhone,
             employeeName: empName,
-            siteName: "scheduled site",
+            siteName: siteById.get(sched.siteId)?.name ?? "scheduled site",
             shiftName: shift.name,
           }).catch((e) => console.warn("[whatsapp] absent alert failed:", e));
         }

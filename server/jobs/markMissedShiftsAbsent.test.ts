@@ -93,6 +93,7 @@ describe("runMarkMissedShiftsAbsent", () => {
       [{ ...baseSchedule }],
       [{ ...baseShift }],
       [],
+      [],
     ]);
     vi.mocked(db.getDb).mockResolvedValue(mockDb as never);
 
@@ -107,6 +108,7 @@ describe("runMarkMissedShiftsAbsent", () => {
     const mockDb = mockDbWithQuerySequence([
       [{ ...baseSchedule }],
       [{ ...baseShift }],
+      [],
       [],
       [resolvedEmployee],
       [{ id: 999 }],
@@ -127,6 +129,7 @@ describe("runMarkMissedShiftsAbsent", () => {
         [{ ...baseSchedule }],
         [{ ...baseShift }],
         [],
+        [],
         [resolvedEmployee],
         [],
         [],
@@ -145,6 +148,7 @@ describe("runMarkMissedShiftsAbsent", () => {
     const mockDb = mockDbWithQuerySequence([
       [{ ...baseSchedule }],
       [{ ...baseShift }],
+      [],
       [],
       [resolvedEmployee],
       [],

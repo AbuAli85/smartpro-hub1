@@ -1305,6 +1305,8 @@ export const operationsRouter = router({
         contractsPendingSignature: controlTowerCore.riskCompliance.contractsPendingSignature,
         renewalWorkflowsFailed: controlTowerCore.riskCompliance.renewalWorkflowsFailed,
         rankedAccountsCount: ownerResolution.rankedAccountsForReview.length,
+        absentToday: controlTowerCore.attendanceSignal.absentToday,
+        overdueCheckouts: controlTowerCore.attendanceSignal.overdueCheckouts,
       });
 
       const [decisionWorkItemsRaw, collectionExecutionQueue] = await Promise.all([
@@ -1364,6 +1366,7 @@ export const operationsRouter = router({
           riskCompliance: controlTowerCore.riskCompliance,
           clientHealthTop,
           insightSummary,
+          attendanceSignal: controlTowerCore.attendanceSignal,
         },
         commercial: {
           contactsLeads: Number(contactsLeads?.cnt ?? 0),

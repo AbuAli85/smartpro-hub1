@@ -12,6 +12,7 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) co
 
 - Apply `drizzle/0049_shift_template_break_minutes.sql` before enabling the **auto-absent marking** background job (`server/jobs/markMissedShiftsAbsent.ts`). The job is gated with `DISABLE_ABSENT_MARK_JOB=1` for local opt-out.
 - **Payroll:** KPI commissions now auto-populate `commission_pay` on payroll line items. Apply `drizzle/0050_payroll_commission_pay.sql` before deploying. Existing payroll runs are not backfilled — only new runs pick up commissions.
+- **Dashboard:** Control Tower now shows today's workforce attendance signal — scheduled count, active check-ins, absences, late arrivals, and overdue checkouts — alongside the existing financial and risk panels. Absence and overdue-checkout counts feed into the executive insight narrative.
 
 ---
 

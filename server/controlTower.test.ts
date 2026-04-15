@@ -44,6 +44,8 @@ describe("buildExecutiveInsightNarrative", () => {
       contractsPendingSignature: 0,
       renewalWorkflowsFailed: 0,
       rankedAccountsCount: 0,
+      absentToday: 0,
+      overdueCheckouts: 0,
     });
     expect(s.severity).toBe("critical");
     expect(s.bullets.some((b) => b.includes("SLA"))).toBe(true);
@@ -59,6 +61,8 @@ describe("buildExecutiveInsightNarrative", () => {
       contractsPendingSignature: 0,
       renewalWorkflowsFailed: 0,
       rankedAccountsCount: 0,
+      absentToday: 0,
+      overdueCheckouts: 0,
     });
     expect(s.severity).toBe("attention");
     expect(s.bullets.some((b) => b.includes("aged receivables"))).toBe(true);
@@ -74,6 +78,8 @@ describe("buildExecutiveInsightNarrative", () => {
       contractsPendingSignature: 0,
       renewalWorkflowsFailed: 0,
       rankedAccountsCount: 0,
+      absentToday: 0,
+      overdueCheckouts: 0,
     });
     expect(s.severity).toBe("calm");
   });

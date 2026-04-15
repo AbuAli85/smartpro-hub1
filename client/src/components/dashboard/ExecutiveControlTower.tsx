@@ -50,6 +50,42 @@ function OwnerWorkspaceSection({
   );
 }
 
+function SignalChip({
+  value,
+  label,
+  href,
+  color,
+  hot = false,
+}: {
+  value: number;
+  label: string;
+  href: string;
+  color: "emerald" | "amber" | "red" | "muted";
+  hot?: boolean;
+}) {
+  const colorCls = {
+    emerald: "bg-emerald-50 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300",
+    amber: "bg-amber-50 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300",
+    red: "bg-red-50 text-red-800 dark:bg-red-950/50 dark:text-red-300",
+    muted: "bg-muted text-muted-foreground",
+  }[color];
+
+  return (
+    <Link href={href}>
+      <span
+        className={cn(
+          "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium cursor-pointer hover:opacity-80 transition-opacity",
+          colorCls,
+        )}
+      >
+        {hot && <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />}
+        <span className="tabular-nums font-semibold">{value}</span>
+        {label}
+      </span>
+    </Link>
+  );
+}
+
 const BUCKET_LABEL: Record<string, string> = {
   "0_30": "0–30d",
   "31_60": "31–60d",
@@ -100,7 +136,7 @@ function RoleExecutionBanner({ view }: { view: NonNullable<Pulse["roleExecution"
 
 export function ExecutiveControlTower({ tower, showHref, execution, companyId, memberRole, roleExecution }: Props) {
   const { t } = useTranslation("executive");
-  const { agedReceivables, decisionsQueue, riskCompliance, clientHealthTop, insightSummary } = tower;
+  const { agedReceivables, decisionsQueue, riskCompliance, clientHealthTop, insightSummary, attendanceSignal } = tower;
   const canActOnCollections = memberRole === "company_admin" || memberRole === "finance_admin";
   const readOnly = execution?.readOnlyExecution ?? false;
   const severityClass =
@@ -161,6 +197,88 @@ export function ExecutiveControlTower({ tower, showHref, execution, companyId, m
         </div>
         {roleExecution && <RoleExecutionBanner view={roleExecution} />}
       </OwnerWorkspaceSection>
+
+      {attendanceSignal && attendanceSignal.scheduledToday > 0 && (
+        <OwnerWorkspaceSection title="Workforce today">
+          <Card>
+            <CardContent className="pt-3 pb-3">
+              <div className="flex items-center justify-between mb-2">
+                <span
+                  className="text-[10px] text-muted-foreground font-medium"
+                  title={attendanceSignal.basis}
+                >
+                  {attendanceSignal.businessDateYmd} · {attendanceSignal.scheduledToday} scheduled
+                </span>
+                <Link href="/hr/attendance" className="text-[10px] text-[var(--smartpro-orange)] hover:underline flex items-center gap-0.5">
+                  Board <ArrowUpRight size={10} />
+                </Link>
+              </div>
+
+              <div className="mb-3">
+                <div className="flex justify-between items-center mb-1">
+                  <span className="text-[10px] text-muted-foreground">Attendance rate</span>
+                  <span
+                    className={cn(
+                      "text-xs font-semibold tabular-nums",
+                      attendanceSignal.attendanceRateToday >= 80
+                        ? "text-emerald-700 dark:text-emerald-400"
+                        : attendanceSignal.attendanceRateToday >= 50
+                          ? "text-amber-700 dark:text-amber-400"
+                          : "text-red-700 dark:text-red-400",
+                    )}
+                  >
+                    {attendanceSignal.attendanceRateToday}%
+                  </span>
+                </div>
+                <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                  <div
+                    className={cn(
+                      "h-full rounded-full transition-all",
+                      attendanceSignal.attendanceRateToday >= 80
+                        ? "bg-emerald-500"
+                        : attendanceSignal.attendanceRateToday >= 50
+                          ? "bg-amber-500"
+                          : "bg-red-500",
+                    )}
+                    style={{ width: `${attendanceSignal.attendanceRateToday}%` }}
+                  />
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-1.5">
+                <SignalChip
+                  value={attendanceSignal.checkedInActive}
+                  label="Active"
+                  href="/hr/attendance"
+                  color="emerald"
+                />
+                <SignalChip
+                  value={attendanceSignal.absentToday}
+                  label="Absent"
+                  href="/hr/attendance"
+                  color={attendanceSignal.absentToday > 0 ? "red" : "muted"}
+                  hot={attendanceSignal.absentToday > 0}
+                />
+                <SignalChip
+                  value={attendanceSignal.lateCheckins}
+                  label="Late"
+                  href="/hr/attendance"
+                  color={attendanceSignal.lateCheckins > 0 ? "amber" : "muted"}
+                />
+                {attendanceSignal.overdueCheckouts > 0 && (
+                  <SignalChip
+                    value={attendanceSignal.overdueCheckouts}
+                    label="Overdue checkout"
+                    href="/hr/attendance"
+                    color="red"
+                    hot
+                  />
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </OwnerWorkspaceSection>
+      )}
 
       <OwnerWorkspaceSection title={t("weakAreas")}>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

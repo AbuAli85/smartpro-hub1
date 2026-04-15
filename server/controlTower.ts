@@ -5,9 +5,13 @@
 
 import type { getDb } from "./db";
 import {
+  attendanceRecords,
+  attendanceSites,
   caseSlaTracking,
+  companyHolidays,
   companyDocuments,
   contracts,
+  employeeSchedules,
   employeeDocuments,
   employeeRequests,
   expenseClaims,
@@ -17,10 +21,11 @@ import {
   proBillingCycles,
   renewalWorkflowRuns,
   serviceQuotations,
+  shiftTemplates,
   subscriptionInvoices,
   workPermits,
 } from "../drizzle/schema";
-import { and, count, eq, gte, inArray, isNotNull, isNull, lte, lt } from "drizzle-orm";
+import { and, count, eq, gte, inArray, isNotNull, isNull, lte, lt, or } from "drizzle-orm";
 import type { RankedAccountRow } from "./ownerResolution";
 
 type DbClient = NonNullable<Awaited<ReturnType<typeof getDb>>>;
@@ -66,6 +71,23 @@ export type RiskComplianceSnapshot = {
   companyDocsExpiring30Days: number;
   workPermitsExpiring7Days: number;
   slaOpenBreaches: number;
+};
+
+export type AttendanceSignalSnapshot = {
+  basis: string;
+  businessDateYmd: string;
+  /** Total scheduled shifts for today (holiday-adjusted). */
+  scheduledToday: number;
+  /** Employees currently checked in (open punch, not yet out). */
+  checkedInActive: number;
+  /** Shifts that ended with no check-in (confirmed absent). */
+  absentToday: number;
+  /** Employees checked in but shift has ended (open punch past shift end). */
+  overdueCheckouts: number;
+  /** Employees who arrived late (after grace period). */
+  lateCheckins: number;
+  /** Attendance rate: (present + late + completed) / scheduled, 0–100. */
+  attendanceRateToday: number;
 };
 
 export type ClientHealthTopRow = {
@@ -430,6 +452,166 @@ export async function buildRiskComplianceSnapshot(
   };
 }
 
+export async function buildAttendanceSignalSnapshot(
+  db: DbClient,
+  companyId: number,
+  now: Date = new Date(),
+): Promise<AttendanceSignalSnapshot> {
+  const { muscatCalendarYmdNow, muscatDayUtcRangeExclusiveEnd, muscatWallDateTimeToUtc } =
+    await import("@shared/attendanceMuscatTime");
+  const todayYmd = muscatCalendarYmdNow();
+  const { startUtc: dayStart, endExclusiveUtc: dayEnd } = muscatDayUtcRangeExclusiveEnd(todayYmd);
+  const dow = new Date(`${todayYmd}T12:00:00`).getDay();
+
+  const basis =
+    "Attendance signal: today's scheduled shifts, check-ins, confirmed absents, late arrivals, and open sessions past shift end — Muscat wall-clock, same boundaries as the HR attendance board.";
+
+  const [holidayRow] = await db
+    .select({ id: companyHolidays.id })
+    .from(companyHolidays)
+    .where(
+      and(
+        eq(companyHolidays.companyId, companyId),
+        eq(companyHolidays.holidayDate, todayYmd),
+      ),
+    )
+    .limit(1);
+
+  if (holidayRow) {
+    return {
+      basis,
+      businessDateYmd: todayYmd,
+      scheduledToday: 0,
+      checkedInActive: 0,
+      absentToday: 0,
+      overdueCheckouts: 0,
+      lateCheckins: 0,
+      attendanceRateToday: 0,
+    };
+  }
+
+  const allSchedules = await db
+    .select()
+    .from(employeeSchedules)
+    .where(
+      and(
+        eq(employeeSchedules.companyId, companyId),
+        eq(employeeSchedules.isActive, true),
+        lte(employeeSchedules.startDate, todayYmd),
+        or(isNull(employeeSchedules.endDate), gte(employeeSchedules.endDate, todayYmd)),
+      ),
+    );
+
+  const todaySchedules = allSchedules.filter((s) =>
+    s.workingDays.split(",").map(Number).includes(dow),
+  );
+
+  const scheduledToday = todaySchedules.length;
+  if (scheduledToday === 0) {
+    return {
+      basis,
+      businessDateYmd: todayYmd,
+      scheduledToday: 0,
+      checkedInActive: 0,
+      absentToday: 0,
+      overdueCheckouts: 0,
+      lateCheckins: 0,
+      attendanceRateToday: 0,
+    };
+  }
+
+  const todayRecords = await db
+    .select({
+      id: attendanceRecords.id,
+      employeeId: attendanceRecords.employeeId,
+      checkIn: attendanceRecords.checkIn,
+      checkOut: attendanceRecords.checkOut,
+      scheduleId: attendanceRecords.scheduleId,
+    })
+    .from(attendanceRecords)
+    .where(
+      and(
+        eq(attendanceRecords.companyId, companyId),
+        gte(attendanceRecords.checkIn, dayStart),
+        lt(attendanceRecords.checkIn, dayEnd),
+      ),
+    );
+
+  const recordByScheduleId = new Map(
+    todayRecords
+      .filter((r) => r.scheduleId != null)
+      .map((r) => [r.scheduleId as number, r]),
+  );
+
+  const templateIds = [...new Set(todaySchedules.map((s) => s.shiftTemplateId))];
+  const shiftRows = templateIds.length
+    ? await db
+        .select()
+        .from(shiftTemplates)
+        .where(inArray(shiftTemplates.id, templateIds))
+    : [];
+  const shiftById = new Map(shiftRows.map((s) => [s.id, s]));
+
+  let checkedInActive = 0;
+  let absentToday = 0;
+  let overdueCheckouts = 0;
+  let lateCheckins = 0;
+  let presentOrCompleted = 0;
+
+  for (const sched of todaySchedules) {
+    const shift = shiftById.get(sched.shiftTemplateId);
+    if (!shift) continue;
+
+    const record = recordByScheduleId.get(sched.id);
+    const shiftStartUtc = muscatWallDateTimeToUtc(
+      todayYmd,
+      shift.startTime.length <= 5 ? `${shift.startTime}:00` : shift.startTime,
+    );
+    const shiftEndUtc = muscatWallDateTimeToUtc(
+      todayYmd,
+      shift.endTime.length <= 5 ? `${shift.endTime}:00` : shift.endTime,
+    );
+
+    if (!record) {
+      if (now > shiftEndUtc) absentToday++;
+      continue;
+    }
+
+    const graceMs = (shift.gracePeriodMinutes ?? 15) * 60_000;
+
+    if (record.checkOut == null) {
+      checkedInActive++;
+      if (now > shiftEndUtc) overdueCheckouts++;
+      if (record.checkIn.getTime() > shiftStartUtc.getTime() + graceMs) {
+        lateCheckins++;
+      }
+      presentOrCompleted++;
+      continue;
+    }
+
+    presentOrCompleted++;
+    if (record.checkIn.getTime() > shiftStartUtc.getTime() + graceMs) {
+      lateCheckins++;
+    }
+  }
+
+  const attendanceRateToday =
+    scheduledToday > 0
+      ? Math.round((presentOrCompleted / scheduledToday) * 100)
+      : 0;
+
+  return {
+    basis,
+    businessDateYmd: todayYmd,
+    scheduledToday,
+    checkedInActive,
+    absentToday,
+    overdueCheckouts,
+    lateCheckins,
+    attendanceRateToday,
+  };
+}
+
 export function buildClientHealthTop(ranked: RankedAccountRow[], max = 5): ClientHealthTopRow[] {
   return ranked.slice(0, max).map((r) => ({
     contactId: r.contactId,
@@ -452,9 +634,24 @@ export function buildExecutiveInsightNarrative(input: {
   contractsPendingSignature: number;
   renewalWorkflowsFailed: number;
   rankedAccountsCount: number;
+  absentToday: number;
+  overdueCheckouts: number;
 }): ExecutiveInsightSummary {
   const bullets: string[] = [];
   let severity: ExecutiveInsightSummary["severity"] = "calm";
+
+  if (input.absentToday > 0) {
+    bullets.push(
+      `${input.absentToday} promoter${input.absentToday > 1 ? "s" : ""} absent today — check HR attendance board.`,
+    );
+    severity = "attention";
+  }
+  if (input.overdueCheckouts > 0) {
+    bullets.push(
+      `${input.overdueCheckouts} employee${input.overdueCheckouts > 1 ? "s" : ""} still clocked in past shift end — force checkout if needed.`,
+    );
+    severity = "attention";
+  }
 
   if (input.slaBreaches > 0) {
     bullets.push(`${input.slaBreaches} government case(s) past SLA — review Operations or Workforce cases.`);
@@ -505,12 +702,14 @@ export async function buildControlTowerBundle(
   agedReceivables: AgedReceivablesSnapshot;
   decisionsQueue: DecisionsQueueSnapshot;
   riskCompliance: RiskComplianceSnapshot;
+  attendanceSignal: AttendanceSignalSnapshot;
 }> {
   const t = now ?? new Date();
-  const [agedReceivables, decisionsQueue, riskCompliance] = await Promise.all([
+  const [agedReceivables, decisionsQueue, riskCompliance, attendanceSignal] = await Promise.all([
     buildAgedReceivablesSnapshot(db, companyId, t),
     buildDecisionsQueueSnapshot(db, companyId, t),
     buildRiskComplianceSnapshot(db, companyId, t),
+    buildAttendanceSignalSnapshot(db, companyId, t),
   ]);
-  return { agedReceivables, decisionsQueue, riskCompliance };
+  return { agedReceivables, decisionsQueue, riskCompliance, attendanceSignal };
 }

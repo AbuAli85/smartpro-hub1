@@ -1014,5 +1014,208 @@
     "statusPaid": "مدفوع",
     "statusApproved": "موافق عليه",
     "statusPending": "قيد الانتظار"
+  },
+
+  "myTeam": {
+    "title": "فريقي",
+    "subtitle": "إدارة موظفي شركتك — إضافة وتعديل وتتبع القوى العاملة بالكامل",
+    "actions": {
+      "addStaff": "إضافة موظف",
+      "addFirstStaff": "إضافة أول موظف",
+      "importExcel": "استيراد من Excel",
+      "clearAll": "مسح الكل"
+    },
+    "metrics": {
+      "totalStaff": "إجمالي الموظفين",
+      "active": "نشط",
+      "onLeave": "في إجازة",
+      "departments": "الأقسام",
+      "expiryWarnings": "تحذيرات انتهاء الصلاحية"
+    },
+    "status": {
+      "active": "نشط",
+      "on_leave": "في إجازة",
+      "terminated": "منتهي الخدمة",
+      "resigned": "مستقيل"
+    },
+    "empType": {
+      "full_time": "دوام كامل",
+      "part_time": "دوام جزئي",
+      "contract": "عقد",
+      "intern": "متدرب"
+    },
+    "filter": {
+      "searchPlaceholder": "البحث بالاسم أو المنصب أو البريد…",
+      "allStatuses": "جميع الحالات",
+      "allDepartments": "جميع الأقسام"
+    },
+    "emptyState": {
+      "noMatch": "لا يوجد موظفون يطابقون الفلاتر",
+      "noMatchSub": "جرّب تعديل بحثك أو الفلاتر.",
+      "noStaff": "لم يُضف أي موظف بعد",
+      "noStaffSub": "ابدأ ببناء فريقك بإضافة أول موظف. لن يستغرق الأمر سوى دقيقة."
+    },
+    "table": {
+      "name": "الاسم",
+      "department": "القسم",
+      "position": "المنصب",
+      "type": "النوع",
+      "status": "الحالة",
+      "contact": "التواصل"
+    },
+    "headcountByDept": "توزيع الموظفين حسب القسم",
+    "profile": {
+      "title": "ملف الموظف",
+      "email": "البريد الإلكتروني",
+      "call": "اتصال",
+      "edit": "تعديل",
+      "contact": "التواصل",
+      "employment": "التوظيف",
+      "identity": "الهوية",
+      "documentsExpiry": "المستندات وتواريخ الانتهاء",
+      "compensation": "الراتب والمزايا",
+      "changeStatus": "تغيير الحالة",
+      "offboard": "إنهاء الخدمة / إنهاء العقد",
+      "department": "القسم",
+      "position": "المنصب",
+      "employeeNum": "رقم الموظف",
+      "hireDate": "تاريخ التعيين",
+      "nationality": "الجنسية",
+      "civilId": "الهوية المدنية",
+      "passport": "جواز السفر",
+      "dateOfBirth": "تاريخ الميلاد",
+      "workPermit": "تصريح العمل",
+      "wpExpiry": "انتهاء تصريح العمل",
+      "visaNo": "رقم التأشيرة",
+      "visaExpiry": "انتهاء التأشيرة",
+      "pasiNo": "رقم التأمينات",
+      "basicSalary": "الراتب الأساسي"
+    },
+    "card": {
+      "viewFullProfile": "عرض الملف الكامل",
+      "documents": "المستندات",
+      "offboard": "إنهاء الخدمة",
+      "noDepartment": "لا يوجد قسم",
+      "docExpired": "المستند منتهي الصلاحية — يلزم اتخاذ إجراء",
+      "docExpiringSoon": "المستند قارب على الانتهاء"
+    },
+    "form": {
+      "addTitle": "إضافة موظف جديد",
+      "editTitle": "تعديل بيانات الموظف",
+      "steps": {
+        "personalInfo": "المعلومات الشخصية",
+        "rolePay": "المنصب والراتب",
+        "additional": "معلومات إضافية"
+      },
+      "labels": {
+        "firstNameEn": "الاسم الأول (EN)",
+        "lastNameEn": "اسم العائلة (EN)",
+        "email": "البريد الإلكتروني",
+        "phone": "الهاتف",
+        "nationality": "الجنسية",
+        "gender": "الجنس",
+        "dateOfBirth": "تاريخ الميلاد",
+        "maritalStatus": "الحالة الاجتماعية",
+        "nationalId": "الهوية الوطنية / المدنية",
+        "passportNumber": "رقم جواز السفر",
+        "employeeNumber": "رقم الموظف",
+        "profession": "المهنة",
+        "department": "القسم",
+        "position": "المنصب / المسمى الوظيفي",
+        "employmentType": "نوع التوظيف",
+        "hireDate": "تاريخ التعيين",
+        "basicSalary": "الراتب الأساسي",
+        "currency": "العملة",
+        "workPermitVisa": "تصريح العمل والتأشيرة (اختياري)",
+        "workPermitVisaDesc": "يُحفظ في سجل الموظف وعروض الامتثال. أضف ملف شهادة وزارة العمل لاحقاً ضمن الامتثال ← تصاريح العمل إذا كنت بحاجة إليه.",
+        "workPermitNumber": "رقم تصريح العمل",
+        "visaLabourAuth": "رقم التأشيرة / تصريح العمل",
+        "occupationName": "المسمى المهني",
+        "occupationCode": "رمز المهنة",
+        "workPermitExpiry": "انتهاء تصريح العمل",
+        "visaExpiryDate": "تاريخ انتهاء التأشيرة",
+        "pasiBank": "التأمينات الاجتماعية والبنك",
+        "pasiNumber": "رقم التأمينات",
+        "bankName": "اسم البنك",
+        "bankAccountNumber": "رقم الحساب البنكي",
+        "emergencyContact": "جهة الاتصال في الطوارئ",
+        "contactName": "اسم جهة الاتصال",
+        "contactPhone": "هاتف جهة الاتصال"
+      },
+      "placeholders": {
+        "selectNationality": "— اختر الجنسية —",
+        "selectGender": "— اختر —",
+        "selectMaritalStatus": "— اختر —",
+        "selectProfession": "— اختر المهنة —",
+        "firstNameEg": "مثال: أحمد",
+        "lastNameEg": "مثال: الراشدي",
+        "emailEg": "ahmed@company.om",
+        "phoneEg": "+968 9X XXX XXXX",
+        "nationalIdEg": "مثال: 12345678",
+        "passportOptional": "اختياري",
+        "employeeNumEg": "مثال: EMP-001",
+        "departmentEg": "مثال: المالية",
+        "positionEg": "مثال: محاسب",
+        "workPermitEg": "مثال: WP/2024/12345",
+        "visaEg": "مثال: V/2024/98765",
+        "occupationNameEg": "مثال: محاسب",
+        "occupationCodeEg": "مثال: 2411",
+        "pasiEg": "مثال: PASI-XXXXX",
+        "bankNameEg": "مثال: بنك مسقط",
+        "bankAccountEg": "مثال: 0123456789",
+        "contactNameEg": "مثال: محمد الراشدي"
+      },
+      "gender": {
+        "male": "ذكر",
+        "female": "أنثى"
+      },
+      "maritalStatus": {
+        "single": "أعزب",
+        "married": "متزوج",
+        "divorced": "مطلق",
+        "widowed": "أرمل"
+      },
+      "currency": {
+        "omr": "OMR — ريال عماني",
+        "usd": "USD — دولار أمريكي",
+        "aed": "AED — درهم إماراتي"
+      },
+      "buttons": {
+        "back": "رجوع",
+        "cancel": "إلغاء",
+        "nextRolePay": "التالي: المنصب والراتب",
+        "nextAdditional": "التالي: معلومات إضافية",
+        "saving": "جارٍ الحفظ…",
+        "saveChanges": "حفظ التغييرات",
+        "addToTeam": "إضافة للفريق"
+      }
+    },
+    "toast": {
+      "addedToTeam": "تم إضافة {{name}} للفريق",
+      "staffUpdated": "تم تحديث بيانات الموظف",
+      "statusUpdated": "تم تحديث الحالة",
+      "offboarded": "تم إنهاء خدمة الموظف",
+      "cleared": "تم حذف {{count}} سجل موظف"
+    },
+    "offboardDialog": {
+      "title": "تأكيد إنهاء الخدمة",
+      "body": "سيتم تمييز الموظف على أنه منتهي الخدمة. سيُحفظ سجله لأغراض الرواتب والامتثال. يمكنك إعادة تفعيله في أي وقت.",
+      "cancel": "إلغاء",
+      "confirm": "تأكيد إنهاء الخدمة",
+      "processing": "جارٍ المعالجة…"
+    },
+    "clearAllDialog": {
+      "title": "حذف جميع الموظفين نهائياً",
+      "warning": "⚠️ هذا إجراء مدمر ولا يمكن التراجع عنه",
+      "bullet1": "سيتم حذف جميع سجلات الموظفين لهذه الشركة نهائياً",
+      "bullet2": "ستُحذف جميع بيانات الحضور والرواتب والإجازات والمستندات المرتبطة",
+      "bullet3": "لا يمكن التراجع عن هذا الإجراء — لا يوجد استرداد",
+      "bullet4": "استخدم هذا فقط في بيئة اختبار أو تجريبية",
+      "typeConfirm": "اكتب DELETE ALL للتأكيد",
+      "typePlaceholder": "اكتب DELETE ALL",
+      "cancel": "إلغاء",
+      "confirm": "حذف الكل نهائياً",
+      "deleting": "جارٍ الحذف…"
+    }
   }
 }

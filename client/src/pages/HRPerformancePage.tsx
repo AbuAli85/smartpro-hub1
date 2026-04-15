@@ -90,6 +90,7 @@ function SelfReviewStatusBadge({ status, t }: { status: string; t: TFn }) {
 
 export default function HRPerformancePage() {
   const { t } = useTranslation("hr");
+  const { t: tNav } = useTranslation("nav");
   const [tab, setTab] = useState<TabId>("overview");
   const now = new Date();
   const [month, setMonth] = useState(now.getMonth() + 1);
@@ -303,7 +304,7 @@ export default function HRPerformancePage() {
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-6 space-y-6">
-      <HubBreadcrumb items={hrInsightsTrail(t("performance.pageTitle"))} />
+      <HubBreadcrumb items={hrInsightsTrail(t("performance.pageTitle"), tNav)} />
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold flex items-center gap-2">

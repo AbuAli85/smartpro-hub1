@@ -161,5 +161,6 @@
     "auditor": "مدقق خارجي",
     "external_auditor": "مدقق خارجي"
   },
-  "workspaceCompanyLabel": "الشركة"
+  "workspaceCompanyLabel": "الشركة",
+  "home": "الرئيسية"
 }

@@ -1014,5 +1014,208 @@
     "statusPaid": "Paid",
     "statusApproved": "Approved",
     "statusPending": "Pending"
+  },
+
+  "myTeam": {
+    "title": "My Team",
+    "subtitle": "Manage your company's staff — add, edit, and track your entire workforce",
+    "actions": {
+      "addStaff": "Add Staff Member",
+      "addFirstStaff": "Add First Staff Member",
+      "importExcel": "Import from Excel",
+      "clearAll": "Clear All"
+    },
+    "metrics": {
+      "totalStaff": "Total Staff",
+      "active": "Active",
+      "onLeave": "On Leave",
+      "departments": "Departments",
+      "expiryWarnings": "Expiry Warnings"
+    },
+    "status": {
+      "active": "Active",
+      "on_leave": "On Leave",
+      "terminated": "Terminated",
+      "resigned": "Resigned"
+    },
+    "empType": {
+      "full_time": "Full Time",
+      "part_time": "Part Time",
+      "contract": "Contract",
+      "intern": "Intern"
+    },
+    "filter": {
+      "searchPlaceholder": "Search by name, position, email…",
+      "allStatuses": "All Statuses",
+      "allDepartments": "All Departments"
+    },
+    "emptyState": {
+      "noMatch": "No staff match your filters",
+      "noMatchSub": "Try adjusting your search or filters.",
+      "noStaff": "No staff added yet",
+      "noStaffSub": "Start building your team by adding your first staff member. It only takes a minute."
+    },
+    "table": {
+      "name": "Name",
+      "department": "Department",
+      "position": "Position",
+      "type": "Type",
+      "status": "Status",
+      "contact": "Contact"
+    },
+    "headcountByDept": "Headcount by Department",
+    "profile": {
+      "title": "Staff Profile",
+      "email": "Email",
+      "call": "Call",
+      "edit": "Edit",
+      "contact": "Contact",
+      "employment": "Employment",
+      "identity": "Identity",
+      "documentsExpiry": "Documents & Expiry",
+      "compensation": "Compensation",
+      "changeStatus": "Change Status",
+      "offboard": "Offboard / Terminate",
+      "department": "Department",
+      "position": "Position",
+      "employeeNum": "Employee #",
+      "hireDate": "Hire Date",
+      "nationality": "Nationality",
+      "civilId": "Civil ID",
+      "passport": "Passport",
+      "dateOfBirth": "Date of Birth",
+      "workPermit": "Work Permit",
+      "wpExpiry": "WP Expiry",
+      "visaNo": "Visa No.",
+      "visaExpiry": "Visa Expiry",
+      "pasiNo": "PASI No.",
+      "basicSalary": "Basic Salary"
+    },
+    "card": {
+      "viewFullProfile": "View Full Profile",
+      "documents": "Documents",
+      "offboard": "Offboard",
+      "noDepartment": "No department",
+      "docExpired": "Document expired — action required",
+      "docExpiringSoon": "Document expiring soon"
+    },
+    "form": {
+      "addTitle": "Add New Staff Member",
+      "editTitle": "Edit Staff Member",
+      "steps": {
+        "personalInfo": "Personal Info",
+        "rolePay": "Role & Pay",
+        "additional": "Additional"
+      },
+      "labels": {
+        "firstNameEn": "First Name (EN)",
+        "lastNameEn": "Last Name (EN)",
+        "email": "Email",
+        "phone": "Phone",
+        "nationality": "Nationality",
+        "gender": "Gender",
+        "dateOfBirth": "Date of Birth",
+        "maritalStatus": "Marital Status",
+        "nationalId": "National ID / Civil ID",
+        "passportNumber": "Passport Number",
+        "employeeNumber": "Employee Number",
+        "profession": "Profession",
+        "department": "Department",
+        "position": "Position / Job Title",
+        "employmentType": "Employment Type",
+        "hireDate": "Hire Date",
+        "basicSalary": "Basic Salary",
+        "currency": "Currency",
+        "workPermitVisa": "Work Permit & Visa (Optional)",
+        "workPermitVisaDesc": "Saves to your employee record and compliance views (Work Permits, expiry reminders). Add the MOL certificate file later under Compliance → Work Permits if you need it in the document vault.",
+        "workPermitNumber": "Work Permit Number",
+        "visaLabourAuth": "Visa / Labour Auth. No.",
+        "occupationName": "Occupation Name",
+        "occupationCode": "Occupation Code",
+        "workPermitExpiry": "Work Permit Expiry",
+        "visaExpiryDate": "Visa Expiry Date",
+        "pasiBank": "PASI & Bank Details",
+        "pasiNumber": "PASI Number",
+        "bankName": "Bank Name",
+        "bankAccountNumber": "Bank Account Number",
+        "emergencyContact": "Emergency Contact",
+        "contactName": "Contact Name",
+        "contactPhone": "Contact Phone"
+      },
+      "placeholders": {
+        "selectNationality": "— Select Nationality —",
+        "selectGender": "— Select —",
+        "selectMaritalStatus": "— Select —",
+        "selectProfession": "— Select Profession —",
+        "firstNameEg": "e.g. Ahmed",
+        "lastNameEg": "e.g. Al-Rashidi",
+        "emailEg": "ahmed@company.om",
+        "phoneEg": "+968 9X XXX XXXX",
+        "nationalIdEg": "e.g. 12345678",
+        "passportOptional": "Optional",
+        "employeeNumEg": "e.g. EMP-001",
+        "departmentEg": "e.g. Finance",
+        "positionEg": "e.g. Accountant",
+        "workPermitEg": "e.g. WP/2024/12345",
+        "visaEg": "e.g. V/2024/98765",
+        "occupationNameEg": "e.g. Accountant",
+        "occupationCodeEg": "e.g. 2411",
+        "pasiEg": "e.g. PASI-XXXXX",
+        "bankNameEg": "e.g. Bank Muscat",
+        "bankAccountEg": "e.g. 0123456789",
+        "contactNameEg": "e.g. Mohammed Al-Rashidi"
+      },
+      "gender": {
+        "male": "Male",
+        "female": "Female"
+      },
+      "maritalStatus": {
+        "single": "Single",
+        "married": "Married",
+        "divorced": "Divorced",
+        "widowed": "Widowed"
+      },
+      "currency": {
+        "omr": "OMR — Omani Rial",
+        "usd": "USD — US Dollar",
+        "aed": "AED — UAE Dirham"
+      },
+      "buttons": {
+        "back": "Back",
+        "cancel": "Cancel",
+        "nextRolePay": "Next: Role & Pay",
+        "nextAdditional": "Next: Additional Info",
+        "saving": "Saving…",
+        "saveChanges": "Save Changes",
+        "addToTeam": "Add to Team"
+      }
+    },
+    "toast": {
+      "addedToTeam": "{{name}} added to your team",
+      "staffUpdated": "Staff member updated",
+      "statusUpdated": "Status updated",
+      "offboarded": "Staff member offboarded",
+      "cleared": "Cleared {{count}} employee records"
+    },
+    "offboardDialog": {
+      "title": "Confirm Offboarding",
+      "body": "This will mark the staff member as Terminated. Their record will be preserved for payroll and compliance history. You can reactivate them at any time.",
+      "cancel": "Cancel",
+      "confirm": "Confirm Offboard",
+      "processing": "Processing…"
+    },
+    "clearAllDialog": {
+      "title": "Permanently Delete All Employees",
+      "warning": "⚠️ This is a destructive, irreversible action",
+      "bullet1": "All employee records for this company will be permanently deleted",
+      "bullet2": "All linked attendance, payroll, leave, and document data will be removed",
+      "bullet3": "This action cannot be undone — there is no recovery",
+      "bullet4": "Only use this in a test or sandbox environment",
+      "typeConfirm": "Type DELETE ALL to confirm",
+      "typePlaceholder": "Type DELETE ALL",
+      "cancel": "Cancel",
+      "confirm": "Permanently Delete All",
+      "deleting": "Deleting…"
+    }
   }
 }

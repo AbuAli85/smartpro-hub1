@@ -133,6 +133,7 @@ const RENEWABLE_CATEGORIES: AlertCategory[] = [
 
 export default function ExpiryAlertsPage() {
   const { t, i18n } = useTranslation("alerts");
+  const { t: tNav } = useTranslation("nav");
   const { user } = useAuth();
   const isPlatform = seesPlatformOperatorNav(user);
   const { activeCompanyId } = useActiveCompany();
@@ -178,7 +179,7 @@ export default function ExpiryAlertsPage() {
 
   return (
     <div className="space-y-6 p-1">
-      <HubBreadcrumb items={renewalsTrail(t("page.breadcrumb", "Expiry alerts"))} />
+      <HubBreadcrumb items={renewalsTrail(t("page.breadcrumb", "Expiry alerts"), tNav)} />
 
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">

@@ -106,6 +106,7 @@ function PctBadge({ pct }: { pct: number }) {
 
 export default function HRKpiPage() {
   const { t } = useTranslation("hr");
+  const { t: tNav } = useTranslation("nav");
   const now = new Date();
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [year, setYear] = useState(now.getFullYear());
@@ -277,7 +278,7 @@ export default function HRKpiPage() {
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-6 space-y-6">
-      <HubBreadcrumb items={hrInsightsTrail(t("kpi.title"))} />
+      <HubBreadcrumb items={hrInsightsTrail(t("kpi.title"), tNav)} />
       {/* ── Header ── */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>

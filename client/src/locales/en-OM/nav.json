@@ -161,5 +161,6 @@
     "auditor": "External Auditor",
     "external_auditor": "External Auditor"
   },
-  "workspaceCompanyLabel": "Company"
+  "workspaceCompanyLabel": "Company",
+  "home": "Home"
 }

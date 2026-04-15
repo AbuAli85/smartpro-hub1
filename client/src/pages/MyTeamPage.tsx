@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { useLocation } from "wouter";
+import { useTranslation } from "react-i18next";
 import { NATIONALITIES, PROFESSIONS } from "@/lib/nationalities";
 import { trpc } from "@/lib/trpc";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
@@ -27,23 +28,23 @@ import {
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime, expiryStatus, expiryLabel, EXPIRY_BADGE, EXPIRY_BORDER, daysUntilExpiry } from "@/lib/dateUtils";
+import { fmtDate, fmtDateLong, fmtDateTimeShort, fmtTime, expiryStatus, expiryLabel, EXPIRY_BADGE, EXPIRY_BORDER, daysUntilExpiry } from "@/lib/dateUtils";
 import { DateInput } from "@/components/ui/date-input";
 
 // ─── constants ────────────────────────────────────────────────────────────────
 
-const STATUS_META: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
-  active:     { label: "Active",      color: "bg-emerald-100 text-emerald-700 border-emerald-200", icon: <CheckCircle2 size={12} /> },
-  on_leave:   { label: "On Leave",    color: "bg-amber-100 text-amber-700 border-amber-200",       icon: <Clock size={12} /> },
-  terminated: { label: "Terminated",  color: "bg-red-100 text-red-700 border-red-200",             icon: <UserX size={12} /> },
-  resigned:   { label: "Resigned",    color: "bg-gray-100 text-gray-600 border-gray-200",          icon: <AlertTriangle size={12} /> },
+const STATUS_COLORS: Record<string, string> = {
+  active:     "bg-emerald-100 text-emerald-700 border-emerald-200",
+  on_leave:   "bg-amber-100 text-amber-700 border-amber-200",
+  terminated: "bg-red-100 text-red-700 border-red-200",
+  resigned:   "bg-gray-100 text-gray-600 border-gray-200",
 };
 
-const EMP_TYPE_LABELS: Record<string, string> = {
-  full_time: "Full Time",
-  part_time: "Part Time",
-  contract:  "Contract",
-  intern:    "Intern",
+const STATUS_ICONS: Record<string, React.ReactNode> = {
+  active:     <CheckCircle2 size={12} />,
+  on_leave:   <Clock size={12} />,
+  terminated: <UserX size={12} />,
+  resigned:   <AlertTriangle size={12} />,
 };
 
 const DEPT_COLORS = [
@@ -73,7 +74,6 @@ interface StaffFormState {
   hireDate: string; employeeNumber: string;
   pasiNumber: string; bankName: string; bankAccountNumber: string;
   emergencyContactName: string; emergencyContactPhone: string;
-  // Work permit / visa fields
   workPermitNumber: string; visaNumber: string;
   occupationCode: string; occupationName: string;
   workPermitExpiry: string; visaExpiryDate: string; workPermitExpiryDate: string;
@@ -104,6 +104,7 @@ function StaffFormDialog({
   editId?: number;
   companyId?: number | null;
 }) {
+  const { t } = useTranslation("hr");
   const [step, setStep] = useState(1);
   const [form, setForm] = useState<StaffFormState>({ ...BLANK_FORM, ...initial });
   const isEdit = editId != null;
@@ -112,9 +113,9 @@ function StaffFormDialog({
 
   const addMutation = trpc.team.addMember.useMutation({
     onSuccess: () => {
-      toast.success(`${form.firstName} ${form.lastName} added to your team`);
-      utils.team.listMembers.invalidate();
-      utils.team.getTeamStats.invalidate();
+      toast.success(t("myTeam.toast.addedToTeam", { name: `${form.firstName} ${form.lastName}` }));
+      void utils.team.listMembers.invalidate();
+      void utils.team.getTeamStats.invalidate();
       onSuccess(); onClose(); setStep(1); setForm(BLANK_FORM);
     },
     onError: (e) => toast.error(e.message),
@@ -122,9 +123,9 @@ function StaffFormDialog({
 
   const updateMutation = trpc.team.updateMember.useMutation({
     onSuccess: () => {
-      toast.success("Staff member updated");
-      utils.team.listMembers.invalidate();
-      utils.team.getMember.invalidate({ id: editId! });
+      toast.success(t("myTeam.toast.staffUpdated"));
+      void utils.team.listMembers.invalidate();
+      void utils.team.getMember.invalidate({ id: editId! });
       onSuccess(); onClose();
     },
     onError: (e) => toast.error(e.message),
@@ -132,8 +133,6 @@ function StaffFormDialog({
 
   const isPending = addMutation.isPending || updateMutation.isPending;
 
-  // Defensive guard: Superjson may deserialize date columns as Date objects;
-  // always convert to YYYY-MM-DD string before sending to tRPC
   function toDateStr(v: unknown): string | undefined {
     if (!v) return undefined;
     if (v instanceof Date) return v.toISOString().split("T")[0];
@@ -173,6 +172,12 @@ function StaffFormDialog({
   const f = (k: keyof StaffFormState) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((p) => ({ ...p, [k]: e.target.value }));
 
+  const STEPS = [
+    t("myTeam.form.steps.personalInfo"),
+    t("myTeam.form.steps.rolePay"),
+    t("myTeam.form.steps.additional"),
+  ];
+
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) { onClose(); setStep(1); } }}>
       <DialogContent className="max-w-xl max-h-[90vh] flex flex-col">
@@ -181,14 +186,13 @@ function StaffFormDialog({
             <div className="w-7 h-7 rounded-lg bg-[var(--smartpro-orange)] flex items-center justify-center">
               <UserPlus size={14} className="text-white" />
             </div>
-            {isEdit ? "Edit Staff Member" : "Add New Staff Member"}
+            {isEdit ? t("myTeam.form.editTitle") : t("myTeam.form.addTitle")}
           </DialogTitle>
         </DialogHeader>
 
-        {/* Step indicator */}
         {!isEdit && (
           <div className="flex items-center gap-2 px-1">
-            {["Personal Info", "Role & Pay", "Additional"].map((label, i) => (
+            {STEPS.map((label, i) => (
               <div key={i} className="flex items-center gap-2 flex-1">
                 <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition-colors
                   ${step > i + 1 ? "bg-emerald-500 text-white" : step === i + 1 ? "bg-[var(--smartpro-orange)] text-white" : "bg-gray-200 text-gray-500"}`}>
@@ -206,12 +210,12 @@ function StaffFormDialog({
             <>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <Label className="text-xs font-medium">First Name (EN) <span className="text-red-500">*</span></Label>
-                  <Input placeholder="e.g. Ahmed" value={form.firstName} onChange={f("firstName")} />
+                  <Label className="text-xs font-medium">{t("myTeam.form.labels.firstNameEn")} <span className="text-red-500">*</span></Label>
+                  <Input placeholder={t("myTeam.form.placeholders.firstNameEg")} value={form.firstName} onChange={f("firstName")} />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs font-medium">Last Name (EN) <span className="text-red-500">*</span></Label>
-                  <Input placeholder="e.g. Al-Rashidi" value={form.lastName} onChange={f("lastName")} />
+                  <Label className="text-xs font-medium">{t("myTeam.form.labels.lastNameEn")} <span className="text-red-500">*</span></Label>
+                  <Input placeholder={t("myTeam.form.placeholders.lastNameEg")} value={form.lastName} onChange={f("lastName")} />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -226,82 +230,82 @@ function StaffFormDialog({
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <Label className="text-xs font-medium">Email</Label>
-                  <Input type="email" placeholder="ahmed@company.om" value={form.email} onChange={f("email")} />
+                  <Label className="text-xs font-medium">{t("myTeam.form.labels.email")}</Label>
+                  <Input type="email" placeholder={t("myTeam.form.placeholders.emailEg")} value={form.email} onChange={f("email")} />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs font-medium">Phone</Label>
-                  <Input placeholder="+968 9X XXX XXXX" value={form.phone} onChange={f("phone")} />
+                  <Label className="text-xs font-medium">{t("myTeam.form.labels.phone")}</Label>
+                  <Input placeholder={t("myTeam.form.placeholders.phoneEg")} value={form.phone} onChange={f("phone")} />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <Label className="text-xs font-medium">Nationality</Label>
+                  <Label className="text-xs font-medium">{t("myTeam.form.labels.nationality")}</Label>
                   <select
                     value={form.nationality}
                     onChange={e => setForm(p => ({ ...p, nationality: e.target.value }))}
                     className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                   >
-                    <option value="">— Select Nationality —</option>
+                    <option value="">{t("myTeam.form.placeholders.selectNationality")}</option>
                     {NATIONALITIES.map(n => <option key={n.code} value={n.label}>{n.label}</option>)}
                   </select>
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs font-medium">Gender</Label>
+                  <Label className="text-xs font-medium">{t("myTeam.form.labels.gender")}</Label>
                   <select
                     value={form.gender}
                     onChange={e => setForm(p => ({ ...p, gender: e.target.value }))}
                     className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                   >
-                    <option value="">— Select —</option>
-                    <option value="male">Male</option>
-                    <option value="female">Female</option>
+                    <option value="">{t("myTeam.form.placeholders.selectGender")}</option>
+                    <option value="male">{t("myTeam.form.gender.male")}</option>
+                    <option value="female">{t("myTeam.form.gender.female")}</option>
                   </select>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <Label className="text-xs font-medium">Date of Birth</Label>
+                  <Label className="text-xs font-medium">{t("myTeam.form.labels.dateOfBirth")}</Label>
                   <DateInput value={form.dateOfBirth} onChange={f("dateOfBirth")} />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs font-medium">Marital Status</Label>
+                  <Label className="text-xs font-medium">{t("myTeam.form.labels.maritalStatus")}</Label>
                   <select
                     value={form.maritalStatus}
                     onChange={e => setForm(p => ({ ...p, maritalStatus: e.target.value }))}
                     className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                   >
-                    <option value="">— Select —</option>
-                    <option value="single">Single</option>
-                    <option value="married">Married</option>
-                    <option value="divorced">Divorced</option>
-                    <option value="widowed">Widowed</option>
+                    <option value="">{t("myTeam.form.placeholders.selectMaritalStatus")}</option>
+                    <option value="single">{t("myTeam.form.maritalStatus.single")}</option>
+                    <option value="married">{t("myTeam.form.maritalStatus.married")}</option>
+                    <option value="divorced">{t("myTeam.form.maritalStatus.divorced")}</option>
+                    <option value="widowed">{t("myTeam.form.maritalStatus.widowed")}</option>
                   </select>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <Label className="text-xs font-medium">National ID / Civil ID</Label>
-                  <Input placeholder="e.g. 12345678" value={form.nationalId} onChange={f("nationalId")} />
+                  <Label className="text-xs font-medium">{t("myTeam.form.labels.nationalId")}</Label>
+                  <Input placeholder={t("myTeam.form.placeholders.nationalIdEg")} value={form.nationalId} onChange={f("nationalId")} />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs font-medium">Passport Number</Label>
-                  <Input placeholder="Optional" value={form.passportNumber} onChange={f("passportNumber")} />
+                  <Label className="text-xs font-medium">{t("myTeam.form.labels.passportNumber")}</Label>
+                  <Input placeholder={t("myTeam.form.placeholders.passportOptional")} value={form.passportNumber} onChange={f("passportNumber")} />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <Label className="text-xs font-medium">Employee Number</Label>
-                  <Input placeholder="e.g. EMP-001" value={form.employeeNumber} onChange={f("employeeNumber")} />
+                  <Label className="text-xs font-medium">{t("myTeam.form.labels.employeeNumber")}</Label>
+                  <Input placeholder={t("myTeam.form.placeholders.employeeNumEg")} value={form.employeeNumber} onChange={f("employeeNumber")} />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs font-medium">Profession</Label>
+                  <Label className="text-xs font-medium">{t("myTeam.form.labels.profession")}</Label>
                   <select
                     value={form.profession}
                     onChange={e => setForm(p => ({ ...p, profession: e.target.value }))}
                     className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                   >
-                    <option value="">— Select Profession —</option>
+                    <option value="">{t("myTeam.form.placeholders.selectProfession")}</option>
                     {PROFESSIONS.map(p => <option key={p} value={p}>{p}</option>)}
                   </select>
                 </div>
@@ -313,79 +317,79 @@ function StaffFormDialog({
             <>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <Label className="text-xs font-medium">Department</Label>
-                  <Input placeholder="e.g. Finance" value={form.department} onChange={f("department")} />
+                  <Label className="text-xs font-medium">{t("myTeam.form.labels.department")}</Label>
+                  <Input placeholder={t("myTeam.form.placeholders.departmentEg")} value={form.department} onChange={f("department")} />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs font-medium">Position / Job Title</Label>
-                  <Input placeholder="e.g. Accountant" value={form.position} onChange={f("position")} />
+                  <Label className="text-xs font-medium">{t("myTeam.form.labels.position")}</Label>
+                  <Input placeholder={t("myTeam.form.placeholders.positionEg")} value={form.position} onChange={f("position")} />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <Label className="text-xs font-medium">Employment Type</Label>
+                  <Label className="text-xs font-medium">{t("myTeam.form.labels.employmentType")}</Label>
                   <Select value={form.employmentType} onValueChange={(v) => setForm((p) => ({ ...p, employmentType: v as any }))}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {Object.entries(EMP_TYPE_LABELS).map(([v, l]) => (
-                        <SelectItem key={v} value={v}>{l}</SelectItem>
+                      {(["full_time", "part_time", "contract", "intern"] as const).map((v) => (
+                        <SelectItem key={v} value={v}>{t(`myTeam.empType.${v}`)}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs font-medium">Hire Date</Label>
+                  <Label className="text-xs font-medium">{t("myTeam.form.labels.hireDate")}</Label>
                   <DateInput value={form.hireDate} onChange={f("hireDate")} />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <Label className="text-xs font-medium">Basic Salary</Label>
+                  <Label className="text-xs font-medium">{t("myTeam.form.labels.basicSalary")}</Label>
                   <Input type="number" placeholder="0.000" value={form.salary} onChange={f("salary")} />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs font-medium">Currency</Label>
+                  <Label className="text-xs font-medium">{t("myTeam.form.labels.currency")}</Label>
                   <Select value={form.currency} onValueChange={(v) => setForm((p) => ({ ...p, currency: v }))}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="OMR">OMR — Omani Rial</SelectItem>
-                      <SelectItem value="USD">USD — US Dollar</SelectItem>
-                      <SelectItem value="AED">AED — UAE Dirham</SelectItem>
+                      <SelectItem value="OMR">{t("myTeam.form.currency.omr")}</SelectItem>
+                      <SelectItem value="USD">{t("myTeam.form.currency.usd")}</SelectItem>
+                      <SelectItem value="AED">{t("myTeam.form.currency.aed")}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
               </div>
-              {/* Work Permit / Visa */}
               <div className="pt-1">
-                <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2">Work Permit &amp; Visa (Optional)</div>
+                <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2">
+                  {t("myTeam.form.labels.workPermitVisa")}
+                </div>
                 <p className="text-xs text-muted-foreground mb-3 leading-snug">
-                  Saves to your employee record and compliance views (Work Permits, expiry reminders). Add the MOL certificate file later under Compliance → Work Permits if you need it in the document vault.
+                  {t("myTeam.form.labels.workPermitVisaDesc")}
                 </p>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
-                    <Label className="text-xs font-medium">Work Permit Number</Label>
-                    <Input placeholder="e.g. WP/2024/12345" value={form.workPermitNumber} onChange={f("workPermitNumber")} />
+                    <Label className="text-xs font-medium">{t("myTeam.form.labels.workPermitNumber")}</Label>
+                    <Input placeholder={t("myTeam.form.placeholders.workPermitEg")} value={form.workPermitNumber} onChange={f("workPermitNumber")} />
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs font-medium">Visa / Labour Auth. No.</Label>
-                    <Input placeholder="e.g. V/2024/98765" value={form.visaNumber} onChange={f("visaNumber")} />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-3 mt-3">
-                  <div className="space-y-1">
-                    <Label className="text-xs font-medium">Occupation Name</Label>
-                    <Input placeholder="e.g. Accountant" value={form.occupationName} onChange={f("occupationName")} />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs font-medium">Occupation Code</Label>
-                    <Input placeholder="e.g. 2411" value={form.occupationCode} onChange={f("occupationCode")} />
+                    <Label className="text-xs font-medium">{t("myTeam.form.labels.visaLabourAuth")}</Label>
+                    <Input placeholder={t("myTeam.form.placeholders.visaEg")} value={form.visaNumber} onChange={f("visaNumber")} />
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-3 mt-3">
                   <div className="space-y-1">
-                    <Label className="text-xs font-medium">Work Permit Expiry</Label>
+                    <Label className="text-xs font-medium">{t("myTeam.form.labels.occupationName")}</Label>
+                    <Input placeholder={t("myTeam.form.placeholders.occupationNameEg")} value={form.occupationName} onChange={f("occupationName")} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs font-medium">{t("myTeam.form.labels.occupationCode")}</Label>
+                    <Input placeholder={t("myTeam.form.placeholders.occupationCodeEg")} value={form.occupationCode} onChange={f("occupationCode")} />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3 mt-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs font-medium">{t("myTeam.form.labels.workPermitExpiry")}</Label>
                     <DateInput
-                      
                       value={form.workPermitExpiry}
                       onChange={f("workPermitExpiry")}
                       className={form.workPermitExpiry ? EXPIRY_BORDER[expiryStatus(form.workPermitExpiry)] : ""}
@@ -397,9 +401,8 @@ function StaffFormDialog({
                     )}
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs font-medium">Visa Expiry Date</Label>
+                    <Label className="text-xs font-medium">{t("myTeam.form.labels.visaExpiryDate")}</Label>
                     <DateInput
-                      
                       value={form.visaExpiryDate}
                       onChange={f("visaExpiryDate")}
                       className={form.visaExpiryDate ? EXPIRY_BORDER[expiryStatus(form.visaExpiryDate)] : ""}
@@ -415,33 +418,36 @@ function StaffFormDialog({
             </>
           )}
 
-          {/* Step 3: Additional Info */}
           {(step === 3 || isEdit) && (
             <>
-              <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2">PASI &amp; Bank Details</div>
+              <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2">
+                {t("myTeam.form.labels.pasiBank")}
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <Label className="text-xs font-medium">PASI Number</Label>
-                  <Input placeholder="e.g. PASI-XXXXX" value={form.pasiNumber} onChange={f("pasiNumber")} />
+                  <Label className="text-xs font-medium">{t("myTeam.form.labels.pasiNumber")}</Label>
+                  <Input placeholder={t("myTeam.form.placeholders.pasiEg")} value={form.pasiNumber} onChange={f("pasiNumber")} />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs font-medium">Bank Name</Label>
-                  <Input placeholder="e.g. Bank Muscat" value={form.bankName} onChange={f("bankName")} />
+                  <Label className="text-xs font-medium">{t("myTeam.form.labels.bankName")}</Label>
+                  <Input placeholder={t("myTeam.form.placeholders.bankNameEg")} value={form.bankName} onChange={f("bankName")} />
                 </div>
               </div>
               <div className="space-y-1">
-                <Label className="text-xs font-medium">Bank Account Number</Label>
-                <Input placeholder="e.g. 0123456789" value={form.bankAccountNumber} onChange={f("bankAccountNumber")} />
+                <Label className="text-xs font-medium">{t("myTeam.form.labels.bankAccountNumber")}</Label>
+                <Input placeholder={t("myTeam.form.placeholders.bankAccountEg")} value={form.bankAccountNumber} onChange={f("bankAccountNumber")} />
               </div>
-              <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2 mt-3">Emergency Contact</div>
+              <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2 mt-3">
+                {t("myTeam.form.labels.emergencyContact")}
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <Label className="text-xs font-medium">Contact Name</Label>
-                  <Input placeholder="e.g. Mohammed Al-Rashidi" value={form.emergencyContactName} onChange={f("emergencyContactName")} />
+                  <Label className="text-xs font-medium">{t("myTeam.form.labels.contactName")}</Label>
+                  <Input placeholder={t("myTeam.form.placeholders.contactNameEg")} value={form.emergencyContactName} onChange={f("emergencyContactName")} />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs font-medium">Contact Phone</Label>
-                  <Input placeholder="+968 9X XXX XXXX" value={form.emergencyContactPhone} onChange={f("emergencyContactPhone")} />
+                  <Label className="text-xs font-medium">{t("myTeam.form.labels.contactPhone")}</Label>
+                  <Input placeholder={t("myTeam.form.placeholders.phoneEg")} value={form.emergencyContactPhone} onChange={f("emergencyContactPhone")} />
                 </div>
               </div>
             </>
@@ -450,16 +456,16 @@ function StaffFormDialog({
 
         <DialogFooter className="gap-2">
           {!isEdit && step > 1 && (
-            <Button variant="outline" onClick={() => setStep(s => s - 1)}>Back</Button>
+            <Button variant="outline" onClick={() => setStep(s => s - 1)}>{t("myTeam.form.buttons.back")}</Button>
           )}
-          <Button variant="outline" onClick={() => { onClose(); setStep(1); }}>Cancel</Button>
+          <Button variant="outline" onClick={() => { onClose(); setStep(1); }}>{t("myTeam.form.buttons.cancel")}</Button>
           {!isEdit && step < 3 ? (
             <Button
               className="bg-[var(--smartpro-orange)] hover:bg-orange-600 text-white"
               disabled={step === 1 && (!form.firstName.trim() || !form.lastName.trim())}
               onClick={() => setStep(s => s + 1)}
             >
-              {step === 1 ? "Next: Role & Pay" : "Next: Additional Info"}
+              {step === 1 ? t("myTeam.form.buttons.nextRolePay") : t("myTeam.form.buttons.nextAdditional")}
             </Button>
           ) : (
             <Button
@@ -467,7 +473,7 @@ function StaffFormDialog({
               disabled={isPending || !form.firstName.trim() || !form.lastName.trim()}
               onClick={handleSubmit}
             >
-              {isPending ? "Saving…" : isEdit ? "Save Changes" : "Add to Team"}
+              {isPending ? t("myTeam.form.buttons.saving") : isEdit ? t("myTeam.form.buttons.saveChanges") : t("myTeam.form.buttons.addToTeam")}
             </Button>
           )}
         </DialogFooter>
@@ -491,15 +497,16 @@ function StaffProfilePanel({
   onRemove: (id: number) => void;
   warnDays?: number;
 }) {
+  const { t } = useTranslation("hr");
   const { data: member, isLoading } = trpc.team.getMember.useQuery({ id: memberId });
   const utils = trpc.useUtils();
 
   const statusMutation = trpc.team.updateMember.useMutation({
     onSuccess: () => {
-      toast.success("Status updated");
-      utils.team.listMembers.invalidate();
-      utils.team.getMember.invalidate({ id: memberId });
-      utils.team.getTeamStats.invalidate();
+      toast.success(t("myTeam.toast.statusUpdated"));
+      void utils.team.listMembers.invalidate();
+      void utils.team.getMember.invalidate({ id: memberId });
+      void utils.team.getTeamStats.invalidate();
     },
     onError: (e) => toast.error(e.message),
   });
@@ -513,21 +520,21 @@ function StaffProfilePanel({
   }
   if (!member) return null;
 
-  const sm = STATUS_META[member.status] ?? STATUS_META.active;
+  const statusColor = STATUS_COLORS[member.status] ?? STATUS_COLORS.active;
+  const statusIcon = STATUS_ICONS[member.status] ?? STATUS_ICONS.active;
+  const statusLabel = t(`myTeam.status.${member.status}` as any, { defaultValue: member.status });
   const initials = getInitials(member.firstName, member.lastName);
 
   return (
     <div className="w-80 border-l border-border bg-card flex flex-col overflow-hidden">
-      {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-        <span className="text-sm font-semibold text-foreground">Staff Profile</span>
+        <span className="text-sm font-semibold text-foreground">{t("myTeam.profile.title")}</span>
         <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
           <X size={16} />
         </button>
       </div>
 
       <div className="flex-1 overflow-y-auto">
-        {/* Avatar + name */}
         <div className="flex flex-col items-center py-6 px-4 bg-gradient-to-b from-muted/40 to-card border-b border-border">
           <Avatar className="w-16 h-16 mb-3">
             <AvatarFallback className="bg-[var(--smartpro-orange)] text-white text-xl font-bold">
@@ -540,31 +547,30 @@ function StaffProfilePanel({
             </div>
             <div className="text-sm text-muted-foreground mt-0.5">{member.position || "—"}</div>
             <div className="mt-2 flex items-center justify-center gap-1.5">
-              <Badge className={`text-xs border ${sm.color} flex items-center gap-1`}>
-                {sm.icon} {sm.label}
+              <Badge className={`text-xs border ${statusColor} flex items-center gap-1`}>
+                {statusIcon} {statusLabel}
               </Badge>
               {member.employmentType && (
                 <Badge variant="outline" className="text-xs">
-                  {EMP_TYPE_LABELS[member.employmentType]}
+                  {t(`myTeam.empType.${member.employmentType}` as any, { defaultValue: member.employmentType })}
                 </Badge>
               )}
             </div>
           </div>
         </div>
 
-        {/* Quick actions */}
         <div className="flex gap-2 px-4 py-3 border-b border-border">
           {member.email && (
             <a href={`mailto:${member.email}`} className="flex-1">
               <Button variant="outline" size="sm" className="w-full gap-1.5 text-xs">
-                <Mail size={13} /> Email
+                <Mail size={13} /> {t("myTeam.profile.email")}
               </Button>
             </a>
           )}
           {member.phone && (
             <a href={`tel:${member.phone}`} className="flex-1">
               <Button variant="outline" size="sm" className="w-full gap-1.5 text-xs">
-                <Phone size={13} /> Call
+                <Phone size={13} /> {t("myTeam.profile.call")}
               </Button>
             </a>
           )}
@@ -573,86 +579,85 @@ function StaffProfilePanel({
             className="flex-1 gap-1.5 text-xs"
             onClick={() => onEdit(member.id)}
           >
-            <Edit2 size={13} /> Edit
+            <Edit2 size={13} /> {t("myTeam.profile.edit")}
           </Button>
         </div>
 
-        {/* Details */}
         <div className="px-4 py-4 space-y-4">
-          <Section title="Contact">
-            <InfoRow icon={<Mail size={13} />} label="Email" value={member.email || "—"} />
-            <InfoRow icon={<Phone size={13} />} label="Phone" value={member.phone || "—"} />
-          </Section>
+          <ProfileSection title={t("myTeam.profile.contact")}>
+            <ProfileInfoRow icon={<Mail size={13} />} label={t("myTeam.profile.email")} value={member.email || "—"} />
+            <ProfileInfoRow icon={<Phone size={13} />} label={t("myTeam.profile.call")} value={member.phone || "—"} />
+          </ProfileSection>
 
-          <Section title="Employment">
-            <InfoRow icon={<Building2 size={13} />} label="Department" value={member.department || "—"} />
-            <InfoRow icon={<Briefcase size={13} />} label="Position" value={member.position || "—"} />
-            <InfoRow icon={<Hash size={13} />} label="Employee #" value={member.employeeNumber || "—"} />
-            <InfoRow icon={<Calendar size={13} />} label="Hire Date"
+          <ProfileSection title={t("myTeam.profile.employment")}>
+            <ProfileInfoRow icon={<Building2 size={13} />} label={t("myTeam.profile.department")} value={member.department || "—"} />
+            <ProfileInfoRow icon={<Briefcase size={13} />} label={t("myTeam.profile.position")} value={member.position || "—"} />
+            <ProfileInfoRow icon={<Hash size={13} />} label={t("myTeam.profile.employeeNum")} value={member.employeeNumber || "—"} />
+            <ProfileInfoRow icon={<Calendar size={13} />} label={t("myTeam.profile.hireDate")}
               value={member.hireDate ? fmtDateLong(member.hireDate) : "—"} />
-          </Section>
+          </ProfileSection>
 
-           <Section title="Identity">
-            <InfoRow icon={<Globe size={13} />} label="Nationality" value={member.nationality || "—"} />
-            <InfoRow icon={<Shield size={13} />} label="Civil ID" value={member.nationalId || "—"} />
-            <InfoRow icon={<Shield size={13} />} label="Passport" value={member.passportNumber || "—"} />
+          <ProfileSection title={t("myTeam.profile.identity")}>
+            <ProfileInfoRow icon={<Globe size={13} />} label={t("myTeam.profile.nationality")} value={member.nationality || "—"} />
+            <ProfileInfoRow icon={<Shield size={13} />} label={t("myTeam.profile.civilId")} value={member.nationalId || "—"} />
+            <ProfileInfoRow icon={<Shield size={13} />} label={t("myTeam.profile.passport")} value={member.passportNumber || "—"} />
             {(member as any).dateOfBirth && (
-              <InfoRow icon={<Calendar size={13} />} label="Date of Birth" value={fmtDate((member as any).dateOfBirth)} />
+              <ProfileInfoRow icon={<Calendar size={13} />} label={t("myTeam.profile.dateOfBirth")} value={fmtDate((member as any).dateOfBirth)} />
             )}
-          </Section>
-          {/* Documents & Expiry */}
+          </ProfileSection>
+
           {((member as any).visaExpiryDate || (member as any).workPermitExpiryDate || (member as any).workPermitNumber || (member as any).visaNumber) && (
-            <Section title="Documents & Expiry">
+            <ProfileSection title={t("myTeam.profile.documentsExpiry")}>
               {(member as any).workPermitNumber && (
-                <InfoRow
+                <ProfileInfoRow
                   icon={<Shield size={13} />}
-                  label="Work Permit"
+                  label={t("myTeam.profile.workPermit")}
                   value={(member as any).workPermitNumber}
                   expiryDate={(member as any).workPermitExpiryDate}
                   warnDays={warnDays}
                 />
               )}
               {(member as any).workPermitExpiryDate && !(member as any).workPermitNumber && (
-                <InfoRow
+                <ProfileInfoRow
                   icon={<Calendar size={13} />}
-                  label="WP Expiry"
+                  label={t("myTeam.profile.wpExpiry")}
                   value={fmtDate((member as any).workPermitExpiryDate)}
                   expiryDate={(member as any).workPermitExpiryDate}
                   warnDays={warnDays}
                 />
               )}
               {(member as any).visaNumber && (
-                <InfoRow
+                <ProfileInfoRow
                   icon={<Shield size={13} />}
-                  label="Visa No."
+                  label={t("myTeam.profile.visaNo")}
                   value={(member as any).visaNumber}
                   expiryDate={(member as any).visaExpiryDate}
                   warnDays={warnDays}
                 />
               )}
               {(member as any).visaExpiryDate && !(member as any).visaNumber && (
-                <InfoRow
+                <ProfileInfoRow
                   icon={<Calendar size={13} />}
-                  label="Visa Expiry"
+                  label={t("myTeam.profile.visaExpiry")}
                   value={fmtDate((member as any).visaExpiryDate)}
                   expiryDate={(member as any).visaExpiryDate}
                   warnDays={warnDays}
                 />
               )}
               {(member as any).pasiNumber && (
-                <InfoRow icon={<Hash size={13} />} label="PASI No." value={(member as any).pasiNumber} />
+                <ProfileInfoRow icon={<Hash size={13} />} label={t("myTeam.profile.pasiNo")} value={(member as any).pasiNumber} />
               )}
-            </Section>
+            </ProfileSection>
           )}
-          <Section title="Compensation">
-            <InfoRow icon={<DollarSign size={13} />} label="Basic Salary"
-              value={fmtSalary(member.salary, member.currency ?? "OMR")} />
-          </Section>
 
-          {/* Status change */}
-          <Section title="Change Status">
+          <ProfileSection title={t("myTeam.profile.compensation")}>
+            <ProfileInfoRow icon={<DollarSign size={13} />} label={t("myTeam.profile.basicSalary")}
+              value={fmtSalary(member.salary, member.currency ?? "OMR")} />
+          </ProfileSection>
+
+          <ProfileSection title={t("myTeam.profile.changeStatus")}>
             <div className="grid grid-cols-2 gap-2">
-              {Object.entries(STATUS_META).map(([status, meta]) => (
+              {(["active", "on_leave", "terminated", "resigned"] as const).map((status) => (
                 <button
                   key={status}
                   disabled={member.status === status || statusMutation.isPending}
@@ -663,15 +668,14 @@ function StaffProfilePanel({
                       : "border-border hover:border-muted-foreground text-muted-foreground hover:bg-muted/50"
                     }`}
                 >
-                  {meta.icon} {meta.label}
+                  {STATUS_ICONS[status]} {t(`myTeam.status.${status}`)}
                 </button>
               ))}
             </div>
-          </Section>
+          </ProfileSection>
         </div>
       </div>
 
-      {/* Footer */}
       <div className="px-4 py-3 border-t border-border">
         <Button
           variant="outline"
@@ -679,14 +683,14 @@ function StaffProfilePanel({
           className="w-full text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300 gap-1.5"
           onClick={() => onRemove(member.id)}
         >
-          <UserX size={13} /> Offboard / Terminate
+          <UserX size={13} /> {t("myTeam.profile.offboard")}
         </Button>
       </div>
     </div>
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function ProfileSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
       <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2">{title}</div>
@@ -695,7 +699,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-function InfoRow({
+function ProfileInfoRow({
   icon, label, value, expiryDate, warnDays = 30,
 }: {
   icon: React.ReactNode;
@@ -752,9 +756,12 @@ function StaffCard({
   member: any; onClick: () => void; onEdit: () => void; onRemove: () => void;
   onViewProfile: () => void; onDocuments: () => void; warnDays?: number;
 }) {
-  const sm = STATUS_META[member.status] ?? STATUS_META.active;
+  const { t } = useTranslation("hr");
+  const statusColor = STATUS_COLORS[member.status] ?? STATUS_COLORS.active;
+  const statusIcon = STATUS_ICONS[member.status] ?? STATUS_ICONS.active;
+  const statusLabel = t(`myTeam.status.${member.status}` as any, { defaultValue: member.status });
   const initials = getInitials(member.firstName, member.lastName);
-  // Compute profile completeness score (inline, no extra API call)
+
   const completenessFields = [
     member.firstName, member.lastName, member.email, member.phone,
     member.department, member.position, member.nationality, member.nationalId,
@@ -764,12 +771,13 @@ function StaffCard({
   const completenessScore = Math.round((filledCount / completenessFields.length) * 100);
   const completenessBarColor = completenessScore >= 80 ? "bg-emerald-500" : completenessScore >= 50 ? "bg-amber-500" : "bg-red-500";
   const completenessTextColor = completenessScore >= 80 ? "text-emerald-600" : completenessScore >= 50 ? "text-amber-600" : "text-red-500";
-  // Compute worst expiry status across all document dates
+
   const docDates = [member.visaExpiryDate, member.workPermitExpiryDate].filter(Boolean);
   const docStatuses = docDates.map((d: any) => expiryStatus(d, warnDays));
   const hasExpired = docStatuses.includes("expired");
   const hasExpiringSoon = docStatuses.includes("expiring-soon");
   const cardExpiry = hasExpired ? "expired" : hasExpiringSoon ? "expiring-soon" : "none";
+
   return (
     <div
       onClick={onClick}
@@ -784,13 +792,13 @@ function StaffCard({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="text-sm">
-            <DropdownMenuItem onClick={onViewProfile}><ChevronRight size={13} className="mr-2" /> View Full Profile</DropdownMenuItem>
-            <DropdownMenuItem onClick={onDocuments}><Shield size={13} className="mr-2" /> Documents</DropdownMenuItem>
+            <DropdownMenuItem onClick={onViewProfile}><ChevronRight size={13} className="mr-2" /> {t("myTeam.card.viewFullProfile")}</DropdownMenuItem>
+            <DropdownMenuItem onClick={onDocuments}><Shield size={13} className="mr-2" /> {t("myTeam.card.documents")}</DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={onEdit}><Edit2 size={13} className="mr-2" /> Edit</DropdownMenuItem>
+            <DropdownMenuItem onClick={onEdit}><Edit2 size={13} className="mr-2" /> {t("myTeam.profile.edit")}</DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={onRemove} className="text-red-600">
-              <UserX size={13} className="mr-2" /> Offboard
+              <UserX size={13} className="mr-2" /> {t("myTeam.card.offboard")}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -807,15 +815,19 @@ function StaffCard({
             {member.firstName} {member.lastName}
           </div>
           <div className="text-xs text-muted-foreground truncate">{member.position || "—"}</div>
-          <div className="text-xs text-muted-foreground/70 truncate">{member.department || "No department"}</div>
+          <div className="text-xs text-muted-foreground/70 truncate">
+            {member.department || t("myTeam.card.noDepartment")}
+          </div>
         </div>
       </div>
 
       <div className="mt-3 flex items-center justify-between">
-        <Badge className={`text-[10px] border px-1.5 py-0.5 flex items-center gap-1 ${sm.color}`}>
-          {sm.icon} {sm.label}
+        <Badge className={`text-[10px] border px-1.5 py-0.5 flex items-center gap-1 ${statusColor}`}>
+          {statusIcon} {statusLabel}
         </Badge>
-        <span className="text-[10px] text-muted-foreground">{EMP_TYPE_LABELS[member.employmentType ?? "full_time"]}</span>
+        <span className="text-[10px] text-muted-foreground">
+          {t(`myTeam.empType.${member.employmentType ?? "full_time"}` as any, { defaultValue: member.employmentType ?? "full_time" })}
+        </span>
       </div>
 
       {member.email && (
@@ -823,7 +835,6 @@ function StaffCard({
           <Mail size={10} /> {member.email}
         </div>
       )}
-      {/* Profile completeness bar */}
       <div className="mt-2 flex items-center gap-1.5">
         <div className="flex-1 h-1 bg-muted rounded-full overflow-hidden">
           <div
@@ -833,13 +844,12 @@ function StaffCard({
         </div>
         <span className={`text-[9px] font-medium shrink-0 ${completenessTextColor}`}>{completenessScore}%</span>
       </div>
-      {/* Expiry warning strip */}
       {cardExpiry !== "none" && (
         <div className={`mt-2 flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-md ${EXPIRY_BADGE[cardExpiry]}`}>
           {cardExpiry === "expired" ? "⚠" : "⏰"}
           {hasExpired
-            ? `Document expired — action required`
-            : `Document expiring soon`}
+            ? t("myTeam.card.docExpired")
+            : t("myTeam.card.docExpiringSoon")}
         </div>
       )}
     </div>
@@ -849,6 +859,7 @@ function StaffCard({
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function MyTeamPage() {
+  const { t } = useTranslation("hr");
   const [, navigate] = useLocation();
   const { activeCompanyId, expiryWarningDays } = useActiveCompany();
   const [search, setSearch] = useState("");
@@ -878,16 +889,15 @@ export default function MyTeamPage() {
 
   const removeMutation = trpc.team.removeMember.useMutation({
     onSuccess: () => {
-      toast.success("Staff member offboarded");
-      utils.team.listMembers.invalidate();
-      utils.team.getTeamStats.invalidate();
+      toast.success(t("myTeam.toast.offboarded"));
+      void utils.team.listMembers.invalidate();
+      void utils.team.getTeamStats.invalidate();
       setRemoveId(null);
       if (selectedId === removeId) setSelectedId(null);
     },
     onError: (e) => toast.error(e.message),
   });
 
-  // Unique departments for filter
   const departments = useMemo(() => {
     const depts = new Set<string>();
     (stats?.byDepartment ?? []).forEach((d) => depts.add(d.dept));
@@ -900,18 +910,32 @@ export default function MyTeamPage() {
 
   const clearAllMutation = trpc.team.clearAllEmployees.useMutation({
     onSuccess: (data) => {
-      toast.success(`Cleared ${data.deleted} employee records`);
-      utils.team.listMembers.invalidate();
-      utils.team.getTeamStats.invalidate();
+      toast.success(t("myTeam.toast.cleared", { count: data.deleted }));
+      void utils.team.listMembers.invalidate();
+      void utils.team.getTeamStats.invalidate();
       setClearConfirmOpen(false);
       setClearConfirmText("");
     },
     onError: (e) => toast.error(e.message),
   });
 
+  const kpiItems = stats ? [
+    { label: t("myTeam.metrics.totalStaff"), value: stats.total, color: "text-foreground", bg: "bg-muted/60 border-border" },
+    { label: t("myTeam.metrics.active"), value: stats.active, color: "text-emerald-700", bg: "bg-emerald-50 border-emerald-200" },
+    { label: t("myTeam.metrics.onLeave"), value: stats.onLeave, color: "text-amber-700", bg: "bg-amber-50 border-amber-200" },
+    { label: t("myTeam.metrics.departments"), value: stats.byDepartment.length, color: "text-blue-700", bg: "bg-blue-50 border-blue-200" },
+    {
+      label: t("myTeam.metrics.expiryWarnings"),
+      value: (stats as any).expiryWarnings ?? 0,
+      color: ((stats as any).expiryWarnings ?? 0) > 0 ? "text-red-700" : "text-muted-foreground",
+      bg: ((stats as any).expiryWarnings ?? 0) > 0 ? "bg-red-50 border-red-200" : "bg-muted/60 border-border",
+    },
+  ] : [];
+
+  const hasFilters = search || statusFilter !== "all" || deptFilter !== "all";
+
   return (
     <div className="flex h-full">
-      {/* Main content */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Page header */}
         <div className="px-6 py-5 border-b border-border bg-card">
@@ -919,10 +943,10 @@ export default function MyTeamPage() {
             <div>
               <h1 className="text-xl font-bold text-foreground flex items-center gap-2">
                 <Users size={20} className="text-[var(--smartpro-orange)]" />
-                My Team
+                {t("myTeam.title")}
               </h1>
               <p className="text-sm text-muted-foreground mt-0.5">
-                Manage your company's staff — add, edit, and track your entire workforce
+                {t("myTeam.subtitle")}
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -930,22 +954,22 @@ export default function MyTeamPage() {
                 variant="outline"
                 onClick={() => setClearConfirmOpen(true)}
                 className="gap-2 text-red-600 border-red-200 hover:bg-red-50"
-                title="Clear all employees for this company"
+                title={t("myTeam.clearAllDialog.title")}
               >
-                <Trash2 size={16} /> Clear All
+                <Trash2 size={16} /> {t("myTeam.actions.clearAll")}
               </Button>
               <Button
                 variant="outline"
                 onClick={() => navigate("/my-team/import")}
                 className="gap-2"
               >
-                <Upload size={16} /> Import from Excel
+                <Upload size={16} /> {t("myTeam.actions.importExcel")}
               </Button>
               <Button
                 onClick={() => setAddOpen(true)}
                 className="bg-[var(--smartpro-orange)] hover:bg-orange-600 text-white gap-2"
               >
-                <UserPlus size={16} /> Add Staff Member
+                <UserPlus size={16} /> {t("myTeam.actions.addStaff")}
               </Button>
             </div>
           </div>
@@ -953,18 +977,7 @@ export default function MyTeamPage() {
           {/* KPI bar */}
           {stats && (
             <div className="mt-4 grid grid-cols-2 sm:grid-cols-5 gap-3">
-              {[
-                { label: "Total Staff", value: stats.total, color: "text-foreground", bg: "bg-muted/60 border-border" },
-                { label: "Active", value: stats.active, color: "text-emerald-700", bg: "bg-emerald-50 border-emerald-200" },
-                { label: "On Leave", value: stats.onLeave, color: "text-amber-700", bg: "bg-amber-50 border-amber-200" },
-                { label: "Departments", value: stats.byDepartment.length, color: "text-blue-700", bg: "bg-blue-50 border-blue-200" },
-                {
-                  label: "Expiry Warnings",
-                  value: (stats as any).expiryWarnings ?? 0,
-                  color: ((stats as any).expiryWarnings ?? 0) > 0 ? "text-red-700" : "text-muted-foreground",
-                  bg: ((stats as any).expiryWarnings ?? 0) > 0 ? "bg-red-50 border-red-200" : "bg-muted/60 border-border",
-                },
-              ].map((k) => (
+              {kpiItems.map((k) => (
                 <div key={k.label} className={`rounded-lg border px-3 py-2 ${k.bg}`}>
                   <div className={`text-2xl font-black ${k.color}`}>{k.value}</div>
                   <div className="text-xs text-muted-foreground mt-0.5">{k.label}</div>
@@ -979,7 +992,7 @@ export default function MyTeamPage() {
           <div className="relative flex-1 min-w-48">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder="Search by name, position, email…"
+              placeholder={t("myTeam.filter.searchPlaceholder")}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-8 h-8 text-sm"
@@ -987,21 +1000,21 @@ export default function MyTeamPage() {
           </div>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger className="h-8 text-sm w-36">
-              <SelectValue placeholder="All Statuses" />
+              <SelectValue placeholder={t("myTeam.filter.allStatuses")} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Statuses</SelectItem>
-              {Object.entries(STATUS_META).map(([v, m]) => (
-                <SelectItem key={v} value={v}>{m.label}</SelectItem>
+              <SelectItem value="all">{t("myTeam.filter.allStatuses")}</SelectItem>
+              {(["active", "on_leave", "terminated", "resigned"] as const).map((v) => (
+                <SelectItem key={v} value={v}>{t(`myTeam.status.${v}`)}</SelectItem>
               ))}
             </SelectContent>
           </Select>
           <Select value={deptFilter} onValueChange={setDeptFilter}>
             <SelectTrigger className="h-8 text-sm w-40">
-              <SelectValue placeholder="All Departments" />
+              <SelectValue placeholder={t("myTeam.filter.allDepartments")} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Departments</SelectItem>
+              <SelectItem value="all">{t("myTeam.filter.allDepartments")}</SelectItem>
               {departments.map((d) => (
                 <SelectItem key={d} value={d}>{d}</SelectItem>
               ))}
@@ -1037,21 +1050,17 @@ export default function MyTeamPage() {
                 <Users size={28} className="text-[var(--smartpro-orange)]" />
               </div>
               <h3 className="text-base font-semibold text-foreground mb-1">
-                {search || statusFilter !== "all" || deptFilter !== "all"
-                  ? "No staff match your filters"
-                  : "No staff added yet"}
+                {hasFilters ? t("myTeam.emptyState.noMatch") : t("myTeam.emptyState.noStaff")}
               </h3>
               <p className="text-sm text-muted-foreground max-w-xs">
-                {search || statusFilter !== "all" || deptFilter !== "all"
-                  ? "Try adjusting your search or filters."
-                  : "Start building your team by adding your first staff member. It only takes a minute."}
+                {hasFilters ? t("myTeam.emptyState.noMatchSub") : t("myTeam.emptyState.noStaffSub")}
               </p>
-              {!search && statusFilter === "all" && deptFilter === "all" && (
+              {!hasFilters && (
                 <Button
                   onClick={() => setAddOpen(true)}
                   className="mt-4 bg-[var(--smartpro-orange)] hover:bg-orange-600 text-white gap-2"
                 >
-                  <UserPlus size={15} /> Add First Staff Member
+                  <UserPlus size={15} /> {t("myTeam.actions.addFirstStaff")}
                 </Button>
               )}
             </div>
@@ -1071,23 +1080,24 @@ export default function MyTeamPage() {
               ))}
             </div>
           ) : (
-            /* Table view */
             <div className="bg-card border border-border rounded-xl overflow-hidden">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border bg-muted/50">
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Name</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Department</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Position</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Type</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Status</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Contact</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">{t("myTeam.table.name")}</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">{t("myTeam.table.department")}</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">{t("myTeam.table.position")}</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">{t("myTeam.table.type")}</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">{t("myTeam.table.status")}</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">{t("myTeam.table.contact")}</th>
                     <th className="px-4 py-3" />
                   </tr>
                 </thead>
                 <tbody>
                   {members.map((m) => {
-                    const sm = STATUS_META[m.status] ?? STATUS_META.active;
+                    const sColor = STATUS_COLORS[m.status] ?? STATUS_COLORS.active;
+                    const sIcon = STATUS_ICONS[m.status] ?? STATUS_ICONS.active;
+                    const sLabel = t(`myTeam.status.${m.status}` as any, { defaultValue: m.status });
                     return (
                       <tr
                         key={m.id}
@@ -1109,10 +1119,12 @@ export default function MyTeamPage() {
                         </td>
                         <td className="px-4 py-3 text-muted-foreground">{m.department || "—"}</td>
                         <td className="px-4 py-3 text-muted-foreground">{m.position || "—"}</td>
-                        <td className="px-4 py-3 text-muted-foreground text-xs">{EMP_TYPE_LABELS[m.employmentType ?? "full_time"]}</td>
+                        <td className="px-4 py-3 text-muted-foreground text-xs">
+                          {t(`myTeam.empType.${m.employmentType ?? "full_time"}` as any, { defaultValue: m.employmentType ?? "full_time" })}
+                        </td>
                         <td className="px-4 py-3">
-                          <Badge className={`text-[10px] border flex items-center gap-1 w-fit ${sm.color}`}>
-                            {sm.icon} {sm.label}
+                          <Badge className={`text-[10px] border flex items-center gap-1 w-fit ${sColor}`}>
+                            {sIcon} {sLabel}
                           </Badge>
                         </td>
                         <td className="px-4 py-3">
@@ -1129,13 +1141,13 @@ export default function MyTeamPage() {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" className="text-sm">
-                              <DropdownMenuItem onClick={() => navigate(`/business/employee/${m.id}`)}><ChevronRight size={13} className="mr-2" /> View Full Profile</DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => navigate(`/employee/${m.id}/documents`)}><Shield size={13} className="mr-2" /> Documents</DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => navigate(`/business/employee/${m.id}`)}><ChevronRight size={13} className="mr-2" /> {t("myTeam.card.viewFullProfile")}</DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => navigate(`/employee/${m.id}/documents`)}><Shield size={13} className="mr-2" /> {t("myTeam.card.documents")}</DropdownMenuItem>
                               <DropdownMenuSeparator />
-                              <DropdownMenuItem onClick={() => setEditId(m.id)}><Edit2 size={13} className="mr-2" /> Edit</DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => setEditId(m.id)}><Edit2 size={13} className="mr-2" /> {t("myTeam.profile.edit")}</DropdownMenuItem>
                               <DropdownMenuSeparator />
                               <DropdownMenuItem onClick={() => setRemoveId(m.id)} className="text-red-600">
-                                <UserX size={13} className="mr-2" /> Offboard
+                                <UserX size={13} className="mr-2" /> {t("myTeam.card.offboard")}
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
@@ -1148,14 +1160,13 @@ export default function MyTeamPage() {
             </div>
           )}
 
-          {/* Department breakdown */}
           {stats && stats.byDepartment.length > 0 && (
             <div className="mt-6">
               <Card>
                 <CardHeader className="pb-3">
                   <CardTitle className="text-sm font-semibold flex items-center gap-2">
                     <TrendingUp size={15} className="text-[var(--smartpro-orange)]" />
-                    Headcount by Department
+                    {t("myTeam.headcountByDept")}
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -1167,7 +1178,6 @@ export default function MyTeamPage() {
         </div>
       </div>
 
-      {/* Profile side panel */}
       {selectedId != null && (
         <StaffProfilePanel
           memberId={selectedId}
@@ -1178,7 +1188,6 @@ export default function MyTeamPage() {
         />
       )}
 
-      {/* Add dialog */}
       <StaffFormDialog
         open={addOpen}
         onClose={() => setAddOpen(false)}
@@ -1186,7 +1195,6 @@ export default function MyTeamPage() {
         companyId={activeCompanyId}
       />
 
-      {/* Edit dialog */}
       {editId != null && editMember && (
         <StaffFormDialog
           open={true}
@@ -1242,65 +1250,66 @@ export default function MyTeamPage() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-base">
               <AlertTriangle size={18} className="text-red-500" />
-              Confirm Offboarding
+              {t("myTeam.offboardDialog.title")}
             </DialogTitle>
           </DialogHeader>
           <p className="text-sm text-gray-600">
-            This will mark the staff member as <strong>Terminated</strong>. Their record will be
-            preserved for payroll and compliance history. You can reactivate them at any time.
+            {t("myTeam.offboardDialog.body")}
           </p>
           <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setRemoveId(null)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setRemoveId(null)}>{t("myTeam.offboardDialog.cancel")}</Button>
             <Button
               className="bg-red-600 hover:bg-red-700 text-white"
               disabled={removeMutation.isPending}
               onClick={() => removeId != null && removeMutation.mutate({ id: removeId, companyId: activeCompanyId ?? undefined })}
             >
-              {removeMutation.isPending ? "Processing…" : "Confirm Offboard"}
+              {removeMutation.isPending ? t("myTeam.offboardDialog.processing") : t("myTeam.offboardDialog.confirm")}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Clear All Employees Confirmation Dialog — hardened with typed confirmation */}
+      {/* Clear All Confirmation Dialog */}
       <Dialog open={clearConfirmOpen} onOpenChange={(v) => { setClearConfirmOpen(v); if (!v) setClearConfirmText(""); }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-base text-red-600">
               <Trash2 size={18} className="text-red-500" />
-              Permanently Delete All Employees
+              {t("myTeam.clearAllDialog.title")}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800">
-              <p className="font-semibold mb-1">⚠️ This is a destructive, irreversible action</p>
+              <p className="font-semibold mb-1">{t("myTeam.clearAllDialog.warning")}</p>
               <ul className="text-xs space-y-1 list-disc list-inside">
-                <li>All employee records for this company will be <strong>permanently deleted</strong></li>
-                <li>All linked attendance, payroll, leave, and document data will be removed</li>
-                <li>This action <strong>cannot be undone</strong> — there is no recovery</li>
-                <li>Only use this in a test or sandbox environment</li>
+                <li>{t("myTeam.clearAllDialog.bullet1")}</li>
+                <li>{t("myTeam.clearAllDialog.bullet2")}</li>
+                <li>{t("myTeam.clearAllDialog.bullet3")}</li>
+                <li>{t("myTeam.clearAllDialog.bullet4")}</li>
               </ul>
             </div>
             <div className="space-y-2">
               <Label className="text-sm font-medium">
-                Type <span className="font-mono font-bold text-red-600">DELETE ALL</span> to confirm
+                {t("myTeam.clearAllDialog.typeConfirm")}
               </Label>
               <Input
                 value={clearConfirmText}
                 onChange={(e) => setClearConfirmText(e.target.value)}
-                placeholder="Type DELETE ALL"
+                placeholder={t("myTeam.clearAllDialog.typePlaceholder")}
                 className="border-red-300 focus-visible:ring-red-400"
               />
             </div>
           </div>
           <DialogFooter className="gap-2 mt-2">
-            <Button variant="outline" onClick={() => { setClearConfirmOpen(false); setClearConfirmText(""); }}>Cancel</Button>
+            <Button variant="outline" onClick={() => { setClearConfirmOpen(false); setClearConfirmText(""); }}>
+              {t("myTeam.clearAllDialog.cancel")}
+            </Button>
             <Button
               className="bg-red-600 hover:bg-red-700 text-white"
               disabled={clearAllMutation.isPending || clearConfirmText !== "DELETE ALL"}
               onClick={() => clearAllMutation.mutate({ companyId: activeCompanyId ?? undefined })}
             >
-              {clearAllMutation.isPending ? "Deleting…" : "Permanently Delete All"}
+              {clearAllMutation.isPending ? t("myTeam.clearAllDialog.deleting") : t("myTeam.clearAllDialog.confirm")}
             </Button>
           </DialogFooter>
         </DialogContent>

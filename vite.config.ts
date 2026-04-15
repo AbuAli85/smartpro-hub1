@@ -150,7 +150,16 @@ function vitePluginManusDebugCollector(): Plugin {
   };
 }
 
-const plugins = [react(), tailwindcss(), jsxLocPlugin(), vitePluginManusRuntime(), vitePluginManusDebugCollector()];
+// Debug/runtime plugins are development-only tools and must never ship in production builds.
+const IS_PRODUCTION = process.env.NODE_ENV === "production";
+const plugins = [
+  react(),
+  tailwindcss(),
+  jsxLocPlugin(),
+  // vite-plugin-manus-runtime and the debug log collector are only needed during
+  // local development. Exclude them from production to avoid shipping dev tooling.
+  ...(!IS_PRODUCTION ? [vitePluginManusRuntime(), vitePluginManusDebugCollector()] : []),
+];
 
 export default defineConfig({
   plugins,

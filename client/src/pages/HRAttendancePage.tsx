@@ -1,5 +1,6 @@
 ﻿import { trpc } from "@/lib/trpc";
 import { useState, useMemo, useEffect, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { OverdueCheckoutsPanel } from "@/components/attendance/OverdueCheckoutsPanel";
 import { AttendanceActionQueue } from "@/components/attendance/AttendanceActionQueue";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
@@ -1406,6 +1407,7 @@ function SitePunchesSection({ companyId }: { companyId: number | null }) {
 }
 
 export default function HRAttendancePage() {
+  const { t } = useTranslation("hr");
   const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
   const [attendanceTab, setAttendanceTab] = useState("today");
   const [monthFilter, setMonthFilter] = useState(() => {

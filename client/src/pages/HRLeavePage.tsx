@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
@@ -231,6 +232,7 @@ function HRLeavePageSkeleton() {
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function HRLeavePage() {
+  const { t } = useTranslation("hr");
   const { user } = useAuth();
   const { activeCompanyId } = useActiveCompany();
   const [leaveOpen, setLeaveOpen] = useState(false);

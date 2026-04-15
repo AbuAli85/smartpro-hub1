@@ -148,5 +148,14 @@
     "en": "English",
     "ar": "العربية",
     "switchTo": "Switch to {{lang}}"
+  },
+  "notFound": {
+    "title": "Page Not Found",
+    "description": "Sorry, the page you are looking for doesn't exist. It may have been moved or deleted.",
+    "goHome": "Go Home"
+  },
+  "error": {
+    "title": "An unexpected error occurred.",
+    "reload": "Reload Page"
   }
 }

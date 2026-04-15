@@ -441,14 +441,28 @@ export const clientPortalRouter = router({
         .limit(input.pageSize)
         .offset((input.page - 1) * input.pageSize);
 
-      // Enrich with task progress
-      const enriched = await Promise.all(rows.map(async (c) => {
-        const tasks = await db.select({ taskStatus: caseTasks.taskStatus })
-          .from(caseTasks).where(eq(caseTasks.caseId, c.id));
+      // Batch-load all case tasks in a single query instead of one query per case row.
+      const caseIds = rows.map((c) => c.id);
+      const allTasks = caseIds.length > 0
+        ? await db
+            .select({ caseId: caseTasks.caseId, taskStatus: caseTasks.taskStatus })
+            .from(caseTasks)
+            .where(inArray(caseTasks.caseId, caseIds))
+        : [];
+
+      const tasksByCaseId = new Map<number, typeof allTasks>();
+      for (const t of allTasks) {
+        const arr = tasksByCaseId.get(t.caseId) ?? [];
+        arr.push(t);
+        tasksByCaseId.set(t.caseId, arr);
+      }
+
+      const enriched = rows.map((c) => {
+        const tasks = tasksByCaseId.get(c.id) ?? [];
         const total = tasks.length;
-        const completed = tasks.filter(t => t.taskStatus === "completed").length;
+        const completed = tasks.filter((t) => t.taskStatus === "completed").length;
         return { ...c, taskProgress: { total, completed, pct: total > 0 ? Math.round((completed / total) * 100) : 0 } };
-      }));
+      });
 
       return { items: enriched, total: enriched.length };
     }),

@@ -1,5 +1,6 @@
 import { trpc } from "@/lib/trpc";
 import { useState, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Building2, Plus, Search, Star, Phone, Mail, Globe, MapPin,
   FileText, Clock, CheckCircle2, AlertTriangle, XCircle,
@@ -575,6 +576,7 @@ function WorkOrderRow({
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function SanadPage() {
+  const { t } = useTranslation("government");
   const [tab, setTab] = useState("providers");
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");

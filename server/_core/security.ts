@@ -135,6 +135,49 @@ export function trpcSecurityHeaders(_req: Request, res: Response, next: NextFunc
   next();
 }
 
+// ─── CORS ────────────────────────────────────────────────────────────────────
+/**
+ * Explicit CORS middleware.
+ *
+ * When the app is served from the same origin as the API (typical deployment),
+ * browsers never send a cross-origin header, so this is a no-op in practice.
+ * It becomes important if the frontend is ever served from a CDN or a different
+ * sub-domain, or if third-party clients need to call the API directly.
+ *
+ * Allowed origins are read from the ALLOWED_ORIGINS env var (comma-separated).
+ * If unset, only the request's own Host origin is allowed (same-origin policy).
+ */
+export function corsMiddleware(req: Request, res: Response, next: NextFunction) {
+  const origin = req.headers["origin"];
+
+  let allowedOrigins: Set<string> | null = null;
+  if (process.env.ALLOWED_ORIGINS) {
+    allowedOrigins = new Set(
+      process.env.ALLOWED_ORIGINS.split(",").map((o) => o.trim()).filter(Boolean)
+    );
+  }
+
+  if (origin) {
+    const isAllowed = !allowedOrigins || allowedOrigins.has(origin);
+    if (isAllowed) {
+      res.setHeader("Access-Control-Allow-Origin", origin);
+      res.setHeader("Vary", "Origin");
+      res.setHeader("Access-Control-Allow-Credentials", "true");
+      res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
+      res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Request-Id");
+      res.setHeader("Access-Control-Max-Age", "86400");
+    }
+  }
+
+  // Respond to preflight without a body
+  if (req.method === "OPTIONS") {
+    res.status(204).end();
+    return;
+  }
+
+  next();
+}
+
 // ─── CSRF protection ──────────────────────────────────────────────────────────
 /**
  * Validates the Origin (or Referer) header on POST requests to prevent CSRF.
@@ -188,6 +231,7 @@ export function csrfOriginCheck(req: Request, res: Response, next: NextFunction)
 // ─── Apply all security middleware to the Express app ────────────────────────
 export function applySecurityMiddleware(app: Application) {
   app.use(helmetMiddleware);
+  app.use(corsMiddleware);
   app.use(requestId);
   app.use(inputSanitiser);
   // Rate limit all /api routes

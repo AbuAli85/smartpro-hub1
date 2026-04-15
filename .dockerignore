@@ -1,0 +1,17 @@
+node_modules
+dist
+.env
+.env.*
+!.env.example
+.manus-logs
+.git
+.gitignore
+*.md
+docs/
+todo.md
+coverage/
+.nyc_output/
+*.log
+docker-compose*.yml
+Dockerfile
+.dockerignore

@@ -37,6 +37,25 @@ import { recordNotificationCreatedAudit } from "./complianceAudit";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
+/**
+ * Returns the database connection or throws a typed error that tRPC surfaces
+ * as HTTP 500. Use this in router procedures instead of the silent `if (!db) return []`
+ * pattern so that callers know the DB is unavailable rather than silently
+ * receiving empty data.
+ */
+export async function requireDb() {
+  const db = await getDb();
+  if (!db) {
+    // Dynamic import keeps the tRPC dependency out of db.ts at the module level.
+    const { TRPCError } = await import("@trpc/server");
+    throw new TRPCError({
+      code: "INTERNAL_SERVER_ERROR",
+      message: "Database unavailable — please try again shortly.",
+    });
+  }
+  return db;
+}
+
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
@@ -391,13 +410,20 @@ export async function createMarketplaceBooking(data: typeof marketplaceBookings.
 
 // ─── CONTRACTS ────────────────────────────────────────────────────────────────
 
-export async function getContracts(companyId: number, filters?: { status?: string; type?: string }) {
+export async function getContracts(
+  companyId: number,
+  filters?: { status?: string; type?: string; limit?: number; offset?: number }
+) {
   const db = await getDb();
   if (!db) return [];
   const conditions = [eq(contracts.companyId, companyId)];
   if (filters?.status) conditions.push(eq(contracts.status, filters.status as any));
   if (filters?.type) conditions.push(eq(contracts.type, filters.type as any));
-  return db.select().from(contracts).where(and(...conditions)).orderBy(desc(contracts.createdAt));
+  const q = db.select().from(contracts).where(and(...conditions)).orderBy(desc(contracts.createdAt));
+  if (filters?.limit != null) {
+    return q.limit(filters.limit).offset(filters.offset ?? 0);
+  }
+  return q;
 }
 
 export async function getAllContracts(filters?: { status?: string }) {
@@ -442,13 +468,20 @@ export async function getContractTemplates(companyId?: number) {
 
 // ─── HR: EMPLOYEES ────────────────────────────────────────────────────────────
 
-export async function getEmployees(companyId: number, filters?: { status?: string; department?: string }) {
+export async function getEmployees(
+  companyId: number,
+  filters?: { status?: string; department?: string; limit?: number; offset?: number }
+) {
   const db = await getDb();
   if (!db) return [];
   const conditions = [eq(employees.companyId, companyId)];
   if (filters?.status) conditions.push(eq(employees.status, filters.status as any));
   if (filters?.department) conditions.push(eq(employees.department, filters.department));
-  return db.select().from(employees).where(and(...conditions)).orderBy(employees.firstName);
+  const q = db.select().from(employees).where(and(...conditions)).orderBy(employees.firstName);
+  if (filters?.limit != null) {
+    return q.limit(filters.limit).offset(filters.offset ?? 0);
+  }
+  return q;
 }
 
 export async function getEmployeeById(id: number) {
@@ -918,13 +951,17 @@ export async function upsertSystemSettings(settings: { key: string; value: strin
 export async function getAttendance(companyId: number, month?: string) {
   const db = await getDb();
   if (!db) return [];
-  const records = await db.select().from(attendance).where(eq(attendance.companyId, companyId));
-  if (!month) return records;
-  return records.filter((r) => {
-    const d = new Date(r.date);
-    const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-    return ym === month;
-  });
+  const conditions = [eq(attendance.companyId, companyId)];
+  if (month) {
+    // Parse YYYY-MM and push the filter entirely into SQL rather than fetching
+    // all rows and filtering in JavaScript (avoids full table scans in JS).
+    const [year, mon] = month.split("-").map(Number);
+    const start = new Date(year, mon - 1, 1, 0, 0, 0, 0);      // 1st of month 00:00 local
+    const end = new Date(year, mon, 0, 23, 59, 59, 999);        // last day 23:59 local
+    conditions.push(gte(attendance.date, start));
+    conditions.push(lte(attendance.date, end));
+  }
+  return db.select().from(attendance).where(and(...conditions));
 }
 
 export type AttendanceLegacyInsert = {

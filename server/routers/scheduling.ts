@@ -248,23 +248,47 @@ export const schedulingRouter = router({
       const schedules = await db.select().from(employeeSchedules)
         .where(and(...conds)).orderBy(employeeSchedules.startDate);
 
-      return Promise.all(schedules.map(async (s) => {
-        const [shift] = await db.select().from(shiftTemplates).where(eq(shiftTemplates.id, s.shiftTemplateId)).limit(1);
-        const [site] = await db.select().from(attendanceSites).where(eq(attendanceSites.id, s.siteId)).limit(1);
-        // Try matching by employee record id first (common when dropdown uses e.id), then by userId
-        const [empById] = await db.select({ id: employees.id, userId: employees.userId, firstName: employees.firstName, lastName: employees.lastName, email: employees.email, avatarUrl: employees.avatarUrl })
-          .from(employees).where(and(eq(employees.companyId, companyId), eq(employees.id, s.employeeUserId))).limit(1);
-        const [empByUserId] = empById ? [empById] : await db.select({ id: employees.id, userId: employees.userId, firstName: employees.firstName, lastName: employees.lastName, email: employees.email, avatarUrl: employees.avatarUrl })
-          .from(employees).where(and(eq(employees.companyId, companyId), eq(employees.userId, s.employeeUserId))).limit(1);
-        const emp = empById ?? empByUserId ?? null;
+      if (schedules.length === 0) return [];
+
+      // Batch-load all referenced shift templates, sites, and employees in 4
+      // parallel queries instead of 3 queries × N schedule rows.
+      const shiftIds = [...new Set(schedules.map((s) => s.shiftTemplateId))];
+      const siteIds = [...new Set(schedules.map((s) => s.siteId))];
+      const empRefIds = [...new Set(schedules.map((s) => s.employeeUserId))];
+
+      const empCols = {
+        id: employees.id,
+        userId: employees.userId,
+        firstName: employees.firstName,
+        lastName: employees.lastName,
+        email: employees.email,
+        avatarUrl: employees.avatarUrl,
+      };
+
+      const [shiftRows, siteRows, empByIdRows, empByUserIdRows] = await Promise.all([
+        db.select().from(shiftTemplates).where(inArray(shiftTemplates.id, shiftIds)),
+        db.select().from(attendanceSites).where(inArray(attendanceSites.id, siteIds)),
+        db.select(empCols).from(employees).where(and(eq(employees.companyId, companyId), inArray(employees.id, empRefIds))),
+        db.select(empCols).from(employees).where(and(eq(employees.companyId, companyId), inArray(employees.userId, empRefIds))),
+      ]);
+
+      const shiftById = new Map(shiftRows.map((s) => [s.id, s]));
+      const siteById = new Map(siteRows.map((s) => [s.id, s]));
+      const empByIdMap = new Map(empByIdRows.map((e) => [e.id, e]));
+      const empByUserIdMap = new Map(empByUserIdRows.map((e) => [e.userId as number, e]));
+
+      return schedules.map((s) => {
+        const shift = shiftById.get(s.shiftTemplateId) ?? null;
+        const site = siteById.get(s.siteId) ?? null;
+        const emp = empByIdMap.get(s.employeeUserId) ?? empByUserIdMap.get(s.employeeUserId) ?? null;
         return {
           ...s,
           groupId: s.groupId ?? null,
-          shift: shift ?? null,
-          site: site ?? null,
+          shift,
+          site,
           employee: emp ? { ...emp, name: `${emp.firstName} ${emp.lastName}`.trim() } : null,
         };
-      }));
+      });
     }),
 
   assignSchedule: protectedProcedure
@@ -784,26 +808,49 @@ export const schedulingRouter = router({
         grace: number;
       };
 
-      const drafts: Draft[] = await Promise.all(
-        todaySchedules.map(async (s) => {
-          const [shift] = await db.select().from(shiftTemplates).where(eq(shiftTemplates.id, s.shiftTemplateId)).limit(1);
-          const [site] = await db.select().from(attendanceSites).where(eq(attendanceSites.id, s.siteId)).limit(1);
-          const empRow = employeeRowFromScheduleRef(s.employeeUserId, empById, empByLoginUserId) as EmpRowFull | undefined;
-          let emp: { id: number; name: string | null; email: string | null; avatarUrl: string | null } | null = null;
-          if (empRow?.userId != null) {
-            const [u] = await db
+      // Batch-load all referenced shifts, sites, and user display rows at once
+      // rather than issuing 3 queries per schedule row (N+1 pattern).
+      const todayShiftIds = [...new Set(todaySchedules.map((s) => s.shiftTemplateId))];
+      const todaySiteIds = [...new Set(todaySchedules.map((s) => s.siteId))];
+
+      const empRowsForToday = todaySchedules.map((s) =>
+        employeeRowFromScheduleRef(s.employeeUserId, empById, empByLoginUserId) as EmpRowFull | undefined
+      );
+      const userIdsNeeded = [
+        ...new Set(
+          empRowsForToday.flatMap((e) => (e?.userId != null ? [e.userId] : []))
+        ),
+      ];
+
+      const [todayShiftRows, todaySiteRows, todayUserRows] = await Promise.all([
+        todayShiftIds.length > 0
+          ? db.select().from(shiftTemplates).where(inArray(shiftTemplates.id, todayShiftIds))
+          : Promise.resolve([] as (typeof shiftTemplates.$inferSelect)[]),
+        todaySiteIds.length > 0
+          ? db.select().from(attendanceSites).where(inArray(attendanceSites.id, todaySiteIds))
+          : Promise.resolve([] as (typeof attendanceSites.$inferSelect)[]),
+        userIdsNeeded.length > 0
+          ? db
               .select({ id: users.id, name: users.name, email: users.email, avatarUrl: users.avatarUrl })
               .from(users)
-              .where(eq(users.id, empRow.userId))
-              .limit(1);
-            emp = u ?? null;
-          }
-          const startT = shift?.startTime ?? "09:00";
-          const endT = shift?.endTime ?? "17:00";
-          const grace = shift?.gracePeriodMinutes ?? 15;
-          return { schedule: s, shift, site, empRow, emp, startT, endT, grace };
-        })
-      );
+              .where(inArray(users.id, userIdsNeeded))
+          : Promise.resolve([] as { id: number; name: string | null; email: string | null; avatarUrl: string | null }[]),
+      ]);
+
+      const todayShiftById = new Map(todayShiftRows.map((s) => [s.id, s]));
+      const todaySiteById = new Map(todaySiteRows.map((s) => [s.id, s]));
+      const todayUserById = new Map(todayUserRows.map((u) => [u.id, u]));
+
+      const drafts: Draft[] = todaySchedules.map((s, i) => {
+        const shift = todayShiftById.get(s.shiftTemplateId);
+        const site = todaySiteById.get(s.siteId);
+        const empRow = empRowsForToday[i];
+        const emp = empRow?.userId != null ? (todayUserById.get(empRow.userId) ?? null) : null;
+        const startT = shift?.startTime ?? "09:00";
+        const endT = shift?.endTime ?? "17:00";
+        const grace = shift?.gracePeriodMinutes ?? 15;
+        return { schedule: s, shift, site, empRow, emp, startT, endT, grace };
+      });
 
       const recordsByEmployeeId = new Map<number, (typeof allRecords)[number][]>();
       for (const r of allRecords) {

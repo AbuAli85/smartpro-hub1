@@ -1,5 +1,6 @@
 import { trpc } from "@/lib/trpc";
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Link } from "wouter";
 import {
   Users, Plus, Search, Phone, Mail, Building2, TrendingUp, DollarSign,
@@ -600,6 +601,7 @@ function ContactDetailPanel({ contactId, onClose, companyId }: { contactId: numb
 }
 
 export default function CRMPage() {
+  const { t } = useTranslation("common");
   const { activeCompanyId } = useActiveCompany();
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");

@@ -61,6 +61,7 @@ function getInitials(first: string, last: string) {
 
 // ─── Profile Completeness Badge ───────────────────────────────────────────────
 function CompletenessBadge({ score, missingRequired }: { score: number; missingRequired: string[] }) {
+  const { t } = useTranslation("hr");
   const color = score >= 90 ? "text-emerald-600" : score >= 60 ? "text-amber-600" : "text-red-600";
   const bg    = score >= 90 ? "bg-emerald-50 border-emerald-200" : score >= 60 ? "bg-amber-50 border-amber-200" : "bg-red-50 border-red-200";
   const Icon  = score >= 90 ? CheckCircle2 : score >= 60 ? AlertCircle : Circle;
@@ -74,8 +75,8 @@ function CompletenessBadge({ score, missingRequired }: { score: number; missingR
       </TooltipTrigger>
       <TooltipContent side="top" className="max-w-[200px]">
         {missingRequired.length === 0
-          ? "Profile complete"
-          : <span>Missing: {missingRequired.slice(0, 4).join(", ")}{missingRequired.length > 4 ? ` +${missingRequired.length - 4} more` : ""}</span>
+          ? t("completeness.profileComplete")
+          : <span>{t("completeness.missing", { fields: missingRequired.slice(0, 4).join(", ") })}{missingRequired.length > 4 ? ` ${t("completeness.missingMore", { count: missingRequired.length - 4 })}` : ""}</span>
         }
       </TooltipContent>
     </Tooltip>
@@ -84,10 +85,11 @@ function CompletenessBadge({ score, missingRequired }: { score: number; missingR
 
 // ─── Doc Expiry Indicator ─────────────────────────────────────────────────────
 function DocExpiryIndicator({ emp, warnDays }: { emp: any; warnDays: number }) {
+  const { t } = useTranslation("hr");
   const checks = [
-    { label: "Visa",    date: emp.visaExpiryDate },
-    { label: "Permit",  date: emp.workPermitExpiryDate },
-    { label: "Passport",date: emp.passportExpiryDate },
+    { labelKey: "expiry.visa",    date: emp.visaExpiryDate },
+    { labelKey: "expiry.permit",  date: emp.workPermitExpiryDate },
+    { labelKey: "expiry.passport",date: emp.passportExpiryDate },
   ].filter((c) => c.date);
 
   if (checks.length === 0) return null;
@@ -108,7 +110,7 @@ function DocExpiryIndicator({ emp, warnDays }: { emp: any; warnDays: number }) {
           worst === "expired" ? "bg-red-50 text-red-700 border-red-200" : "bg-amber-50 text-amber-700 border-amber-200"
         } cursor-default`}>
           <AlertTriangle size={9} />
-          {worst === "expired" ? "Expired" : "Expiring"}
+          {worst === "expired" ? t("expiry.expired") : t("expiry.expiring")}
         </span>
       </TooltipTrigger>
       <TooltipContent side="top" className="max-w-[220px]">
@@ -116,7 +118,7 @@ function DocExpiryIndicator({ emp, warnDays }: { emp: any; warnDays: number }) {
           {checks.map((c) => {
             const s = expiryStatus(c.date, warnDays);
             if (s === "none") return null;
-            return <div key={c.label} className="text-xs">{c.label}: {expiryLabel(c.date, warnDays)}</div>;
+            return <div key={c.labelKey} className="text-xs">{t(c.labelKey)}: {expiryLabel(c.date, warnDays)}</div>;
           })}
         </div>
       </TooltipContent>
@@ -776,7 +778,7 @@ export default function HREmployeesPage() {
     { label: t("workforce.active"),     value: stats?.active ?? 0,               color: "bg-emerald-500", icon: UserCheck },
     { label: t("workforce.onLeave"),    value: stats?.onLeave ?? 0,              color: "bg-amber-500",   icon: Clock },
     { label: t("omanEmployee"),         value: stats?.omani ?? 0,                color: "bg-green-600",   icon: Shield },
-    { label: "Omanisation Rate",        value: `${stats?.omanisationRate ?? 0}%`,color: "bg-teal-500",    icon: BarChart3 },
+    { label: t("employees.kpi.omanisationRate"), value: `${stats?.omanisationRate ?? 0}%`,color: "bg-teal-500",    icon: BarChart3 },
     { label: t("salary"),               value: stats?.avgSalary ? stats.avgSalary.toFixed(3) : "0.000", color: "bg-[var(--smartpro-orange)]", icon: DollarSign },
   ];
 
@@ -807,7 +809,12 @@ export default function HREmployeesPage() {
               </div>
             </div>
             <div className="flex flex-wrap gap-2 mt-2">
-              {["Labour Law Compliant", "Omanisation Quota", "WPS Ready", "PASI Integrated"].map((tag, i) => (
+              {([
+              t("employees.tags.labourLaw"),
+              t("employees.tags.omanisation"),
+              t("employees.tags.wps"),
+              t("employees.tags.pasi"),
+            ] as string[]).map((tag, i) => (
                 <span key={tag} className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-semibold border ${
                   i === 0 ? "bg-orange-50 text-orange-700 border-orange-200" : i === 1 ? "bg-green-50 text-green-700 border-green-200" : i === 2 ? "bg-blue-50 text-blue-700 border-blue-200" : "bg-violet-50 text-violet-700 border-violet-200"
                 }`}>{tag}</span>
@@ -822,7 +829,7 @@ export default function HREmployeesPage() {
                 className="h-8 text-xs gap-1.5 border-amber-300 text-amber-700 hover:bg-amber-50"
                 onClick={() => setCompletenessFilter("incomplete")}
               >
-                <AlertTriangle size={12} /> {needsAttention} Need Attention
+                <AlertTriangle size={12} /> {t("employees.needsAttention", { count: needsAttention })}
               </Button>
             )}
             <AddEmployeeWizard onSuccess={refetch} companyId={activeCompanyId} />
@@ -853,21 +860,21 @@ export default function HREmployeesPage() {
         {stats && stats.active > 0 && (
           <div className="p-4 bg-card border rounded-xl">
             <div className="flex items-center justify-between mb-3">
-              <p className="text-sm font-semibold">Omanisation Progress</p>
-              <span className="text-xs text-muted-foreground">Omanisation Target: 35%</span>
+              <p className="text-sm font-semibold">{t("employees.omanisation.title")}</p>
+              <span className="text-xs text-muted-foreground">{t("employees.omanisation.target")}</span>
             </div>
             <div className="w-full bg-muted rounded-full h-3">
               <div className={`h-3 rounded-full transition-all ${stats.omanisationRate >= 35 ? "bg-emerald-500" : stats.omanisationRate >= 20 ? "bg-amber-500" : "bg-red-500"}`} style={{ width: `${Math.min(stats.omanisationRate, 100)}%` }} />
             </div>
             <div className="flex justify-between mt-2 text-xs text-muted-foreground">
-              <span>{stats.omani} Omani nationals</span>
+              <span>{t("employees.omanisation.omaniNationals", { count: stats.omani })}</span>
               <span className={`font-semibold ${stats.omanisationRate >= 35 ? "text-emerald-600" : "text-amber-600"}`}>{stats.omanisationRate}%</span>
-              <span>{stats.expat} expatriates</span>
+              <span>{t("employees.omanisation.expatriates", { count: stats.expat })}</span>
             </div>
             {stats.omanisationRate < 35 && (
               <div className="mt-2 flex items-center gap-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-2">
                 <AlertTriangle size={12} />
-                <span>Below Omanisation target. Consider hiring {Math.ceil(stats.active * 0.35) - stats.omani} more Omani nationals.</span>
+                <span>{t("employees.omanisation.belowTarget", { count: Math.ceil(stats.active * 0.35) - stats.omani })}</span>
               </div>
             )}
           </div>
@@ -877,10 +884,10 @@ export default function HREmployeesPage() {
         <Tabs defaultValue="employees">
           <TabsList>
             <TabsTrigger value="employees">
-              All Employees
+              {t("employees.tabs.allEmployees")}
               {employees && <span className="ml-1.5 bg-muted text-muted-foreground rounded-full px-1.5 py-0.5 text-[10px]">{employees.length}</span>}
             </TabsTrigger>
-            <TabsTrigger value="departments">By Department</TabsTrigger>
+            <TabsTrigger value="departments">{t("employees.tabs.byDepartment")}</TabsTrigger>
           </TabsList>
 
           <TabsContent value="employees" className="space-y-4 mt-4">
@@ -888,33 +895,33 @@ export default function HREmployeesPage() {
             <div className="flex flex-wrap gap-3">
               <div className="relative flex-1 min-w-48">
                 <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                <Input placeholder="Search name, role, department, nationality, emp#..." className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
+                <Input placeholder={t("filters.searchEmployees")} className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
                 {search && <button className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" onClick={() => setSearch("")}><X size={14} /></button>}
               </div>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-36"><SelectValue placeholder="All Status" /></SelectTrigger>
+                <SelectTrigger className="w-36"><SelectValue placeholder={t("filters.allStatus")} /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="active">Active</SelectItem>
-                  <SelectItem value="on_leave">On Leave</SelectItem>
-                  <SelectItem value="terminated">Terminated</SelectItem>
-                  <SelectItem value="resigned">Resigned</SelectItem>
+                  <SelectItem value="all">{t("filters.allStatus")}</SelectItem>
+                  <SelectItem value="active">{t("filters.statusActive")}</SelectItem>
+                  <SelectItem value="on_leave">{t("filters.statusOnLeave")}</SelectItem>
+                  <SelectItem value="terminated">{t("filters.statusTerminated")}</SelectItem>
+                  <SelectItem value="resigned">{t("filters.statusResigned")}</SelectItem>
                 </SelectContent>
               </Select>
               <Select value={deptFilter} onValueChange={setDeptFilter}>
-                <SelectTrigger className="w-44"><SelectValue placeholder="All Departments" /></SelectTrigger>
+                <SelectTrigger className="w-44"><SelectValue placeholder={t("filters.allDepartments")} /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Departments</SelectItem>
+                  <SelectItem value="all">{t("filters.allDepartments")}</SelectItem>
                   {(departments as any[] ?? []).map((d) => <SelectItem key={d.id} value={d.name}>{d.name}</SelectItem>)}
                 </SelectContent>
               </Select>
               <Select value={completenessFilter} onValueChange={setCompletenessFilter}>
-                <SelectTrigger className="w-44"><SelectValue placeholder="Profile Status" /></SelectTrigger>
+                <SelectTrigger className="w-44"><SelectValue placeholder={t("filters.profileStatus")} /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Profiles</SelectItem>
-                  <SelectItem value="complete">Complete (≥90%)</SelectItem>
-                  <SelectItem value="partial">Partial (60–89%)</SelectItem>
-                  <SelectItem value="incomplete">Needs Attention (&lt;60%)</SelectItem>
+                  <SelectItem value="all">{t("filters.allProfiles")}</SelectItem>
+                  <SelectItem value="complete">{t("filters.profileComplete")}</SelectItem>
+                  <SelectItem value="partial">{t("filters.profilePartial")}</SelectItem>
+                  <SelectItem value="incomplete">{t("filters.profileIncomplete")}</SelectItem>
                 </SelectContent>
               </Select>
               <Select value={`${sortBy}-${sortDir}`} onValueChange={(v) => {
@@ -924,56 +931,56 @@ export default function HREmployeesPage() {
               }}>
                 <SelectTrigger className="w-44 gap-1.5">
                   <ArrowUpDown size={13} className="text-muted-foreground" />
-                  <SelectValue placeholder="Sort by" />
+                  <SelectValue placeholder={t("common:sort.sortBy", { defaultValue: "" })} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="name-asc">Name A→Z</SelectItem>
-                  <SelectItem value="name-desc">Name Z→A</SelectItem>
-                  <SelectItem value="completeness-asc">Profile % Low→High</SelectItem>
-                  <SelectItem value="completeness-desc">Profile % High→Low</SelectItem>
-                  <SelectItem value="hireDate-asc">Hire Date Oldest</SelectItem>
-                  <SelectItem value="hireDate-desc">Hire Date Newest</SelectItem>
-                  <SelectItem value="salary-desc">Salary High→Low</SelectItem>
-                  <SelectItem value="salary-asc">Salary Low→High</SelectItem>
+                  <SelectItem value="name-asc">{t("common:sort.nameAsc")}</SelectItem>
+                  <SelectItem value="name-desc">{t("common:sort.nameDesc")}</SelectItem>
+                  <SelectItem value="completeness-asc">{t("common:sort.profileAsc")}</SelectItem>
+                  <SelectItem value="completeness-desc">{t("common:sort.profileDesc")}</SelectItem>
+                  <SelectItem value="hireDate-asc">{t("common:sort.hireAsc")}</SelectItem>
+                  <SelectItem value="hireDate-desc">{t("common:sort.hireDesc")}</SelectItem>
+                  <SelectItem value="salary-desc">{t("common:sort.salaryDesc")}</SelectItem>
+                  <SelectItem value="salary-asc">{t("common:sort.salaryAsc")}</SelectItem>
                 </SelectContent>
               </Select>
               {(search || statusFilter !== "active" || deptFilter !== "all" || completenessFilter !== "all") && (
                 <Button variant="ghost" size="sm" className="h-10 text-xs gap-1 text-muted-foreground" onClick={() => { setSearch(""); setStatusFilter("active"); setDeptFilter("all"); setCompletenessFilter("all"); }}>
-                  <X size={12} /> Clear filters
+                  <X size={12} /> {t("common:filter.clearFilters")}
                 </Button>
               )}
             </div>
 
             {/* Result count */}
             {(search || completenessFilter !== "all") && (
-              <p className="text-xs text-muted-foreground">Showing {filtered.length} of {employees?.length ?? 0} employees</p>
+              <p className="text-xs text-muted-foreground">{t("employees.showingOf", { count: filtered.length, total: employees?.length ?? 0 })}</p>
             )}
 
             {/* Bulk Action Toolbar */}
             {selectedIds.size > 0 && (
               <div className="flex items-center gap-3 px-4 py-2 bg-orange-50 border border-orange-200 rounded-xl">
-                <span className="text-xs font-semibold text-orange-800">{selectedIds.size} selected</span>
+                <span className="text-xs font-semibold text-orange-800">{t("employees.bulk.selected", { count: selectedIds.size })}</span>
                 <div className="flex items-center gap-2 ml-2">
                   <Dialog open={bulkDeptOpen} onOpenChange={setBulkDeptOpen}>
                     <DialogTrigger asChild>
                       <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5 border-orange-300 text-orange-700 hover:bg-orange-100">
-                        <Layers size={12} /> Assign Department
+                        <Layers size={12} /> {t("employees.bulk.assignDept")}
                       </Button>
                     </DialogTrigger>
                     <DialogContent className="max-w-sm">
-                      <DialogHeader><DialogTitle>Assign Department</DialogTitle></DialogHeader>
-                      <p className="text-xs text-muted-foreground mb-3">Assign {selectedIds.size} employee(s) to a department.</p>
+                      <DialogHeader><DialogTitle>{t("employees.bulk.assignDeptTitle")}</DialogTitle></DialogHeader>
+                      <p className="text-xs text-muted-foreground mb-3">{t("employees.bulk.assignDeptDesc", { count: selectedIds.size })}</p>
                       <Select value={bulkDeptValue} onValueChange={setBulkDeptValue}>
-                        <SelectTrigger><SelectValue placeholder="Select department" /></SelectTrigger>
+                        <SelectTrigger><SelectValue placeholder={t("filters.selectDepartment")} /></SelectTrigger>
                         <SelectContent>
                           {(departments as any[] ?? []).map((d: any) => <SelectItem key={d.id} value={d.name}>{d.name}</SelectItem>)}
                         </SelectContent>
                       </Select>
                       <div className="flex gap-2 justify-end mt-3">
-                        <Button variant="ghost" size="sm" onClick={() => setBulkDeptOpen(false)}>Cancel</Button>
+                        <Button variant="ghost" size="sm" onClick={() => setBulkDeptOpen(false)}>{t("employees.bulk.cancel")}</Button>
                         <Button size="sm" className="bg-[var(--smartpro-orange)] text-white hover:bg-orange-600" disabled={!bulkDeptValue || bulkAssignMutation.isPending}
                           onClick={() => bulkAssignMutation.mutate({ employeeIds: Array.from(selectedIds), departmentName: bulkDeptValue, companyId: activeCompanyId ?? undefined })}>
-                          {bulkAssignMutation.isPending ? "Assigning..." : "Assign"}
+                          {bulkAssignMutation.isPending ? t("employees.bulk.assigning") : t("employees.bulk.assign")}
                         </Button>
                       </div>
                     </DialogContent>
@@ -981,34 +988,34 @@ export default function HREmployeesPage() {
                   <Dialog open={bulkPositionOpen} onOpenChange={setBulkPositionOpen}>
                     <DialogTrigger asChild>
                       <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5 border-orange-300 text-orange-700 hover:bg-orange-100">
-                        <UserCog size={12} /> Update Position
+                        <UserCog size={12} /> {t("employees.bulk.updatePosition")}
                       </Button>
                     </DialogTrigger>
                     <DialogContent className="max-w-sm">
-                      <DialogHeader><DialogTitle>Update Position</DialogTitle></DialogHeader>
-                      <p className="text-xs text-muted-foreground mb-3">Set position/job title for {selectedIds.size} employee(s).</p>
-                      <Input placeholder="Enter position title..." value={bulkPositionValue} onChange={(e) => setBulkPositionValue(e.target.value)} />
+                      <DialogHeader><DialogTitle>{t("employees.bulk.updatePositionTitle")}</DialogTitle></DialogHeader>
+                      <p className="text-xs text-muted-foreground mb-3">{t("employees.bulk.updatePositionDesc", { count: selectedIds.size })}</p>
+                      <Input placeholder={t("employees.bulk.positionPlaceholder")} value={bulkPositionValue} onChange={(e) => setBulkPositionValue(e.target.value)} />
                       <div className="flex gap-2 justify-end mt-3">
-                        <Button variant="ghost" size="sm" onClick={() => setBulkPositionOpen(false)}>Cancel</Button>
+                        <Button variant="ghost" size="sm" onClick={() => setBulkPositionOpen(false)}>{t("employees.bulk.cancel")}</Button>
                         <Button size="sm" className="bg-[var(--smartpro-orange)] text-white hover:bg-orange-600" disabled={!bulkPositionValue || bulkUpdatePosMutation.isPending}
                           onClick={async () => {
                             const ids = Array.from(selectedIds);
                             await Promise.all(ids.map((id) => bulkUpdatePosMutation.mutateAsync({ id, companyId: activeCompanyId ?? undefined, position: bulkPositionValue })));
                             refetch(); setSelectedIds(new Set()); setBulkPositionOpen(false); setBulkPositionValue("");
-                            toast.success(`Position updated for ${ids.length} employee(s)`);
+                            toast.success(t("employees.bulk.positionUpdated", { count: ids.length }));
                           }}>
-                          {bulkUpdatePosMutation.isPending ? "Updating..." : "Update"}
+                          {bulkUpdatePosMutation.isPending ? t("employees.bulk.updating") : t("employees.bulk.update")}
                         </Button>
                       </div>
                     </DialogContent>
                   </Dialog>
                   <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5 border-orange-300 text-orange-700 hover:bg-orange-100"
-                    onClick={() => { toast.success(`Reminder sent to ${selectedIds.size} employee(s)`); setSelectedIds(new Set()); }}>
-                    <Send size={12} /> Send Reminder
+                    onClick={() => { toast.success(t("employees.bulk.reminderSent", { count: selectedIds.size })); setSelectedIds(new Set()); }}>
+                    <Send size={12} /> {t("employees.bulk.sendReminder")}
                   </Button>
                 </div>
                 <Button size="sm" variant="ghost" className="ml-auto h-7 text-xs text-muted-foreground" onClick={() => setSelectedIds(new Set())}>
-                  <X size={12} /> Clear
+                  <X size={12} /> {t("employees.bulk.clearSelection")}
                 </Button>
               </div>
             )}
@@ -1025,17 +1032,17 @@ export default function HREmployeesPage() {
                             if (checked) setSelectedIds(new Set(filtered.map((e) => e.id)));
                             else setSelectedIds(new Set());
                           }}
-                          aria-label="Select all"
+                          aria-label={t("common:table.selectAll")}
                         />
                       </th>
-                      <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">Employee</th>
-                      <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">Role</th>
-                      <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">Department</th>
-                      <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">Nationality</th>
-                      <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">Status</th>
-                      <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">Profile</th>
-                      <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">Salary</th>
-                      <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">Hire Date</th>
+                      <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">{t("common:table.employee")}</th>
+                      <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">{t("common:table.role")}</th>
+                      <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">{t("common:table.department")}</th>
+                      <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">{t("common:table.nationality")}</th>
+                      <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">{t("common:table.status")}</th>
+                      <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">{t("common:table.profile")}</th>
+                      <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">{t("common:table.salary")}</th>
+                      <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">{t("common:table.hireDate")}</th>
                       <th scope="col" className="px-4 py-3 w-10"></th>
                     </tr>
                   </thead>
@@ -1070,8 +1077,8 @@ export default function HREmployeesPage() {
                     {!employeesLoading && filtered.length === 0 && (
                       <tr><td colSpan={10} className="text-center py-12 text-muted-foreground">
                         <Users size={32} className="mx-auto mb-2 opacity-30" />
-                        <p>No employees found</p>
-                        <p className="text-xs mt-1">{search ? "Try adjusting your search or filters" : "Add your first employee using the button above"}</p>
+                        <p>{t("employees.noEmployees")}</p>
+                        <p className="text-xs mt-1">{search ? t("employees.noEmployeesSearch") : t("employees.noEmployeesFirst")}</p>
                       </td></tr>
                     )}
                     {filtered.map((emp) => {
@@ -1141,17 +1148,17 @@ export default function HREmployeesPage() {
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end" className="w-48">
                                 <DropdownMenuItem onClick={() => setSelectedId(emp.id)}>
-                                  <Eye size={13} className="mr-2" /> Quick View
+                                  <Eye size={13} className="mr-2" /> {t("employees.actions.quickView")}
                                 </DropdownMenuItem>
                                 <DropdownMenuItem onClick={() => setLocation(`/business/employee/${emp.id}`)}>
-                                  <Activity size={13} className="mr-2" /> Full Lifecycle Profile
+                                  <Activity size={13} className="mr-2" /> {t("employees.actions.fullProfile")}
                                 </DropdownMenuItem>
                                 <DropdownMenuItem onClick={() => setLocation(`/employee/${emp.id}/documents`)}>
-                                  <FileBadge size={13} className="mr-2" /> Documents
+                                  <FileBadge size={13} className="mr-2" /> {t("employees.actions.documents")}
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem onClick={() => setLocation(`/hr/org-chart`)}>
-                                  <Building2 size={13} className="mr-2" /> Org Chart
+                                  <Building2 size={13} className="mr-2" /> {t("employees.actions.orgChart")}
                                 </DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
@@ -1185,11 +1192,11 @@ export default function HREmployeesPage() {
                           <span className="text-2xl font-black text-foreground">{deptEmps.length}</span>
                         </div>
                         <div className="space-y-2 text-xs text-muted-foreground">
-                          <div className="flex justify-between"><span>Omani nationals</span><span className="font-medium text-green-700">{omani.length} ({deptEmps.length > 0 ? Math.round((omani.length / deptEmps.length) * 100) : 0}%)</span></div>
-                          <div className="flex justify-between"><span>Monthly payroll</span><span className="font-medium">OMR {totalPayroll.toFixed(3)}</span></div>
+                          <div className="flex justify-between"><span>{t("employees.departments.omaniNationals")}</span><span className="font-medium text-green-700">{omani.length} ({deptEmps.length > 0 ? Math.round((omani.length / deptEmps.length) * 100) : 0}%)</span></div>
+                          <div className="flex justify-between"><span>{t("employees.departments.monthlyPayroll")}</span><span className="font-medium">OMR {totalPayroll.toFixed(3)}</span></div>
                           {deptEmps.length > 0 && (
                             <div className="flex justify-between items-center">
-                              <span>Avg profile completeness</span>
+                              <span>{t("employees.departments.avgProfileCompleteness")}</span>
                               <span className={`font-semibold ${avgCompleteness >= 90 ? "text-emerald-600" : avgCompleteness >= 60 ? "text-amber-600" : "text-red-600"}`}>{avgCompleteness}%</span>
                             </div>
                           )}
@@ -1210,8 +1217,8 @@ export default function HREmployeesPage() {
             ) : (
               <Card className="border-dashed"><CardContent className="p-12 text-center">
                 <Building2 size={40} className="mx-auto text-muted-foreground mb-3 opacity-30" />
-                <h3 className="font-semibold">No departments yet</h3>
-                <p className="text-sm text-muted-foreground">Go to Departments &amp; Positions to create departments, then assign employees.</p>
+                <h3 className="font-semibold">{t("employees.departments.noDepts")}</h3>
+                <p className="text-sm text-muted-foreground">{t("employees.departments.noDeptsDesc")}</p>
               </CardContent></Card>
             )}
           </TabsContent>

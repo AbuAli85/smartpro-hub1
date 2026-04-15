@@ -1128,10 +1128,10 @@ function CorrectionRequests({ companyId }: { companyId: number | null }) {
         <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as typeof statusFilter)}>
           <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="pending">Pending</SelectItem>
-            <SelectItem value="approved">Approved</SelectItem>
-            <SelectItem value="rejected">Rejected</SelectItem>
-            <SelectItem value="all">All</SelectItem>
+            <SelectItem value="pending">{t("filters.pending")}</SelectItem>
+            <SelectItem value="approved">{t("filters.approved")}</SelectItem>
+            <SelectItem value="rejected">{t("filters.rejected")}</SelectItem>
+            <SelectItem value="all">{t("filters.all")}</SelectItem>
           </SelectContent>
         </Select>
         <Button variant="outline" size="sm" onClick={() => refetch()}><RefreshCw className="h-3.5 w-3.5 mr-1.5" /> {t("attendance.filters.refresh")}</Button>
@@ -1145,7 +1145,7 @@ function CorrectionRequests({ companyId }: { companyId: number | null }) {
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-medium">{employee ? `${employee.firstName} ${employee.lastName}` : "Unknown"}</span>
+                    <span className="font-medium">{employee ? `${employee.firstName} ${employee.lastName}` : "?"}</span>
                     {employee?.position && <span className="text-xs text-muted-foreground">{employee.position}</span>}
                     {correction.status === "pending" ? <Badge variant="outline" className="border-yellow-300 text-yellow-700 bg-yellow-50">{t("attendance.corrections.pending")}</Badge>
                       : correction.status === "approved" ? <Badge variant="outline" className="border-green-300 text-green-700 bg-green-50">{t("attendance.corrections.approved")}</Badge>
@@ -1263,10 +1263,10 @@ function ManualCheckInRequests({ companyId }: { companyId: number | null }) {
         <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as typeof statusFilter)}>
           <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="pending">Pending</SelectItem>
-            <SelectItem value="approved">Approved</SelectItem>
-            <SelectItem value="rejected">Rejected</SelectItem>
-            <SelectItem value="all">All</SelectItem>
+            <SelectItem value="pending">{t("filters.pending")}</SelectItem>
+            <SelectItem value="approved">{t("filters.approved")}</SelectItem>
+            <SelectItem value="rejected">{t("filters.rejected")}</SelectItem>
+            <SelectItem value="all">{t("filters.all")}</SelectItem>
           </SelectContent>
         </Select>
         <Button variant="outline" size="sm" onClick={() => refetch()}><RefreshCw className="h-3.5 w-3.5 mr-1.5" /> {t("attendance.filters.refresh")}</Button>
@@ -1286,9 +1286,9 @@ function ManualCheckInRequests({ companyId }: { companyId: number | null }) {
                         : `User #${req.employeeUserId}`}
                     </span>
                     {site?.name && <span className="text-xs text-muted-foreground">@ {site.name}</span>}
-                    {req.status === "pending" ? <Badge variant="outline" className="border-yellow-300 text-yellow-700 bg-yellow-50">Pending</Badge>
-                      : req.status === "approved" ? <Badge variant="outline" className="border-green-300 text-green-700 bg-green-50">Approved</Badge>
-                      : <Badge variant="outline" className="border-red-300 text-red-700 bg-red-50">Rejected</Badge>}
+                    {req.status === "pending" ? <Badge variant="outline" className="border-yellow-300 text-yellow-700 bg-yellow-50">{t("filters.pending")}</Badge>
+                      : req.status === "approved" ? <Badge variant="outline" className="border-green-300 text-green-700 bg-green-50">{t("filters.approved")}</Badge>
+                      : <Badge variant="outline" className="border-red-300 text-red-700 bg-red-50">{t("filters.rejected")}</Badge>}
                   </div>
                   <div className="mt-1.5 text-sm text-muted-foreground space-y-0.5">
                     <div><span className="font-medium text-foreground">{t("attendance.manualCheckins.justificationLabel")}</span> {req.justification}</div>
@@ -1882,7 +1882,7 @@ export default function HRAttendancePage() {
                       <span className="text-sm font-medium">
                         {(() => {
                           const e = empById.get(r.employeeId ?? 0);
-                          return e ? `${e.firstName} ${e.lastName}`.trim() : `Employee #${r.employeeId}`;
+                          return e ? `${e.firstName} ${e.lastName}`.trim() : t("attendance.records.employeeFallback", { id: r.employeeId });
                         })()}
                       </span>
                     </div>
@@ -1939,7 +1939,7 @@ export default function HRAttendancePage() {
                         <td className="py-2 px-3 font-medium">
                           {(() => {
                             const e = empById.get(r.employeeId ?? 0);
-                            return e ? `${e.firstName} ${e.lastName}`.trim() : `Employee #${r.employeeId}`;
+                            return e ? `${e.firstName} ${e.lastName}`.trim() : t("attendance.records.employeeFallback", { id: r.employeeId });
                           })()}
                         </td>
                         <td className="py-2 px-3 text-muted-foreground">

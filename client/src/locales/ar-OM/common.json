@@ -149,6 +149,48 @@
     "ar": "العربية",
     "switchTo": "التبديل إلى {{lang}}"
   },
+  "sort": {
+    "sortBy": "ترتيب حسب",
+    "nameAsc": "الاسم أ←ي",
+    "nameDesc": "الاسم ي←أ",
+    "dateAsc": "التاريخ الأقدم←الأحدث",
+    "dateDesc": "التاريخ الأحدث←الأقدم",
+    "hireAsc": "تاريخ التعيين الأقدم",
+    "hireDesc": "تاريخ التعيين الأحدث",
+    "salaryAsc": "الراتب الأقل←الأعلى",
+    "salaryDesc": "الراتب الأعلى←الأقل",
+    "profileAsc": "اكتمال الملف الأقل←الأعلى",
+    "profileDesc": "اكتمال الملف الأعلى←الأقل"
+  },
+
+  "table": {
+    "employee": "الموظف",
+    "role": "الدور",
+    "department": "القسم",
+    "nationality": "الجنسية",
+    "status": "الحالة",
+    "profile": "الملف",
+    "salary": "الراتب",
+    "hireDate": "تاريخ التعيين",
+    "period": "الفترة",
+    "basic": "الأساسي",
+    "allowances": "البدلات",
+    "deductions": "الخصومات",
+    "netSalary": "صافي الراتب",
+    "score": "الدرجة",
+    "actions": "الإجراءات",
+    "selectAll": "تحديد الكل"
+  },
+
+  "filter": {
+    "clearFilters": "مسح الفلاتر",
+    "allStatuses": "جميع الحالات",
+    "allDepartments": "جميع الأقسام",
+    "allTypes": "جميع الأنواع",
+    "allProfiles": "جميع الملفات",
+    "showing": "عرض {{count}} من {{total}} {{entity}}"
+  },
+
   "all": "الكل",
   "viewAll": "عرض الكل",
   "pdfReports": "تقارير PDF",

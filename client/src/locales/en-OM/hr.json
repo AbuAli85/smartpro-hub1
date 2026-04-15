@@ -414,7 +414,8 @@
         "hours": "Hours",
         "status": "Status",
         "notes": "Notes",
-        "actions": "Actions"
+        "actions": "Actions",
+        "employeeFallback": "Employee #{{id}}"
       }
     },
     "forceCheckoutDialog": {
@@ -902,5 +903,116 @@
     "terminated": "Terminated",
     "transferred": "Transferred",
     "retired": "Retired"
+  },
+
+  "filters": {
+    "searchEmployees": "Search name, role, department, nationality, emp#...",
+    "allStatus": "All Status",
+    "statusActive": "Active",
+    "statusOnLeave": "On Leave",
+    "statusTerminated": "Terminated",
+    "statusResigned": "Resigned",
+    "allDepartments": "All Departments",
+    "allProfiles": "All Profiles",
+    "profileComplete": "Complete (≥90%)",
+    "profilePartial": "Partial (60–89%)",
+    "profileIncomplete": "Needs Attention (<60%)",
+    "selectDepartment": "Select department",
+    "profileStatus": "Profile Status",
+    "pending": "Pending",
+    "approved": "Approved",
+    "rejected": "Rejected",
+    "all": "All",
+    "allJobs": "All Jobs"
+  },
+
+  "employees": {
+    "tabs": {
+      "allEmployees": "All Employees",
+      "byDepartment": "By Department"
+    },
+    "needsAttention": "{{count}} Need Attention",
+    "showingOf": "Showing {{count}} of {{total}} employees",
+    "noEmployees": "No employees found",
+    "noEmployeesSearch": "Try adjusting your search or filters",
+    "noEmployeesFirst": "Add your first employee using the button above",
+    "tags": {
+      "labourLaw": "Labour Law Compliant",
+      "omanisation": "Omanisation Quota",
+      "wps": "WPS Ready",
+      "pasi": "PASI Integrated"
+    },
+    "omanisation": {
+      "title": "Omanisation Progress",
+      "target": "Omanisation Target: 35%",
+      "omaniNationals": "{{count}} Omani nationals",
+      "expatriates": "{{count}} expatriates",
+      "belowTarget": "Below Omanisation target. Consider hiring {{count}} more Omani nationals."
+    },
+    "departments": {
+      "omaniNationals": "Omani nationals",
+      "monthlyPayroll": "Monthly payroll",
+      "avgProfileCompleteness": "Avg profile completeness",
+      "noDepts": "No departments yet",
+      "noDeptsDesc": "Go to Departments & Positions to create departments, then assign employees."
+    },
+    "bulk": {
+      "selected": "{{count}} selected",
+      "assignDept": "Assign Department",
+      "assignDeptTitle": "Assign Department",
+      "assignDeptDesc": "Assign {{count}} employee(s) to a department.",
+      "updatePosition": "Update Position",
+      "updatePositionTitle": "Update Position",
+      "updatePositionDesc": "Set position/job title for {{count}} employee(s).",
+      "positionPlaceholder": "Enter position title...",
+      "sendReminder": "Send Reminder",
+      "reminderSent": "Reminder sent to {{count}} employee(s)",
+      "clearSelection": "Clear",
+      "cancel": "Cancel",
+      "assigning": "Assigning...",
+      "assign": "Assign",
+      "updating": "Updating...",
+      "update": "Update",
+      "positionUpdated": "Position updated for {{count}} employee(s)"
+    },
+    "actions": {
+      "quickView": "Quick View",
+      "fullProfile": "Full Lifecycle Profile",
+      "documents": "Documents",
+      "orgChart": "Org Chart"
+    },
+    "kpi": {
+      "omanisationRate": "Omanisation Rate"
+    }
+  },
+
+  "expiry": {
+    "expired": "Expired",
+    "expiring": "Expiring",
+    "visa": "Visa",
+    "permit": "Permit",
+    "passport": "Passport"
+  },
+
+  "completeness": {
+    "profileComplete": "Profile complete",
+    "missing": "Missing: {{fields}}",
+    "missingMore": "+{{count}} more"
+  },
+
+  "payroll": {
+    "tableEmployee": "Employee",
+    "tablePeriod": "Period",
+    "tableBasic": "Basic",
+    "tableAllowances": "Allowances",
+    "tableDeductions": "Deductions",
+    "tableNetSalary": "Net Salary",
+    "tableStatus": "Status",
+    "noRecords": "No payroll records yet",
+    "createFirst": "Create First Payroll Record",
+    "employeeFallback": "Employee #{{id}}",
+    "statusPaid": "Paid",
+    "statusApproved": "Approved",
+    "statusPending": "Pending"
   }
 }

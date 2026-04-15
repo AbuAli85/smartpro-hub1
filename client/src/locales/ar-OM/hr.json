@@ -414,7 +414,8 @@
         "hours": "الساعات",
         "status": "الحالة",
         "notes": "الملاحظات",
-        "actions": "الإجراءات"
+        "actions": "الإجراءات",
+        "employeeFallback": "موظف #{{id}}"
       }
     },
     "forceCheckoutDialog": {
@@ -902,5 +903,116 @@
     "terminated": "منتهية خدمته",
     "transferred": "منقول",
     "retired": "متقاعد"
+  },
+
+  "filters": {
+    "searchEmployees": "بحث بالاسم أو الدور أو القسم أو الجنسية أو رقم الموظف...",
+    "allStatus": "جميع الحالات",
+    "statusActive": "نشط",
+    "statusOnLeave": "في إجازة",
+    "statusTerminated": "منتهية خدمته",
+    "statusResigned": "مستقيل",
+    "allDepartments": "جميع الأقسام",
+    "allProfiles": "جميع الملفات",
+    "profileComplete": "مكتمل (≥90%)",
+    "profilePartial": "جزئي (60–89%)",
+    "profileIncomplete": "يحتاج اهتماماً (<60%)",
+    "selectDepartment": "اختر قسماً",
+    "profileStatus": "حالة الملف",
+    "pending": "قيد الانتظار",
+    "approved": "موافق عليه",
+    "rejected": "مرفوض",
+    "all": "الكل",
+    "allJobs": "جميع الوظائف"
+  },
+
+  "employees": {
+    "tabs": {
+      "allEmployees": "جميع الموظفين",
+      "byDepartment": "حسب القسم"
+    },
+    "needsAttention": "{{count}} يحتاج اهتماماً",
+    "showingOf": "عرض {{count}} من {{total}} موظف",
+    "noEmployees": "لا يوجد موظفون",
+    "noEmployeesSearch": "جرّب تعديل بحثك أو الفلاتر",
+    "noEmployeesFirst": "أضف أول موظف باستخدام الزر أعلاه",
+    "tags": {
+      "labourLaw": "متوافق مع قانون العمل",
+      "omanisation": "حصة التعمين",
+      "wps": "جاهز لنظام الرواتب",
+      "pasi": "متكامل مع PASI"
+    },
+    "omanisation": {
+      "title": "تقدم التعمين",
+      "target": "هدف التعمين: 35%",
+      "omaniNationals": "{{count}} عُماني",
+      "expatriates": "{{count}} وافد",
+      "belowTarget": "أقل من هدف التعمين. فكّر في توظيف {{count}} عُماني إضافي."
+    },
+    "departments": {
+      "omaniNationals": "العُمانيون",
+      "monthlyPayroll": "الرواتب الشهرية",
+      "avgProfileCompleteness": "متوسط اكتمال الملفات",
+      "noDepts": "لا توجد أقسام بعد",
+      "noDeptsDesc": "اذهب إلى الأقسام والمناصب لإنشاء الأقسام، ثم قم بتعيين الموظفين."
+    },
+    "bulk": {
+      "selected": "{{count}} محدد",
+      "assignDept": "تعيين قسم",
+      "assignDeptTitle": "تعيين قسم",
+      "assignDeptDesc": "تعيين {{count}} موظف إلى قسم.",
+      "updatePosition": "تحديث المنصب",
+      "updatePositionTitle": "تحديث المنصب",
+      "updatePositionDesc": "تعيين المنصب / المسمى الوظيفي لـ {{count}} موظف.",
+      "positionPlaceholder": "أدخل المسمى الوظيفي...",
+      "sendReminder": "إرسال تذكير",
+      "reminderSent": "تم إرسال التذكير إلى {{count}} موظف",
+      "clearSelection": "مسح",
+      "cancel": "إلغاء",
+      "assigning": "جارٍ التعيين...",
+      "assign": "تعيين",
+      "updating": "جارٍ التحديث...",
+      "update": "تحديث",
+      "positionUpdated": "تم تحديث المنصب لـ {{count}} موظف"
+    },
+    "actions": {
+      "quickView": "عرض سريع",
+      "fullProfile": "ملف دورة الحياة الكامل",
+      "documents": "المستندات",
+      "orgChart": "الهيكل التنظيمي"
+    },
+    "kpi": {
+      "omanisationRate": "نسبة التعمين"
+    }
+  },
+
+  "expiry": {
+    "expired": "منتهي",
+    "expiring": "ينتهي قريباً",
+    "visa": "التأشيرة",
+    "permit": "تصريح العمل",
+    "passport": "جواز السفر"
+  },
+
+  "completeness": {
+    "profileComplete": "الملف مكتمل",
+    "missing": "مفقود: {{fields}}",
+    "missingMore": "+{{count}} أخرى"
+  },
+
+  "payroll": {
+    "tableEmployee": "الموظف",
+    "tablePeriod": "الفترة",
+    "tableBasic": "الأساسي",
+    "tableAllowances": "البدلات",
+    "tableDeductions": "الخصومات",
+    "tableNetSalary": "صافي الراتب",
+    "tableStatus": "الحالة",
+    "noRecords": "لا توجد سجلات رواتب بعد",
+    "createFirst": "إنشاء أول سجل رواتب",
+    "employeeFallback": "موظف #{{id}}",
+    "statusPaid": "مدفوع",
+    "statusApproved": "موافق عليه",
+    "statusPending": "قيد الانتظار"
   }
 }

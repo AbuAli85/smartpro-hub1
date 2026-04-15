@@ -687,10 +687,10 @@ export default function HRLeavePage() {
             <Card className="border-dashed">
               <CardContent className="p-10 text-center">
                 <DollarSign size={32} className="mx-auto text-muted-foreground/30 mb-3" />
-                <p className="text-sm font-medium text-muted-foreground">No payroll records yet</p>
+                <p className="text-sm font-medium text-muted-foreground">{t("payroll.noRecords")}</p>
                 {isAdmin && (
                   <Button size="sm" className="mt-3 gap-1" onClick={() => setPayrollOpen(true)}>
-                    <Plus size={13} /> Create First Payroll Record
+                    <Plus size={13} /> {t("payroll.createFirst")}
                   </Button>
                 )}
               </CardContent>
@@ -700,20 +700,20 @@ export default function HRLeavePage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-muted/50 border-b border-border">
-                    <th scope="col" className="text-left py-3 px-4 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Employee</th>
-                    <th scope="col" className="text-left py-3 px-4 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Period</th>
-                    <th scope="col" className="text-right py-3 px-4 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Basic</th>
-                    <th scope="col" className="text-right py-3 px-4 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Allowances</th>
-                    <th scope="col" className="text-right py-3 px-4 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Deductions</th>
-                    <th scope="col" className="text-right py-3 px-4 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Net Salary</th>
-                    <th scope="col" className="text-center py-3 px-4 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Status</th>
+                    <th scope="col" className="text-left py-3 px-4 text-xs font-semibold text-muted-foreground uppercase tracking-wide">{t("payroll.tableEmployee")}</th>
+                    <th scope="col" className="text-left py-3 px-4 text-xs font-semibold text-muted-foreground uppercase tracking-wide">{t("payroll.tablePeriod")}</th>
+                    <th scope="col" className="text-right py-3 px-4 text-xs font-semibold text-muted-foreground uppercase tracking-wide">{t("payroll.tableBasic")}</th>
+                    <th scope="col" className="text-right py-3 px-4 text-xs font-semibold text-muted-foreground uppercase tracking-wide">{t("payroll.tableAllowances")}</th>
+                    <th scope="col" className="text-right py-3 px-4 text-xs font-semibold text-muted-foreground uppercase tracking-wide">{t("payroll.tableDeductions")}</th>
+                    <th scope="col" className="text-right py-3 px-4 text-xs font-semibold text-muted-foreground uppercase tracking-wide">{t("payroll.tableNetSalary")}</th>
+                    <th scope="col" className="text-center py-3 px-4 text-xs font-semibold text-muted-foreground uppercase tracking-wide">{t("payroll.tableStatus")}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {payrollRecords.map((rec) => (
                     <tr key={rec.id} className="border-b border-border/60 hover:bg-muted/30 transition-colors last:border-0">
                       <td className="py-3 px-4 font-medium text-foreground">
-                        {empNames[rec.employeeId] ?? `Employee #${rec.employeeId}`}
+                        {empNames[rec.employeeId] ?? t("payroll.employeeFallback", { id: rec.employeeId })}
                       </td>
                       <td className="py-3 px-4 text-muted-foreground">
                         {new Date(2024, (rec.periodMonth ?? 1) - 1).toLocaleString("default", { month: "short" })} {rec.periodYear}
@@ -723,12 +723,12 @@ export default function HRLeavePage() {
                       <td className="py-3 px-4 text-right text-red-600">−{Number(rec.deductions ?? 0).toFixed(3)}</td>
                       <td className="py-3 px-4 text-right font-bold text-foreground">OMR {Number(rec.netSalary ?? 0).toFixed(3)}</td>
                       <td className="py-3 px-4 text-center">
-                        <Badge className={`text-[10px] capitalize ${
+                        <Badge className={`text-[10px] ${
                           rec.status === "paid" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400" :
                           rec.status === "approved" ? "bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400" :
                           "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400"
                         }`} variant="outline">
-                          {rec.status}
+                          {rec.status === "paid" ? t("payroll.statusPaid") : rec.status === "approved" ? t("payroll.statusApproved") : t("payroll.statusPending")}
                         </Badge>
                       </td>
                     </tr>

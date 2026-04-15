@@ -149,6 +149,48 @@
     "ar": "العربية",
     "switchTo": "Switch to {{lang}}"
   },
+  "sort": {
+    "sortBy": "Sort by",
+    "nameAsc": "Name A→Z",
+    "nameDesc": "Name Z→A",
+    "dateAsc": "Date Oldest→Newest",
+    "dateDesc": "Date Newest→Oldest",
+    "hireAsc": "Hire Date Oldest",
+    "hireDesc": "Hire Date Newest",
+    "salaryAsc": "Salary Low→High",
+    "salaryDesc": "Salary High→Low",
+    "profileAsc": "Profile % Low→High",
+    "profileDesc": "Profile % High→Low"
+  },
+
+  "table": {
+    "employee": "Employee",
+    "role": "Role",
+    "department": "Department",
+    "nationality": "Nationality",
+    "status": "Status",
+    "profile": "Profile",
+    "salary": "Salary",
+    "hireDate": "Hire Date",
+    "period": "Period",
+    "basic": "Basic",
+    "allowances": "Allowances",
+    "deductions": "Deductions",
+    "netSalary": "Net Salary",
+    "score": "Score",
+    "actions": "Actions",
+    "selectAll": "Select all"
+  },
+
+  "filter": {
+    "clearFilters": "Clear filters",
+    "allStatuses": "All Statuses",
+    "allDepartments": "All Departments",
+    "allTypes": "All Types",
+    "allProfiles": "All Profiles",
+    "showing": "Showing {{count}} of {{total}} {{entity}}"
+  },
+
   "all": "All",
   "viewAll": "View All",
   "pdfReports": "PDF Reports",

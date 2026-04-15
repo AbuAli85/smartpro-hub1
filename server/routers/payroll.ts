@@ -12,6 +12,7 @@ import {
   leaveRequests,
   workPermits,
   employeeDocuments,
+  kpiAchievements,
   type User,
 } from "../../drizzle/schema";
 import {
@@ -40,6 +41,7 @@ function buildPayslipHtml(params: {
   transportAllowance: number;
   otherAllowances: number;
   overtimePay: number;
+  commissionPay: number;
   grossSalary: number;
   pasiDeduction: number;
   incomeTax: number;
@@ -102,6 +104,7 @@ function buildPayslipHtml(params: {
       ${params.transportAllowance > 0 ? `<tr><td>Transport Allowance</td><td>${fmt(params.transportAllowance)}</td></tr>` : ""}
       ${params.otherAllowances > 0 ? `<tr><td>Other Allowances</td><td>${fmt(params.otherAllowances)}</td></tr>` : ""}
       ${params.overtimePay > 0 ? `<tr><td>Overtime Pay</td><td>${fmt(params.overtimePay)}</td></tr>` : ""}
+      ${params.commissionPay > 0 ? `<tr><td>KPI Commission</td><td>${fmt(params.commissionPay)}</td></tr>` : ""}
       <tr class="total-row"><td>Gross Salary</td><td>${fmt(params.grossSalary)}</td></tr>
     </table>
   </div>
@@ -239,6 +242,28 @@ export const payrollRouter = router({
           sql`${leaveRequests.startDate} >= ${monthStart}`,
           sql`${leaveRequests.startDate} <= ${monthEnd}`
         ));
+      // Fetch KPI commissions earned this period (sum per employee)
+      // kpiAchievements.employeeUserId is the USER id, not the HR employee id.
+      const kpiCommissionRows = await db
+        .select({
+          employeeUserId: kpiAchievements.employeeUserId,
+          totalCommission: sql<string>`SUM(${kpiAchievements.commissionEarned})`,
+        })
+        .from(kpiAchievements)
+        .where(
+          and(
+            eq(kpiAchievements.companyId, m.companyId),
+            eq(kpiAchievements.periodYear, input.year),
+            eq(kpiAchievements.periodMonth, input.month),
+          )
+        )
+        .groupBy(kpiAchievements.employeeUserId);
+      const commissionByUserId = new Map(
+        kpiCommissionRows.map((r) => [
+          r.employeeUserId,
+          Math.round(Number(r.totalCommission ?? 0) * 1000) / 1000,
+        ])
+      );
       // Auto-populate line items
       let totalGross = 0, totalDeductions = 0, totalNet = 0;
       for (const emp of empList) {
@@ -248,7 +273,10 @@ export const payrollRouter = router({
         const housing = config ? Number(config.housingAllowance) : 0;
         const transport = config ? Number(config.transportAllowance) : 0;
         const otherAllowances = config ? Number(config.otherAllowances) : 0;
-        const gross = basic + housing + transport + otherAllowances;
+        const commissionPay = emp.userId != null
+          ? (commissionByUserId.get(emp.userId) ?? 0)
+          : 0;
+        const gross = basic + housing + transport + otherAllowances + commissionPay;
         const isOmani = emp.nationality?.toLowerCase() === "omani" || emp.nationality?.toLowerCase() === "oman";
         const pasi = calcPasi(basic, isOmani);
         // Auto-deduct active loan monthly amount
@@ -274,6 +302,7 @@ export const payrollRouter = router({
           housingAllowance: String(Math.round(housing * 1000) / 1000),
           transportAllowance: String(Math.round(transport * 1000) / 1000),
           otherAllowances: String(Math.round(otherAllowances * 1000) / 1000),
+          commissionPay: String(Math.round(commissionPay * 1000) / 1000),
           grossSalary: String(Math.round(gross * 1000) / 1000),
           pasiDeduction: String(pasi),
           loanDeduction: String(Math.round(loanDeduction * 1000) / 1000),
@@ -306,6 +335,7 @@ export const payrollRouter = router({
       transportAllowance: z.number().optional(),
       otherAllowances: z.number().optional(),
       overtimePay: z.number().optional(),
+      commissionPay: z.number().optional(),
       loanDeduction: z.number().optional(),
       absenceDeduction: z.number().optional(),
       otherDeductions: z.number().optional(),
@@ -329,7 +359,8 @@ export const payrollRouter = router({
       const transport = input.transportAllowance ?? Number(line.transportAllowance ?? 0);
       const other = input.otherAllowances ?? Number(line.otherAllowances ?? 0);
       const overtime = input.overtimePay ?? Number(line.overtimePay ?? 0);
-      const gross = basic + housing + transport + other + overtime;
+      const commission = input.commissionPay ?? Number(line.commissionPay ?? 0);
+      const gross = basic + housing + transport + other + overtime + commission;
       const pasi = Number(line.pasiDeduction ?? 0);
       const loan = input.loanDeduction ?? Number(line.loanDeduction ?? 0);
       const absence = input.absenceDeduction ?? Number(line.absenceDeduction ?? 0);
@@ -341,6 +372,7 @@ export const payrollRouter = router({
         transportAllowance: String(transport),
         otherAllowances: String(other),
         overtimePay: String(overtime),
+        commissionPay: String(Math.round(commission * 1000) / 1000),
         grossSalary: String(Math.round(gross * 1000) / 1000),
         loanDeduction: String(loan),
         absenceDeduction: String(absence),
@@ -453,6 +485,7 @@ export const payrollRouter = router({
         transportAllowance: Number(row.line.transportAllowance ?? 0),
         otherAllowances: Number(row.line.otherAllowances ?? 0),
         overtimePay: Number(row.line.overtimePay ?? 0),
+        commissionPay: Number(row.line.commissionPay ?? 0),
         grossSalary: Number(row.line.grossSalary),
         pasiDeduction: Number(row.line.pasiDeduction ?? 0),
         incomeTax: Number(row.line.incomeTax ?? 0),

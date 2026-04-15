@@ -11,6 +11,7 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) co
 ### Deployment notes
 
 - Apply `drizzle/0049_shift_template_break_minutes.sql` before enabling the **auto-absent marking** background job (`server/jobs/markMissedShiftsAbsent.ts`). The job is gated with `DISABLE_ABSENT_MARK_JOB=1` for local opt-out.
+- **Payroll:** KPI commissions now auto-populate `commission_pay` on payroll line items. Apply `drizzle/0050_payroll_commission_pay.sql` before deploying. Existing payroll runs are not backfilled — only new runs pick up commissions.
 
 ---
 

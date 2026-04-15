@@ -1842,6 +1842,7 @@ export const payrollLineItems = mysqlTable(
     transportAllowance: decimal("transport_allowance", { precision: 12, scale: 3 }).default("0"),
     otherAllowances: decimal("other_allowances", { precision: 12, scale: 3 }).default("0"),
     overtimePay: decimal("overtime_pay", { precision: 12, scale: 3 }).default("0"),
+    commissionPay: decimal("commission_pay", { precision: 12, scale: 3 }).default("0"),
     grossSalary: decimal("gross_salary", { precision: 12, scale: 3 }).notNull(),
     pasiDeduction: decimal("pasi_deduction", { precision: 12, scale: 3 }).default("0"),
     incomeTax: decimal("income_tax", { precision: 12, scale: 3 }).default("0"),

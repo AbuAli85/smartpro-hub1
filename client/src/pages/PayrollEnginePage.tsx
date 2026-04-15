@@ -375,6 +375,14 @@ export default function PayrollEnginePage() {
                   </CardContent>
                 </Card>
               </div>
+              {runDetail?.lines?.some((l) => Number(l.line.commissionPay ?? 0) > 0) && (
+                <div className="text-sm text-muted-foreground">
+                  Total KPI commissions:{" "}
+                  <span className="font-medium text-amber-600">
+                    {fmt(runDetail.lines.reduce((s, l) => s + Number(l.line.commissionPay ?? 0), 0))}
+                  </span>
+                </div>
+              )}
 
               {/* Line Items Table */}
               <Card>
@@ -396,12 +404,25 @@ export default function PayrollEnginePage() {
                     {runDetail.lines.map(({ line, emp: employee }) => (
                       <TableRow key={line.id}>
                         <TableCell className="font-medium">
-                          {employee?.firstName} {employee?.lastName}
+                          <span className="inline-flex flex-wrap items-center gap-1">
+                            <span>{employee?.firstName} {employee?.lastName}</span>
+                            {Number(line.commissionPay ?? 0) > 0 && (
+                              <Badge variant="outline" className="text-xs ml-1 text-amber-600 border-amber-300">
+                                KPI +{fmt(Number(line.commissionPay))}
+                              </Badge>
+                            )}
+                          </span>
                           {line.ibanNumber && <p className="text-xs text-muted-foreground">{line.bankName} ••••{line.ibanNumber.slice(-4)}</p>}
                         </TableCell>
                         <TableCell>{fmt(line.basicSalary)}</TableCell>
                         <TableCell className="text-blue-700">
-                          +{fmt(Number(line.housingAllowance ?? 0) + Number(line.transportAllowance ?? 0) + Number(line.otherAllowances ?? 0) + Number(line.overtimePay ?? 0))}
+                          +{fmt(
+                            Number(line.housingAllowance ?? 0) +
+                            Number(line.transportAllowance ?? 0) +
+                            Number(line.otherAllowances ?? 0) +
+                            Number(line.overtimePay ?? 0) +
+                            Number(line.commissionPay ?? 0)
+                          )}
                         </TableCell>
                         <TableCell className="font-medium">{fmt(line.grossSalary)}</TableCell>
                         <TableCell className="text-red-600">-{fmt(line.pasiDeduction)}</TableCell>
@@ -679,6 +700,7 @@ export default function PayrollEnginePage() {
                   { key: "transportAllowance", label: "Transport Allowance" },
                   { key: "otherAllowances", label: "Other Allowances" },
                   { key: "overtimePay", label: "Overtime Pay" },
+                  { key: "commissionPay", label: "KPI Commission" },
                   { key: "loanDeduction", label: "Loan Deduction" },
                   { key: "absenceDeduction", label: "Absence Deduction" },
                   { key: "otherDeductions", label: "Other Deductions" },
@@ -714,6 +736,7 @@ export default function PayrollEnginePage() {
               transportAllowance: Number(editLine.transportAllowance ?? 0),
               otherAllowances: Number(editLine.otherAllowances ?? 0),
               overtimePay: Number(editLine.overtimePay ?? 0),
+              commissionPay: Number(editLine.commissionPay ?? 0),
               loanDeduction: Number(editLine.loanDeduction ?? 0),
               absenceDeduction: Number(editLine.absenceDeduction ?? 0),
               otherDeductions: Number(editLine.otherDeductions ?? 0),

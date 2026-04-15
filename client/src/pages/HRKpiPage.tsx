@@ -51,6 +51,8 @@ const METRIC_TYPES = [
 
 const MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
+const fmtOmr = (n: number) => `OMR ${n.toFixed(3)}`;
+
 type KpiLifecycleStatus = "draft" | "active" | "completed" | "archived" | "cancelled";
 
 function targetStatusLabel(s: string): string {
@@ -858,6 +860,11 @@ function EmployeeKpiCard({
                           Commission: OMR {Number(item.commissionEarned ?? 0).toFixed(3)}
                         </span>
                       )}
+                    </div>
+                    <div className="flex justify-end text-xs text-muted-foreground">
+                      {Number(item.commissionEarned ?? 0) > 0
+                        ? `${fmtOmr(Number(item.commissionEarned))} → payroll`
+                        : "—"}
                     </div>
                   </div>
                 );

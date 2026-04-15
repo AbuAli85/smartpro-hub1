@@ -1119,6 +1119,7 @@ export default function MyTeamPage() {
                     <th className="text-start px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">{t("myTeam.table.type")}</th>
                     <th className="text-start px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">{t("myTeam.table.status")}</th>
                     <th className="text-start px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">{t("myTeam.table.contact")}</th>
+                    <th className="text-start px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">{t("myTeam.card.documents")}</th>
                     <th className="text-start px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">{t("myTeam.card.viewFullProfile")}</th>
                     <th className="px-4 py-3" />
                   </tr>
@@ -1162,6 +1163,25 @@ export default function MyTeamPage() {
                             {m.email && <a href={`mailto:${m.email}`} onClick={(e) => e.stopPropagation()} className="text-muted-foreground hover:text-foreground"><Mail size={13} /></a>}
                             {m.phone && <a href={`tel:${m.phone}`} onClick={(e) => e.stopPropagation()} className="text-muted-foreground hover:text-foreground"><Phone size={13} /></a>}
                           </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          {(() => {
+                            const docDates = [m.visaExpiryDate, m.workPermitExpiryDate].filter(Boolean);
+                            const docStatuses = docDates.map((d: any) => expiryStatus(d, 30));
+                            const rowExpiry = docStatuses.includes("expired") ? "expired" : docStatuses.includes("expiring-soon") ? "expiring-soon" : "ok";
+                            const dotColor = rowExpiry === "expired" ? "bg-red-500" : rowExpiry === "expiring-soon" ? "bg-amber-400" : "bg-emerald-500";
+                            const dotTitle = rowExpiry === "expired" ? t("myTeam.card.docExpired") : rowExpiry === "expiring-soon" ? t("myTeam.card.docExpiringSoon") : t("myTeam.status.active");
+                            return (
+                              <div className="flex items-center gap-1.5" title={dotTitle}>
+                                <span className={`inline-block w-2.5 h-2.5 rounded-full shrink-0 ${dotColor}`} />
+                                {rowExpiry !== "ok" && (
+                                  <span className={`text-[10px] font-medium ${rowExpiry === "expired" ? "text-red-600" : "text-amber-600"}`}>
+                                    {rowExpiry === "expired" ? t("myTeam.card.docExpired") : t("myTeam.card.docExpiringSoon")}
+                                  </span>
+                                )}
+                              </div>
+                            );
+                          })()}
                         </td>
                         <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                           <Button

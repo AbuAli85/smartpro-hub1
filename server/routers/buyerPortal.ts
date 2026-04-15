@@ -71,7 +71,7 @@ export const buyerPortalRouter = router({
       if (!db) {
         return { items: [], total: 0 };
       }
-      return queryBuyerInvoicesForAccount(db as MySql2Database<typeof drizzleSchema>, buyer, {
+      return queryBuyerInvoicesForAccount(db as unknown as MySql2Database<typeof drizzleSchema>, buyer, {
         page: input.page,
         pageSize: input.pageSize,
         status: input.status,

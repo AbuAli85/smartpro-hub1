@@ -758,6 +758,11 @@ export function clientRouteAccessible(
 ): boolean {
   const path = normalizeClientPath(pathname);
 
+  // Buyer Portal routes — path allowed; API enforces customer_account membership
+  if (path === "/buyer" || path.startsWith("/buyer/")) {
+    return true;
+  }
+
   for (const opt of Array.from(OPTIONAL_NAV_HREFS)) {
     if (!hiddenOptional.has(opt)) continue;
     if (path === opt || path.startsWith(`${opt}/`)) {

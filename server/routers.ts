@@ -25,6 +25,7 @@ import { platformOpsRouter } from "./routers/platformOps";
 import { payrollRouter } from "./routers/payroll";
 import { recruitmentRouter } from "./routers/recruitment";
 import { clientPortalRouter } from "./routers/clientPortal";
+import { buyerPortalRouter } from "./routers/buyerPortal";
 import { operationsRouter } from "./routers/operations";
 import { quotationsRouter } from "./routers/quotations";
 import { slaRouter } from "./routers/sla";
@@ -101,6 +102,8 @@ export const appRouter = router({
   payroll: payrollRouter,
   recruitment: recruitmentRouter,
   clientPortal: clientPortalRouter,
+  /** Runtime gated by ENV.buyerPortalEnabled inside procedures (stable AppRouter type). */
+  buyerPortal: buyerPortalRouter,
   operations: operationsRouter,
   quotations: quotationsRouter,
   sla: slaRouter,

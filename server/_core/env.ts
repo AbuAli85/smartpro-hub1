@@ -2,6 +2,8 @@ import { isGoogleDocsServiceAccountEnvReady } from "./parseServiceAccountJson";
 
 export const ENV = {
   appId: process.env.VITE_APP_ID ?? "",
+  /** Buyer Portal API + UI scaffold (foundation). Set to "true" to enable. */
+  buyerPortalEnabled: process.env.BUYER_PORTAL_ENABLED === "true",
   cookieSecret: process.env.JWT_SECRET ?? "",
   databaseUrl: process.env.DATABASE_URL ?? "",
   oAuthServerUrl: process.env.OAUTH_SERVER_URL ?? "",

@@ -133,6 +133,67 @@ export const companyMembers = mysqlTable(
 
 export type CompanyMember = typeof companyMembers.$inferSelect;
 
+// ─── BUYER PORTAL — CUSTOMER ACCOUNTS (external buyer ↔ provider company) ─────
+
+export const customerAccountStatusEnum = mysqlEnum("customer_account_status", [
+  "draft",
+  "active",
+  "suspended",
+  "closed",
+]);
+
+export const buyerMemberRoleEnum = mysqlEnum("buyer_member_role", [
+  "buyer_admin",
+  "buyer_finance",
+  "buyer_operations",
+  "buyer_viewer",
+]);
+
+export const buyerMemberStatusEnum = mysqlEnum("buyer_member_status", ["invited", "active", "revoked"]);
+
+export const customerAccounts = mysqlTable(
+  "customer_accounts",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    providerCompanyId: int("provider_company_id").notNull(),
+    displayName: varchar("display_name", { length: 255 }).notNull(),
+    legalName: varchar("legal_name", { length: 255 }),
+    slug: varchar("slug", { length: 100 }),
+    status: customerAccountStatusEnum.notNull().default("active"),
+    country: varchar("country", { length: 10 }).default("OM"),
+    primaryContactEmail: varchar("primary_contact_email", { length: 320 }),
+    primaryContactPhone: varchar("primary_contact_phone", { length: 32 }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  },
+  (t) => [index("idx_ca_provider").on(t.providerCompanyId)],
+);
+
+export type CustomerAccount = typeof customerAccounts.$inferSelect;
+export type InsertCustomerAccount = typeof customerAccounts.$inferInsert;
+
+export const customerAccountMembers = mysqlTable(
+  "customer_account_members",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    customerAccountId: int("customer_account_id").notNull(),
+    userId: int("user_id").notNull(),
+    role: buyerMemberRoleEnum.notNull(),
+    status: buyerMemberStatusEnum.notNull().default("active"),
+    invitedAt: timestamp("invited_at"),
+    acceptedAt: timestamp("accepted_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("idx_cam_account").on(t.customerAccountId),
+    index("idx_cam_user").on(t.userId),
+    unique("uq_cam_account_user").on(t.customerAccountId, t.userId),
+  ],
+);
+
+export type CustomerAccountMember = typeof customerAccountMembers.$inferSelect;
+export type InsertCustomerAccountMember = typeof customerAccountMembers.$inferInsert;
+
 // ─── AUDIT LOGS ───────────────────────────────────────────────────────────────
 
 export const auditLogs = mysqlTable(

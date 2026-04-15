@@ -19,7 +19,7 @@ const queryClient = new QueryClient({
       // and causes noisy console errors when queries fire before the workspace is selected.
       retry: (failureCount, error) => {
         if (error instanceof TRPCClientError) {
-          const code = (error as TRPCClientError).data?.code;
+          const code = (error as TRPCClientError<any>).data?.code;
           if (code === "BAD_REQUEST" || code === "FORBIDDEN" || code === "UNAUTHORIZED" || code === "NOT_FOUND") {
             return false;
           }

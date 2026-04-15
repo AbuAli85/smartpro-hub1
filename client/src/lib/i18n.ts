@@ -137,6 +137,17 @@ i18n
       // Don't auto-detect from browser — we manage language explicitly
       order: [],
     },
+    ...(import.meta.env.DEV && {
+      // In development, surface missing keys as visible warnings so they can
+      // be caught during review rather than silently falling back to English
+      // in an Arabic context.
+      missingKeyHandler: (lngs, ns, key, fallbackValue) => {
+        console.warn(
+          `[i18n] Missing translation key — lng: ${lngs.join(", ")} | ns: ${ns} | key: ${key} | fallback: "${fallbackValue}"`,
+        );
+      },
+      saveMissing: true,
+    }),
   });
 
 // Apply language to document on init

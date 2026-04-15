@@ -1,4 +1,4 @@
-﻿import { trpc } from "@/lib/trpc";
+import { trpc } from "@/lib/trpc";
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { OverdueCheckoutsPanel } from "@/components/attendance/OverdueCheckoutsPanel";
@@ -57,37 +57,61 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { operationalIssueKey } from "@shared/attendanceOperationalIssueKeys";
 import { OperationalIssueMetaStrip } from "@/components/attendance/OperationalIssueMetaStrip";
 import { OperationalIssueHistorySheet } from "@/components/attendance/OperationalIssueHistorySheet";
-const AUDIT_ACTION_LABELS: Record<string, string> = {
+// Audit action labels are resolved with t() at render time via attendanceAuditActionLabel()
+// Keeping static fallback map for non-i18n contexts (e.g. data exports)
+const AUDIT_ACTION_LABELS_STATIC: Record<string, string> = {
   ...OPERATIONAL_TRIAGE_AUDIT_LABELS,
-  [ATTENDANCE_AUDIT_ACTION.HR_ATTENDANCE_CREATE]: "HR attendance · created",
-  [ATTENDANCE_AUDIT_ACTION.HR_ATTENDANCE_UPDATE]: "HR attendance · updated",
-  [ATTENDANCE_AUDIT_ACTION.HR_ATTENDANCE_DELETE]: "HR attendance · deleted",
-  [ATTENDANCE_AUDIT_ACTION.CORRECTION_APPROVE]: "Correction · approved",
-  [ATTENDANCE_AUDIT_ACTION.CORRECTION_REJECT]: "Correction · rejected",
-  [ATTENDANCE_AUDIT_ACTION.CORRECTION_SUBMITTED]: "Correction · submitted",
-  [ATTENDANCE_AUDIT_ACTION.MANUAL_CHECKIN_APPROVE]: "Manual check-in · approved",
-  [ATTENDANCE_AUDIT_ACTION.MANUAL_CHECKIN_REJECT]: "Manual check-in · rejected",
-  [ATTENDANCE_AUDIT_ACTION.SELF_CHECKIN_ALLOWED]: "Self check-in · allowed",
-  [ATTENDANCE_AUDIT_ACTION.SELF_CHECKIN_DENIED]: "Self check-in · denied",
+  [ATTENDANCE_AUDIT_ACTION.HR_ATTENDANCE_CREATE]: "HR attendance ? created",
+  [ATTENDANCE_AUDIT_ACTION.HR_ATTENDANCE_UPDATE]: "HR attendance ? updated",
+  [ATTENDANCE_AUDIT_ACTION.HR_ATTENDANCE_DELETE]: "HR attendance ? deleted",
+  [ATTENDANCE_AUDIT_ACTION.CORRECTION_APPROVE]: "Correction ? approved",
+  [ATTENDANCE_AUDIT_ACTION.CORRECTION_REJECT]: "Correction ? rejected",
+  [ATTENDANCE_AUDIT_ACTION.CORRECTION_SUBMITTED]: "Correction ? submitted",
+  [ATTENDANCE_AUDIT_ACTION.MANUAL_CHECKIN_APPROVE]: "Manual check-in ? approved",
+  [ATTENDANCE_AUDIT_ACTION.MANUAL_CHECKIN_REJECT]: "Manual check-in ? rejected",
+  [ATTENDANCE_AUDIT_ACTION.SELF_CHECKIN_ALLOWED]: "Self check-in ? allowed",
+  [ATTENDANCE_AUDIT_ACTION.SELF_CHECKIN_DENIED]: "Self check-in ? denied",
   [ATTENDANCE_AUDIT_ACTION.SELF_CHECKOUT]: "Self check-out",
-  [ATTENDANCE_AUDIT_ACTION.MANUAL_CHECKIN_SUBMIT]: "Manual check-in · submitted",
+  [ATTENDANCE_AUDIT_ACTION.MANUAL_CHECKIN_SUBMIT]: "Manual check-in ? submitted",
   [ATTENDANCE_AUDIT_ACTION.FORCE_CHECKOUT]: "Force checkout (HR)",
 };
 
-const AUDIT_SOURCE_LABELS: Record<string, string> = {
-  [ATTENDANCE_AUDIT_SOURCE.HR_PANEL]: "HR panel",
-  [ATTENDANCE_AUDIT_SOURCE.EMPLOYEE_PORTAL]: "Employee portal",
-  [ATTENDANCE_AUDIT_SOURCE.ADMIN_PANEL]: "Admin / HR",
-  [ATTENDANCE_AUDIT_SOURCE.SYSTEM]: "System",
+const AUDIT_ACTION_TO_I18N_KEY: Record<string, string> = {
+  [ATTENDANCE_AUDIT_ACTION.HR_ATTENDANCE_CREATE]: "attendance.auditActions.hrAttendanceCreate",
+  [ATTENDANCE_AUDIT_ACTION.HR_ATTENDANCE_UPDATE]: "attendance.auditActions.hrAttendanceUpdate",
+  [ATTENDANCE_AUDIT_ACTION.HR_ATTENDANCE_DELETE]: "attendance.auditActions.hrAttendanceDelete",
+  [ATTENDANCE_AUDIT_ACTION.CORRECTION_APPROVE]: "attendance.auditActions.correctionApprove",
+  [ATTENDANCE_AUDIT_ACTION.CORRECTION_REJECT]: "attendance.auditActions.correctionReject",
+  [ATTENDANCE_AUDIT_ACTION.CORRECTION_SUBMITTED]: "attendance.auditActions.correctionSubmitted",
+  [ATTENDANCE_AUDIT_ACTION.MANUAL_CHECKIN_APPROVE]: "attendance.auditActions.manualCheckinApprove",
+  [ATTENDANCE_AUDIT_ACTION.MANUAL_CHECKIN_REJECT]: "attendance.auditActions.manualCheckinReject",
+  [ATTENDANCE_AUDIT_ACTION.SELF_CHECKIN_ALLOWED]: "attendance.auditActions.selfCheckinAllowed",
+  [ATTENDANCE_AUDIT_ACTION.SELF_CHECKIN_DENIED]: "attendance.auditActions.selfCheckinDenied",
+  [ATTENDANCE_AUDIT_ACTION.SELF_CHECKOUT]: "attendance.auditActions.selfCheckout",
+  [ATTENDANCE_AUDIT_ACTION.MANUAL_CHECKIN_SUBMIT]: "attendance.auditActions.manualCheckinSubmit",
+  [ATTENDANCE_AUDIT_ACTION.FORCE_CHECKOUT]: "attendance.auditActions.forceCheckout",
+};
+
+const AUDIT_SOURCE_TO_I18N_KEY: Record<string, string> = {
+  [ATTENDANCE_AUDIT_SOURCE.HR_PANEL]: "attendance.auditSources.hrPanel",
+  [ATTENDANCE_AUDIT_SOURCE.EMPLOYEE_PORTAL]: "attendance.auditSources.employeePortal",
+  [ATTENDANCE_AUDIT_SOURCE.ADMIN_PANEL]: "attendance.auditSources.adminPanel",
+  [ATTENDANCE_AUDIT_SOURCE.SYSTEM]: "attendance.auditSources.system",
 };
 
 function auditActionLabel(actionType: string) {
-  return AUDIT_ACTION_LABELS[actionType] ?? actionType.replace(/_/g, " ");
+  return AUDIT_ACTION_LABELS_STATIC[actionType] ?? actionType.replace(/_/g, " ");
 }
 
 function auditSourceLabel(source: string | null | undefined) {
-  if (!source) return "—";
-  return AUDIT_SOURCE_LABELS[source] ?? source;
+  if (!source) return "?";
+  const AUDIT_SOURCE_LABELS_STATIC: Record<string, string> = {
+    [ATTENDANCE_AUDIT_SOURCE.HR_PANEL]: "HR panel",
+    [ATTENDANCE_AUDIT_SOURCE.EMPLOYEE_PORTAL]: "Employee portal",
+    [ATTENDANCE_AUDIT_SOURCE.ADMIN_PANEL]: "Admin / HR",
+    [ATTENDANCE_AUDIT_SOURCE.SYSTEM]: "System",
+  };
+  return AUDIT_SOURCE_LABELS_STATIC[source] ?? source;
 }
 
 type AuditRow = {
@@ -125,6 +149,7 @@ function AttendanceAuditLog({
   /** Persist operational lens + issue-kind filters in the page URL (same pattern as HR Performance tab). */
   persistQueryString?: boolean;
 }) {
+  const { t } = useTranslation("hr");
   const defaultTo = new Date().toISOString().slice(0, 10);
   const defaultFrom = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
   const [from, setFrom] = useState(defaultFrom);
@@ -238,7 +263,7 @@ function AttendanceAuditLog({
   });
 
   const empName = (id: number | null | undefined) => {
-    if (id == null) return "—";
+    if (id == null) return "?";
     const e = employees.find((x) => x.id === id);
     return e ? `${e.firstName} ${e.lastName}` : `Employee #${id}`;
   };
@@ -250,28 +275,28 @@ function AttendanceAuditLog({
     if (row.hrAttendanceId) parts.push(`HR row #${row.hrAttendanceId}`);
     if (row.correctionId) parts.push(`correction #${row.correctionId}`);
     if (row.manualCheckinRequestId) parts.push(`manual req #${row.manualCheckinRequestId}`);
-    return parts.length ? parts.join(" · ") : "—";
+    return parts.length ? parts.join(" ? ") : "?";
   };
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-end gap-3">
         <div className="space-y-1">
-          <Label className="text-xs text-muted-foreground">From</Label>
+          <Label className="text-xs text-muted-foreground">{t("attendance.filters.from")}</Label>
           <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="h-8 text-sm w-[150px]" />
         </div>
         <div className="space-y-1">
-          <Label className="text-xs text-muted-foreground">To</Label>
+          <Label className="text-xs text-muted-foreground">{t("attendance.filters.to")}</Label>
           <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="h-8 text-sm w-[150px]" />
         </div>
         <div className="space-y-1">
-          <Label className="text-xs text-muted-foreground">Employee</Label>
+          <Label className="text-xs text-muted-foreground">{t("attendance.filters.employee")}</Label>
           <Select value={employeeId} onValueChange={setEmployeeId}>
             <SelectTrigger className="h-8 text-sm w-[200px]">
-              <SelectValue placeholder="All" />
+              <SelectValue placeholder={t("attendance.filters.allEmployees")} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All employees</SelectItem>
+              <SelectItem value="all">{t("attendance.filters.allEmployees")}</SelectItem>
               {employees.map((e) => (
                 <SelectItem key={e.id} value={String(e.id)}>
                   {e.firstName} {e.lastName}
@@ -281,7 +306,7 @@ function AttendanceAuditLog({
           </Select>
         </div>
         <div className="space-y-1">
-          <Label className="text-xs text-muted-foreground">View</Label>
+          <Label className="text-xs text-muted-foreground">{t("attendance.filters.view")}</Label>
           <Select
             value={auditLens}
             onValueChange={(v) => {
@@ -293,20 +318,20 @@ function AttendanceAuditLog({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All audit types</SelectItem>
-              <SelectItem value="operational">Operational triage only</SelectItem>
+              <SelectItem value="all">{t("attendance.filters.allAuditTypes")}</SelectItem>
+              <SelectItem value="operational">{t("attendance.filters.operationalOnly")}</SelectItem>
             </SelectContent>
           </Select>
         </div>
         {auditLens === "all" ? (
           <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground">Action</Label>
+            <Label className="text-xs text-muted-foreground">{t("attendance.filters.action")}</Label>
             <Select value={actionType} onValueChange={setActionType}>
               <SelectTrigger className="h-8 text-sm w-[220px]">
-                <SelectValue placeholder="All actions" />
+                <SelectValue placeholder={t("attendance.filters.allActions")} />
               </SelectTrigger>
               <SelectContent className="max-h-72">
-                <SelectItem value="all">All actions</SelectItem>
+                <SelectItem value="all">{t("attendance.filters.allActions")}</SelectItem>
                 {actionOptions.map((o) => (
                   <SelectItem key={o.value} value={o.value}>
                     {o.label}
@@ -318,21 +343,21 @@ function AttendanceAuditLog({
         ) : (
           <>
             <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Op action</Label>
+              <Label className="text-xs text-muted-foreground">{t("attendance.filters.opAction")}</Label>
               <Select value={operationalAction} onValueChange={(v) => setOperationalAction(v as typeof operationalAction)}>
                 <SelectTrigger className="h-8 text-sm w-[180px]">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All (ack / resolve / assign)</SelectItem>
-                  <SelectItem value="acknowledge">Acknowledge</SelectItem>
-                  <SelectItem value="resolve">Resolve</SelectItem>
-                  <SelectItem value="assign">Assign</SelectItem>
+                  <SelectItem value="all">{t("attendance.filters.allOpActions")}</SelectItem>
+                  <SelectItem value="acknowledge">{t("attendance.filters.acknowledge")}</SelectItem>
+                  <SelectItem value="resolve">{t("attendance.filters.resolve")}</SelectItem>
+                  <SelectItem value="assign">{t("attendance.filters.assign")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Issue kind</Label>
+              <Label className="text-xs text-muted-foreground">{t("attendance.filters.issueKind")}</Label>
               <Select
                 value={operationalIssueKind}
                 onValueChange={(v) =>
@@ -343,16 +368,16 @@ function AttendanceAuditLog({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All kinds</SelectItem>
-                  <SelectItem value="overdue_checkout">Overdue checkout</SelectItem>
-                  <SelectItem value="missed_shift">Missed shift</SelectItem>
-                  <SelectItem value="correction_pending">Correction pending</SelectItem>
-                  <SelectItem value="manual_pending">Manual pending</SelectItem>
+                  <SelectItem value="all">{t("attendance.filters.allKinds")}</SelectItem>
+                  <SelectItem value="overdue_checkout">{t("attendance.filters.overdueCheckout")}</SelectItem>
+                  <SelectItem value="missed_shift">{t("attendance.filters.missedShift")}</SelectItem>
+                  <SelectItem value="correction_pending">{t("attendance.filters.correctionPending")}</SelectItem>
+                  <SelectItem value="manual_pending">{t("attendance.filters.manualPending")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Issue status</Label>
+              <Label className="text-xs text-muted-foreground">{t("attendance.filters.issueStatus")}</Label>
               <Select
                 value={operationalIssueStatus}
                 onValueChange={(v) => setOperationalIssueStatus(v as typeof operationalIssueStatus)}
@@ -361,21 +386,21 @@ function AttendanceAuditLog({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Any status</SelectItem>
-                  <SelectItem value="open">Open</SelectItem>
-                  <SelectItem value="acknowledged">Acknowledged</SelectItem>
-                  <SelectItem value="resolved">Resolved</SelectItem>
+                  <SelectItem value="all">{t("attendance.filters.anyStatus")}</SelectItem>
+                  <SelectItem value="open">{t("attendance.filters.open")}</SelectItem>
+                  <SelectItem value="acknowledged">{t("attendance.filters.acknowledged")}</SelectItem>
+                  <SelectItem value="resolved">{t("attendance.filters.resolved")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Assigned to (user)</Label>
+              <Label className="text-xs text-muted-foreground">{t("attendance.filters.assignedTo")}</Label>
               <Select value={operationalAssigneeUserId} onValueChange={setOperationalAssigneeUserId}>
                 <SelectTrigger className="h-8 text-sm w-[200px]">
-                  <SelectValue placeholder="Any" />
+                  <SelectValue placeholder={t("attendance.filters.anyone")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Anyone</SelectItem>
+                  <SelectItem value="all">{t("attendance.filters.anyone")}</SelectItem>
                   {assigneeSelectOptions.map((e) => (
                     <SelectItem key={e.userId} value={String(e.userId)}>
                       {e.label}
@@ -395,50 +420,48 @@ function AttendanceAuditLog({
           disabled={!enabled || isFetching}
         >
           <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? "animate-spin" : ""}`} />
-          Refresh
+          {t("attendance.filters.refresh")}
         </Button>
       </div>
 
       <p className="text-xs text-muted-foreground">
-        Structural audit trail (last {auditLens === "operational" ? 100 : 50} rows for the selected filters). Open a row
-        for before/after payloads and linked IDs.
+        {t("attendance.auditTrailDesc", { count: auditLens === "operational" ? 100 : 50 })}
         {auditLens === "operational" ? (
           <span className="block mt-1">
-            Operational triage lens shows acknowledge, resolve, and assign audit entries. Issue kind filters the
-            stable key on the triage payload; status and assignee match the current operational issue row when present.
+            {t("attendance.operationalTriageDesc")}
           </span>
         ) : null}
       </p>
 
       {isLoading ? (
-        <div className="py-12 text-center text-muted-foreground">Loading audit log…</div>
+        <div className="py-12 text-center text-muted-foreground">{t("attendance.table.loadingAuditLog")}</div>
       ) : !data?.length ? (
-        <div className="py-12 text-center text-muted-foreground">No audit entries for this range.</div>
+        <div className="py-12 text-center text-muted-foreground">{t("attendance.table.noAuditEntries")}</div>
       ) : (
         <div className="overflow-x-auto rounded-md border">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b bg-muted/40 text-xs text-muted-foreground">
                 <th scope="col" className="text-left py-2 px-3 font-medium">
-                  Time
+                  {t("attendance.table.time")}
                 </th>
                 <th scope="col" className="text-left py-2 px-3 font-medium">
-                  Employee
+                  {t("attendance.table.employee")}
                 </th>
                 <th scope="col" className="text-left py-2 px-3 font-medium">
-                  Action
+                  {t("attendance.table.action")}
                 </th>
                 <th scope="col" className="text-left py-2 px-3 font-medium">
-                  Source
+                  {t("attendance.table.source")}
                 </th>
                 <th scope="col" className="text-left py-2 px-3 font-medium">
-                  Actor
+                  {t("attendance.table.actor")}
                 </th>
                 <th scope="col" className="text-left py-2 px-3 font-medium">
-                  Reason
+                  {t("attendance.table.reason")}
                 </th>
                 <th scope="col" className="text-left py-2 px-3 font-medium">
-                  Entity
+                  {t("attendance.table.entity")}
                 </th>
               </tr>
             </thead>
@@ -464,7 +487,7 @@ function AttendanceAuditLog({
                     {row.actorRole ? <span className="block text-[10px] opacity-80">{row.actorRole}</span> : null}
                   </td>
                   <td className="py-2 px-3 text-xs text-muted-foreground max-w-[180px] truncate" title={row.reason ?? ""}>
-                    {row.reason ?? "—"}
+                    {row.reason ?? "?"}
                   </td>
                   <td className="py-2 px-3 text-xs text-muted-foreground max-w-[220px] truncate" title={entitySummary(row)}>
                     {entitySummary(row)}
@@ -479,11 +502,11 @@ function AttendanceAuditLog({
       <Sheet open={!!detail} onOpenChange={(o) => !o && setDetail(null)}>
         <SheetContent side="right" className="w-full sm:max-w-lg overflow-y-auto">
           <SheetHeader>
-            <SheetTitle>Audit entry</SheetTitle>
+            <SheetTitle>{t("attendance.auditEntry")}</SheetTitle>
             <SheetDescription className="text-left">
               {detail ? (
                 <span className="text-xs">
-                  #{detail.id} · {auditActionLabel(detail.actionType)} · {fmtDateTime(detail.createdAt)}
+                  #{detail.id} ? {auditActionLabel(detail.actionType)} ? {fmtDateTime(detail.createdAt)}
                 </span>
               ) : null}
             </SheetDescription>
@@ -492,22 +515,22 @@ function AttendanceAuditLog({
             <div className="space-y-4 px-4 pb-6 text-sm">
               <div className="grid grid-cols-2 gap-2 text-xs">
                 <div>
-                  <span className="text-muted-foreground">Employee</span>
+                  <span className="text-muted-foreground">{t("attendance.table.employee")}</span>
                   <p className="font-medium">{empName(detail.employeeId)}</p>
                 </div>
                 <div>
-                  <span className="text-muted-foreground">Source</span>
-                  <p>{auditSourceLabel(detail.source)}</p>
+                  <span className="text-muted-foreground">{t("attendance.table.source")}</span>
+                  <p>{t(AUDIT_SOURCE_TO_I18N_KEY[detail.source] ?? "", { defaultValue: detail.source ?? "?" })}</p>
                 </div>
                 <div>
-                  <span className="text-muted-foreground">Actor</span>
+                  <span className="text-muted-foreground">{t("attendance.table.actor")}</span>
                   <p>
-                    User #{detail.actorUserId}
-                    {detail.actorRole ? ` · ${detail.actorRole}` : ""}
+                    {t("attendance.table.user", { id: detail.actorUserId })}
+                    {detail.actorRole ? ` ? ${detail.actorRole}` : ""}
                   </p>
                 </div>
                 <div>
-                  <span className="text-muted-foreground">Entity</span>
+                  <span className="text-muted-foreground">{t("attendance.table.entity")}</span>
                   <p className="break-all">{detail.entityType} {detail.entityId != null ? `#${detail.entityId}` : ""}</p>
                 </div>
               </div>
@@ -526,23 +549,23 @@ function AttendanceAuditLog({
                 )}
               </div>
               {detail.reason ? (
-                <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Reason</Label>
-                  <p className="text-sm whitespace-pre-wrap rounded-md bg-muted/40 p-2">{detail.reason}</p>
-                </div>
-              ) : null}
               <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">Before payload</Label>
-                <pre className="text-[11px] bg-muted/50 p-2 rounded-md max-h-52 overflow-auto whitespace-pre-wrap break-all">
-                  {detail.beforePayload == null ? "—" : JSON.stringify(detail.beforePayload, null, 2)}
-                </pre>
+                <Label className="text-xs text-muted-foreground">{t("attendance.detailPanel.reason")}</Label>
+                <p className="text-sm whitespace-pre-wrap rounded-md bg-muted/40 p-2">{detail.reason}</p>
               </div>
-              <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">After payload</Label>
-                <pre className="text-[11px] bg-muted/50 p-2 rounded-md max-h-52 overflow-auto whitespace-pre-wrap break-all">
-                  {detail.afterPayload == null ? "—" : JSON.stringify(detail.afterPayload, null, 2)}
-                </pre>
-              </div>
+            ) : null}
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">{t("attendance.detailPanel.beforePayload")}</Label>
+              <pre className="text-[11px] bg-muted/50 p-2 rounded-md max-h-52 overflow-auto whitespace-pre-wrap break-all">
+                {detail.beforePayload == null ? "?" : JSON.stringify(detail.beforePayload, null, 2)}
+              </pre>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">{t("attendance.detailPanel.afterPayload")}</Label>
+              <pre className="text-[11px] bg-muted/50 p-2 rounded-md max-h-52 overflow-auto whitespace-pre-wrap break-all">
+                {detail.afterPayload == null ? "?" : JSON.stringify(detail.afterPayload, null, 2)}
+              </pre>
+            </div>
             </div>
           )}
         </SheetContent>
@@ -562,6 +585,7 @@ const statusColors: Record<string, string> = {
 type AttendanceStatus = "present" | "absent" | "late" | "half_day" | "remote";
 
 function ClockInDialog({ employees, onSuccess, companyId }: { employees: { id: number; firstName: string; lastName: string; department: string | null }[]; onSuccess: () => void; companyId?: number | null }) {
+  const { t } = useTranslation("hr");
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({
     employeeId: "",
@@ -574,7 +598,7 @@ function ClockInDialog({ employees, onSuccess, companyId }: { employees: { id: n
   const utils = trpc.useUtils();
   const createMutation = trpc.hr.createAttendance.useMutation({
     onSuccess: () => {
-      toast.success("Attendance recorded");
+      toast.success(t("attendance.clockInDialog.recorded"));
       setOpen(false);
       utils.hr.listAttendance.invalidate();
       utils.hr.attendanceStats.invalidate();
@@ -589,52 +613,52 @@ function ClockInDialog({ employees, onSuccess, companyId }: { employees: { id: n
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button size="sm" className="gap-2"><Clock size={14} /> Record Attendance</Button>
+        <Button size="sm" className="gap-2"><Clock size={14} /> {t("attendance.clockInDialog.trigger")}</Button>
       </DialogTrigger>
       <DialogContent className="max-w-md">
-        <DialogHeader><DialogTitle>Record Attendance</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>{t("attendance.clockInDialog.title")}</DialogTitle></DialogHeader>
         <div className="space-y-4 mt-2">
           <div className="space-y-1.5">
-            <Label>Employee *</Label>
+            <Label>{t("attendance.clockInDialog.employeeLabel")}</Label>
             <Select value={form.employeeId} onValueChange={(v) => setForm({ ...form, employeeId: v })}>
-              <SelectTrigger><SelectValue placeholder="Select employee" /></SelectTrigger>
+              <SelectTrigger><SelectValue placeholder={t("attendance.clockInDialog.selectEmployee")} /></SelectTrigger>
               <SelectContent>
                 {employees.map((e) => (
-                  <SelectItem key={e.id} value={String(e.id)}>{e.firstName} {e.lastName} — {e.department}</SelectItem>
+                  <SelectItem key={e.id} value={String(e.id)}>{e.firstName} {e.lastName} ? {e.department}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
           <div className="space-y-1.5">
-            <Label>Date *</Label>
+            <Label>{t("attendance.clockInDialog.dateLabel")}</Label>
             <DateInput value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} className="text-sm" />
           </div>
           <div className="space-y-1.5">
-            <Label>Status *</Label>
+            <Label>{t("attendance.clockInDialog.statusLabel")}</Label>
             <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v as AttendanceStatus })}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="present">Present</SelectItem>
-                <SelectItem value="absent">Absent</SelectItem>
-                <SelectItem value="late">Late</SelectItem>
-                <SelectItem value="half_day">Half Day</SelectItem>
-                <SelectItem value="remote">Remote</SelectItem>
+                <SelectItem value="present">{t("attendance.clockInDialog.present")}</SelectItem>
+                <SelectItem value="absent">{t("attendance.clockInDialog.absent")}</SelectItem>
+                <SelectItem value="late">{t("attendance.clockInDialog.late")}</SelectItem>
+                <SelectItem value="half_day">{t("attendance.clockInDialog.halfDay")}</SelectItem>
+                <SelectItem value="remote">{t("attendance.clockInDialog.remote")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
           <div className="space-y-1.5">
-            <Label>Reason / audit note *</Label>
+            <Label>{t("attendance.clockInDialog.reasonNote")}</Label>
             <Textarea
-              placeholder="Required for compliance — who asked for this entry, why, or evidence (min. 10 characters)…"
+              placeholder={t("attendance.clockInDialog.reasonPlaceholder")}
               value={form.notes}
               onChange={(e) => setForm({ ...form, notes: e.target.value })}
               className="text-sm min-h-[88px]"
             />
-            <p className="text-[11px] text-muted-foreground">Stored on the record for audit. Use clear, factual wording.</p>
+            <p className="text-[11px] text-muted-foreground">{t("attendance.clockInDialog.reasonHint")}</p>
           </div>
           <Button className="w-full" disabled={!form.employeeId || !reasonOk || createMutation.isPending}
             onClick={() => createMutation.mutate({ employeeId: Number(form.employeeId), status: form.status, notes: form.notes.trim(), date: form.date, companyId: companyId ?? undefined })}>
-            {createMutation.isPending ? "Recording..." : "Record Attendance"}
+            {createMutation.isPending ? t("attendance.clockInDialog.recording") : t("attendance.clockInDialog.trigger")}
           </Button>
         </div>
       </DialogContent>
@@ -643,6 +667,7 @@ function ClockInDialog({ employees, onSuccess, companyId }: { employees: { id: n
 }
 
 function EditAttendanceDialog({ record, onSuccess }: { record: { id: number; status: string; notes: string | null }; onSuccess: () => void }) {
+  const { t } = useTranslation("hr");
   const [open, setOpen] = useState(false);
   const [status, setStatus] = useState(record.status as AttendanceStatus);
   const [notes, setNotes] = useState(record.notes ?? "");
@@ -662,7 +687,7 @@ function EditAttendanceDialog({ record, onSuccess }: { record: { id: number; sta
   const utils = trpc.useUtils();
   const updateMutation = trpc.hr.updateAttendance.useMutation({
     onSuccess: () => {
-      toast.success("Record updated");
+      toast.success(t("attendance.editDialog.updated"));
       setOpen(false);
       setAuditNote("");
       utils.hr.listAttendance.invalidate();
@@ -687,35 +712,35 @@ function EditAttendanceDialog({ record, onSuccess }: { record: { id: number; sta
         <Button size="sm" variant="ghost" className="h-7 w-7 p-0"><Pencil size={12} /></Button>
       </DialogTrigger>
       <DialogContent className="max-w-sm">
-        <DialogHeader><DialogTitle>Edit HR attendance record</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>{t("attendance.editDialog.title")}</DialogTitle></DialogHeader>
         <div className="space-y-4 mt-2">
           <div className="space-y-1.5">
-            <Label>Status</Label>
+            <Label>{t("attendance.editDialog.statusLabel")}</Label>
             <Select value={status} onValueChange={(v) => setStatus(v as AttendanceStatus)}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="present">Present</SelectItem>
-                <SelectItem value="absent">Absent</SelectItem>
-                <SelectItem value="late">Late</SelectItem>
-                <SelectItem value="half_day">Half Day</SelectItem>
-                <SelectItem value="remote">Remote</SelectItem>
+                <SelectItem value="present">{t("attendance.clockInDialog.present")}</SelectItem>
+                <SelectItem value="absent">{t("attendance.clockInDialog.absent")}</SelectItem>
+                <SelectItem value="late">{t("attendance.clockInDialog.late")}</SelectItem>
+                <SelectItem value="half_day">{t("attendance.clockInDialog.halfDay")}</SelectItem>
+                <SelectItem value="remote">{t("attendance.clockInDialog.remote")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
           <div className="space-y-1.5">
-            <Label>Notes on record</Label>
+            <Label>{t("attendance.editDialog.notesOnRecord")}</Label>
             <Input value={notes} onChange={(e) => setNotes(e.target.value)} className="text-sm" />
           </div>
           {materialChange ? (
             <div className="space-y-1.5">
-              <Label>Audit note — why this change is justified *</Label>
+              <Label>{t("attendance.editDialog.auditNote")}</Label>
               <Textarea
-                placeholder="Required when status or notes change (min. 10 characters). Who asked, what evidence, or policy basis…"
+                placeholder={t("attendance.editDialog.auditNotePlaceholder")}
                 value={auditNote}
                 onChange={(e) => setAuditNote(e.target.value)}
                 className="text-sm min-h-[72px]"
               />
-              <p className="text-[11px] text-muted-foreground">Stored on the audit log with this update.</p>
+              <p className="text-[11px] text-muted-foreground">{t("attendance.editDialog.auditNoteHint")}</p>
             </div>
           ) : null}
           <Button
@@ -729,7 +754,7 @@ function EditAttendanceDialog({ record, onSuccess }: { record: { id: number; sta
                 changeAuditNote: materialChange ? auditNote.trim() : undefined,
               })}
           >
-            {updateMutation.isPending ? "Saving..." : "Save Changes"}
+            {updateMutation.isPending ? t("attendance.editDialog.saving") : t("attendance.editDialog.saveChanges")}
           </Button>
         </div>
       </DialogContent>
@@ -761,19 +786,20 @@ function HrAttendanceExceptionStrip({
   criticalExceptions: number | null;
   needsAttention: number | null;
 }) {
+  const { t } = useTranslation("hr");
   if (companyId == null) return null;
   const items = [
-    { label: "Critical exceptions (live)", value: criticalExceptions, warn: (criticalExceptions ?? 0) > 0 },
-    { label: "Needs attention (live)", value: needsAttention, warn: (needsAttention ?? 0) > 0 },
-    { label: "Pending corrections", value: pendingCorrCount, warn: pendingCorrCount > 0 },
-    { label: "Pending manual check-ins", value: pendingManualCount, warn: pendingManualCount > 0 },
-    { label: "Open check-outs past shift end", value: overdueCheckoutCount, warn: overdueCheckoutCount > 0 },
-    { label: "Missed shifts (absent)", value: missedShiftsCount, warn: missedShiftsCount > 0 },
-    { label: "Scheduled shift rows today", value: scheduledShiftsToday, warn: false },
+    { label: t("attendance.signals.criticalExceptions"), value: criticalExceptions, warn: (criticalExceptions ?? 0) > 0 },
+    { label: t("attendance.signals.needsAttention"), value: needsAttention, warn: (needsAttention ?? 0) > 0 },
+    { label: t("attendance.signals.pendingCorrections"), value: pendingCorrCount, warn: pendingCorrCount > 0 },
+    { label: t("attendance.signals.pendingManualCheckins"), value: pendingManualCount, warn: pendingManualCount > 0 },
+    { label: t("attendance.signals.openCheckouts"), value: overdueCheckoutCount, warn: overdueCheckoutCount > 0 },
+    { label: t("attendance.signals.missedShifts"), value: missedShiftsCount, warn: missedShiftsCount > 0 },
+    { label: t("attendance.signals.scheduledToday"), value: scheduledShiftsToday, warn: false },
   ];
   return (
     <div className="rounded-lg border bg-muted/30 px-3 py-3 sm:px-4">
-      <p className="text-xs font-semibold text-foreground mb-2">Workforce signals (Muscat day)</p>
+      <p className="text-xs font-semibold text-foreground mb-2">{t("attendance.signals.workforceSignals")}</p>
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-2 text-xs">
         {items.map((it) => (
           <div
@@ -788,14 +814,15 @@ function HrAttendanceExceptionStrip({
         ))}
       </div>
       <p className="text-[11px] text-muted-foreground mt-2 leading-snug">
-        “Open check-outs past shift end” and “Missed shifts” are computed server-side using Muscat wall-clock shift boundaries, consistent with the live board.
+        {t("attendance.signals.openCheckoutsNote")}
       </p>
     </div>
   );
 }
 
-// ─── Today's Live Board ──────────────────────────────────────────────────────
+// --- Today's Live Board ------------------------------------------------------
 function TodayBoard({ companyId }: { companyId: number | null }) {
+  const { t } = useTranslation("hr");
   const { data, isLoading, isFetching, dataUpdatedAt, refetch } = trpc.scheduling.getTodayBoard.useQuery(
     { companyId: companyId ?? undefined },
     {
@@ -807,25 +834,25 @@ function TodayBoard({ companyId }: { companyId: number | null }) {
   if (companyId == null) {
     return (
       <div className="py-12 text-center text-muted-foreground border border-dashed rounded-lg">
-        Select a company in the workspace switcher to load today&apos;s live board.
+        {t("attendance.todayBoard.selectCompany")}
       </div>
     );
   }
-  if (isLoading) return <div className="py-12 text-center text-muted-foreground">Loading today's board…</div>;
-  if (!data) return <div className="py-12 text-center text-muted-foreground">No data available</div>;
+  if (isLoading) return <div className="py-12 text-center text-muted-foreground">{t("attendance.todayBoard.loading")}</div>;
+  if (!data) return <div className="py-12 text-center text-muted-foreground">{t("attendance.todayBoard.noData")}</div>;
   const s = data.summary;
   const stats = [
-    { label: "Critical (live)", count: s.criticalExceptions ?? 0, color: "text-red-800", bg: "bg-red-50" },
-    { label: "Needs attention", count: s.needsAttention ?? 0, color: "text-amber-900", bg: "bg-amber-50" },
-    { label: "Open past shift end", count: s.overdueOpenCheckoutCount, color: "text-orange-800", bg: "bg-orange-50/90" },
-    { label: "Scheduled", count: s.total, color: "text-slate-700", bg: "bg-slate-50" },
-    { label: "Upcoming", count: s.upcoming, color: "text-slate-600", bg: "bg-slate-50/80" },
-    { label: "Awaiting check-in", count: s.notCheckedIn, color: "text-amber-700", bg: "bg-amber-50" },
-    { label: "Checked in (active)", count: s.checkedInActive, color: "text-emerald-700", bg: "bg-emerald-50" },
-    { label: "Late / no arrival", count: s.lateNoCheckin, color: "text-orange-700", bg: "bg-orange-50" },
-    { label: "Completed", count: s.checkedOut, color: "text-gray-700", bg: "bg-gray-50" },
-    { label: "Absent (confirmed)", count: s.absent, color: "text-red-600", bg: "bg-red-50" },
-    { label: "Holiday", count: s.holiday, color: "text-blue-600", bg: "bg-blue-50" },
+    { label: t("attendance.todayBoard.critical"), count: s.criticalExceptions ?? 0, color: "text-red-800", bg: "bg-red-50" },
+    { label: t("attendance.todayBoard.needsAttention"), count: s.needsAttention ?? 0, color: "text-amber-900", bg: "bg-amber-50" },
+    { label: t("attendance.todayBoard.openPastShiftEnd"), count: s.overdueOpenCheckoutCount, color: "text-orange-800", bg: "bg-orange-50/90" },
+    { label: t("attendance.todayBoard.scheduled"), count: s.total, color: "text-slate-700", bg: "bg-slate-50" },
+    { label: t("attendance.todayBoard.upcoming"), count: s.upcoming, color: "text-slate-600", bg: "bg-slate-50/80" },
+    { label: t("attendance.todayBoard.awaitingCheckin"), count: s.notCheckedIn, color: "text-amber-700", bg: "bg-amber-50" },
+    { label: t("attendance.todayBoard.checkedInActive"), count: s.checkedInActive, color: "text-emerald-700", bg: "bg-emerald-50" },
+    { label: t("attendance.todayBoard.lateNoArrival"), count: s.lateNoCheckin, color: "text-orange-700", bg: "bg-orange-50" },
+    { label: t("attendance.todayBoard.completed"), count: s.checkedOut, color: "text-gray-700", bg: "bg-gray-50" },
+    { label: t("attendance.todayBoard.absentConfirmed"), count: s.absent, color: "text-red-600", bg: "bg-red-50" },
+    { label: t("attendance.todayBoard.holiday"), count: s.holiday, color: "text-blue-600", bg: "bg-blue-50" },
   ];
   return (
     <div className="space-y-4">
@@ -835,12 +862,12 @@ function TodayBoard({ companyId }: { companyId: number | null }) {
             {new Date(data.date + "T12:00:00").toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
           </p>
           <p className="text-[11px] text-muted-foreground mt-0.5 max-w-xl">
-            Absent applies only after the shift ends with no check-in. Before that, you’ll see upcoming, awaiting check-in, or late / no arrival.
+            {t("attendance.todayBoard.absentNote")}
           </p>
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1.5 text-[11px] text-muted-foreground">
             {dataUpdatedAt > 0 ? (
               <span>
-                Last updated:{" "}
+                {t("attendance.todayBoard.lastUpdated")}{" "}
                 <time dateTime={new Date(dataUpdatedAt).toISOString()}>
                   {new Date(dataUpdatedAt).toLocaleTimeString("en-GB", {
                     hour: "2-digit",
@@ -850,19 +877,19 @@ function TodayBoard({ companyId }: { companyId: number | null }) {
                 </time>
               </span>
             ) : null}
-            {dataUpdatedAt > 0 ? <span className="hidden sm:inline" aria-hidden>·</span> : null}
-            <span>Auto-refresh every 60s</span>
+            {dataUpdatedAt > 0 ? <span className="hidden sm:inline" aria-hidden>?</span> : null}
+            <span>{t("attendance.todayBoard.autoRefresh")}</span>
             {isFetching && !isLoading ? (
               <span className="inline-flex items-center gap-1 text-primary font-medium">
                 <RefreshCw className="h-3 w-3 animate-spin shrink-0" aria-hidden />
-                Syncing…
+                {t("attendance.todayBoard.syncing")}
               </span>
             ) : null}
           </div>
         </div>
         <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>
           <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${isFetching ? "animate-spin" : ""}`} />
-          Refresh
+          {t("attendance.todayBoard.refresh")}
         </Button>
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
@@ -876,32 +903,29 @@ function TodayBoard({ companyId }: { companyId: number | null }) {
       <OverdueCheckoutsPanel className="mt-2" />
       {(data.fullDaySummaries ?? []).length > 0 && (
         <div className="rounded-lg border border-primary/20 bg-primary/[0.04] px-3 py-3 space-y-2">
-          <p className="text-xs font-semibold text-foreground">Full day — same person, multiple shifts (Asia/Muscat)</p>
-          <p className="text-[11px] text-muted-foreground leading-snug">
-            One calendar day can include a morning block and an evening block. The table below is still <span className="font-medium text-foreground">per shift</span> for status. If one session runs into the next shift without a separate checkout for the first block, that row stays <span className="font-medium text-foreground">open</span> (not “Completed”): status still reflects <span className="font-medium text-foreground">real check‑in punctuality</span>, and duration is minutes <span className="font-medium text-foreground">inside this shift window</span> only (see open session note). Split into two clock rows when possible.
-          </p>
+          <p className="text-xs font-semibold text-foreground">{t("attendance.todayBoard.fullDayTitle")}</p>
           <ul className="space-y-2 text-sm">
             {(data.fullDaySummaries ?? []).map((fd) => (
               <li key={fd.employeeId} className="rounded-md bg-background/80 border px-2.5 py-2">
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                   <span className="font-medium">{fd.employeeDisplayName}</span>
-                  <span className="text-xs text-muted-foreground">({fd.shiftCount} shifts)</span>
+                  <span className="text-xs text-muted-foreground">({t("attendance.todayBoard.shifts", { count: fd.shiftCount })})</span>
                   {fd.dayFullyComplete ? (
                     <Badge variant="outline" className="border-emerald-300 text-emerald-800 bg-emerald-50 text-[10px]">
-                      Day complete
+                      {t("attendance.todayBoard.dayComplete")}
                     </Badge>
                   ) : (
                     <Badge variant="outline" className="border-amber-300 text-amber-900 bg-amber-50 text-[10px]">
-                      In progress
+                      {t("attendance.todayBoard.inProgress")}
                     </Badge>
                   )}
                   <span className="w-full basis-full text-xs text-muted-foreground leading-snug">
-                    {fd.shiftsCheckedOutCount}/{fd.shiftCount} shifts completed
+                    {t("attendance.todayBoard.shiftsCompleted", { done: fd.shiftsCheckedOutCount, total: fd.shiftCount })}
                     {fd.totalAttributedMinutes > 0 ? (
-                      <> · {fd.totalAttributedMinutes}m attributed (minutes clamped to each shift window)</>
+                      <> {t("attendance.todayBoard.minutesAttributed", { minutes: fd.totalAttributedMinutes })}</>
                     ) : null}
                     {fd.shiftsCheckedOutCount < fd.shiftCount ? (
-                      <> · open or upcoming shifts show 0m until check-in.</>
+                      <> {t("attendance.todayBoard.openShiftsNote")}</>
                     ) : null}
                   </span>
                 </div>
@@ -911,35 +935,35 @@ function TodayBoard({ companyId }: { companyId: number | null }) {
                     return (
                       <li key={seg.scheduleId}>
                         <span className="inline-flex flex-wrap items-center gap-x-1.5 gap-y-1">
-                          <span className="font-medium">{seg.shiftName ?? "Shift"}</span>
-                          <span className="text-muted-foreground">({seg.expectedStart}–{seg.expectedEnd})</span>
+                          <span className="font-medium">{seg.shiftName ?? t("attendance.todayBoard.headers.shift")}</span>
+                          <span className="text-muted-foreground">({seg.expectedStart}?{seg.expectedEnd})</span>
                           <Badge variant="outline" className={`text-[10px] py-0 h-5 shrink-0 ${st.className}`}>
                             {st.label}
                           </Badge>
                         </span>
                         <span className="block mt-0.5 text-foreground/90">
-                          <span className="text-muted-foreground">In → out: </span>
-                          <span>{seg.checkInAt ? fmtTime(seg.checkInAt) : "—"}</span>
-                          <span> → </span>
-                          <span>{seg.checkOutAt ? fmtTime(seg.checkOutAt) : "—"}</span>
+                          <span className="text-muted-foreground">{t("attendance.todayBoard.inOut")} </span>
+                          <span>{seg.checkInAt ? fmtTime(seg.checkInAt) : "?"}</span>
+                          <span> ? </span>
+                          <span>{seg.checkOutAt ? fmtTime(seg.checkOutAt) : "?"}</span>
                           {!seg.checkOutAt && seg.punchCheckOutAt ? (
                             <span className="text-muted-foreground">
                               {" "}
-                              (open session to {fmtTime(seg.punchCheckOutAt)})
+                              ({t("attendance.todayBoard.openSession", { time: fmtTime(seg.punchCheckOutAt) })})
                             </span>
                           ) : seg.checkOutAt &&
                             seg.punchCheckOutAt &&
                             new Date(seg.punchCheckOutAt).getTime() !== new Date(seg.checkOutAt).getTime() ? (
                             <span className="text-muted-foreground">
                               {" "}
-                              (session to {fmtTime(seg.punchCheckOutAt)})
+                              ({t("attendance.todayBoard.sessionTo", { time: fmtTime(seg.punchCheckOutAt) })})
                             </span>
                           ) : null}
                           {seg.durationMinutes != null && seg.checkInAt ? (
                             <span className="text-muted-foreground"> ({seg.durationMinutes}m)</span>
                           ) : null}
                           {seg.methodLabel ? (
-                            <span className="text-muted-foreground"> · {seg.methodLabel}</span>
+                            <span className="text-muted-foreground"> ? {seg.methodLabel}</span>
                           ) : null}
                         </span>
                       </li>
@@ -955,17 +979,17 @@ function TodayBoard({ companyId }: { companyId: number | null }) {
         <table className="w-full text-sm min-w-[980px]">
           <thead className="bg-muted/50">
             <tr>
-              <th className="text-left px-3 py-2.5 font-medium">Employee</th>
-              <th className="text-left px-3 py-2.5 font-medium">Site</th>
-              <th className="text-left px-3 py-2.5 font-medium">Shift</th>
-              <th className="text-left px-3 py-2.5 font-medium">Check in</th>
-              <th className="text-left px-3 py-2.5 font-medium">Check out</th>
-              <th className="text-left px-3 py-2.5 font-medium">Delay</th>
-              <th className="text-left px-3 py-2.5 font-medium">Worked</th>
-              <th className="text-left px-3 py-2.5 font-medium">Source</th>
-              <th className="text-left px-3 py-2.5 font-medium">Risk</th>
-              <th className="text-left px-3 py-2.5 font-medium">Payroll</th>
-              <th className="text-left px-3 py-2.5 font-medium">Status</th>
+              <th className="text-left px-3 py-2.5 font-medium">{t("attendance.todayBoard.headers.employee")}</th>
+              <th className="text-left px-3 py-2.5 font-medium">{t("attendance.todayBoard.headers.site")}</th>
+              <th className="text-left px-3 py-2.5 font-medium">{t("attendance.todayBoard.headers.shift")}</th>
+              <th className="text-left px-3 py-2.5 font-medium">{t("attendance.todayBoard.headers.checkIn")}</th>
+              <th className="text-left px-3 py-2.5 font-medium">{t("attendance.todayBoard.headers.checkOut")}</th>
+              <th className="text-left px-3 py-2.5 font-medium">{t("attendance.todayBoard.headers.delay")}</th>
+              <th className="text-left px-3 py-2.5 font-medium">{t("attendance.todayBoard.headers.worked")}</th>
+              <th className="text-left px-3 py-2.5 font-medium">{t("attendance.todayBoard.headers.source")}</th>
+              <th className="text-left px-3 py-2.5 font-medium">{t("attendance.todayBoard.headers.risk")}</th>
+              <th className="text-left px-3 py-2.5 font-medium">{t("attendance.todayBoard.headers.payroll")}</th>
+              <th className="text-left px-3 py-2.5 font-medium">{t("attendance.todayBoard.headers.status")}</th>
             </tr>
           </thead>
           <tbody>
@@ -975,36 +999,36 @@ function TodayBoard({ companyId }: { companyId: number | null }) {
                   <div className="font-medium">{row.employeeDisplayName ?? row.employee?.name ?? `Schedule #${row.scheduleId}`}</div>
                 </td>
                 <td className="px-3 py-2.5 text-xs text-muted-foreground max-w-[140px] truncate" title={row.siteName ?? ""}>
-                  {row.siteName ?? "—"}
+                  {row.siteName ?? "?"}
                 </td>
                 <td className="px-3 py-2.5 text-muted-foreground text-xs">
-                  {row.shift ? (row.shift as { name?: string | null }).name ?? "—" : "—"}
+                  {row.shift ? (row.shift as { name?: string | null }).name ?? "?" : "?"}
                   {row.expectedStart && row.expectedEnd ? (
-                    <div className="text-[11px]">{row.expectedStart}–{row.expectedEnd}</div>
+                    <div className="text-[11px]">{row.expectedStart}?{row.expectedEnd}</div>
                   ) : null}
                 </td>
-                <td className="px-3 py-2.5 whitespace-nowrap">{row.checkInAt ? fmtTime(row.checkInAt) : "—"}</td>
+                <td className="px-3 py-2.5 whitespace-nowrap">{row.checkInAt ? fmtTime(row.checkInAt) : "?"}</td>
                 <td className="px-3 py-2.5 whitespace-nowrap">
-                  {row.checkOutAt ? fmtTime(row.checkOutAt) : "—"}
+                  {row.checkOutAt ? fmtTime(row.checkOutAt) : "?"}
                   {!row.checkOutAt && row.punchCheckOutAt ? (
                     <div className="text-[10px] text-muted-foreground leading-tight mt-0.5">
-                      Open session to {fmtTime(row.punchCheckOutAt)}
+                      {t("attendance.todayBoard.openSession", { time: fmtTime(row.punchCheckOutAt) })}
                     </div>
                   ) : row.checkOutAt &&
                     row.punchCheckOutAt &&
                     new Date(row.punchCheckOutAt).getTime() !== new Date(row.checkOutAt).getTime() ? (
                     <div className="text-[10px] text-muted-foreground leading-tight mt-0.5">
-                      Session to {fmtTime(row.punchCheckOutAt)}
+                      {t("attendance.todayBoard.sessionTo", { time: fmtTime(row.punchCheckOutAt) })}
                     </div>
                   ) : null}
                 </td>
                 <td className="px-3 py-2.5 text-xs whitespace-nowrap">
-                  {row.delayMinutes != null && row.delayMinutes > 0 ? `${row.delayMinutes}m` : "—"}
+                  {row.delayMinutes != null && row.delayMinutes > 0 ? `${row.delayMinutes}m` : "?"}
                 </td>
                 <td className="px-3 py-2.5 text-xs whitespace-nowrap">
-                  {row.durationMinutes != null && row.checkInAt ? `${row.durationMinutes}m` : "—"}
+                  {row.durationMinutes != null && row.checkInAt ? `${row.durationMinutes}m` : "?"}
                 </td>
-                <td className="px-3 py-2.5 text-xs text-muted-foreground">{row.methodLabel ?? "—"}</td>
+                <td className="px-3 py-2.5 text-xs text-muted-foreground">{row.methodLabel ?? "?"}</td>
                 <td className="px-3 py-2.5">
                   {row.riskLevel ? (
                     <Badge
@@ -1020,13 +1044,13 @@ function TodayBoard({ companyId }: { companyId: number | null }) {
                       {row.riskLevel}
                     </Badge>
                   ) : (
-                    "—"
+                    "?"
                   )}
                 </td>
                 <td className="px-3 py-2.5 text-[11px] text-muted-foreground capitalize">
                   {row.payrollHints?.payrollImpact
                     ? String(row.payrollHints.payrollImpact).replace(/_/g, " ")
-                    : "—"}
+                    : "?"}
                 </td>
                 <td className="px-3 py-2.5">{boardStatusBadge(row.status)}</td>
               </tr>
@@ -1034,7 +1058,7 @@ function TodayBoard({ companyId }: { companyId: number | null }) {
             {data.board.length === 0 && (
               <tr>
                 <td colSpan={11} className="px-4 py-8 text-center text-muted-foreground">
-                  No employees scheduled today — assign schedules in Employee schedules, then refresh.
+                  {t("attendance.todayBoard.noEmployeesScheduled")}
                 </td>
               </tr>
             )}
@@ -1045,8 +1069,9 @@ function TodayBoard({ companyId }: { companyId: number | null }) {
   );
 }
 
-// ─── Correction Requests ──────────────────────────────────────────────────────
+// --- Correction Requests ------------------------------------------------------
 function CorrectionRequests({ companyId }: { companyId: number | null }) {
+  const { t } = useTranslation("hr");
   const [statusFilter, setStatusFilter] = useState<"pending" | "approved" | "rejected" | "all">("pending");
   const [reviewTarget, setReviewTarget] = useState<{ id: number; action: "approve" | "reject" } | null>(null);
   const [adminNote, setAdminNote] = useState("");
@@ -1058,7 +1083,7 @@ function CorrectionRequests({ companyId }: { companyId: number | null }) {
   );
   const approveMut = trpc.attendance.approveCorrection.useMutation({
     onSuccess: () => {
-      toast.success("Correction approved");
+      toast.success(t("attendance.corrections.approvedToast"));
       setReviewTarget(null);
       void refetch();
       void utils.attendance.listCorrections.invalidate();
@@ -1074,7 +1099,7 @@ function CorrectionRequests({ companyId }: { companyId: number | null }) {
   });
   const rejectMut = trpc.attendance.rejectCorrection.useMutation({
     onSuccess: () => {
-      toast.success("Correction rejected");
+      toast.success(t("attendance.corrections.rejectedToast"));
       setReviewTarget(null);
       void refetch();
       void utils.attendance.listCorrections.invalidate();
@@ -1093,7 +1118,7 @@ function CorrectionRequests({ companyId }: { companyId: number | null }) {
     if (reviewTarget.action === "approve") {
       approveMut.mutate({ companyId, correctionId: reviewTarget.id, adminNote: adminNote || undefined });
     } else {
-      if (!adminNote.trim() || adminNote.trim().length < 5) { toast.error("Please provide a reason for rejection"); return; }
+      if (!adminNote.trim() || adminNote.trim().length < 5) { toast.error(t("attendance.corrections.provideRejectionReason")); return; }
       rejectMut.mutate({ companyId, correctionId: reviewTarget.id, adminNote });
     }
   };
@@ -1109,11 +1134,11 @@ function CorrectionRequests({ companyId }: { companyId: number | null }) {
             <SelectItem value="all">All</SelectItem>
           </SelectContent>
         </Select>
-        <Button variant="outline" size="sm" onClick={() => refetch()}><RefreshCw className="h-3.5 w-3.5 mr-1.5" /> Refresh</Button>
+        <Button variant="outline" size="sm" onClick={() => refetch()}><RefreshCw className="h-3.5 w-3.5 mr-1.5" /> {t("attendance.filters.refresh")}</Button>
       </div>
       {companyId == null ? (
-        <div className="py-12 text-center text-muted-foreground">Select a company to review correction requests.</div>
-      ) : isLoading ? <div className="py-12 text-center text-muted-foreground">Loading…</div> : (
+        <div className="py-12 text-center text-muted-foreground">{t("attendance.corrections.selectCompany")}</div>
+      ) : isLoading ? <div className="py-12 text-center text-muted-foreground">{t("attendance.manualCheckins.loading")}</div> : (
         <div className="space-y-3">
           {(data ?? []).map(({ correction, employee, operationalIssue }) => (
             <Card key={correction.id}><CardContent className="p-4">
@@ -1122,14 +1147,14 @@ function CorrectionRequests({ companyId }: { companyId: number | null }) {
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-medium">{employee ? `${employee.firstName} ${employee.lastName}` : "Unknown"}</span>
                     {employee?.position && <span className="text-xs text-muted-foreground">{employee.position}</span>}
-                    {correction.status === "pending" ? <Badge variant="outline" className="border-yellow-300 text-yellow-700 bg-yellow-50">Pending</Badge>
-                      : correction.status === "approved" ? <Badge variant="outline" className="border-green-300 text-green-700 bg-green-50">Approved</Badge>
-                      : <Badge variant="outline" className="border-red-300 text-red-700 bg-red-50">Rejected</Badge>}
+                    {correction.status === "pending" ? <Badge variant="outline" className="border-yellow-300 text-yellow-700 bg-yellow-50">{t("attendance.corrections.pending")}</Badge>
+                      : correction.status === "approved" ? <Badge variant="outline" className="border-green-300 text-green-700 bg-green-50">{t("attendance.corrections.approved")}</Badge>
+                      : <Badge variant="outline" className="border-red-300 text-red-700 bg-red-50">{t("attendance.corrections.rejected")}</Badge>}
                   </div>
                   <div className="mt-1.5 text-sm text-muted-foreground space-y-0.5">
-                    <div><span className="font-medium text-foreground">Date:</span> {correction.requestedDate}{correction.requestedCheckIn && <span className="ml-3"><span className="font-medium text-foreground">In:</span> {correction.requestedCheckIn.slice(0, 5)}</span>}{correction.requestedCheckOut && <span className="ml-3"><span className="font-medium text-foreground">Out:</span> {correction.requestedCheckOut.slice(0, 5)}</span>}</div>
-                    <div><span className="font-medium text-foreground">Reason:</span> {correction.reason}</div>
-                    {correction.adminNote && <div><span className="font-medium text-foreground">Note:</span> {correction.adminNote}</div>}
+                    <div><span className="font-medium text-foreground">{t("attendance.corrections.dateLabel")}</span> {correction.requestedDate}{correction.requestedCheckIn && <span className="ml-3"><span className="font-medium text-foreground">{t("attendance.corrections.inLabel")}</span> {correction.requestedCheckIn.slice(0, 5)}</span>}{correction.requestedCheckOut && <span className="ml-3"><span className="font-medium text-foreground">{t("attendance.corrections.outLabel")}</span> {correction.requestedCheckOut.slice(0, 5)}</span>}</div>
+                    <div><span className="font-medium text-foreground">{t("attendance.corrections.reasonLabel")}</span> {correction.reason}</div>
+                    {correction.adminNote && <div><span className="font-medium text-foreground">{t("attendance.corrections.noteLabel")}</span> {correction.adminNote}</div>}
                   </div>
                   <OperationalIssueMetaStrip
                     operationalIssue={operationalIssue}
@@ -1144,26 +1169,26 @@ function CorrectionRequests({ companyId }: { companyId: number | null }) {
                 </div>
                 {correction.status === "pending" && (
                   <div className="flex gap-2 shrink-0">
-                    <Button size="sm" variant="outline" className="border-green-300 text-green-700 hover:bg-green-50" onClick={() => { setReviewTarget({ id: correction.id, action: "approve" }); setAdminNote(""); }}><CheckCircle className="h-3.5 w-3.5 mr-1" /> Approve</Button>
-                    <Button size="sm" variant="outline" className="border-red-300 text-red-700 hover:bg-red-50" onClick={() => { setReviewTarget({ id: correction.id, action: "reject" }); setAdminNote(""); }}><XCircle className="h-3.5 w-3.5 mr-1" /> Reject</Button>
+                    <Button size="sm" variant="outline" className="border-green-300 text-green-700 hover:bg-green-50" onClick={() => { setReviewTarget({ id: correction.id, action: "approve" }); setAdminNote(""); }}><CheckCircle className="h-3.5 w-3.5 mr-1" /> {t("attendance.corrections.approve")}</Button>
+                    <Button size="sm" variant="outline" className="border-red-300 text-red-700 hover:bg-red-50" onClick={() => { setReviewTarget({ id: correction.id, action: "reject" }); setAdminNote(""); }}><XCircle className="h-3.5 w-3.5 mr-1" /> {t("attendance.corrections.reject")}</Button>
                   </div>
                 )}
               </div>
             </CardContent></Card>
           ))}
-          {(data ?? []).length === 0 && <div className="py-12 text-center text-muted-foreground">No {statusFilter === "all" ? "" : statusFilter} correction requests</div>}
+          {(data ?? []).length === 0 && <div className="py-12 text-center text-muted-foreground">{statusFilter === "all" ? t("attendance.corrections.noCorrectionRequestsAll") : t("attendance.corrections.noCorrectionRequests", { status: t("attendance.corrections." + statusFilter) })}</div>}
         </div>
       )}
       <Dialog open={!!reviewTarget} onOpenChange={() => setReviewTarget(null)}>
         <DialogContent>
-          <DialogHeader><DialogTitle>{reviewTarget?.action === "approve" ? "Approve Correction" : "Reject Correction"}</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{reviewTarget?.action === "approve" ? t("attendance.corrections.dialogTitleApprove") : t("attendance.corrections.dialogTitleReject")}</DialogTitle></DialogHeader>
           <div className="space-y-3">
-            <Label htmlFor="adminNoteCorr">{reviewTarget?.action === "approve" ? "Admin Note (optional)" : "Reason for rejection (required)"}</Label>
-            <Textarea id="adminNoteCorr" value={adminNote} onChange={(e) => setAdminNote(e.target.value)} placeholder={reviewTarget?.action === "approve" ? "Optional note…" : "Explain why…"} rows={3} />
+            <Label htmlFor="adminNoteCorr">{reviewTarget?.action === "approve" ? t("attendance.manualCheckins.adminNoteOptional") : t("attendance.manualCheckins.reasonRequired")}</Label>
+            <Textarea id="adminNoteCorr" value={adminNote} onChange={(e) => setAdminNote(e.target.value)} placeholder={reviewTarget?.action === "approve" ? "Optional note?" : "Explain why?"} rows={3} />
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setReviewTarget(null)}>Cancel</Button>
-            <Button onClick={handleSubmit} disabled={approveMut.isPending || rejectMut.isPending} className={reviewTarget?.action === "approve" ? "bg-green-600 hover:bg-green-700" : "bg-red-600 hover:bg-red-700"}>{reviewTarget?.action === "approve" ? "Approve" : "Reject"}</Button>
+            <Button variant="outline" onClick={() => setReviewTarget(null)}>{t("attendance.corrections.cancel")}</Button>
+            <Button onClick={handleSubmit} disabled={approveMut.isPending || rejectMut.isPending} className={reviewTarget?.action === "approve" ? "bg-green-600 hover:bg-green-700" : "bg-red-600 hover:bg-red-700"}>{reviewTarget?.action === "approve" ? t("attendance.corrections.approve") : t("attendance.corrections.reject")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1179,8 +1204,9 @@ function CorrectionRequests({ companyId }: { companyId: number | null }) {
   );
 }
 
-// ─── Manual Check-in Requests ─────────────────────────────────────────────────
+// --- Manual Check-in Requests -------------------------------------------------
 function ManualCheckInRequests({ companyId }: { companyId: number | null }) {
+  const { t } = useTranslation("hr");
   const [statusFilter, setStatusFilter] = useState<"pending" | "approved" | "rejected" | "all">("pending");
   const [reviewTarget, setReviewTarget] = useState<{ id: number; action: "approve" | "reject" } | null>(null);
   const [adminNote, setAdminNote] = useState("");
@@ -1192,7 +1218,7 @@ function ManualCheckInRequests({ companyId }: { companyId: number | null }) {
   );
   const approveMut = trpc.attendance.approveManualCheckIn.useMutation({
     onSuccess: () => {
-      toast.success("Check-in approved");
+      toast.success(t("attendance.manualCheckins.approvedToast"));
       setReviewTarget(null);
       void refetch();
       void utils.attendance.listManualCheckIns.invalidate();
@@ -1208,7 +1234,7 @@ function ManualCheckInRequests({ companyId }: { companyId: number | null }) {
   });
   const rejectMut = trpc.attendance.rejectManualCheckIn.useMutation({
     onSuccess: () => {
-      toast.success("Check-in rejected");
+      toast.success(t("attendance.manualCheckins.rejectedToast"));
       setReviewTarget(null);
       void refetch();
       void utils.attendance.listManualCheckIns.invalidate();
@@ -1227,7 +1253,7 @@ function ManualCheckInRequests({ companyId }: { companyId: number | null }) {
     if (reviewTarget.action === "approve") {
       approveMut.mutate({ companyId, requestId: reviewTarget.id, adminNote: adminNote || undefined });
     } else {
-      if (!adminNote.trim() || adminNote.trim().length < 5) { toast.error("Please provide a reason"); return; }
+      if (!adminNote.trim() || adminNote.trim().length < 5) { toast.error(t("attendance.manualCheckins.provideReason")); return; }
       rejectMut.mutate({ companyId, requestId: reviewTarget.id, adminNote });
     }
   };
@@ -1243,11 +1269,11 @@ function ManualCheckInRequests({ companyId }: { companyId: number | null }) {
             <SelectItem value="all">All</SelectItem>
           </SelectContent>
         </Select>
-        <Button variant="outline" size="sm" onClick={() => refetch()}><RefreshCw className="h-3.5 w-3.5 mr-1.5" /> Refresh</Button>
+        <Button variant="outline" size="sm" onClick={() => refetch()}><RefreshCw className="h-3.5 w-3.5 mr-1.5" /> {t("attendance.filters.refresh")}</Button>
       </div>
       {companyId == null ? (
-        <div className="py-12 text-center text-muted-foreground">Select a company to review manual check-in requests.</div>
-      ) : isLoading ? <div className="py-12 text-center text-muted-foreground">Loading…</div> : (
+        <div className="py-12 text-center text-muted-foreground">{t("attendance.manualCheckins.selectCompany")}</div>
+      ) : isLoading ? <div className="py-12 text-center text-muted-foreground">{t("attendance.manualCheckins.loading")}</div> : (
         <div className="space-y-3">
           {(data ?? []).map(({ req, site, employee, operationalIssue }) => (
             <Card key={req.id}><CardContent className="p-4">
@@ -1265,8 +1291,8 @@ function ManualCheckInRequests({ companyId }: { companyId: number | null }) {
                       : <Badge variant="outline" className="border-red-300 text-red-700 bg-red-50">Rejected</Badge>}
                   </div>
                   <div className="mt-1.5 text-sm text-muted-foreground space-y-0.5">
-                    <div><span className="font-medium text-foreground">Justification:</span> {req.justification}</div>
-                    {req.adminNote && <div><span className="font-medium text-foreground">Admin Note:</span> {req.adminNote}</div>}
+                    <div><span className="font-medium text-foreground">{t("attendance.manualCheckins.justificationLabel")}</span> {req.justification}</div>
+                    {req.adminNote && <div><span className="font-medium text-foreground">{t("attendance.manualCheckins.adminNoteLabel")}</span> {req.adminNote}</div>}
                     <div className="text-xs">{req.requestedAt ? new Date(req.requestedAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : ""}</div>
                   </div>
                   <OperationalIssueMetaStrip
@@ -1282,26 +1308,26 @@ function ManualCheckInRequests({ companyId }: { companyId: number | null }) {
                 </div>
                 {req.status === "pending" && (
                   <div className="flex gap-2 shrink-0">
-                    <Button size="sm" variant="outline" className="border-green-300 text-green-700 hover:bg-green-50" onClick={() => { setReviewTarget({ id: req.id, action: "approve" }); setAdminNote(""); }}><CheckCircle className="h-3.5 w-3.5 mr-1" /> Approve</Button>
-                    <Button size="sm" variant="outline" className="border-red-300 text-red-700 hover:bg-red-50" onClick={() => { setReviewTarget({ id: req.id, action: "reject" }); setAdminNote(""); }}><XCircle className="h-3.5 w-3.5 mr-1" /> Reject</Button>
+                    <Button size="sm" variant="outline" className="border-green-300 text-green-700 hover:bg-green-50" onClick={() => { setReviewTarget({ id: req.id, action: "approve" }); setAdminNote(""); }}><CheckCircle className="h-3.5 w-3.5 mr-1" /> {t("attendance.corrections.approve")}</Button>
+                    <Button size="sm" variant="outline" className="border-red-300 text-red-700 hover:bg-red-50" onClick={() => { setReviewTarget({ id: req.id, action: "reject" }); setAdminNote(""); }}><XCircle className="h-3.5 w-3.5 mr-1" /> {t("attendance.corrections.reject")}</Button>
                   </div>
                 )}
               </div>
             </CardContent></Card>
           ))}
-          {(data ?? []).length === 0 && <div className="py-12 text-center text-muted-foreground">No {statusFilter === "all" ? "" : statusFilter} manual check-in requests</div>}
+          {(data ?? []).length === 0 && <div className="py-12 text-center text-muted-foreground">{statusFilter === "all" ? t("attendance.manualCheckins.noRequestsAll") : t("attendance.manualCheckins.noRequests", { status: t("attendance.manualCheckins." + statusFilter) })}</div>}
         </div>
       )}
       <Dialog open={!!reviewTarget} onOpenChange={() => setReviewTarget(null)}>
         <DialogContent>
-          <DialogHeader><DialogTitle>{reviewTarget?.action === "approve" ? "Approve Manual Check-in" : "Reject Manual Check-in"}</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{reviewTarget?.action === "approve" ? t("attendance.manualCheckins.dialogTitleApprove") : t("attendance.manualCheckins.dialogTitleReject")}</DialogTitle></DialogHeader>
           <div className="space-y-3">
-            <Label htmlFor="adminNoteManual">{reviewTarget?.action === "approve" ? "Admin Note (optional)" : "Reason for rejection (required)"}</Label>
-            <Textarea id="adminNoteManual" value={adminNote} onChange={(e) => setAdminNote(e.target.value)} placeholder={reviewTarget?.action === "approve" ? "Optional note…" : "Explain why…"} rows={3} />
+            <Label htmlFor="adminNoteManual">{reviewTarget?.action === "approve" ? t("attendance.manualCheckins.adminNoteOptional") : t("attendance.manualCheckins.reasonRequired")}</Label>
+            <Textarea id="adminNoteManual" value={adminNote} onChange={(e) => setAdminNote(e.target.value)} placeholder={reviewTarget?.action === "approve" ? "Optional note?" : "Explain why?"} rows={3} />
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setReviewTarget(null)}>Cancel</Button>
-            <Button onClick={handleSubmit} disabled={approveMut.isPending || rejectMut.isPending} className={reviewTarget?.action === "approve" ? "bg-green-600 hover:bg-green-700" : "bg-red-600 hover:bg-red-700"}>{reviewTarget?.action === "approve" ? "Approve" : "Reject"}</Button>
+            <Button variant="outline" onClick={() => setReviewTarget(null)}>{t("attendance.corrections.cancel")}</Button>
+            <Button onClick={handleSubmit} disabled={approveMut.isPending || rejectMut.isPending} className={reviewTarget?.action === "approve" ? "bg-green-600 hover:bg-green-700" : "bg-red-600 hover:bg-red-700"}>{reviewTarget?.action === "approve" ? t("attendance.corrections.approve") : t("attendance.corrections.reject")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1317,8 +1343,9 @@ function ManualCheckInRequests({ companyId }: { companyId: number | null }) {
   );
 }
 
-/** QR / clock punches (`attendance_records`) for a Muscat calendar day — complements the legacy HR grid. */
+/** QR / clock punches (`attendance_records`) for a Muscat calendar day ? complements the legacy HR grid. */
 function SitePunchesSection({ companyId }: { companyId: number | null }) {
+  const { t } = useTranslation("hr");
   const [punchDate, setPunchDate] = useState(() => muscatCalendarYmdNow());
   const { data = [], isLoading } = trpc.attendance.adminBoard.useQuery(
     { companyId: companyId ?? undefined, date: punchDate },
@@ -1328,7 +1355,7 @@ function SitePunchesSection({ companyId }: { companyId: number | null }) {
   if (companyId == null) {
     return (
       <div className="py-12 text-center text-muted-foreground border border-dashed rounded-lg">
-        Select a company in the workspace switcher to load site punches.
+        {t("attendance.sitePunches.selectCompany")}
       </div>
     );
   }
@@ -1337,7 +1364,7 @@ function SitePunchesSection({ companyId }: { companyId: number | null }) {
     <div className="space-y-4">
       <div className="flex flex-wrap gap-3 items-end">
         <div className="space-y-1">
-          <Label className="text-xs text-muted-foreground">Date (Asia/Muscat)</Label>
+          <Label className="text-xs text-muted-foreground">{t("attendance.sitePunches.dateLabel")}</Label>
           <Input
             type="date"
             value={punchDate}
@@ -1349,26 +1376,26 @@ function SitePunchesSection({ companyId }: { companyId: number | null }) {
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-sm flex items-center gap-2">
-            Clock punches — {punchDate}
-            <Badge variant="outline" className="text-xs font-normal">{data.length} rows</Badge>
+            {t("attendance.sitePunches.clockPunches", { date: punchDate })}
+            <Badge variant="outline" className="text-xs font-normal">{t("attendance.sitePunches.rows", { count: data.length })}</Badge>
           </CardTitle>
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <p className="text-sm text-muted-foreground py-8 text-center">Loading…</p>
+            <p className="text-sm text-muted-foreground py-8 text-center">{t("attendance.sitePunches.loading")}</p>
           ) : data.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-8 text-center">No punches for this date</p>
+            <p className="text-sm text-muted-foreground py-8 text-center">{t("attendance.sitePunches.noPunches")}</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm min-w-[800px]">
                 <thead>
                   <tr className="border-b text-xs text-muted-foreground">
-                    <th className="text-left py-2 px-2 font-medium">Employee</th>
-                    <th className="text-left py-2 px-2 font-medium">Check in</th>
-                    <th className="text-left py-2 px-2 font-medium">Check out</th>
-                    <th className="text-left py-2 px-2 font-medium">Duration</th>
-                    <th className="text-left py-2 px-2 font-medium">Source</th>
-                    <th className="text-left py-2 px-2 font-medium">Geo</th>
+                    <th className="text-left py-2 px-2 font-medium">{t("attendance.sitePunches.employee")}</th>
+                    <th className="text-left py-2 px-2 font-medium">{t("attendance.sitePunches.checkIn")}</th>
+                    <th className="text-left py-2 px-2 font-medium">{t("attendance.sitePunches.checkOut")}</th>
+                    <th className="text-left py-2 px-2 font-medium">{t("attendance.sitePunches.duration")}</th>
+                    <th className="text-left py-2 px-2 font-medium">{t("attendance.sitePunches.source")}</th>
+                    <th className="text-left py-2 px-2 font-medium">{t("attendance.sitePunches.geo")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1379,19 +1406,19 @@ function SitePunchesSection({ companyId }: { companyId: number | null }) {
                           {row.employee.firstName} {row.employee.lastName}
                         </span>
                         {row.employee.department ? (
-                          <span className="text-xs text-muted-foreground ml-1">· {row.employee.department}</span>
+                          <span className="text-xs text-muted-foreground ml-1">? {row.employee.department}</span>
                         ) : null}
                       </td>
                       <td className="py-2 px-2 whitespace-nowrap">{fmtTime(row.record.checkIn)}</td>
                       <td className="py-2 px-2 whitespace-nowrap">
-                        {row.record.checkOut ? fmtTime(row.record.checkOut) : "—"}
+                        {row.record.checkOut ? fmtTime(row.record.checkOut) : "?"}
                       </td>
                       <td className="py-2 px-2">{row.durationMinutes}m</td>
                       <td className="py-2 px-2 text-muted-foreground text-xs">{row.methodLabel}</td>
                       <td className="py-2 px-2">
                         <span className="flex items-center gap-1 text-xs text-muted-foreground">
                           <MapPin className="h-3 w-3 shrink-0" />
-                          {row.hasCheckInGeo || row.hasCheckOutGeo ? "In/out GPS" : "No GPS"}
+                          {row.hasCheckInGeo || row.hasCheckOutGeo ? t("attendance.sitePunches.inOutGps") : t("attendance.sitePunches.noGps")}
                         </span>
                       </td>
                     </tr>
@@ -1467,8 +1494,8 @@ export default function HRAttendancePage() {
       const ws = XLSX.utils.json_to_sheet(
         result.rows.map((r) => ({
           Employee: r.employeeName,
-          Site: r.siteName ?? "—",
-          "Client / Brand": r.clientName ?? "—",
+          Site: r.siteName ?? "?",
+          "Client / Brand": r.clientName ?? "?",
           "Days Present": r.daysPresent,
           "Days Absent": r.daysAbsent,
           "Days Late": r.daysLate,
@@ -1481,21 +1508,21 @@ export default function HRAttendancePage() {
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, `Attendance ${monthFilter}`);
       XLSX.writeFile(wb, `attendance-${monthFilter}.xlsx`);
-      toast.success("Export downloaded");
+      toast.success(t("attendance.exportDownloaded"));
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : "Export failed";
+      const msg = e instanceof Error ? e.message : t("attendance.exportFailed");
       toast.error(msg);
     } finally {
       setExporting(false);
     }
-  }, [activeCompanyId, monthFilter, utils]);
+  }, [activeCompanyId, monthFilter, utils, t]);
 
   const deleteMutation = trpc.hr.deleteAttendance.useMutation({
     onSuccess: () => {
-      toast.success("Record deleted");
+      toast.success(t("attendance.recordDeleted"));
       setDeleteTargetId(null);
-      utils.hr.listAttendance.invalidate();
-      utils.hr.attendanceStats.invalidate();
+      void utils.hr.listAttendance.invalidate();
+      void utils.hr.attendanceStats.invalidate();
       void utils.attendance.listAttendanceAudit.invalidate();
       void utils.scheduling.getTodayBoard.invalidate();
       void utils.scheduling.getOverdueCheckouts.invalidate();
@@ -1680,10 +1707,10 @@ export default function HRAttendancePage() {
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <Clock size={24} className="text-[var(--smartpro-orange)]" />
-            Attendance Management
+            {t("attendance.title")}
           </h1>
           <p className="text-muted-foreground text-sm mt-1">
-            Operational control center — live workforce state, approvals, and legacy HR grid in one place.
+            {t("attendance.operationalControlDesc")}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -1715,12 +1742,12 @@ export default function HRAttendancePage() {
       {/* Tabs: Live today | HR Records | Site Punches | Corrections | Manual Check-ins | Audit Log */}
       <Tabs value={attendanceTab} onValueChange={setAttendanceTab}>
         <TabsList className="flex-wrap h-auto gap-1">
-          <TabsTrigger value="today" className="gap-1.5"><Users className="h-3.5 w-3.5" /> Live today</TabsTrigger>
-          <TabsTrigger value="records" className="gap-1.5"><CalendarDays className="h-3.5 w-3.5" /> HR Records</TabsTrigger>
-          <TabsTrigger value="site-punches" className="gap-1.5"><MapPin className="h-3.5 w-3.5" /> Site Punches</TabsTrigger>
-          <TabsTrigger value="corrections" className="gap-1.5"><ClipboardList className="h-3.5 w-3.5" /> Corrections{pendingCorrDot && <span className="ml-1 h-2 w-2 rounded-full bg-red-500 inline-block" />}</TabsTrigger>
-          <TabsTrigger value="manual" className="gap-1.5"><AlertCircle className="h-3.5 w-3.5" /> Manual Check-ins{pendingManualDot && <span className="ml-1 h-2 w-2 rounded-full bg-red-500 inline-block" />}</TabsTrigger>
-          <TabsTrigger value="audit" className="gap-1.5"><ScrollText className="h-3.5 w-3.5" /> Audit Log</TabsTrigger>
+          <TabsTrigger value="today" className="gap-1.5"><Users className="h-3.5 w-3.5" /> {t("attendance.tabs.liveToday")}</TabsTrigger>
+          <TabsTrigger value="records" className="gap-1.5"><CalendarDays className="h-3.5 w-3.5" /> {t("attendance.tabs.hrRecords")}</TabsTrigger>
+          <TabsTrigger value="site-punches" className="gap-1.5"><MapPin className="h-3.5 w-3.5" /> {t("attendance.tabs.sitePunches")}</TabsTrigger>
+          <TabsTrigger value="corrections" className="gap-1.5"><ClipboardList className="h-3.5 w-3.5" /> {t("attendance.tabs.corrections")}{pendingCorrDot && <span className="ml-1 h-2 w-2 rounded-full bg-red-500 inline-block" />}</TabsTrigger>
+          <TabsTrigger value="manual" className="gap-1.5"><AlertCircle className="h-3.5 w-3.5" /> {t("attendance.tabs.manualCheckins")}{pendingManualDot && <span className="ml-1 h-2 w-2 rounded-full bg-red-500 inline-block" />}</TabsTrigger>
+          <TabsTrigger value="audit" className="gap-1.5"><ScrollText className="h-3.5 w-3.5" /> {t("attendance.tabs.auditLog")}</TabsTrigger>
         </TabsList>
         <TabsContent value="today" className="mt-4"><TodayBoard companyId={activeCompanyId} /></TabsContent>
         <TabsContent value="site-punches" className="mt-4">
@@ -1747,11 +1774,11 @@ export default function HRAttendancePage() {
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         {[
-          { label: "Present", value: stats?.present ?? 0, icon: <CheckCircle2 size={18} />, color: "text-green-600 bg-green-50" },
-          { label: "Absent", value: stats?.absent ?? 0, icon: <XCircle size={18} />, color: "text-red-600 bg-red-50" },
-          { label: "Late", value: stats?.late ?? 0, icon: <AlertCircle size={18} />, color: "text-amber-600 bg-amber-50" },
-          { label: "Remote", value: stats?.remote ?? 0, icon: <Calendar size={18} />, color: "text-purple-600 bg-purple-50" },
-          { label: "Attendance Rate", value: `${rate}%`, icon: <TrendingUp size={18} />, color: "text-blue-600 bg-blue-50" },
+          { label: t("attendance.records.stats.present"), value: stats?.present ?? 0, icon: <CheckCircle2 size={18} />, color: "text-green-600 bg-green-50" },
+          { label: t("attendance.records.stats.absent"), value: stats?.absent ?? 0, icon: <XCircle size={18} />, color: "text-red-600 bg-red-50" },
+          { label: t("attendance.records.stats.late"), value: stats?.late ?? 0, icon: <AlertCircle size={18} />, color: "text-amber-600 bg-amber-50" },
+          { label: t("attendance.records.stats.remote"), value: stats?.remote ?? 0, icon: <Calendar size={18} />, color: "text-purple-600 bg-purple-50" },
+          { label: t("attendance.records.stats.attendanceRate"), value: `${rate}%`, icon: <TrendingUp size={18} />, color: "text-blue-600 bg-blue-50" },
         ].map((s) => (
           <Card key={s.label}>
             <CardContent className="p-4 flex items-center gap-3">
@@ -1768,15 +1795,15 @@ export default function HRAttendancePage() {
       {/* Filters */}
       <div className="flex gap-3 flex-wrap">
         <div className="space-y-1">
-          <Label className="text-xs text-muted-foreground">Month</Label>
+          <Label className="text-xs text-muted-foreground">{t("attendance.records.filters.month")}</Label>
           <Input type="month" value={monthFilter} onChange={(e) => setMonthFilter(e.target.value)} className="h-8 text-sm w-40" />
         </div>
         <div className="space-y-1">
-          <Label className="text-xs text-muted-foreground">Department</Label>
+          <Label className="text-xs text-muted-foreground">{t("attendance.records.filters.department")}</Label>
           <Select value={deptFilter} onValueChange={setDeptFilter}>
             <SelectTrigger className="h-8 text-sm w-40"><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Departments</SelectItem>
+              <SelectItem value="all">{t("attendance.records.filters.allDepartments")}</SelectItem>
               {departments.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
             </SelectContent>
           </Select>
@@ -1790,16 +1817,16 @@ export default function HRAttendancePage() {
             disabled={exporting || activeCompanyId == null}
             onClick={() => void handleAttendanceExport()}
           >
-            <Download size={14} /> {exporting ? "Exporting…" : "Export Excel"}
+            <Download size={14} /> {exporting ? t("attendance.records.filters.exporting") : t("attendance.records.filters.exportExcel")}
           </Button>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Weekly Chart — real DB data */}
+        {/* Weekly Chart */}
         <Card className="lg:col-span-2">
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm">Weekly Attendance — {monthFilter}</CardTitle>
+            <CardTitle className="text-sm">{t("attendance.records.chart.title", { month: monthFilter })}</CardTitle>
           </CardHeader>
           <CardContent>
             {stats?.byDay && stats.byDay.length > 0 ? (
@@ -1809,17 +1836,17 @@ export default function HRAttendancePage() {
                   <XAxis dataKey="day" tick={{ fontSize: 12 }} />
                   <YAxis tick={{ fontSize: 12 }} />
                   <Tooltip />
-                  <Bar dataKey="present" fill="#22c55e" name="Present" radius={[3, 3, 0, 0]} />
-                  <Bar dataKey="late" fill="#f59e0b" name="Late" radius={[3, 3, 0, 0]} />
-                  <Bar dataKey="absent" fill="#ef4444" name="Absent" radius={[3, 3, 0, 0]} />
+                  <Bar dataKey="present" fill="#22c55e" name={t("attendance.records.stats.present")} radius={[3, 3, 0, 0]} />
+                  <Bar dataKey="late" fill="#f59e0b" name={t("attendance.records.stats.late")} radius={[3, 3, 0, 0]} />
+                  <Bar dataKey="absent" fill="#ef4444" name={t("attendance.records.stats.absent")} radius={[3, 3, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
               <div className="h-[220px] flex items-center justify-center text-muted-foreground">
                 <div className="text-center">
                   <Calendar size={32} className="mx-auto mb-2 opacity-20" />
-                  <p className="text-sm">No attendance data for this period</p>
-                  <p className="text-xs mt-1">Record attendance to see the chart</p>
+                  <p className="text-sm">{t("attendance.records.chart.noData")}</p>
+                  <p className="text-xs mt-1">{t("attendance.records.chart.noDataHint")}</p>
                 </div>
               </div>
             )}
@@ -1830,19 +1857,19 @@ export default function HRAttendancePage() {
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm flex items-center gap-2">
-              <Clock size={14} /> Today&apos;s HR attendance
-              <Badge variant="outline" className="text-xs ml-auto">{todayRecords.length} records</Badge>
+              <Clock size={14} /> {t("attendance.records.todaySummary.title")}
+              <Badge variant="outline" className="text-xs ml-auto">{t("attendance.records.todaySummary.records", { count: todayRecords.length })}</Badge>
             </CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-[11px] text-muted-foreground mb-3 leading-snug">
-              Legacy HR grid for today. Live punches appear on Today&apos;s Board and in employee records.
+              {t("attendance.records.todaySummary.legacyNote")}
             </p>
             {todayRecords.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
                 <Clock size={32} className="mx-auto mb-2 opacity-30" />
-                <p className="text-sm">No HR grid rows for today</p>
-                <p className="text-xs mt-1">Use Record Attendance to add entries, or rely on self check-in and corrections.</p>
+                <p className="text-sm">{t("attendance.records.todaySummary.noRows")}</p>
+                <p className="text-xs mt-1">{t("attendance.records.todaySummary.noRowsHint")}</p>
               </div>
             ) : (
               <div className="space-y-2 max-h-64 overflow-y-auto">
@@ -1874,30 +1901,30 @@ export default function HRAttendancePage() {
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-sm flex items-center gap-2">
-            <Users size={14} /> Attendance Records — {monthFilter}
-            <span className="ml-auto text-xs text-muted-foreground font-normal">{(attendance ?? []).length} records</span>
+            <Users size={14} /> {t("attendance.records.table.title", { month: monthFilter })}
+            <span className="ml-auto text-xs text-muted-foreground font-normal">{t("attendance.records.table.records", { count: (attendance ?? []).length })}</span>
           </CardTitle>
         </CardHeader>
         <CardContent>
           {!attendance || attendance.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
               <Clock size={40} className="mx-auto mb-3 opacity-20" />
-              <p className="font-medium">No attendance records found</p>
-              <p className="text-sm mt-1">Start recording attendance using the button above</p>
+              <p className="font-medium">{t("attendance.records.table.noRecords")}</p>
+              <p className="text-sm mt-1">{t("attendance.records.table.noRecordsHint")}</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b text-xs text-muted-foreground">
-                    <th scope="col" className="text-left py-2 px-3 font-medium">Employee</th>
-                    <th scope="col" className="text-left py-2 px-3 font-medium">Date</th>
-                    <th scope="col" className="text-left py-2 px-3 font-medium">Check In</th>
-                    <th scope="col" className="text-left py-2 px-3 font-medium">Check Out</th>
-                    <th scope="col" className="text-left py-2 px-3 font-medium">Hours</th>
-                    <th scope="col" className="text-left py-2 px-3 font-medium">Status</th>
-                    <th scope="col" className="text-left py-2 px-3 font-medium">Notes</th>
-                    <th scope="col" className="text-left py-2 px-3 font-medium">Actions</th>
+                    <th scope="col" className="text-left py-2 px-3 font-medium">{t("attendance.records.table.employee")}</th>
+                    <th scope="col" className="text-left py-2 px-3 font-medium">{t("attendance.records.table.date")}</th>
+                    <th scope="col" className="text-left py-2 px-3 font-medium">{t("attendance.records.table.checkIn")}</th>
+                    <th scope="col" className="text-left py-2 px-3 font-medium">{t("attendance.records.table.checkOut")}</th>
+                    <th scope="col" className="text-left py-2 px-3 font-medium">{t("attendance.records.table.hours")}</th>
+                    <th scope="col" className="text-left py-2 px-3 font-medium">{t("attendance.records.table.status")}</th>
+                    <th scope="col" className="text-left py-2 px-3 font-medium">{t("attendance.records.table.notes")}</th>
+                    <th scope="col" className="text-left py-2 px-3 font-medium">{t("attendance.records.table.actions")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1906,7 +1933,7 @@ export default function HRAttendancePage() {
                     const checkOut = r.checkOut ? new Date(r.checkOut) : null;
                     const hours = checkIn && checkOut
                       ? ((checkOut.getTime() - checkIn.getTime()) / 3600000).toFixed(1)
-                      : "—";
+                      : "?";
                     return (
                       <tr key={r.id} className="border-b hover:bg-muted/30 transition-colors">
                         <td className="py-2 px-3 font-medium">
@@ -1916,17 +1943,17 @@ export default function HRAttendancePage() {
                           })()}
                         </td>
                         <td className="py-2 px-3 text-muted-foreground">
-                          {r.date ? fmtDateLong(r.date) : "—"}
+                          {r.date ? fmtDateLong(r.date) : "?"}
                         </td>
-                        <td className="py-2 px-3">{checkIn ? checkIn.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—"}</td>
-                        <td className="py-2 px-3">{checkOut ? checkOut.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—"}</td>
-                        <td className="py-2 px-3">{hours !== "—" ? `${hours}h` : "—"}</td>
+                        <td className="py-2 px-3">{checkIn ? checkIn.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "?"}</td>
+                        <td className="py-2 px-3">{checkOut ? checkOut.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "?"}</td>
+                        <td className="py-2 px-3">{hours !== "?" ? `${hours}h` : "?"}</td>
                         <td className="py-2 px-3">
                           <Badge className={`text-xs ${statusColors[r.status ?? "present"] ?? ""}`}>
                             {r.status ?? "present"}
                           </Badge>
                         </td>
-                        <td className="py-2 px-3 text-muted-foreground text-xs max-w-[120px] truncate">{r.notes ?? "—"}</td>
+                        <td className="py-2 px-3 text-muted-foreground text-xs max-w-[120px] truncate">{r.notes ?? "?"}</td>
                         <td className="py-2 px-3">
                           <div className="flex flex-wrap gap-1">
                             <EditAttendanceDialog
@@ -1957,27 +1984,25 @@ export default function HRAttendancePage() {
       <Dialog open={forceDialogRecordId != null} onOpenChange={(o) => !o && setForceDialogRecordId(null)}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Force checkout</DialogTitle>
+            <DialogTitle>{t("attendance.forceCheckoutDialog.title")}</DialogTitle>
             <DialogDescription>
-              This closes the open attendance punch at the current time (Asia/Muscat wall clock). Checkout-at-shift-end is
-              not offered here yet — it needs explicit payroll policy review before we stamp a synthetic end time. The
-              employee is notified implicitly via their record; a full audit entry is stored.
+              {t("attendance.forceCheckoutDialog.description")}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
-            <Label htmlFor="force-reason">Reason (required, min. 10 characters)</Label>
+            <Label htmlFor="force-reason">{t("attendance.forceCheckoutDialog.reason")}</Label>
             <Textarea
               id="force-reason"
               value={forceDialogReason}
               onChange={(e) => setForceDialogReason(e.target.value)}
               rows={4}
-              placeholder="Why you are closing this session (compliance)…"
+              placeholder={t("attendance.forceCheckoutDialog.reasonPlaceholder")}
               className="text-sm"
             />
           </div>
           <DialogFooter className="gap-2">
             <Button type="button" variant="outline" onClick={() => setForceDialogRecordId(null)}>
-              Cancel
+              {t("attendance.forceCheckoutDialog.cancel")}
             </Button>
             <Button
               type="button"
@@ -1996,7 +2021,7 @@ export default function HRAttendancePage() {
                 }
               }}
             >
-              Confirm force checkout
+              {t("attendance.forceCheckoutDialog.confirm")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -2005,26 +2030,25 @@ export default function HRAttendancePage() {
       <Dialog open={triageAckItem != null} onOpenChange={(o) => !o && setTriageAckItem(null)}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Acknowledge issue</DialogTitle>
+            <DialogTitle>{t("attendance.acknowledgeDialog.title")}</DialogTitle>
             <DialogDescription>
-              Marks this operational issue as acknowledged so the team knows it was triaged (does not approve requests or
-              close punches by itself).
+              {t("attendance.acknowledgeDialog.description")}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
-            <Label htmlFor="ack-note">Note (optional)</Label>
+            <Label htmlFor="ack-note">{t("attendance.acknowledgeDialog.note")}</Label>
             <Textarea
               id="ack-note"
               value={triageAckNote}
               onChange={(e) => setTriageAckNote(e.target.value)}
               rows={3}
               className="text-sm"
-              placeholder="Who is handling this, or context…"
+              placeholder={t("attendance.acknowledgeDialog.placeholder")}
             />
           </div>
           <DialogFooter className="gap-2">
             <Button type="button" variant="outline" onClick={() => setTriageAckItem(null)}>
-              Cancel
+              {t("attendance.acknowledgeDialog.cancel")}
             </Button>
             <Button
               type="button"
@@ -2050,7 +2074,7 @@ export default function HRAttendancePage() {
                 }
               }}
             >
-              Acknowledge
+              {t("attendance.acknowledgeDialog.confirm")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -2059,26 +2083,25 @@ export default function HRAttendancePage() {
       <Dialog open={triageResolveItem != null} onOpenChange={(o) => !o && setTriageResolveItem(null)}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Resolve issue</DialogTitle>
+            <DialogTitle>{t("attendance.resolveDialog.title")}</DialogTitle>
             <DialogDescription>
-              Records resolution in the operational issue log (min. 3 characters). Use this when no further action is
-              needed on the triage row.
+              {t("attendance.resolveDialog.description")}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
-            <Label htmlFor="resolve-note">Resolution note</Label>
+            <Label htmlFor="resolve-note">{t("attendance.resolveDialog.note")}</Label>
             <Textarea
               id="resolve-note"
               value={triageResolveNote}
               onChange={(e) => setTriageResolveNote(e.target.value)}
               rows={4}
               className="text-sm"
-              placeholder="What was decided or done…"
+              placeholder={t("attendance.resolveDialog.placeholder")}
             />
           </div>
           <DialogFooter className="gap-2">
             <Button type="button" variant="outline" onClick={() => setTriageResolveItem(null)}>
-              Cancel
+              {t("attendance.resolveDialog.cancel")}
             </Button>
             <Button
               type="button"
@@ -2109,7 +2132,7 @@ export default function HRAttendancePage() {
                 }
               }}
             >
-              Resolve
+              {t("attendance.resolveDialog.confirm")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -2118,21 +2141,21 @@ export default function HRAttendancePage() {
       <Dialog open={triageAssignItem != null} onOpenChange={(o) => !o && setTriageAssignItem(null)}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Assign issue</DialogTitle>
+            <DialogTitle>{t("attendance.assignDialog.title")}</DialogTitle>
             <DialogDescription>
-              Sends ownership to a user for follow-up. Optional note is stored on the assignment audit entry.
+              {t("attendance.assignDialog.description")}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             <div className="space-y-1">
-              <Label>Assignee</Label>
+              <Label>{t("attendance.assignDialog.assignee")}</Label>
               <Select value={triageAssignUserId} onValueChange={setTriageAssignUserId}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select user" />
+                  <SelectValue placeholder={t("attendance.assignDialog.selectUser")} />
                 </SelectTrigger>
                 <SelectContent className="max-h-64">
                   {authUser?.id != null ? (
-                    <SelectItem value={String(authUser.id)}>Me ({authUser.name ?? `User #${authUser.id}`})</SelectItem>
+                    <SelectItem value={String(authUser.id)}>{t("attendance.assignDialog.me", { name: authUser.name ?? `User #${authUser.id}` })}</SelectItem>
                   ) : null}
                   {assignableCompanyMembers
                     .filter((m) => m.userId !== authUser?.id)
@@ -2144,11 +2167,11 @@ export default function HRAttendancePage() {
                 </SelectContent>
               </Select>
               <p className="text-[10px] text-muted-foreground leading-snug">
-                Workspace admins, HR, finance, and reviewers. Employees without a login are not listed.
+                {t("attendance.assignDialog.assigneeHint")}
               </p>
             </div>
             <div className="space-y-1">
-              <Label htmlFor="assign-note">Note (optional)</Label>
+              <Label htmlFor="assign-note">{t("attendance.assignDialog.note")}</Label>
               <Textarea
                 id="assign-note"
                 value={triageAssignNote}
@@ -2160,7 +2183,7 @@ export default function HRAttendancePage() {
           </div>
           <DialogFooter className="gap-2">
             <Button type="button" variant="outline" onClick={() => setTriageAssignItem(null)}>
-              Cancel
+              {t("attendance.assignDialog.cancel")}
             </Button>
             <Button
               type="button"
@@ -2193,7 +2216,7 @@ export default function HRAttendancePage() {
                 }
               }}
             >
-              Assign
+              {t("attendance.assignDialog.confirm")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -2202,20 +2225,20 @@ export default function HRAttendancePage() {
       <AlertDialog open={deleteTargetId != null} onOpenChange={(open) => !open && setDeleteTargetId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete HR attendance row?</AlertDialogTitle>
+            <AlertDialogTitle>{t("attendance.deleteDialog.title")}</AlertDialogTitle>
             <AlertDialogDescription>
-              This removes the legacy HR attendance record. Self-service clock rows and audit history are unchanged. This action is logged.
+              {t("attendance.deleteDialog.description")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t("attendance.deleteDialog.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
               onClick={() => {
                 if (deleteTargetId != null) deleteMutation.mutate({ id: deleteTargetId });
               }}
             >
-              Delete
+              {t("attendance.deleteDialog.confirm")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

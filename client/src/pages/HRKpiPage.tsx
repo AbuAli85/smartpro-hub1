@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
+import { useTranslation } from "react-i18next";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -37,36 +38,21 @@ import {
 import { HubBreadcrumb } from "@/components/hub/HubBreadcrumb";
 import { hrInsightsTrail } from "@/components/hub/hubCrumbs";
 
-const METRIC_TYPES = [
-  { value: "sales_amount", label: "Sales Amount" },
-  { value: "client_count", label: "Client Count" },
-  { value: "leads_count", label: "Leads Count" },
-  { value: "calls_count", label: "Calls Count" },
-  { value: "meetings_count", label: "Meetings Count" },
-  { value: "proposals_count", label: "Proposals Count" },
-  { value: "revenue", label: "Revenue" },
-  { value: "units_sold", label: "Units Sold" },
-  { value: "custom", label: "Custom" },
+const METRIC_TYPE_VALUES = [
+  "sales_amount", "client_count", "leads_count", "calls_count",
+  "meetings_count", "proposals_count", "revenue", "units_sold", "custom",
 ] as const;
 
-const MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const MONTH_KEYS = ["jan","feb","mar","apr","may","jun","jul","aug","sep","oct","nov","dec"] as const;
 
 const fmtOmr = (n: number) => `OMR ${n.toFixed(3)}`;
 
 type KpiLifecycleStatus = "draft" | "active" | "completed" | "archived" | "cancelled";
 
-function targetStatusLabel(s: string): string {
-  const map: Record<string, string> = {
-    draft: "Draft",
-    active: "Active",
-    completed: "Completed",
-    archived: "Archived",
-    cancelled: "Cancelled",
-  };
-  return map[s] ?? s;
-}
+/** targetStatusLabel is replaced by t("kpi.lifecycle.<status>") at call sites */
 
 function TargetStatusBadge({ status }: { status?: string | null }) {
+  const { t } = useTranslation("hr");
   const s = (status ?? "active") as KpiLifecycleStatus;
   const cls =
     s === "active"
@@ -80,26 +66,27 @@ function TargetStatusBadge({ status }: { status?: string | null }) {
             : "bg-red-100 text-red-900 dark:bg-red-950/40";
   return (
     <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0 ${cls}`}>
-      {targetStatusLabel(s)}
+      {t(`kpi.lifecycle.${s}`, { defaultValue: s })}
     </span>
   );
 }
 
-function lifecycleActionsFor(status: string): { to: KpiLifecycleStatus; label: string }[] {
+/** Returns lifecycle transition keys; labels are resolved with t() at render time */
+function lifecycleActionsFor(status: string): { to: KpiLifecycleStatus; labelKey: string }[] {
   switch (status) {
     case "draft":
       return [
-        { to: "active", label: "Activate" },
-        { to: "cancelled", label: "Cancel target" },
+        { to: "active", labelKey: "kpi.lifecycle.activate" },
+        { to: "cancelled", labelKey: "kpi.lifecycle.cancel" },
       ];
     case "active":
       return [
-        { to: "completed", label: "Mark complete" },
-        { to: "archived", label: "Archive" },
-        { to: "cancelled", label: "Cancel target" },
+        { to: "completed", labelKey: "kpi.lifecycle.markComplete" },
+        { to: "archived", labelKey: "kpi.lifecycle.archive" },
+        { to: "cancelled", labelKey: "kpi.lifecycle.cancel" },
       ];
     case "archived":
-      return [{ to: "active", label: "Reactivate" }];
+      return [{ to: "active", labelKey: "kpi.lifecycle.reactivate" }];
     default:
       return [];
   }
@@ -118,6 +105,7 @@ function PctBadge({ pct }: { pct: number }) {
 }
 
 export default function HRKpiPage() {
+  const { t } = useTranslation("hr");
   const now = new Date();
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [year, setYear] = useState(now.getFullYear());
@@ -167,7 +155,7 @@ export default function HRKpiPage() {
 
   const setTargetMut = trpc.kpi.setTarget.useMutation({
     onSuccess: async () => {
-      toast.success(editTargetId ? "Target updated!" : "Target set — employee notified.");
+      toast.success(editTargetId ? t("kpi.targetUpdated") : t("kpi.targetSet"));
       setShowSetTarget(false);
       resetTargetForm();
       await invalidateAfterKpiTargetMutation(utils);
@@ -179,7 +167,7 @@ export default function HRKpiPage() {
 
   const transitionMut = trpc.kpi.transitionKpiTarget.useMutation({
     onSuccess: async () => {
-      toast.success("Target status updated.");
+      toast.success(t("kpi.targetStatusUpdated"));
       setPendingLifecycleConfirm(null);
       await invalidateAfterKpiLifecycleMutation(utils);
       refetchProgress();
@@ -194,7 +182,7 @@ export default function HRKpiPage() {
       return;
     }
     if (!activeCompanyId) {
-      toast.error("Select a company workspace.");
+      toast.error(t("kpi.selectCompany"));
       return;
     }
     transitionMut.mutate({ id, to, companyId: activeCompanyId });
@@ -219,31 +207,31 @@ export default function HRKpiPage() {
   }
 
   function openEditTarget(item: any) {
-    const t = item.target;
-    const st = (t.targetStatus ?? "active") as string;
+    const tgt = item.target;
+    const st = (tgt.targetStatus ?? "active") as string;
     if (st !== "draft" && st !== "active") {
-      toast.error("Only draft or active targets can be edited.");
+      toast.error(t("kpi.onlyDraftActiveEditable"));
       return;
     }
-    setEditTargetId(t.id);
-    setTEmpUserId(t.employeeUserId);
-    setTMetricName(t.metricName);
-    setTMetricType(t.metricType);
-    setTTargetValue(String(t.targetValue));
-    setTCommRate(String(t.commissionRate ?? 0));
-    setTCommType(t.commissionType ?? "percentage");
-    setTCurrency(t.currency ?? "OMR");
-    setTNotes(t.notes ?? "");
+    setEditTargetId(tgt.id);
+    setTEmpUserId(tgt.employeeUserId);
+    setTMetricName(tgt.metricName);
+    setTMetricType(tgt.metricType);
+    setTTargetValue(String(tgt.targetValue));
+    setTCommRate(String(tgt.commissionRate ?? 0));
+    setTCommType(tgt.commissionType ?? "percentage");
+    setTCurrency(tgt.currency ?? "OMR");
+    setTNotes(tgt.notes ?? "");
     setShowSetTarget(true);
   }
 
   function handleSaveTarget() {
     if (!tEmpUserId || !tMetricName || !tTargetValue) {
-      toast.error("Please fill in all required fields.");
+      toast.error(t("kpi.fillRequired"));
       return;
     }
     if (!activeCompanyId) {
-      toast.error("Select a company workspace.");
+      toast.error(t("kpi.selectCompany"));
       return;
     }
     setTargetMut.mutate({
@@ -289,21 +277,21 @@ export default function HRKpiPage() {
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-6 space-y-6">
-      <HubBreadcrumb items={hrInsightsTrail("KPIs & performance")} />
+      <HubBreadcrumb items={hrInsightsTrail(t("kpi.title"))} />
       {/* ── Header ── */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-xl font-bold flex items-center gap-2">
-            <Target className="w-5 h-5 text-primary" /> KPI & Performance Management
+            <Target className="w-5 h-5 text-primary" /> {t("kpi.title")}
           </h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Set targets, track team performance, and manage commissions</p>
+          <p className="text-sm text-muted-foreground mt-0.5">{t("kpi.subtitle")}</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <Select value={String(month)} onValueChange={v => setMonth(Number(v))}>
             <SelectTrigger className="h-9 w-32 text-sm"><SelectValue /></SelectTrigger>
             <SelectContent>
-              {MONTH_NAMES.map((m, i) => (
-                <SelectItem key={i+1} value={String(i+1)}>{m}</SelectItem>
+              {MONTH_KEYS.map((key, i) => (
+                <SelectItem key={i+1} value={String(i+1)}>{t(`kpi.months.${key}`)}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -314,7 +302,7 @@ export default function HRKpiPage() {
             </SelectContent>
           </Select>
           <Button size="sm" className="gap-1.5" onClick={() => openNewTarget()}>
-            <Plus className="w-4 h-4" /> Set Target
+            <Plus className="w-4 h-4" /> {t("kpi.setTarget")}
           </Button>
         </div>
       </div>
@@ -328,7 +316,7 @@ export default function HRKpiPage() {
                 <Target className="w-4 h-4 text-primary" />
               </div>
               <div>
-                <p className="text-xs text-muted-foreground">Total Targets</p>
+                <p className="text-xs text-muted-foreground">{t("kpi.targetsSet")}</p>
                 <p className="text-xl font-bold">{summaryStats.totalTargets}</p>
               </div>
             </div>
@@ -341,7 +329,7 @@ export default function HRKpiPage() {
                 <Award className="w-4 h-4 text-green-600" />
               </div>
               <div>
-                <p className="text-xs text-muted-foreground">Achieved</p>
+                <p className="text-xs text-muted-foreground">{t("kpi.lifecycle.completed")}</p>
                 <p className="text-xl font-bold text-green-600">{summaryStats.achieved}</p>
               </div>
             </div>
@@ -354,7 +342,7 @@ export default function HRKpiPage() {
                 <TrendingUp className="w-4 h-4 text-blue-600" />
               </div>
               <div>
-                <p className="text-xs text-muted-foreground">Avg Achievement</p>
+                <p className="text-xs text-muted-foreground">{t("kpi.avgAttainment")}</p>
                 <p className="text-xl font-bold text-blue-600">{summaryStats.avgPct.toFixed(1)}%</p>
               </div>
             </div>
@@ -367,7 +355,7 @@ export default function HRKpiPage() {
                 <DollarSign className="w-4 h-4 text-amber-600" />
               </div>
               <div>
-                <p className="text-xs text-muted-foreground">Total Commission</p>
+                <p className="text-xs text-muted-foreground">{t("payroll.pasiContribution", { defaultValue: "Total Commission" })}</p>
                 <p className="text-xl font-bold text-amber-600">OMR {summaryStats.totalComm.toFixed(3)}</p>
               </div>
             </div>
@@ -379,10 +367,10 @@ export default function HRKpiPage() {
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="h-9">
           <TabsTrigger value="team" className="text-xs gap-1.5">
-            <Users className="w-3.5 h-3.5" /> Team Progress
+            <Users className="w-3.5 h-3.5" /> {t("kpi.tabs.team")}
           </TabsTrigger>
           <TabsTrigger value="leaderboard" className="text-xs gap-1.5">
-            <Trophy className="w-3.5 h-3.5" /> Leaderboard
+            <Trophy className="w-3.5 h-3.5" /> {t("kpi.tabs.leaderboard")}
           </TabsTrigger>
         </TabsList>
 
@@ -396,7 +384,7 @@ export default function HRKpiPage() {
             <Card>
               <CardContent className="flex flex-col items-center justify-center py-12 gap-3 text-muted-foreground">
                 <Users className="w-12 h-12 opacity-20" />
-                <p className="text-sm">No active employees found</p>
+                <p className="text-sm">{t("workforce.noEmployeesYet")}</p>
               </CardContent>
             </Card>
           ) : (
@@ -441,7 +429,7 @@ export default function HRKpiPage() {
             <CardHeader className="pb-3">
               <CardTitle className="text-sm flex items-center gap-2">
                 <Trophy className="w-4 h-4 text-amber-500" />
-                Team Leaderboard — {MONTH_NAMES[month-1]} {year}
+                {t("kpi.tabs.leaderboard")} — {t(`kpi.months.${MONTH_KEYS[month-1]}`)} {year}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -452,8 +440,7 @@ export default function HRKpiPage() {
               ) : !leaderboard || (leaderboard as any[]).length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 gap-3 text-muted-foreground">
                   <Trophy className="w-12 h-12 opacity-20" />
-                  <p className="text-sm">No achievement data for this period</p>
-                  <p className="text-xs">Set targets and employees log activity to see rankings</p>
+                  <p className="text-sm">{t("kpi.noKpiTargets")}</p>
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -482,11 +469,11 @@ export default function HRKpiPage() {
                         </div>
                         <div className="flex items-center gap-4 shrink-0">
                           <div className="text-center hidden sm:block">
-                            <p className="text-xs text-muted-foreground">Achieved</p>
+                            <p className="text-xs text-muted-foreground">{t("kpi.lifecycle.completed")}</p>
                             <p className="text-sm font-semibold">{Number(entry.totalAchieved ?? 0).toLocaleString()}</p>
                           </div>
                           <div className="text-center hidden sm:block">
-                            <p className="text-xs text-muted-foreground">Commission</p>
+                            <p className="text-xs text-muted-foreground">{t("kpi.commissionRate")}</p>
                             <p className="text-sm font-semibold text-amber-600">OMR {Number(entry.totalCommission ?? 0).toFixed(3)}</p>
                           </div>
                           <div className="text-right">
@@ -507,18 +494,18 @@ export default function HRKpiPage() {
       <Dialog open={showSetTarget} onOpenChange={(o) => { if (!o) { setShowSetTarget(false); resetTargetForm(); } }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>{editTargetId ? "Edit KPI Target" : "Set KPI Target"}</DialogTitle>
+            <DialogTitle>{editTargetId ? t("kpi.editTarget") : t("kpi.setTarget")}</DialogTitle>
             <DialogDescription className="text-xs">
-              {editTargetId ? "Update the target details below." : `Setting target for ${MONTH_NAMES[month-1]} ${year}`}
+              {editTargetId ? t("kpi.editTarget") : `${t("kpi.setTarget")} — ${t(`kpi.months.${MONTH_KEYS[month-1]}`)} ${year}`}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
             {/* Employee */}
             {!editTargetId && (
               <div className="space-y-1.5">
-                <Label>Employee <span className="text-destructive">*</span></Label>
+                <Label>{t("employee")} <span className="text-destructive">*</span></Label>
                 <Select value={tEmpUserId ? String(tEmpUserId) : ""} onValueChange={v => setTEmpUserId(Number(v))}>
-                  <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select employee" /></SelectTrigger>
+                  <SelectTrigger className="h-9 text-sm"><SelectValue placeholder={t("kpi.selectEmployee")} /></SelectTrigger>
                   <SelectContent>
                     {(empList as any[]).map((e: any) => (
                       <SelectItem key={e.id} value={String(e.userId ?? e.id)}>
@@ -543,11 +530,13 @@ export default function HRKpiPage() {
 
             {/* Metric Type */}
             <div className="space-y-1.5">
-              <Label>Metric Type</Label>
+              <Label>{t("kpi.metricType")}</Label>
               <Select value={tMetricType} onValueChange={setTMetricType}>
                 <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {METRIC_TYPES.map(m => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
+                  {METRIC_TYPE_VALUES.map(v => (
+                    <SelectItem key={v} value={v}>{t(`kpi.metricTypes.${v}`)}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -555,7 +544,7 @@ export default function HRKpiPage() {
             {/* Target Value + Currency */}
             <div className="grid grid-cols-3 gap-2">
               <div className="col-span-2 space-y-1.5">
-                <Label>Target Value <span className="text-destructive">*</span></Label>
+                <Label>{t("kpi.targetValue")} <span className="text-destructive">*</span></Label>
                 <Input
                   type="number" min="0" step="any"
                   value={tTargetValue}
@@ -565,7 +554,7 @@ export default function HRKpiPage() {
                 />
               </div>
               <div className="space-y-1.5">
-                <Label>Currency</Label>
+                <Label>{t("kpi.currency")}</Label>
                 <Select value={tCurrency} onValueChange={setTCurrency}>
                   <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -578,7 +567,7 @@ export default function HRKpiPage() {
             {/* Commission */}
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1.5">
-                <Label>Commission Rate</Label>
+                <Label>{t("kpi.commissionRate")}</Label>
                 <Input
                   type="number" min="0" step="any"
                   value={tCommRate}
@@ -588,43 +577,35 @@ export default function HRKpiPage() {
                 />
               </div>
               <div className="space-y-1.5">
-                <Label>Commission Type</Label>
+                <Label>{t("kpi.commissionType")}</Label>
                 <Select value={tCommType} onValueChange={setTCommType}>
                   <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="percentage">% of Value</SelectItem>
-                    <SelectItem value="fixed_per_unit">Fixed per Unit</SelectItem>
+                    <SelectItem value="percentage">{t("kpi.percentage")}</SelectItem>
+                    <SelectItem value="fixed_per_unit">{t("kpi.fixed")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
-            {Number(tCommRate) > 0 && (
-              <p className="text-xs text-muted-foreground bg-amber-50 dark:bg-amber-950/20 border border-amber-200 rounded-lg px-3 py-2">
-                {tCommType === "percentage"
-                  ? `Employee earns ${tCommRate}% of their achieved value as commission`
-                  : `Employee earns ${tCurrency} ${tCommRate} for each unit achieved`}
-              </p>
-            )}
 
             {/* Notes */}
             <div className="space-y-1.5">
-              <Label>Notes (optional)</Label>
+              <Label>{t("kpi.notes")}</Label>
               <Textarea
                 value={tNotes}
                 onChange={e => setTNotes(e.target.value)}
-                placeholder="Any additional context or instructions..."
                 rows={2}
                 className="text-sm resize-none"
               />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setShowSetTarget(false); resetTargetForm(); }}>Cancel</Button>
+            <Button variant="outline" onClick={() => { setShowSetTarget(false); resetTargetForm(); }}>{t("common:actions.cancel", { ns: "common" })}</Button>
             <Button
               disabled={!tEmpUserId || !tMetricName || !tTargetValue || setTargetMut.isPending}
               onClick={handleSaveTarget}
             >
-              {setTargetMut.isPending ? "Saving..." : editTargetId ? "Update Target" : "Set Target"}
+              {setTargetMut.isPending ? "…" : editTargetId ? t("kpi.editTarget") : t("kpi.setTarget")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -636,15 +617,15 @@ export default function HRKpiPage() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Activity className="w-4 h-4 text-primary" />
-              Activity Logs — {logsEmpName}
+              {t("kpi.tabs.logs")} — {logsEmpName}
             </DialogTitle>
-            <DialogDescription className="text-xs">{MONTH_NAMES[month-1]} {year}</DialogDescription>
+            <DialogDescription className="text-xs">{t(`kpi.months.${MONTH_KEYS[month-1]}`)} {year}</DialogDescription>
           </DialogHeader>
           <div className="max-h-96 overflow-y-auto space-y-2 py-2">
             {!empLogs || (empLogs as any[]).length === 0 ? (
               <div className="flex flex-col items-center justify-center py-8 gap-2 text-muted-foreground">
                 <Activity className="w-10 h-10 opacity-20" />
-                <p className="text-sm">No activity logged for this period</p>
+                <p className="text-sm">{t("kpi.noKpiTargets")}</p>
               </div>
             ) : (
               (empLogs as any[]).map((log: any) => (
@@ -670,7 +651,7 @@ export default function HRKpiPage() {
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowLogs(false)}>Close</Button>
+            <Button variant="outline" onClick={() => setShowLogs(false)}>{t("common:actions.close", { ns: "common" })}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -685,17 +666,17 @@ export default function HRKpiPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>
               {pendingLifecycleConfirm?.to === "completed"
-                ? "Mark target complete?"
-                : "Cancel this target?"}
+                ? t("kpi.lifecycle.markComplete")
+                : t("kpi.lifecycle.cancel")}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {pendingLifecycleConfirm?.to === "completed"
-                ? "The target moves to completed. Metric values stay fixed; you can archive later if needed."
-                : "The target will be set to cancelled (soft). Historical records remain for audit."}
+                ? t("kpi.targetStatusUpdated")
+                : t("kpi.targetStatusUpdated")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Back</AlertDialogCancel>
+            <AlertDialogCancel>{t("common:actions.back", { ns: "common" })}</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
                 if (!pendingLifecycleConfirm) return;
@@ -708,6 +689,8 @@ export default function HRKpiPage() {
               }}
             >
               Confirm
+            >
+              {t("common:actions.confirm", { ns: "common" })}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -728,6 +711,7 @@ function EmployeeKpiCard({
   transitionPending: boolean;
   onViewLogs: () => void;
 }) {
+  const { t } = useTranslation("hr");
   const [expanded, setExpanded] = useState(false);
   const initials = getInitials(emp.firstName, emp.lastName);
 
@@ -756,11 +740,11 @@ function EmployeeKpiCard({
                 </span>
               )}
               <Badge variant="outline" className="text-xs hidden sm:flex">
-                {items.length} target{items.length !== 1 ? "s" : ""}
+                {t("kpi.targetsSet")} · {items.length}
               </Badge>
             </>
           ) : (
-            <span className="text-xs text-muted-foreground italic">No targets set</span>
+            <span className="text-xs text-muted-foreground italic">{t("kpi.noKpiTargets")}</span>
           )}
           {expanded ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
         </div>
@@ -776,10 +760,10 @@ function EmployeeKpiCard({
           {/* Actions row */}
           <div className="flex items-center gap-2 flex-wrap">
             <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={onAddTarget}>
-              <Plus className="w-3 h-3" /> Add Target
+              <Plus className="w-3 h-3" /> {t("kpi.setTarget")}
             </Button>
             <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={onViewLogs}>
-              <Eye className="w-3 h-3" /> View Logs
+              <Eye className="w-3 h-3" /> {t("kpi.tabs.logs")}
             </Button>
           </div>
 
@@ -787,29 +771,29 @@ function EmployeeKpiCard({
           {!hasTargets ? (
             <div className="flex flex-col items-center justify-center py-6 gap-2 text-muted-foreground">
               <Target className="w-8 h-8 opacity-20" />
-              <p className="text-xs">No targets set for this period</p>
+              <p className="text-xs">{t("kpi.noKpiTargets")}</p>
             </div>
           ) : (
             <div className="space-y-3">
               {items.map((item: any) => {
-                const t = item.target;
+                const tgt = item.target;
                 const pct = Math.min(Number(item.pct ?? 0), 100);
                 const isExceeded = pct >= 100;
                 const isOnTrack = pct >= 80;
-                const st = (t.targetStatus ?? "active") as string;
+                const st = (tgt.targetStatus ?? "active") as string;
                 const canEdit = st === "draft" || st === "active";
                 const actions = lifecycleActionsFor(st);
 
                 return (
-                  <div key={t.id} className="space-y-1.5 p-3 rounded-lg bg-muted/30 border">
+                  <div key={tgt.id} className="space-y-1.5 p-3 rounded-lg bg-muted/30 border">
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2 flex-1 min-w-0">
                         <div className={`w-2 h-2 rounded-full shrink-0 ${
                           isExceeded ? "bg-green-500" : isOnTrack ? "bg-blue-500" : "bg-amber-500"
                         }`} />
-                        <span className="font-medium text-sm truncate">{t.metricName}</span>
-                        <span className="text-xs text-muted-foreground hidden sm:inline">({t.metricType})</span>
-                        <TargetStatusBadge status={t.targetStatus} />
+                        <span className="font-medium text-sm truncate">{tgt.metricName}</span>
+                        <span className="text-xs text-muted-foreground hidden sm:inline">({tgt.metricType})</span>
+                        <TargetStatusBadge status={tgt.targetStatus} />
                       </div>
                       <div className="flex items-center gap-1 shrink-0">
                         <PctBadge pct={pct} />
@@ -833,16 +817,15 @@ function EmployeeKpiCard({
                                 disabled={transitionPending}
                               >
                                 <MoreHorizontal className="w-3 h-3" />
-                                <span className="hidden sm:inline">Lifecycle</span>
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" className="w-48">
                               {actions.map((a) => (
                                 <DropdownMenuItem
                                   key={a.to}
-                                  onClick={() => onRequestTransition(t.id, a.to)}
+                                  onClick={() => onRequestTransition(tgt.id, a.to)}
                                 >
-                                  {a.label}
+                                  {t(a.labelKey)}
                                 </DropdownMenuItem>
                               ))}
                             </DropdownMenuContent>
@@ -853,11 +836,11 @@ function EmployeeKpiCard({
                     <Progress value={pct} className="h-1.5" />
                     <div className="flex items-center justify-between text-xs text-muted-foreground">
                       <span>
-                        {Number(item.achievedValue ?? 0).toLocaleString()} / {Number(item.targetValue ?? 0).toLocaleString()} {t.unit ?? t.currency ?? ""}
+                        {Number(item.achievedValue ?? 0).toLocaleString()} / {Number(item.targetValue ?? 0).toLocaleString()} {tgt.unit ?? tgt.currency ?? ""}
                       </span>
-                      {Number(t.commissionRate ?? 0) > 0 && (
+                      {Number(tgt.commissionRate ?? 0) > 0 && (
                         <span className="text-amber-600 font-medium">
-                          Commission: OMR {Number(item.commissionEarned ?? 0).toFixed(3)}
+                          {t("kpi.commissionRate")}: OMR {Number(item.commissionEarned ?? 0).toFixed(3)}
                         </span>
                       )}
                     </div>

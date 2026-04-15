@@ -33,15 +33,20 @@ import { DateInput } from "@/components/ui/date-input";
 import { useTranslation } from "react-i18next";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const STATUS_META: Record<string, { label: string; color: string }> = {
-  active:     { label: "Active",      color: "bg-emerald-100 text-emerald-700 border-emerald-200" },
-  on_leave:   { label: "On Leave",    color: "bg-amber-100 text-amber-700 border-amber-200" },
-  terminated: { label: "Terminated",  color: "bg-red-100 text-red-700 border-red-200" },
-  resigned:   { label: "Resigned",    color: "bg-gray-100 text-gray-600 border-gray-200" },
+// Status labels resolved via t(STATUS_META[s].i18nKey) at render time
+const STATUS_META: Record<string, { i18nKey: string; color: string }> = {
+  active:     { i18nKey: "lifecycle.active",      color: "bg-emerald-100 text-emerald-700 border-emerald-200" },
+  on_leave:   { i18nKey: "attendance.onLeave",    color: "bg-amber-100 text-amber-700 border-amber-200" },
+  terminated: { i18nKey: "lifecycle.terminated",  color: "bg-red-100 text-red-700 border-red-200" },
+  resigned:   { i18nKey: "lifecycle.resigned",    color: "bg-gray-100 text-gray-600 border-gray-200" },
 };
 
-const EMP_TYPE_LABELS: Record<string, string> = {
-  full_time: "Full Time", part_time: "Part Time", contract: "Contract", intern: "Intern",
+// Employment type i18n keys resolved via t(EMP_TYPE_I18N[type]) at render time
+const EMP_TYPE_I18N: Record<string, string> = {
+  full_time: "employeeWizard.employmentTypes.full_time",
+  part_time: "employeeWizard.employmentTypes.part_time",
+  contract: "employeeWizard.employmentTypes.contract",
+  intern: "employeeWizard.employmentTypes.intern",
 };
 
 const DEPT_COLORS = [
@@ -134,6 +139,7 @@ const BLANK = {
 };
 
 function AddEmployeeWizard({ onSuccess, companyId }: { onSuccess: () => void; companyId?: number | null }) {
+  const { t } = useTranslation("hr");
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState(1);
   const [form, setForm] = useState(BLANK);
@@ -149,7 +155,7 @@ function AddEmployeeWizard({ onSuccess, companyId }: { onSuccess: () => void; co
 
   const createMutation = trpc.hr.createEmployee.useMutation({
     onSuccess: () => {
-      toast.success(`${form.firstName} ${form.lastName} added to workforce`);
+      toast.success(t("workforce.addedToWorkforce", { name: `${form.firstName} ${form.lastName}` }));
       setOpen(false); setStep(1); setForm(BLANK);
       onSuccess();
     },
@@ -158,20 +164,25 @@ function AddEmployeeWizard({ onSuccess, companyId }: { onSuccess: () => void; co
 
   const f = (key: keyof typeof BLANK, val: string) => setForm((p) => ({ ...p, [key]: val }));
 
-  const STEPS = ["Personal Info", "Employment", "Compliance & Docs", "Compensation"];
+  const STEPS = [
+    t("employeeWizard.steps.personalInfo"),
+    t("employeeWizard.steps.employment"),
+    t("employeeWizard.steps.complianceDocs"),
+    t("employeeWizard.steps.compensation"),
+  ];
 
   return (
     <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setStep(1); setForm(BLANK); } }}>
       <DialogTrigger asChild>
         <Button size="sm" className="gap-2 bg-[var(--smartpro-orange)] hover:bg-orange-600 text-white">
-          <UserPlus size={16} /> Add Employee
+          <UserPlus size={16} /> {t("workforce.addEmployee")}
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-xl max-h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Users size={18} className="text-[var(--smartpro-orange)]" />
-            Add New Employee — Step {step} of {STEPS.length}
+            {t("workforce.addNewEmployee")} — {t("workforce.stepOf", { current: step, total: STEPS.length })}
           </DialogTitle>
         </DialogHeader>
 
@@ -193,27 +204,27 @@ function AddEmployeeWizard({ onSuccess, companyId }: { onSuccess: () => void; co
           {step === 1 && (
             <>
               <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5"><Label>First Name (EN) *</Label><Input value={form.firstName} onChange={(e) => f("firstName", e.target.value)} placeholder="Ahmed" /></div>
-                <div className="space-y-1.5"><Label>Last Name (EN) *</Label><Input value={form.lastName} onChange={(e) => f("lastName", e.target.value)} placeholder="Al-Balushi" /></div>
+                <div className="space-y-1.5"><Label>{t("employeeWizard.fields.firstNameEn")} *</Label><Input value={form.firstName} onChange={(e) => f("firstName", e.target.value)} placeholder="Ahmed" /></div>
+                <div className="space-y-1.5"><Label>{t("employeeWizard.fields.lastNameEn")} *</Label><Input value={form.lastName} onChange={(e) => f("lastName", e.target.value)} placeholder="Al-Balushi" /></div>
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5"><Label>First Name (AR)</Label><Input dir="rtl" value={form.firstNameAr} onChange={(e) => f("firstNameAr", e.target.value)} placeholder="أحمد" /></div>
-                <div className="space-y-1.5"><Label>Last Name (AR)</Label><Input dir="rtl" value={form.lastNameAr} onChange={(e) => f("lastNameAr", e.target.value)} placeholder="البلوشي" /></div>
+                <div className="space-y-1.5"><Label>{t("employeeWizard.fields.firstNameAr")}</Label><Input dir="rtl" value={form.firstNameAr} onChange={(e) => f("firstNameAr", e.target.value)} placeholder="أحمد" /></div>
+                <div className="space-y-1.5"><Label>{t("employeeWizard.fields.lastNameAr")}</Label><Input dir="rtl" value={form.lastNameAr} onChange={(e) => f("lastNameAr", e.target.value)} placeholder="البلوشي" /></div>
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5"><Label>Email</Label><Input type="email" value={form.email} onChange={(e) => f("email", e.target.value)} /></div>
-                <div className="space-y-1.5"><Label>Phone</Label><Input value={form.phone} onChange={(e) => f("phone", e.target.value)} placeholder="+968 9xxx xxxx" /></div>
+                <div className="space-y-1.5"><Label>{t("employeeWizard.fields.email")}</Label><Input type="email" value={form.email} onChange={(e) => f("email", e.target.value)} /></div>
+                <div className="space-y-1.5"><Label>{t("employeeWizard.fields.phone")}</Label><Input value={form.phone} onChange={(e) => f("phone", e.target.value)} placeholder="+968 9xxx xxxx" /></div>
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5"><Label>Date of Birth</Label><DateInput value={form.dateOfBirth} onChange={(e) => f("dateOfBirth", e.target.value)} /></div>
+                <div className="space-y-1.5"><Label>{t("employeeWizard.fields.dateOfBirth")}</Label><DateInput value={form.dateOfBirth} onChange={(e) => f("dateOfBirth", e.target.value)} /></div>
                 <div className="space-y-1.5">
-                  <Label>Gender</Label>
+                  <Label>{t("employeeWizard.fields.gender")}</Label>
                   <Select value={form.gender || "__none__"} onValueChange={(v) => f("gender", v === "__none__" ? "" : v)}>
-                    <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="__none__">Prefer not to say</SelectItem>
-                      <SelectItem value="male">Male</SelectItem>
-                      <SelectItem value="female">Female</SelectItem>
+                      <SelectItem value="__none__">{t("employeeWizard.fields.preferNotToSay")}</SelectItem>
+                      <SelectItem value="male">{t("employeeWizard.fields.male")}</SelectItem>
+                      <SelectItem value="female">{t("employeeWizard.fields.female")}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -352,7 +363,7 @@ function AddEmployeeWizard({ onSuccess, companyId }: { onSuccess: () => void; co
                   <p><strong>Nationality:</strong> {form.nationality || "—"}</p>
                   <p><strong>Role:</strong> {form.position || "—"}</p>
                   <p><strong>Department:</strong> {form.department || "—"}</p>
-                  <p><strong>Type:</strong> {EMP_TYPE_LABELS[form.employmentType]}</p>
+                  <p><strong>{t("contractType")}:</strong> {t(EMP_TYPE_I18N[form.employmentType] ?? "employeeWizard.employmentTypes.full_time")}</p>
                   <p><strong>Hire Date:</strong> {form.hireDate ? fmtDate(form.hireDate) : "—"}</p>
                   {form.salary && <p><strong>Salary:</strong> {form.currency} {parseFloat(form.salary).toFixed(3)}</p>}
                   {form.pasiNumber && <p><strong>PASI:</strong> {form.pasiNumber}</p>}
@@ -384,6 +395,7 @@ function AddEmployeeWizard({ onSuccess, companyId }: { onSuccess: () => void; co
 
 // ─── Employee Detail Panel ────────────────────────────────────────────────────
 function EmployeeDetailPanel({ employeeId, onClose, onUpdate }: { employeeId: number; onClose: () => void; onUpdate: () => void }) {
+  const { t } = useTranslation("hr");
   const [, setLocation] = useLocation();
   const { activeCompanyId, expiryWarningDays } = useActiveCompany();
   const { data: emp, refetch } = trpc.hr.getEmployee.useQuery({ id: employeeId });
@@ -419,8 +431,8 @@ function EmployeeDetailPanel({ employeeId, onClose, onUpdate }: { employeeId: nu
             <h2 className="font-bold text-lg leading-tight">{emp.firstName} {emp.lastName}</h2>
             {(emp.firstNameAr || emp.lastNameAr) && <p className="text-sm text-muted-foreground" dir="rtl">{emp.firstNameAr} {emp.lastNameAr}</p>}
             <div className="flex items-center gap-2 mt-1 flex-wrap">
-              <Badge className={"text-xs " + statusMeta.color} variant="outline">{statusMeta.label}</Badge>
-              {isOmani && <Badge className="text-xs bg-green-100 text-green-700 border-green-200" variant="outline">Omani National</Badge>}
+              <Badge className={"text-xs " + statusMeta.color} variant="outline">{t(statusMeta.i18nKey)}</Badge>
+              {isOmani && <Badge className="text-xs bg-green-100 text-green-700 border-green-200" variant="outline">{t("omanEmployee")}</Badge>}
             </div>
           </div>
         </div>
@@ -592,7 +604,7 @@ function EmployeeDetailPanel({ employeeId, onClose, onUpdate }: { employeeId: nu
           ) : (
             <div className="p-3 bg-muted/40 rounded-xl">
               <p className="text-2xl font-black text-[var(--smartpro-orange)]">{emp.salary ? `${emp.currency ?? "OMR"} ${parseFloat(emp.salary).toFixed(3)}` : "Not set"}</p>
-              <p className="text-xs text-muted-foreground mt-0.5">{EMP_TYPE_LABELS[emp.employmentType ?? "full_time"]} · per month</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{t(EMP_TYPE_I18N[emp.employmentType ?? "full_time"] ?? "employeeWizard.employmentTypes.full_time")}</p>
             </div>
           )}
         </div>
@@ -760,12 +772,12 @@ export default function HREmployeesPage() {
   }, [employees, search, completenessFilter, completenessMap, sortBy, sortDir]);
 
   const kpiItems = [
-    { label: "Total Workforce",   value: stats?.total ?? 0,                color: "bg-blue-500",    icon: Users },
-    { label: "Active Employees",  value: stats?.active ?? 0,               color: "bg-emerald-500", icon: UserCheck },
-    { label: "On Leave",          value: stats?.onLeave ?? 0,              color: "bg-amber-500",   icon: Clock },
-    { label: "Omani Nationals",   value: stats?.omani ?? 0,                color: "bg-green-600",   icon: Shield },
-    { label: "Omanisation Rate",  value: `${stats?.omanisationRate ?? 0}%`,color: "bg-teal-500",    icon: BarChart3 },
-    { label: "Avg Salary (OMR)",  value: stats?.avgSalary ? stats.avgSalary.toFixed(3) : "0.000", color: "bg-[var(--smartpro-orange)]", icon: DollarSign },
+    { label: t("workforce.total"),      value: stats?.total ?? 0,                color: "bg-blue-500",    icon: Users },
+    { label: t("workforce.active"),     value: stats?.active ?? 0,               color: "bg-emerald-500", icon: UserCheck },
+    { label: t("workforce.onLeave"),    value: stats?.onLeave ?? 0,              color: "bg-amber-500",   icon: Clock },
+    { label: t("omanEmployee"),         value: stats?.omani ?? 0,                color: "bg-green-600",   icon: Shield },
+    { label: "Omanisation Rate",        value: `${stats?.omanisationRate ?? 0}%`,color: "bg-teal-500",    icon: BarChart3 },
+    { label: t("salary"),               value: stats?.avgSalary ? stats.avgSalary.toFixed(3) : "0.000", color: "bg-[var(--smartpro-orange)]", icon: DollarSign },
   ];
 
   const needsAttention = useMemo(() =>
@@ -1111,7 +1123,7 @@ export default function HREmployeesPage() {
                               {emp.nationality ?? "—"}
                             </span>
                           </td>
-                          <td className="px-4 py-3"><Badge className={`text-xs ${statusMeta.color}`} variant="outline">{statusMeta.label}</Badge></td>
+                          <td className="px-4 py-3"><Badge className={`text-xs ${statusMeta.color}`} variant="outline">{t(statusMeta.i18nKey)}</Badge></td>
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-1.5 flex-wrap">
                               {completeness && <CompletenessBadge score={completeness.score} missingRequired={completeness.missingRequired} />}

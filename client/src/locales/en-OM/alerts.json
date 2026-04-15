@@ -1,0 +1,62 @@
+{
+  "page": {
+    "title": "Expiry & Renewal Alerts",
+    "subtitle": "Real-time expiry tracking — work permits, visas, PASI, CR, Sanad licences & employee documents · Oman & GCC",
+    "breadcrumb": "Expiry alerts"
+  },
+  "sourceBadges": {
+    "ministryOfLabour": "Ministry of Labour",
+    "pasi": "PASI",
+    "ropVisa": "ROP Visa",
+    "crRenewal": "CR Renewal",
+    "sanadLicence": "Sanad Licence"
+  },
+  "actions": {
+    "refresh": "Refresh",
+    "clearFilters": "Clear Filters",
+    "view": "View",
+    "renew": "Renew"
+  },
+  "severity": {
+    "critical": "Critical",
+    "high": "High",
+    "medium": "Medium",
+    "low": "Low",
+    "criticalDays": "≤ 7 days",
+    "highDays": "≤ 30 days",
+    "mediumDays": "≤ 60 days",
+    "lowDays": "≤ 90 days"
+  },
+  "category": {
+    "work_permit": "Work Permit",
+    "visa": "Visa",
+    "resident_card": "Resident Card",
+    "labour_card": "Labour Card",
+    "pro_service": "PRO Service",
+    "sanad_licence": "Sanad Licence",
+    "officer_document": "Officer Document",
+    "employee_document": "Employee Document"
+  },
+  "filters": {
+    "searchPlaceholder": "Search alerts...",
+    "allCategories": "All Categories",
+    "allSeverities": "All Severities",
+    "next7Days": "Next 7 days",
+    "next30Days": "Next 30 days",
+    "next60Days": "Next 60 days",
+    "next90Days": "Next 90 days",
+    "next180Days": "Next 180 days"
+  },
+  "list": {
+    "showing_one": "Showing <bold>{{count}}</bold> alert",
+    "showing_other": "Showing <bold>{{count}}</bold> alerts",
+    "filteredFrom": "(filtered from {{total}})",
+    "expires": "Expires",
+    "days": "days"
+  },
+  "emptyState": {
+    "title": "No alerts found",
+    "allUpToDate": "All documents and permits are up to date within the selected period.",
+    "noMatch": "No alerts match the current filters."
+  }
+}

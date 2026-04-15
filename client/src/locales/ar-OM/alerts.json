@@ -1,0 +1,62 @@
+{
+  "page": {
+    "title": "تنبيهات انتهاء الصلاحية والتجديد",
+    "subtitle": "تتبع انتهاء الصلاحية في الوقت الفعلي — تصاريح العمل والتأشيرات وPASI وCR ورخص ساند والوثائق الوظيفية · عُمان ودول الخليج",
+    "breadcrumb": "تنبيهات انتهاء الصلاحية"
+  },
+  "sourceBadges": {
+    "ministryOfLabour": "وزارة العمل",
+    "pasi": "PASI",
+    "ropVisa": "تأشيرة الشرطة الملكية",
+    "crRenewal": "تجديد السجل التجاري",
+    "sanadLicence": "رخصة ساند"
+  },
+  "actions": {
+    "refresh": "تحديث",
+    "clearFilters": "مسح الفلاتر",
+    "view": "عرض",
+    "renew": "تجديد"
+  },
+  "severity": {
+    "critical": "حرج",
+    "high": "مرتفع",
+    "medium": "متوسط",
+    "low": "منخفض",
+    "criticalDays": "≤ 7 أيام",
+    "highDays": "≤ 30 يوماً",
+    "mediumDays": "≤ 60 يوماً",
+    "lowDays": "≤ 90 يوماً"
+  },
+  "category": {
+    "work_permit": "تصريح عمل",
+    "visa": "تأشيرة",
+    "resident_card": "بطاقة إقامة",
+    "labour_card": "بطاقة عمل",
+    "pro_service": "خدمة PRO",
+    "sanad_licence": "رخصة ساند",
+    "officer_document": "وثيقة المسؤول",
+    "employee_document": "وثيقة الموظف"
+  },
+  "filters": {
+    "searchPlaceholder": "البحث في التنبيهات...",
+    "allCategories": "جميع الفئات",
+    "allSeverities": "جميع مستويات الخطورة",
+    "next7Days": "الـ 7 أيام القادمة",
+    "next30Days": "الـ 30 يوماً القادمة",
+    "next60Days": "الـ 60 يوماً القادمة",
+    "next90Days": "الـ 90 يوماً القادمة",
+    "next180Days": "الـ 180 يوماً القادمة"
+  },
+  "list": {
+    "showing_one": "عرض <bold>{{count}}</bold> تنبيه",
+    "showing_other": "عرض <bold>{{count}}</bold> تنبيهات",
+    "filteredFrom": "(مُصفَّى من {{total}})",
+    "expires": "ينتهي",
+    "days": "أيام"
+  },
+  "emptyState": {
+    "title": "لا توجد تنبيهات",
+    "allUpToDate": "جميع الوثائق والتصاريح محدّثة ضمن الفترة المحددة.",
+    "noMatch": "لا توجد تنبيهات تطابق الفلاتر الحالية."
+  }
+}

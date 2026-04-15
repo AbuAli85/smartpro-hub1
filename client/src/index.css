@@ -458,9 +458,9 @@
 [dir="rtl"] .pl-4 { padding-left: unset; padding-right: 1rem; }
 [dir="rtl"] .pr-4 { padding-right: unset; padding-left: 1rem; }
 
-/* Table cells */
+/* Table cells — logical alignment (mixed Arabic/Latin in same row) */
 [dir="rtl"] th,
-[dir="rtl"] td { text-align: right; }
+[dir="rtl"] td { text-align: start; }
 
 /* Form labels */
 [dir="rtl"] label { display: block; text-align: right; }
@@ -477,7 +477,7 @@
 }
 
 /* Dialog text direction */
-[dir="rtl"] [role="dialog"] { text-align: right; }
+[dir="rtl"] [role="dialog"] { text-align: start; }
 
 /* Keep numeric inputs LTR */
 [dir="rtl"] input[type="number"],

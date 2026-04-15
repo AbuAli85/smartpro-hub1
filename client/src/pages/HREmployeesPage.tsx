@@ -790,7 +790,9 @@ function EmployeeTimeline({ employeeId }: { employeeId: number }) {
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function HREmployeesPage() {
-  const { t, i18n } = useTranslation("hr");
+  const { t, i18n } = useTranslation(["hr", "common"]);
+  const tc = (key: string) => t(`table.${key}`, { ns: "common" });
+  const tCommon = (key: string) => t(key, { ns: "common" });
   const rtl = isRTL(i18n.language);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("active");
@@ -997,14 +999,14 @@ export default function HREmployeesPage() {
 
           <TabsContent value="employees" className="space-y-4 mt-4">
             {/* Filters */}
-            <div className="flex flex-wrap gap-3">
+            <div className="flex flex-wrap gap-3 items-stretch">
               <div className="relative flex-1 min-w-48">
-                <Search size={16} className="absolute start-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <Search size={16} className="absolute start-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
                 <Input placeholder={t("filters.searchEmployees")} className="ps-9 text-start" value={search} onChange={(e) => setSearch(e.target.value)} />
                 {search && <button className="absolute end-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" onClick={() => setSearch("")}><X size={14} /></button>}
               </div>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-36"><SelectValue placeholder={t("filters.allStatus")} /></SelectTrigger>
+                <SelectTrigger className="w-36 text-start"><SelectValue placeholder={t("filters.allStatus")} /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">{t("filters.allStatus")}</SelectItem>
                   <SelectItem value="active">{t("filters.statusActive")}</SelectItem>
@@ -1014,14 +1016,14 @@ export default function HREmployeesPage() {
                 </SelectContent>
               </Select>
               <Select value={deptFilter} onValueChange={setDeptFilter}>
-                <SelectTrigger className="w-44"><SelectValue placeholder={t("filters.allDepartments")} /></SelectTrigger>
+                <SelectTrigger className="w-44 text-start"><SelectValue placeholder={t("filters.allDepartments")} /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">{t("filters.allDepartments")}</SelectItem>
                   {(departments as any[] ?? []).map((d) => <SelectItem key={d.id} value={d.name}>{d.name}</SelectItem>)}
                 </SelectContent>
               </Select>
               <Select value={completenessFilter} onValueChange={setCompletenessFilter}>
-                <SelectTrigger className="w-44"><SelectValue placeholder={t("filters.profileStatus")} /></SelectTrigger>
+                <SelectTrigger className="w-44 text-start"><SelectValue placeholder={t("filters.profileStatus")} /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">{t("filters.allProfiles")}</SelectItem>
                   <SelectItem value="complete">{t("filters.profileComplete")}</SelectItem>
@@ -1034,24 +1036,24 @@ export default function HREmployeesPage() {
                 setSortBy(field as any);
                 setSortDir(dir as any);
               }}>
-                <SelectTrigger className="w-44 gap-1.5">
-                  <ArrowUpDown size={13} className="text-muted-foreground" />
-                  <SelectValue placeholder={t("common:sort.sortBy", { defaultValue: "" })} />
+                <SelectTrigger className="w-44 gap-1.5 text-start">
+                  <ArrowUpDown size={13} className="text-muted-foreground shrink-0" />
+                  <SelectValue placeholder={tCommon("sort.sortBy")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="name-asc">{t("common:sort.nameAsc")}</SelectItem>
-                  <SelectItem value="name-desc">{t("common:sort.nameDesc")}</SelectItem>
-                  <SelectItem value="completeness-asc">{t("common:sort.profileAsc")}</SelectItem>
-                  <SelectItem value="completeness-desc">{t("common:sort.profileDesc")}</SelectItem>
-                  <SelectItem value="hireDate-asc">{t("common:sort.hireAsc")}</SelectItem>
-                  <SelectItem value="hireDate-desc">{t("common:sort.hireDesc")}</SelectItem>
-                  <SelectItem value="salary-desc">{t("common:sort.salaryDesc")}</SelectItem>
-                  <SelectItem value="salary-asc">{t("common:sort.salaryAsc")}</SelectItem>
+                  <SelectItem value="name-asc">{tCommon("sort.nameAsc")}</SelectItem>
+                  <SelectItem value="name-desc">{tCommon("sort.nameDesc")}</SelectItem>
+                  <SelectItem value="completeness-asc">{tCommon("sort.profileAsc")}</SelectItem>
+                  <SelectItem value="completeness-desc">{tCommon("sort.profileDesc")}</SelectItem>
+                  <SelectItem value="hireDate-asc">{tCommon("sort.hireAsc")}</SelectItem>
+                  <SelectItem value="hireDate-desc">{tCommon("sort.hireDesc")}</SelectItem>
+                  <SelectItem value="salary-desc">{tCommon("sort.salaryDesc")}</SelectItem>
+                  <SelectItem value="salary-asc">{tCommon("sort.salaryAsc")}</SelectItem>
                 </SelectContent>
               </Select>
               {(search || statusFilter !== "active" || deptFilter !== "all" || completenessFilter !== "all") && (
                 <Button variant="ghost" size="sm" className="h-10 text-xs gap-1 text-muted-foreground" onClick={() => { setSearch(""); setStatusFilter("active"); setDeptFilter("all"); setCompletenessFilter("all"); }}>
-                  <X size={12} /> {t("common:filter.clearFilters")}
+                  <X size={12} /> {tCommon("filter.clearFilters")}
                 </Button>
               )}
             </div>
@@ -1126,8 +1128,11 @@ export default function HREmployeesPage() {
             )}
             {/* Table */}
             <Card>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm border-collapse">
+              <div className="overflow-x-auto" dir={i18n.dir()}>
+                <table
+                  className="hr-employees-table w-full text-sm border-collapse"
+                  dir={i18n.dir()}
+                >
                   <thead>
                     <tr className="border-b bg-muted/40">
                       <th scope="col" className="px-4 py-3 w-10">
@@ -1137,17 +1142,17 @@ export default function HREmployeesPage() {
                             if (checked) setSelectedIds(new Set(filtered.map((e) => e.id)));
                             else setSelectedIds(new Set());
                           }}
-                          aria-label={t("common:table.selectAll")}
+                          aria-label={tc("selectAll")}
                         />
                       </th>
-                      <th scope="col" className="text-start px-4 py-3 font-medium text-muted-foreground text-xs">{t("common:table.employee")}</th>
-                      <th scope="col" className="text-start px-4 py-3 font-medium text-muted-foreground text-xs">{t("common:table.role")}</th>
-                      <th scope="col" className="text-start px-4 py-3 font-medium text-muted-foreground text-xs">{t("common:table.department")}</th>
-                      <th scope="col" className="text-start px-4 py-3 font-medium text-muted-foreground text-xs">{t("common:table.nationality")}</th>
-                      <th scope="col" className="text-start px-4 py-3 font-medium text-muted-foreground text-xs">{t("common:table.status")}</th>
-                      <th scope="col" className="text-start px-4 py-3 font-medium text-muted-foreground text-xs">{t("common:table.profile")}</th>
-                      <th scope="col" className="text-start px-4 py-3 font-medium text-muted-foreground text-xs">{t("common:table.salary")}</th>
-                      <th scope="col" className="text-start px-4 py-3 font-medium text-muted-foreground text-xs">{t("common:table.hireDate")}</th>
+                      <th scope="col" className="text-start px-4 py-3 font-medium text-muted-foreground text-xs">{tc("employee")}</th>
+                      <th scope="col" className="text-start px-4 py-3 font-medium text-muted-foreground text-xs">{tc("role")}</th>
+                      <th scope="col" className="text-start px-4 py-3 font-medium text-muted-foreground text-xs">{tc("department")}</th>
+                      <th scope="col" className="text-start px-4 py-3 font-medium text-muted-foreground text-xs">{tc("nationality")}</th>
+                      <th scope="col" className="text-start px-4 py-3 font-medium text-muted-foreground text-xs">{tc("status")}</th>
+                      <th scope="col" className="text-start px-4 py-3 font-medium text-muted-foreground text-xs">{tc("profile")}</th>
+                      <th scope="col" className="text-start px-4 py-3 font-medium text-muted-foreground text-xs">{tc("salary")}</th>
+                      <th scope="col" className="text-start px-4 py-3 font-medium text-muted-foreground text-xs">{tc("hireDate")}</th>
                       <th scope="col" className="px-4 py-3 w-10"></th>
                     </tr>
                   </thead>

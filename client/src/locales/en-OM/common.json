@@ -149,6 +149,10 @@
     "ar": "العربية",
     "switchTo": "Switch to {{lang}}"
   },
+  "all": "All",
+  "viewAll": "View All",
+  "pdfReports": "PDF Reports",
+  "auditLog": "Audit Log",
   "notFound": {
     "title": "Page Not Found",
     "description": "Sorry, the page you are looking for doesn't exist. It may have been moved or deleted.",

@@ -174,6 +174,7 @@ function branch(
  * - **complianceWorkforce**: government workforce compliance (`/workforce/*` except profile-change queue grouped under People for HR workflow)
  * - **access**: membership access & roles
  * - **proShared**: Omani PRO pillar
+ * - **clientWorkspace**: customer-facing aggregate (`/client-portal`) — not platform operator tooling
  * - **platform**: internal / global admin
  */
 export const PLATFORM_NAV_GROUP_DEFS: readonly NavGroupDef[] = [
@@ -235,6 +236,19 @@ export const PLATFORM_NAV_GROUP_DEFS: readonly NavGroupDef[] = [
         intent: "workspace",
       }),
       leaf("co.emailTemplates", "emailTemplates", "Email Templates", "/company/email-preview", Mail, { intent: "workspace" }),
+    ],
+  },
+  /* C2 — Client workspace (customer-facing aggregate; route `/client-portal`) */
+  {
+    id: "clientWorkspace",
+    labelKey: "clientWorkspaceGroup",
+    defaultGroupLabel: "Client workspace",
+    tier: "primary",
+    collapsible: false,
+    items: [
+      leaf("cw.clientPortal", "clientPortal", "Client workspace", "/client-portal", UserCircle, {
+        intent: "workspace",
+      }),
     ],
   },
   /* D — People & HR */
@@ -505,7 +519,6 @@ export const PLATFORM_NAV_GROUP_DEFS: readonly NavGroupDef[] = [
     collapsible: true,
     defaultCollapsed: true,
     items: [
-      leaf("plat.clientPortal", "clientPortal", "Client portal", "/client-portal", UserCircle, { intent: "system" }),
       leaf("plat.platformOps", "platformOpsLabel", "Platform operations", "/platform-ops", Globe, { intent: "system" }),
       leaf("plat.navIntegrity", "navIntegrity", "Nav integrity", "/nav-integrity", ShieldCheck, { intent: "system" }),
       leaf("plat.pdfReports", "pdfReports", "PDF reports", "/reports", BarChart2, { intent: "system" }),

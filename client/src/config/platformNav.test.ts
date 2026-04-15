@@ -38,11 +38,12 @@ describe("platformNav IA & routing", () => {
     expect(() => assertPlatformNavIntegrity(PLATFORM_NAV_GROUP_DEFS)).not.toThrow();
   });
 
-  it("uses the final canonical section order (A→J)", () => {
+  it("uses the final canonical section order (A→K)", () => {
     expect(PLATFORM_NAV_GROUP_IDS).toEqual([
       "control",
       "govPartner",
       "company",
+      "clientWorkspace",
       "peopleHr",
       "operations",
       "marketplaceSection",

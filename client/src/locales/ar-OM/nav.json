@@ -1,6 +1,7 @@
 {
   "controlGroup": "التحكم",
   "companyGroup": "الشركة",
+  "clientWorkspaceGroup": "مساحة العملاء",
   "peopleHrGroup": "الأشخاص والموارد البشرية",
   "govComplianceGroup": "الحكومة والامتثال",
   "govPartnerGroup": "الخدمات الحكومية والشركاء",
@@ -132,7 +133,8 @@
   "slaManagement": "إدارة مستوى الخدمة",
   "platform": "المنصة",
   "companyAdmin": "الفريق والأعضاء",
-  "clientPortal": "بوابة العملاء",
+  "clientPortal": "مساحة العملاء",
+  "clientWorkspaceMobile": "المساحة",
   "expiryAlerts": "تنبيهات انتهاء الصلاحية",
   "platformOpsLabel": "عمليات المنصة",
   "pdfReports": "تقارير PDF",

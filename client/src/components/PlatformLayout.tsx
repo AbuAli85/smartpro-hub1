@@ -517,6 +517,7 @@ export default function PlatformLayout({ children }: { children: React.ReactNode
 
 function MobileBottomNav() {
   const [location] = useLocation();
+  const { t } = useTranslation("nav");
   const { user } = useAuth();
   const { activeCompanyId, activeCompany, loading: companiesLoading, companies } = useActiveCompany();
   const { data: myCompany, isLoading: companyLoading } = trpc.companies.myCompany.useQuery(
@@ -551,12 +552,12 @@ function MobileBottomNav() {
       ];
     }
     if (portalShell) {
+      // Primary hub is Client workspace; contracts/invoices are inside `/client-portal` tabs (avoid parallel duplication).
       return [
         { href: "/dashboard", icon: <LayoutDashboard size={20} />, label: "Home" },
         { href: "/alerts", icon: <Bell size={20} />, label: "Alerts" },
-        { href: "/client-portal", icon: <UserCircle size={20} />, label: "Portal" },
-        { href: "/contracts", icon: <FileText size={20} />, label: "Contracts" },
-        { href: "/company/hub", icon: <Building2 size={20} />, label: "Hub" },
+        { href: "/client-portal", icon: <UserCircle size={20} />, label: t("clientWorkspaceMobile", "Workspace") },
+        { href: "/company/hub", icon: <Building2 size={20} />, label: t("companyHub", "Company Hub") },
       ];
     }
     if (isFieldEmployee(effectiveMemberRole)) {
@@ -573,7 +574,7 @@ function MobileBottomNav() {
       { href: "/company/hub", icon: <Building2 size={20} />, label: "Hub" },
       { href: "/hr/employees", icon: <Users size={20} />, label: "HR" },
     ];
-  }, [platform, portalShell, preRegShell, effectiveMemberRole]);
+  }, [platform, portalShell, preRegShell, effectiveMemberRole, t]);
 
   return (
     <nav className="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-card border-t border-border flex items-center justify-around h-16">

@@ -618,6 +618,11 @@ export function clientNavItemVisible(
   if (companyNavExtensionAllows(href, user, options)) return true;
 
   const path = normalizeClientPath(href);
+  // `/client-portal` is the customer-role aggregate workspace; keep it out of the main tree for
+  // internal operators (company_admin, HR, finance, etc.) so it does not compete with operational modules.
+  if (path === "/client-portal" && !shouldUsePortalOnlyShell(user, options)) {
+    return false;
+  }
   if (
     path === "/reports" ||
     path.startsWith("/reports/") ||

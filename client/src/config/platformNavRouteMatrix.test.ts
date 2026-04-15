@@ -55,6 +55,8 @@ describe("route → group ownership matrix", () => {
     { path: "/sanad", groupId: "govPartner" },
     { path: "/finance/overview", groupId: "control" },
     { path: "/compliance", groupId: "control" },
+    { path: "/client-portal", groupId: "clientWorkspace" },
+    { path: "/client-portal?tab=invoices", groupId: "clientWorkspace" },
     { path: "/compliance/renewals", groupId: "complianceWorkforce" },
     { path: "/workforce/documents", groupId: "complianceWorkforce" },
     { path: "/workforce/profile-change-requests", groupId: "peopleHr" },

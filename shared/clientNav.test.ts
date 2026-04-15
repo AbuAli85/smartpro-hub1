@@ -86,6 +86,12 @@ describe("clientNavItemVisible", () => {
     expect(clientNavItemVisible("/payroll", portalClient, new Set(), { hasCompanyWorkspace: true })).toBe(false);
   });
 
+  it("hides client portal in the main sidebar for internal company roles (not duplicate operational entry)", () => {
+    const ownerOpts = { hasCompanyWorkspace: true, hasCompanyMembership: true, memberRole: "company_admin" as const };
+    expect(clientNavItemVisible("/client-portal", owner, new Set(), ownerOpts)).toBe(false);
+    expect(clientNavItemVisible("/contracts", owner, new Set(), ownerOpts)).toBe(true);
+  });
+
   it("uses membership role client for portal shell even when platformRole is company_admin-shaped", () => {
     expect(
       clientNavItemVisible("/hr/employees", owner, new Set(), {

@@ -28,6 +28,7 @@ import {
 } from "@shared/profileChangeRequestReclassification";
 import { PROFILE_FIELD_KEY_FILTER_VALUES, PROFILE_FIELD_KEYS } from "@shared/profileChangeRequestFieldKey";
 import { isCompanyProvisioningAdmin, canAccessGlobalAdminProcedures } from "@shared/rbac";
+import { escapeLike } from "@shared/objectUtils";
 import {
   canReadHrPerformanceAuditSensitiveRows,
   HR_AUDIT_SENSITIVE_ENTITY_TYPES,
@@ -595,9 +596,9 @@ export const workforceRouter = router({
         }
         const q = input.query?.trim();
         if (q) {
-          const clean = q.replace(/[%_\\]/g, "").trim();
+          const clean = q.trim();
           if (clean.length > 0) {
-            const p = `%${clean}%`;
+            const p = `%${escapeLike(clean)}%`;
             conditions.push(
               or(
                 like(employees.firstName, p),

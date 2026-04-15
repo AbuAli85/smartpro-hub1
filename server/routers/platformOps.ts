@@ -1,5 +1,6 @@
 import { TRPCError } from "@trpc/server";
 import { and, asc, count, desc, eq, gte, like, lte, or, sql, sum } from "drizzle-orm";
+import { escapeLike } from "@shared/objectUtils";
 import { z } from "zod";
 import { getDb } from "../db";
 import {
@@ -329,7 +330,7 @@ export const platformOpsRouter = router({
         .from(users)
         .where(
           searchTerm
-            ? or(like(users.name, `%${searchTerm}%`), like(users.email, `%${searchTerm}%`))
+            ? or(like(users.name, `%${escapeLike(searchTerm)}%`), like(users.email, `%${escapeLike(searchTerm)}%`))
             : undefined
         )
         .orderBy(asc(users.id));
@@ -471,7 +472,7 @@ export const platformOpsRouter = router({
         .from(users)
         .where(
           searchTerm
-            ? or(like(users.name, `%${searchTerm}%`), like(users.email, `%${searchTerm}%`))
+            ? or(like(users.name, `%${escapeLike(searchTerm)}%`), like(users.email, `%${escapeLike(searchTerm)}%`))
             : undefined
         )
         .orderBy(asc(users.id));

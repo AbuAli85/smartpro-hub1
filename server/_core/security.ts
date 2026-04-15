@@ -4,14 +4,40 @@
  * - Rate limiting: protects public endpoints from abuse
  * - Input sanitisation: strips null bytes and oversized strings
  * - Request ID: traces requests through logs
+ * - CSRF: Origin header validation on all state-changing tRPC calls
  */
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import type { Request, Response, NextFunction, Application } from "express";
 
+const IS_PRODUCTION = process.env.NODE_ENV === "production";
+
 // ─── Helmet (HTTP security headers) ──────────────────────────────────────────
+// In development, CSP is disabled because Vite injects inline scripts and uses
+// HMR websockets that are hard to whitelist. In production we enable a strict CSP.
 export const helmetMiddleware = helmet({
-  contentSecurityPolicy: false, // Disabled: Vite dev server injects inline scripts
+  contentSecurityPolicy: IS_PRODUCTION
+    ? {
+        directives: {
+          defaultSrc: ["'self'"],
+          scriptSrc: ["'self'"],
+          styleSrc: ["'self'", "'unsafe-inline'"], // Tailwind CSS requires inline styles
+          imgSrc: ["'self'", "data:", "blob:", "https:"],
+          fontSrc: ["'self'", "data:"],
+          connectSrc: [
+            "'self'",
+            // Sentry error reporting
+            "https://*.sentry.io",
+            "https://*.ingest.sentry.io",
+          ],
+          frameSrc: ["'none'"],
+          objectSrc: ["'none'"],
+          baseUri: ["'self'"],
+          formAction: ["'self'"],
+          upgradeInsecureRequests: [],
+        },
+      }
+    : false,
   crossOriginEmbedderPolicy: false,
   hsts: {
     maxAge: 31536000,
@@ -109,6 +135,56 @@ export function trpcSecurityHeaders(_req: Request, res: Response, next: NextFunc
   next();
 }
 
+// ─── CSRF protection ──────────────────────────────────────────────────────────
+/**
+ * Validates the Origin (or Referer) header on POST requests to prevent CSRF.
+ *
+ * tRPC mutations arrive as HTTP POST; queries arrive as GET (or POST with batching).
+ * Rejecting POSTs whose Origin doesn't match the server's own origin blocks any
+ * third-party site from issuing authenticated state-changing requests using the
+ * user's session cookie.
+ *
+ * Configure ALLOWED_ORIGINS as a comma-separated list in the environment, e.g.:
+ *   ALLOWED_ORIGINS=https://app.smartpro.om,https://www.smartpro.om
+ * If unset, defaults to the request's own Host header (same-origin only).
+ */
+export function csrfOriginCheck(req: Request, res: Response, next: NextFunction) {
+  // Only enforce on state-changing methods.
+  if (req.method !== "POST" && req.method !== "PUT" && req.method !== "PATCH" && req.method !== "DELETE") {
+    return next();
+  }
+
+  const origin = req.headers["origin"];
+  const referer = req.headers["referer"];
+  const sourceHeader = origin || (referer ? new URL(referer).origin : undefined);
+
+  // Build the set of allowed origins from env (comma-separated) or fall back to
+  // deriving the origin from the request itself (same-origin deployments).
+  let allowedOrigins: Set<string>;
+  if (process.env.ALLOWED_ORIGINS) {
+    allowedOrigins = new Set(
+      process.env.ALLOWED_ORIGINS.split(",").map((o) => o.trim()).filter(Boolean)
+    );
+  } else {
+    const proto = req.protocol;
+    const host = req.headers["host"] ?? "";
+    allowedOrigins = new Set([`${proto}://${host}`]);
+  }
+
+  // Allow requests without an Origin/Referer header only from server-to-server
+  // calls (no browser cookie is sent without an Origin in cross-origin requests).
+  if (!sourceHeader) {
+    return next();
+  }
+
+  if (!allowedOrigins.has(sourceHeader)) {
+    res.status(403).json({ error: "CSRF check failed: Origin not allowed." });
+    return;
+  }
+
+  next();
+}
+
 // ─── Apply all security middleware to the Express app ────────────────────────
 export function applySecurityMiddleware(app: Application) {
   app.use(helmetMiddleware);
@@ -117,6 +193,8 @@ export function applySecurityMiddleware(app: Application) {
   // Rate limit all /api routes
   app.use("/api/trpc", apiRateLimiter);
   app.use("/api/trpc", trpcSecurityHeaders);
+  // CSRF origin check on tRPC mutations (POST requests)
+  app.use("/api/trpc", csrfOriginCheck);
   // Stricter rate limit on OAuth endpoints
   app.use("/api/oauth", authRateLimiter);
 }

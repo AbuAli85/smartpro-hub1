@@ -4,6 +4,7 @@
  */
 
 import { and, asc, desc, eq, inArray, isNotNull, isNull, like, ne, or, sql } from "drizzle-orm";
+import { escapeLike } from "@shared/objectUtils";
 import { alias } from "drizzle-orm/mysql-core";
 import {
   businessParties,
@@ -449,7 +450,7 @@ export async function listBusinessPartiesForAdmin(
     conditions.push(isNotNull(businessParties.managedByCompanyId));
   }
   if (opts.search?.trim()) {
-    const q = `%${opts.search.trim()}%`;
+    const q = `%${escapeLike(opts.search.trim())}%`;
     conditions.push(
       or(
         like(businessParties.displayNameEn, q),
@@ -855,7 +856,7 @@ export async function searchActiveCompaniesForPartyLink(
       .orderBy(asc(companies.name))
       .limit(limit);
   }
-  const term = `%${q.trim()}%`;
+  const term = `%${escapeLike(q.trim())}%`;
   return db
     .select({ id: companies.id, name: companies.name, nameAr: companies.nameAr })
     .from(companies)

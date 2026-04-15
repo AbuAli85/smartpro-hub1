@@ -3,6 +3,7 @@ import { alias } from "drizzle-orm/mysql-core";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { SanadCentrePipelineStatus } from "@shared/sanadCentresPipeline";
 import { maxPipelineStatus } from "@shared/sanadCentresPipeline";
+import { escapeLike } from "@shared/objectUtils";
 import * as schema from "../../drizzle/schema";
 import { ensureCenterOperations } from "./activation";
 import { insertCentreActivityLog } from "./pipelineActivity";
@@ -90,8 +91,10 @@ export async function findCompanyMatchesForCentreName(db: DB, centerName: string
   const raw = centerName.trim();
   if (raw.length < 2) return [];
   const lower = raw.toLowerCase();
-  const safe = raw.slice(0, 120).replace(/[%_]/g, "");
-  const fuzzy = `%${safe.replace(/\s+/g, "%")}%`;
+  // escapeLike each word so literals like "%" or "_" are matched literally,
+  // then rejoin with "%" wildcards to create a fuzzy word-order-insensitive pattern.
+  const safe = raw.slice(0, 120).split(/\s+/).map(escapeLike).join("%");
+  const fuzzy = `%${safe}%`;
   const rows = await db
     .select({
       id: schema.companies.id,

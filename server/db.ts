@@ -1,5 +1,7 @@
 import { and, desc, eq, gte, like, lte, or, sql } from "drizzle-orm";
+import { escapeLike } from "@shared/objectUtils";
 import { drizzle } from "drizzle-orm/mysql2";
+import mysql from "mysql2/promise";
 import {
   analyticsReports,
   auditLogs,
@@ -38,7 +40,22 @@ let _db: ReturnType<typeof drizzle> | null = null;
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
-      _db = drizzle(process.env.DATABASE_URL);
+      // Create an explicit connection pool with sensible production defaults.
+      // All values can be overridden via environment variables.
+      const pool = mysql.createPool({
+        uri: process.env.DATABASE_URL,
+        // Maximum number of connections in the pool (default mysql2: 10).
+        connectionLimit: Number(process.env.DB_POOL_SIZE ?? 10),
+        // How long (ms) to wait for a free connection before throwing.
+        waitForConnections: true,
+        queueLimit: Number(process.env.DB_QUEUE_LIMIT ?? 50),
+        // Idle connections are released after this many ms (default: never).
+        idleTimeout: Number(process.env.DB_IDLE_TIMEOUT_MS ?? 60_000),
+        // Enable keep-alive pings to detect stale connections.
+        enableKeepAlive: true,
+        keepAliveInitialDelay: 10_000,
+      });
+      _db = drizzle(pool);
     } catch (error) {
       console.warn("[Database] Failed to connect:", error);
       _db = null;
@@ -321,7 +338,7 @@ export async function getMarketplaceProviders(filters?: { category?: string; sea
   const conditions: any[] = [eq(marketplaceProviders.status, (filters?.status as any) || "active")];
   if (filters?.category) conditions.push(eq(marketplaceProviders.category, filters.category));
   if (filters?.search) {
-    const s = filters.search;
+    const s = escapeLike(filters.search);
     conditions.push(
       or(like(marketplaceProviders.businessName, `%${s}%`), like(marketplaceProviders.description, `%${s}%`))!
     );
@@ -613,7 +630,7 @@ export async function getCrmContacts(companyId: number, filters?: { status?: str
   const conditions = [eq(crmContacts.companyId, companyId)];
   if (filters?.status) conditions.push(eq(crmContacts.status, filters.status as any));
   if (filters?.search) {
-    const s = filters.search;
+    const s = escapeLike(filters.search);
     conditions.push(
       or(
         like(crmContacts.firstName, `%${s}%`),

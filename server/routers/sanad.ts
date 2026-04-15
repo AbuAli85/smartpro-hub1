@@ -11,7 +11,7 @@ import {
   sanadPublicProfileCompleteness,
 } from "@shared/sanadLifecycle";
 import { validateEnablePublicListing, validateListedOfficeRemainsDiscoverable } from "@shared/sanadLifecycleTransitions";
-import { omitUndefined } from "@shared/objectUtils";
+import { escapeLike, omitUndefined } from "@shared/objectUtils";
 import { canAccessGlobalAdminProcedures } from "@shared/rbac";
 import { getDb } from "../db";
 import {
@@ -858,13 +858,13 @@ export const sanadRouter = router({
         conds.push(sql`JSON_CONTAINS(${sanadOffices.services}, ${JSON.stringify(input.serviceType)}, '$')`);
       }
       if (input?.language?.trim()) {
-        conds.push(like(sanadOffices.languages, `%${input.language.trim()}%`));
+        conds.push(like(sanadOffices.languages, `%${escapeLike(input.language.trim())}%`));
       }
       if (input?.minRating != null) {
         conds.push(gte(sanadOffices.avgRating, String(input.minRating)));
       }
       if (input?.search?.trim()) {
-        const q = `%${input.search.trim()}%`;
+        const q = `%${escapeLike(input.search.trim())}%`;
         conds.push(
           or(
             like(sanadOffices.name, q),
@@ -1548,7 +1548,7 @@ export const sanadRouter = router({
           message: "SANAD network or compliance access is required to search users for roster assignment.",
         });
       }
-      const q = `%${input.query.trim()}%`;
+      const q = `%${escapeLike(input.query.trim())}%`;
       return db
         .select({
           id: users.id,

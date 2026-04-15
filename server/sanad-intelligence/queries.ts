@@ -1,4 +1,5 @@
 import { and, asc, desc, eq, inArray, isNotNull, isNull, like, notInArray, or, sql } from "drizzle-orm";
+import { escapeLike } from "@shared/objectUtils";
 import { alias } from "drizzle-orm/mysql-core";
 import {
   resolveSanadLifecycleStage,
@@ -225,7 +226,7 @@ export async function listCenters(
   }
 
   if (input.governorateKey) conds.push(eq(schema.sanadIntelCenters.governorateKey, input.governorateKey));
-  if (input.wilayat?.trim()) conds.push(like(schema.sanadIntelCenters.wilayat, `%${input.wilayat.trim()}%`));
+  if (input.wilayat?.trim()) conds.push(like(schema.sanadIntelCenters.wilayat, `%${escapeLike(input.wilayat.trim())}%`));
   if (input.partnerStatus)
     conds.push(eq(schema.sanadIntelCenterOperations.partnerStatus, input.partnerStatus));
 
@@ -368,7 +369,7 @@ export async function listCenters(
   }
 
   if (search) {
-    const q = `%${search}%`;
+    const q = `%${escapeLike(search)}%`;
     conds.push(
       or(
         like(schema.sanadIntelCenters.centerName, q),

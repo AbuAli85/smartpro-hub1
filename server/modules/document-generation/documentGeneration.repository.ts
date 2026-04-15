@@ -226,8 +226,13 @@ export async function finalizeGeneratedDocumentSuccess(
 
 // ─── TEMPLATE DEFINITIONS ─────────────────────────────────────────────────────
 
-/** Shared Google Doc ID for the bilingual promoter assignment contract template (seed only). */
-const PROMOTER_TEMPLATE_GOOGLE_DOC_ID = "1dG719K4jYFrEh8O9VChyMYWblflxW2tdFp2n4gpVhs0";
+/**
+ * Google Doc ID for the bilingual promoter assignment contract template.
+ * Override via PROMOTER_TEMPLATE_GOOGLE_DOC_ID environment variable.
+ * The fallback value is only used for local seeding / development.
+ */
+const PROMOTER_TEMPLATE_GOOGLE_DOC_ID =
+  process.env.PROMOTER_TEMPLATE_GOOGLE_DOC_ID ?? "1dG719K4jYFrEh8O9VChyMYWblflxW2tdFp2n4gpVhs0";
 
 type PlaceholderDef = {
   placeholder: string;

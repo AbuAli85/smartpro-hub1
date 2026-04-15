@@ -1,134 +1,145 @@
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import NotFound from "@/pages/NotFound";
 import { Route, Switch } from "wouter";
+import { lazy, Suspense } from "react";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import PlatformLayout from "./components/PlatformLayout";
-
-// Pages
-import Home from "./pages/Home";
-import Dashboard from "./pages/Dashboard";
-import SanadPage from "./pages/SanadPage";
-import SanadOfficeDashboardPage from "./pages/SanadOfficeDashboardPage";
-import ProServicesPage from "./pages/ProServicesPage";
-import MarketplacePage from "./pages/MarketplacePage";
-import ContractsPage from "./pages/ContractsPage";
-import HREmployeesPage from "./pages/HREmployeesPage";
-import HrEmployeeDetailRedirect from "./pages/HrEmployeeDetailRedirect";
-import HRRecruitmentPage from "./pages/HRRecruitmentPage";
-import HRLeavePage from "./pages/HRLeavePage";
-import CRMPage from "./pages/CRMPage";
-import AnalyticsPage from "./pages/AnalyticsPage";
-import SubscriptionsPage from "./pages/SubscriptionsPage";
-import AdminPage from "./pages/AdminPage";
-import AdminSanadIntelligencePage from "./pages/AdminSanadIntelligencePage";
-import HRAttendancePage from "./pages/HRAttendancePage";
-import ClientPortalPage from "./pages/ClientPortalPage";
-import OnboardingPage from "./pages/OnboardingPage";
-import WorkforceDashboard from "./pages/WorkforceDashboard";
-import WorkforceEmployeesPage from "./pages/WorkforceEmployeesPage";
-import WorkforcePermitsPage from "./pages/WorkforcePermitsPage";
-import WorkforceCasesPage from "./pages/WorkforceCasesPage";
-import WorkforceDocumentsPage from "./pages/WorkforceDocumentsPage";
-import WorkforceSyncPage from "./pages/WorkforceSyncPage";
-import WorkforcePermitUploadPage from "./pages/WorkforcePermitUploadPage";
-import WorkforcePermitDetailPage from "./pages/WorkforcePermitDetailPage";
-import WorkforceEmployeeDetailPage from "./pages/WorkforceEmployeeDetailPage";
-import WorkforceProfileChangeRequestsPage from "./pages/WorkforceProfileChangeRequestsPage";
-import WorkforceCaseNewPage from "./pages/WorkforceCaseNewPage";
-import CompanyAdminPage from "./pages/CompanyAdminPage";
-import CreateCompanyPage from "./pages/CreateCompanyPage";
-import CompanyProfilePage from "./pages/CompanyProfilePage";
-import CompanySettingsPage from "./pages/CompanySettingsPage";
-import OmaniOfficersPage from "./pages/OmaniOfficersPage";
-import OfficerAssignmentPage from "./pages/OfficerAssignmentPage";
-import SanadMarketplacePage from "./pages/SanadMarketplacePage";
-import SanadPartnerOnboardingPage from "./pages/SanadPartnerOnboardingPage";
-import SanadCentreProfilePage from "./pages/SanadCentreProfilePage";
-import SanadCatalogueAdminPage from "./pages/SanadCatalogueAdminPage";
-import BillingEnginePage from "./pages/BillingEnginePage";
-import ExpiryAlertsPage from "@/pages/ExpiryAlertsPage";
-import RenewalWorkflowsPage from "@/pages/RenewalWorkflowsPage";
-import PlatformOpsPage from "./pages/PlatformOpsPage";
-import NavIntegrityPage from "./pages/NavIntegrityPage";
-import PayrollEnginePage from "./pages/PayrollEnginePage";
-import PayrollProcessingPage from "./pages/PayrollProcessingPage";
-import SanadRatingsModerationPage from "./pages/SanadRatingsModerationPage";
-import ReportsPage from "./pages/ReportsPage";
-import AuditLogPage from "./pages/AuditLogPage";
-import PublicJobBoardPage from "./pages/PublicJobBoardPage";
-import WorkflowDetailPage from "./pages/WorkflowDetailPage";
-import ContractSignPage from "./pages/ContractSignPage";
-import OperationsDashboardPage from "./pages/OperationsDashboardPage";
-import QuotationsPage from "./pages/QuotationsPage";
-import SlaManagementPage from "./pages/SlaManagementPage";
-import ComplianceDashboardPage from "./pages/ComplianceDashboardPage";
-import CompanyHubPage from "./pages/CompanyHubPage";
-import CompanyWorkspacePage from "./pages/CompanyWorkspacePage";
-import MyTeamPage from "./pages/MyTeamPage";
-import PreferencesPage from "./pages/PreferencesPage";
-import OnboardingGuidePage from "@/pages/OnboardingChecklistPage";
-import AcceptInvitePage from "@/pages/AcceptInvitePage";
-import SanadJoinInvitePage from "@/pages/SanadJoinInvitePage";
-import BusinessDashboardPage from "./pages/BusinessDashboardPage";
-import EmployeeLifecyclePage from "./pages/EmployeeLifecyclePage";
-import BusinessOperationsPage from "./pages/BusinessOperationsPage";
-import EmployeeImportPage from "./pages/EmployeeImportPage";
-import CompanyDocumentsPage from "./pages/CompanyDocumentsPage";
-import EmployeeDocumentsPage from "./pages/EmployeeDocumentsPage";
-import HRDocumentsDashboardPage from "./pages/HRDocumentsDashboardPage";
-import ContractManagementPage from "./pages/ContractManagementPage";
-import PromoterAssignmentsPage from "./pages/PromoterAssignmentsPage";
-import ContractDetailPage from "./pages/ContractDetailPage";
-import DocumentExpiryDashboard from "./pages/DocumentExpiryDashboard";
-import HRLettersPage from "./pages/HRLettersPage";
-import HRKpiPage from "./pages/HRKpiPage";
-import HRPerformancePage from "./pages/HRPerformancePage";
-import HRAccountabilityPage from "./pages/HRAccountabilityPage";
-import WorkspacePage from "./pages/WorkspacePage";
-import FinanceOverviewPage from "./pages/FinanceOverviewPage";
-import LeaveBalancePage from "./pages/LeaveBalancePage";
-import EmployeeCompletenessPage from "./pages/EmployeeCompletenessPage";
-import OrgStructurePage from "./pages/OrgStructurePage";
-import DepartmentsPage from "./pages/DepartmentsPage";
-import OrgChartPage from "./pages/OrgChartPage";
-import WorkforceIntelligencePage from "./pages/WorkforceIntelligencePage";
-import TaskManagerPage from "./pages/TaskManagerPage";
-import AnnouncementsPage from "./pages/AnnouncementsPage";
-import EmployeePortalPage from "./pages/EmployeePortalPage";
-import AttendCheckInPage from "./pages/AttendCheckInPage";
-import AttendanceSitesPage from "./pages/AttendanceSitesPage";
-import AttendanceAnomaliesPage from "./pages/AttendanceAnomaliesPage";
-import EmployeeRequestsAdminPage from "./pages/EmployeeRequestsAdminPage";
-import ShiftTemplatesPage from "./pages/ShiftTemplatesPage";
-import EmployeeSchedulesPage from "./pages/EmployeeSchedulesPage";
-import HolidayCalendarPage from "./pages/HolidayCalendarPage";
-import TodayBoardPage from "./pages/TodayBoardPage";
-import MonthlyReportPage from "./pages/MonthlyReportPage";
-import TeamAccessPage from "./pages/TeamAccessPage";
-const TeamAccessRoute = () => <TeamAccessPage />;
-import MultiCompanyRolesPage from "./pages/MultiCompanyRolesPage";
-import EmailPreviewPage from "./pages/EmailPreviewPage";
-import UserRolesPage from "./pages/UserRolesPage";
-import ExecutiveDashboardPage from "./pages/ExecutiveDashboardPage";
-import HRInsightsHubPage from "./pages/HRInsightsHubPage";
-import OrganizationHubPage from "./pages/OrganizationHubPage";
-import ComplianceRenewalsHubPage from "./pages/ComplianceRenewalsHubPage";
-import ControlTowerPage from "./pages/ControlTowerPage";
-import SurveyStartPage from "./pages/SurveyStartPage";
-import SurveyRespondPage from "./pages/SurveyRespondPage";
-import SurveyCompletePage from "./pages/SurveyCompletePage";
-import SurveyAdminResponsesPage from "./pages/SurveyAdminResponsesPage";
-import SurveyAdminResponseDetailPage from "./pages/SurveyAdminResponseDetailPage";
-import SurveyAdminAnalyticsPage from "./pages/SurveyAdminAnalyticsPage";
-import AttractPage from "./pages/AttractPage";
-import ConvertPage from "./pages/ConvertPage";
-import RetainPage from "./pages/RetainPage";
 import NavigationProgress from "./components/NavigationProgress";
-import BuyerPortalRoutes from "./pages/BuyerPortalRoutes";
-import BuyerPortalLegacyPathPage from "./pages/BuyerPortalLegacyPathPage";
 import { isBuyerPortalUiEnabled } from "./lib/buyerPortalEnv";
+
+// ─── Route-level code splitting ───────────────────────────────────────────────
+// Each page is loaded only when its route is first visited, dramatically
+// reducing the initial JS bundle size.
+const Home = lazy(() => import("./pages/Home"));
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const SanadPage = lazy(() => import("./pages/SanadPage"));
+const SanadOfficeDashboardPage = lazy(() => import("./pages/SanadOfficeDashboardPage"));
+const ProServicesPage = lazy(() => import("./pages/ProServicesPage"));
+const MarketplacePage = lazy(() => import("./pages/MarketplacePage"));
+const ContractsPage = lazy(() => import("./pages/ContractsPage"));
+const HREmployeesPage = lazy(() => import("./pages/HREmployeesPage"));
+const HrEmployeeDetailRedirect = lazy(() => import("./pages/HrEmployeeDetailRedirect"));
+const HRRecruitmentPage = lazy(() => import("./pages/HRRecruitmentPage"));
+const HRLeavePage = lazy(() => import("./pages/HRLeavePage"));
+const CRMPage = lazy(() => import("./pages/CRMPage"));
+const AnalyticsPage = lazy(() => import("./pages/AnalyticsPage"));
+const SubscriptionsPage = lazy(() => import("./pages/SubscriptionsPage"));
+const AdminPage = lazy(() => import("./pages/AdminPage"));
+const AdminSanadIntelligencePage = lazy(() => import("./pages/AdminSanadIntelligencePage"));
+const HRAttendancePage = lazy(() => import("./pages/HRAttendancePage"));
+const ClientPortalPage = lazy(() => import("./pages/ClientPortalPage"));
+const OnboardingPage = lazy(() => import("./pages/OnboardingPage"));
+const WorkforceDashboard = lazy(() => import("./pages/WorkforceDashboard"));
+const WorkforceEmployeesPage = lazy(() => import("./pages/WorkforceEmployeesPage"));
+const WorkforcePermitsPage = lazy(() => import("./pages/WorkforcePermitsPage"));
+const WorkforceCasesPage = lazy(() => import("./pages/WorkforceCasesPage"));
+const WorkforceDocumentsPage = lazy(() => import("./pages/WorkforceDocumentsPage"));
+const WorkforceSyncPage = lazy(() => import("./pages/WorkforceSyncPage"));
+const WorkforcePermitUploadPage = lazy(() => import("./pages/WorkforcePermitUploadPage"));
+const WorkforcePermitDetailPage = lazy(() => import("./pages/WorkforcePermitDetailPage"));
+const WorkforceEmployeeDetailPage = lazy(() => import("./pages/WorkforceEmployeeDetailPage"));
+const WorkforceProfileChangeRequestsPage = lazy(() => import("./pages/WorkforceProfileChangeRequestsPage"));
+const WorkforceCaseNewPage = lazy(() => import("./pages/WorkforceCaseNewPage"));
+const CompanyAdminPage = lazy(() => import("./pages/CompanyAdminPage"));
+const CreateCompanyPage = lazy(() => import("./pages/CreateCompanyPage"));
+const CompanyProfilePage = lazy(() => import("./pages/CompanyProfilePage"));
+const CompanySettingsPage = lazy(() => import("./pages/CompanySettingsPage"));
+const OmaniOfficersPage = lazy(() => import("./pages/OmaniOfficersPage"));
+const OfficerAssignmentPage = lazy(() => import("./pages/OfficerAssignmentPage"));
+const SanadMarketplacePage = lazy(() => import("./pages/SanadMarketplacePage"));
+const SanadPartnerOnboardingPage = lazy(() => import("./pages/SanadPartnerOnboardingPage"));
+const SanadCentreProfilePage = lazy(() => import("./pages/SanadCentreProfilePage"));
+const SanadCatalogueAdminPage = lazy(() => import("./pages/SanadCatalogueAdminPage"));
+const BillingEnginePage = lazy(() => import("./pages/BillingEnginePage"));
+const ExpiryAlertsPage = lazy(() => import("./pages/ExpiryAlertsPage"));
+const RenewalWorkflowsPage = lazy(() => import("./pages/RenewalWorkflowsPage"));
+const PlatformOpsPage = lazy(() => import("./pages/PlatformOpsPage"));
+const NavIntegrityPage = lazy(() => import("./pages/NavIntegrityPage"));
+const PayrollEnginePage = lazy(() => import("./pages/PayrollEnginePage"));
+const PayrollProcessingPage = lazy(() => import("./pages/PayrollProcessingPage"));
+const SanadRatingsModerationPage = lazy(() => import("./pages/SanadRatingsModerationPage"));
+const ReportsPage = lazy(() => import("./pages/ReportsPage"));
+const AuditLogPage = lazy(() => import("./pages/AuditLogPage"));
+const PublicJobBoardPage = lazy(() => import("./pages/PublicJobBoardPage"));
+const WorkflowDetailPage = lazy(() => import("./pages/WorkflowDetailPage"));
+const ContractSignPage = lazy(() => import("./pages/ContractSignPage"));
+const OperationsDashboardPage = lazy(() => import("./pages/OperationsDashboardPage"));
+const QuotationsPage = lazy(() => import("./pages/QuotationsPage"));
+const SlaManagementPage = lazy(() => import("./pages/SlaManagementPage"));
+const ComplianceDashboardPage = lazy(() => import("./pages/ComplianceDashboardPage"));
+const CompanyHubPage = lazy(() => import("./pages/CompanyHubPage"));
+const CompanyWorkspacePage = lazy(() => import("./pages/CompanyWorkspacePage"));
+const MyTeamPage = lazy(() => import("./pages/MyTeamPage"));
+const PreferencesPage = lazy(() => import("./pages/PreferencesPage"));
+const OnboardingGuidePage = lazy(() => import("./pages/OnboardingChecklistPage"));
+const AcceptInvitePage = lazy(() => import("./pages/AcceptInvitePage"));
+const SanadJoinInvitePage = lazy(() => import("./pages/SanadJoinInvitePage"));
+const BusinessDashboardPage = lazy(() => import("./pages/BusinessDashboardPage"));
+const EmployeeLifecyclePage = lazy(() => import("./pages/EmployeeLifecyclePage"));
+const BusinessOperationsPage = lazy(() => import("./pages/BusinessOperationsPage"));
+const EmployeeImportPage = lazy(() => import("./pages/EmployeeImportPage"));
+const CompanyDocumentsPage = lazy(() => import("./pages/CompanyDocumentsPage"));
+const EmployeeDocumentsPage = lazy(() => import("./pages/EmployeeDocumentsPage"));
+const HRDocumentsDashboardPage = lazy(() => import("./pages/HRDocumentsDashboardPage"));
+const ContractManagementPage = lazy(() => import("./pages/ContractManagementPage"));
+const PromoterAssignmentsPage = lazy(() => import("./pages/PromoterAssignmentsPage"));
+const ContractDetailPage = lazy(() => import("./pages/ContractDetailPage"));
+const DocumentExpiryDashboard = lazy(() => import("./pages/DocumentExpiryDashboard"));
+const HRLettersPage = lazy(() => import("./pages/HRLettersPage"));
+const HRKpiPage = lazy(() => import("./pages/HRKpiPage"));
+const HRPerformancePage = lazy(() => import("./pages/HRPerformancePage"));
+const HRAccountabilityPage = lazy(() => import("./pages/HRAccountabilityPage"));
+const WorkspacePage = lazy(() => import("./pages/WorkspacePage"));
+const FinanceOverviewPage = lazy(() => import("./pages/FinanceOverviewPage"));
+const LeaveBalancePage = lazy(() => import("./pages/LeaveBalancePage"));
+const EmployeeCompletenessPage = lazy(() => import("./pages/EmployeeCompletenessPage"));
+const OrgStructurePage = lazy(() => import("./pages/OrgStructurePage"));
+const DepartmentsPage = lazy(() => import("./pages/DepartmentsPage"));
+const OrgChartPage = lazy(() => import("./pages/OrgChartPage"));
+const WorkforceIntelligencePage = lazy(() => import("./pages/WorkforceIntelligencePage"));
+const TaskManagerPage = lazy(() => import("./pages/TaskManagerPage"));
+const AnnouncementsPage = lazy(() => import("./pages/AnnouncementsPage"));
+const EmployeePortalPage = lazy(() => import("./pages/EmployeePortalPage"));
+const AttendCheckInPage = lazy(() => import("./pages/AttendCheckInPage"));
+const AttendanceSitesPage = lazy(() => import("./pages/AttendanceSitesPage"));
+const AttendanceAnomaliesPage = lazy(() => import("./pages/AttendanceAnomaliesPage"));
+const EmployeeRequestsAdminPage = lazy(() => import("./pages/EmployeeRequestsAdminPage"));
+const ShiftTemplatesPage = lazy(() => import("./pages/ShiftTemplatesPage"));
+const EmployeeSchedulesPage = lazy(() => import("./pages/EmployeeSchedulesPage"));
+const HolidayCalendarPage = lazy(() => import("./pages/HolidayCalendarPage"));
+const TodayBoardPage = lazy(() => import("./pages/TodayBoardPage"));
+const MonthlyReportPage = lazy(() => import("./pages/MonthlyReportPage"));
+const TeamAccessPage = lazy(() => import("./pages/TeamAccessPage"));
+const MultiCompanyRolesPage = lazy(() => import("./pages/MultiCompanyRolesPage"));
+const EmailPreviewPage = lazy(() => import("./pages/EmailPreviewPage"));
+const UserRolesPage = lazy(() => import("./pages/UserRolesPage"));
+const ExecutiveDashboardPage = lazy(() => import("./pages/ExecutiveDashboardPage"));
+const HRInsightsHubPage = lazy(() => import("./pages/HRInsightsHubPage"));
+const OrganizationHubPage = lazy(() => import("./pages/OrganizationHubPage"));
+const ComplianceRenewalsHubPage = lazy(() => import("./pages/ComplianceRenewalsHubPage"));
+const ControlTowerPage = lazy(() => import("./pages/ControlTowerPage"));
+const SurveyStartPage = lazy(() => import("./pages/SurveyStartPage"));
+const SurveyRespondPage = lazy(() => import("./pages/SurveyRespondPage"));
+const SurveyCompletePage = lazy(() => import("./pages/SurveyCompletePage"));
+const SurveyAdminResponsesPage = lazy(() => import("./pages/SurveyAdminResponsesPage"));
+const SurveyAdminResponseDetailPage = lazy(() => import("./pages/SurveyAdminResponseDetailPage"));
+const SurveyAdminAnalyticsPage = lazy(() => import("./pages/SurveyAdminAnalyticsPage"));
+const AttractPage = lazy(() => import("./pages/AttractPage"));
+const ConvertPage = lazy(() => import("./pages/ConvertPage"));
+const RetainPage = lazy(() => import("./pages/RetainPage"));
+const BuyerPortalRoutes = lazy(() => import("./pages/BuyerPortalRoutes"));
+const BuyerPortalLegacyPathPage = lazy(() => import("./pages/BuyerPortalLegacyPathPage"));
+const NotFound = lazy(() => import("./pages/NotFound"));
+
+// ─── Page loading fallback ────────────────────────────────────────────────────
+function PageLoader() {
+  return (
+    <div className="flex items-center justify-center min-h-screen">
+      <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+    </div>
+  );
+}
 
 function PublicRoutes() {
   const buyerPortalUi = isBuyerPortalUiEnabled();
@@ -155,6 +166,7 @@ function PublicRoutes() {
     </Switch>
   );
 }
+
 function AppRoutes() {
   return (
     <PlatformLayout>
@@ -217,7 +229,7 @@ function AppRoutes() {
         <Route path="/sanad/catalogue-admin" component={SanadCatalogueAdminPage} />
         <Route path="/billing" component={BillingEnginePage} />
         <Route path="/alerts" component={ExpiryAlertsPage} />
-          <Route path="/renewal-workflows/:id" component={WorkflowDetailPage} />
+        <Route path="/renewal-workflows/:id" component={WorkflowDetailPage} />
         <Route path="/renewal-workflows" component={RenewalWorkflowsPage} />
         <Route path="/platform-ops" component={PlatformOpsPage} />
         <Route path="/nav-integrity" component={NavIntegrityPage} />
@@ -262,7 +274,7 @@ function AppRoutes() {
         <Route path="/hr/announcements" component={AnnouncementsPage} />
         <Route path="/workspace" component={WorkspacePage} />
         <Route path="/my-portal" component={EmployeePortalPage} />
-        <Route path="/company/team-access" component={TeamAccessRoute} />
+        <Route path="/company/team-access" component={() => <TeamAccessPage />} />
         <Route path="/company/multi-company-roles" component={MultiCompanyRolesPage} />
         <Route path="/my-team" component={MyTeamPage} />
         <Route path="/business/dashboard" component={BusinessDashboardPage} />
@@ -290,7 +302,9 @@ function App() {
         <TooltipProvider>
           <NavigationProgress />
           <Toaster />
-          <PublicRoutes />
+          <Suspense fallback={<PageLoader />}>
+            <PublicRoutes />
+          </Suspense>
         </TooltipProvider>
       </ThemeProvider>
     </ErrorBoundary>

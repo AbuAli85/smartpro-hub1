@@ -3,6 +3,7 @@ import { nanoid } from "nanoid";
 import { and, count, desc, eq, like, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { canAccessGlobalAdminProcedures } from "@shared/rbac";
+import { escapeLike } from "@shared/objectUtils";
 import { getDb } from "../db";
 import {
   companies,
@@ -103,7 +104,7 @@ export const officersRouter = router({
       if (input?.status) conditions.push(eq(omaniProOfficers.status, input.status));
       if (input?.track) conditions.push(eq(omaniProOfficers.employmentTrack, input.track));
       if (input?.search) {
-        const q = `%${input.search}%`;
+        const q = `%${escapeLike(input.search)}%`;
         conditions.push(
           or(
             like(omaniProOfficers.fullName, q),

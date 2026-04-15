@@ -63,7 +63,8 @@ export function ActiveCompanyProvider({ children }: { children: React.ReactNode 
     [rawCompanies]
   );
 
-  const [activeCompanyId, setActiveCompanyId] = useState<number | null>(() => {
+  // Internal state: may hold a stale localStorage value before companies are loaded
+  const [_savedId, setSavedId] = useState<number | null>(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
     return saved ? parseInt(saved, 10) : null;
   });
@@ -71,13 +72,22 @@ export function ActiveCompanyProvider({ children }: { children: React.ReactNode 
   // Auto-select: if saved ID is not in the list (or no saved ID), pick the first
   useEffect(() => {
     if (isLoading || companies.length === 0) return;
-    const valid = companies.find((c) => c.id === activeCompanyId);
+    const valid = companies.find((c) => c.id === _savedId);
     if (!valid) {
       const first = companies[0];
-      setActiveCompanyId(first.id);
+      setSavedId(first.id);
       localStorage.setItem(STORAGE_KEY, String(first.id));
     }
-  }, [companies, isLoading, activeCompanyId]);
+  }, [companies, isLoading, _savedId]);
+
+  // Only expose a validated company ID — null while loading OR while the saved ID
+  // hasn't been confirmed against the loaded companies list yet.
+  // This prevents pages from firing queries with a stale/unvalidated ID.
+  const activeCompanyId: number | null = useMemo(() => {
+    if (isLoading || companies.length === 0) return null;
+    const valid = companies.find((c) => c.id === _savedId);
+    return valid ? valid.id : (companies[0]?.id ?? null);
+  }, [isLoading, companies, _savedId]);
 
   const activeCompany = useMemo(
     () => companies.find((c) => c.id === activeCompanyId) ?? null,
@@ -91,7 +101,7 @@ export function ActiveCompanyProvider({ children }: { children: React.ReactNode 
   const expiryWarningDays = expirySettings?.expiryWarningDays ?? 30;
 
   const switchCompany = (companyId: number) => {
-    setActiveCompanyId(companyId);
+    setSavedId(companyId);
     localStorage.setItem(STORAGE_KEY, String(companyId));
     void queryClient.invalidateQueries();
   };

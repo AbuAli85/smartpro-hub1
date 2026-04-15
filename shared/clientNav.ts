@@ -74,6 +74,7 @@ export const HR_ADMIN_HREFS = new Set<string>([
   "/hr/leave",
   "/hr/attendance",
   "/hr/attendance-sites",
+  "/hr/attendance-anomalies",
   "/hr/employee-requests",
   "/hr/letters",
   "/hr/leave-balance",

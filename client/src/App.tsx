@@ -99,6 +99,7 @@ import AnnouncementsPage from "./pages/AnnouncementsPage";
 import EmployeePortalPage from "./pages/EmployeePortalPage";
 import AttendCheckInPage from "./pages/AttendCheckInPage";
 import AttendanceSitesPage from "./pages/AttendanceSitesPage";
+import AttendanceAnomaliesPage from "./pages/AttendanceAnomaliesPage";
 import EmployeeRequestsAdminPage from "./pages/EmployeeRequestsAdminPage";
 import ShiftTemplatesPage from "./pages/ShiftTemplatesPage";
 import EmployeeSchedulesPage from "./pages/EmployeeSchedulesPage";
@@ -162,6 +163,7 @@ function AppRoutes() {
         <Route path="/hr/leave" component={HRLeavePage} />
         <Route path="/hr/attendance" component={HRAttendancePage} />
         <Route path="/hr/attendance-sites" component={AttendanceSitesPage} />
+        <Route path="/hr/attendance-anomalies" component={AttendanceAnomaliesPage} />
         <Route path="/hr/employee-requests" component={EmployeeRequestsAdminPage} />
         <Route path="/hr/shift-templates" component={ShiftTemplatesPage} />
         <Route path="/hr/employee-schedules" component={EmployeeSchedulesPage} />

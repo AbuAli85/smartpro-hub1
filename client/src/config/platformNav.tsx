@@ -34,6 +34,7 @@ import {
   RefreshCw,
   Settings,
   Shield,
+  ShieldAlert,
   ShieldCheck,
   ShoppingBag,
   Sparkles,
@@ -268,6 +269,14 @@ export const PLATFORM_NAV_GROUP_DEFS: readonly NavGroupDef[] = [
           leaf("people.todaysBoard", "todaysBoard", "Today's board", "/hr/today-board", CalendarClock, {
             intent: "workspace",
           }),
+          leaf(
+            "people.attendanceAnomalies",
+            "attendanceAnomalies",
+            "Anomaly report",
+            "/hr/attendance-anomalies",
+            ShieldAlert,
+            { intent: "workspace" },
+          ),
           leaf("people.monthlyReport", "monthlyReport", "Monthly report", "/hr/monthly-report", BarChart2, {
             intent: "workspace",
           }),

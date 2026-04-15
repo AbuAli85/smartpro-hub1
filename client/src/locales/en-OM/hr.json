@@ -1241,7 +1241,28 @@
       "title": "Profile Completeness",
       "fillDetails": "+ Fill in details",
       "allComplete": "All required fields are complete ✓",
-      "missing": "Missing:"
+      "missing": "Missing",
+      "fields": {
+        "firstName": "First name",
+        "lastName": "Last name",
+        "email": "Email",
+        "phone": "Phone",
+        "nationality": "Nationality",
+        "department": "Department",
+        "position": "Position",
+        "hireDate": "Hire date",
+        "salary": "Salary"
+      }
+    },
+    "genderValue": {
+      "male": "Male",
+      "female": "Female"
+    },
+    "maritalValue": {
+      "single": "Single",
+      "married": "Married",
+      "divorced": "Divorced",
+      "widowed": "Widowed"
     },
     "tabs": {
       "profile": "Profile",
@@ -1294,7 +1315,13 @@
       "title": "Leave History",
       "manage": "Manage Leave",
       "empty": "No leave requests on record",
-      "leave": "Leave"
+      "leave": "Leave",
+      "days": "{{count}} days",
+      "status": {
+        "approved": "Approved",
+        "pending": "Pending",
+        "rejected": "Rejected"
+      }
     },
     "payroll": {
       "title": "Payroll Records",
@@ -1304,7 +1331,12 @@
       "basic": "Basic",
       "deductions": "Deductions",
       "netPay": "Net Pay",
-      "status": "Status"
+      "status": "Status",
+      "statusValue": {
+        "paid": "Paid",
+        "approved": "Approved",
+        "pending": "Pending"
+      }
     },
     "attendance": {
       "title": "Attendance",
@@ -1319,7 +1351,14 @@
       "status": "Status",
       "clockIn": "Clock In",
       "clockOut": "Clock Out",
-      "hours": "Hours"
+      "hours": "Hours",
+      "statusValue": {
+        "present": "Present",
+        "absent": "Absent",
+        "late": "Late",
+        "remote": "Remote",
+        "half_day": "Half day"
+      }
     },
     "documents": {
       "title": "Employee Documents",
@@ -1332,7 +1371,7 @@
       "civilIdNote": "National ID on file",
       "notRecorded": "Not recorded"
     },
-    "edit": {
+    "editDialog": {
       "title": "Edit Employee Record",
       "firstName": "First Name",
       "lastName": "Last Name",

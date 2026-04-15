@@ -1241,7 +1241,28 @@
       "title": "اكتمال الملف",
       "fillDetails": "+ إضافة التفاصيل",
       "allComplete": "جميع الحقول المطلوبة مكتملة ✓",
-      "missing": "مفقود:"
+      "missing": "مفقود",
+      "fields": {
+        "firstName": "الاسم الأول",
+        "lastName": "اسم العائلة",
+        "email": "البريد الإلكتروني",
+        "phone": "الهاتف",
+        "nationality": "الجنسية",
+        "department": "القسم",
+        "position": "المنصب",
+        "hireDate": "تاريخ التعيين",
+        "salary": "الراتب"
+      }
+    },
+    "genderValue": {
+      "male": "ذكر",
+      "female": "أنثى"
+    },
+    "maritalValue": {
+      "single": "أعزب",
+      "married": "متزوج",
+      "divorced": "مطلق",
+      "widowed": "أرمل"
     },
     "tabs": {
       "profile": "الملف",
@@ -1274,7 +1295,7 @@
       "compensation": "التعويضات والراتب",
       "basicSalary": "الراتب الأساسي",
       "currency": "العملة",
-      "noSalary": "لا توجد معلومات راتب مسجّلة.",
+      "noSalary": "لا توجد معلومات راتب مسجّلة",
       "workPermit": "تصريح العمل وتفاصيل التأشيرة",
       "workPermitNo": "رقم تصريح العمل",
       "labourAuthNo": "رقم إذن العمل",
@@ -1294,7 +1315,13 @@
       "title": "سجل الإجازات",
       "manage": "إدارة الإجازات",
       "empty": "لا توجد طلبات إجازة مسجّلة",
-      "leave": "إجازة"
+      "leave": "إجازة",
+      "days": "{{count}} يوماً",
+      "status": {
+        "approved": "موافق عليه",
+        "pending": "قيد الانتظار",
+        "rejected": "مرفوض"
+      }
     },
     "payroll": {
       "title": "سجلات الرواتب",
@@ -1304,7 +1331,12 @@
       "basic": "الأساسي",
       "deductions": "الاستقطاعات",
       "netPay": "صافي الراتب",
-      "status": "الحالة"
+      "status": "الحالة",
+      "statusValue": {
+        "paid": "مدفوع",
+        "approved": "معتمد",
+        "pending": "قيد الانتظار"
+      }
     },
     "attendance": {
       "title": "الحضور",
@@ -1319,7 +1351,14 @@
       "status": "الحالة",
       "clockIn": "وقت الدخول",
       "clockOut": "وقت الخروج",
-      "hours": "الساعات"
+      "hours": "الساعات",
+      "statusValue": {
+        "present": "حاضر",
+        "absent": "غائب",
+        "late": "متأخر",
+        "remote": "عن بُعد",
+        "half_day": "نصف يوم"
+      }
     },
     "documents": {
       "title": "مستندات الموظف",
@@ -1332,7 +1371,7 @@
       "civilIdNote": "رقم الهوية الوطنية مسجّل",
       "notRecorded": "غير مسجّل"
     },
-    "edit": {
+    "editDialog": {
       "title": "تعديل سجل الموظف",
       "firstName": "الاسم الأول",
       "lastName": "اسم العائلة",

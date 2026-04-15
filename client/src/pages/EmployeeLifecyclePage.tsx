@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useLocation, useParams } from "wouter";
 import { useTranslation } from "react-i18next";
 import { trpc } from "@/lib/trpc";
@@ -45,8 +45,6 @@ function payrollStatusBadge(status: string) {
   if (status === "approved") return "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400";
   return "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400";
 }
-const MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-
 function InfoRow({ label, value, icon: Icon, expiryDate, warnDays = 30 }: {
   label: string; value?: string | null; icon?: React.ElementType;
   expiryDate?: Date | string | null; warnDays?: number;
@@ -54,13 +52,13 @@ function InfoRow({ label, value, icon: Icon, expiryDate, warnDays = 30 }: {
   if (!value) return null;
   const status = expiryDate ? expiryStatus(expiryDate, warnDays) : "none";
   return (
-    <div className="flex items-start justify-between py-2.5 border-b border-muted/50 last:border-0 gap-3">
-      <div className="flex items-center gap-2 text-sm text-muted-foreground shrink-0">
-        {Icon && <Icon size={13} />}
-        {label}
+    <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-1 py-2.5 border-b border-muted/50 last:border-0 items-start">
+      <div className="flex items-center gap-2 text-sm text-muted-foreground min-w-0">
+        {Icon && <Icon size={13} className="shrink-0" />}
+        <span className="text-start">{label}</span>
       </div>
-      <div className="flex flex-col items-end gap-0.5">
-        <span className="text-sm font-medium text-foreground text-end">{value}</span>
+      <div className="flex flex-col items-end gap-0.5 min-w-0">
+        <span className="text-sm font-medium text-foreground text-end break-words">{value}</span>
         {status !== "none" && (
           <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${EXPIRY_BADGE[status]}`}>
             {status === "expired" ? "⚠ " : status === "expiring-soon" ? "⏰ " : "✓ "}{expiryLabel(expiryDate, warnDays)}
@@ -69,6 +67,27 @@ function InfoRow({ label, value, icon: Icon, expiryDate, warnDays = 30 }: {
       </div>
     </div>
   );
+}
+
+type Translate = (key: string, options?: Record<string, unknown>) => string;
+
+function displayEmpStatus(status: string, t: Translate) {
+  return t(`myTeam.status.${status}`, { defaultValue: status.replace(/_/g, " ") });
+}
+function displayEmploymentType(type: string | null | undefined, t: Translate) {
+  if (!type) return "—";
+  return t(`employeeWizard.employmentTypes.${type}`, { defaultValue: type.replace(/_/g, " ") });
+}
+function displayGender(g: string | null | undefined, t: Translate) {
+  if (!g) return null;
+  return t(`lifecycle.genderValue.${g}`, { defaultValue: g });
+}
+function displayMarital(m: string | null | undefined, t: Translate) {
+  if (!m) return null;
+  return t(`lifecycle.maritalValue.${m}`, { defaultValue: m });
+}
+function formatMonthYear(year: number, month: number, locale: string) {
+  return new Intl.DateTimeFormat(locale, { month: "long", year: "numeric" }).format(new Date(year, month - 1, 1));
 }
 
 // ─── Status Timeline ──────────────────────────────────────────────────────────
@@ -88,7 +107,8 @@ function StatusTimeline({ status, hireDate, terminationDate }: {
     (status === "terminated" || status === "resigned") ? 3 : 1;
 
   return (
-    <div className="flex items-center gap-0">
+    <div dir="ltr" className="w-full overflow-x-auto">
+    <div className="flex items-center gap-0 min-w-[280px]">
       {steps.map((step, i) => {
         const Icon = step.icon;
         const isActive = i === currentIdx;
@@ -115,6 +135,7 @@ function StatusTimeline({ status, hireDate, terminationDate }: {
           </div>
         );
       })}
+    </div>
     </div>
   );
 }
@@ -146,36 +167,37 @@ function EditDialog({ employee, onClose }: { employee: any; onClose: () => void 
     onSuccess: () => {
       utils.hr.getEmployeeWithPermit.invalidate({ id: employee.id });
       utils.team.listMembers.invalidate();
-      toast.success(t("lifecycle.edit.saved"));
+      void utils.hr.listEmployees.invalidate();
+      toast.success(t("lifecycle.editDialog.saved"));
       onClose();
     },
     onError: (e) => toast.error(e.message),
   });
 
   const fields = [
-    { key: "firstName",       label: t("lifecycle.edit.firstName") },
-    { key: "lastName",        label: t("lifecycle.edit.lastName") },
-    { key: "email",           label: t("lifecycle.edit.email"),           colSpan: 2 },
-    { key: "phone",           label: t("lifecycle.edit.phone") },
-    { key: "position",        label: t("lifecycle.edit.position") },
-    { key: "department",      label: t("lifecycle.edit.department") },
-    { key: "nationality",     label: t("lifecycle.edit.nationality") },
-    { key: "passportNumber",  label: t("lifecycle.edit.passportNo") },
-    { key: "nationalId",      label: t("lifecycle.edit.civilId") },
-    { key: "salary",          label: t("lifecycle.edit.salary") },
-    { key: "hireDate",        label: t("lifecycle.edit.hireDate"),        type: "date" },
-    { key: "employeeNumber",  label: t("lifecycle.edit.employeeNo") },
-    { key: "workPermitNumber",label: t("lifecycle.edit.workPermitNo"),    colSpan: 2 },
-    { key: "visaNumber",      label: t("lifecycle.edit.visaNo"),          colSpan: 2 },
-    { key: "occupationName",  label: t("lifecycle.edit.occupation") },
-    { key: "workPermitExpiry",label: t("lifecycle.edit.workPermitExpiry"),type: "date" },
+    { key: "firstName",       label: t("lifecycle.editDialog.firstName") },
+    { key: "lastName",        label: t("lifecycle.editDialog.lastName") },
+    { key: "email",           label: t("lifecycle.editDialog.email"),           colSpan: 2 },
+    { key: "phone",           label: t("lifecycle.editDialog.phone") },
+    { key: "position",        label: t("lifecycle.editDialog.position") },
+    { key: "department",      label: t("lifecycle.editDialog.department") },
+    { key: "nationality",     label: t("lifecycle.editDialog.nationality") },
+    { key: "passportNumber",  label: t("lifecycle.editDialog.passportNo") },
+    { key: "nationalId",      label: t("lifecycle.editDialog.civilId") },
+    { key: "salary",          label: t("lifecycle.editDialog.salary") },
+    { key: "hireDate",        label: t("lifecycle.editDialog.hireDate"),        type: "date" },
+    { key: "employeeNumber",  label: t("lifecycle.editDialog.employeeNo") },
+    { key: "workPermitNumber",label: t("lifecycle.editDialog.workPermitNo"),    colSpan: 2 },
+    { key: "visaNumber",      label: t("lifecycle.editDialog.visaNo"),          colSpan: 2 },
+    { key: "occupationName",  label: t("lifecycle.editDialog.occupation") },
+    { key: "workPermitExpiry",label: t("lifecycle.editDialog.workPermitExpiry"),type: "date" },
   ];
 
   return (
     <Dialog open onOpenChange={onClose}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{t("lifecycle.edit.title")}</DialogTitle>
+          <DialogTitle>{t("lifecycle.editDialog.title")}</DialogTitle>
         </DialogHeader>
         <div className="grid grid-cols-2 gap-3 py-2">
           {fields.map(({ key, label, colSpan, type }) => (
@@ -190,22 +212,22 @@ function EditDialog({ employee, onClose }: { employee: any; onClose: () => void 
             </div>
           ))}
           <div>
-            <Label className="text-xs">{t("lifecycle.edit.statusLabel")}</Label>
+            <Label className="text-xs">{t("lifecycle.editDialog.statusLabel")}</Label>
             <Select value={form.status} onValueChange={(v) => setForm((f) => ({ ...f, status: v }))}>
               <SelectTrigger className="h-8 text-sm mt-1">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="active">{t("lifecycle.edit.active")}</SelectItem>
-                <SelectItem value="on_leave">{t("lifecycle.edit.onLeave")}</SelectItem>
-                <SelectItem value="terminated">{t("lifecycle.edit.terminated")}</SelectItem>
-                <SelectItem value="resigned">{t("lifecycle.edit.resigned")}</SelectItem>
+                <SelectItem value="active">{t("lifecycle.editDialog.active")}</SelectItem>
+                <SelectItem value="on_leave">{t("lifecycle.editDialog.onLeave")}</SelectItem>
+                <SelectItem value="terminated">{t("lifecycle.editDialog.terminated")}</SelectItem>
+                <SelectItem value="resigned">{t("lifecycle.editDialog.resigned")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>{t("lifecycle.edit.cancel")}</Button>
+          <Button variant="outline" onClick={onClose}>{t("lifecycle.editDialog.cancel")}</Button>
           <Button
             onClick={() => update.mutate({
               id: employee.id,
@@ -215,7 +237,7 @@ function EditDialog({ employee, onClose }: { employee: any; onClose: () => void 
             })}
             disabled={update.isPending}
           >
-            {update.isPending ? t("lifecycle.edit.saving") : t("lifecycle.edit.save")}
+            {update.isPending ? t("lifecycle.editDialog.saving") : t("lifecycle.editDialog.save")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -225,7 +247,7 @@ function EditDialog({ employee, onClose }: { employee: any; onClose: () => void 
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function EmployeeLifecyclePage() {
-  const { t } = useTranslation("hr");
+  const { t, i18n } = useTranslation("hr");
   const params = useParams<{ id: string }>();
   const [, navigate] = useLocation();
   const employeeId = parseInt(params.id || "0");
@@ -255,6 +277,11 @@ export default function EmployeeLifecyclePage() {
 
   const empPayroll = payrollData?.filter((p: any) => p.employeeId === employeeId) ?? [];
   const empAttendance = (attendanceData ?? []).filter((a: any) => a.employeeId === employeeId);
+
+  const attendanceMonthLabel = useMemo(
+    () => formatMonthYear(attendanceYear, attendanceMonth, i18n.language),
+    [attendanceYear, attendanceMonth, i18n.language]
+  );
 
   if (isLoading) {
     return (
@@ -288,7 +315,7 @@ export default function EmployeeLifecyclePage() {
   const initials = `${employee.firstName[0]}${employee.lastName[0]}`.toUpperCase();
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background" dir={i18n.dir()}>
       {editOpen && <EditDialog employee={employee} onClose={() => setEditOpen(false)} />}
 
       {/* ── Header ── */}
@@ -319,7 +346,7 @@ export default function EmployeeLifecyclePage() {
                     variant="outline"
                     className={`text-xs px-2 py-0 h-5 ${statusBadge(employee.status)}`}
                   >
-                    {employee.status.replace("_", " ")}
+                    {displayEmpStatus(employee.status, t)}
                   </Badge>
                 </div>
               </div>
@@ -348,7 +375,7 @@ export default function EmployeeLifecyclePage() {
         {/* ── Status Timeline ── */}
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-semibold flex items-center gap-2">
+            <CardTitle className="text-sm font-semibold flex items-center gap-2 rtl:flex-row-reverse">
               <TrendingUp size={15} className="text-primary" />
               {t("lifecycle.employmentTimeline")}
             </CardTitle>
@@ -390,10 +417,15 @@ export default function EmployeeLifecyclePage() {
         {(() => {
           const REQUIRED_FIELDS = ["firstName", "lastName", "email", "phone", "nationality", "department", "position", "hireDate", "salary"] as const;
           const OPTIONAL_FIELDS = ["passportNumber", "nationalId", "dateOfBirth", "gender", "pasiNumber", "bankAccountNumber", "emergencyContactName"] as const;
-          const reqFilled = REQUIRED_FIELDS.filter((f) => !!(employee as any)[f]).length;
+          const hasRequired = (f: (typeof REQUIRED_FIELDS)[number]) => {
+            const v = (employee as any)[f];
+            if (f === "salary") return v != null && v !== "";
+            return !!v;
+          };
+          const reqFilled = REQUIRED_FIELDS.filter(hasRequired).length;
           const optFilled = OPTIONAL_FIELDS.filter((f) => !!(employee as any)[f]).length;
           const score = Math.round(((reqFilled / REQUIRED_FIELDS.length) * 70) + ((optFilled / OPTIONAL_FIELDS.length) * 30));
-          const missing = REQUIRED_FIELDS.filter((f) => !(employee as any)[f]);
+          const missing = REQUIRED_FIELDS.filter((f) => !hasRequired(f));
           const color = score >= 90 ? "text-emerald-600 dark:text-emerald-400" : score >= 60 ? "text-amber-600 dark:text-amber-400" : "text-red-600 dark:text-red-400";
           return (
             <div className="p-4 rounded-xl border border-border bg-card">
@@ -401,12 +433,14 @@ export default function EmployeeLifecyclePage() {
                 <span className="text-sm font-semibold text-foreground">{t("lifecycle.completeness.title")}</span>
                 <span className={`text-sm font-bold ${color}`}>{score}%</span>
               </div>
-              <Progress value={score} className="h-2" />
+              <div dir="ltr" className="w-full">
+                <Progress value={score} className="h-2" />
+              </div>
               {missing.length > 0 ? (
                 <div className="mt-2.5 flex flex-wrap gap-1.5">
                   {missing.map((f) => (
                     <span key={f} className="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 border border-red-200 dark:border-red-800">
-                      {t("lifecycle.completeness.missing")} {f.replace(/([A-Z])/g, " $1").toLowerCase()}
+                      {t("lifecycle.completeness.missing")}: {t(`lifecycle.completeness.fields.${f}`)}
                     </span>
                   ))}
                   <button onClick={() => setEditOpen(true)} className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20 transition-colors">
@@ -435,7 +469,7 @@ export default function EmployeeLifecyclePage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Card>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm flex items-center gap-2">
+                  <CardTitle className="text-sm flex items-center gap-2 rtl:flex-row-reverse">
                     <User size={14} className="text-muted-foreground" /> {t("lifecycle.profile.personalInfo")}
                   </CardTitle>
                 </CardHeader>
@@ -447,9 +481,9 @@ export default function EmployeeLifecyclePage() {
                   <InfoRow label={t("lifecycle.profile.email")} value={employee.email} icon={Mail} />
                   <InfoRow label={t("lifecycle.profile.phone")} value={employee.phone} icon={Phone} />
                   <InfoRow label={t("lifecycle.profile.nationality")} value={employee.nationality} icon={Globe} />
-                  <InfoRow label={t("lifecycle.profile.gender")} value={(employee as any).gender} />
+                  <InfoRow label={t("lifecycle.profile.gender")} value={displayGender((employee as any).gender, t) ?? undefined} />
                   <InfoRow label={t("lifecycle.profile.dateOfBirth")} value={(employee as any).dateOfBirth ? fmtDate((employee as any).dateOfBirth) : null} icon={Calendar} />
-                  <InfoRow label={t("lifecycle.profile.maritalStatus")} value={(employee as any).maritalStatus} />
+                  <InfoRow label={t("lifecycle.profile.maritalStatus")} value={displayMarital((employee as any).maritalStatus, t) ?? undefined} />
                   <InfoRow label={t("lifecycle.profile.passportNo")} value={employee.passportNumber} icon={CreditCard} />
                   <InfoRow label={t("lifecycle.profile.civilId")} value={employee.nationalId} icon={Hash} />
                   {!employee.email && !employee.phone && !employee.nationality && (
@@ -459,7 +493,7 @@ export default function EmployeeLifecyclePage() {
               </Card>
               <Card>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm flex items-center gap-2">
+                  <CardTitle className="text-sm flex items-center gap-2 rtl:flex-row-reverse">
                     <Briefcase size={14} className="text-muted-foreground" /> {t("lifecycle.profile.employment")}
                   </CardTitle>
                 </CardHeader>
@@ -467,9 +501,9 @@ export default function EmployeeLifecyclePage() {
                   <InfoRow label={t("lifecycle.profile.employeeNo")} value={employee.employeeNumber} icon={Hash} />
                   <InfoRow label={t("lifecycle.profile.position")} value={employee.position} icon={Briefcase} />
                   <InfoRow label={t("lifecycle.profile.department")} value={employee.department} icon={Building2} />
-                  <InfoRow label={t("lifecycle.profile.employmentType")} value={employee.employmentType?.replace("_", " ")} />
-                  <InfoRow label={t("lifecycle.profile.hireDate")} value={fmtDate(employee.hireDate)} icon={Calendar} />
-                  <InfoRow label={t("lifecycle.profile.status")} value={employee.status.replace("_", " ")} />
+                  <InfoRow label={t("lifecycle.profile.employmentType")} value={displayEmploymentType(employee.employmentType, t)} />
+                  <InfoRow label={t("lifecycle.profile.hireDate")} value={employee.hireDate ? fmtDate(employee.hireDate) : null} icon={Calendar} />
+                  <InfoRow label={t("lifecycle.profile.status")} value={displayEmpStatus(employee.status, t)} />
                   {employee.terminationDate && (
                     <InfoRow label={t("lifecycle.profile.exitDate")} value={fmtDate(employee.terminationDate)} />
                   )}
@@ -477,7 +511,7 @@ export default function EmployeeLifecyclePage() {
               </Card>
               <Card>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm flex items-center gap-2">
+                  <CardTitle className="text-sm flex items-center gap-2 rtl:flex-row-reverse">
                     <DollarSign size={14} className="text-muted-foreground" /> {t("lifecycle.profile.compensation")}
                   </CardTitle>
                 </CardHeader>
@@ -485,14 +519,14 @@ export default function EmployeeLifecyclePage() {
                   <InfoRow label={t("lifecycle.profile.basicSalary")} value={fmtOMR(employee.salary)} />
                   <InfoRow label={t("lifecycle.profile.currency")} value={employee.currency ?? "OMR"} />
                   {!employee.salary && (
-                    <p className="text-xs text-muted-foreground py-2">{t("lifecycle.profile.noSalary")}</p>
+                    <p className="text-xs text-muted-foreground py-2 text-start" lang={i18n.language}>{t("lifecycle.profile.noSalary")}</p>
                   )}
                 </CardContent>
               </Card>
               {employee.permit && (
                 <Card className="sm:col-span-2">
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-sm flex items-center gap-2">
+                    <CardTitle className="text-sm flex items-center gap-2 rtl:flex-row-reverse">
                       <Shield size={14} className="text-muted-foreground" /> {t("lifecycle.profile.workPermit")}
                     </CardTitle>
                   </CardHeader>
@@ -512,7 +546,7 @@ export default function EmployeeLifecyclePage() {
               {((employee as any).pasiNumber || (employee as any).bankName || (employee as any).emergencyContactName) && (
                 <Card className="sm:col-span-2">
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-sm flex items-center gap-2">
+                    <CardTitle className="text-sm flex items-center gap-2 rtl:flex-row-reverse">
                       <Hash size={14} className="text-muted-foreground" /> {t("lifecycle.profile.pasiBankEmergency")}
                     </CardTitle>
                   </CardHeader>
@@ -563,12 +597,12 @@ export default function EmployeeLifecyclePage() {
                             </p>
                             <p className="text-xs text-muted-foreground">
                               {fmtDate(leave.startDate)} → {fmtDate(leave.endDate)}
-                              {leave.days && ` · ${leave.days} days`}
+                              {leave.days != null && leave.days !== "" ? ` · ${t("lifecycle.leave.days", { count: Number(leave.days) })}` : ""}
                             </p>
                           </div>
                         </div>
                         <Badge className={`text-xs px-2 py-0 h-5 ${leaveStatusBadge(leave.status)}`}>
-                          {leave.status}
+                          {t(`lifecycle.leave.status.${leave.status}` as "lifecycle.leave.status.approved", { defaultValue: leave.status })}
                         </Badge>
                       </div>
                     ))}
@@ -612,14 +646,14 @@ export default function EmployeeLifecyclePage() {
                         {empPayroll.map((p: any) => (
                           <tr key={p.id} className="border-b border-muted/50 last:border-0">
                             <td className="py-2.5 text-foreground font-medium">
-                              {MONTH_NAMES[(p.periodMonth ?? 1) - 1]} {p.periodYear}
+                              {formatMonthYear(p.periodYear ?? new Date().getFullYear(), p.periodMonth ?? 1, i18n.language)}
                             </td>
                             <td className="py-2.5 text-end text-foreground">{fmtOMR(p.basicSalary)}</td>
                             <td className="py-2.5 text-end text-red-600 dark:text-red-400">-{fmtOMR(p.deductions)}</td>
                             <td className="py-2.5 text-end font-semibold text-foreground">{fmtOMR(p.netSalary)}</td>
                             <td className="py-2.5 text-end">
                               <Badge className={`text-xs px-2 py-0 h-5 ${payrollStatusBadge(p.status)}`}>
-                                {p.status}
+                                {t(`lifecycle.payroll.statusValue.${p.status}` as "lifecycle.payroll.statusValue.paid", { defaultValue: p.status })}
                               </Badge>
                             </td>
                           </tr>
@@ -638,7 +672,7 @@ export default function EmployeeLifecyclePage() {
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-sm">
-                    {t("lifecycle.attendance.title")} — {MONTH_NAMES[attendanceMonth - 1]} {attendanceYear}
+                    {t("lifecycle.attendance.title")} — {attendanceMonthLabel}
                   </CardTitle>
                   <Button variant="outline" size="sm" className="text-xs h-7 gap-1"
                     onClick={() => navigate("/hr/attendance")}>
@@ -657,12 +691,13 @@ export default function EmployeeLifecyclePage() {
                   </div>
                 ) : (
                   <>
-                    <div className="grid grid-cols-4 gap-3 mb-4">
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-4">
                       {[
                         { label: t("lifecycle.attendance.present"), count: empAttendance.filter((a: any) => a.status === "present").length, color: "text-emerald-600" },
                         { label: t("lifecycle.attendance.absent"),  count: empAttendance.filter((a: any) => a.status === "absent").length,  color: "text-red-600" },
                         { label: t("lifecycle.attendance.late"),    count: empAttendance.filter((a: any) => a.status === "late").length,    color: "text-amber-600" },
                         { label: t("lifecycle.attendance.remote"),  count: empAttendance.filter((a: any) => a.status === "remote").length,  color: "text-blue-600" },
+                        { label: t("lifecycle.attendance.statusValue.half_day"), count: empAttendance.filter((a: any) => a.status === "half_day").length, color: "text-violet-600" },
                       ].map(({ label, count, color }) => (
                         <div key={label} className="text-center p-3 rounded-lg border border-border bg-muted/30">
                           <div className={`text-xl font-bold ${color}`}>{count}</div>
@@ -690,8 +725,11 @@ export default function EmployeeLifecyclePage() {
                                   a.status === "present" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" :
                                   a.status === "absent"  ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" :
                                   a.status === "late"    ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" :
+                                  a.status === "half_day" ? "bg-violet-100 text-violet-800 dark:bg-violet-900/30 dark:text-violet-300" :
                                   "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
-                                }`}>{a.status}</Badge>
+                                }`}>
+                                  {t(`lifecycle.attendance.statusValue.${a.status}` as "lifecycle.attendance.statusValue.present", { defaultValue: a.status })}
+                                </Badge>
                               </td>
                               <td className="py-2.5 text-muted-foreground">{a.clockIn ?? "—"}</td>
                               <td className="py-2.5 text-muted-foreground">{a.clockOut ?? "—"}</td>

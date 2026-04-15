@@ -896,15 +896,6 @@
     "hrLetter": "HR Letter"
   },
 
-  "lifecycle": {
-    "active": "Active",
-    "onProbation": "On Probation",
-    "resigned": "Resigned",
-    "terminated": "Terminated",
-    "transferred": "Transferred",
-    "retired": "Retired"
-  },
-
   "filters": {
     "searchEmployees": "Search name, role, department, nationality, emp#...",
     "allStatus": "All Status",
@@ -1220,6 +1211,12 @@
   },
 
   "lifecycle": {
+    "active": "Active",
+    "onProbation": "On Probation",
+    "resigned": "Resigned",
+    "terminated": "Terminated",
+    "transferred": "Transferred",
+    "retired": "Retired",
     "expiry": {
       "expiredToday": "Expired today",
       "expiredDaysAgo": "Expired {{days}} days ago",

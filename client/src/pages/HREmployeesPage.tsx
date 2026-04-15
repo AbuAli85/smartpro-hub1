@@ -31,14 +31,16 @@ import { toast } from "sonner";
 import { fmtDate, fmtDateTime, expiryStatus, expiryLabel, EXPIRY_BADGE } from "@/lib/dateUtils";
 import { DateInput } from "@/components/ui/date-input";
 import { useTranslation } from "react-i18next";
+import { cn } from "@/lib/utils";
+import { isRTL } from "@/lib/i18n";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-// Status labels resolved via t(STATUS_META[s].i18nKey) at render time
+// Status labels resolved via t(STATUS_META[s].i18nKey) at render time (hr namespace)
 const STATUS_META: Record<string, { i18nKey: string; color: string }> = {
-  active:     { i18nKey: "lifecycle.active",      color: "bg-emerald-100 text-emerald-700 border-emerald-200" },
-  on_leave:   { i18nKey: "attendance.onLeave",    color: "bg-amber-100 text-amber-700 border-amber-200" },
-  terminated: { i18nKey: "lifecycle.terminated",  color: "bg-red-100 text-red-700 border-red-200" },
-  resigned:   { i18nKey: "lifecycle.resigned",    color: "bg-gray-100 text-gray-600 border-gray-200" },
+  active:     { i18nKey: "myTeam.status.active",     color: "bg-emerald-100 text-emerald-700 border-emerald-200" },
+  on_leave:   { i18nKey: "myTeam.status.on_leave",   color: "bg-amber-100 text-amber-700 border-amber-200" },
+  terminated: { i18nKey: "myTeam.status.terminated", color: "bg-red-100 text-red-700 border-red-200" },
+  resigned:   { i18nKey: "myTeam.status.resigned",   color: "bg-gray-100 text-gray-600 border-gray-200" },
 };
 
 // Employment type i18n keys resolved via t(EMP_TYPE_I18N[type]) at render time
@@ -57,6 +59,106 @@ const DEPT_COLORS = [
 
 function getInitials(first: string, last: string) {
   return ((first?.[0] ?? "") + (last?.[0] ?? "")).toUpperCase();
+}
+
+/** Map common English nationality/demonym text to ISO 3166-1 alpha-2 for Arabic region names */
+function nationalityToRegionCode(raw: string): string | null {
+  const s = raw.toLowerCase().trim();
+  const pairs: [string, string][] = [
+    ["oman", "OM"],
+    ["pakistan", "PK"],
+    ["india", "IN"],
+    ["bangladesh", "BD"],
+    ["philippine", "PH"],
+    ["egypt", "EG"],
+    ["jordan", "JO"],
+    ["syria", "SY"],
+    ["lebanon", "LB"],
+    ["kuwait", "KW"],
+    ["emirat", "AE"],
+    ["uae", "AE"],
+    ["saudi", "SA"],
+    ["qatar", "QA"],
+    ["bahrain", "BH"],
+    ["yemen", "YE"],
+    ["iraq", "IQ"],
+    ["iran", "IR"],
+    ["afghan", "AF"],
+    ["nepal", "NP"],
+    ["sri lanka", "LK"],
+    ["kenya", "KE"],
+    ["sudan", "SD"],
+    ["ethiopia", "ET"],
+    ["morocco", "MA"],
+    ["tunisia", "TN"],
+    ["algeria", "DZ"],
+    ["libya", "LY"],
+    ["palestine", "PS"],
+    ["turkey", "TR"],
+    ["ukraine", "UA"],
+    ["russia", "RU"],
+    ["china", "CN"],
+    ["japan", "JP"],
+    ["korea", "KR"],
+    ["thailand", "TH"],
+    ["vietnam", "VN"],
+    ["indonesia", "ID"],
+    ["malaysia", "MY"],
+    ["singapore", "SG"],
+    ["united kingdom", "GB"],
+    ["british", "GB"],
+    ["american", "US"],
+    ["united states", "US"],
+    ["canada", "CA"],
+    ["australia", "AU"],
+    ["south africa", "ZA"],
+  ];
+  for (const [needle, code] of pairs) {
+    if (s.includes(needle)) return code;
+  }
+  return null;
+}
+
+/** Localized nationality for table display (Arabic uses country names via Intl) */
+function formatNationalityDisplay(raw: string | null | undefined, lang: string): string {
+  if (!raw) return "—";
+  if (!lang.startsWith("ar")) return raw;
+  const code = nationalityToRegionCode(raw);
+  if (!code) return raw;
+  try {
+    return new Intl.DisplayNames([lang], { type: "region" }).of(code) ?? raw;
+  } catch {
+    return raw;
+  }
+}
+
+function formatSalaryCell(
+  salary: unknown,
+  currency: string | null | undefined,
+  lang: string
+): string {
+  if (salary == null || salary === "") return "—";
+  const n = parseFloat(String(salary));
+  if (!Number.isFinite(n)) return "—";
+  const amount = n.toLocaleString(lang === "ar-OM" ? "ar-OM" : "en-OM", { minimumFractionDigits: 3, maximumFractionDigits: 3 });
+  if (lang.startsWith("ar")) {
+    return `${amount} ${currency === "OMR" || !currency ? "ر.ع." : currency}`;
+  }
+  return `${currency ?? "OMR"} ${amount}`;
+}
+
+const MUSCAT_TZ = "Asia/Muscat";
+
+function formatHireDateCell(d: Date | string | null | undefined, lang: string): string {
+  if (!d) return "—";
+  const date = new Date(d as Date);
+  if (isNaN(date.getTime())) return "—";
+  return date.toLocaleDateString(lang === "ar-OM" ? "ar-OM" : "en-GB", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    timeZone: MUSCAT_TZ,
+  });
 }
 
 // ─── Profile Completeness Badge ───────────────────────────────────────────────
@@ -416,7 +518,7 @@ function EmployeeDetailPanel({ employeeId, onClose, onUpdate }: { employeeId: nu
     </div>
   );
 
-  const statusMeta = STATUS_META[emp.status ?? "active"];
+  const statusMeta = STATUS_META[emp.status ?? "active"] ?? STATUS_META.active;
   const isOmani = (emp.nationality ?? "").toLowerCase().includes("oman");
   const yearsOfService = emp.hireDate ? Math.floor((Date.now() - new Date(emp.hireDate).getTime()) / (365.25 * 86400000)) : null;
 
@@ -688,7 +790,8 @@ function EmployeeTimeline({ employeeId }: { employeeId: number }) {
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function HREmployeesPage() {
-  const { t } = useTranslation("hr");
+  const { t, i18n } = useTranslation("hr");
+  const rtl = isRTL(i18n.language);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("active");
   const [deptFilter, setDeptFilter] = useState("all");
@@ -796,8 +899,8 @@ export default function HREmployeesPage() {
   );
 
   return (
-    <div className="flex h-full">
-      <div className={`flex-1 p-6 space-y-6 overflow-y-auto transition-all ${selectedId ? "max-w-[calc(100%-400px)]" : ""}`}>
+    <div className="flex h-full" dir="ltr">
+      <div className={`flex-1 p-6 space-y-6 overflow-y-auto transition-all ${selectedId ? "max-w-[calc(100%-400px)]" : ""}`} dir={i18n.dir()}>
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
           <div>
@@ -863,7 +966,7 @@ export default function HREmployeesPage() {
               <p className="text-sm font-semibold">{t("employees.omanisation.title")}</p>
               <span className="text-xs text-muted-foreground">{t("employees.omanisation.target")}</span>
             </div>
-            <div className="w-full bg-muted rounded-full h-3">
+            <div className="w-full bg-muted rounded-full h-3 rtl:scale-x-[-1]">
               <div className={`h-3 rounded-full transition-all ${stats.omanisationRate >= 35 ? "bg-emerald-500" : stats.omanisationRate >= 20 ? "bg-amber-500" : "bg-red-500"}`} style={{ width: `${Math.min(stats.omanisationRate, 100)}%` }} />
             </div>
             <div className="flex justify-between mt-2 text-xs text-muted-foreground">
@@ -882,20 +985,22 @@ export default function HREmployeesPage() {
 
         {/* Tabs */}
         <Tabs defaultValue="employees">
-          <TabsList>
+          <div className={cn("flex w-full", rtl ? "justify-end" : "justify-start")}>
+          <TabsList className="inline-flex">
             <TabsTrigger value="employees">
               {t("employees.tabs.allEmployees")}
               {employees && <span className="ms-1.5 bg-muted text-muted-foreground rounded-full px-1.5 py-0.5 text-[10px]">{employees.length}</span>}
             </TabsTrigger>
             <TabsTrigger value="departments">{t("employees.tabs.byDepartment")}</TabsTrigger>
           </TabsList>
+          </div>
 
           <TabsContent value="employees" className="space-y-4 mt-4">
             {/* Filters */}
             <div className="flex flex-wrap gap-3">
               <div className="relative flex-1 min-w-48">
                 <Search size={16} className="absolute start-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                <Input placeholder={t("filters.searchEmployees")} className="ps-9" value={search} onChange={(e) => setSearch(e.target.value)} />
+                <Input placeholder={t("filters.searchEmployees")} className="ps-9 text-start" value={search} onChange={(e) => setSearch(e.target.value)} />
                 {search && <button className="absolute end-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" onClick={() => setSearch("")}><X size={14} /></button>}
               </div>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
@@ -1022,7 +1127,7 @@ export default function HREmployeesPage() {
             {/* Table */}
             <Card>
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+                <table className="w-full text-sm border-collapse">
                   <thead>
                     <tr className="border-b bg-muted/40">
                       <th scope="col" className="px-4 py-3 w-10">
@@ -1082,7 +1187,7 @@ export default function HREmployeesPage() {
                       </td></tr>
                     )}
                     {filtered.map((emp) => {
-                      const statusMeta = STATUS_META[emp.status ?? "active"];
+                      const statusMeta = STATUS_META[emp.status ?? "active"] ?? STATUS_META.active;
                       const isOmani = (emp.nationality ?? "").toLowerCase().includes("oman");
                       const isSelected = selectedId === emp.id;
                       const completeness = completenessMap[emp.id];
@@ -1106,7 +1211,7 @@ export default function HREmployeesPage() {
                               aria-label={`Select ${emp.firstName} ${emp.lastName}`}
                             />
                           </td>
-                          <td className="px-4 py-3">
+                          <td className="px-4 py-3 text-start">
                             <div className="flex items-center gap-3">
                               <Avatar className="w-8 h-8 shrink-0">
                                 <AvatarFallback className="bg-[var(--smartpro-orange)] text-white text-xs font-bold">{getInitials(emp.firstName, emp.lastName)}</AvatarFallback>
@@ -1118,16 +1223,16 @@ export default function HREmployeesPage() {
                               </div>
                             </div>
                           </td>
-                          <td className="px-4 py-3 text-xs">{emp.position ?? "—"}</td>
+                          <td className="px-4 py-3 text-xs text-start" dir="auto">{emp.position ?? "—"}</td>
                           <td className="px-4 py-3">
                             {emp.department
                               ? <span className={`text-xs rounded-full px-2 py-0.5 font-medium ${DEPT_COLORS[(emp.department.charCodeAt(0) ?? 0) % DEPT_COLORS.length]}`}>{emp.department}</span>
                               : "—"}
                           </td>
-                          <td className="px-4 py-3 text-xs">
-                            <span className={`flex items-center gap-1 ${isOmani ? "text-green-700 font-medium" : "text-muted-foreground"}`}>
-                              {isOmani && <Shield size={10} className="text-green-600" />}
-                              {emp.nationality ?? "—"}
+                          <td className="px-4 py-3 text-xs text-start">
+                            <span className={`inline-flex items-center gap-1 ${isOmani ? "text-green-700 font-medium" : "text-muted-foreground"}`} dir="auto">
+                              {isOmani && <Shield size={10} className="text-green-600 shrink-0" />}
+                              {formatNationalityDisplay(emp.nationality, i18n.language)}
                             </span>
                           </td>
                           <td className="px-4 py-3"><Badge className={`text-xs ${statusMeta.color}`} variant="outline">{t(statusMeta.i18nKey)}</Badge></td>
@@ -1137,8 +1242,8 @@ export default function HREmployeesPage() {
                               <DocExpiryIndicator emp={emp} warnDays={expiryWarningDays} />
                             </div>
                           </td>
-                          <td className="px-4 py-3 text-xs font-medium">{emp.salary ? `${emp.currency ?? "OMR"} ${parseFloat(emp.salary).toFixed(3)}` : "—"}</td>
-                          <td className="px-4 py-3 text-xs text-muted-foreground">{emp.hireDate ? fmtDate(emp.hireDate) : "—"}</td>
+                          <td className="px-4 py-3 text-xs font-medium text-start tabular-nums" dir="ltr">{formatSalaryCell(emp.salary, emp.currency, i18n.language)}</td>
+                          <td className="px-4 py-3 text-xs text-muted-foreground text-start tabular-nums">{emp.hireDate ? formatHireDateCell(emp.hireDate, i18n.language) : "—"}</td>
                           <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
@@ -1227,7 +1332,7 @@ export default function HREmployeesPage() {
 
       {/* Detail Panel */}
       {selectedId && (
-        <div className="w-[400px] border-l bg-background flex flex-col h-full overflow-hidden shrink-0">
+        <div className="w-[400px] border-l bg-background flex flex-col h-full overflow-hidden shrink-0" dir={i18n.dir()}>
           <EmployeeDetailPanel employeeId={selectedId} onClose={() => setSelectedId(null)} onUpdate={refetch} />
         </div>
       )}

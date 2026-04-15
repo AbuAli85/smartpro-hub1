@@ -896,15 +896,6 @@
     "hrLetter": "خطاب الموارد البشرية"
   },
 
-  "lifecycle": {
-    "active": "نشط",
-    "onProbation": "في فترة التجربة",
-    "resigned": "مستقيل",
-    "terminated": "منتهية خدمته",
-    "transferred": "منقول",
-    "retired": "متقاعد"
-  },
-
   "filters": {
     "searchEmployees": "بحث بالاسم أو الدور أو القسم أو الجنسية أو رقم الموظف...",
     "allStatus": "جميع الحالات",
@@ -1220,6 +1211,12 @@
   },
 
   "lifecycle": {
+    "active": "نشط",
+    "onProbation": "في فترة التجربة",
+    "resigned": "مستقيل",
+    "terminated": "منتهية خدمته",
+    "transferred": "منقول",
+    "retired": "متقاعد",
     "expiry": {
       "expiredToday": "انتهى اليوم",
       "expiredDaysAgo": "منتهٍ منذ {{days}} يوماً",

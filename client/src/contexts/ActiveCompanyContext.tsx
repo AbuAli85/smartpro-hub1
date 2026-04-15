@@ -5,6 +5,11 @@
  * - Persists the active company ID in localStorage so it survives page refreshes.
  * - When the user has only one company, that company is auto-selected.
  * - When the user switches company, all pages re-render with the new company's data.
+ *
+ * **Membership resolution:** `loading` reflects `trpc.companies.myCompanies` — until it is
+ * false, consumers must not treat `companies.length === 0` as “user has no companies”
+ * (the list may still be loading). Pre-company dashboard / `isPreCompanyWorkspaceUser`
+ * depend on this. See `docs/architecture/workspace-mode.md`.
  */
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";

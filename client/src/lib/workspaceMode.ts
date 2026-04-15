@@ -12,13 +12,20 @@ export type PreCompanyWorkspaceContext = {
 };
 
 /**
- * True when the membership list has **finished loading**, the user has **zero** companies,
- * and they should see the pre-company onboarding workspace (not the tenant business OS).
+ * **Core invariant — pre-company UI**
  *
- * Until `companyLoading` is false, callers should show a loading shell — not this state —
- * so we do not flash pre-company UI while memberships are still resolving.
+ * Pre-company mode only applies **after company membership resolution is settled**
+ * (`companies.myCompanies` has finished its initial load). **Loading** and
+ * **platform / operator / portal-only-client** contexts are **explicitly excluded**
+ * (they use a shell, skeleton, or different product surface — not the pre-company dashboard).
  *
- * Excludes platform operators, global admins, and portal-only clients (separate shell).
+ * When the above holds, returns true if the settled membership list is **empty** and the
+ * user should see the pre-company onboarding workspace (not the tenant “business OS”).
+ *
+ * Until `companyLoading` is false, callers must show a **loading shell** — not this state —
+ * so we never infer “no company” from a transient empty list.
+ *
+ * @see `docs/architecture/workspace-mode.md`
  */
 export function isPreCompanyWorkspaceUser(
   user: { role?: string | null; platformRole?: string | null } | null,

@@ -30,6 +30,7 @@ import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { fmtDate, fmtDateLong, fmtDateTimeShort, fmtTime, expiryStatus, expiryLabel, EXPIRY_BADGE, EXPIRY_BORDER, daysUntilExpiry } from "@/lib/dateUtils";
 import { DateInput } from "@/components/ui/date-input";
+import { cn } from "@/lib/utils";
 
 // ─── constants ────────────────────────────────────────────────────────────────
 
@@ -781,60 +782,73 @@ function StaffCard({
   return (
     <div
       onClick={onClick}
-      className={`bg-card border rounded-xl p-4 cursor-pointer hover:shadow-md transition-all group relative
-        ${cardExpiry === "expired" ? "border-red-400 ring-1 ring-red-300" : cardExpiry === "expiring-soon" ? "border-amber-400 ring-1 ring-amber-200" : "border-border hover:border-[var(--smartpro-orange)]"}`}
+      className={cn(
+        "bg-card border rounded-xl p-4 cursor-pointer hover:shadow-md transition-all group relative",
+        cardExpiry === "expired"
+          ? "border-red-400 ring-1 ring-red-300"
+          : cardExpiry === "expiring-soon"
+          ? "border-amber-400 ring-1 ring-amber-200"
+          : "border-border hover:border-[var(--smartpro-orange)]"
+      )}
     >
-      <div className="absolute top-3 end-3" onClick={(e) => e.stopPropagation()}>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 transition-opacity">
-              <MoreHorizontal size={14} />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="text-sm">
-            <DropdownMenuItem onClick={onViewProfile}><ChevronRight size={13} className="me-2" /> {t("myTeam.card.viewFullProfile")}</DropdownMenuItem>
-            <DropdownMenuItem onClick={onDocuments}><Shield size={13} className="me-2" /> {t("myTeam.card.documents")}</DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={onEdit}><Edit2 size={13} className="me-2" /> {t("myTeam.profile.edit")}</DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={onRemove} className="text-red-600">
-              <UserX size={13} className="me-2" /> {t("myTeam.card.offboard")}
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
+      {/* Two-column header: avatar+info LEFT, status badge+action menu RIGHT */}
+      <div className="grid grid-cols-[1fr_auto] gap-2 items-start">
+        {/* Left column: avatar + name / role / dept */}
+        <div className="flex items-center gap-2.5 min-w-0">
+          <Avatar className="w-9 h-9 shrink-0">
+            <AvatarFallback className="bg-[var(--smartpro-orange)] text-white text-sm font-bold">
+              {initials}
+            </AvatarFallback>
+          </Avatar>
+          <div className="min-w-0">
+            <div className="font-semibold text-foreground text-sm truncate leading-tight">
+              {member.firstName} {member.lastName}
+            </div>
+            <div className="text-xs text-muted-foreground truncate">{member.position || "—"}</div>
+            <div className="text-[10px] text-muted-foreground/70 truncate">
+              {member.department || t("myTeam.card.noDepartment")}
+            </div>
+          </div>
+        </div>
 
-      <div className="flex items-start gap-3">
-        <Avatar className="w-10 h-10 shrink-0">
-          <AvatarFallback className="bg-[var(--smartpro-orange)] text-white text-sm font-bold">
-            {initials}
-          </AvatarFallback>
-        </Avatar>
-        <div className="min-w-0 flex-1">
-          <div className="font-semibold text-foreground text-sm truncate">
-            {member.firstName} {member.lastName}
-          </div>
-          <div className="text-xs text-muted-foreground truncate">{member.position || "—"}</div>
-          <div className="text-xs text-muted-foreground/70 truncate">
-            {member.department || t("myTeam.card.noDepartment")}
-          </div>
+        {/* Right column: status badge stacked above action menu */}
+        <div className="flex flex-col items-end gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+          <Badge className={`text-[10px] border px-1.5 py-0.5 flex items-center gap-1 ${statusColor}`}>
+            {statusIcon} {statusLabel}
+          </Badge>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                <MoreHorizontal size={13} />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="text-sm">
+              <DropdownMenuItem onClick={onViewProfile}><ChevronRight size={13} className="me-2" /> {t("myTeam.card.viewFullProfile")}</DropdownMenuItem>
+              <DropdownMenuItem onClick={onDocuments}><Shield size={13} className="me-2" /> {t("myTeam.card.documents")}</DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={onEdit}><Edit2 size={13} className="me-2" /> {t("myTeam.profile.edit")}</DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={onRemove} className="text-red-600">
+                <UserX size={13} className="me-2" /> {t("myTeam.card.offboard")}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
-      <div className="mt-3 flex items-center justify-between">
-        <Badge className={`text-[10px] border px-1.5 py-0.5 flex items-center gap-1 ${statusColor}`}>
-          {statusIcon} {statusLabel}
-        </Badge>
+      {/* Secondary row: employment type + email */}
+      <div className="mt-2.5 flex items-center justify-between gap-2">
         <span className="text-[10px] text-muted-foreground">
           {t(`myTeam.empType.${member.employmentType ?? "full_time"}` as any, { defaultValue: member.employmentType ?? "full_time" })}
         </span>
+        {member.email && (
+          <div className="flex items-center gap-1 text-[10px] text-muted-foreground/70 truncate min-w-0">
+            <Mail size={10} className="shrink-0" /> <span className="truncate">{member.email}</span>
+          </div>
+        )}
       </div>
 
-      {member.email && (
-        <div className="mt-2 flex items-center gap-1 text-[10px] text-gray-400 truncate">
-          <Mail size={10} /> {member.email}
-        </div>
-      )}
+      {/* Profile completeness bar */}
       <div className="mt-2 flex items-center gap-1.5">
         <div className="flex-1 h-1 bg-muted rounded-full overflow-hidden">
           <div
@@ -844,6 +858,8 @@ function StaffCard({
         </div>
         <span className={`text-[9px] font-medium shrink-0 ${completenessTextColor}`}>{completenessScore}%</span>
       </div>
+
+      {/* Document expiry warning */}
       {cardExpiry !== "none" && (
         <div className={`mt-2 flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-md ${EXPIRY_BADGE[cardExpiry]}`}>
           {cardExpiry === "expired" ? "⚠" : "⏰"}

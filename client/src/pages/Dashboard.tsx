@@ -147,10 +147,14 @@ export default function Dashboard() {
       hasCompanyMembership: companies.length > 0,
       memberRole: myCompany?.member?.role ?? activeCompany?.role ?? null,
       navExtraAllowedHrefs,
+      memberPermissions: Array.isArray(myCompany?.member?.permissions)
+        ? [...(myCompany.member.permissions as string[])]
+        : [],
     }),
     [
       myCompany?.company?.id,
       myCompany?.member?.role,
+      myCompany?.member?.permissions,
       activeCompany?.role,
       myCompanyLoading,
       companies.length,

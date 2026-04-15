@@ -1,7 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { mergeLeavePolicyCaps } from "../../shared/leavePolicyCaps";
-import { eq, and, desc, gte, lte, count, sum, or, isNull } from "drizzle-orm";
+import { eq, and, desc, gte, lte, count, sum, or, isNull, inArray } from "drizzle-orm";
 import {
   companies,
   workPermits,
@@ -20,7 +20,10 @@ import {
   employeeSchedules,
   shiftTemplates,
   users,
+  attendanceSites,
+  companyMembers,
 } from "../../drizzle/schema";
+import { hasReportPermission } from "@shared/reportPermissions";
 import { sendEmployeeNotification } from "./employeePortal";
 import {
   createAttendanceRecordTx,
@@ -95,6 +98,41 @@ async function requireAdminOrHR(ctxUser: User, companyId?: number | null) {
     throw new TRPCError({ code: "FORBIDDEN", message: "HR Admin or Company Admin required" });
   }
   return { companyId: cid };
+}
+
+function normalizeMemberPermissions(p: unknown): string[] {
+  if (!Array.isArray(p)) return [];
+  return p.filter((x): x is string => typeof x === "string");
+}
+
+/** HR admin, company admin, or delegated `view_reports` on company_members.permissions. */
+async function requireHrAdminOrDelegatedReports(ctxUser: User, companyId?: number | null): Promise<number> {
+  const cid = await requireActiveCompanyId(ctxUser.id, companyId, ctxUser);
+  const db = await getDb();
+  if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+  const [callerMember] = await db
+    .select({ role: companyMembers.role, permissions: companyMembers.permissions })
+    .from(companyMembers)
+    .where(
+      and(
+        eq(companyMembers.companyId, cid),
+        eq(companyMembers.userId, ctxUser.id),
+        eq(companyMembers.isActive, true),
+      ),
+    )
+    .limit(1);
+  const isAdminOrHR = callerMember?.role === "company_admin" || callerMember?.role === "hr_admin";
+  const hasDelegatedAccess = hasReportPermission(
+    normalizeMemberPermissions(callerMember?.permissions),
+    "view_reports",
+  );
+  if (!isAdminOrHR && !hasDelegatedAccess) {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "HR Admin, Company Admin, or view_reports permission required",
+    });
+  }
+  return cid;
 }
 
 async function countScheduledWorkSlotsForCompanyMonth(
@@ -648,7 +686,7 @@ export const hrRouter = router({
   listAttendance: protectedProcedure
     .input(z.object({ month: z.string().optional(), companyId: z.number().optional() }))
     .query(async ({ input, ctx }) => {
-      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      const cid = await requireHrAdminOrDelegatedReports(ctx.user as User, input.companyId);
       return getAttendance(cid, input.month);
     }),
 
@@ -822,7 +860,7 @@ export const hrRouter = router({
   attendanceStats: protectedProcedure
     .input(z.object({ month: z.string().optional(), companyId: z.number().optional() }))
     .query(async ({ input, ctx }) => {
-      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      const cid = await requireHrAdminOrDelegatedReports(ctx.user as User, input.companyId);
       const base = await getAttendanceStats(cid, input.month);
       if (!input.month) {
         return {
@@ -862,8 +900,7 @@ export const hrRouter = router({
       }),
     )
     .query(async ({ ctx, input }) => {
-      await requireAdminOrHR(ctx.user as User, input.companyId);
-      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      const cid = await requireHrAdminOrDelegatedReports(ctx.user as User, input.companyId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
 
@@ -909,6 +946,15 @@ export const hrRouter = router({
           ),
         );
 
+      const schedSiteIds = [...new Set(allSchedules.map((s) => s.siteId).filter((id): id is number => id != null))];
+      const schedSites = schedSiteIds.length
+        ? await db
+            .select({ id: attendanceSites.id, name: attendanceSites.name, clientName: attendanceSites.clientName })
+            .from(attendanceSites)
+            .where(inArray(attendanceSites.id, schedSiteIds))
+        : [];
+      const siteById = new Map(schedSites.map((s) => [s.id, s]));
+
       const monthStart = new Date(`${startDate}T00:00:00.000Z`);
       const monthEnd = new Date(`${endDate}T23:59:59.999Z`);
       const records = await db
@@ -949,6 +995,9 @@ export const hrRouter = router({
         totalWorkedMinutes: number;
         scheduledMinutes: number;
         attendanceRate: number;
+        siteName: string | null;
+        clientName: string | null;
+        billableHours: number;
       }> = [];
 
       for (const empUserId of employeeUserIds) {
@@ -1015,6 +1064,11 @@ export const hrRouter = router({
         const attendanceRate =
           scheduledDays > 0 ? Math.round((presentDays / scheduledDays) * 100) : 0;
 
+        const primarySched = [...empSchedules]
+          .filter((s) => s.siteId != null)
+          .sort((a, b) => b.startDate.localeCompare(a.startDate))[0];
+        const site = primarySched?.siteId != null ? siteById.get(primarySched.siteId) : null;
+
         rows.push({
           employeeName: displayName,
           employeeId: empRow.id,
@@ -1024,6 +1078,9 @@ export const hrRouter = router({
           totalWorkedMinutes,
           scheduledMinutes,
           attendanceRate,
+          siteName: site?.name ?? null,
+          clientName: site?.clientName ?? null,
+          billableHours: Math.round((Math.min(totalWorkedMinutes, scheduledMinutes) / 60) * 10) / 10,
         });
       }
 

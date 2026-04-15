@@ -31,7 +31,9 @@ import {
   Calendar,
   LayoutList,
   Building2,
+  BarChart2,
 } from "lucide-react";
+import { ReportDelegationPanel } from "@/components/ReportDelegationPanel";
 import { getRoleDefaultRoute } from "@shared/clientNav";
 import { NAV_EXTENSION_ROLE_KEYS, ROLE_NAV_SUMMARY } from "@shared/roleNavConfig";
 import { mergeLeavePolicyCaps } from "@shared/leavePolicyCaps";
@@ -630,6 +632,23 @@ export default function CompanySettingsPage() {
           )}
         </CardContent>
       </Card>
+
+      {canEditNavExtensions && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <BarChart2 className="h-4 w-4 text-muted-foreground" />
+              Report Access Delegation
+            </CardTitle>
+            <CardDescription>
+              Grant specific team members read access to reports and payroll data without changing their role.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ReportDelegationPanel companyId={activeCompany?.id} />
+          </CardContent>
+        </Card>
+      )}
 
       {!canEdit && (
         <div className="flex items-center gap-2 p-4 rounded-lg bg-muted/50 text-muted-foreground text-sm">

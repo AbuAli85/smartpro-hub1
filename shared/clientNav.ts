@@ -465,6 +465,8 @@ export type ClientNavOptions = {
   companyWorkspaceLoading?: boolean;
   /** Company membership role (e.g. "external_auditor") — used for role-based nav filtering. */
   memberRole?: string | null;
+  /** `company_members.permissions` — granular read access for reports, payroll, executive KPIs. */
+  memberPermissions?: string[] | null;
   /**
    * When set, reflects whether `trpc.companies.myCompanies` returned at least one company.
    * If `false`, non-platform users without a portal-only profile see a minimal shell until they join or create a company.
@@ -614,6 +616,25 @@ export function clientNavItemVisible(
   // Company admin — optional extra routes for this role (before role shells below)
   if (companyNavExtensionAllows(href, user, options)) return true;
 
+  const path = normalizeClientPath(href);
+  if (
+    path === "/reports" ||
+    path.startsWith("/reports/") ||
+    path === "/hr/attendance" ||
+    path.startsWith("/hr/attendance/")
+  ) {
+    const perms: string[] = options?.memberPermissions ?? [];
+    if (perms.includes("view_reports")) return true;
+  }
+  if (path === "/payroll" || path.startsWith("/payroll/")) {
+    const perms: string[] = options?.memberPermissions ?? [];
+    if (perms.includes("view_payroll")) return true;
+  }
+  if (path === "/finance/overview" || path.startsWith("/finance/overview/")) {
+    const perms: string[] = options?.memberPermissions ?? [];
+    if (perms.includes("view_executive_summary")) return true;
+  }
+
   // Staff / "Member" company role — employee shell only, even for Super Admin or other platform jobs
   // while this membership is the active workspace role (see PlatformLayout memberRole from myCompany).
   if (isFieldEmployee(options?.memberRole)) {
@@ -754,6 +775,24 @@ export function clientRouteAccessible(
   }
 
   if (companyNavExtensionAllows(path, user, options)) return true;
+
+  if (
+    path === "/reports" ||
+    path.startsWith("/reports/") ||
+    path === "/hr/attendance" ||
+    path.startsWith("/hr/attendance/")
+  ) {
+    const perms: string[] = options?.memberPermissions ?? [];
+    if (perms.includes("view_reports")) return true;
+  }
+  if (path === "/payroll" || path.startsWith("/payroll/")) {
+    const perms: string[] = options?.memberPermissions ?? [];
+    if (perms.includes("view_payroll")) return true;
+  }
+  if (path === "/finance/overview" || path.startsWith("/finance/overview/")) {
+    const perms: string[] = options?.memberPermissions ?? [];
+    if (perms.includes("view_executive_summary")) return true;
+  }
 
   if (isFieldEmployee(options?.memberRole)) {
     return (

@@ -101,12 +101,16 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
   const platformNav = seesPlatformOperatorNav(user);
 
   const visibleNavGroups = useMemo(() => {
+    const memberPermissions = Array.isArray(myCompany?.member?.permissions)
+      ? [...(myCompany.member.permissions as string[])]
+      : [];
     const navOptions: ClientNavOptions = {
       hasCompanyWorkspace: Boolean(myCompany?.company?.id),
       companyWorkspaceLoading: myCompanyLoading,
       memberRole: effectiveMemberRole,
       hasCompanyMembership: companies.length > 0,
       navExtraAllowedHrefs,
+      memberPermissions,
     };
     return filterVisibleNavGroups(user, navOptions);
   }, [
@@ -114,6 +118,7 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
     navPrefsEpoch,
     myCompany?.company?.id,
     myCompany?.member?.role,
+    myCompany?.member?.permissions,
     activeCompany?.role,
     navExtraAllowedHrefs,
     myCompanyLoading,

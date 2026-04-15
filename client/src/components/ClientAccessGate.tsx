@@ -43,12 +43,16 @@ export function ClientAccessGate({ children }: { children: ReactNode }) {
       memberRole: effectiveMemberRole,
       hasCompanyMembership: companies.length > 0,
       navExtraAllowedHrefs,
+      memberPermissions: Array.isArray(myCompany?.member?.permissions)
+        ? [...(myCompany.member.permissions as string[])]
+        : [],
     });
   }, [
     location,
     user,
     myCompany?.company?.id,
     myCompany?.member?.role,
+    myCompany?.member?.permissions,
     activeCompany?.role,
     navExtraAllowedHrefs,
     companyLoading,

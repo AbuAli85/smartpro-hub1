@@ -7,10 +7,20 @@ import { requireWorkspaceMembership } from "../_core/membership";
 import type { User } from "../../drizzle/schema";
 import { eq, and, gte, lte, inArray, desc } from "drizzle-orm";
 import {
-  companies, proBillingCycles, omaniProOfficers, officerCompanyAssignments,
-  officerPayouts, complianceCertificates, employees, workPermits,
-  payrollRuns, payrollLineItems, governmentServiceCases,
+  companies,
+  companyMembers,
+  proBillingCycles,
+  omaniProOfficers,
+  officerCompanyAssignments,
+  officerPayouts,
+  complianceCertificates,
+  employees,
+  workPermits,
+  payrollRuns,
+  payrollLineItems,
+  governmentServiceCases,
 } from "../../drizzle/schema";
+import { hasReportPermission } from "@shared/reportPermissions";
 import { storagePut } from "../storage";
 import PDFDocument from "pdfkit";
 
@@ -97,6 +107,33 @@ async function resolveReportCompanyId(ctx: { user: User }, inputCompanyId?: numb
   return companyId;
 }
 
+function normalizeMemberPermissions(p: unknown): string[] {
+  if (!Array.isArray(p)) return [];
+  return p.filter((x): x is string => typeof x === "string");
+}
+
+/** Company / finance leadership or delegated `view_reports`. */
+async function assertReportAccess(ctx: { user: User }, companyId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+  const [m] = await db
+    .select({ role: companyMembers.role, permissions: companyMembers.permissions })
+    .from(companyMembers)
+    .where(
+      and(
+        eq(companyMembers.companyId, companyId),
+        eq(companyMembers.userId, ctx.user.id),
+        eq(companyMembers.isActive, true),
+      ),
+    )
+    .limit(1);
+  const isLeadership = m?.role === "company_admin" || m?.role === "finance_admin";
+  const delegated = hasReportPermission(normalizeMemberPermissions(m?.permissions), "view_reports");
+  if (!isLeadership && !delegated) {
+    throw new TRPCError({ code: "FORBIDDEN", message: "No access to reports" });
+  }
+}
+
 // ── Router ────────────────────────────────────────────────────────────────────
 export const reportsRouter = router({
 
@@ -105,6 +142,7 @@ export const reportsRouter = router({
     .input(z.object({ month: z.number().min(1).max(12), year: z.number().min(2020), companyId: z.number().optional() }))
     .mutation(async ({ ctx, input }) => {
       const companyId = await resolveReportCompanyId(ctx, input.companyId);
+      await assertReportAccess(ctx, companyId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
 
@@ -185,6 +223,7 @@ export const reportsRouter = router({
     .input(z.object({ runId: z.number(), employeeId: z.number(), companyId: z.number().optional() }))
     .mutation(async ({ ctx, input }) => {
       const companyId = await resolveReportCompanyId(ctx, input.companyId);
+      await assertReportAccess(ctx, companyId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
 
@@ -294,6 +333,7 @@ export const reportsRouter = router({
     .input(z.object({ companyId: z.number().optional() }))
     .mutation(async ({ ctx, input }) => {
       const companyId = await resolveReportCompanyId(ctx, input.companyId);
+      await assertReportAccess(ctx, companyId);
 
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
@@ -386,6 +426,7 @@ export const reportsRouter = router({
     .input(z.object({ month: z.number().min(1).max(12), year: z.number().min(2020), companyId: z.number().optional() }))
     .mutation(async ({ ctx, input }) => {
       const companyId = await resolveReportCompanyId(ctx, input.companyId);
+      await assertReportAccess(ctx, companyId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
 

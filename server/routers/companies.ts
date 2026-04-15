@@ -237,6 +237,60 @@ export const companiesRouter = router({
       return getCompanyStats(cid);
     }),
 
+  /** Read delegated report permissions for all members of the active company. */
+  getReportDelegations: protectedProcedure
+    .input(z.object({ companyId: z.number().optional() }))
+    .query(async ({ ctx, input }) => {
+      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      await assertCompanyAdmin(ctx.user.id, cid);
+      const db = await getDb();
+      if (!db) return [];
+      const rows = await db
+        .select({
+          memberId: companyMembers.id,
+          userId: companyMembers.userId,
+          role: companyMembers.role,
+          permissions: companyMembers.permissions,
+          name: users.name,
+          email: users.email,
+        })
+        .from(companyMembers)
+        .innerJoin(users, eq(users.id, companyMembers.userId))
+        .where(and(eq(companyMembers.companyId, cid), eq(companyMembers.isActive, true)))
+        .orderBy(asc(users.name));
+      return rows;
+    }),
+
+  /** Set (replace) the permissions array for one member. Company admin only. */
+  setReportDelegations: protectedProcedure
+    .input(
+      z.object({
+        companyId: z.number().optional(),
+        memberId: z.number(),
+        permissions: z.array(z.enum(["view_reports", "view_payroll", "view_executive_summary"])),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      await assertCompanyAdmin(ctx.user.id, cid);
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      const [member] = await db
+        .select({ id: companyMembers.id, role: companyMembers.role })
+        .from(companyMembers)
+        .where(and(eq(companyMembers.id, input.memberId), eq(companyMembers.companyId, cid)))
+        .limit(1);
+      if (!member) throw new TRPCError({ code: "NOT_FOUND", message: "Member not found" });
+      if (member.role === "company_admin") {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Admins already have full access" });
+      }
+      await db
+        .update(companyMembers)
+        .set({ permissions: input.permissions })
+        .where(eq(companyMembers.id, input.memberId));
+      return { success: true, memberId: input.memberId, permissions: input.permissions };
+    }),
+
   create: protectedProcedure
     .input(
       z.object({

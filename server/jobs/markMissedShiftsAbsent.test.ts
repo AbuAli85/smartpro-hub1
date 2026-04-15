@@ -5,6 +5,11 @@ vi.mock("../db", async (importOriginal) => {
   return { ...actual, getDb: vi.fn() };
 });
 
+vi.mock("../whatsappCloud", () => ({
+  isWhatsAppCloudCoreConfigured: () => false,
+  sendAttendanceAbsentAlert: vi.fn(),
+}));
+
 import { runMarkMissedShiftsAbsent } from "./markMissedShiftsAbsent";
 import * as db from "../db";
 

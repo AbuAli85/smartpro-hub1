@@ -1465,10 +1465,13 @@ export default function HRAttendancePage() {
       const ws = XLSX.utils.json_to_sheet(
         result.rows.map((r) => ({
           Employee: r.employeeName,
+          Site: r.siteName ?? "—",
+          "Client / Brand": r.clientName ?? "—",
           "Days Present": r.daysPresent,
           "Days Absent": r.daysAbsent,
           "Days Late": r.daysLate,
-          "Total Hours": (r.totalWorkedMinutes / 60).toFixed(1),
+          "Worked Hours": (r.totalWorkedMinutes / 60).toFixed(1),
+          "Billable Hours": r.billableHours.toFixed(1),
           "Scheduled Hours": (r.scheduledMinutes / 60).toFixed(1),
           "Attendance Rate": `${r.attendanceRate}%`,
         })),

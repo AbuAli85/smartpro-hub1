@@ -1,6 +1,7 @@
 import { and, desc, eq, gte, like, lte, or, sql } from "drizzle-orm";
 import { escapeLike } from "@shared/objectUtils";
 import { drizzle } from "drizzle-orm/mysql2";
+import type { Pool } from "mysql2/promise";
 import mysql from "mysql2/promise";
 import {
   analyticsReports,
@@ -35,7 +36,9 @@ import {
 } from "../drizzle/schema";
 import { recordNotificationCreatedAudit } from "./complianceAudit";
 
-let _db: ReturnType<typeof drizzle> | null = null;
+// Explicitly typed with the promise Pool to avoid the dual-resolution TS2322
+// that occurs when mysql2 exposes two Pool types (promise vs. typings/mysql).
+let _db: ReturnType<typeof drizzle<Record<string, never>, Pool>> | null = null;
 
 /**
  * Returns the database connection or throws a typed error that tRPC surfaces

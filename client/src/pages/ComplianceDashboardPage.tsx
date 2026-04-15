@@ -411,7 +411,7 @@ export default function ComplianceDashboardPage() {
       <section aria-label="Overtime compliance">
         <h2 className="text-sm font-semibold flex items-center gap-2 mb-3">
           <Clock className="h-4 w-4 text-[var(--smartpro-orange)]" />
-          {t("overtime.title", "Daily Hours Cap — Oman Labour Law Art. 68")}
+          {t("overtime.title")}
         </h2>
 
         <div className="flex items-center gap-3 mb-3">
@@ -431,8 +431,11 @@ export default function ComplianceDashboardPage() {
               )}
             >
               {overtimeData.summary.totalViolationDays === 0
-                ? "✓ No violations"
-                : `${overtimeData.summary.totalViolationDays} violation day(s) · ${overtimeData.summary.affectedEmployees} employee(s)`}
+                ? t("overtime.noViolations")
+                : t("overtime.violationsSummary", {
+                    days: overtimeData.summary.totalViolationDays,
+                    employees: overtimeData.summary.affectedEmployees,
+                  })}
             </span>
           )}
         </div>
@@ -442,12 +445,12 @@ export default function ComplianceDashboardPage() {
             <table className="w-full text-sm">
               <thead className="bg-red-50 dark:bg-red-950/40">
                 <tr className="text-[11px] text-muted-foreground">
-                  <th className="text-left px-3 py-2 font-medium">Employee</th>
-                  <th className="text-left px-3 py-2 font-medium">Date</th>
-                  <th className="text-right px-3 py-2 font-medium">Worked</th>
-                  <th className="text-right px-3 py-2 font-medium">Break</th>
-                  <th className="text-right px-3 py-2 font-medium">Net</th>
-                  <th className="text-right px-3 py-2 font-medium text-red-700 dark:text-red-400">Overtime</th>
+                  <th className="text-left px-3 py-2 font-medium">{t("overtime.employeeCol")}</th>
+                  <th className="text-left px-3 py-2 font-medium">{t("overtime.dateCol")}</th>
+                  <th className="text-right px-3 py-2 font-medium">{t("overtime.workedCol")}</th>
+                  <th className="text-right px-3 py-2 font-medium">{t("overtime.breakCol")}</th>
+                  <th className="text-right px-3 py-2 font-medium">{t("overtime.netCol")}</th>
+                  <th className="text-right px-3 py-2 font-medium text-red-700 dark:text-red-400">{t("overtime.overtimeCol")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -474,15 +477,14 @@ export default function ComplianceDashboardPage() {
               </tbody>
             </table>
             <div className="px-3 py-2 bg-muted/30 text-[11px] text-muted-foreground border-t border-red-100 dark:border-red-900/40">
-              Maximum 9 working hours/day excluding breaks (Oman Labour Law Art. 68).
-              Overtime requires employee consent and 125% pay on normal days, 150% on Fridays/holidays.
+              {t("overtime.legalNote")}
             </div>
           </div>
         )}
 
         {overtimeData && overtimeData.flags.length === 0 && (
           <div className="rounded-lg border border-emerald-200 dark:border-emerald-800 bg-emerald-50/50 dark:bg-emerald-950/20 px-4 py-3 text-sm text-emerald-700 dark:text-emerald-400">
-            No employees exceeded the 9-hour daily limit in {overtimeMonth}. Compliant.
+            {t("overtime.compliantMonth", { month: overtimeMonth })}
           </div>
         )}
       </section>

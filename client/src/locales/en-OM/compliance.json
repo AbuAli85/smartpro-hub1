@@ -19,7 +19,8 @@
     "omanisation_quota": "Omanisation Quota",
     "work_permit_validity": "Work Permit Validity",
     "upcoming_renewals": "Upcoming Renewals",
-    "wps_compliance": "WPS Compliance (Wage Protection System)"
+    "wps_compliance": "WPS Compliance (Wage Protection System)",
+    "daily_hours_cap": "Daily Hours Cap (Art. 68)"
   },
   "checkDetails": {
     "omanisation_quota_pass": "{{pct}}% Omani employees — target met ({{target}}%)",
@@ -33,7 +34,23 @@
     "upcoming_renewals_fail": "{{count}} permit(s) expiring in {{days}} days — renew immediately",
     "wps_compliance_paid": "Payroll paid via WPS",
     "wps_compliance_file_ready": "WPS file generated, pending payment",
-    "wps_compliance_not_generated": "WPS file not generated for current month"
+    "wps_compliance_not_generated": "WPS file not generated for current month",
+    "daily_hours_cap_pass": "No employees exceeded 9 hours/day this month",
+    "daily_hours_cap_warn": "{{count}} day(s) exceeded the 9-hour daily limit this month",
+    "daily_hours_cap_fail": "{{count}} day(s) exceeded the 9-hour daily limit this month"
+  },
+  "overtime": {
+    "title": "Daily Hours Cap — Oman Labour Law Art. 68",
+    "noViolations": "✓ No violations",
+    "violationsSummary": "{{days}} violation day(s) · {{employees}} employee(s)",
+    "employeeCol": "Employee",
+    "dateCol": "Date",
+    "workedCol": "Worked",
+    "breakCol": "Break",
+    "netCol": "Net",
+    "overtimeCol": "Overtime",
+    "legalNote": "Maximum 9 working hours/day excluding breaks (Oman Labour Law Art. 68). Overtime requires employee consent and 125% pay on normal days, 150% on Fridays/holidays.",
+    "compliantMonth": "No employees exceeded the 9-hour daily limit in {{month}}. Compliant."
   },
   "weightLabel": "Weight: {{weight}}%",
   "weight": "Weight",

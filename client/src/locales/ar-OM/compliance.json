@@ -19,7 +19,8 @@
     "omanisation_quota": "حصة التعمين",
     "work_permit_validity": "صلاحية تصاريح العمل",
     "upcoming_renewals": "التجديدات القادمة",
-    "wps_compliance": "الامتثال لنظام WPS"
+    "wps_compliance": "الامتثال لنظام WPS",
+    "daily_hours_cap": "سقف ساعات العمل اليومية (المادة 68)"
   },
   "checkDetails": {
     "omanisation_quota_pass": "{{pct}}٪ موظفون عُمانيون — تحقيق الهدف ({{target}}٪)",
@@ -33,7 +34,23 @@
     "upcoming_renewals_fail": "{{count}} تصريح ينتهي خلال {{days}} يوماً — جدّد فوراً",
     "wps_compliance_paid": "تم دفع الرواتب عبر WPS",
     "wps_compliance_file_ready": "تم إنشاء ملف WPS، في انتظار الدفع",
-    "wps_compliance_not_generated": "لم يُنشأ ملف WPS للشهر الحالي"
+    "wps_compliance_not_generated": "لم يُنشأ ملف WPS للشهر الحالي",
+    "daily_hours_cap_pass": "لم يتجاوز أي موظف 9 ساعات/يوم هذا الشهر",
+    "daily_hours_cap_warn": "تم تجاوز الحد اليومي 9 ساعات في {{count}} يوم/أيام هذا الشهر",
+    "daily_hours_cap_fail": "تم تجاوز الحد اليومي 9 ساعات في {{count}} يوم/أيام هذا الشهر"
+  },
+  "overtime": {
+    "title": "سقف ساعات العمل اليومية — قانون العمل العُماني المادة 68",
+    "noViolations": "✓ لا توجد مخالفات",
+    "violationsSummary": "{{days}} يوم مخالفة · {{employees}} موظف",
+    "employeeCol": "الموظف",
+    "dateCol": "التاريخ",
+    "workedCol": "المدة",
+    "breakCol": "الاستراحة",
+    "netCol": "الصافي",
+    "overtimeCol": "الإضافي",
+    "legalNote": "الحد الأقصى 9 ساعات عمل يومياً باستثناء الاستراحات (قانون العمل العُماني المادة 68). يتطلب العمل الإضافي موافقة الموظف ويُصرف بمعدل 125٪ في الأيام الاعتيادية و150٪ في أيام الجمعة والعطل الرسمية.",
+    "compliantMonth": "لم يتجاوز أي موظف الحد اليومي 9 ساعات في {{month}}. الحالة متوافقة."
   },
   "weightLabel": "الوزن: {{weight}}٪",
   "weight": "الوزن",

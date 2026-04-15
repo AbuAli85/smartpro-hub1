@@ -205,7 +205,7 @@ function StaffFormDialog({
           </div>
         )}
 
-        <div className="space-y-4 py-2 overflow-y-auto flex-1 pr-1">
+        <div className="space-y-4 py-2 overflow-y-auto flex-1 pe-1">
           {(step === 1 || isEdit) && (
             <>
               <div className="grid grid-cols-2 gap-3">
@@ -734,14 +734,14 @@ function DeptChart({ data }: { data: { dept: string; count: number }[] }) {
     <div className="space-y-2">
       {data.slice(0, 8).map((d, i) => (
         <div key={d.dept} className="flex items-center gap-2">
-          <div className="w-24 text-xs text-muted-foreground truncate text-right">{d.dept}</div>
+          <div className="w-24 text-xs text-muted-foreground truncate text-end">{d.dept}</div>
           <div className="flex-1 bg-muted rounded-full h-2 overflow-hidden">
             <div
               className={`h-2 rounded-full ${DEPT_COLORS[i % DEPT_COLORS.length]}`}
               style={{ width: `${(d.count / max) * 100}%` }}
             />
           </div>
-          <div className="w-6 text-xs font-semibold text-foreground text-right">{d.count}</div>
+          <div className="w-6 text-xs font-semibold text-foreground text-end">{d.count}</div>
         </div>
       ))}
     </div>
@@ -784,7 +784,7 @@ function StaffCard({
       className={`bg-card border rounded-xl p-4 cursor-pointer hover:shadow-md transition-all group relative
         ${cardExpiry === "expired" ? "border-red-400 ring-1 ring-red-300" : cardExpiry === "expiring-soon" ? "border-amber-400 ring-1 ring-amber-200" : "border-border hover:border-[var(--smartpro-orange)]"}`}
     >
-      <div className="absolute top-3 right-3" onClick={(e) => e.stopPropagation()}>
+      <div className="absolute top-3 end-3" onClick={(e) => e.stopPropagation()}>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="sm" className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -792,13 +792,13 @@ function StaffCard({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="text-sm">
-            <DropdownMenuItem onClick={onViewProfile}><ChevronRight size={13} className="mr-2" /> {t("myTeam.card.viewFullProfile")}</DropdownMenuItem>
-            <DropdownMenuItem onClick={onDocuments}><Shield size={13} className="mr-2" /> {t("myTeam.card.documents")}</DropdownMenuItem>
+            <DropdownMenuItem onClick={onViewProfile}><ChevronRight size={13} className="me-2" /> {t("myTeam.card.viewFullProfile")}</DropdownMenuItem>
+            <DropdownMenuItem onClick={onDocuments}><Shield size={13} className="me-2" /> {t("myTeam.card.documents")}</DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={onEdit}><Edit2 size={13} className="mr-2" /> {t("myTeam.profile.edit")}</DropdownMenuItem>
+            <DropdownMenuItem onClick={onEdit}><Edit2 size={13} className="me-2" /> {t("myTeam.profile.edit")}</DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={onRemove} className="text-red-600">
-              <UserX size={13} className="mr-2" /> {t("myTeam.card.offboard")}
+              <UserX size={13} className="me-2" /> {t("myTeam.card.offboard")}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -1084,12 +1084,12 @@ export default function MyTeamPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border bg-muted/50">
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">{t("myTeam.table.name")}</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">{t("myTeam.table.department")}</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">{t("myTeam.table.position")}</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">{t("myTeam.table.type")}</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">{t("myTeam.table.status")}</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">{t("myTeam.table.contact")}</th>
+                    <th className="text-start px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">{t("myTeam.table.name")}</th>
+                    <th className="text-start px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">{t("myTeam.table.department")}</th>
+                    <th className="text-start px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">{t("myTeam.table.position")}</th>
+                    <th className="text-start px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">{t("myTeam.table.type")}</th>
+                    <th className="text-start px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">{t("myTeam.table.status")}</th>
+                    <th className="text-start px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">{t("myTeam.table.contact")}</th>
                     <th className="px-4 py-3" />
                   </tr>
                 </thead>
@@ -1141,13 +1141,13 @@ export default function MyTeamPage() {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" className="text-sm">
-                              <DropdownMenuItem onClick={() => navigate(`/business/employee/${m.id}`)}><ChevronRight size={13} className="mr-2" /> {t("myTeam.card.viewFullProfile")}</DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => navigate(`/employee/${m.id}/documents`)}><Shield size={13} className="mr-2" /> {t("myTeam.card.documents")}</DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => navigate(`/business/employee/${m.id}`)}><ChevronRight size={13} className="me-2" /> {t("myTeam.card.viewFullProfile")}</DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => navigate(`/employee/${m.id}/documents`)}><Shield size={13} className="me-2" /> {t("myTeam.card.documents")}</DropdownMenuItem>
                               <DropdownMenuSeparator />
-                              <DropdownMenuItem onClick={() => setEditId(m.id)}><Edit2 size={13} className="mr-2" /> {t("myTeam.profile.edit")}</DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => setEditId(m.id)}><Edit2 size={13} className="me-2" /> {t("myTeam.profile.edit")}</DropdownMenuItem>
                               <DropdownMenuSeparator />
                               <DropdownMenuItem onClick={() => setRemoveId(m.id)} className="text-red-600">
-                                <UserX size={13} className="mr-2" /> {t("myTeam.card.offboard")}
+                                <UserX size={13} className="me-2" /> {t("myTeam.card.offboard")}
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>

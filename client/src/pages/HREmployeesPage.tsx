@@ -641,7 +641,7 @@ function EmployeeTimeline({ employeeId }: { employeeId: number }) {
   return (
     <div className="border rounded-xl overflow-hidden">
       <button
-        className="w-full flex items-center justify-between px-4 py-3 bg-muted/30 hover:bg-muted/50 transition-colors text-left"
+        className="w-full flex items-center justify-between px-4 py-3 bg-muted/30 hover:bg-muted/50 transition-colors text-start"
         onClick={() => setExpanded((v) => !v)}
       >
         <span className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
@@ -885,7 +885,7 @@ export default function HREmployeesPage() {
           <TabsList>
             <TabsTrigger value="employees">
               {t("employees.tabs.allEmployees")}
-              {employees && <span className="ml-1.5 bg-muted text-muted-foreground rounded-full px-1.5 py-0.5 text-[10px]">{employees.length}</span>}
+              {employees && <span className="ms-1.5 bg-muted text-muted-foreground rounded-full px-1.5 py-0.5 text-[10px]">{employees.length}</span>}
             </TabsTrigger>
             <TabsTrigger value="departments">{t("employees.tabs.byDepartment")}</TabsTrigger>
           </TabsList>
@@ -960,7 +960,7 @@ export default function HREmployeesPage() {
             {selectedIds.size > 0 && (
               <div className="flex items-center gap-3 px-4 py-2 bg-orange-50 border border-orange-200 rounded-xl">
                 <span className="text-xs font-semibold text-orange-800">{t("employees.bulk.selected", { count: selectedIds.size })}</span>
-                <div className="flex items-center gap-2 ml-2">
+                <div className="flex items-center gap-2 ms-2">
                   <Dialog open={bulkDeptOpen} onOpenChange={setBulkDeptOpen}>
                     <DialogTrigger asChild>
                       <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5 border-orange-300 text-orange-700 hover:bg-orange-100">
@@ -1014,7 +1014,7 @@ export default function HREmployeesPage() {
                     <Send size={12} /> {t("employees.bulk.sendReminder")}
                   </Button>
                 </div>
-                <Button size="sm" variant="ghost" className="ml-auto h-7 text-xs text-muted-foreground" onClick={() => setSelectedIds(new Set())}>
+                <Button size="sm" variant="ghost" className="ms-auto h-7 text-xs text-muted-foreground" onClick={() => setSelectedIds(new Set())}>
                   <X size={12} /> {t("employees.bulk.clearSelection")}
                 </Button>
               </div>
@@ -1035,14 +1035,14 @@ export default function HREmployeesPage() {
                           aria-label={t("common:table.selectAll")}
                         />
                       </th>
-                      <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">{t("common:table.employee")}</th>
-                      <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">{t("common:table.role")}</th>
-                      <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">{t("common:table.department")}</th>
-                      <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">{t("common:table.nationality")}</th>
-                      <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">{t("common:table.status")}</th>
-                      <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">{t("common:table.profile")}</th>
-                      <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">{t("common:table.salary")}</th>
-                      <th scope="col" className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">{t("common:table.hireDate")}</th>
+                      <th scope="col" className="text-start px-4 py-3 font-medium text-muted-foreground text-xs">{t("common:table.employee")}</th>
+                      <th scope="col" className="text-start px-4 py-3 font-medium text-muted-foreground text-xs">{t("common:table.role")}</th>
+                      <th scope="col" className="text-start px-4 py-3 font-medium text-muted-foreground text-xs">{t("common:table.department")}</th>
+                      <th scope="col" className="text-start px-4 py-3 font-medium text-muted-foreground text-xs">{t("common:table.nationality")}</th>
+                      <th scope="col" className="text-start px-4 py-3 font-medium text-muted-foreground text-xs">{t("common:table.status")}</th>
+                      <th scope="col" className="text-start px-4 py-3 font-medium text-muted-foreground text-xs">{t("common:table.profile")}</th>
+                      <th scope="col" className="text-start px-4 py-3 font-medium text-muted-foreground text-xs">{t("common:table.salary")}</th>
+                      <th scope="col" className="text-start px-4 py-3 font-medium text-muted-foreground text-xs">{t("common:table.hireDate")}</th>
                       <th scope="col" className="px-4 py-3 w-10"></th>
                     </tr>
                   </thead>
@@ -1148,17 +1148,17 @@ export default function HREmployeesPage() {
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end" className="w-48">
                                 <DropdownMenuItem onClick={() => setSelectedId(emp.id)}>
-                                  <Eye size={13} className="mr-2" /> {t("employees.actions.quickView")}
+                                  <Eye size={13} className="me-2" /> {t("employees.actions.quickView")}
                                 </DropdownMenuItem>
                                 <DropdownMenuItem onClick={() => setLocation(`/business/employee/${emp.id}`)}>
-                                  <Activity size={13} className="mr-2" /> {t("employees.actions.fullProfile")}
+                                  <Activity size={13} className="me-2" /> {t("employees.actions.fullProfile")}
                                 </DropdownMenuItem>
                                 <DropdownMenuItem onClick={() => setLocation(`/employee/${emp.id}/documents`)}>
-                                  <FileBadge size={13} className="mr-2" /> {t("employees.actions.documents")}
+                                  <FileBadge size={13} className="me-2" /> {t("employees.actions.documents")}
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem onClick={() => setLocation(`/hr/org-chart`)}>
-                                  <Building2 size={13} className="mr-2" /> {t("employees.actions.orgChart")}
+                                  <Building2 size={13} className="me-2" /> {t("employees.actions.orgChart")}
                                 </DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>

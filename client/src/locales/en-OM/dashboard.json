@@ -111,6 +111,19 @@
       "inviteDesc": "Use the secure invite link from your organization’s admin to join their workspace.",
       "marketplaceTitle": "Explore SmartPRO services",
       "marketplaceDesc": "Browse the marketplace for PRO and government-related services."
+    },
+    "videoTutorial": {
+      "sectionTitle": "Getting started tutorial",
+      "title": "SmartPRO platform walkthrough",
+      "description": "Watch this short overview to learn how to set up your company workspace, invite team members, and activate the key modules — HR, payroll, compliance, and government services.",
+      "duration": "~5 min",
+      "watchNow": "Watch tutorial",
+      "topics": {
+        "createWorkspace": "Create your company workspace",
+        "inviteTeam": "Invite team members & assign roles",
+        "activateModules": "Activate HR, payroll & compliance modules",
+        "govServices": "Connect government services (PRO, Sanad)"
+      }
     }
   }
 }

@@ -12,7 +12,23 @@ import { LanguageProvider } from "./contexts/LanguageContext";
 import "./index.css";
 import { registerServiceWorkerWithUpdatePrompt } from "./lib/registerServiceWorkerUpdatePrompt";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      // Do not retry on client errors (4xx) — retrying BAD_REQUEST / FORBIDDEN is pointless
+      // and causes noisy console errors when queries fire before the workspace is selected.
+      retry: (failureCount, error) => {
+        if (error instanceof TRPCClientError) {
+          const code = (error as TRPCClientError).data?.code;
+          if (code === "BAD_REQUEST" || code === "FORBIDDEN" || code === "UNAUTHORIZED" || code === "NOT_FOUND") {
+            return false;
+          }
+        }
+        return failureCount < 2;
+      },
+    },
+  },
+});
 
 const redirectToLoginIfUnauthorized = (error: unknown) => {
   if (!(error instanceof TRPCClientError)) return;
@@ -31,7 +47,9 @@ function isSilentError(error: unknown): boolean {
   const code = (error as any)?.data?.code;
   // FORBIDDEN errors are expected for users who lack optional permissions (e.g. KPI leaderboard).
   // UNAUTHORIZED is handled separately by redirectToLoginIfUnauthorized.
+  // BAD_REQUEST with "Select a company workspace" is expected during initial load for multi-company users.
   if (code === "FORBIDDEN") return true;
+  if (code === "BAD_REQUEST") return true;
   return false;
 }
 

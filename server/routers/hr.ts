@@ -24,6 +24,7 @@ import {
   companyMembers,
 } from "../../drizzle/schema";
 import { hasReportPermission } from "@shared/reportPermissions";
+import { SUGGESTED_DEPARTMENTS } from "@shared/hrSuggestedDepartments";
 import { sendEmployeeNotification } from "./employeePortal";
 import {
   createAttendanceRecordTx,
@@ -1701,6 +1702,38 @@ export const hrRouter = router({
         headEmployeeId: input.headEmployeeId,
       });
       return { id: (result as any).insertId };
+    }),
+
+  /** Inserts all suggested departments that do not already exist (by English name, case-insensitive). */
+  seedSuggestedDepartments: protectedProcedure
+    .input(z.object({ companyId: z.number().optional() }))
+    .mutation(async ({ input, ctx }) => {
+      const cid = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+      const existingRows = await db
+        .select({ name: departments.name })
+        .from(departments)
+        .where(and(eq(departments.companyId, cid), eq(departments.isActive, true)));
+      const existing = new Set(existingRows.map((r) => r.name.trim().toLowerCase()));
+      let created = 0;
+      let skipped = 0;
+      for (const row of SUGGESTED_DEPARTMENTS) {
+        const key = row.name.trim().toLowerCase();
+        if (existing.has(key)) {
+          skipped++;
+          continue;
+        }
+        await db.insert(departments).values({
+          companyId: cid,
+          name: row.name.trim(),
+          nameAr: row.nameAr?.trim() || undefined,
+          description: row.description?.trim() || undefined,
+        });
+        existing.add(key);
+        created++;
+      }
+      return { created, skipped };
     }),
 
   updateDepartment: protectedProcedure

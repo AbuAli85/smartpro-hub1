@@ -21,13 +21,14 @@ import {
 import { toast } from "sonner";
 import {
   Building2, Plus, Pencil, Trash2, Users, Briefcase, Search,
-  ChevronRight, ChevronLeft, UserCheck, BarChart3, TrendingUp, X, Palette,
+  ChevronRight, ChevronLeft, UserCheck, BarChart3, TrendingUp, X, Palette, LayoutGrid,
   Layers, Globe, Shield, Wrench, HeartPulse, BookOpen, Truck,
   DollarSign, Megaphone, Code2, FlaskConical, Headphones,
   UserPlus, UserMinus, CheckCircle2,
 } from "lucide-react";
 import { HubBreadcrumb } from "@/components/hub/HubBreadcrumb";
 import { organizationTrail } from "@/components/hub/hubCrumbs";
+import { SUGGESTED_DEPARTMENTS } from "@shared/hrSuggestedDepartments";
 
 // ─── Color palette ────────────────────────────────────────────────────────────
 const DEPT_COLORS = [
@@ -659,6 +660,20 @@ export default function DepartmentsPage() {
   const [posDialog, setPosDialog] = useState(false);
   const [assignDialog, setAssignDialog] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ type: "dept" | "pos"; id: number; name: string } | null>(null);
+  const [seedConfirmOpen, setSeedConfirmOpen] = useState(false);
+
+  const seedSuggested = trpc.hr.seedSuggestedDepartments.useMutation({
+    onSuccess: async (res) => {
+      await utils.hr.listDepartments.invalidate();
+      if (res.created === 0) {
+        toast.info(t("departmentsPage.seedToastAllPresent"));
+      } else {
+        toast.success(t("departmentsPage.seedToast", { created: res.created, skipped: res.skipped }));
+      }
+      setSeedConfirmOpen(false);
+    },
+    onError: (e) => toast.error(e.message),
+  });
 
   const [search, setSearch] = useState("");
   const filtered = useMemo(() => {
@@ -697,12 +712,24 @@ export default function DepartmentsPage() {
             {t("departmentsPage.subtitle")}
           </p>
         </div>
-        <Button
-          onClick={() => setDeptDialog({ open: true })}
-          className="gap-2 bg-red-700 hover:bg-red-800 text-white border-0 shrink-0 self-start"
-        >
-          <Plus size={16} /> {t("departmentsPage.addDepartment")}
-        </Button>
+        <div className="flex flex-wrap gap-2 shrink-0 self-start">
+          <Button
+            type="button"
+            variant="outline"
+            className="gap-2"
+            disabled={activeCompanyId == null || deptsLoading || seedSuggested.isPending}
+            onClick={() => setSeedConfirmOpen(true)}
+          >
+            <LayoutGrid size={16} /> {t("departmentsPage.addAllSuggested")}
+          </Button>
+          <Button
+            type="button"
+            onClick={() => setDeptDialog({ open: true })}
+            className="gap-2 bg-red-700 hover:bg-red-800 text-white border-0"
+          >
+            <Plus size={16} /> {t("departmentsPage.addDepartment")}
+          </Button>
+        </div>
       </div>
 
       {/* Stats — compact row */}
@@ -770,12 +797,24 @@ export default function DepartmentsPage() {
                 {search ? t("departmentsPage.list.searchEmptyHint") : t("departmentsPage.list.emptyHint")}
               </p>
               {!search && (
-                <Button
-                  className="mt-4 gap-2 bg-red-700 hover:bg-red-800 text-white border-0"
-                  onClick={() => setDeptDialog({ open: true })}
-                >
-                  <Plus size={15} /> {t("departmentsPage.addDepartment")}
-                </Button>
+                <div className="mt-4 flex flex-wrap gap-2 justify-center">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="gap-2"
+                    disabled={activeCompanyId == null || seedSuggested.isPending}
+                    onClick={() => setSeedConfirmOpen(true)}
+                  >
+                    <LayoutGrid size={15} /> {t("departmentsPage.addAllSuggested")}
+                  </Button>
+                  <Button
+                    type="button"
+                    className="gap-2 bg-red-700 hover:bg-red-800 text-white border-0"
+                    onClick={() => setDeptDialog({ open: true })}
+                  >
+                    <Plus size={15} /> {t("departmentsPage.addDepartment")}
+                  </Button>
+                </div>
               )}
             </div>
           ) : (
@@ -976,6 +1015,31 @@ export default function DepartmentsPage() {
           companyId={activeCompanyId}
         />
       )}
+
+      {/* Add all suggested departments */}
+      <AlertDialog open={seedConfirmOpen} onOpenChange={setSeedConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("departmentsPage.seedConfirmTitle")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("departmentsPage.seedConfirmDesc", { count: SUGGESTED_DEPARTMENTS.length })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("departmentsPage.deptForm.cancel")}</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-700 hover:bg-red-800 text-white"
+              disabled={seedSuggested.isPending || activeCompanyId == null}
+              onClick={() => {
+                if (activeCompanyId == null) return;
+                seedSuggested.mutate({ companyId: activeCompanyId });
+              }}
+            >
+              {seedSuggested.isPending ? t("departmentsPage.deptForm.creating") : t("departmentsPage.addAllSuggested")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Delete Confirm */}
       <AlertDialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>

@@ -50,6 +50,11 @@
     "title": "Departments & Positions",
     "subtitle": "Create and manage departments, assign heads, and define job positions.",
     "addDepartment": "Add Department",
+    "addAllSuggested": "Add all suggested",
+    "seedConfirmTitle": "Add suggested departments?",
+    "seedConfirmDesc": "This creates up to {{count}} common departments (e.g. Human Resources, Finance, Sales). Names that already exist are skipped.",
+    "seedToast": "{{created}} added, {{skipped}} already existed",
+    "seedToastAllPresent": "Every suggested department already exists.",
     "stats": {
       "departments": "Departments",
       "totalEmployees": "Total Employees",

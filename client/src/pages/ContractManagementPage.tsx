@@ -1,5 +1,5 @@
-/**
- * ContractManagementPage — /hr/contracts
+﻿/**
+ * ContractManagementPage â€” /hr/contracts
  *
  * The canonical entry point for the Promoter Contract Management System.
  *
@@ -7,8 +7,8 @@
  * The old `/hr/promoter-assignments` route still renders this same page for
  * backward compatibility.
  *
- * Columns: Promoter · Your role · First Party (Client) · Second Party (Employer) ·
- *          Location · Period · Ref # · Status · Actions
+ * Columns: Promoter Â· Your role Â· First Party (Client) Â· Second Party (Employer) Â·
+ *          Location Â· Period Â· Ref # Â· Status Â· Actions
  */
 
 import { useMemo, useState } from "react";
@@ -68,11 +68,12 @@ import {
   Users,
 } from "lucide-react";
 import { ContractKpiWidget } from "@/components/contracts/ContractKpiWidget";
+import { useTranslation } from "react-i18next";
 
-// ─── HELPERS ──────────────────────────────────────────────────────────────────
+// â”€â”€â”€ HELPERS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function fmtDate(d: Date | string | null | undefined): string {
-  if (!d) return "—";
+  if (!d) return "â€”";
   const s = typeof d === "string" ? d : (d as Date).toISOString();
   return s.slice(0, 10);
 }
@@ -115,7 +116,7 @@ function ExpiryIndicator({ days, label }: { days: number | null; label: string }
   return null;
 }
 
-// ─── STATUS META ──────────────────────────────────────────────────────────────
+// â”€â”€â”€ STATUS META â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const STATUS_STYLES: Record<string, string> = {
   draft:      "bg-zinc-100    text-zinc-600    border-zinc-300",
@@ -158,7 +159,7 @@ function googleDocsReadinessDiagnosis(issue: string | undefined): string | null 
   return map[issue] ?? null;
 }
 
-// ─── CREATE DIALOG ────────────────────────────────────────────────────────────
+// â”€â”€â”€ CREATE DIALOG â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function CreateContractDialog({ onSuccess }: { onSuccess: () => void }) {
   const [open, setOpen] = useState(false);
@@ -169,7 +170,7 @@ function CreateContractDialog({ onSuccess }: { onSuccess: () => void }) {
   const createMutation = trpc.contractManagement.createPromoterAssignment.useMutation({
     onSuccess: (data) => {
       toast.success("Contract created", {
-        description: `Draft saved — ref ${data.id.slice(0, 8)}`,
+        description: `Draft saved â€” ref ${data.id.slice(0, 8)}`,
       });
       setOpen(false);
       form.reset();
@@ -223,7 +224,7 @@ function CreateContractDialog({ onSuccess }: { onSuccess: () => void }) {
             </DialogTitle>
             <DialogDescription>
               First party = client (hosts the work site). Second party = employer (supplies the promoter).
-              The contract starts as a <strong>draft</strong> — activate it after review.
+              The contract starts as a <strong>draft</strong> â€” activate it after review.
             </DialogDescription>
           </DialogHeader>
         </div>
@@ -240,7 +241,7 @@ function CreateContractDialog({ onSuccess }: { onSuccess: () => void }) {
             className="gap-2 min-w-[160px]"
           >
             {createMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-            {createMutation.isPending ? "Saving…" : "Save as Draft"}
+            {createMutation.isPending ? "Savingâ€¦" : "Save as Draft"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -248,9 +249,10 @@ function CreateContractDialog({ onSuccess }: { onSuccess: () => void }) {
   );
 }
 
-// ─── MAIN PAGE ────────────────────────────────────────────────────────────────
+// â”€â”€â”€ MAIN PAGE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export default function ContractManagementPage() {
+  const { t } = useTranslation("common");
   const { activeCompany } = useActiveCompany();
   const activeCompanyId = activeCompany?.id ?? null;
 
@@ -258,7 +260,7 @@ export default function ContractManagementPage() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [generatingId, setGeneratingId] = useState<string | null>(null);
 
-  // ─── DATA ──────────────────────────────────────────────────────────────────
+  // â”€â”€â”€ DATA â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   const {
     data: rawContracts = [],
@@ -283,13 +285,13 @@ export default function ContractManagementPage() {
       ? (docGenReadiness as { googleDocsIssue?: string }).googleDocsIssue
       : undefined;
 
-  // ─── MUTATIONS ─────────────────────────────────────────────────────────────
+  // â”€â”€â”€ MUTATIONS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   const utils = trpc.useUtils();
 
   const generateMutation = trpc.documentGeneration.generate.useMutation({
     onSuccess: (result) => {
-      toast.success("Contract PDF ready", { description: "Opening in new tab…" });
+      toast.success("Contract PDF ready", { description: "Opening in new tabâ€¦" });
       window.open(result.fileUrl, "_blank");
       setGeneratingId(null);
       refetch();
@@ -301,7 +303,7 @@ export default function ContractManagementPage() {
     },
   });
 
-  // ─── DERIVED DATA ──────────────────────────────────────────────────────────
+  // â”€â”€â”€ DERIVED DATA â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   /** Determine active company's role for each row. */
   const contracts: Array<ContractRow & { activeCompanyRole: string }> = useMemo(() => {
@@ -333,7 +335,7 @@ export default function ContractManagementPage() {
     );
   }, [contracts, search]);
 
-  // ─── HANDLERS ──────────────────────────────────────────────────────────────
+  // â”€â”€â”€ HANDLERS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   function handleGenerate(row: ContractRow) {
     setGeneratingId(row.id);
@@ -345,7 +347,7 @@ export default function ContractManagementPage() {
     });
   }
 
-  // ─── RENDER ────────────────────────────────────────────────────────────────
+  // â”€â”€â”€ RENDER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
@@ -402,14 +404,14 @@ export default function ContractManagementPage() {
           </Alert>
         )}
 
-        {/* ── KPI Stats Bar, Risk Panel, Company Breakdown ───────────────── */}
+        {/* â”€â”€ KPI Stats Bar, Risk Panel, Company Breakdown â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         <ContractKpiWidget variant="full" />
 
         {/* Filters */}
         <div className="flex flex-wrap items-center gap-3">
           <div className="relative flex-1 min-w-48">
             <Input
-              placeholder="Search by promoter, company, location, or ref#…"
+              placeholder="Search by promoter, company, location, or ref#â€¦"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pr-4"
@@ -458,7 +460,7 @@ export default function ContractManagementPage() {
                 <TableRow>
                   <TableCell colSpan={9} className="text-center py-16 text-muted-foreground">
                     <Loader2 className="h-6 w-6 animate-spin mx-auto mb-3" />
-                    Loading contracts…
+                    Loading contractsâ€¦
                   </TableCell>
                 </TableRow>
               ) : filtered.length === 0 ? (
@@ -530,7 +532,7 @@ export default function ContractManagementPage() {
                       <TableCell className="align-top max-w-[15rem]">
                         <div className="flex items-start gap-1.5 text-muted-foreground text-sm">
                           <MapPin className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-                          <span className="line-clamp-2 break-words">{row.locationEn ?? "—"}</span>
+                          <span className="line-clamp-2 break-words">{row.locationEn ?? "â€”"}</span>
                         </div>
                       </TableCell>
 
@@ -539,7 +541,7 @@ export default function ContractManagementPage() {
                         <div className="flex items-center gap-1 text-sm text-muted-foreground">
                           <Calendar className="h-3.5 w-3.5 shrink-0" />
                           <span>
-                            {fmtDate(row.effectiveDate)} → {fmtDate(row.expiryDate)}
+                            {fmtDate(row.effectiveDate)} â†’ {fmtDate(row.expiryDate)}
                           </span>
                         </div>
                         <div className="mt-1">
@@ -549,7 +551,7 @@ export default function ContractManagementPage() {
 
                       {/* Ref # */}
                       <TableCell className="text-xs font-mono text-muted-foreground whitespace-nowrap align-top max-w-[7rem] truncate">
-                        {row.contractNumber ?? "—"}
+                        {row.contractNumber ?? "â€”"}
                       </TableCell>
 
                       {/* Status */}
@@ -587,7 +589,7 @@ export default function ContractManagementPage() {
                             ) : (
                               <Download className="h-3.5 w-3.5" />
                             )}
-                            {generatingId === row.id ? "…" : "PDF"}
+                            {generatingId === row.id ? "â€¦" : "PDF"}
                           </Button>
                         </div>
                       </TableCell>

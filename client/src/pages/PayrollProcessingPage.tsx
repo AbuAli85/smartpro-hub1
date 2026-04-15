@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+﻿import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
@@ -22,8 +22,9 @@ import {
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { DateInput } from "@/components/ui/date-input";
+import { useTranslation } from "react-i18next";
 
-// ─── Compliance helpers ────────────────────────────────────────────────────────
+// â”€â”€â”€ Compliance helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 type ComplianceLevel = "expired" | "expiring_30" | "expiring_90" | "ok" | "no_data";
 
 const COMPLIANCE_CONFIG: Record<ComplianceLevel, {
@@ -104,16 +105,16 @@ function ComplianceSummaryPanel({ runId }: { runId: number }) {
               : "text-green-800 dark:text-green-300"
             }`}>
               {summary.expired > 0
-                ? `${summary.expired} employee${summary.expired > 1 ? "s" : ""} with EXPIRED documents — action required`
+                ? `${summary.expired} employee${summary.expired > 1 ? "s" : ""} with EXPIRED documents â€” action required`
                 : summary.expiring30 > 0
                 ? `${summary.expiring30} employee${summary.expiring30 > 1 ? "s" : ""} with documents expiring within 30 days`
                 : "All employee documents are compliant"}
             </p>
             <p className="text-[10px] text-muted-foreground mt-0.5">
-              {summary.expired > 0 && `${summary.expired} expired · `}
-              {summary.expiring30 > 0 && `${summary.expiring30} expiring <30d · `}
-              {summary.expiring90 > 0 && `${summary.expiring90} expiring <90d · `}
-              {summary.ok > 0 && `${summary.ok} compliant · `}
+              {summary.expired > 0 && `${summary.expired} expired Â· `}
+              {summary.expiring30 > 0 && `${summary.expiring30} expiring <30d Â· `}
+              {summary.expiring90 > 0 && `${summary.expiring90} expiring <90d Â· `}
+              {summary.ok > 0 && `${summary.ok} compliant Â· `}
               {summary.noData > 0 && `${summary.noData} no docs`}
             </p>
           </div>
@@ -142,7 +143,7 @@ const statusConfig: Record<string, { label: string; color: string; icon: React.R
   cancelled: { label: "Cancelled", color: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400", icon: <X size={12} /> },
 };
 
-// ─── Run Payroll Tab ──────────────────────────────────────────────────────────
+// â”€â”€â”€ Run Payroll Tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function RunPayrollTab() {
   const now = new Date();
   const { activeCompanyId } = useActiveCompany();
@@ -164,7 +165,7 @@ function RunPayrollTab() {
 
   const createRun = trpc.payroll.createRun.useMutation({
     onSuccess: (data) => {
-      toast.success(`Payroll run created for ${MONTHS[createForm.month - 1]} ${createForm.year} — ${data.employeeCount} employees`);
+      toast.success(`Payroll run created for ${MONTHS[createForm.month - 1]} ${createForm.year} â€” ${data.employeeCount} employees`);
       setCreateOpen(false);
       setSelectedRunId(data.runId);
       refetchRuns();
@@ -366,7 +367,7 @@ function RunPayrollTab() {
                               </Button>
                               {hasExpired && (
                                 <span className="text-xs text-red-600 dark:text-red-400 flex items-center gap-1">
-                                  <ShieldX size={12} /> {runCompliance!.summary.expired} expired doc{runCompliance!.summary.expired > 1 ? "s" : ""} — renew to approve
+                                  <ShieldX size={12} /> {runCompliance!.summary.expired} expired doc{runCompliance!.summary.expired > 1 ? "s" : ""} â€” renew to approve
                                 </span>
                               )}
                             </div>
@@ -407,11 +408,11 @@ function RunPayrollTab() {
             <div className="bg-muted/40 rounded-lg p-4 text-sm space-y-2">
               <p className="font-medium">What happens when you run payroll:</p>
               <ul className="text-muted-foreground space-y-1 text-xs">
-                <li>✓ Salaries calculated from your salary configurations</li>
-                <li>✓ PASI contributions auto-calculated (7% for Omani nationals)</li>
-                <li>✓ Active salary loans auto-deducted</li>
-                <li>✓ Unpaid leave days auto-deducted (÷ 26 working days)</li>
-                <li>✓ Payslips generated for each employee</li>
+                <li>âœ“ Salaries calculated from your salary configurations</li>
+                <li>âœ“ PASI contributions auto-calculated (7% for Omani nationals)</li>
+                <li>âœ“ Active salary loans auto-deducted</li>
+                <li>âœ“ Unpaid leave days auto-deducted (Ã· 26 working days)</li>
+                <li>âœ“ Payslips generated for each employee</li>
               </ul>
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -513,7 +514,7 @@ function RunPayrollTab() {
   );
 }
 
-// ─── Salary Setup Tab ─────────────────────────────────────────────────────────
+// â”€â”€â”€ Salary Setup Tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function SalarySetupTab() {
   const { activeCompanyId } = useActiveCompany();
   const { data: employees, isLoading } = trpc.team.listMembers.useQuery({ status: "active", companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
@@ -667,7 +668,7 @@ function SalarySetupTab() {
   );
 }
 
-// ─── Loans Tab ────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Loans Tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function LoansTab() {
   const { activeCompanyId } = useActiveCompany();
   const { data: loans, isLoading, refetch } = trpc.payroll.listLoans.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
@@ -841,8 +842,9 @@ function PayrollProcessingPageSkeleton() {
   );
 }
 
-// ─── Main Page ────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Main Page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export default function PayrollProcessingPage() {
+  const { t } = useTranslation("hr");
   const { user } = useAuth();
   const { activeCompanyId } = useActiveCompany();
   const now = new Date();

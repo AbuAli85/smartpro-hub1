@@ -1,4 +1,4 @@
-import { trpc } from "@/lib/trpc";
+﻿import { trpc } from "@/lib/trpc";
 import { useState } from "react";
 import { BarChart3, TrendingUp, Users, FileText, Shield, Briefcase, Building2, Calendar, Clock, Plus, Play, Trash2, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -27,6 +27,7 @@ import {
 } from "recharts";
 import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
+import { useTranslation } from "react-i18next";
 
 const COLORS = ["#f97316", "#3b82f6", "#8b5cf6", "#10b981", "#f59e0b", "#ef4444"];
 
@@ -50,6 +51,7 @@ function StatCard({ title, value, icon, sub }: { title: string; value: string | 
 }
 
 export default function AnalyticsPage() {
+  const { t } = useTranslation("common");
   const { activeCompanyId } = useActiveCompany();
   const companyInput = { companyId: activeCompanyId ?? undefined };
   const companyScoped = activeCompanyId != null;
@@ -80,7 +82,7 @@ export default function AnalyticsPage() {
           <div>
             <h1 className="text-2xl font-black text-foreground tracking-tight">Analytics Dashboard</h1>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Cross-module business intelligence — contracts, PRO services, HR, payroll, and CRM insights for Oman & GCC
+              Cross-module business intelligence â€” contracts, PRO services, HR, payroll, and CRM insights for Oman & GCC
             </p>
           </div>
         </div>
@@ -302,12 +304,12 @@ export default function AnalyticsPage() {
           )}
         </TabsContent>
 
-        {/* ── Scheduled Reports Tab ── */}
+        {/* â”€â”€ Scheduled Reports Tab â”€â”€ */}
         <TabsContent value="reports" className="space-y-5">
           <ScheduledReportsTab />
         </TabsContent>
 
-        {/* ── Custom Report Builder Tab ── */}
+        {/* â”€â”€ Custom Report Builder Tab â”€â”€ */}
         <TabsContent value="builder" className="space-y-5">
           <CustomReportBuilder />
         </TabsContent>
@@ -316,7 +318,7 @@ export default function AnalyticsPage() {
   );
 }
 
-// ── Scheduled Reports Component ──────────────────────────────────────────────
+// â”€â”€ Scheduled Reports Component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const REPORT_TYPES = [
   { value: "platform_overview", label: "Platform Overview" },
@@ -380,7 +382,7 @@ function ScheduledReportsTab() {
   const runNowMutation = trpc.analytics.runReportNow.useMutation({
     onSuccess: (_, vars) => {
       const r = reports.find(x => x.id === vars.id);
-      toast.success(`Running "${r?.name ?? "report"}" now — results will be delivered to recipients`);
+      toast.success(`Running "${r?.name ?? "report"}" now â€” results will be delivered to recipients`);
       utils.analytics.listReports.invalidate();
     },
     onError: (e) => toast.error(e.message),
@@ -503,9 +505,9 @@ function ScheduledReportsTab() {
                     </Badge>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    {REPORT_TYPES.find(t => t.value === report.type)?.label} · {report.frequency} · {CHANNELS.find(c => c.value === report.channel)?.label}
+                    {REPORT_TYPES.find(t => t.value === report.type)?.label} Â· {report.frequency} Â· {CHANNELS.find(c => c.value === report.channel)?.label}
                   </p>
-                  <p className="text-xs text-muted-foreground mt-1">Recipients: {report.recipients ?? "—"}</p>
+                  <p className="text-xs text-muted-foreground mt-1">Recipients: {report.recipients ?? "â€”"}</p>
                   <div className="flex items-center gap-4 mt-2">
                     {report.nextRunAt && (
                       <div className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -565,7 +567,7 @@ function ScheduledReportsTab() {
   );
 }
 
-// ── Custom Report Builder ────────────────────────────────────────────────────
+// â”€â”€ Custom Report Builder â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const BUILDER_MODULES = [
   { id: "contracts", label: "Contracts", fields: ["status", "type", "value", "party", "date_range"] },
@@ -760,7 +762,7 @@ function CustomReportBuilder() {
                   </div>
                   <Button className="w-full gap-2" onClick={handleGenerate} disabled={generating || !selectedModule || selectedFields.length === 0}>
                     {generating ? (
-                      <><span className="animate-spin">⟳</span> Generating...</>
+                      <><span className="animate-spin">âŸ³</span> Generating...</>
                     ) : (
                       <><TrendingUp size={14} /> Generate Report</>
                     )}

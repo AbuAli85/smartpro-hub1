@@ -1,4 +1,4 @@
-import { trpc } from "@/lib/trpc";
+﻿import { trpc } from "@/lib/trpc";
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { Building2, Users, CheckCircle2, ArrowRight, ArrowLeft, Zap } from "lucide-react";
@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 
 const STEPS = [
   { id: 1, title: "Company Details", icon: <Building2 size={20} />, description: "Tell us about your company" },
@@ -38,6 +39,7 @@ function parseInviteEmails(raw: string): string[] {
 }
 
 export default function OnboardingPage() {
+  const { t } = useTranslation("common");
   const [, navigate] = useLocation();
   const [step, setStep] = useState(1);
   const [companyId, setCompanyId] = useState<number | null>(null);
@@ -55,7 +57,7 @@ export default function OnboardingPage() {
       if (data.teammatesAdded && data.teammatesAdded > 0) {
         toast.success(`${data.teammatesAdded} teammate(s) with existing accounts were added to your workspace.`);
       } else if (parseInviteEmails(inviteEmails).length > 0) {
-        toast.message("Invite list saved for reference — teammates must have a SmartPRO account before they can be added automatically. Use Company Admin → Members to add them later.");
+        toast.message("Invite list saved for reference â€” teammates must have a SmartPRO account before they can be added automatically. Use Company Admin â†’ Members to add them later.");
       }
       setStep(3);
     },
@@ -149,10 +151,10 @@ export default function OnboardingPage() {
                     <Select value={company.size} onValueChange={(v) => setCompany({ ...company, size: v })}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="1-10">1–10 employees</SelectItem>
-                        <SelectItem value="11-50">11–50 employees</SelectItem>
-                        <SelectItem value="51-200">51–200 employees</SelectItem>
-                        <SelectItem value="201-500">201–500 employees</SelectItem>
+                        <SelectItem value="1-10">1â€“10 employees</SelectItem>
+                        <SelectItem value="11-50">11â€“50 employees</SelectItem>
+                        <SelectItem value="51-200">51â€“200 employees</SelectItem>
+                        <SelectItem value="201-500">201â€“500 employees</SelectItem>
                         <SelectItem value="500+">500+ employees</SelectItem>
                       </SelectContent>
                     </Select>
@@ -197,7 +199,7 @@ export default function OnboardingPage() {
                 </div>
                 <div className="bg-muted/50 rounded-lg p-4 text-sm">
                   <p className="font-medium mb-2">Creating workspace for:</p>
-                  <p className="text-muted-foreground">{company.name} · {company.industry} · {company.country}</p>
+                  <p className="text-muted-foreground">{company.name} Â· {company.industry} Â· {company.country}</p>
                 </div>
                 <div className="flex flex-wrap gap-3">
                   <Button variant="outline" className="gap-2" onClick={() => setStep(1)}>
@@ -215,7 +217,7 @@ export default function OnboardingPage() {
               <div className="space-y-5">
                 <div>
                   <h2 className="text-xl font-bold">Choose Your Plan</h2>
-                  <p className="text-muted-foreground text-sm mt-1">Start with any plan — upgrade anytime</p>
+                  <p className="text-muted-foreground text-sm mt-1">Start with any plan â€” upgrade anytime</p>
                 </div>
                 <div className="grid grid-cols-1 gap-3">
                   {(plans ?? []).map((plan: { id: number; name: string; slug: string; description: string | null; priceMonthly: string; priceAnnual: string }) => (

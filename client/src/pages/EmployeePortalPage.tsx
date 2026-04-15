@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef } from "react";
+﻿import React, { useState, useMemo, useEffect, useRef } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -86,6 +86,7 @@ import {
   type TodayShiftEntry,
 } from "@shared/employeeDayShiftStatus";
 import { CHECKOUT_COMPLETION_THRESHOLD_PERCENT } from "@shared/attendanceCheckoutPolicy";
+import { useTranslation } from "react-i18next";
 
 const LEAVE_TYPE_LABEL: Record<string, string> = {
   annual: "Annual Leave",
@@ -107,7 +108,7 @@ const LEAVE_TYPE_COLOR: Record<string, string> = {
   other: "bg-gray-100 text-gray-700",
 };
 
-/** Labels aligned with `employee_documents.documentType` (HR vault â†’ portal). */
+/** Labels aligned with `employee_documents.documentType` (HR vault Ã¢â€ â€™ portal). */
 const DOC_LABELS: Record<string, string> = {
   mol_work_permit_certificate: "MOL work permit certificate",
   passport: "Passport",
@@ -144,12 +145,12 @@ const DOC_ICONS: Record<string, React.ReactElement> = {
 };
 
 function formatTime(ts: Date | string | null | undefined): string {
-  if (!ts) return "—";
+  if (!ts) return "â€”";
   return new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
 function formatDate(ts: Date | string | null | undefined): string {
-  if (!ts) return "—";
+  if (!ts) return "â€”";
   return fmtDateLong(ts);
 }
 
@@ -159,7 +160,7 @@ function formatShiftDisplayName(name: string | null | undefined): string {
   return name.replace(/\bshfit\b/gi, "shift").trim();
 }
 
-/** Text color for "days left" — full bucket should not look like a warning */
+/** Text color for "days left" â€” full bucket should not look like a warning */
 function leaveRemainingTone(remaining: number, total: number): string {
   if (total <= 0) return "text-foreground";
   if (remaining <= 2) return "text-red-600";
@@ -183,7 +184,7 @@ function Skeleton({ className = "" }: { className?: string }) {
   return <div className={`bg-muted animate-pulse rounded-lg ${className}`} />;
 }
 
-// â”€â”€ Per-shift row used inside AttendanceTodayCard multi-shift panel â”€â”€â”€â”€â”€â”€
+// Ã¢â€â‚¬Ã¢â€â‚¬ Per-shift row used inside AttendanceTodayCard multi-shift panel Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 function TodayShiftRow({
   shift,
   openShiftName,
@@ -243,7 +244,7 @@ function TodayShiftRow({
           )}
           <span className="text-sm font-medium">{shift.shiftName ?? "Shift"}</span>
           <span className="text-xs text-muted-foreground">
-            {shift.shiftStart}–{shift.shiftEnd}
+            {shift.shiftStart}â€“{shift.shiftEnd}
           </span>
           <Badge
             variant="outline"
@@ -318,7 +319,7 @@ function TodayShiftRow({
   );
 }
 
-// â”€â”€ Attendance Log â€” grouped by shift â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Ã¢â€â‚¬Ã¢â€â‚¬ Attendance Log Ã¢â‚¬â€ grouped by shift Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 function AttendanceLogGrouped({
   realAttRecords,
   attRecords,
@@ -371,15 +372,15 @@ function AttendanceLogGrouped({
                 {r.shiftName && (
                   <span className="ml-2 text-[10px] font-semibold text-primary/80">
                     {r.shiftName}
-                    {r.shiftStart && r.shiftEnd ? ` ${r.shiftStart}â€“${r.shiftEnd}` : ""}
+                    {r.shiftStart && r.shiftEnd ? ` ${r.shiftStart}Ã¢â‚¬â€œ${r.shiftEnd}` : ""}
                   </span>
                 )}
               </p>
             )}
             <p className="text-xs text-muted-foreground">
               In: {formatTime(r.checkIn)}
-              {cout ? ` Â· Out: ${formatTime(r.checkOut)}` : " Â· Open session"}
-              {r.siteName ? ` Â· ${r.siteName}` : ""}
+              {cout ? ` Ã‚Â· Out: ${formatTime(r.checkOut)}` : " Ã‚Â· Open session"}
+              {r.siteName ? ` Ã‚Â· ${r.siteName}` : ""}
             </p>
           </div>
         </div>
@@ -426,7 +427,7 @@ function AttendanceLogGrouped({
       {attRecords.length > 0 && (
         <div className="pt-3 mt-1 border-t">
           <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground pb-2">
-            HR record â€” official status
+            HR record Ã¢â‚¬â€ official status
           </p>
           {attRecords.map((r: any) => (
             <div key={`hr-${r.id}`} className="flex items-center justify-between py-2.5 border-b last:border-0 text-sm">
@@ -445,7 +446,7 @@ function AttendanceLogGrouped({
                   </p>
                   <p className="text-xs text-muted-foreground">
                     {r.checkIn ? `In: ${formatTime(r.checkIn)}` : ""}
-                    {r.checkOut ? ` Â· Out: ${formatTime(r.checkOut)}` : ""}
+                    {r.checkOut ? ` Ã‚Â· Out: ${formatTime(r.checkOut)}` : ""}
                     {!r.checkIn && !r.checkOut ? "No time recorded" : ""}
                   </p>
                 </div>
@@ -469,7 +470,7 @@ function AttendanceLogGrouped({
             </span>
           </div>
           <p className="text-xs text-muted-foreground mt-1 leading-snug">
-            Your self-service records are saved. HR will post the official attendance result â€” usually by end of day.
+            Your self-service records are saved. HR will post the official attendance result Ã¢â‚¬â€ usually by end of day.
           </p>
         </div>
       )}
@@ -477,7 +478,7 @@ function AttendanceLogGrouped({
   );
 }
 
-// â”€â”€ Attendance Today Card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Ã¢â€â‚¬Ã¢â€â‚¬ Attendance Today Card Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 function AttendanceTodayCard({
   employeeId,
   companyId,
@@ -497,7 +498,7 @@ function AttendanceTodayCard({
   const [showCorrForm, setShowCorrForm] = useState(false);
   const [showManualDialog, setShowManualDialog] = useState(false);
   const [manualJustification, setManualJustification] = useState("");
-  // Explicit shift selection — set in the dialog when employee has multiple shifts today.
+  // Explicit shift selection â€” set in the dialog when employee has multiple shifts today.
   // Passed to submitManualCheckIn so HR approval uses it directly as scheduleId.
   const [manualScheduleId, setManualScheduleId] = useState<number | null>(null);
   // Early checkout confirmation dialog state
@@ -530,7 +531,7 @@ function AttendanceTodayCard({
     { limit: 15 },
     {
       enabled: !!employeeId && companyId != null,
-      // Do not retry on failure — the server returns [] gracefully on schema mismatch,
+      // Do not retry on failure â€” the server returns [] gracefully on schema mismatch,
       // so a real error here is unlikely to self-heal on retry.
       retry: false,
     },
@@ -545,7 +546,7 @@ function AttendanceTodayCard({
   );
   const submitCorr = trpc.attendance.submitCorrection.useMutation({
     onSuccess: () => {
-      toast.success("Correction request submitted — HR will review it");
+      toast.success("Correction request submitted â€” HR will review it");
       setShowCorrForm(false);
       setCorrDate(new Date().toISOString().split("T")[0]);
       setCorrCheckIn(""); setCorrCheckOut(""); setCorrReason("");
@@ -592,7 +593,7 @@ function AttendanceTodayCard({
       } else if (hints && !hints.allShiftsHaveClosedAttendance) {
         toast.success("Checked out", {
           description:
-            "You have another shift today — check in again when it starts (or when the check-in window opens).",
+            "You have another shift today â€” check in again when it starts (or when the check-in window opens).",
         });
       } else {
         toast.success("Checked out", { description: "Your time is saved for today." });
@@ -609,7 +610,7 @@ function AttendanceTodayCard({
 
   const manualCheckInMutation = trpc.attendance.submitManualCheckIn.useMutation({
     onSuccess: () => {
-      toast.success("Request sent — HR will review your manual attendance");
+      toast.success("Request sent â€” HR will review your manual attendance");
       setShowManualDialog(false);
       setManualJustification("");
       refetchToday();
@@ -837,7 +838,7 @@ function AttendanceTodayCard({
 
   function openManualDialog() {
     if (operationalHints) {
-      const pre = `${operationalHints.businessDate} · ${site?.name ?? "Site"} · ${operationalHints.eligibilityHeadline}. ${operationalHints.eligibilityDetail}`;
+      const pre = `${operationalHints.businessDate} Â· ${site?.name ?? "Site"} Â· ${operationalHints.eligibilityHeadline}. ${operationalHints.eligibilityDetail}`;
       setManualJustification((prev) => (prev.trim() ? prev : pre));
     }
     // Pre-select the currently active shift so employees don't have to pick manually.
@@ -895,7 +896,7 @@ function AttendanceTodayCard({
   }, [shift, isWorkingDay, checkIn, checkOut, shiftProgressPct]);
 
   /**
-   * Canonical shift render mode — used to drive the banner into one of three
+   * Canonical shift render mode â€” used to drive the banner into one of three
    * mutually exclusive states so "Active Now" and "Upcoming" never appear together.
    *
    * Priority: server-resolved phase (most authoritative) > local isShiftActive heuristic.
@@ -905,7 +906,7 @@ function AttendanceTodayCard({
     if (isShiftActive) return "active";
     if (operationalHintsReady && operationalHints?.resolvedShiftPhase === "active") return "active";
     if (operationalHintsReady && operationalHints?.resolvedShiftPhase === "upcoming") return "upcoming";
-    // Local fallback: progress bar not yet started → upcoming; inside window → active
+    // Local fallback: progress bar not yet started â†’ upcoming; inside window â†’ active
     if (shiftProgressPct !== null && shiftProgressPct <= 0) return "upcoming";
     if (shiftProgressPct !== null && shiftProgressPct > 0 && shiftProgressPct < 100) return "active";
     return "upcoming"; // schedule exists but timing unknown yet
@@ -967,35 +968,35 @@ function AttendanceTodayCard({
           ? "Tap Check in for your next shift (or when the window opens)."
           : attStrip.showCheckOut
             ? operationalHintsReady && operationalHints?.resolvedShiftPhase === "ended"
-              ? "Your shift window has ended — tap Check out to save your time."
+              ? "Your shift window has ended â€” tap Check out to save your time."
               : "Tap Check out above when you finish this block."
             : tooEarlyBlock
-              ? "Check-in for your next shift opens below — wait for that time."
+              ? "Check-in for your next shift opens below â€” wait for that time."
               : denialPresentation
                 ? denialPresentation.nextStep
                 : operationalHints?.eligibilityDetail ??
-                  "You have another shift today — check in when it starts."
+                  "You have another shift today â€” check in when it starts."
         : checkIn && checkOut
           ? operationalHintsReady && operationalHints?.allShiftsHaveClosedAttendance
-            ? "Day complete — checked in and out for every shift."
+            ? "Day complete â€” checked in and out for every shift."
             : null
           : attStrip.showCheckIn
             ? "Tap Check in above to start your time."
             : attStrip.showCheckOut
               ? operationalHintsReady && operationalHints?.resolvedShiftPhase === "ended"
-                ? "Your shift window has ended — tap Check out to save your time."
+                ? "Your shift window has ended â€” tap Check out to save your time."
                 : "Tap Check out above when you leave."
               : tooEarlyBlock
-                ? "Check-in opens below — wait for that time."
+                ? "Check-in opens below â€” wait for that time."
                 : denialPresentation
                   ? denialPresentation.nextStep
                   : checkIn && !checkOut
-                    ? "Still clocked in — check out when you finish."
+                    ? "Still clocked in â€” check out when you finish."
                     : null;
 
   return (
     <div id="portal-attendance-today" className="scroll-mt-24 space-y-3">
-      {/* ── Shift Banner — three distinct render modes (active / upcoming / no_shift) ── */}
+      {/* â”€â”€ Shift Banner â€” three distinct render modes (active / upcoming / no_shift) â”€â”€ */}
       {isHoliday ? (
         /* Holiday mode */
         <Card className="border-purple-200 bg-purple-50/60 dark:bg-purple-950/10">
@@ -1010,7 +1011,7 @@ function AttendanceTodayCard({
           </CardContent>
         </Card>
       ) : shiftRenderMode === "active" && shift ? (
-        /* Active shift mode — green card, single "Active" badge, progress bar */
+        /* Active shift mode â€” green card, single "Active" badge, progress bar */
         <Card className="border-green-400/60 bg-green-50/40 dark:border-green-600/40 dark:bg-green-950/20">
           <CardContent className="p-4">
             <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -1024,9 +1025,9 @@ function AttendanceTodayCard({
                 <div>
                   <p className="font-semibold text-sm">{formatShiftDisplayName(shift.name)}</p>
                   <p className="text-xs text-muted-foreground">
-                    {shift.startTime} – {shift.endTime}
-                    {site ? ` · ${site.name}` : ""}
-                    {shift.gracePeriodMinutes > 0 ? ` · ${shift.gracePeriodMinutes}min grace` : ""}
+                    {shift.startTime} â€“ {shift.endTime}
+                    {site ? ` Â· ${site.name}` : ""}
+                    {shift.gracePeriodMinutes > 0 ? ` Â· ${shift.gracePeriodMinutes}min grace` : ""}
                   </p>
                   {workingDayNames && (
                     <p className="text-xs text-muted-foreground mt-0.5">Working days: {workingDayNames}</p>
@@ -1034,7 +1035,7 @@ function AttendanceTodayCard({
                 </div>
               </div>
               <div className="flex flex-col items-end gap-1.5 text-right shrink-0 max-w-[160px]">
-                {/* Canonical "Active" badge — single source of truth, no conflicting labels */}
+                {/* Canonical "Active" badge â€” single source of truth, no conflicting labels */}
                 <Badge
                   variant="outline"
                   className="text-xs border-green-400 text-green-700 bg-green-50 dark:bg-green-900/20 dark:text-green-300"
@@ -1046,7 +1047,7 @@ function AttendanceTodayCard({
                 )}
               </div>
             </div>
-            {/* Progress bar + countdown — active window only */}
+            {/* Progress bar + countdown â€” active window only */}
             {shiftProgressPct !== null && shiftProgressPct > 0 && shiftProgressPct < 100 && (
               <div className="mt-3 space-y-1.5">
                 {shiftCountdownLabel && (
@@ -1075,7 +1076,7 @@ function AttendanceTodayCard({
           </CardContent>
         </Card>
       ) : shiftRenderMode === "upcoming" && shift ? (
-        /* Upcoming shift mode — neutral card, single "Upcoming" badge */
+        /* Upcoming shift mode â€” neutral card, single "Upcoming" badge */
         <Card className="border-primary/20 bg-primary/5">
           <CardContent className="p-4">
             <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -1089,9 +1090,9 @@ function AttendanceTodayCard({
                 <div>
                   <p className="font-semibold text-sm">{formatShiftDisplayName(shift.name)}</p>
                   <p className="text-xs text-muted-foreground">
-                    {shift.startTime} – {shift.endTime}
-                    {site ? ` · ${site.name}` : ""}
-                    {shift.gracePeriodMinutes > 0 ? ` · ${shift.gracePeriodMinutes}min grace` : ""}
+                    {shift.startTime} â€“ {shift.endTime}
+                    {site ? ` Â· ${site.name}` : ""}
+                    {shift.gracePeriodMinutes > 0 ? ` Â· ${shift.gracePeriodMinutes}min grace` : ""}
                   </p>
                   {workingDayNames && (
                     <p className="text-xs text-muted-foreground mt-0.5">Working days: {workingDayNames}</p>
@@ -1115,12 +1116,12 @@ function AttendanceTodayCard({
         <Card className="border-muted">
           <CardContent className="p-4 flex items-center gap-3">
             <Info className="w-5 h-5 text-muted-foreground shrink-0" />
-            <p className="text-sm text-muted-foreground">No shift assigned — contact HR.</p>
+            <p className="text-sm text-muted-foreground">No shift assigned â€” contact HR.</p>
           </CardContent>
         </Card>
       ) : null}
 
-      {/* Next shift mini-card — shown only when primary banner is "active" AND an upcoming
+      {/* Next shift mini-card â€” shown only when primary banner is "active" AND an upcoming
           shift exists. Keeps the two shift states on separate, clearly labelled cards. */}
       {upcomingNextShift && (
         <Card className="border-slate-200/80 bg-slate-50/40 dark:border-slate-700/40 dark:bg-slate-950/10">
@@ -1133,8 +1134,8 @@ function AttendanceTodayCard({
                 <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground leading-tight">Next shift</p>
                 <p className="text-sm font-medium truncate">{formatShiftDisplayName(upcomingNextShift.shiftName)}</p>
                 <p className="text-xs text-muted-foreground">
-                  {upcomingNextShift.shiftStart}–{upcomingNextShift.shiftEnd}
-                  {upcomingNextShift.siteName ? ` · ${upcomingNextShift.siteName}` : ""}
+                  {upcomingNextShift.shiftStart}â€“{upcomingNextShift.shiftEnd}
+                  {upcomingNextShift.siteName ? ` Â· ${upcomingNextShift.siteName}` : ""}
                 </p>
               </div>
             </div>
@@ -1170,7 +1171,7 @@ function AttendanceTodayCard({
           <p className="font-semibold text-amber-950 dark:text-amber-50">Needs HR review</p>
           <ul className="list-disc pl-4 space-y-0.5 leading-snug">
             {operationalHints?.hasPendingCorrection ? (
-              <li>Correction request pending — HR will update your times when they decide.</li>
+              <li>Correction request pending â€” HR will update your times when they decide.</li>
             ) : null}
             {operationalHints?.hasPendingManualCheckIn ? (
               <li>
@@ -1178,11 +1179,11 @@ function AttendanceTodayCard({
                 {operationalHints.pendingManualCheckInCount > 1
                   ? ` (${operationalHints.pendingManualCheckInCount})` : ""}
                 {" "}
-                — HR must approve before it counts as attendance.
+                â€” HR must approve before it counts as attendance.
               </li>
             ) : null}
             {attStrip.attendanceInconsistent ? (
-              <li>Attendance data looks inconsistent — use Fix attendance so HR can correct the record.</li>
+              <li>Attendance data looks inconsistent â€” use Fix attendance so HR can correct the record.</li>
             ) : null}
           </ul>
         </div>
@@ -1244,7 +1245,7 @@ function AttendanceTodayCard({
                             className="border-amber-400 bg-amber-50 text-amber-950 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-100"
                           >
                             <span className="sr-only">Status: </span>
-                            Active — check out to close
+                            Active â€” check out to close
                           </Badge>
                         ) : (
                           <Badge variant="outline" className="border-green-300 bg-green-50 text-green-700 dark:bg-green-900/20">
@@ -1269,7 +1270,7 @@ function AttendanceTodayCard({
                         !betweenShifts && (
                           <p className="mt-1 text-xs font-semibold text-amber-950 dark:text-amber-100">
                             {operationalHints.shiftDetailLine ??
-                              "Shift window has ended — tap Check out to save your time, or use Fix attendance if the times are wrong."}
+                              "Shift window has ended â€” tap Check out to save your time, or use Fix attendance if the times are wrong."}
                           </p>
                         )}
                       {operationalHintsReady &&
@@ -1283,13 +1284,13 @@ function AttendanceTodayCard({
                       {betweenShifts && upcomingNextShift && (
                         <p className="mt-1 text-xs leading-snug text-amber-900/90 dark:text-amber-100/90">
                           This shift is complete. Your next shift starts at {upcomingNextShift.shiftStart}
-                          {upcomingNextShift.siteName ? ` · ${upcomingNextShift.siteName}` : ""}. Check in again when that window opens.
+                          {upcomingNextShift.siteName ? ` Â· ${upcomingNextShift.siteName}` : ""}. Check in again when that window opens.
                         </p>
                       )}
                       {betweenShifts && !upcomingNextShift && shift && (
                         <p className="mt-1 text-xs leading-snug text-amber-900/90 dark:text-amber-100/90">
-                          Earlier block finished. Next shift: {shift.startTime} – {shift.endTime}
-                          {site?.name ? ` · ${site.name}` : ""}. Check in when that window opens.
+                          Earlier block finished. Next shift: {shift.startTime} â€“ {shift.endTime}
+                          {site?.name ? ` Â· ${site.name}` : ""}. Check in when that window opens.
                         </p>
                       )}
                       {denialPresentation && betweenShifts && (
@@ -1402,7 +1403,7 @@ function AttendanceTodayCard({
                         Opens {operationalHints.checkInOpensAt}
                       </Button>
                       <p id="att-too-early-hint" className="text-center text-[10px] text-muted-foreground sm:text-left">
-                        Server time — check in from then.
+                        Server time â€” check in from then.
                       </p>
                     </div>
                   )}
@@ -1437,7 +1438,7 @@ function AttendanceTodayCard({
                     </Button>
                     {(attStrip.showCheckIn || attStrip.showCheckOut) && !correctionEmphasis && (
                       <p className="text-center text-[10px] text-muted-foreground sm:text-left">
-                        Wrong times or missed check-in? Submit a correction — HR reviews and updates your record.
+                        Wrong times or missed check-in? Submit a correction â€” HR reviews and updates your record.
                       </p>
                     )}
                   </div>
@@ -1473,7 +1474,7 @@ function AttendanceTodayCard({
         </Card>
       )}
 
-      {/* Multi-shift panel — shown when 2+ shifts are scheduled today */}
+      {/* Multi-shift panel â€” shown when 2+ shifts are scheduled today */}
       {showMultiShiftPanel && (
         <Card>
           <CardHeader className="pb-2 pt-4">
@@ -1522,23 +1523,23 @@ function AttendanceTodayCard({
                   {(c.requestedCheckIn || c.requestedCheckOut) && (
                     <p className="text-xs text-muted-foreground mt-0.5">
                       {c.requestedCheckIn && <span>In {String(c.requestedCheckIn).slice(0, 5)}</span>}
-                      {c.requestedCheckIn && c.requestedCheckOut && <span> · </span>}
+                      {c.requestedCheckIn && c.requestedCheckOut && <span> Â· </span>}
                       {c.requestedCheckOut && <span>Out {String(c.requestedCheckOut).slice(0, 5)}</span>}
                       <span className="text-[10px]"> (Asia/Muscat)</span>
                     </p>
                   )}
                   <p className="text-xs text-muted-foreground mt-0.5">{c.reason}</p>
                   {c.status === "pending" && (
-                    <p className="text-[11px] text-muted-foreground mt-1">With HR for review — you&apos;ll see the result here.</p>
+                    <p className="text-[11px] text-muted-foreground mt-1">With HR for review â€” you&apos;ll see the result here.</p>
                   )}
                   {c.status === "approved" && (
                     <p className="text-[11px] text-emerald-800 dark:text-emerald-200/90 mt-1">
-                      Approved{c.adminNote ? ` — HR note: ${c.adminNote}` : " — times updated when HR saved the decision."}
+                      Approved{c.adminNote ? ` â€” HR note: ${c.adminNote}` : " â€” times updated when HR saved the decision."}
                     </p>
                   )}
                   {c.status === "rejected" && (
                     <p className="text-[11px] text-red-800 dark:text-red-200/90 mt-1">
-                      Not approved{c.adminNote ? ` — HR: ${c.adminNote}` : "."} Contact HR if you disagree.
+                      Not approved{c.adminNote ? ` â€” HR: ${c.adminNote}` : "."} Contact HR if you disagree.
                     </p>
                   )}
                 </div>
@@ -1609,7 +1610,7 @@ function AttendanceTodayCard({
           <DialogHeader>
             <DialogTitle>Request manual attendance</DialogTitle>
             <DialogDescription id="manual-attendance-dialog-desc">
-              HR reviews every manual request before it counts as attendance. Explain what blocked normal check-in — include date and site if relevant.
+              HR reviews every manual request before it counts as attendance. Explain what blocked normal check-in â€” include date and site if relevant.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
@@ -1626,12 +1627,12 @@ function AttendanceTodayCard({
                 ) : null}
                 <p>
                   <span className="font-medium text-foreground">System message:</span>{" "}
-                  {operationalHints.eligibilityHeadline} — {operationalHints.eligibilityDetail}
+                  {operationalHints.eligibilityHeadline} â€” {operationalHints.eligibilityDetail}
                 </p>
               </div>
             ) : null}
 
-            {/* Shift selector — shown only when 2+ shifts are scheduled today */}
+            {/* Shift selector â€” shown only when 2+ shifts are scheduled today */}
             {todayShiftsData && todayShiftsData.shifts.length >= 2 && (
               <div className="space-y-1.5">
                 <Label htmlFor="manualShiftSelect">
@@ -1646,11 +1647,11 @@ function AttendanceTodayCard({
                     setManualScheduleId(e.target.value ? Number(e.target.value) : null)
                   }
                 >
-                  <option value="">— Select a shift —</option>
+                  <option value="">â€” Select a shift â€”</option>
                   {todayShiftsData.shifts.map((s) => (
                     <option key={s.scheduleId} value={s.scheduleId}>
-                      {s.shiftName ?? "Shift"} · {s.shiftStart}–{s.shiftEnd}
-                      {s.siteName ? ` · ${s.siteName}` : ""}
+                      {s.shiftName ?? "Shift"} Â· {s.shiftStart}â€“{s.shiftEnd}
+                      {s.siteName ? ` Â· ${s.siteName}` : ""}
                     </option>
                   ))}
                 </select>
@@ -1779,7 +1780,7 @@ function AttendanceTodayCard({
           <DialogHeader>
             <DialogTitle>Request Attendance Correction</DialogTitle>
             <DialogDescription id="attendance-correction-dialog-desc">
-              Wrong or missing times? This request does not change your live check-in / check-out buttons — HR reviews it separately. Track status in the list below after you send.
+              Wrong or missing times? This request does not change your live check-in / check-out buttons â€” HR reviews it separately. Track status in the list below after you send.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -1839,8 +1840,9 @@ function AttendanceTodayCard({
     </div>
   );
 }
-// â”€â”€ Main Component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Ã¢â€â‚¬Ã¢â€â‚¬ Main Component Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 export default function EmployeePortalPage() {
+  const { t } = useTranslation("hr");
   const { user, isAuthenticated } = useAuth();
   const loginUrl = getLoginUrl();
   const urlSearch = useSearch();
@@ -1922,7 +1924,7 @@ export default function EmployeePortalPage() {
 
   const [portalClock, setPortalClock] = useState(0);
 
-  // â”€â”€ Queries â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // Ã¢â€â‚¬Ã¢â€â‚¬ Queries Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
   const { companies: myCompanies, activeCompany: activeCompanyCtx, activeCompanyId } = useActiveCompany();
 
   const { data: profile, isLoading: profileLoading, refetch: refetchProfile } = trpc.employeePortal.getMyProfile.useQuery(
@@ -1993,7 +1995,7 @@ export default function EmployeePortalPage() {
       {
         enabled: isAuthenticated && activeCompanyId != null,
         refetchOnWindowFocus: true,
-        // Poll only this compact summary — not getMyDocuments / getMyTasks — unless a concrete
+        // Poll only this compact summary â€” not getMyDocuments / getMyTasks â€” unless a concrete
         // UX issue requires list polling; those lists still refresh on window focus.
         refetchInterval: 90_000,
         refetchIntervalInBackground: false,
@@ -2072,7 +2074,7 @@ export default function EmployeePortalPage() {
   );
   const submitExpenseMut = trpc.financeHR.submitExpense.useMutation({
     onSuccess: () => {
-      toast.success("Expense claim submitted — awaiting approval");
+      toast.success("Expense claim submitted â€” awaiting approval");
       setShowExpenseDialog(false);
       setExpenseAmount(""); setExpenseDesc(""); setExpenseCategory("travel");
       refetchExpenses();
@@ -2104,7 +2106,7 @@ export default function EmployeePortalPage() {
     return () => clearInterval(id);
   }, []);
 
-  // â”€â”€ Mutations â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // Ã¢â€â‚¬Ã¢â€â‚¬ Mutations Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
   const submitLeave = trpc.employeePortal.submitLeaveRequest.useMutation({
     onSuccess: () => {
       toast.success("Leave request sent", { description: "HR will review and notify you." });
@@ -2239,7 +2241,7 @@ export default function EmployeePortalPage() {
   const shiftReasonTooShort =
     shiftReqReason.trim().length > 0 && shiftReqReason.trim().length < 5;
 
-  // â”€â”€ Derived data â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // Ã¢â€â‚¬Ã¢â€â‚¬ Derived data Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
   const leave = leaveData?.requests ?? [];
   const entitlements = leaveData?.entitlements ?? { ...OMAN_LEAVE_PORTAL_DEFAULTS };
   const balance = leaveData?.balance ?? { ...OMAN_LEAVE_PORTAL_DEFAULTS };
@@ -2436,7 +2438,7 @@ export default function EmployeePortalPage() {
     });
   }, [docs]);
 
-  // â”€â”€ Not authenticated â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // Ã¢â€â‚¬Ã¢â€â‚¬ Not authenticated Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
@@ -2473,7 +2475,7 @@ export default function EmployeePortalPage() {
     );
   }
 
-  // â”€â”€ Not linked — Company Member Portal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // Ã¢â€â‚¬Ã¢â€â‚¬ Not linked â€” Company Member Portal Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
   if (!profile) {
     return (
       <div className="min-h-screen bg-background">
@@ -2508,7 +2510,7 @@ export default function EmployeePortalPage() {
                     Your payslips, leave, attendance, and documents will appear here once HR completes the setup.
                   </p>
                   <p className="text-sm text-amber-700 dark:text-amber-400 mt-2">
-                    Ask your HR manager to go to <strong>HR â†’ Team Access &amp; Roles</strong> and click <strong>Grant Access</strong> next to your name.
+                    Ask your HR manager to go to <strong>HR Ã¢â€ â€™ Team Access &amp; Roles</strong> and click <strong>Grant Access</strong> next to your name.
                   </p>
                 </div>
               </div>
@@ -2540,10 +2542,10 @@ export default function EmployeePortalPage() {
   const { fullName, arabicFullName, payrollReady, hasPhone, hasEmergencyContact } =
     deriveProfileBooleans(emp);
 
-  // â”€â”€ Main Portal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // Ã¢â€â‚¬Ã¢â€â‚¬ Main Portal Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
   return (
     <div className="min-h-screen bg-background">
-      {/* â”€â”€ Sticky Header â”€â”€ */}
+      {/* Ã¢â€â‚¬Ã¢â€â‚¬ Sticky Header Ã¢â€â‚¬Ã¢â€â‚¬ */}
       <div className="border-b bg-card sticky top-0 z-20 shadow-sm">
         <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -2650,9 +2652,9 @@ export default function EmployeePortalPage() {
           </Card>
         )}
 
-        {/* â”€â”€ Main sections — bottom nav (mobile-first PWA) â”€â”€ */}
+        {/* Ã¢â€â‚¬Ã¢â€â‚¬ Main sections â€” bottom nav (mobile-first PWA) Ã¢â€â‚¬Ã¢â€â‚¬ */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="gap-0" activationMode="automatic">
-          {/* â•â• OVERVIEW TAB â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
+          {/* Ã¢â€¢ÂÃ¢â€¢Â OVERVIEW TAB Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */}
           <TabsContent value="overview" className="mt-0 space-y-4 focus-visible:outline-none">
             <EmployeePortalOverview
               setActiveTab={setActiveTab}
@@ -2706,7 +2708,7 @@ export default function EmployeePortalPage() {
             />
           </TabsContent>
 
-          {/* â•â• ATTENDANCE TAB â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
+          {/* Ã¢â€¢ÂÃ¢â€¢Â ATTENDANCE TAB Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */}
           <TabsContent value="attendance" className="mt-0 space-y-4 focus-visible:outline-none">
             {/* Today's Status + Correction Request */}
             <AttendanceTodayCard
@@ -2720,7 +2722,7 @@ export default function EmployeePortalPage() {
             {/* Self-service clock stats */}
             <div className="space-y-2">
               <p className="px-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                Self-service clock — this month
+                Self-service clock â€” this month
               </p>
               <div className="grid grid-cols-3 gap-2 sm:gap-3">
                 <Card className="bg-green-50 dark:bg-green-950/20 border-0">
@@ -2732,7 +2734,7 @@ export default function EmployeePortalPage() {
                 <Card className="bg-blue-50 dark:bg-blue-950/20 border-0">
                   <CardContent className="p-2.5 text-center sm:p-3">
                     <p className="text-2xl font-bold text-blue-700">
-                      {realAttSummary.total > 0 ? `${realAttSummary.hoursWorked}h` : "—"}
+                      {realAttSummary.total > 0 ? `${realAttSummary.hoursWorked}h` : "â€”"}
                     </p>
                     <p className="text-xs text-muted-foreground">Hours worked</p>
                   </CardContent>
@@ -2742,7 +2744,7 @@ export default function EmployeePortalPage() {
                     <p className="text-2xl font-bold text-purple-700">
                       {realAttSummary.total > 0
                         ? `${Math.round((realAttSummary.hoursWorked / realAttSummary.total) * 10) / 10}h`
-                        : "—"}
+                        : "â€”"}
                     </p>
                     <p className="text-xs text-muted-foreground">Avg / day</p>
                   </CardContent>
@@ -2822,7 +2824,7 @@ export default function EmployeePortalPage() {
                           className={`relative rounded-lg p-1.5 text-xs text-center transition-colors hover:bg-muted/80 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
                             isToday ? "ring-2 ring-primary" : ""
                           } ${attSelectedDay === day ? "bg-primary/10 ring-1 ring-primary/50" : ""}`}
-                          title={rec ? `${rec.status} — In: ${formatTime(rec.checkIn)} Out: ${formatTime(rec.checkOut)}` : "View day details"}
+                          title={rec ? `${rec.status} â€” In: ${formatTime(rec.checkIn)} Out: ${formatTime(rec.checkOut)}` : "View day details"}
                         >
                           <span className={`block text-xs font-medium mb-0.5 ${isToday ? "text-primary" : ""}`}>{dayNum}</span>
                           {rec && <div className={`w-2 h-2 rounded-full mx-auto ${statusColors[rec.status] ?? "bg-gray-400"}`} />}
@@ -2890,7 +2892,7 @@ export default function EmployeePortalPage() {
                               <div key={`sel-${r.id}`} className="border-b border-border/60 pb-2 last:border-0 last:pb-0">
                                 <p className="font-medium text-foreground">
                                   {r.shiftName ?? "Shift"}
-                                  {r.shiftStart && r.shiftEnd ? ` · ${r.shiftStart}–${r.shiftEnd}` : ""}
+                                  {r.shiftStart && r.shiftEnd ? ` Â· ${r.shiftStart}â€“${r.shiftEnd}` : ""}
                                   {" "}
                                   <span className={`text-[10px] font-normal ${status === "in_progress" ? "text-green-600" : "text-emerald-600"}`}>
                                     {canonicalLabel[status] ?? status}
@@ -2898,9 +2900,9 @@ export default function EmployeePortalPage() {
                                 </p>
                                 <p className="text-muted-foreground mt-0.5">
                                   In: {formatTime(r.checkIn)}
-                                  {cout ? ` · Out: ${formatTime(r.checkOut)}` : " · Open session"}
-                                  {dur ? ` · ${dur}` : ""}
-                                  {r.siteName ? ` · ${r.siteName}` : ""}
+                                  {cout ? ` Â· Out: ${formatTime(r.checkOut)}` : " Â· Open session"}
+                                  {dur ? ` Â· ${dur}` : ""}
+                                  {r.siteName ? ` Â· ${r.siteName}` : ""}
                                 </p>
                               </div>
                             );
@@ -2914,12 +2916,12 @@ export default function EmployeePortalPage() {
                               {(hrRec.checkIn || hrRec.checkOut) && (
                                 <p className="text-muted-foreground">
                                   {hrRec.checkIn ? `In: ${formatTime(hrRec.checkIn)}` : ""}
-                                  {hrRec.checkOut ? ` · Out: ${formatTime(hrRec.checkOut)}` : ""}
+                                  {hrRec.checkOut ? ` Â· Out: ${formatTime(hrRec.checkOut)}` : ""}
                                 </p>
                               )}
                             </div>
                           ) : scanRecs.length > 0 ? (
-                            /* Pending HR posting — self-service data exists but HR hasn't posted yet */
+                            /* Pending HR posting â€” self-service data exists but HR hasn't posted yet */
                             <div className="border-t border-border/60 pt-2">
                               <div className="flex items-center gap-2">
                                 <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">HR record</p>
@@ -2928,7 +2930,7 @@ export default function EmployeePortalPage() {
                                 </span>
                               </div>
                               <p className="text-muted-foreground mt-1 leading-snug">
-                                Your self-service record is saved. HR will post the official status — usually by end of day.
+                                Your self-service record is saved. HR will post the official status â€” usually by end of day.
                               </p>
                             </div>
                           ) : null}
@@ -2956,7 +2958,7 @@ export default function EmployeePortalPage() {
               </CardContent>
             </Card>
 
-            {/* Attendance log — self-service punches + HR records side by side */}
+            {/* Attendance log â€” self-service punches + HR records side by side */}
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm flex items-center gap-2">
@@ -2997,7 +2999,7 @@ export default function EmployeePortalPage() {
                 )}
               </CardContent>
             </Card>
-            {/* â•â• SHIFT CHANGE & TIME OFF REQUESTS â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
+            {/* Ã¢â€¢ÂÃ¢â€¢Â SHIFT CHANGE & TIME OFF REQUESTS Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */}
             <Card>
               <CardHeader className="pb-2">
                 <div className="flex flex-wrap items-center justify-between gap-2">
@@ -3009,7 +3011,7 @@ export default function EmployeePortalPage() {
                   </Button>
                 </div>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Shift changes, time off, swaps — same form as the Requests tab.
+                  Shift changes, time off, swaps â€” same form as the Requests tab.
                 </p>
                 {/* Filter */}
                 <div className="flex gap-1.5 mt-2 flex-wrap">
@@ -3031,7 +3033,7 @@ export default function EmployeePortalPage() {
                     <div className="space-y-3 py-8 text-center text-muted-foreground">
                       <Repeat className="mx-auto mb-1 h-8 w-8 opacity-30" />
                       <p className="text-sm font-medium text-foreground">No requests in this filter</p>
-                      <p className="mx-auto max-w-xs text-xs leading-relaxed">Submit one to HR — approvals appear here.</p>
+                      <p className="mx-auto max-w-xs text-xs leading-relaxed">Submit one to HR â€” approvals appear here.</p>
                       <Button type="button" size="sm" className="min-h-10 touch-manipulation" onClick={() => setShowShiftRequestDialog(true)}>
                         Submit HR request
                       </Button>
@@ -3067,9 +3069,9 @@ export default function EmployeePortalPage() {
                                 </div>
                                 <p className="text-xs text-muted-foreground mt-0.5">
                                   {formatDate(req.requestedDate)}
-                                  {req.requestedEndDate && req.requestedEndDate !== req.requestedDate ? ` â†’ ${formatDate(req.requestedEndDate)}` : ""}
+                                  {req.requestedEndDate && req.requestedEndDate !== req.requestedDate ? ` Ã¢â€ â€™ ${formatDate(req.requestedEndDate)}` : ""}
                                   {req.requestedTime ? ` at ${req.requestedTime}` : ""}
-                                  {ps ? ` · Preferred: ${ps.name} (${ps.startTime}–${ps.endTime})` : ""}
+                                  {ps ? ` Â· Preferred: ${ps.name} (${ps.startTime}â€“${ps.endTime})` : ""}
                                 </p>
                                 <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{req.reason}</p>
                                 {req.adminNotes && (
@@ -3092,7 +3094,7 @@ export default function EmployeePortalPage() {
               </CardContent>
             </Card>
           </TabsContent>
-          {/* â•â• LEAVE TAB â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
+          {/* Ã¢â€¢ÂÃ¢â€¢Â LEAVE TAB Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */}
           <TabsContent value="leave" className="mt-4 space-y-4">
             {/* Leave Balance Summary */}
             <div className="grid grid-cols-3 gap-3">
@@ -3128,7 +3130,7 @@ export default function EmployeePortalPage() {
                   <p className="mt-1">
                     Days shown are <strong>approved</strong> leave used this calendar year against{" "}
                     <strong>the caps configured for your company</strong> (annual {entitlements.annual}, sick pool{" "}
-                    {entitlements.sick}, emergency {entitlements.emergency}) — not a full legal calculation. Omani law allows longer medically
+                    {entitlements.sick}, emergency {entitlements.emergency}) â€” not a full legal calculation. Omani law allows longer medically
                     certified sick leave with tiered pay; treat the sick figure as a display limit unless HR confirms
                     otherwise.
                   </p>
@@ -3224,7 +3226,7 @@ export default function EmployeePortalPage() {
             )}
           </TabsContent>
 
-          {/* â•â• PAYROLL TAB â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
+          {/* Ã¢â€¢ÂÃ¢â€¢Â PAYROLL TAB Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */}
           <TabsContent value="payroll" className="mt-4 space-y-4">
             {payrollLoading ? (
               <div className="space-y-2">{[1, 2, 3].map((i) => <Skeleton key={i} className="h-20" />)}</div>
@@ -3293,7 +3295,7 @@ export default function EmployeePortalPage() {
                         <p className="text-xs text-muted-foreground mt-0.5">
                           Basic: {p.currency ?? "OMR"} {Number(p.basicSalary).toFixed(2)}
                           {Number(p.allowances) > 0 && ` + ${Number(p.allowances).toFixed(2)}`}
-                          {Number(p.deductions) > 0 && ` âˆ’ ${Number(p.deductions).toFixed(2)}`}
+                          {Number(p.deductions) > 0 && ` Ã¢Ë†â€™ ${Number(p.deductions).toFixed(2)}`}
                         </p>
                       </div>
                       <div className="text-right">
@@ -3309,7 +3311,7 @@ export default function EmployeePortalPage() {
             )}
           </TabsContent>
 
-          {/* â•â• TASKS TAB — grouped: Today / Upcoming / Completed â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
+          {/* Ã¢â€¢ÂÃ¢â€¢Â TASKS TAB â€” grouped: Today / Upcoming / Completed Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */}
           <TabsContent id="portal-tasks" value="tasks" className="mt-0 space-y-4 scroll-mt-24 focus-visible:outline-none">
             <div
               className="flex items-stretch justify-between gap-2 rounded-xl border border-border/70 bg-muted/15 px-3 py-2.5 text-center sm:px-4"
@@ -3447,7 +3449,7 @@ export default function EmployeePortalPage() {
                 <AlertDialogHeader>
                   <AlertDialogTitle>Mark complete?</AlertDialogTitle>
                   <AlertDialogDescription>
-                    Only if the work is done — HR sees this in Task Manager.
+                    Only if the work is done â€” HR sees this in Task Manager.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
@@ -3493,7 +3495,7 @@ export default function EmployeePortalPage() {
             )}
           </TabsContent>
 
-          {/* â•â• DOCUMENTS TAB â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
+          {/* Ã¢â€¢ÂÃ¢â€¢Â DOCUMENTS TAB Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */}
           <TabsContent id="portal-documents" value="documents" className="mt-4 space-y-4 scroll-mt-24">
             {/* Expiry alerts */}
             {expiringDocs.length > 0 && (
@@ -3502,7 +3504,7 @@ export default function EmployeePortalPage() {
                   <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400">
                     <AlertTriangle className="w-4 h-4 shrink-0" />
                     <p className="text-sm font-medium">
-                      {expiringDocs.length} document{expiringDocs.length > 1 ? "s" : ""} expiring soon — contact HR to renew
+                      {expiringDocs.length} document{expiringDocs.length > 1 ? "s" : ""} expiring soon â€” contact HR to renew
                     </p>
                   </div>
                 </CardContent>
@@ -3517,7 +3519,7 @@ export default function EmployeePortalPage() {
                 <p className="font-medium">No documents on file</p>
                 <p className="text-sm mt-1">Contact HR to upload your documents</p>
                 <div className="mt-4 p-3 bg-muted/30 rounded-lg text-xs text-left max-w-md mx-auto space-y-1">
-                  <p className="font-medium text-foreground">Same vault as HR — documents appear here when uploaded to your file</p>
+                  <p className="font-medium text-foreground">Same vault as HR â€” documents appear here when uploaded to your file</p>
                   <p className="text-muted-foreground mt-1">Examples: passport, visa, resident card, civil ID, work permit certificate, contract, medical, photo.</p>
                 </div>
               </div>
@@ -3541,7 +3543,7 @@ export default function EmployeePortalPage() {
                               {doc.expiresAt && (
                                 <p className={`text-xs mt-0.5 flex items-center gap-1 ${expired ? "text-red-600 font-medium" : expiringSoon ? "text-amber-600" : "text-muted-foreground"}`}>
                                   <Clock className="w-3 h-3" />
-                                  {expired ? `Expired ${Math.abs(days!)} days ago` : days === 0 ? "Expires today!" : `Expires in ${days} days — ${formatDate(doc.expiresAt)}`}
+                                  {expired ? `Expired ${Math.abs(days!)} days ago` : days === 0 ? "Expires today!" : `Expires in ${days} days â€” ${formatDate(doc.expiresAt)}`}
                                 </p>
                               )}
                             </div>
@@ -3570,7 +3572,7 @@ export default function EmployeePortalPage() {
             )}
           </TabsContent>
 
-          {/* â•â• PROFILE TAB â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
+          {/* Ã¢â€¢ÂÃ¢â€¢Â PROFILE TAB Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */}
           <TabsContent value="profile" className="mt-0 focus-visible:outline-none">
             <EmployeeProfileTab
               emp={emp}
@@ -3592,7 +3594,7 @@ export default function EmployeePortalPage() {
             />
           </TabsContent>
 
-          {/* â•â• REQUESTS TAB â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
+          {/* Ã¢â€¢ÂÃ¢â€¢Â REQUESTS TAB Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */}
           <TabsContent value="requests" className="mt-0 space-y-3 focus-visible:outline-none">
             <div className="space-y-2">
               <p className="px-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">New</p>
@@ -3625,7 +3627,7 @@ export default function EmployeePortalPage() {
                   <ArrowLeftRight className="h-4 w-4 text-primary" />
                   History
                 </h2>
-                <p className="text-[11px] text-muted-foreground">Calendar · list</p>
+                <p className="text-[11px] text-muted-foreground">Calendar Â· list</p>
               </div>
               <div className="flex w-full overflow-hidden rounded-md border sm:w-auto" role="tablist" aria-label="Request view">
                 <button
@@ -3672,7 +3674,7 @@ export default function EmployeePortalPage() {
                 onNewRequest={() => setShowShiftRequestDialog(true)}
               />
             ) : (
-              /* â”€â”€ List View â”€â”€ */
+              /* Ã¢â€â‚¬Ã¢â€â‚¬ List View Ã¢â€â‚¬Ã¢â€â‚¬ */
               <div className="space-y-3">
                 {(() => {
                   const allReqs = (myShiftRequests ?? []) as any[];
@@ -3714,11 +3716,11 @@ export default function EmployeePortalPage() {
                                 </span>
                               </div>
                               <p className="text-xs text-muted-foreground mt-1">
-                                {req.requestedDate}{req.requestedEndDate && req.requestedEndDate !== req.requestedDate ? ` â†’ ${req.requestedEndDate}` : ""}
+                                {req.requestedDate}{req.requestedEndDate && req.requestedEndDate !== req.requestedDate ? ` Ã¢â€ â€™ ${req.requestedEndDate}` : ""}
                                 {req.requestedTime ? ` at ${req.requestedTime}` : ""}
                               </p>
                               <p className="text-xs mt-1">{req.reason}</p>
-                              {ps && <p className="text-xs text-primary mt-0.5">Preferred: {ps.name} ({ps.startTime}–{ps.endTime})</p>}
+                              {ps && <p className="text-xs text-primary mt-0.5">Preferred: {ps.name} ({ps.startTime}â€“{ps.endTime})</p>}
                               {req.adminNotes && (
                                 <p className="text-xs mt-1 italic text-muted-foreground">HR note: {req.adminNotes}</p>
                               )}
@@ -3742,7 +3744,7 @@ export default function EmployeePortalPage() {
             )}
           </TabsContent>
 
-          {/* â•â• KPI TAB â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
+          {/* Ã¢â€¢ÂÃ¢â€¢Â KPI TAB Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */}
           <TabsContent value="kpi" className="mt-4 space-y-4">
             {/* Header */}
             <div className="flex items-center justify-between flex-wrap gap-2">
@@ -3856,7 +3858,7 @@ export default function EmployeePortalPage() {
                             Commission: {t.commissionType === "percentage"
                               ? `${t.commissionRate}% of value`
                               : `${t.currency ?? "OMR"} ${t.commissionRate} per unit`
-                            } · Earned: <span className="font-medium text-amber-600">{t.currency ?? "OMR"} {Number(item.commissionEarned ?? 0).toFixed(3)}</span>
+                            } Â· Earned: <span className="font-medium text-amber-600">{t.currency ?? "OMR"} {Number(item.commissionEarned ?? 0).toFixed(3)}</span>
                           </p>
                         )}
                       </div>
@@ -3929,8 +3931,8 @@ export default function EmployeePortalPage() {
                             <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">{log.metricType?.replace(/_/g, " ")}</span>
                           </div>
                           <p className="text-xs text-muted-foreground">
-                            {new Date(log.logDate).toLocaleDateString("en-GB")} · Value: <span className="font-semibold text-primary">{Number(log.valueAchieved ?? 0).toLocaleString()}</span>
-                            {log.clientName ? ` · ${log.clientName}` : ""}
+                            {new Date(log.logDate).toLocaleDateString("en-GB")} Â· Value: <span className="font-semibold text-primary">{Number(log.valueAchieved ?? 0).toLocaleString()}</span>
+                            {log.clientName ? ` Â· ${log.clientName}` : ""}
                           </p>
                           {log.notes && <p className="text-xs text-muted-foreground italic mt-0.5">{log.notes}</p>}
                         </div>
@@ -3942,7 +3944,7 @@ export default function EmployeePortalPage() {
             </Card>
            </TabsContent>
 
-          {/* â•â• EXPENSE CLAIMS TAB â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
+          {/* Ã¢â€¢ÂÃ¢â€¢Â EXPENSE CLAIMS TAB Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */}
           <TabsContent value="expenses" className="mt-4 space-y-4">
             <div className="flex items-center justify-between flex-wrap gap-2">
               <div>
@@ -4015,7 +4017,7 @@ export default function EmployeePortalPage() {
             </Card>
           </TabsContent>
 
-          {/* â•â• WORK LOG TAB â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
+          {/* Ã¢â€¢ÂÃ¢â€¢Â WORK LOG TAB Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */}
           <TabsContent value="worklog" className="mt-4 space-y-4">
             <div className="flex items-center justify-between flex-wrap gap-2">
               <div>
@@ -4085,11 +4087,11 @@ export default function EmployeePortalPage() {
                             </div>
                             <p className="text-xs text-muted-foreground mt-0.5">{log.taskDescription}</p>
                             {log.startTime && log.endTime && (
-                              <p className="text-xs text-muted-foreground">{log.startTime} – {log.endTime}</p>
+                              <p className="text-xs text-muted-foreground">{log.startTime} â€“ {log.endTime}</p>
                             )}
                           </div>
                           <div className="text-right shrink-0">
-                            <p className="font-semibold text-sm text-primary">{log.hoursWorked ? `${log.hoursWorked}h` : "—"}</p>
+                            <p className="font-semibold text-sm text-primary">{log.hoursWorked ? `${log.hoursWorked}h` : "â€”"}</p>
                           </div>
                         </div>
                       </div>
@@ -4100,7 +4102,7 @@ export default function EmployeePortalPage() {
             </Card>
           </TabsContent>
 
-          {/* â•â• TRAINING TAB â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
+          {/* Ã¢â€¢ÂÃ¢â€¢Â TRAINING TAB Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */}
           <TabsContent value="training" className="mt-4 space-y-4">
             <div className="flex items-center justify-between flex-wrap gap-2">
               <div>
@@ -4181,7 +4183,7 @@ export default function EmployeePortalPage() {
             )}
           </TabsContent>
 
-          {/* â•â• REVIEWS TAB â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
+          {/* Ã¢â€¢ÂÃ¢â€¢Â REVIEWS TAB Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */}
           <TabsContent value="reviews" className="mt-4 space-y-4">
             <div className="flex items-center justify-between flex-wrap gap-2">
               <div>
@@ -4277,7 +4279,7 @@ export default function EmployeePortalPage() {
         requestBadge={pendingShiftRequestsCount}
       />
 
-      {/* â”€â”€ Self-Review Dialog â”€â”€ */}
+      {/* Ã¢â€â‚¬Ã¢â€â‚¬ Self-Review Dialog Ã¢â€â‚¬Ã¢â€â‚¬ */}
       <Dialog open={showReviewDialog} onOpenChange={setShowReviewDialog}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader><DialogTitle>Submit Self-Review</DialogTitle></DialogHeader>
@@ -4287,7 +4289,7 @@ export default function EmployeePortalPage() {
               <Input placeholder="e.g. Q1 2026, Jan-Mar 2026" value={reviewPeriod} onChange={(e) => setReviewPeriod(e.target.value)} />
             </div>
             <div className="space-y-1.5">
-              <Label>Self Rating (1–5)</Label>
+              <Label>Self Rating (1â€“5)</Label>
               <div className="flex gap-2">
                 {[1,2,3,4,5].map(i => (
                   <button
@@ -4323,7 +4325,7 @@ export default function EmployeePortalPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      {/* â”€â”€ Leave Request Dialog â”€â”€ */}
+      {/* Ã¢â€â‚¬Ã¢â€â‚¬ Leave Request Dialog Ã¢â€â‚¬Ã¢â€â‚¬ */}
       <Dialog open={showLeaveDialog} onOpenChange={setShowLeaveDialog}>
         <DialogContent
           className="sm:max-w-md"
@@ -4337,7 +4339,7 @@ export default function EmployeePortalPage() {
           <DialogHeader>
             <DialogTitle>Submit Leave Request</DialogTitle>
             <DialogDescription id="employee-leave-dialog-desc">
-              Pick type and dates — HR confirms by notification.
+              Pick type and dates â€” HR confirms by notification.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
@@ -4418,7 +4420,7 @@ export default function EmployeePortalPage() {
         </DialogContent>
       </Dialog>
 
-      {/* â”€â”€ Notifications Panel â”€â”€ */}
+      {/* Ã¢â€â‚¬Ã¢â€â‚¬ Notifications Panel Ã¢â€â‚¬Ã¢â€â‚¬ */}
       <Dialog open={showNotifications} onOpenChange={setShowNotifications}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -4465,7 +4467,7 @@ export default function EmployeePortalPage() {
         </DialogContent>
       </Dialog>
 
-      {/* â”€â”€ Shift Change / Time Off / HR Request Dialog (same patterns as leave) â”€â”€ */}
+      {/* Ã¢â€â‚¬Ã¢â€â‚¬ Shift Change / Time Off / HR Request Dialog (same patterns as leave) Ã¢â€â‚¬Ã¢â€â‚¬ */}
       <Dialog
         open={showShiftRequestDialog}
         onOpenChange={(open) => {
@@ -4485,7 +4487,7 @@ export default function EmployeePortalPage() {
           <DialogHeader>
             <DialogTitle>Submit HR request</DialogTitle>
             <DialogDescription id="employee-shift-request-dialog-desc">
-              Choose the request type, required dates or time, and a short reason — HR confirms by notification.
+              Choose the request type, required dates or time, and a short reason â€” HR confirms by notification.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
@@ -4601,7 +4603,7 @@ export default function EmployeePortalPage() {
                       aria-required
                       onChange={(e) => setShiftReqTime(e.target.value)}
                     />
-                    <p className="text-xs text-muted-foreground">Use the time picker — same timezone as your schedule.</p>
+                    <p className="text-xs text-muted-foreground">Use the time picker â€” same timezone as your schedule.</p>
                   </div>
                 )}
               </div>
@@ -4615,18 +4617,18 @@ export default function EmployeePortalPage() {
                   onValueChange={(v) => setShiftPreferredShiftId(v === "__none__" ? "" : v)}
                 >
                   <SelectTrigger id="shift-req-preferred" className="min-h-11 w-full min-w-0 touch-manipulation">
-                    <SelectValue placeholder="No preference — HR will propose" />
+                    <SelectValue placeholder="No preference â€” HR will propose" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__none__">No preference</SelectItem>
                     {(shiftTemplatesList ?? []).map((s: any) => (
                       <SelectItem key={s.id} value={String(s.id)}>
-                        {s.name} ({s.startTime}–{s.endTime})
+                        {s.name} ({s.startTime}â€“{s.endTime})
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-muted-foreground">Optional — leave blank if you want HR to suggest options.</p>
+                <p className="text-xs text-muted-foreground">Optional â€” leave blank if you want HR to suggest options.</p>
               </div>
             )}
 
@@ -4658,7 +4660,7 @@ export default function EmployeePortalPage() {
 
             <div className="space-y-1.5">
               <Label htmlFor="shift-req-attachment-input">Supporting document (optional)</Label>
-              <p className="text-xs text-muted-foreground">PDF or image, max 5 MB — e.g. appointment letter or ticket.</p>
+              <p className="text-xs text-muted-foreground">PDF or image, max 5 MB â€” e.g. appointment letter or ticket.</p>
               <div>
                 {shiftReqAttachmentUrl ? (
                   <div className="flex min-h-11 items-center gap-2 rounded-lg border border-green-200 bg-green-50 p-2 dark:border-green-900/50 dark:bg-green-950/20">
@@ -4772,7 +4774,7 @@ export default function EmployeePortalPage() {
         </DialogContent>
       </Dialog>
 
-      {/* â”€â”€ Log KPI Activity Dialog â”€â”€ */}
+      {/* Ã¢â€â‚¬Ã¢â€â‚¬ Log KPI Activity Dialog Ã¢â€â‚¬Ã¢â€â‚¬ */}
       <Dialog open={showLogActivityDialog} onOpenChange={(o) => {
         if (!o) { setShowLogActivityDialog(false); setLogValue(""); setLogNote(""); setLogClientName(""); }
       }}>
@@ -4863,7 +4865,7 @@ export default function EmployeePortalPage() {
         </DialogContent>
       </Dialog>
 
-      {/* â”€â”€ Expense Claim Dialog â”€â”€ */}
+      {/* Ã¢â€â‚¬Ã¢â€â‚¬ Expense Claim Dialog Ã¢â€â‚¬Ã¢â€â‚¬ */}
       <Dialog open={showExpenseDialog} onOpenChange={setShowExpenseDialog}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -4931,7 +4933,7 @@ export default function EmployeePortalPage() {
         </DialogContent>
       </Dialog>
 
-      {/* â”€â”€ Work Log Dialog â”€â”€ */}
+      {/* Ã¢â€â‚¬Ã¢â€â‚¬ Work Log Dialog Ã¢â€â‚¬Ã¢â€â‚¬ */}
       <Dialog open={showWorkLogDialog} onOpenChange={setShowWorkLogDialog}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>

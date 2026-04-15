@@ -1,4 +1,4 @@
-import { useAuth } from "@/_core/hooks/useAuth";
+﻿import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { getLoginUrl } from "@/const";
@@ -32,6 +32,7 @@ import {
   Sparkles,
   LayoutGrid,
 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 const LOGO_SRC = "/smartpro-logo.png";
 
@@ -40,7 +41,7 @@ const MODULES = [
     icon: <Building2 size={24} />,
     color: "bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-200",
     title: "Sanad Office Management",
-    desc: "Run government service centres across Oman — applications, staff, SLAs, and performance in one place.",
+    desc: "Run government service centres across Oman â€” applications, staff, SLAs, and performance in one place.",
     tag: "Government",
   },
   {
@@ -191,7 +192,7 @@ const TESTIMONIALS = [
     name: "Fatima Al-Harthi",
     role: "Operations Manager, Gulf PRO Services",
     company: "Ruwi, Muscat",
-    text: "Sanad office management is exactly what we needed — real-time visibility across every centre we run.",
+    text: "Sanad office management is exactly what we needed â€” real-time visibility across every centre we run.",
     stars: 5,
   },
   {
@@ -206,7 +207,7 @@ const TESTIMONIALS = [
 const FAQS = [
   {
     q: "Is Smart PRO compliant with Oman labour law and PASI rules?",
-    a: "Yes. The platform is built for Oman's framework — Ministry of Labour filings, PASI contributions, WPS salary transfers, and Omanisation tracking are first-class.",
+    a: "Yes. The platform is built for Oman's framework â€” Ministry of Labour filings, PASI contributions, WPS salary transfers, and Omanisation tracking are first-class.",
   },
   {
     q: "Can we manage multiple companies or branches?",
@@ -227,13 +228,14 @@ const FAQS = [
 ];
 
 export default function Home() {
+  const { t } = useTranslation("common");
   const { isAuthenticated, loading } = useAuth();
 
   if (loading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-3">
         <div className="h-12 w-12 rounded-2xl border-2 border-[var(--smartpro-red)] border-t-transparent animate-spin" aria-hidden />
-        <p className="text-sm text-muted-foreground">Loading…</p>
+        <p className="text-sm text-muted-foreground">Loadingâ€¦</p>
       </div>
     );
   }
@@ -249,7 +251,7 @@ export default function Home() {
           <Link href="/" className="flex items-center gap-3 min-w-0">
             <img
               src={LOGO_SRC}
-              alt="Smart PRO — one-station business solutions"
+              alt="Smart PRO â€” one-station business solutions"
               className="h-11 w-auto object-contain shrink-0"
               width={180}
               height={44}
@@ -430,7 +432,7 @@ export default function Home() {
                 Everything your business runs on
               </h2>
               <p className="text-muted-foreground max-w-2xl mx-auto">
-                From front-line Sanad operations to payroll and client portals — Smart PRO connects the
+                From front-line Sanad operations to payroll and client portals â€” Smart PRO connects the
                 modules teams use every day.
               </p>
             </div>
@@ -447,7 +449,7 @@ export default function Home() {
           </div>
         </section>
 
-        {/* ── Attract / Convert / Retain Features ── */}
+        {/* â”€â”€ Attract / Convert / Retain Features â”€â”€ */}
         <section id="features" className="py-24 bg-background">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center mb-16">
@@ -455,7 +457,7 @@ export default function Home() {
                 How SmartPRO works for you
               </Badge>
               <h2 className="text-3xl sm:text-4xl font-black text-foreground mb-4 leading-tight">
-                Attract, convert, and retain clients —{" "}
+                Attract, convert, and retain clients â€”{" "}
                 <span className="bg-clip-text text-transparent bg-gradient-to-r from-[var(--smartpro-red)] to-[var(--smartpro-brand-green)]">
                   all in one platform
                 </span>
@@ -475,7 +477,7 @@ export default function Home() {
                 <div className="text-xs font-bold uppercase tracking-widest text-red-600 dark:text-red-400 mb-2">Attract</div>
                 <h3 className="text-xl font-bold text-foreground mb-3">Make your services discoverable</h3>
                 <p className="text-muted-foreground text-sm leading-relaxed mb-6">
-                  Put your business in front of the right clients at the right time — through the SmartPRO marketplace, a polished client portal, and SEO-ready service listings.
+                  Put your business in front of the right clients at the right time â€” through the SmartPRO marketplace, a polished client portal, and SEO-ready service listings.
                 </p>
                 <ul className="space-y-3">
                   {[
@@ -514,7 +516,7 @@ export default function Home() {
                   {[
                     { icon: <Users size={15} />, title: "CRM & sales pipeline", desc: "Track every lead from first touch to closed deal with stage-based pipeline views and activity logs." },
                     { icon: <FileText size={15} />, title: "AI-generated proposals", desc: "Create professional, branded proposals and contracts in seconds using SmartPRO's LLM engine." },
-                    { icon: <CheckCircle2 size={15} />, title: "Contract e-signature", desc: "Send contracts for signature directly from the platform — no third-party tools needed." },
+                    { icon: <CheckCircle2 size={15} />, title: "Contract e-signature", desc: "Send contracts for signature directly from the platform â€” no third-party tools needed." },
                     { icon: <Banknote size={15} />, title: "Instant invoicing", desc: "Auto-generate invoices from accepted proposals with payment terms, VAT, and due-date tracking." },
                   ].map((f) => (
                     <li key={f.title} className="flex gap-3">
@@ -541,14 +543,14 @@ export default function Home() {
                 <div className="text-xs font-bold uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-2">Retain</div>
                 <h3 className="text-xl font-bold text-foreground mb-3">Keep clients engaged and coming back</h3>
                 <p className="text-muted-foreground text-sm leading-relaxed mb-6">
-                  A dedicated client portal, proactive renewal alerts, and performance dashboards give clients full visibility — and give you the data to deliver exceptional service every time.
+                  A dedicated client portal, proactive renewal alerts, and performance dashboards give clients full visibility â€” and give you the data to deliver exceptional service every time.
                 </p>
                 <ul className="space-y-3">
                   {[
-                    { icon: <LayoutGrid size={15} />, title: "Client self-service portal", desc: "Clients log in to view their contracts, visa status, payroll docs, and open cases — reducing support calls." },
+                    { icon: <LayoutGrid size={15} />, title: "Client self-service portal", desc: "Clients log in to view their contracts, visa status, payroll docs, and open cases â€” reducing support calls." },
                     { icon: <CalendarClock size={15} />, title: "Proactive renewal reminders", desc: "Automated alerts for visa, permit, and contract renewals keep clients compliant and loyal." },
                     { icon: <ClipboardList size={15} />, title: "Service delivery tracking", desc: "Real-time case status and SLA progress visible to both your team and the client." },
-                    { icon: <Sparkles size={15} />, title: "Performance reporting", desc: "Monthly summary reports show clients the value you deliver — reducing churn and enabling upsells." },
+                    { icon: <Sparkles size={15} />, title: "Performance reporting", desc: "Monthly summary reports show clients the value you deliver â€” reducing churn and enabling upsells." },
                   ].map((f) => (
                     <li key={f.title} className="flex gap-3">
                       <div className="w-6 h-6 rounded-md bg-blue-100 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 flex items-center justify-center shrink-0 mt-0.5">{f.icon}</div>
@@ -571,7 +573,7 @@ export default function Home() {
             <div className="rounded-2xl bg-gradient-to-r from-[var(--smartpro-red)] to-[var(--smartpro-brand-green)] p-px">
               <div className="rounded-2xl bg-background px-8 py-6 grid grid-cols-2 sm:grid-cols-4 gap-6 text-center">
                 {[
-                  { value: "3×", label: "Faster client onboarding" },
+                  { value: "3Ã—", label: "Faster client onboarding" },
                   { value: "40%", label: "Reduction in manual follow-ups" },
                   { value: "92%", label: "Client retention rate" },
                   { value: "< 24h", label: "Average proposal turnaround" },
@@ -599,7 +601,7 @@ export default function Home() {
                 Designed for real operating models
               </h2>
               <p className="text-muted-foreground max-w-2xl mx-auto">
-                Representative areas across the product — each area is permission-aware for your team.
+                Representative areas across the product â€” each area is permission-aware for your team.
               </p>
             </div>
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -641,7 +643,7 @@ export default function Home() {
                 </h2>
                 <p className="text-muted-foreground mb-8 leading-relaxed">
                   Unlike generic HR suites, Smart PRO encodes PASI, Ministry of Labour, Omanisation, Sanad workflows,
-                  and WPS payroll patterns — so teams spend less time on spreadsheets and more on outcomes.
+                  and WPS payroll patterns â€” so teams spend less time on spreadsheets and more on outcomes.
                 </p>
                 <div className="space-y-4">
                   {[
@@ -844,7 +846,7 @@ export default function Home() {
                 />
               </div>
               <p className="text-xs leading-relaxed">
-                The enterprise hub for Oman and GCC business services — compliance, HR, payroll, and client
+                The enterprise hub for Oman and GCC business services â€” compliance, HR, payroll, and client
                 delivery in one place.
               </p>
             </div>
@@ -907,7 +909,7 @@ export default function Home() {
             </div>
           </div>
           <div className="border-t border-white/10 pt-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
-            <span>© 2026 Smart PRO. All rights reserved.</span>
+            <span>Â© 2026 Smart PRO. All rights reserved.</span>
             <div className="flex gap-4">
               <a href="#" className="hover:text-white transition-colors">
                 Privacy

@@ -1,4 +1,4 @@
-import { trpc } from "@/lib/trpc";
+﻿import { trpc } from "@/lib/trpc";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { useState } from "react";
 import {
@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
+import { useTranslation } from "react-i18next";
 
 const planIcons: Record<string, React.ReactNode> = {
   basic: <Zap size={20} />,
@@ -33,6 +34,7 @@ const statusColors: Record<string, string> = {
 };
 
 export default function SubscriptionsPage() {
+  const { t } = useTranslation("common");
   const { activeCompanyId } = useActiveCompany();
   const companyScope = { companyId: activeCompanyId ?? undefined };
   const [billingCycle, setBillingCycle] = useState<"monthly" | "annual">("monthly");
@@ -105,7 +107,7 @@ export default function SubscriptionsPage() {
           <TabsTrigger value="features">Feature Access</TabsTrigger>
         </TabsList>
 
-        {/* ── Plans Tab ── */}
+        {/* â”€â”€ Plans Tab â”€â”€ */}
         <TabsContent value="plans" className="mt-4 space-y-5">
           {/* Current Plan Banner */}
           {currentSub && (
@@ -117,7 +119,7 @@ export default function SubscriptionsPage() {
                     <p className="text-lg font-bold capitalize mt-0.5">{currentSub.plan?.name ?? "Free"}</p>
                     <p className="text-xs text-muted-foreground mt-0.5">
                       {currentSub.billingCycle === "monthly" ? "Billed monthly" : "Billed annually"}
-                      {currentSub.currentPeriodEnd && ` · Renews ${fmtDate(currentSub.currentPeriodEnd)}`}
+                      {currentSub.currentPeriodEnd && ` Â· Renews ${fmtDate(currentSub.currentPeriodEnd)}`}
                     </p>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
@@ -270,7 +272,7 @@ export default function SubscriptionsPage() {
                             {val === true ? (
                               <Check size={16} className="mx-auto text-green-600" />
                             ) : val === false ? (
-                              <span className="text-muted-foreground text-xs">—</span>
+                              <span className="text-muted-foreground text-xs">â€”</span>
                             ) : (
                               <span className="text-xs text-muted-foreground">{val}</span>
                             )}
@@ -285,7 +287,7 @@ export default function SubscriptionsPage() {
           </Card>
         </TabsContent>
 
-        {/* ── Invoices Tab ── */}
+        {/* â”€â”€ Invoices Tab â”€â”€ */}
         <TabsContent value="invoices" className="mt-4 space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-base font-semibold">Billing History</h2>
@@ -341,7 +343,7 @@ export default function SubscriptionsPage() {
                       <td className="py-2.5 px-3 text-muted-foreground">{fmtDate(inv.createdAt)}</td>
                       <td className="py-2.5 px-3 text-right font-semibold">{inv.currency} {Number(inv.amount).toFixed(3)}</td>
                       <td className="py-2.5 px-3 text-muted-foreground">
-                        {inv.dueDate ? fmtDate(inv.dueDate) : "—"}
+                        {inv.dueDate ? fmtDate(inv.dueDate) : "â€”"}
                       </td>
                       <td className="py-2.5 px-3 text-center">
                         <Badge className={`text-[10px] capitalize ${statusColors[inv.status] ?? "bg-gray-100 text-gray-600"}`} variant="outline">
@@ -374,7 +376,7 @@ export default function SubscriptionsPage() {
           )}
         </TabsContent>
 
-        {/* ── Feature Access Tab ── */}
+        {/* â”€â”€ Feature Access Tab â”€â”€ */}
         <TabsContent value="features" className="mt-4 space-y-4">
           <div>
             <h2 className="text-base font-semibold mb-1">Your Plan Features</h2>
@@ -394,7 +396,7 @@ export default function SubscriptionsPage() {
                     <div>
                       <p className="font-semibold capitalize">{currentSub.plan.name} Plan</p>
                       <p className="text-xs text-muted-foreground">
-                        {currentSub.plan.maxUsers} users · {currentSub.plan.maxContracts} contracts · {((currentSub.plan.maxStorage ?? 5120) / 1024).toFixed(0)} GB storage
+                        {currentSub.plan.maxUsers} users Â· {currentSub.plan.maxContracts} contracts Â· {((currentSub.plan.maxStorage ?? 5120) / 1024).toFixed(0)} GB storage
                       </p>
                     </div>
                   </div>
@@ -411,10 +413,10 @@ export default function SubscriptionsPage() {
 
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 {[
-                  { label: "Max Users", value: currentSub.plan.maxUsers, icon: "👥" },
-                  { label: "Max Contracts", value: currentSub.plan.maxContracts, icon: "📄" },
-                  { label: "Storage", value: `${((currentSub.plan.maxStorage ?? 5120) / 1024).toFixed(0)} GB`, icon: "💾" },
-                  { label: "Plan Status", value: currentSub.status, icon: "✅" },
+                  { label: "Max Users", value: currentSub.plan.maxUsers, icon: "ðŸ‘¥" },
+                  { label: "Max Contracts", value: currentSub.plan.maxContracts, icon: "ðŸ“„" },
+                  { label: "Storage", value: `${((currentSub.plan.maxStorage ?? 5120) / 1024).toFixed(0)} GB`, icon: "ðŸ’¾" },
+                  { label: "Plan Status", value: currentSub.status, icon: "âœ…" },
                 ].map((item) => (
                   <Card key={item.label}>
                     <CardContent className="p-3 text-center">

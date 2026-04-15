@@ -1,7 +1,7 @@
-import React, { useRef, useState } from "react";
+﻿import React, { useRef, useState } from "react";
 import { trpc, type RouterOutputs } from "@/lib/trpc";
 
-/** Server row shape for HR + access — avoids `as any` in canonical mapping (Phase 4.4). */
+/** Server row shape for HR + access â€” avoids `as any` in canonical mapping (Phase 4.4). */
 type EmployeeWithAccessRow = RouterOutputs["companies"]["employeesWithAccess"][number];
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
@@ -62,8 +62,9 @@ import {
 import { useLocation } from "wouter";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
+import { useTranslation } from "react-i18next";
 
-// ─── Role Configuration ───────────────────────────────────────────────────────
+// â”€â”€â”€ Role Configuration â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const ROLE_CONFIG: Record<string, {
   label: string;
@@ -75,7 +76,7 @@ const ROLE_CONFIG: Record<string, {
 }> = {
   company_admin: {
     label: "Owner / Admin",
-    description: "Full access to everything — all modules, all settings, team management",
+    description: "Full access to everything â€” all modules, all settings, team management",
     color: "text-orange-600",
     bgColor: "bg-orange-50 border-orange-200",
     icon: <Crown size={14} className="text-orange-500" />,
@@ -83,7 +84,7 @@ const ROLE_CONFIG: Record<string, {
   },
   hr_admin: {
     label: "HR Manager",
-    description: "Full access to all HR modules — employees, payroll, leave, attendance, letters, tasks",
+    description: "Full access to all HR modules â€” employees, payroll, leave, attendance, letters, tasks",
     color: "text-blue-600",
     bgColor: "bg-blue-50 border-blue-200",
     icon: <UserCheck size={14} className="text-blue-500" />,
@@ -99,7 +100,7 @@ const ROLE_CONFIG: Record<string, {
   },
   company_member: {
     label: "Staff / Employee",
-    description: "Access to Employee home only — their own attendance, tasks, leave, announcements",
+    description: "Access to Employee home only â€” their own attendance, tasks, leave, announcements",
     color: "text-gray-600",
     bgColor: "bg-gray-50 border-gray-200",
     icon: <Users size={14} className="text-gray-500" />,
@@ -115,7 +116,7 @@ const ROLE_CONFIG: Record<string, {
   },
   external_auditor: {
     label: "External Auditor",
-    description: "Limited read-only access — cannot see payroll, HR management, or admin pages",
+    description: "Limited read-only access â€” cannot see payroll, HR management, or admin pages",
     color: "text-yellow-600",
     bgColor: "bg-yellow-50 border-yellow-200",
     icon: <Shield size={14} className="text-yellow-500" />,
@@ -138,7 +139,7 @@ type CanonicalAccessState = "HR_ONLY" | "INVITED" | "ACTIVE" | "SUSPENDED";
 
 /**
  * Single source of team-access UI copy (Phase 4.3A / 4.4).
- * Do not hardcode stat, filter, badge, chip, or primary tab labels elsewhere — add a key here first.
+ * Do not hardcode stat, filter, badge, chip, or primary tab labels elsewhere â€” add a key here first.
  */
 const TA = {
   statTotalEmployees: "Total Employees",
@@ -160,7 +161,7 @@ const TA = {
   chipAccountNotLinked: "Account not linked",
   chipIdentityConflict: "Identity conflict",
   chipMissingEmail: "Missing email",
-  cardHrDirectoryTitle: "HR directory — access",
+  cardHrDirectoryTitle: "HR directory â€” access",
   tabActiveMembers: "Active Members",
   tabHrEmployees: "HR Employees",
   sectionActiveSystemLogins: "Active System Logins",
@@ -250,7 +251,7 @@ function derivePrimaryAction(input: {
   return input.flags?.missingEmail ? "NONE" : "GRANT_ACCESS";
 }
 
-/** HR Employees tab filter — canonical accessState plus a flag-based bucket (not email-based). */
+/** HR Employees tab filter â€” canonical accessState plus a flag-based bucket (not email-based). */
 export type EmployeeListFilter = "all" | CanonicalAccessState | "needs_attention";
 
 function employeeNeedsAttention(flags: { needsLink?: boolean; conflict?: boolean; missingEmail?: boolean } | null | undefined): boolean {
@@ -260,7 +261,7 @@ function employeeNeedsAttention(flags: { needsLink?: boolean; conflict?: boolean
 
 /**
  * HR list filter: uses canonical `accessState` and `needs_attention` (flags on the row).
- * Intentionally does not match by email — same rules as stat cards and Direct Access Only (memberId linkage).
+ * Intentionally does not match by email â€” same rules as stat cards and Direct Access Only (memberId linkage).
  */
 export function matchesEmployeeListFilter(
   emp: {
@@ -291,7 +292,7 @@ export function topIssueKeyToEmployeeFilter(key: string): EmployeeListFilter {
   return "needs_attention";
 }
 
-/** Phase 4.3B — human-readable conflict diagnostics (mirrors server `stateReason`). */
+/** Phase 4.3B â€” human-readable conflict diagnostics (mirrors server `stateReason`). */
 function getConflictReviewCopy(stateReason: string | null | undefined): {
   title: string;
   intro: string;
@@ -309,7 +310,7 @@ function getConflictReviewCopy(stateReason: string | null | undefined): {
           "Common after an email change on one side but not the other.",
         ],
         nextSteps: [
-          "Confirm the correct work email in HR → My Team.",
+          "Confirm the correct work email in HR â†’ My Team.",
           "If the right person already has access, use Link account to attach the correct login to this HR row.",
           "Revoke duplicate invites or memberships if someone was added twice.",
         ],
@@ -318,7 +319,7 @@ function getConflictReviewCopy(stateReason: string | null | undefined): {
       return {
         title: "Multiple memberships for the same person",
         intro: "We found more than one company membership that could apply to this employee.",
-        signals: ["Two or more member records overlap—SmartPRO cannot pick a single access row automatically."],
+        signals: ["Two or more member records overlapâ€”SmartPRO cannot pick a single access row automatically."],
         nextSteps: [
           "In Active Members, remove memberships that are clearly duplicates.",
           "Refresh this page, then use Link account if the HR row still does not match the surviving membership.",
@@ -411,7 +412,7 @@ function ConflictReviewDialogBody({
   );
 }
 
-// ─── Empty State ────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Empty State â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function EmptyEmployeesState({ totalEmployees }: { totalEmployees: number }) {
   const [, setLocation] = useLocation();
@@ -452,9 +453,10 @@ function EmptyEmployeesState({ totalEmployees }: { totalEmployees: number }) {
   );
 }
 
-// ─── Main Page ────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Main Page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export default function TeamAccessPage({ initialTab = "members" }: { initialTab?: "members" | "employees" | "invites" | "roles" } = {}) {
+  const { t } = useTranslation("common");
   const { user } = useAuth();
   const utils = trpc.useUtils();
   const { activeCompanyId } = useActiveCompany();
@@ -568,7 +570,7 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
       utils.companies.accessAnalyticsOverview.invalidate();
       utils.companies.members.invalidate();
       utils.auth.me.invalidate();
-      toast.success("Role updated — sidebar will refresh automatically");
+      toast.success("Role updated â€” sidebar will refresh automatically");
       setRoleChangeTarget(null);
     },
     onError: (err) => toast.error(err.message),
@@ -600,7 +602,7 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
       utils.companies.employeesWithAccess.invalidate();
       utils.companies.accessAnalyticsOverview.invalidate();
       utils.auth.me.invalidate();
-      toast.success("Role updated — sidebar will refresh automatically");
+      toast.success("Role updated â€” sidebar will refresh automatically");
       setMemberRoleTarget(null);
     },
     onError: (err) => toast.error(err.message),
@@ -645,11 +647,11 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
     };
   });
 
-  // Dev-only: surface partial API payloads early (skipped under Vitest — fixtures may omit accessState on purpose).
+  // Dev-only: surface partial API payloads early (skipped under Vitest â€” fixtures may omit accessState on purpose).
   if (import.meta.env.DEV && import.meta.env.MODE !== "test") {
     for (const row of canonicalEmployees) {
       if (row.accessState == null) {
-        console.warn("[TeamAccess] Missing accessState on employee row — check API rollout / resolver.", {
+        console.warn("[TeamAccess] Missing accessState on employee row â€” check API rollout / resolver.", {
           employeeId: row.employeeId,
           accessStatus: row.accessStatus,
         });
@@ -657,7 +659,7 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
     }
   }
 
-  // Filtered employees — with empty search, row counts match the corresponding stat / filter (see stat bar).
+  // Filtered employees â€” with empty search, row counts match the corresponding stat / filter (see stat bar).
   const filteredEmployees = canonicalEmployees.filter((emp) => {
     const name = `${emp.firstName} ${emp.lastName}`.toLowerCase();
     const matchSearch = !search || name.includes(search.toLowerCase()) || emp.email?.toLowerCase().includes(search.toLowerCase()) || emp.department?.toLowerCase().includes(search.toLowerCase());
@@ -672,7 +674,7 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
   const invited = canonicalEmployees.filter((e) => e.canonicalAccessState === "INVITED").length;
   const needsAttention = canonicalEmployees.filter((e) => employeeNeedsAttention(e.canonicalFlags)).length;
   const activeMembers = members.filter((m) => m.isActive);
-  /** HR rows that resolve to a company_members row — used to exclude those from “direct only” member counts. */
+  /** HR rows that resolve to a company_members row â€” used to exclude those from â€œdirect onlyâ€ member counts. */
   const linkedMemberIds = new Set(
     canonicalEmployees
       .map((e) => e.memberId)
@@ -715,7 +717,7 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Team Access & Roles</h1>
           <p className="text-sm text-gray-500 mt-1">
-            Manage who can log in to SmartPRO and what they can see. Add employees in HR → My Team first, then grant access here.
+            Manage who can log in to SmartPRO and what they can see. Add employees in HR â†’ My Team first, then grant access here.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -811,7 +813,7 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
         - Direct Access Only: active company members not referenced by any HR row (no employee.memberId match).
         - With Active Access: HR rows in canonical ACTIVE access state.
         - Needs Attention: rows with conflict / needsLink / missingEmail flags (memberId-based model; email drift may still surface here).
-        Clickable HR stats apply the same filter as the HR Employees dropdown (empty search → count matches visible rows).
+        Clickable HR stats apply the same filter as the HR Employees dropdown (empty search â†’ count matches visible rows).
       */}
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
         <button
@@ -909,7 +911,7 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
           <TabsTrigger value="employees" className="gap-2">
             <Users size={14} /> {TA.tabHrEmployees} ({totalEmployees})
           </TabsTrigger>
-          {/* Phase 4.3C (product): deliberate IA choice — keep this tab vs unify invites into a single access workspace. */}
+          {/* Phase 4.3C (product): deliberate IA choice â€” keep this tab vs unify invites into a single access workspace. */}
           {pendingInvitesList.length > 0 && (
             <TabsTrigger value="invites" className="gap-2">
               <Clock size={14} /> {TA.statPendingInvites} ({pendingInvitesList.length})
@@ -920,7 +922,7 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
           </TabsTrigger>
         </TabsList>
 
-        {/* ── Tab 1: All Employees ── */}
+        {/* â”€â”€ Tab 1: All Employees â”€â”€ */}
         <TabsContent value="employees">
           <Card ref={hrDirectoryRef}>
             <CardHeader className="pb-3">
@@ -1032,7 +1034,7 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
                           {emp.memberRole ? (
                             <RoleBadge role={emp.memberRole} />
                           ) : (
-                            <span className="text-xs text-gray-400">—</span>
+                            <span className="text-xs text-gray-400">â€”</span>
                           )}
                         </div>
 
@@ -1196,7 +1198,7 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
           </Card>
         </TabsContent>
 
-        {/* ── Tab 2: Active Logins ── */}
+        {/* â”€â”€ Tab 2: Active Logins â”€â”€ */}
         <TabsContent value="members">
           <Card>
             <CardHeader className="pb-3">
@@ -1213,7 +1215,7 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
                 <div className="py-8 text-center text-sm text-gray-400">Loading...</div>
               ) : activeMembers.length === 0 ? (
                 <div className="py-8 text-center text-sm text-gray-400">
-                  No active members yet. Add employees in HR → My Team, then grant them system access from the {TA.tabHrEmployees} tab.
+                  No active members yet. Add employees in HR â†’ My Team, then grant them system access from the {TA.tabHrEmployees} tab.
                 </div>
               ) : (
                 <div className="divide-y divide-gray-100">
@@ -1271,7 +1273,7 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
           </Card>
         </TabsContent>
 
-        {/* ── Tab 3: Role Guide ── */}
+        {/* â”€â”€ Tab 3: Role Guide â”€â”€ */}
         <TabsContent value="roles">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {Object.entries(ROLE_CONFIG).map(([key, config]) => (
@@ -1304,7 +1306,7 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
                   <p className="text-sm font-semibold text-blue-800 mb-1">How Access Works</p>
                   <div className="space-y-1.5 text-xs text-blue-700">
                     <p><strong>Step 1:</strong> Add employees in the HR module (My Team / Employees page)</p>
-                    <p><strong>Step 2:</strong> Come to this page → {TA.tabHrEmployees} tab → click &quot;Grant Access&quot; on any employee</p>
+                    <p><strong>Step 2:</strong> Come to this page â†’ {TA.tabHrEmployees} tab â†’ click &quot;Grant Access&quot; on any employee</p>
                     <p><strong>Step 3:</strong> Choose their role (Staff, HR Manager, Finance, etc.)</p>
                     <p><strong>Step 4:</strong> If they have a SmartPRO account (same email), they get access immediately. If not, an invite link is generated.</p>
                     <p><strong>Step 5:</strong> They log in at SmartPRO and see only what their role allows.</p>
@@ -1315,7 +1317,7 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
           </Card>
         </TabsContent>
 
-        {/* ── Tab: Pending Invites ── */}
+        {/* â”€â”€ Tab: Pending Invites â”€â”€ */}
         <TabsContent value="invites">
           <Card>
             <CardHeader className="pb-3">
@@ -1379,7 +1381,7 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
           </Card>
         </TabsContent>
       </Tabs>
-      {/* ── Multi-Company Access Dialog ── */}
+      {/* â”€â”€ Multi-Company Access Dialog â”€â”€ */}
       <Dialog open={!!multiGrantTarget} onOpenChange={(open) => { if (!open) { setMultiGrantTarget(null); setMultiGrantSelections({}); } }}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
@@ -1391,7 +1393,7 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
               Grant <strong>{multiGrantTarget?.name}</strong> access to multiple companies at once.
               Select which companies and choose a role for each.
               {!multiGrantTarget?.email && (
-                <span className="block mt-1 text-amber-600">⚠ This employee has no email address. Please update their profile first.</span>
+                <span className="block mt-1 text-amber-600">âš  This employee has no email address. Please update their profile first.</span>
               )}
             </DialogDescription>
           </DialogHeader>
@@ -1427,12 +1429,12 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="company_admin">Owner / Admin — Full access</SelectItem>
-                                <SelectItem value="hr_admin">HR Manager — HR modules</SelectItem>
-                                <SelectItem value="finance_admin">Finance Manager — Payroll & Finance</SelectItem>
-                                <SelectItem value="company_member">Staff / Employee — Employee home only</SelectItem>
-                                <SelectItem value="reviewer">Reviewer — Read-only</SelectItem>
-                                <SelectItem value="external_auditor">External Auditor — Limited read-only</SelectItem>
+                                <SelectItem value="company_admin">Owner / Admin â€” Full access</SelectItem>
+                                <SelectItem value="hr_admin">HR Manager â€” HR modules</SelectItem>
+                                <SelectItem value="finance_admin">Finance Manager â€” Payroll & Finance</SelectItem>
+                                <SelectItem value="company_member">Staff / Employee â€” Employee home only</SelectItem>
+                                <SelectItem value="reviewer">Reviewer â€” Read-only</SelectItem>
+                                <SelectItem value="external_auditor">External Auditor â€” Limited read-only</SelectItem>
                               </SelectContent>
                             </Select>
                           </div>
@@ -1466,7 +1468,7 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
         </DialogContent>
       </Dialog>
 
-      {/* ── Grant Access Dialog ── */}
+      {/* â”€â”€ Grant Access Dialog â”€â”€ */}
       <Dialog open={!!grantTarget} onOpenChange={(open) => { if (!open) setGrantTarget(null); }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -1479,7 +1481,7 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
               {grantTarget?.email ? (
                 <span className="block mt-1 text-gray-500">Email: {grantTarget.email}</span>
               ) : (
-                <span className="block mt-1 text-amber-600">⚠ This employee has no email address. Please update their profile first.</span>
+                <span className="block mt-1 text-amber-600">âš  This employee has no email address. Please update their profile first.</span>
               )}
             </DialogDescription>
           </DialogHeader>
@@ -1491,12 +1493,12 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="company_admin">Owner / Admin — Full access</SelectItem>
-                  <SelectItem value="hr_admin">HR Manager — HR modules</SelectItem>
-                  <SelectItem value="finance_admin">Finance Manager — Payroll & Finance</SelectItem>
-                  <SelectItem value="company_member">Staff / Employee — Employee home only</SelectItem>
-                  <SelectItem value="reviewer">Reviewer — Read-only</SelectItem>
-                  <SelectItem value="external_auditor">External Auditor — Limited read-only</SelectItem>
+                  <SelectItem value="company_admin">Owner / Admin â€” Full access</SelectItem>
+                  <SelectItem value="hr_admin">HR Manager â€” HR modules</SelectItem>
+                  <SelectItem value="finance_admin">Finance Manager â€” Payroll & Finance</SelectItem>
+                  <SelectItem value="company_member">Staff / Employee â€” Employee home only</SelectItem>
+                  <SelectItem value="reviewer">Reviewer â€” Read-only</SelectItem>
+                  <SelectItem value="external_auditor">External Auditor â€” Limited read-only</SelectItem>
                 </SelectContent>
               </Select>
               <p className="text-xs text-gray-500 mt-1.5">
@@ -1525,11 +1527,11 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
         </DialogContent>
       </Dialog>
 
-      {/* ── Change Role Dialog (Employee) ── */}
+      {/* â”€â”€ Change Role Dialog (Employee) â”€â”€ */}
       <Dialog open={!!roleChangeTarget} onOpenChange={(open) => { if (!open) setRoleChangeTarget(null); }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Change Role — {roleChangeTarget?.name}</DialogTitle>
+            <DialogTitle>Change Role â€” {roleChangeTarget?.name}</DialogTitle>
             <DialogDescription>
               Select a new role for this team member.
             </DialogDescription>
@@ -1565,11 +1567,11 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
         </DialogContent>
       </Dialog>
 
-      {/* ── Revoke Access Confirm ── */}
+      {/* â”€â”€ Revoke Access Confirm â”€â”€ */}
       <AlertDialog open={!!revokeTarget} onOpenChange={(open) => { if (!open) setRevokeTarget(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Revoke Access — {revokeTarget?.name}?</AlertDialogTitle>
+            <AlertDialogTitle>Revoke Access â€” {revokeTarget?.name}?</AlertDialogTitle>
             <AlertDialogDescription>
               This will prevent {revokeTarget?.name} from logging in to SmartPRO. Their HR data (payroll, attendance, leave) will not be deleted. You can restore access at any time.
             </AlertDialogDescription>
@@ -1589,7 +1591,7 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* ── Add by Email Dialog ── */}
+      {/* â”€â”€ Add by Email Dialog â”€â”€ */}
       <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -1641,11 +1643,11 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
         </DialogContent>
       </Dialog>
 
-      {/* ── Member Role Change Dialog ── */}
+      {/* â”€â”€ Member Role Change Dialog â”€â”€ */}
       <Dialog open={!!memberRoleTarget} onOpenChange={(open) => { if (!open) setMemberRoleTarget(null); }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Change Role — {memberRoleTarget?.name}</DialogTitle>
+            <DialogTitle>Change Role â€” {memberRoleTarget?.name}</DialogTitle>
           </DialogHeader>
           <div className="py-2">
             <Select value={memberNewRole} onValueChange={setMemberNewRole}>
@@ -1677,7 +1679,7 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
         </DialogContent>
       </Dialog>
 
-      {/* ── Conflict review (Phase 4.3B) — diagnostics only; no auto-merge. */}
+      {/* â”€â”€ Conflict review (Phase 4.3B) â€” diagnostics only; no auto-merge. */}
       <Dialog open={!!conflictReviewTarget} onOpenChange={(open) => { if (!open) setConflictReviewTarget(null); }}>
         <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
           {conflictReviewTarget && (
@@ -1695,13 +1697,13 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
         </DialogContent>
       </Dialog>
 
-      {/* ── Link Account Dialog ── */}
+      {/* â”€â”€ Link Account Dialog â”€â”€ */}
       <Dialog open={!!linkTarget} onOpenChange={(open) => { if (!open) { setLinkTarget(null); setLinkEmail(""); } }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <UserCheck size={18} className="text-purple-600" />
-              Link Account — {linkTarget?.name}
+              Link Account â€” {linkTarget?.name}
             </DialogTitle>
             <DialogDescription>
               Connects this HR employee row to the user account that signs in with the email below. Use when someone is
@@ -1724,7 +1726,7 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
               <p className="text-xs text-muted-foreground mt-1.5 leading-relaxed">
                 Requirements: (1) they have signed in to SmartPRO at least once with this email, and (2) they are already a
                 member of this company (invite accepted or Grant Access). Link Account only attaches their login to this
-                employee record—it does not add them to the company.
+                employee recordâ€”it does not add them to the company.
               </p>
               {linkMemberToEmployee.isError && (
                 <p className="text-sm text-destructive font-medium mt-2" role="alert">
@@ -1749,7 +1751,7 @@ export default function TeamAccessPage({ initialTab = "members" }: { initialTab?
         </DialogContent>
       </Dialog>
 
-      {/* ── Remove Member Confirm ── */}
+      {/* â”€â”€ Remove Member Confirm â”€â”€ */}
       <AlertDialog open={!!removeMemberTarget} onOpenChange={(open) => { if (!open) setRemoveMemberTarget(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>

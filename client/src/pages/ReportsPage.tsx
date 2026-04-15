@@ -1,4 +1,4 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
@@ -14,6 +14,7 @@ import {
   Loader2, FileBarChart, Receipt, UserCheck, AlertCircle
 } from "lucide-react";
 import { ContractKpiWidget } from "@/components/contracts/ContractKpiWidget";
+import { useTranslation } from "react-i18next";
 
 const MONTHS = [
   { value: 1, label: "January" }, { value: 2, label: "February" },
@@ -38,7 +39,7 @@ function downloadPdf(url: string, filename: string) {
   document.body.removeChild(a);
 }
 
-// ─── Billing Summary Report ───────────────────────────────────────────────────
+// â”€â”€â”€ Billing Summary Report â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function BillingReportCard() {
   const { activeCompanyId } = useActiveCompany();
   const [month, setMonth] = useState(currentMonth);
@@ -90,14 +91,14 @@ function BillingReportCard() {
           disabled={gen.isPending}
           onClick={() => gen.mutate({ month, year, companyId: activeCompanyId ?? undefined })}
         >
-          {gen.isPending ? <><Loader2 className="h-3 w-3 mr-1.5 animate-spin" />Generating…</> : <><Download className="h-3 w-3 mr-1.5" />Download PDF</>}
+          {gen.isPending ? <><Loader2 className="h-3 w-3 mr-1.5 animate-spin" />Generatingâ€¦</> : <><Download className="h-3 w-3 mr-1.5" />Download PDF</>}
         </Button>
       </CardContent>
     </Card>
   );
 }
 
-// ─── Payslip Report ───────────────────────────────────────────────────────────
+// â”€â”€â”€ Payslip Report â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function PayslipReportCard() {
   const { activeCompanyId } = useActiveCompany();
   const [month, setMonth] = useState(currentMonth);
@@ -133,11 +134,11 @@ function PayslipReportCard() {
         <div className="space-y-1.5">
           <Label className="text-xs">Payroll Run</Label>
           <Select value={runId} onValueChange={setRunId}>
-            <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select a run…" /></SelectTrigger>
+            <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select a runâ€¦" /></SelectTrigger>
             <SelectContent>
               {runs.map((r: any) => (
                 <SelectItem key={r.id} value={String(r.id)} className="text-xs">
-                  {MONTHS.find(m => m.value === r.periodMonth)?.label} {r.periodYear} — {r.status}
+                  {MONTHS.find(m => m.value === r.periodMonth)?.label} {r.periodYear} â€” {r.status}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -147,7 +148,7 @@ function PayslipReportCard() {
           <Label className="text-xs">Employee ID</Label>
           <Input
             className="h-8 text-xs"
-            placeholder="Enter employee ID…"
+            placeholder="Enter employee IDâ€¦"
             value={employeeId}
             onChange={(e) => setEmployeeId(e.target.value)}
           />
@@ -157,14 +158,14 @@ function PayslipReportCard() {
           disabled={gen.isPending || !runId || !employeeId}
           onClick={() => gen.mutate({ runId: Number(runId), employeeId: Number(employeeId), companyId: activeCompanyId ?? undefined })}
         >
-          {gen.isPending ? <><Loader2 className="h-3 w-3 mr-1.5 animate-spin" />Generating…</> : <><Download className="h-3 w-3 mr-1.5" />Download Payslip</>}
+          {gen.isPending ? <><Loader2 className="h-3 w-3 mr-1.5 animate-spin" />Generatingâ€¦</> : <><Download className="h-3 w-3 mr-1.5" />Download Payslip</>}
         </Button>
       </CardContent>
     </Card>
   );
 }
 
-// ─── Workforce Report ─────────────────────────────────────────────────────────
+// â”€â”€â”€ Workforce Report â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function WorkforceReportCard() {
   const { activeCompanyId } = useActiveCompany();
   const gen = trpc.reports.generateWorkforceReport.useMutation({
@@ -197,14 +198,14 @@ function WorkforceReportCard() {
           disabled={gen.isPending}
           onClick={() => gen.mutate({ companyId: activeCompanyId ?? undefined })}
         >
-          {gen.isPending ? <><Loader2 className="h-3 w-3 mr-1.5 animate-spin" />Generating…</> : <><Download className="h-3 w-3 mr-1.5" />Download PDF</>}
+          {gen.isPending ? <><Loader2 className="h-3 w-3 mr-1.5 animate-spin" />Generatingâ€¦</> : <><Download className="h-3 w-3 mr-1.5" />Download PDF</>}
         </Button>
       </CardContent>
     </Card>
   );
 }
 
-// ─── Compliance Report ────────────────────────────────────────────────────────
+// â”€â”€â”€ Compliance Report â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function ComplianceReportCard() {
   const { activeCompanyId } = useActiveCompany();
   const [month, setMonth] = useState(currentMonth);
@@ -256,14 +257,14 @@ function ComplianceReportCard() {
           disabled={gen.isPending}
           onClick={() => gen.mutate({ month, year, companyId: activeCompanyId ?? undefined })}
         >
-          {gen.isPending ? <><Loader2 className="h-3 w-3 mr-1.5 animate-spin" />Generating…</> : <><Download className="h-3 w-3 mr-1.5" />Download PDF</>}
+          {gen.isPending ? <><Loader2 className="h-3 w-3 mr-1.5 animate-spin" />Generatingâ€¦</> : <><Download className="h-3 w-3 mr-1.5" />Download PDF</>}
         </Button>
       </CardContent>
     </Card>
   );
 }
 
-// ─── Officer Payout Report ────────────────────────────────────────────────────
+// â”€â”€â”€ Officer Payout Report â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function OfficerPayoutReportCard() {
   const [month, setMonth] = useState(currentMonth);
   const [year, setYear] = useState(currentYear);
@@ -297,7 +298,7 @@ function OfficerPayoutReportCard() {
         <div className="space-y-1.5">
           <Label className="text-xs">Officer</Label>
           <Select value={officerId} onValueChange={setOfficerId}>
-            <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select officer…" /></SelectTrigger>
+            <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select officerâ€¦" /></SelectTrigger>
             <SelectContent>
               {officers.map((o: any) => (
                 <SelectItem key={o.id} value={String(o.id)} className="text-xs">{o.fullName}</SelectItem>
@@ -330,15 +331,16 @@ function OfficerPayoutReportCard() {
           disabled={gen.isPending || !officerId}
           onClick={() => gen.mutate({ officerId: Number(officerId), month, year })}
         >
-          {gen.isPending ? <><Loader2 className="h-3 w-3 mr-1.5 animate-spin" />Generating…</> : <><Download className="h-3 w-3 mr-1.5" />Download PDF</>}
+          {gen.isPending ? <><Loader2 className="h-3 w-3 mr-1.5 animate-spin" />Generatingâ€¦</> : <><Download className="h-3 w-3 mr-1.5" />Download PDF</>}
         </Button>
       </CardContent>
     </Card>
   );
 }
 
-// ─── Main Page ────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Main Page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export default function ReportsPage() {
+  const { t } = useTranslation("common");
   const { user } = useAuth();
 
   const reportTypes = [

@@ -1,4 +1,4 @@
-import { trpc } from "@/lib/trpc";
+﻿import { trpc } from "@/lib/trpc";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { useState } from "react";
 import { ShoppingBag, Search, Star, MapPin, Phone, Plus, CheckCircle2, MessageSquare } from "lucide-react";
@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
+import { useTranslation } from "react-i18next";
 
 function StarRating({ value, onChange }: { value: number; onChange: (v: number) => void }) {
   return (
@@ -138,6 +139,7 @@ function BookingDialog({ provider, companyId, onSuccess }: { provider: any; comp
 }
 
 export default function MarketplacePage() {
+  const { t } = useTranslation("common");
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("all");
   const { activeCompanyId } = useActiveCompany();
@@ -332,7 +334,7 @@ export default function MarketplacePage() {
                         <td className="px-4 py-3">
                           {booking.status === "completed"
                             ? <ReviewDialog booking={booking} onSuccess={refetch} />
-                            : <span className="text-xs text-muted-foreground">—</span>
+                            : <span className="text-xs text-muted-foreground">â€”</span>
                           }
                         </td>
                         <td className="px-4 py-3 text-xs text-muted-foreground">

@@ -1,5 +1,5 @@
-/**
- * AttendanceSitesPage — Smart map-powered attendance site management
+﻿/**
+ * AttendanceSitesPage â€” Smart map-powered attendance site management
  *
  * Route: /hr/attendance-sites
  * Access: company_admin, hr_admin
@@ -53,19 +53,20 @@ import {
 } from "lucide-react";
 import { DateInput } from "@/components/ui/date-input";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
+import { useTranslation } from "react-i18next";
 
-// ─── Constants ────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Constants â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 type SiteType = "mall" | "brand_store" | "office" | "warehouse" | "client_site" | "showroom" | "factory" | "other";
 
 const SITE_TYPE_META: Record<SiteType, { label: string; icon: string; color: string }> = {
-  mall:        { label: "Shopping Mall",       icon: "🏬", color: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300" },
-  brand_store: { label: "Brand / Retail Store",icon: "🛍️", color: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300" },
-  office:      { label: "Office",              icon: "🏢", color: "bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-300" },
-  warehouse:   { label: "Warehouse",           icon: "🏭", color: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300" },
-  client_site: { label: "Client Site",         icon: "📍", color: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300" },
-  showroom:    { label: "Showroom",            icon: "✨", color: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300" },
-  factory:     { label: "Factory",             icon: "⚙️", color: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300" },
-  other:       { label: "Other",               icon: "📌", color: "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300" },
+  mall:        { label: "Shopping Mall",       icon: "ðŸ¬", color: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300" },
+  brand_store: { label: "Brand / Retail Store",icon: "ðŸ›ï¸", color: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300" },
+  office:      { label: "Office",              icon: "ðŸ¢", color: "bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-300" },
+  warehouse:   { label: "Warehouse",           icon: "ðŸ­", color: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300" },
+  client_site: { label: "Client Site",         icon: "ðŸ“", color: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300" },
+  showroom:    { label: "Showroom",            icon: "âœ¨", color: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300" },
+  factory:     { label: "Factory",             icon: "âš™ï¸", color: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300" },
+  other:       { label: "Other",               icon: "ðŸ“Œ", color: "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300" },
 };
 
 const TIMEZONES = [
@@ -98,7 +99,7 @@ const DEFAULT_FORM: SiteFormData = {
   timezone: "Asia/Muscat", enforceHours: false,
 };
 
-// ─── Map Location Picker ──────────────────────────────────────────────────────
+// â”€â”€â”€ Map Location Picker â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function MapLocationPicker({
   lat, lng, radius,
   onLocationChange,
@@ -203,7 +204,7 @@ function MapLocationPicker({
   );
 }
 
-// ─── Site Form Dialog ─────────────────────────────────────────────────────────
+// â”€â”€â”€ Site Form Dialog â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function SiteFormDialog({
   open, onClose, editSite, companyId, onSuccess,
 }: {
@@ -301,7 +302,7 @@ function SiteFormDialog({
               <Input
                 value={form.name}
                 onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                placeholder="e.g. Lulu Hypermarket — Electronics Promotions"
+                placeholder="e.g. Lulu Hypermarket â€” Electronics Promotions"
               />
             </div>
             <div className="space-y-2">
@@ -322,7 +323,7 @@ function SiteFormDialog({
                 onChange={(e) => setForm((f) => ({ ...f, clientName: e.target.value }))}
                 placeholder="e.g. Samsung, LG, Panasonic"
               />
-              <p className="text-xs text-muted-foreground">For outsourced promoters — the brand they represent at this site.</p>
+              <p className="text-xs text-muted-foreground">For outsourced promoters â€” the brand they represent at this site.</p>
             </div>
             <div className="space-y-1">
               <Label>Daily Rate (OMR)</Label>
@@ -340,7 +341,7 @@ function SiteFormDialog({
                 />
               </div>
               <p className="text-[11px] text-muted-foreground">
-                Contracted daily billing rate for this client site — used for monthly invoice summaries.
+                Contracted daily billing rate for this client site â€” used for monthly invoice summaries.
               </p>
             </div>
           </TabsContent>
@@ -373,13 +374,13 @@ function SiteFormDialog({
                   <div className="flex justify-between text-xs text-muted-foreground">
                     <span>30m (tight)</span><span>500m</span><span>2000m (wide)</span>
                   </div>
-                  <p className="text-xs text-muted-foreground">Recommended: 100–300m for indoor malls, 300–500m for outdoor sites.</p>
+                  <p className="text-xs text-muted-foreground">Recommended: 100â€“300m for indoor malls, 300â€“500m for outdoor sites.</p>
                 </div>
                 <div className="flex items-center justify-between rounded-lg border p-3">
                   <div>
                     <p className="font-medium text-sm">Enforce geo-fence</p>
                     <p className="text-xs text-muted-foreground">
-                      Block check-ins from outside the radius — employees cannot clock in unless they are within the fence
+                      Block check-ins from outside the radius â€” employees cannot clock in unless they are within the fence
                       (when enabled).
                     </p>
                   </div>
@@ -436,7 +437,7 @@ function SiteFormDialog({
   );
 }
 
-// ─── QR Code Dialog ───────────────────────────────────────────────────────────
+// â”€â”€â”€ QR Code Dialog â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function QrCodeDialog({ site, onClose }: { site: any; onClose: () => void }) {
   const checkInUrl = `${window.location.origin}/attend/${site.qrToken}`;
   const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(checkInUrl)}`;
@@ -462,12 +463,12 @@ function QrCodeDialog({ site, onClose }: { site: any; onClose: () => void }) {
           <img src={qrUrl} alt="QR Code" className="rounded-lg border p-2 bg-white w-56 h-56" />
           {site.enforceGeofence && site.lat && (
             <p className="text-xs text-amber-600 flex items-center gap-1">
-              <ShieldCheck className="h-3 w-3" /> Geo-fence enabled — {site.radiusMeters}m radius
+              <ShieldCheck className="h-3 w-3" /> Geo-fence enabled â€” {site.radiusMeters}m radius
             </p>
           )}
           {site.operatingHoursStart && site.operatingHoursEnd && (
             <p className="text-xs text-muted-foreground flex items-center gap-1">
-              <Clock className="h-3 w-3" /> {site.operatingHoursStart} – {site.operatingHoursEnd} ({site.timezone})
+              <Clock className="h-3 w-3" /> {site.operatingHoursStart} â€“ {site.operatingHoursEnd} ({site.timezone})
             </p>
           )}
           <p className="text-xs text-center text-muted-foreground break-all">{checkInUrl}</p>
@@ -485,8 +486,9 @@ function QrCodeDialog({ site, onClose }: { site: any; onClose: () => void }) {
   );
 }
 
-// ─── Main Page ────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Main Page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export default function AttendanceSitesPage() {
+  const { t } = useTranslation("hr");
   const [showForm, setShowForm] = useState(false);
   const [editSite, setEditSite] = useState<any>(null);
   const [qrSite, setQrSite] = useState<any>(null);
@@ -527,7 +529,7 @@ export default function AttendanceSitesPage() {
 
   const approveMutation = trpc.attendance.approveManualCheckIn.useMutation({
     onSuccess: () => {
-      toast.success("Request approved — attendance recorded");
+      toast.success("Request approved â€” attendance recorded");
       refetchManual();
       setReviewingRequest(null);
       setReviewNote("");
@@ -632,7 +634,7 @@ export default function AttendanceSitesPage() {
           </TabsTrigger>
         </TabsList>
 
-        {/* ── Sites Tab ── */}
+        {/* â”€â”€ Sites Tab â”€â”€ */}
         <TabsContent value="sites" className="pt-4">
           {activeCompanyId == null ? (
             <div className="text-center py-12 text-muted-foreground border border-dashed rounded-xl">
@@ -698,8 +700,8 @@ export default function AttendanceSitesPage() {
                       {site.operatingHoursStart && site.operatingHoursEnd && (
                         <span className="text-xs px-2 py-0.5 rounded-full bg-muted flex items-center gap-1">
                           <Clock className="h-3 w-3" />
-                          {site.operatingHoursStart}–{site.operatingHoursEnd}
-                          {site.enforceHours ? " 🔒" : ""}
+                          {site.operatingHoursStart}â€“{site.operatingHoursEnd}
+                          {site.enforceHours ? " ðŸ”’" : ""}
                         </span>
                       )}
                     </div>
@@ -728,14 +730,14 @@ export default function AttendanceSitesPage() {
           )}
         </TabsContent>
 
-        {/* ── Live Board Tab ── */}
+        {/* â”€â”€ Live Board Tab â”€â”€ */}
         <TabsContent value="live" className="pt-4">
           {board.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground border border-dashed rounded-xl space-y-2">
               <Users className="h-8 w-8 mx-auto opacity-30" />
               <p>No check-in records for this date yet.</p>
               <p className="text-xs max-w-md mx-auto">
-                This list shows raw clock events. For scheduled employees and phase-based status (upcoming, absent only after shift end), use HR → Attendance → Today&apos;s Board.
+                This list shows raw clock events. For scheduled employees and phase-based status (upcoming, absent only after shift end), use HR â†’ Attendance â†’ Today&apos;s Board.
               </p>
             </div>
           ) : (
@@ -760,19 +762,19 @@ export default function AttendanceSitesPage() {
                         <p className="font-medium">{row.employee.firstName} {row.employee.lastName}</p>
                         <p className="text-xs text-muted-foreground">{row.employee.position ?? row.employee.department}</p>
                       </td>
-                      <td className="px-4 py-3 text-muted-foreground">{row.record.siteName ?? "—"}</td>
+                      <td className="px-4 py-3 text-muted-foreground">{row.record.siteName ?? "â€”"}</td>
                       <td className="px-4 py-3 whitespace-nowrap">{new Date(row.record.checkIn).toLocaleTimeString()}</td>
-                      <td className="px-4 py-3 whitespace-nowrap">{row.record.checkOut ? new Date(row.record.checkOut).toLocaleTimeString() : "—"}</td>
-                      <td className="px-4 py-3 text-xs whitespace-nowrap">{row.durationMinutes != null ? `${row.durationMinutes}m` : "—"}</td>
-                      <td className="px-4 py-3 text-xs text-muted-foreground">{row.methodLabel ?? "—"}</td>
+                      <td className="px-4 py-3 whitespace-nowrap">{row.record.checkOut ? new Date(row.record.checkOut).toLocaleTimeString() : "â€”"}</td>
+                      <td className="px-4 py-3 text-xs whitespace-nowrap">{row.durationMinutes != null ? `${row.durationMinutes}m` : "â€”"}</td>
+                      <td className="px-4 py-3 text-xs text-muted-foreground">{row.methodLabel ?? "â€”"}</td>
                       <td className="px-4 py-3 text-xs">
                         {row.hasCheckInGeo ? (
-                          <span className="text-emerald-600">In ✓</span>
+                          <span className="text-emerald-600">In âœ“</span>
                         ) : (
-                          <span className="text-muted-foreground">—</span>
+                          <span className="text-muted-foreground">â€”</span>
                         )}
                         {row.record.checkOut && (
-                          <span className="text-muted-foreground ml-1">{row.hasCheckOutGeo ? "· Out ✓" : ""}</span>
+                          <span className="text-muted-foreground ml-1">{row.hasCheckOutGeo ? "Â· Out âœ“" : ""}</span>
                         )}
                       </td>
                       <td className="px-4 py-3">
@@ -794,7 +796,7 @@ export default function AttendanceSitesPage() {
           )}
         </TabsContent>
 
-        {/* ── History Tab ── */}
+        {/* â”€â”€ History Tab â”€â”€ */}
         <TabsContent value="history" className="pt-4 space-y-4">
           <div className="flex items-center gap-3">
             <Label>Date</Label>
@@ -833,10 +835,10 @@ export default function AttendanceSitesPage() {
                           <p className="font-medium">{row.employee.firstName} {row.employee.lastName}</p>
                           <p className="text-xs text-muted-foreground">{row.employee.position ?? row.employee.department}</p>
                         </td>
-                        <td className="px-4 py-3 text-muted-foreground">{row.record.siteName ?? "—"}</td>
+                        <td className="px-4 py-3 text-muted-foreground">{row.record.siteName ?? "â€”"}</td>
                         <td className="px-4 py-3">{new Date(row.record.checkIn).toLocaleTimeString()}</td>
-                        <td className="px-4 py-3">{row.record.checkOut ? new Date(row.record.checkOut).toLocaleTimeString() : "—"}</td>
-                        <td className="px-4 py-3">{hours ? `${hours}h` : "—"}</td>
+                        <td className="px-4 py-3">{row.record.checkOut ? new Date(row.record.checkOut).toLocaleTimeString() : "â€”"}</td>
+                        <td className="px-4 py-3">{hours ? `${hours}h` : "â€”"}</td>
                       </tr>
                     );
                   })}
@@ -846,7 +848,7 @@ export default function AttendanceSitesPage() {
           )}
         </TabsContent>
 
-        {/* ── Manual Check-in Requests Tab ── */}
+        {/* â”€â”€ Manual Check-in Requests Tab â”€â”€ */}
         <TabsContent value="manual" className="pt-4">
           {manualRequests.length === 0 ? (
             <div className="text-center py-16 border border-dashed rounded-xl">
@@ -914,7 +916,7 @@ export default function AttendanceSitesPage() {
             <div className="space-y-4 py-2">
               <div className="rounded-lg bg-muted/50 p-3 space-y-1 text-sm">
                 <p><span className="text-muted-foreground">Employee:</span> {reviewingRequest.employeeName ?? `#${reviewingRequest.employeeUserId}`}</p>
-                <p><span className="text-muted-foreground">Site:</span> {reviewingRequest.siteName ?? "—"}</p>
+                <p><span className="text-muted-foreground">Site:</span> {reviewingRequest.siteName ?? "â€”"}</p>
                 <p><span className="text-muted-foreground">Requested at:</span> {new Date(reviewingRequest.requestedAt).toLocaleString("en-GB")}</p>
                 {reviewingRequest.distanceMeters != null && (
                   <p><span className="text-muted-foreground">Distance from site:</span> <span className="text-amber-600 font-medium">{reviewingRequest.distanceMeters}m</span></p>

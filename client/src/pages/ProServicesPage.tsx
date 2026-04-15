@@ -1,4 +1,4 @@
-import { trpc } from "@/lib/trpc";
+﻿import { trpc } from "@/lib/trpc";
 import { useEffect, useState } from "react";
 import { useSearch } from "wouter";
 import {
@@ -20,6 +20,7 @@ import { toast } from "sonner";
 import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { DateInput } from "@/components/ui/date-input";
+import { useTranslation } from "react-i18next";
 
 const STATUS_META: Record<string, { label: string; color: string; step: number }> = {
   pending:                { label: "Pending",           color: "bg-amber-100 text-amber-700 border-amber-200",      step: 1 },
@@ -112,7 +113,7 @@ function IntakeWizard({ onSuccess }: { onSuccess: () => void }) {
           {stepLabels.map((label, i) => (
             <div key={i} className="flex items-center gap-1 flex-1">
               <div className={"w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold " + (step > i + 1 ? "bg-green-500 text-white" : step === i + 1 ? "bg-[var(--smartpro-orange)] text-white" : "bg-muted text-muted-foreground")}>
-                {step > i + 1 ? "✓" : i + 1}
+                {step > i + 1 ? "âœ“" : i + 1}
               </div>
               <span className={"text-xs font-medium " + (step === i + 1 ? "text-foreground" : "text-muted-foreground")}>{label}</span>
               {i < stepLabels.length - 1 && <div className={"flex-1 h-px " + (step > i + 1 ? "bg-green-500" : "bg-border")} />}
@@ -167,7 +168,7 @@ function IntakeWizard({ onSuccess }: { onSuccess: () => void }) {
                   <SelectItem value="low">Low</SelectItem>
                   <SelectItem value="normal">Normal</SelectItem>
                   <SelectItem value="high">High</SelectItem>
-                  <SelectItem value="urgent">Urgent — SLA applies</SelectItem>
+                  <SelectItem value="urgent">Urgent â€” SLA applies</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -207,7 +208,7 @@ function IntakeWizard({ onSuccess }: { onSuccess: () => void }) {
             <div className="p-3 bg-orange-50 border border-orange-200 rounded-xl text-sm">
               <p className="font-semibold text-orange-800 mb-1">Case Summary</p>
               <div className="text-orange-700 space-y-0.5 text-xs">
-                <p><strong>Employee:</strong> {form.employeeName} ({form.nationality || "—"})</p>
+                <p><strong>Employee:</strong> {form.employeeName} ({form.nationality || "â€”"})</p>
                 <p><strong>Service:</strong> {SERVICE_LABELS[form.serviceType]}</p>
                 <p><strong>Priority:</strong> {form.priority}</p>
                 {form.fees && <p><strong>Fees:</strong> OMR {parseFloat(form.fees).toFixed(3)}</p>}
@@ -283,7 +284,7 @@ function CaseDetailPanel({ serviceId, onClose, onUpdate }: { serviceId: number; 
               return (
                 <div key={wStep.key} className="flex flex-col items-center z-10 flex-1">
                   <div className={"w-7 h-7 rounded-full border-2 flex items-center justify-center text-xs font-bold transition-all " + (active ? "border-[var(--smartpro-orange)] bg-[var(--smartpro-orange)] text-white scale-110" : done ? "border-green-500 bg-green-500 text-white" : "border-border bg-background text-muted-foreground")}>
-                    {done && !active ? "✓" : i + 1}
+                    {done && !active ? "âœ“" : i + 1}
                   </div>
                   <p className={"text-[9px] mt-1 text-center leading-tight " + (active ? "text-[var(--smartpro-orange)] font-semibold" : done ? "text-green-600" : "text-muted-foreground")}>
                     {wStep.label}
@@ -363,12 +364,12 @@ function CaseDetailPanel({ serviceId, onClose, onUpdate }: { serviceId: number; 
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Case Details</p>
           <div className="grid grid-cols-2 gap-3 text-sm">
             {[
-              { icon: User, label: "Employee", value: svc.employeeName ?? "—" },
-              { icon: Globe, label: "Nationality", value: svc.nationality ?? "—" },
-              { icon: Hash, label: "Passport", value: svc.passportNumber ?? "—" },
-              { icon: Calendar, label: "Passport Expiry", value: svc.passportExpiry ? fmtDate(svc.passportExpiry) : "—" },
-              { icon: FileText, label: "Visa / Permit #", value: svc.visaNumber ?? svc.permitNumber ?? "—" },
-              { icon: Calendar, label: "Document Expiry", value: svc.expiryDate ? fmtDate(svc.expiryDate) : "—" },
+              { icon: User, label: "Employee", value: svc.employeeName ?? "â€”" },
+              { icon: Globe, label: "Nationality", value: svc.nationality ?? "â€”" },
+              { icon: Hash, label: "Passport", value: svc.passportNumber ?? "â€”" },
+              { icon: Calendar, label: "Passport Expiry", value: svc.passportExpiry ? fmtDate(svc.passportExpiry) : "â€”" },
+              { icon: FileText, label: "Visa / Permit #", value: svc.visaNumber ?? svc.permitNumber ?? "â€”" },
+              { icon: Calendar, label: "Document Expiry", value: svc.expiryDate ? fmtDate(svc.expiryDate) : "â€”" },
             ].map(({ icon: Icon, label, value }) => (
               <div key={label} className="flex items-start gap-2">
                 <Icon size={13} className="text-muted-foreground mt-0.5 shrink-0" />
@@ -394,7 +395,7 @@ function CaseDetailPanel({ serviceId, onClose, onUpdate }: { serviceId: number; 
             {editFees ? (
               <div className="flex gap-1">
                 <Input className="h-7 text-xs" type="number" value={fees} onChange={(e) => setFees(e.target.value)} />
-                <Button size="sm" className="h-7 text-xs px-2" onClick={() => { updateMutation.mutate({ id: svc.id, fees: Number(fees) }); setEditFees(false); }}>✓</Button>
+                <Button size="sm" className="h-7 text-xs px-2" onClick={() => { updateMutation.mutate({ id: svc.id, fees: Number(fees) }); setEditFees(false); }}>âœ“</Button>
               </div>
             ) : (
               <p className="text-lg font-black text-[var(--smartpro-orange)]">
@@ -449,6 +450,7 @@ function CaseDetailPanel({ serviceId, onClose, onUpdate }: { serviceId: number; 
 }
 
 export default function ProServicesPage() {
+  const { t } = useTranslation("government");
   const { activeCompanyId } = useActiveCompany();
   const urlSearch = useSearch();
   const [search, setSearch] = useState("");
@@ -530,7 +532,7 @@ export default function ProServicesPage() {
               <div>
                 <h1 className="text-2xl font-black text-foreground tracking-tight">PRO & Visa Services</h1>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  Complete case lifecycle — intake to MoL submission to delivery
+                  Complete case lifecycle â€” intake to MoL submission to delivery
                 </p>
               </div>
             </div>
@@ -698,10 +700,10 @@ export default function ProServicesPage() {
                                 {isExpiringSoon && <AlertTriangle size={11} />}
                                 {fmtDate(svc.expiryDate)}
                               </span>
-                            ) : "—"}
+                            ) : "â€”"}
                           </td>
                           <td className="px-4 py-3 text-xs font-medium">
-                            {svc.fees ? "OMR " + parseFloat(svc.fees).toFixed(3) : "—"}
+                            {svc.fees ? "OMR " + parseFloat(svc.fees).toFixed(3) : "â€”"}
                           </td>
                           <td className="px-4 py-3">
                             <ChevronRight size={14} className={"text-muted-foreground transition-transform " + (isSelected ? "rotate-90 text-[var(--smartpro-orange)]" : "")} />
@@ -739,7 +741,7 @@ export default function ProServicesPage() {
                         </div>
                         <div>
                           <p className="font-semibold text-sm">{doc.employeeName}</p>
-                          <p className="text-xs text-muted-foreground">{SERVICE_LABELS[doc.serviceType ?? "other"]} — expires {doc.expiryDate ? fmtDate(doc.expiryDate) : "—"}</p>
+                          <p className="text-xs text-muted-foreground">{SERVICE_LABELS[doc.serviceType ?? "other"]} â€” expires {doc.expiryDate ? fmtDate(doc.expiryDate) : "â€”"}</p>
                         </div>
                       </div>
                       <div className="flex items-center gap-3">

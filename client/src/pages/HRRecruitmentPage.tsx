@@ -1,4 +1,4 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { toast } from "sonner";
@@ -18,6 +18,7 @@ import {
 import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime } from "@/lib/dateUtils";
 import { DateInput } from "@/components/ui/date-input";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
+import { useTranslation } from "react-i18next";
 
 const STAGES = ["applied","screening","interview","assessment","offer","hired","rejected"] as const;
 type Stage = typeof STAGES[number];
@@ -40,6 +41,7 @@ const STAGE_LABELS: Record<Stage, string> = {
 const fmt = (n: number | string | null | undefined) => `OMR ${Number(n ?? 0).toFixed(3)}`;
 
 export default function HRRecruitmentPage() {
+  const { t } = useTranslation("hr");
   const { user } = useAuth();
   const { activeCompanyId } = useActiveCompany();
   const workspace = activeCompanyId != null ? { companyId: activeCompanyId } : undefined;
@@ -185,7 +187,7 @@ export default function HRRecruitmentPage() {
           <TabsTrigger value="offers">Offer Letters</TabsTrigger>
         </TabsList>
 
-        {/* ── Kanban Pipeline ── */}
+        {/* â”€â”€ Kanban Pipeline â”€â”€ */}
         <TabsContent value="pipeline" className="space-y-4">
           <div className="flex flex-wrap items-center gap-3">
             <Select value={selectedJobId ? String(selectedJobId) : "all"} onValueChange={(v) => setSelectedJobId(v === "all" ? undefined : Number(v))}>
@@ -221,7 +223,7 @@ export default function HRRecruitmentPage() {
           </div>
         </TabsContent>
 
-        {/* ── Job Postings ── */}
+        {/* â”€â”€ Job Postings â”€â”€ */}
         <TabsContent value="jobs" className="space-y-4">
           {!jobs?.length && <p className="text-muted-foreground text-center py-8">No job postings yet. Click "Post New Job" to get started.</p>}
           <div className="grid gap-4">
@@ -239,7 +241,7 @@ export default function HRRecruitmentPage() {
                     <div className="flex items-center gap-4 mt-1 text-sm text-muted-foreground flex-wrap">
                       {job.department && <span>{job.department}</span>}
                       {job.location && <span className="flex flex-wrap items-center gap-1"><MapPin size={12} />{job.location}</span>}
-                      {(job.salaryMin || job.salaryMax) && <span>{job.salaryMin && fmt(job.salaryMin)} — {job.salaryMax && fmt(job.salaryMax)}</span>}
+                      {(job.salaryMin || job.salaryMax) && <span>{job.salaryMin && fmt(job.salaryMin)} â€” {job.salaryMax && fmt(job.salaryMax)}</span>}
                       <span className="flex flex-wrap items-center gap-1"><Users size={12} />{(job as any).applicationCount ?? 0} applicants</span>
                     </div>
                   </div>
@@ -267,7 +269,7 @@ export default function HRRecruitmentPage() {
           </div>
         </TabsContent>
 
-        {/* ── Interviews ── */}
+        {/* â”€â”€ Interviews â”€â”€ */}
         <TabsContent value="interviews" className="space-y-4">
           {!interviews?.length && <p className="text-muted-foreground text-center py-8">No interviews scheduled yet.</p>}
           <div className="grid gap-3">
@@ -316,7 +318,7 @@ export default function HRRecruitmentPage() {
           </div>
         </TabsContent>
 
-        {/* ── Offer Letters ── */}
+        {/* â”€â”€ Offer Letters â”€â”€ */}
         <TabsContent value="offers" className="space-y-4">
           {!offers?.length && <p className="text-muted-foreground text-center py-8">No offer letters yet.</p>}
           <div className="grid gap-3">
@@ -333,7 +335,7 @@ export default function HRRecruitmentPage() {
                         "bg-gray-100 text-gray-700"
                       }`}>{offer.status}</span>
                     </div>
-                    <p className="text-sm text-muted-foreground">{offer.position}{offer.department ? ` — ${offer.department}` : ""}</p>
+                    <p className="text-sm text-muted-foreground">{offer.position}{offer.department ? ` â€” ${offer.department}` : ""}</p>
                     <div className="flex items-center gap-4 mt-1 text-sm text-muted-foreground flex-wrap">
                       <span className="font-medium text-foreground">{fmt(offer.totalPackage)}/month</span>
                       {offer.startDate && <span>Start: {fmtDate(offer.startDate)}</span>}
@@ -369,7 +371,7 @@ export default function HRRecruitmentPage() {
         </TabsContent>
       </Tabs>
 
-      {/* ── Application Detail / Move Stage Dialog ── */}
+      {/* â”€â”€ Application Detail / Move Stage Dialog â”€â”€ */}
       <Dialog open={!!selectedApp} onOpenChange={(o) => !o && setSelectedApp(null)}>
         <DialogContent className="max-w-lg">
           <DialogHeader><DialogTitle>{selectedApp?.app?.applicantName}</DialogTitle></DialogHeader>
@@ -377,7 +379,7 @@ export default function HRRecruitmentPage() {
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-3 text-sm">
                 <div><p className="text-muted-foreground">Email</p><p className="font-medium">{selectedApp.app.applicantEmail}</p></div>
-                <div><p className="text-muted-foreground">Phone</p><p className="font-medium">{selectedApp.app.applicantPhone ?? "—"}</p></div>
+                <div><p className="text-muted-foreground">Phone</p><p className="font-medium">{selectedApp.app.applicantPhone ?? "â€”"}</p></div>
                 <div><p className="text-muted-foreground">Position</p><p className="font-medium">{selectedApp.job?.title}</p></div>
                 <div><p className="text-muted-foreground">Applied</p><p className="font-medium">{fmtDate(selectedApp.app.createdAt)}</p></div>
               </div>
@@ -411,11 +413,11 @@ export default function HRRecruitmentPage() {
                   {aiReport.summary && <p className="text-xs text-muted-foreground">{aiReport.summary}</p>}
                   {aiReport.strengths?.length > 0 && (
                     <div><p className="text-xs font-medium text-green-700 mb-0.5">Strengths</p>
-                    <ul className="text-xs text-muted-foreground space-y-0.5">{aiReport.strengths.map((s: string, i: number) => <li key={i}>• {s}</li>)}</ul></div>
+                    <ul className="text-xs text-muted-foreground space-y-0.5">{aiReport.strengths.map((s: string, i: number) => <li key={i}>â€¢ {s}</li>)}</ul></div>
                   )}
                   {aiReport.gaps?.length > 0 && (
                     <div><p className="text-xs font-medium text-red-700 mb-0.5">Gaps</p>
-                    <ul className="text-xs text-muted-foreground space-y-0.5">{aiReport.gaps.map((g: string, i: number) => <li key={i}>• {g}</li>)}</ul></div>
+                    <ul className="text-xs text-muted-foreground space-y-0.5">{aiReport.gaps.map((g: string, i: number) => <li key={i}>â€¢ {g}</li>)}</ul></div>
                   )}
                   <p className="text-xs font-medium capitalize">Recommendation: <span className="text-blue-700">{aiReport.recommendation?.replace("_", " ")}</span></p>
                 </div>
@@ -448,7 +450,7 @@ export default function HRRecruitmentPage() {
         </DialogContent>
       </Dialog>
 
-      {/* ── Create Job Dialog ── */}
+      {/* â”€â”€ Create Job Dialog â”€â”€ */}
       <Dialog open={createJobOpen} onOpenChange={setCreateJobOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader><DialogTitle>Post New Job</DialogTitle></DialogHeader>
@@ -489,10 +491,10 @@ export default function HRRecruitmentPage() {
         </DialogContent>
       </Dialog>
 
-      {/* ── Schedule Interview Dialog ── */}
+      {/* â”€â”€ Schedule Interview Dialog â”€â”€ */}
       <Dialog open={scheduleOpen} onOpenChange={setScheduleOpen}>
         <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle>Schedule Interview — {selectedApp?.app?.applicantName}</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>Schedule Interview â€” {selectedApp?.app?.applicantName}</DialogTitle></DialogHeader>
           <div className="space-y-3">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1">
@@ -524,10 +526,10 @@ export default function HRRecruitmentPage() {
         </DialogContent>
       </Dialog>
 
-      {/* ── Create Offer Dialog ── */}
+      {/* â”€â”€ Create Offer Dialog â”€â”€ */}
       <Dialog open={offerOpen} onOpenChange={setOfferOpen}>
         <DialogContent className="max-w-lg">
-          <DialogHeader><DialogTitle>Create Offer — {selectedApp?.app?.applicantName}</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>Create Offer â€” {selectedApp?.app?.applicantName}</DialogTitle></DialogHeader>
           <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1"><Label>Basic Salary (OMR) *</Label><Input type="number" step="0.001" value={offerForm.basicSalary} onChange={e => setOfferForm(f => ({ ...f, basicSalary: e.target.value }))} placeholder="600.000" /></div>

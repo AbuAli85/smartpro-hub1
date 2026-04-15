@@ -1,4 +1,4 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { fmtTime } from "@/lib/dateUtils";
 import { OverdueCheckoutsPanel } from "@/components/attendance/OverdueCheckoutsPanel";
@@ -25,6 +25,7 @@ import type { AdminBoardRowStatus } from "@shared/attendanceBoardStatus";
 import { operationalBandFromBoardStatus, type OperationalBand } from "@shared/attendanceIntelligence";
 import { OperationalIssueHistorySheet } from "@/components/attendance/OperationalIssueHistorySheet";
 import { OperationalIssueHistoryTrigger } from "@/components/attendance/OperationalIssueHistoryTrigger";
+import { useTranslation } from "react-i18next";
 
 const BAND_ORDER: OperationalBand[] = [
   "critical",
@@ -52,7 +53,7 @@ const BAND_CONFIG: Record<
     bg: "bg-amber-50 border-amber-200",
   },
   active: {
-    sectionLabel: "Checked in · active",
+    sectionLabel: "Checked in Â· active",
     icon: CheckCircle2,
     color: "text-emerald-800",
     bg: "bg-emerald-50 border-emerald-200",
@@ -91,6 +92,7 @@ function getInitials(name: string) {
 }
 
 export default function TodayBoardPage() {
+  const { t } = useTranslation("hr");
   const { activeCompanyId } = useActiveCompany();
   const [boardHistoryIssueKey, setBoardHistoryIssueKey] = useState<string | null>(null);
 
@@ -154,12 +156,12 @@ export default function TodayBoardPage() {
                 </time>
               </span>
             ) : null}
-            {dataUpdatedAt > 0 ? <span className="hidden sm:inline" aria-hidden>·</span> : null}
+            {dataUpdatedAt > 0 ? <span className="hidden sm:inline" aria-hidden>Â·</span> : null}
             <span>Auto-refresh every 60s while this page is open</span>
             {isFetching && !isLoading ? (
               <span className="inline-flex items-center gap-1 text-primary font-medium">
                 <RefreshCw size={12} className="animate-spin shrink-0" aria-hidden />
-                Syncing…
+                Syncingâ€¦
               </span>
             ) : null}
           </div>
@@ -195,7 +197,7 @@ export default function TodayBoardPage() {
           <CardContent className="flex flex-col items-center justify-center py-16 gap-3">
             <PartyPopper size={48} className="text-purple-500" />
             <h2 className="text-xl font-bold text-purple-700">{data.holidayName}</h2>
-            <p className="text-purple-600">Today is a holiday — no attendance required</p>
+            <p className="text-purple-600">Today is a holiday â€” no attendance required</p>
           </CardContent>
         </Card>
       ) : (
@@ -241,10 +243,10 @@ export default function TodayBoardPage() {
                         <span className="text-[11px] text-muted-foreground leading-snug w-full">
                           {fd.shiftsCheckedOutCount}/{fd.shiftCount} shifts completed
                           {fd.totalAttributedMinutes > 0 ? (
-                            <> · {fd.totalAttributedMinutes}m attributed (per shift window)</>
+                            <> Â· {fd.totalAttributedMinutes}m attributed (per shift window)</>
                           ) : null}
                           {fd.shiftsCheckedOutCount < fd.shiftCount ? (
-                            <> · upcoming shifts add 0m until check-in.</>
+                            <> Â· upcoming shifts add 0m until check-in.</>
                           ) : null}
                         </span>
                       </div>
@@ -255,16 +257,16 @@ export default function TodayBoardPage() {
                             <li key={seg.scheduleId}>
                               <span className="inline-flex flex-wrap items-center gap-x-1.5 gap-y-1">
                                 <span className="font-medium">{seg.shiftName ?? "Shift"}</span>
-                                <span className="text-muted-foreground">({seg.expectedStart}–{seg.expectedEnd})</span>
+                                <span className="text-muted-foreground">({seg.expectedStart}â€“{seg.expectedEnd})</span>
                                 <Badge variant="outline" className={`text-[10px] py-0 h-5 shrink-0 ${st.className}`}>
                                   {st.label}
                                 </Badge>
                               </span>
                               <span className="block mt-0.5">
-                                <span className="text-muted-foreground">In → out: </span>
-                                <span>{seg.checkInAt ? fmtTime(seg.checkInAt) : "—"}</span>
-                                <span> → </span>
-                                <span>{seg.checkOutAt ? fmtTime(seg.checkOutAt) : "—"}</span>
+                                <span className="text-muted-foreground">In â†’ out: </span>
+                                <span>{seg.checkInAt ? fmtTime(seg.checkInAt) : "â€”"}</span>
+                                <span> â†’ </span>
+                                <span>{seg.checkOutAt ? fmtTime(seg.checkOutAt) : "â€”"}</span>
                                 {!seg.checkOutAt && seg.punchCheckOutAt ? (
                                   <span className="text-muted-foreground"> (open to {fmtTime(seg.punchCheckOutAt)})</span>
                                 ) : seg.checkOutAt &&
@@ -276,7 +278,7 @@ export default function TodayBoardPage() {
                                   <span className="text-muted-foreground"> ({seg.durationMinutes}m)</span>
                                 ) : null}
                                 {seg.methodLabel ? (
-                                  <span className="text-muted-foreground"> · {seg.methodLabel}</span>
+                                  <span className="text-muted-foreground"> Â· {seg.methodLabel}</span>
                                 ) : null}
                               </span>
                             </li>
@@ -349,7 +351,7 @@ export default function TodayBoardPage() {
                                           : "Operational triage state"
                                       }
                                     >
-                                      Ops · {b.operationalIssue.status}
+                                      Ops Â· {b.operationalIssue.status}
                                     </Badge>
                                   ) : null}
                                 </div>
@@ -361,7 +363,7 @@ export default function TodayBoardPage() {
                                   )}
                                   {b.shift && (
                                     <span className="flex items-center gap-1">
-                                      <Clock size={10} /> {b.shift.startTime} – {b.shift.endTime}
+                                      <Clock size={10} /> {b.shift.startTime} â€“ {b.shift.endTime}
                                     </span>
                                   )}
                                 </div>
@@ -385,7 +387,7 @@ export default function TodayBoardPage() {
                                   <div className="text-muted-foreground">
                                     Out:{" "}
                                     <span className="font-medium text-foreground">
-                                      {b.checkOutAt ? fmtTime(b.checkOutAt) : "—"}
+                                      {b.checkOutAt ? fmtTime(b.checkOutAt) : "â€”"}
                                     </span>
                                     {!b.checkOutAt && b.punchCheckOutAt ? (
                                       <span className="block text-[10px] font-normal">

@@ -1,4 +1,4 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 import { Button } from "@/components/ui/button";
@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { Plus, Pencil, Trash2, Clock, CalendarDays } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 const PRESET_COLORS = [
   "#6366f1", "#8b5cf6", "#ec4899", "#ef4444", "#f97316",
@@ -50,6 +51,7 @@ const defaultForm: ShiftForm = {
 };
 
 export default function ShiftTemplatesPage() {
+  const { t } = useTranslation("hr");
   const { activeCompanyId } = useActiveCompany();
   const utils = trpc.useUtils();
   const [open, setOpen] = useState(false);
@@ -198,7 +200,7 @@ export default function ShiftTemplatesPage() {
               <CardContent className="space-y-2">
                 <div className="flex items-center gap-2 text-sm">
                   <Clock size={14} className="text-muted-foreground" />
-                  <span className="font-medium">{s.startTime} – {s.endTime}</span>
+                  <span className="font-medium">{s.startTime} â€“ {s.endTime}</span>
                   <Badge variant="secondary" className="text-xs ml-auto">
                     {formatDuration(s.startTime, s.endTime)}
                   </Badge>

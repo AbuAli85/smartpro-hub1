@@ -1,7 +1,6 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { eq, and, desc, gte, like, lt, lte, isNull, ne, inArray, or, sql } from "drizzle-orm";
-import { randomBytes } from "crypto";
 import {
   attendance,
   attendanceSites,
@@ -18,11 +17,18 @@ import {
 import { buildEmployeeDayShiftStatuses } from "@shared/employeeDayShiftStatus";
 import { pickScheduleRowForNow } from "@shared/pickScheduleForAttendanceNow";
 import { evaluateCheckoutOutcomeByShiftTimes } from "@shared/attendanceCheckoutPolicy";
-import { createAttendanceRecordTx, getDb, getUserCompanyById } from "../db";
+import { createAttendanceRecordTx, getDb } from "../db";
 import { protectedProcedure, publicProcedure, router } from "../_core/trpc";
 import { requireWorkspaceMembership } from "../_core/membership";
 import { requireActiveCompanyId } from "../_core/tenant";
 import type { User } from "../../drizzle/schema";
+import { sitesRouter, SITE_TYPES, siteInputSchema } from "./attendance/sites.router";
+import {
+  haversineMetres,
+  isWithinOperatingHours,
+  normalizeCorrectionHms,
+  requireAdminOrHR as _requireAdminOrHR,
+} from "./attendance/helpers";
 import {
   CheckInEligibilityReasonCode,
   evaluateSelfServiceCheckInEligibility,
@@ -62,6 +68,9 @@ async function requireDb() {
   if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
   return db;
 }
+
+// Alias imported helper so existing usages inside this file require no other changes.
+const requireAdminOrHR = _requireAdminOrHR;
 
 // ── Dual-write helpers ────────────────────────────────────────────────────────
 /**
@@ -232,26 +241,8 @@ async function inferScheduleIdForTimestamp(
   return picked?.id ?? null;
 }
 
-/** HR/company admin for the active or explicitly selected company (never arbitrary first membership). */
-async function requireAdminOrHR(user: User, companyId?: number | null) {
-  const cid = await requireActiveCompanyId(user.id, companyId, user);
-  const row = await getUserCompanyById(user.id, cid);
-  const role = row?.member?.role;
-  if (!role) throw new TRPCError({ code: "FORBIDDEN", message: "No company membership" });
-  if (role !== "company_admin" && role !== "hr_admin") {
-    throw new TRPCError({ code: "FORBIDDEN", message: "HR Admin or Company Admin required" });
-  }
-  return { company: { id: cid }, companyId: cid, role, member: { role } };
-}
-
 /** DB stores `HH:MM:SS`; API may send `HH:MM` — normalize for {@link muscatWallDateTimeToUtc}. */
-function normalizeCorrectionHms(s: string | null | undefined): string {
-  if (!s) return "00:00:00";
-  const t = s.trim();
-  if (/^\d{2}:\d{2}:\d{2}$/.test(t)) return t;
-  if (/^\d{2}:\d{2}$/.test(t)) return `${t}:00`;
-  return t;
-}
+// normalizeCorrectionHms is imported from ./attendance/helpers
 
 async function resolveMyEmployee(userId: number, userEmail: string, companyId: number) {
   const db = await getDb();
@@ -273,199 +264,14 @@ async function resolveMyEmployee(userId: number, userEmail: string, companyId: n
   return null;
 }
 
-/**
- * Haversine distance in metres between two GPS coordinates.
- */
-function haversineMetres(lat1: number, lng1: number, lat2: number, lng2: number): number {
-  const R = 6371000; // Earth radius in metres
-  const toRad = (d: number) => (d * Math.PI) / 180;
-  const dLat = toRad(lat2 - lat1);
-  const dLng = toRad(lng2 - lng1);
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
-
-/**
- * Check if current time (UTC) is within the site's operating hours.
- * operatingHoursStart / End are "HH:MM" strings in the site's timezone.
- */
-function isWithinOperatingHours(
-  start: string | null | undefined,
-  end: string | null | undefined,
-  tz: string
-): boolean {
-  if (!start || !end) return true; // no restriction
-  try {
-    const now = new Date();
-    const formatter = new Intl.DateTimeFormat("en-GB", {
-      timeZone: tz,
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    });
-    const parts = formatter.formatToParts(now);
-    const h = parts.find((p) => p.type === "hour")?.value ?? "00";
-    const m = parts.find((p) => p.type === "minute")?.value ?? "00";
-    const current = `${h}:${m}`;
-    // Simple string comparison works for HH:MM if start < end (same day)
-    if (start <= end) return current >= start && current <= end;
-    // Overnight shift (e.g. 22:00 – 06:00)
-    return current >= start || current <= end;
-  } catch {
-    return true;
-  }
-}
-
-// Site type options
-const SITE_TYPES = [
-  "mall",
-  "brand_store",
-  "office",
-  "warehouse",
-  "client_site",
-  "showroom",
-  "factory",
-  "other",
-] as const;
-
-const siteInputSchema = z.object({
-  name: z.string().min(1).max(128),
-  location: z.string().max(255).optional(),
-  lat: z.number().min(-90).max(90).optional().nullable(),
-  lng: z.number().min(-180).max(180).optional().nullable(),
-  radiusMeters: z.number().min(30).max(5000).default(200),
-  enforceGeofence: z.boolean().default(false),
-  siteType: z.enum(SITE_TYPES).default("office"),
-  clientName: z.string().max(255).optional().nullable(),
-  dailyRateOmr: z.number().min(0).max(9999.999).default(0),
-  operatingHoursStart: z.string().regex(/^\d{2}:\d{2}$/).optional().nullable(),
-  operatingHoursEnd: z.string().regex(/^\d{2}:\d{2}$/).optional().nullable(),
-  timezone: z.string().default("Asia/Muscat"),
-  enforceHours: z.boolean().default(false),
-});
+// haversineMetres, isWithinOperatingHours imported from ./attendance/helpers
+// SITE_TYPES, siteInputSchema imported from ./attendance/sites.router
 
 export const attendanceRouter = router({
-  // ─── Admin: Create attendance site with QR token ──────────────────────────
-  createSite: protectedProcedure
-    .input(z.object({ companyId: z.number().optional() }).merge(siteInputSchema))
-    .mutation(async ({ ctx, input }) => {
-      const membership = await requireAdminOrHR(ctx.user as User, input.companyId);
-      const companyId = input.companyId ?? membership.company.id;
-      const db = await requireDb();
-      const qrToken = randomBytes(24).toString("hex");
-      const [result] = await db.insert(attendanceSites).values({
-        companyId,
-        name: input.name,
-        location: input.location ?? null,
-        lat: input.lat != null ? String(input.lat) : null,
-        lng: input.lng != null ? String(input.lng) : null,
-        radiusMeters: input.radiusMeters,
-        enforceGeofence: input.enforceGeofence,
-        siteType: input.siteType,
-        clientName: input.clientName ?? null,
-        dailyRateOmr: String(Math.round(input.dailyRateOmr * 1000) / 1000),
-        operatingHoursStart: input.operatingHoursStart ?? null,
-        operatingHoursEnd: input.operatingHoursEnd ?? null,
-        timezone: input.timezone,
-        enforceHours: input.enforceHours,
-        qrToken,
-        isActive: true,
-        createdByUserId: ctx.user.id,
-      });
-      const siteId = (result as any).insertId;
-      const [site] = await db.select().from(attendanceSites).where(eq(attendanceSites.id, siteId)).limit(1);
-      return site;
-    }),
-
-  // ─── Admin: List all sites for a company ─────────────────────────────────
-  listSites: protectedProcedure
-    .input(z.object({ companyId: z.number().optional() }))
-    .query(async ({ ctx, input }) => {
-      const membership = await requireAdminOrHR(ctx.user as User, input.companyId);
-      const companyId = input.companyId ?? membership.company.id;
-      const db = await requireDb();
-      return db
-        .select()
-        .from(attendanceSites)
-        .where(eq(attendanceSites.companyId, companyId))
-        .orderBy(desc(attendanceSites.createdAt));
-    }),
-
-  // ─── Admin: Toggle site active status ────────────────────────────────────
-  toggleSite: protectedProcedure
-    .input(z.object({ siteId: z.number(), isActive: z.boolean() }))
-    .mutation(async ({ ctx, input }) => {
-      const db = await requireDb();
-      const [site] = await db.select().from(attendanceSites).where(eq(attendanceSites.id, input.siteId)).limit(1);
-      if (!site) throw new TRPCError({ code: "NOT_FOUND" });
-      const membership = await requireAdminOrHR(ctx.user as User, site.companyId);
-      if (site.companyId !== membership.company.id) {
-        throw new TRPCError({ code: "NOT_FOUND" });
-      }
-      await db.update(attendanceSites).set({ isActive: input.isActive }).where(eq(attendanceSites.id, input.siteId));
-      return { success: true };
-    }),
-
-  // ─── Admin: Update site ───────────────────────────────────────────────────
-  updateSite: protectedProcedure
-    .input(z.object({ siteId: z.number() }).merge(siteInputSchema))
-    .mutation(async ({ ctx, input }) => {
-      const db = await requireDb();
-      const [existing] = await db.select().from(attendanceSites).where(eq(attendanceSites.id, input.siteId)).limit(1);
-      if (!existing) throw new TRPCError({ code: "NOT_FOUND" });
-      const membership = await requireAdminOrHR(ctx.user as User, existing.companyId);
-      if (existing.companyId !== membership.company.id) {
-        throw new TRPCError({ code: "NOT_FOUND" });
-      }
-      await db.update(attendanceSites).set({
-        name: input.name,
-        location: input.location ?? null,
-        lat: input.lat != null ? String(input.lat) : null,
-        lng: input.lng != null ? String(input.lng) : null,
-        radiusMeters: input.radiusMeters,
-        enforceGeofence: input.enforceGeofence,
-        siteType: input.siteType,
-        clientName: input.clientName ?? null,
-        dailyRateOmr: String(Math.round(input.dailyRateOmr * 1000) / 1000),
-        operatingHoursStart: input.operatingHoursStart ?? null,
-        operatingHoursEnd: input.operatingHoursEnd ?? null,
-        timezone: input.timezone,
-        enforceHours: input.enforceHours,
-      }).where(eq(attendanceSites.id, input.siteId));
-      const [updated] = await db.select().from(attendanceSites).where(eq(attendanceSites.id, input.siteId)).limit(1);
-      return updated;
-    }),
-
-  // ─── Public: Resolve QR token to site info (for scan page) ───────────────
-  getSiteByToken: publicProcedure
-    .input(z.object({ token: z.string() }))
-    .query(async ({ input }) => {
-      const db = await requireDb();
-      const [site] = await db
-        .select()
-        .from(attendanceSites)
-        .where(and(eq(attendanceSites.qrToken, input.token), eq(attendanceSites.isActive, true)))
-        .limit(1);
-      if (!site) throw new TRPCError({ code: "NOT_FOUND", message: "Invalid or inactive QR code" });
-      return {
-        id: site.id,
-        name: site.name,
-        location: site.location,
-        companyId: site.companyId,
-        siteType: site.siteType,
-        clientName: site.clientName,
-        lat: site.lat ? parseFloat(site.lat) : null,
-        lng: site.lng ? parseFloat(site.lng) : null,
-        radiusMeters: site.radiusMeters,
-        enforceGeofence: site.enforceGeofence,
-        operatingHoursStart: site.operatingHoursStart,
-        operatingHoursEnd: site.operatingHoursEnd,
-        timezone: site.timezone,
-        enforceHours: site.enforceHours,
-      };
-    }),
+  // ─── Sites sub-module ─────────────────────────────────────────────────────
+  // Procedures: createSite · listSites · toggleSite · updateSite · getSiteByToken · siteTypes
+  // Source: ./attendance/sites.router.ts
+  ...sitesRouter._def.record,
 
   /**
    * Self-service clock (authoritative write path):
@@ -2422,20 +2228,6 @@ export const attendanceRouter = router({
         .orderBy(desc(attendanceAudit.createdAt))
         .limit(input.limit);
     }),
-
-  // ─── Utility: List available site types ─────────────────────────────────────────
-  siteTypes: publicProcedure.query(() => {
-    return [
-      { value: "mall", label: "Shopping Mall", icon: "🏬" },
-      { value: "brand_store", label: "Brand / Retail Store", icon: "🛍️" },
-      { value: "office", label: "Office", icon: "🏢" },
-      { value: "warehouse", label: "Warehouse / Distribution", icon: "🏭" },
-      { value: "client_site", label: "Client Site", icon: "📍" },
-      { value: "showroom", label: "Showroom", icon: "✨" },
-      { value: "factory", label: "Factory", icon: "⚙️" },
-      { value: "other", label: "Other", icon: "📌" },
-    ];
-  }),
 
   // ─── P1: Session-based read queries ──────────────────────────────────────
   /**

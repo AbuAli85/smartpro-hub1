@@ -1,4 +1,4 @@
-/*
+﻿/*
  * CompanySettingsPage (Workspace Settings)
  *
  * Workspace-level operational configuration:
@@ -37,8 +37,10 @@ import { ReportDelegationPanel } from "@/components/ReportDelegationPanel";
 import { getRoleDefaultRoute } from "@shared/clientNav";
 import { NAV_EXTENSION_ROLE_KEYS, ROLE_NAV_SUMMARY } from "@shared/roleNavConfig";
 import { mergeLeavePolicyCaps } from "@shared/leavePolicyCaps";
+import { useTranslation } from "react-i18next";
 
 export default function CompanySettingsPage() {
+  const { t } = useTranslation("common");
   const { activeCompany, loading: companyLoading } = useActiveCompany();
   const utils = trpc.useUtils();
 
@@ -88,7 +90,7 @@ export default function CompanySettingsPage() {
         { value: "/dashboard", label: "Command center" },
         { value: "/dashboard", label: "Overview Dashboard" },
         { value: "/operations", label: "Operations overview" },
-        { value: "/hr/employees", label: "HR — Employees" },
+        { value: "/hr/employees", label: "HR â€” Employees" },
         { value: "/payroll", label: "Payroll Engine" },
         { value: "/crm", label: "CRM" },
         { value: "/company/hub", label: "Company Hub" },
@@ -98,13 +100,13 @@ export default function CompanySettingsPage() {
       label: "HR Admin",
       color: "bg-blue-100 text-blue-700 border-blue-200",
       routes: [
-        { value: "/hr/employees", label: "HR — Employees" },
-        { value: "/hr/recruitment", label: "HR — Recruitment" },
-        { value: "/hr/leave", label: "HR — Leave & Payroll" },
-        { value: "/hr/attendance", label: "HR — Attendance" },
-        { value: "/hr/tasks", label: "HR — Task Manager" },
-        { value: "/hr/announcements", label: "HR — Announcements" },
-        { value: "/hr/expiry-dashboard", label: "HR — Expiry Dashboard" },
+        { value: "/hr/employees", label: "HR â€” Employees" },
+        { value: "/hr/recruitment", label: "HR â€” Recruitment" },
+        { value: "/hr/leave", label: "HR â€” Leave & Payroll" },
+        { value: "/hr/attendance", label: "HR â€” Attendance" },
+        { value: "/hr/tasks", label: "HR â€” Task Manager" },
+        { value: "/hr/announcements", label: "HR â€” Announcements" },
+        { value: "/hr/expiry-dashboard", label: "HR â€” Expiry Dashboard" },
         { value: "/my-team", label: "My Team" },
         { value: "/dashboard", label: "Command center" },
       ],
@@ -484,7 +486,7 @@ export default function CompanySettingsPage() {
             <div className="flex flex-wrap gap-2">
               <Button type="button" variant="default" className="gap-2" disabled={savingLeaveCaps} onClick={handleSaveLeaveCaps}>
                 <Save size={14} />
-                {savingLeaveCaps ? "Saving…" : "Save leave caps"}
+                {savingLeaveCaps ? "Savingâ€¦" : "Save leave caps"}
               </Button>
               <Button type="button" variant="outline" className="gap-2" disabled={savingLeaveCaps} onClick={handleResetLeaveCaps}>
                 <RotateCcw size={14} />
@@ -622,7 +624,7 @@ export default function CompanySettingsPage() {
             <div className="flex flex-wrap gap-2 pt-2">
               <Button size="sm" onClick={handleSaveNavExt} disabled={savingNavExt} className="gap-2">
                 <Save size={13} />
-                {savingNavExt ? "Saving…" : "Save navigation extensions"}
+                {savingNavExt ? "Savingâ€¦" : "Save navigation extensions"}
               </Button>
               <Button size="sm" variant="outline" onClick={handleResetNavExt} disabled={savingNavExt}>
                 <RotateCcw size={13} />

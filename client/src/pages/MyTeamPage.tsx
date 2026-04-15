@@ -1119,6 +1119,7 @@ export default function MyTeamPage() {
                     <th className="text-start px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">{t("myTeam.table.type")}</th>
                     <th className="text-start px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">{t("myTeam.table.status")}</th>
                     <th className="text-start px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">{t("myTeam.table.contact")}</th>
+                    <th className="text-start px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">{t("myTeam.card.viewFullProfile")}</th>
                     <th className="px-4 py-3" />
                   </tr>
                 </thead>
@@ -1161,6 +1162,17 @@ export default function MyTeamPage() {
                             {m.email && <a href={`mailto:${m.email}`} onClick={(e) => e.stopPropagation()} className="text-muted-foreground hover:text-foreground"><Mail size={13} /></a>}
                             {m.phone && <a href={`tel:${m.phone}`} onClick={(e) => e.stopPropagation()} className="text-muted-foreground hover:text-foreground"><Phone size={13} /></a>}
                           </div>
+                        </td>
+                        <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 text-xs gap-1 text-[var(--smartpro-orange)] border-[var(--smartpro-orange)]/40 hover:bg-orange-50 hover:border-[var(--smartpro-orange)] whitespace-nowrap"
+                            onClick={() => navigate(`/business/employee/${m.id}`)}
+                          >
+                            <ChevronRight size={12} />
+                            {t("myTeam.card.viewFullProfile")}
+                          </Button>
                         </td>
                         <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                           <DropdownMenu>

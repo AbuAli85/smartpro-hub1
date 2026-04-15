@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useLocation, useParams } from "wouter";
+import { useTranslation } from "react-i18next";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,9 +17,9 @@ import {
   ArrowLeft, User, FileText, DollarSign, Calendar, Building2,
   Phone, Mail, Globe, CreditCard, Briefcase, AlertTriangle,
   CheckCircle2, Clock, Edit2, UserX, TrendingUp, Shield,
-  Hash, MapPin,
+  Hash,
 } from "lucide-react";
-import { fmtDate, fmtDateLong, fmtDateTime, fmtDateTimeShort, fmtTime, expiryStatus, expiryLabel, EXPIRY_BADGE } from "@/lib/dateUtils";
+import { fmtDate, expiryStatus, expiryLabel, EXPIRY_BADGE } from "@/lib/dateUtils";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -46,7 +47,10 @@ function payrollStatusBadge(status: string) {
 }
 const MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
-function InfoRow({ label, value, icon: Icon, expiryDate, warnDays = 30 }: { label: string; value?: string | null; icon?: React.ElementType; expiryDate?: Date | string | null; warnDays?: number }) {
+function InfoRow({ label, value, icon: Icon, expiryDate, warnDays = 30 }: {
+  label: string; value?: string | null; icon?: React.ElementType;
+  expiryDate?: Date | string | null; warnDays?: number;
+}) {
   if (!value) return null;
   const status = expiryDate ? expiryStatus(expiryDate, warnDays) : "none";
   return (
@@ -56,7 +60,7 @@ function InfoRow({ label, value, icon: Icon, expiryDate, warnDays = 30 }: { labe
         {label}
       </div>
       <div className="flex flex-col items-end gap-0.5">
-        <span className="text-sm font-medium text-foreground text-right">{value}</span>
+        <span className="text-sm font-medium text-foreground text-end">{value}</span>
         {status !== "none" && (
           <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${EXPIRY_BADGE[status]}`}>
             {status === "expired" ? "⚠ " : status === "expiring-soon" ? "⏰ " : "✓ "}{expiryLabel(expiryDate, warnDays)}
@@ -71,11 +75,12 @@ function InfoRow({ label, value, icon: Icon, expiryDate, warnDays = 30 }: { labe
 function StatusTimeline({ status, hireDate, terminationDate }: {
   status: string; hireDate?: Date | string | null; terminationDate?: Date | string | null;
 }) {
+  const { t } = useTranslation("hr");
   const steps = [
-    { key: "hired", label: "Hired", date: hireDate, icon: CheckCircle2, color: "text-emerald-500" },
-    { key: "active", label: "Active", date: null, icon: Briefcase, color: "text-blue-500" },
-    { key: "on_leave", label: "On Leave", date: null, icon: Clock, color: "text-amber-500" },
-    { key: "exit", label: "Exited", date: terminationDate, icon: UserX, color: "text-red-500" },
+    { key: "hired",   label: t("lifecycle.timeline.hired"),   date: hireDate,         icon: CheckCircle2, color: "text-emerald-500" },
+    { key: "active",  label: t("lifecycle.timeline.active"),  date: null,             icon: Briefcase,    color: "text-blue-500" },
+    { key: "on_leave",label: t("lifecycle.timeline.onLeave"), date: null,             icon: Clock,        color: "text-amber-500" },
+    { key: "exit",    label: t("lifecycle.timeline.exited"),  date: terminationDate,  icon: UserX,        color: "text-red-500" },
   ];
   const currentIdx =
     status === "active" ? 1 :
@@ -116,6 +121,7 @@ function StatusTimeline({ status, hireDate, terminationDate }: {
 
 // ─── Edit Dialog ──────────────────────────────────────────────────────────────
 function EditDialog({ employee, onClose }: { employee: any; onClose: () => void }) {
+  const { t } = useTranslation("hr");
   const utils = trpc.useUtils();
   const [form, setForm] = useState({
     firstName: employee.firstName ?? "",
@@ -140,36 +146,39 @@ function EditDialog({ employee, onClose }: { employee: any; onClose: () => void 
     onSuccess: () => {
       utils.hr.getEmployeeWithPermit.invalidate({ id: employee.id });
       utils.team.listMembers.invalidate();
-      toast.success("Employee record updated");
+      toast.success(t("lifecycle.edit.saved"));
       onClose();
     },
     onError: (e) => toast.error(e.message),
   });
+
+  const fields = [
+    { key: "firstName",       label: t("lifecycle.edit.firstName") },
+    { key: "lastName",        label: t("lifecycle.edit.lastName") },
+    { key: "email",           label: t("lifecycle.edit.email"),           colSpan: 2 },
+    { key: "phone",           label: t("lifecycle.edit.phone") },
+    { key: "position",        label: t("lifecycle.edit.position") },
+    { key: "department",      label: t("lifecycle.edit.department") },
+    { key: "nationality",     label: t("lifecycle.edit.nationality") },
+    { key: "passportNumber",  label: t("lifecycle.edit.passportNo") },
+    { key: "nationalId",      label: t("lifecycle.edit.civilId") },
+    { key: "salary",          label: t("lifecycle.edit.salary") },
+    { key: "hireDate",        label: t("lifecycle.edit.hireDate"),        type: "date" },
+    { key: "employeeNumber",  label: t("lifecycle.edit.employeeNo") },
+    { key: "workPermitNumber",label: t("lifecycle.edit.workPermitNo"),    colSpan: 2 },
+    { key: "visaNumber",      label: t("lifecycle.edit.visaNo"),          colSpan: 2 },
+    { key: "occupationName",  label: t("lifecycle.edit.occupation") },
+    { key: "workPermitExpiry",label: t("lifecycle.edit.workPermitExpiry"),type: "date" },
+  ];
+
   return (
     <Dialog open onOpenChange={onClose}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Edit Employee Record</DialogTitle>
+          <DialogTitle>{t("lifecycle.edit.title")}</DialogTitle>
         </DialogHeader>
         <div className="grid grid-cols-2 gap-3 py-2">
-          {[
-            { key: "firstName", label: "First Name" },
-            { key: "lastName", label: "Last Name" },
-            { key: "email", label: "Email", colSpan: 2 },
-            { key: "phone", label: "Phone" },
-            { key: "position", label: "Position" },
-            { key: "department", label: "Department" },
-            { key: "nationality", label: "Nationality" },
-            { key: "passportNumber", label: "Passport No." },
-            { key: "nationalId", label: "Civil ID" },
-            { key: "salary", label: "Salary (OMR)" },
-            { key: "hireDate", label: "Hire Date", type: "date" },
-            { key: "employeeNumber", label: "Employee No." },
-            { key: "workPermitNumber", label: "Work Permit No.", colSpan: 2 },
-            { key: "visaNumber", label: "Visa / Labour Auth. No.", colSpan: 2 },
-            { key: "occupationName", label: "Occupation" },
-            { key: "workPermitExpiry", label: "Work Permit Expiry", type: "date" },
-          ].map(({ key, label, colSpan, type }) => (
+          {fields.map(({ key, label, colSpan, type }) => (
             <div key={key} className={colSpan === 2 ? "col-span-2" : ""}>
               <Label className="text-xs">{label}</Label>
               <Input
@@ -181,22 +190,22 @@ function EditDialog({ employee, onClose }: { employee: any; onClose: () => void 
             </div>
           ))}
           <div>
-            <Label className="text-xs">Status</Label>
+            <Label className="text-xs">{t("lifecycle.edit.statusLabel")}</Label>
             <Select value={form.status} onValueChange={(v) => setForm((f) => ({ ...f, status: v }))}>
               <SelectTrigger className="h-8 text-sm mt-1">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="active">Active</SelectItem>
-                <SelectItem value="on_leave">On Leave</SelectItem>
-                <SelectItem value="terminated">Terminated</SelectItem>
-                <SelectItem value="resigned">Resigned</SelectItem>
+                <SelectItem value="active">{t("lifecycle.edit.active")}</SelectItem>
+                <SelectItem value="on_leave">{t("lifecycle.edit.onLeave")}</SelectItem>
+                <SelectItem value="terminated">{t("lifecycle.edit.terminated")}</SelectItem>
+                <SelectItem value="resigned">{t("lifecycle.edit.resigned")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button variant="outline" onClick={onClose}>{t("lifecycle.edit.cancel")}</Button>
           <Button
             onClick={() => update.mutate({
               id: employee.id,
@@ -206,7 +215,7 @@ function EditDialog({ employee, onClose }: { employee: any; onClose: () => void 
             })}
             disabled={update.isPending}
           >
-            {update.isPending ? "Saving…" : "Save Changes"}
+            {update.isPending ? t("lifecycle.edit.saving") : t("lifecycle.edit.save")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -216,6 +225,7 @@ function EditDialog({ employee, onClose }: { employee: any; onClose: () => void 
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function EmployeeLifecyclePage() {
+  const { t } = useTranslation("hr");
   const params = useParams<{ id: string }>();
   const [, navigate] = useLocation();
   const employeeId = parseInt(params.id || "0");
@@ -243,7 +253,6 @@ export default function EmployeeLifecyclePage() {
     { enabled: employeeId > 0 }
   );
 
-  // Filter payroll records for this employee
   const empPayroll = payrollData?.filter((p: any) => p.employeeId === employeeId) ?? [];
   const empAttendance = (attendanceData ?? []).filter((a: any) => a.employeeId === employeeId);
 
@@ -266,9 +275,9 @@ export default function EmployeeLifecyclePage() {
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center space-y-3">
           <AlertTriangle className="w-10 h-10 text-muted-foreground mx-auto" />
-          <p className="text-muted-foreground">Employee not found or access denied.</p>
+          <p className="text-muted-foreground">{t("lifecycle.notFound")}</p>
           <Button variant="outline" onClick={() => navigate("/my-team")}>
-            Back to My Team
+            {t("lifecycle.backToTeam")}
           </Button>
         </div>
       </div>
@@ -289,7 +298,7 @@ export default function EmployeeLifecyclePage() {
             onClick={() => navigate("/my-team")}
             className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-3 transition-colors"
           >
-            <ArrowLeft size={14} /> Back to My Team
+            <ArrowLeft size={14} className="rtl:rotate-180" /> {t("lifecycle.backToTeam")}
           </button>
           <div className="flex items-start justify-between gap-4">
             <div className="flex items-center gap-4">
@@ -318,16 +327,16 @@ export default function EmployeeLifecyclePage() {
             <div className="flex items-center gap-2 shrink-0">
               {employee.email && (
                 <Button variant="outline" size="sm" className="gap-1.5" asChild>
-                  <a href={`mailto:${employee.email}`}><Mail size={13} /> Email</a>
+                  <a href={`mailto:${employee.email}`}><Mail size={13} /> {t("lifecycle.email")}</a>
                 </Button>
               )}
               {employee.phone && (
                 <Button variant="outline" size="sm" className="gap-1.5" asChild>
-                  <a href={`tel:${employee.phone}`}><Phone size={13} /> Call</a>
+                  <a href={`tel:${employee.phone}`}><Phone size={13} /> {t("lifecycle.call")}</a>
                 </Button>
               )}
               <Button size="sm" className="gap-1.5" onClick={() => setEditOpen(true)}>
-                <Edit2 size={13} /> Edit
+                <Edit2 size={13} /> {t("lifecycle.edit")}
               </Button>
             </div>
           </div>
@@ -341,7 +350,7 @@ export default function EmployeeLifecyclePage() {
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-semibold flex items-center gap-2">
               <TrendingUp size={15} className="text-primary" />
-              Employment Timeline
+              {t("lifecycle.employmentTimeline")}
             </CardTitle>
           </CardHeader>
           <CardContent className="pt-0">
@@ -357,15 +366,15 @@ export default function EmployeeLifecyclePage() {
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div className="p-3 rounded-xl border border-border bg-card text-center">
             <div className="text-lg font-bold text-foreground">{fmtOMR(employee.salary)}</div>
-            <div className="text-xs text-muted-foreground mt-0.5">Monthly Salary</div>
+            <div className="text-xs text-muted-foreground mt-0.5">{t("lifecycle.kpi.monthlySalary")}</div>
           </div>
           <div className="p-3 rounded-xl border border-border bg-card text-center">
             <div className="text-lg font-bold text-foreground">{leaveData?.length ?? 0}</div>
-            <div className="text-xs text-muted-foreground mt-0.5">Leave Requests</div>
+            <div className="text-xs text-muted-foreground mt-0.5">{t("lifecycle.kpi.leaveRequests")}</div>
           </div>
           <div className="p-3 rounded-xl border border-border bg-card text-center">
             <div className="text-lg font-bold text-foreground">{empPayroll.length}</div>
-            <div className="text-xs text-muted-foreground mt-0.5">Payroll Records</div>
+            <div className="text-xs text-muted-foreground mt-0.5">{t("lifecycle.kpi.payrollRecords")}</div>
           </div>
           <div className="p-3 rounded-xl border border-border bg-card text-center">
             <div className="text-lg font-bold text-foreground">
@@ -373,7 +382,7 @@ export default function EmployeeLifecyclePage() {
                 ? Math.floor((Date.now() - new Date(employee.hireDate).getTime()) / (1000 * 60 * 60 * 24 * 30))
                 : "—"}
             </div>
-            <div className="text-xs text-muted-foreground mt-0.5">Months Employed</div>
+            <div className="text-xs text-muted-foreground mt-0.5">{t("lifecycle.kpi.monthsEmployed")}</div>
           </div>
         </div>
 
@@ -389,7 +398,7 @@ export default function EmployeeLifecyclePage() {
           return (
             <div className="p-4 rounded-xl border border-border bg-card">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-semibold text-foreground">Profile Completeness</span>
+                <span className="text-sm font-semibold text-foreground">{t("lifecycle.completeness.title")}</span>
                 <span className={`text-sm font-bold ${color}`}>{score}%</span>
               </div>
               <Progress value={score} className="h-2" />
@@ -397,15 +406,15 @@ export default function EmployeeLifecyclePage() {
                 <div className="mt-2.5 flex flex-wrap gap-1.5">
                   {missing.map((f) => (
                     <span key={f} className="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 border border-red-200 dark:border-red-800">
-                      Missing: {f.replace(/([A-Z])/g, " $1").toLowerCase()}
+                      {t("lifecycle.completeness.missing")} {f.replace(/([A-Z])/g, " $1").toLowerCase()}
                     </span>
                   ))}
                   <button onClick={() => setEditOpen(true)} className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20 transition-colors">
-                    + Fill in details
+                    {t("lifecycle.completeness.fillDetails")}
                   </button>
                 </div>
               ) : (
-                <p className="mt-1.5 text-xs text-emerald-600 dark:text-emerald-400">All required fields are complete ✓</p>
+                <p className="mt-1.5 text-xs text-emerald-600 dark:text-emerald-400">{t("lifecycle.completeness.allComplete")}</p>
               )}
             </div>
           );
@@ -414,11 +423,11 @@ export default function EmployeeLifecyclePage() {
         {/* ── Tabs ── */}
         <Tabs defaultValue="profile">
           <TabsList className="w-full sm:w-auto">
-            <TabsTrigger value="profile" className="gap-1.5"><User size={13} /> Profile</TabsTrigger>
-            <TabsTrigger value="leave" className="gap-1.5"><Calendar size={13} /> Leave</TabsTrigger>
-            <TabsTrigger value="payroll" className="gap-1.5"><DollarSign size={13} /> Payroll</TabsTrigger>
-            <TabsTrigger value="attendance" className="gap-1.5"><Clock size={13} /> Attendance</TabsTrigger>
-            <TabsTrigger value="documents" className="gap-1.5"><FileText size={13} /> Documents</TabsTrigger>
+            <TabsTrigger value="profile" className="gap-1.5"><User size={13} /> {t("lifecycle.tabs.profile")}</TabsTrigger>
+            <TabsTrigger value="leave" className="gap-1.5"><Calendar size={13} /> {t("lifecycle.tabs.leave")}</TabsTrigger>
+            <TabsTrigger value="payroll" className="gap-1.5"><DollarSign size={13} /> {t("lifecycle.tabs.payroll")}</TabsTrigger>
+            <TabsTrigger value="attendance" className="gap-1.5"><Clock size={13} /> {t("lifecycle.tabs.attendance")}</TabsTrigger>
+            <TabsTrigger value="documents" className="gap-1.5"><FileText size={13} /> {t("lifecycle.tabs.documents")}</TabsTrigger>
           </TabsList>
 
           {/* ── Profile Tab ── */}
@@ -427,56 +436,56 @@ export default function EmployeeLifecyclePage() {
               <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm flex items-center gap-2">
-                    <User size={14} className="text-muted-foreground" /> Personal Information
+                    <User size={14} className="text-muted-foreground" /> {t("lifecycle.profile.personalInfo")}
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="pt-0">
-                  <InfoRow label="Full Name" value={fullName} />
+                  <InfoRow label={t("lifecycle.profile.fullName")} value={fullName} />
                   {(employee as any).firstNameAr && (
-                    <InfoRow label="الاسم (AR)" value={`${(employee as any).firstNameAr} ${(employee as any).lastNameAr ?? ""}`} />
+                    <InfoRow label={t("lifecycle.profile.nameAr")} value={`${(employee as any).firstNameAr} ${(employee as any).lastNameAr ?? ""}`} />
                   )}
-                  <InfoRow label="Email" value={employee.email} icon={Mail} />
-                  <InfoRow label="Phone" value={employee.phone} icon={Phone} />
-                  <InfoRow label="Nationality" value={employee.nationality} icon={Globe} />
-                  <InfoRow label="Gender" value={(employee as any).gender} />
-                  <InfoRow label="Date of Birth" value={(employee as any).dateOfBirth ? fmtDate((employee as any).dateOfBirth) : null} icon={Calendar} />
-                  <InfoRow label="Marital Status" value={(employee as any).maritalStatus} />
-                  <InfoRow label="Passport No." value={employee.passportNumber} icon={CreditCard} />
-                  <InfoRow label="Civil ID" value={employee.nationalId} icon={Hash} />
+                  <InfoRow label={t("lifecycle.profile.email")} value={employee.email} icon={Mail} />
+                  <InfoRow label={t("lifecycle.profile.phone")} value={employee.phone} icon={Phone} />
+                  <InfoRow label={t("lifecycle.profile.nationality")} value={employee.nationality} icon={Globe} />
+                  <InfoRow label={t("lifecycle.profile.gender")} value={(employee as any).gender} />
+                  <InfoRow label={t("lifecycle.profile.dateOfBirth")} value={(employee as any).dateOfBirth ? fmtDate((employee as any).dateOfBirth) : null} icon={Calendar} />
+                  <InfoRow label={t("lifecycle.profile.maritalStatus")} value={(employee as any).maritalStatus} />
+                  <InfoRow label={t("lifecycle.profile.passportNo")} value={employee.passportNumber} icon={CreditCard} />
+                  <InfoRow label={t("lifecycle.profile.civilId")} value={employee.nationalId} icon={Hash} />
                   {!employee.email && !employee.phone && !employee.nationality && (
-                    <p className="text-xs text-muted-foreground py-2">No personal details added yet.</p>
+                    <p className="text-xs text-muted-foreground py-2">{t("lifecycle.profile.noPersonalDetails")}</p>
                   )}
                 </CardContent>
               </Card>
               <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm flex items-center gap-2">
-                    <Briefcase size={14} className="text-muted-foreground" /> Employment Details
+                    <Briefcase size={14} className="text-muted-foreground" /> {t("lifecycle.profile.employment")}
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="pt-0">
-                  <InfoRow label="Employee No." value={employee.employeeNumber} icon={Hash} />
-                  <InfoRow label="Position" value={employee.position} icon={Briefcase} />
-                  <InfoRow label="Department" value={employee.department} icon={Building2} />
-                  <InfoRow label="Employment Type" value={employee.employmentType?.replace("_", " ")} />
-                  <InfoRow label="Hire Date" value={fmtDate(employee.hireDate)} icon={Calendar} />
-                  <InfoRow label="Status" value={employee.status.replace("_", " ")} />
+                  <InfoRow label={t("lifecycle.profile.employeeNo")} value={employee.employeeNumber} icon={Hash} />
+                  <InfoRow label={t("lifecycle.profile.position")} value={employee.position} icon={Briefcase} />
+                  <InfoRow label={t("lifecycle.profile.department")} value={employee.department} icon={Building2} />
+                  <InfoRow label={t("lifecycle.profile.employmentType")} value={employee.employmentType?.replace("_", " ")} />
+                  <InfoRow label={t("lifecycle.profile.hireDate")} value={fmtDate(employee.hireDate)} icon={Calendar} />
+                  <InfoRow label={t("lifecycle.profile.status")} value={employee.status.replace("_", " ")} />
                   {employee.terminationDate && (
-                    <InfoRow label="Exit Date" value={fmtDate(employee.terminationDate)} />
+                    <InfoRow label={t("lifecycle.profile.exitDate")} value={fmtDate(employee.terminationDate)} />
                   )}
                 </CardContent>
               </Card>
               <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm flex items-center gap-2">
-                    <DollarSign size={14} className="text-muted-foreground" /> Compensation
+                    <DollarSign size={14} className="text-muted-foreground" /> {t("lifecycle.profile.compensation")}
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="pt-0">
-                  <InfoRow label="Basic Salary" value={fmtOMR(employee.salary)} />
-                  <InfoRow label="Currency" value={employee.currency ?? "OMR"} />
+                  <InfoRow label={t("lifecycle.profile.basicSalary")} value={fmtOMR(employee.salary)} />
+                  <InfoRow label={t("lifecycle.profile.currency")} value={employee.currency ?? "OMR"} />
                   {!employee.salary && (
-                    <p className="text-xs text-muted-foreground py-2">No salary information recorded.</p>
+                    <p className="text-xs text-muted-foreground py-2">{t("lifecycle.profile.noSalary")}</p>
                   )}
                 </CardContent>
               </Card>
@@ -484,37 +493,36 @@ export default function EmployeeLifecyclePage() {
                 <Card className="sm:col-span-2">
                   <CardHeader className="pb-2">
                     <CardTitle className="text-sm flex items-center gap-2">
-                      <Shield size={14} className="text-muted-foreground" /> Work Permit &amp; Visa Details
+                      <Shield size={14} className="text-muted-foreground" /> {t("lifecycle.profile.workPermit")}
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="pt-0">
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6">
-                      <InfoRow label="Work Permit No." value={employee.permit.workPermitNumber} icon={Hash} />
-                      <InfoRow label="Labour Auth. No." value={employee.permit.labourAuthorisationNumber} icon={FileText} />
-                      <InfoRow label="Occupation Code" value={employee.permit.occupationCode} icon={Briefcase} />
-                      <InfoRow label="Occupation" value={employee.permit.occupationTitleEn} icon={Briefcase} />
-                      <InfoRow label="Issue Date" value={fmtDate(employee.permit.issueDate)} icon={Calendar} />
-                      <InfoRow label="Expiry Date" value={fmtDate(employee.permit.expiryDate)} icon={Calendar} expiryDate={employee.permit.expiryDate} warnDays={expiryWarningDays} />
-                      <InfoRow label="Status" value={employee.permit.permitStatus} />
+                      <InfoRow label={t("lifecycle.profile.workPermitNo")} value={employee.permit.workPermitNumber} icon={Hash} />
+                      <InfoRow label={t("lifecycle.profile.labourAuthNo")} value={employee.permit.labourAuthorisationNumber} icon={FileText} />
+                      <InfoRow label={t("lifecycle.profile.occupationCode")} value={employee.permit.occupationCode} icon={Briefcase} />
+                      <InfoRow label={t("lifecycle.profile.occupation")} value={employee.permit.occupationTitleEn} icon={Briefcase} />
+                      <InfoRow label={t("lifecycle.profile.issueDate")} value={fmtDate(employee.permit.issueDate)} icon={Calendar} />
+                      <InfoRow label={t("lifecycle.profile.expiryDate")} value={fmtDate(employee.permit.expiryDate)} icon={Calendar} expiryDate={employee.permit.expiryDate} warnDays={expiryWarningDays} />
+                      <InfoRow label={t("lifecycle.profile.permitStatus")} value={employee.permit.permitStatus} />
                     </div>
                   </CardContent>
                 </Card>
               )}
-              {/* PASI / Bank / Emergency */}
               {((employee as any).pasiNumber || (employee as any).bankName || (employee as any).emergencyContactName) && (
                 <Card className="sm:col-span-2">
                   <CardHeader className="pb-2">
                     <CardTitle className="text-sm flex items-center gap-2">
-                      <Hash size={14} className="text-muted-foreground" /> PASI, Bank &amp; Emergency Contact
+                      <Hash size={14} className="text-muted-foreground" /> {t("lifecycle.profile.pasiBankEmergency")}
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="pt-0">
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6">
-                      <InfoRow label="PASI Number" value={(employee as any).pasiNumber} icon={Hash} />
-                      <InfoRow label="Bank Name" value={(employee as any).bankName} icon={Building2} />
-                      <InfoRow label="Bank Account" value={(employee as any).bankAccountNumber} icon={Hash} />
-                      <InfoRow label="Emergency Contact" value={(employee as any).emergencyContactName} icon={User} />
-                      <InfoRow label="Emergency Phone" value={(employee as any).emergencyContactPhone} icon={Phone} />
+                      <InfoRow label={t("lifecycle.profile.pasiNumber")} value={(employee as any).pasiNumber} icon={Hash} />
+                      <InfoRow label={t("lifecycle.profile.bankName")} value={(employee as any).bankName} icon={Building2} />
+                      <InfoRow label={t("lifecycle.profile.bankAccount")} value={(employee as any).bankAccountNumber} icon={Hash} />
+                      <InfoRow label={t("lifecycle.profile.emergencyContact")} value={(employee as any).emergencyContactName} icon={User} />
+                      <InfoRow label={t("lifecycle.profile.emergencyPhone")} value={(employee as any).emergencyContactPhone} icon={Phone} />
                     </div>
                   </CardContent>
                 </Card>
@@ -527,10 +535,10 @@ export default function EmployeeLifecyclePage() {
             <Card>
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
-                  <CardTitle className="text-sm">Leave History</CardTitle>
+                  <CardTitle className="text-sm">{t("lifecycle.leave.title")}</CardTitle>
                   <Button variant="outline" size="sm" className="text-xs h-7 gap-1"
                     onClick={() => navigate("/hr/leave")}>
-                    Manage Leave
+                    {t("lifecycle.leave.manage")}
                   </Button>
                 </div>
               </CardHeader>
@@ -538,7 +546,7 @@ export default function EmployeeLifecyclePage() {
                 {(leaveData?.length ?? 0) === 0 ? (
                   <div className="text-center py-8">
                     <Calendar size={24} className="text-muted-foreground mx-auto mb-2" />
-                    <p className="text-sm text-muted-foreground">No leave requests on record</p>
+                    <p className="text-sm text-muted-foreground">{t("lifecycle.leave.empty")}</p>
                   </div>
                 ) : (
                   <div className="space-y-2">
@@ -551,7 +559,7 @@ export default function EmployeeLifecyclePage() {
                           }`} />
                           <div>
                             <p className="text-sm font-medium text-foreground capitalize">
-                              {leave.leaveType.replace("_", " ")} Leave
+                              {leave.leaveType.replace("_", " ")} {t("lifecycle.leave.leave")}
                             </p>
                             <p className="text-xs text-muted-foreground">
                               {fmtDate(leave.startDate)} → {fmtDate(leave.endDate)}
@@ -575,10 +583,10 @@ export default function EmployeeLifecyclePage() {
             <Card>
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
-                  <CardTitle className="text-sm">Payroll Records</CardTitle>
+                  <CardTitle className="text-sm">{t("lifecycle.payroll.title")}</CardTitle>
                   <Button variant="outline" size="sm" className="text-xs h-7 gap-1"
                     onClick={() => navigate("/payroll")}>
-                    Payroll Engine
+                    {t("lifecycle.payroll.engine")}
                   </Button>
                 </div>
               </CardHeader>
@@ -586,18 +594,18 @@ export default function EmployeeLifecyclePage() {
                 {empPayroll.length === 0 ? (
                   <div className="text-center py-8">
                     <DollarSign size={24} className="text-muted-foreground mx-auto mb-2" />
-                    <p className="text-sm text-muted-foreground">No payroll records for this year</p>
+                    <p className="text-sm text-muted-foreground">{t("lifecycle.payroll.empty")}</p>
                   </div>
                 ) : (
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="border-b border-border">
-                          <th className="text-left py-2 text-xs font-medium text-muted-foreground">Period</th>
-                          <th className="text-right py-2 text-xs font-medium text-muted-foreground">Basic</th>
-                          <th className="text-right py-2 text-xs font-medium text-muted-foreground">Deductions</th>
-                          <th className="text-right py-2 text-xs font-medium text-muted-foreground">Net Pay</th>
-                          <th className="text-right py-2 text-xs font-medium text-muted-foreground">Status</th>
+                          <th className="text-start py-2 text-xs font-medium text-muted-foreground">{t("lifecycle.payroll.period")}</th>
+                          <th className="text-end py-2 text-xs font-medium text-muted-foreground">{t("lifecycle.payroll.basic")}</th>
+                          <th className="text-end py-2 text-xs font-medium text-muted-foreground">{t("lifecycle.payroll.deductions")}</th>
+                          <th className="text-end py-2 text-xs font-medium text-muted-foreground">{t("lifecycle.payroll.netPay")}</th>
+                          <th className="text-end py-2 text-xs font-medium text-muted-foreground">{t("lifecycle.payroll.status")}</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -606,10 +614,10 @@ export default function EmployeeLifecyclePage() {
                             <td className="py-2.5 text-foreground font-medium">
                               {MONTH_NAMES[(p.periodMonth ?? 1) - 1]} {p.periodYear}
                             </td>
-                            <td className="py-2.5 text-right text-foreground">{fmtOMR(p.basicSalary)}</td>
-                            <td className="py-2.5 text-right text-red-600 dark:text-red-400">-{fmtOMR(p.deductions)}</td>
-                            <td className="py-2.5 text-right font-semibold text-foreground">{fmtOMR(p.netSalary)}</td>
-                            <td className="py-2.5 text-right">
+                            <td className="py-2.5 text-end text-foreground">{fmtOMR(p.basicSalary)}</td>
+                            <td className="py-2.5 text-end text-red-600 dark:text-red-400">-{fmtOMR(p.deductions)}</td>
+                            <td className="py-2.5 text-end font-semibold text-foreground">{fmtOMR(p.netSalary)}</td>
+                            <td className="py-2.5 text-end">
                               <Badge className={`text-xs px-2 py-0 h-5 ${payrollStatusBadge(p.status)}`}>
                                 {p.status}
                               </Badge>
@@ -629,10 +637,12 @@ export default function EmployeeLifecyclePage() {
             <Card>
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
-                  <CardTitle className="text-sm">Attendance — {MONTH_NAMES[attendanceMonth - 1]} {attendanceYear}</CardTitle>
+                  <CardTitle className="text-sm">
+                    {t("lifecycle.attendance.title")} — {MONTH_NAMES[attendanceMonth - 1]} {attendanceYear}
+                  </CardTitle>
                   <Button variant="outline" size="sm" className="text-xs h-7 gap-1"
                     onClick={() => navigate("/hr/attendance")}>
-                    Full Attendance
+                    {t("lifecycle.attendance.fullAttendance")}
                   </Button>
                 </div>
               </CardHeader>
@@ -640,20 +650,19 @@ export default function EmployeeLifecyclePage() {
                 {empAttendance.length === 0 ? (
                   <div className="text-center py-8">
                     <Clock size={24} className="text-muted-foreground mx-auto mb-2" />
-                    <p className="text-sm text-muted-foreground">No attendance records this month</p>
+                    <p className="text-sm text-muted-foreground">{t("lifecycle.attendance.empty")}</p>
                     <Button variant="outline" size="sm" className="mt-3 gap-1.5" onClick={() => navigate("/hr/attendance")}>
-                      Record Attendance
+                      {t("lifecycle.attendance.record")}
                     </Button>
                   </div>
                 ) : (
                   <>
-                    {/* Summary row */}
                     <div className="grid grid-cols-4 gap-3 mb-4">
                       {[
-                        { label: "Present", count: empAttendance.filter((a: any) => a.status === "present").length, color: "text-emerald-600" },
-                        { label: "Absent", count: empAttendance.filter((a: any) => a.status === "absent").length, color: "text-red-600" },
-                        { label: "Late", count: empAttendance.filter((a: any) => a.status === "late").length, color: "text-amber-600" },
-                        { label: "Remote", count: empAttendance.filter((a: any) => a.status === "remote").length, color: "text-blue-600" },
+                        { label: t("lifecycle.attendance.present"), count: empAttendance.filter((a: any) => a.status === "present").length, color: "text-emerald-600" },
+                        { label: t("lifecycle.attendance.absent"),  count: empAttendance.filter((a: any) => a.status === "absent").length,  color: "text-red-600" },
+                        { label: t("lifecycle.attendance.late"),    count: empAttendance.filter((a: any) => a.status === "late").length,    color: "text-amber-600" },
+                        { label: t("lifecycle.attendance.remote"),  count: empAttendance.filter((a: any) => a.status === "remote").length,  color: "text-blue-600" },
                       ].map(({ label, count, color }) => (
                         <div key={label} className="text-center p-3 rounded-lg border border-border bg-muted/30">
                           <div className={`text-xl font-bold ${color}`}>{count}</div>
@@ -665,11 +674,11 @@ export default function EmployeeLifecyclePage() {
                       <table className="w-full text-sm">
                         <thead>
                           <tr className="border-b border-border">
-                            <th className="text-left py-2 text-xs font-medium text-muted-foreground">Date</th>
-                            <th className="text-left py-2 text-xs font-medium text-muted-foreground">Status</th>
-                            <th className="text-left py-2 text-xs font-medium text-muted-foreground">Clock In</th>
-                            <th className="text-left py-2 text-xs font-medium text-muted-foreground">Clock Out</th>
-                            <th className="text-left py-2 text-xs font-medium text-muted-foreground">Hours</th>
+                            <th className="text-start py-2 text-xs font-medium text-muted-foreground">{t("lifecycle.attendance.date")}</th>
+                            <th className="text-start py-2 text-xs font-medium text-muted-foreground">{t("lifecycle.attendance.status")}</th>
+                            <th className="text-start py-2 text-xs font-medium text-muted-foreground">{t("lifecycle.attendance.clockIn")}</th>
+                            <th className="text-start py-2 text-xs font-medium text-muted-foreground">{t("lifecycle.attendance.clockOut")}</th>
+                            <th className="text-start py-2 text-xs font-medium text-muted-foreground">{t("lifecycle.attendance.hours")}</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -679,8 +688,8 @@ export default function EmployeeLifecyclePage() {
                               <td className="py-2.5">
                                 <Badge className={`text-xs px-2 py-0 h-5 ${
                                   a.status === "present" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" :
-                                  a.status === "absent" ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" :
-                                  a.status === "late" ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" :
+                                  a.status === "absent"  ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" :
+                                  a.status === "late"    ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" :
                                   "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
                                 }`}>{a.status}</Badge>
                               </td>
@@ -703,19 +712,18 @@ export default function EmployeeLifecyclePage() {
             <Card>
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
-                  <CardTitle className="text-sm">Employee Documents</CardTitle>
+                  <CardTitle className="text-sm">{t("lifecycle.documents.title")}</CardTitle>
                   <Button variant="outline" size="sm" className="text-xs h-7 gap-1"
                     onClick={() => navigate(`/employee/${employeeId}/documents`)}>
-                    Document Vault
+                    {t("lifecycle.documents.vault")}
                   </Button>
                 </div>
               </CardHeader>
               <CardContent className="pt-0">
-                {/* Document summary from employee fields */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
                   {[
-                    { label: "Passport", value: employee.passportNumber, icon: CreditCard, note: "Passport number on file" },
-                    { label: "Civil ID", value: employee.nationalId, icon: Shield, note: "National ID on file" },
+                    { label: t("lifecycle.documents.passport"), value: employee.passportNumber, icon: CreditCard, note: t("lifecycle.documents.passportNote") },
+                    { label: t("lifecycle.documents.civilId"),  value: employee.nationalId,     icon: Shield,     note: t("lifecycle.documents.civilIdNote") },
                   ].map(({ label, value, icon: Icon, note }) => (
                     <div key={label} className={`flex items-center gap-3 p-3 rounded-lg border ${
                       value ? "border-emerald-200 bg-emerald-50 dark:border-emerald-900/40 dark:bg-emerald-950/20" : "border-border bg-muted/30"
@@ -725,17 +733,17 @@ export default function EmployeeLifecyclePage() {
                       </div>
                       <div>
                         <p className="text-sm font-medium text-foreground">{label}</p>
-                        <p className="text-xs text-muted-foreground">{value ? note : "Not recorded"}</p>
+                        <p className="text-xs text-muted-foreground">{value ? note : t("lifecycle.documents.notRecorded")}</p>
                       </div>
-                      {value && <CheckCircle2 size={14} className="text-emerald-500 ml-auto" />}
+                      {value && <CheckCircle2 size={14} className="text-emerald-500 ms-auto" />}
                     </div>
                   ))}
                 </div>
                 <div className="text-center py-4 border border-dashed border-border rounded-lg">
                   <FileText size={20} className="text-muted-foreground mx-auto mb-2" />
-                  <p className="text-sm text-muted-foreground">Upload work permit, passport, visa, ID card and more</p>
+                  <p className="text-sm text-muted-foreground">{t("lifecycle.documents.uploadNote")}</p>
                   <Button variant="outline" size="sm" className="mt-2 gap-1.5" onClick={() => navigate(`/employee/${employeeId}/documents`)}>
-                    <FileText size={12} /> Open Document Vault
+                    <FileText size={12} /> {t("lifecycle.documents.openVault")}
                   </Button>
                 </div>
               </CardContent>

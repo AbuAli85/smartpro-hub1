@@ -6,10 +6,20 @@ import {
   workPermits,
   payrollRuns,
   payrollLineItems,
+  attendanceRecords,
+  employeeSchedules,
+  shiftTemplates,
 } from "../../drizzle/schema";
-import { eq, and, gte, lte, count, inArray, desc } from "drizzle-orm";
+import { eq, and, gte, lte, count, inArray, desc, isNotNull } from "drizzle-orm";
 import { resolveStatsCompanyFilter } from "../_core/tenant";
 import type { User } from "../../drizzle/schema";
+
+/** Oman Labour Law Art. 68 — maximum working hours per day (exclusive of breaks). */
+const OMAN_MAX_DAILY_HOURS = 9;
+const OMAN_MAX_DAILY_MINUTES = OMAN_MAX_DAILY_HOURS * 60; // 540
+
+/** Minutes above cap that constitute an overtime day (allow 5-min buffer for clock drift). */
+const OVERTIME_THRESHOLD_MINUTES = OMAN_MAX_DAILY_MINUTES + 5; // 545
 
 export const complianceRouter = router({
   // ── Omanisation Stats ────────────────────────────────────────────────────────
@@ -266,6 +276,149 @@ export const complianceRouter = router({
       };
     }),
 
+  /**
+   * Oman Labour Law overtime compliance: flags employees whose daily worked
+   * duration (check-out minus check-in, minus shift break) exceeds 9 hours
+   * in the requested period.
+   *
+   * Only closed punches are evaluated (check_out IS NOT NULL).
+   * Break minutes are taken from the linked shift template where available;
+   * defaults to 0 if not linked (conservative — more flags, not fewer).
+   */
+  getOvertimeFlags: protectedProcedure
+    .input(
+      z.object({
+        companyId: z.number().optional(),
+        month: z.string().regex(/^\d{4}-\d{2}$/).optional(), // YYYY-MM; defaults to current month
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) return { month: "", flags: [], summary: { totalViolationDays: 0, affectedEmployees: 0 } };
+
+      const scope = await resolveStatsCompanyFilter(ctx.user as User, input.companyId);
+
+      const now = new Date();
+      const monthStr = input.month ?? `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+      const [yStr, mStr] = monthStr.split("-");
+      const year = Number(yStr);
+      const month = Number(mStr);
+      const mm = String(month).padStart(2, "0");
+      const startDate = `${year}-${mm}-01`;
+      const lastDay = new Date(year, month, 0).getDate();
+      const endDate = `${year}-${mm}-${String(lastDay).padStart(2, "0")}`;
+
+      const monthStart = new Date(`${startDate}T00:00:00.000Z`);
+      const monthEnd = new Date(`${endDate}T23:59:59.999Z`);
+
+      // Load closed punches for the period
+      const recConds = [
+        gte(attendanceRecords.checkIn, monthStart),
+        lte(attendanceRecords.checkIn, monthEnd),
+        isNotNull(attendanceRecords.checkOut),
+      ];
+      if (!scope.aggregateAllTenants) recConds.push(eq(attendanceRecords.companyId, scope.companyId));
+
+      const records = await db
+        .select({
+          id: attendanceRecords.id,
+          employeeId: attendanceRecords.employeeId,
+          checkIn: attendanceRecords.checkIn,
+          checkOut: attendanceRecords.checkOut,
+          scheduleId: attendanceRecords.scheduleId,
+        })
+        .from(attendanceRecords)
+        .where(and(...recConds));
+
+      if (records.length === 0) {
+        return { month: monthStr, flags: [], summary: { totalViolationDays: 0, affectedEmployees: 0 } };
+      }
+
+      // Batch-load shift templates to get breakMinutes
+      const scheduleIds = [...new Set(records.map((r) => r.scheduleId).filter((id): id is number => id != null))];
+      const schedules = scheduleIds.length
+        ? await db
+            .select({ id: employeeSchedules.id, shiftTemplateId: employeeSchedules.shiftTemplateId })
+            .from(employeeSchedules)
+            .where(inArray(employeeSchedules.id, scheduleIds))
+        : [];
+      const templateIds = [...new Set(schedules.map((s) => s.shiftTemplateId))];
+      const shiftRows = templateIds.length
+        ? await db
+            .select({ id: shiftTemplates.id, breakMinutes: shiftTemplates.breakMinutes })
+            .from(shiftTemplates)
+            .where(inArray(shiftTemplates.id, templateIds))
+        : [];
+      const breakByTemplateId = new Map(shiftRows.map((s) => [s.id, s.breakMinutes ?? 0]));
+      const templateByScheduleId = new Map(schedules.map((s) => [s.id, s.shiftTemplateId]));
+
+      // Batch-load employee names
+      const empIds = [...new Set(records.map((r) => r.employeeId))];
+      const empConds = [inArray(employees.id, empIds)];
+      if (!scope.aggregateAllTenants) empConds.push(eq(employees.companyId, scope.companyId));
+      const empRows = await db
+        .select({ id: employees.id, firstName: employees.firstName, lastName: employees.lastName })
+        .from(employees)
+        .where(and(...empConds));
+      const empById = new Map(empRows.map((e) => [e.id, e]));
+
+      // Flag days where worked minutes (gross - break) > threshold
+      type OvertimeFlag = {
+        employeeId: number;
+        employeeName: string;
+        date: string; // Muscat calendar date YYYY-MM-DD
+        grossMinutes: number; // raw punch duration
+        breakMinutes: number; // from shift template or 0
+        netMinutes: number; // grossMinutes - breakMinutes
+        overtimeMinutes: number; // net - 540
+        recordId: number;
+      };
+
+      const flags: OvertimeFlag[] = [];
+
+      const { muscatCalendarYmdFromUtcInstant } = await import("@shared/attendanceMuscatTime");
+
+      for (const rec of records) {
+        if (!rec.checkOut) continue;
+        const gross = Math.max(
+          0,
+          Math.round((new Date(rec.checkOut).getTime() - new Date(rec.checkIn).getTime()) / 60000),
+        );
+        const templateId = rec.scheduleId != null ? templateByScheduleId.get(rec.scheduleId) : null;
+        const breakMins = templateId != null ? (breakByTemplateId.get(templateId) ?? 0) : 0;
+        const net = Math.max(0, gross - breakMins);
+
+        if (net > OVERTIME_THRESHOLD_MINUTES) {
+          const dateYmd = muscatCalendarYmdFromUtcInstant(new Date(rec.checkIn));
+          const emp = empById.get(rec.employeeId);
+          flags.push({
+            employeeId: rec.employeeId,
+            employeeName: emp ? `${emp.firstName} ${emp.lastName}`.trim() : `Employee #${rec.employeeId}`,
+            date: dateYmd,
+            grossMinutes: gross,
+            breakMinutes: breakMins,
+            netMinutes: net,
+            overtimeMinutes: net - OMAN_MAX_DAILY_MINUTES,
+            recordId: rec.id,
+          });
+        }
+      }
+
+      // Sort: most overtime first
+      flags.sort((a, b) => b.overtimeMinutes - a.overtimeMinutes);
+
+      const affectedEmployees = new Set(flags.map((f) => f.employeeId)).size;
+
+      return {
+        month: monthStr,
+        flags,
+        summary: {
+          totalViolationDays: flags.length,
+          affectedEmployees,
+        },
+      };
+    }),
+
   // ── Overall Compliance Score ──────────────────────────────────────────────────
   getComplianceScore: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }))
@@ -291,7 +444,7 @@ export const complianceRouter = router({
         name: "Omanisation Quota",
         status: omanisationPct >= 35 ? "pass" : omanisationPct >= 25 ? "warn" : "fail",
         detail: `${omanisationPct}% Omani employees (target: 35%)`,
-        weight: 30,
+        weight: 25,
         meta: { pct: omanisationPct, target: 35 },
       });
 
@@ -311,7 +464,7 @@ export const complianceRouter = router({
         name: "Work Permit Validity",
         status: expiredCount === 0 ? "pass" : expiredCount <= 2 ? "warn" : "fail",
         detail: expiredCount === 0 ? "All permits valid" : `${expiredCount} expired permit(s)`,
-        weight: 25,
+        weight: 20,
         meta: { count: expiredCount },
       });
 
@@ -358,8 +511,80 @@ export const complianceRouter = router({
         name: "WPS Compliance",
         status: latestRun?.status === "paid" ? "pass" : latestRun?.wpsFileUrl ? "warn" : "fail",
         detail: latestRun?.status === "paid" ? "Payroll paid via WPS" : latestRun?.wpsFileUrl ? "WPS file generated, pending payment" : "WPS file not generated for current month",
-        weight: 25,
+        weight: 20,
         meta: { variant: wpsVariant },
+      });
+
+      // 5. Daily hours cap (Oman Labour Law Art. 68 — max 9 hours/day excl. break)
+      const scoreNow = new Date();
+      const scoreY = scoreNow.getFullYear();
+      const scoreM = scoreNow.getMonth() + 1;
+      const scoreMm = String(scoreM).padStart(2, "0");
+      const scoreStartStr = `${scoreY}-${scoreMm}-01`;
+      const scoreLastDay = new Date(scoreY, scoreM, 0).getDate();
+      const scoreEndStr = `${scoreY}-${scoreMm}-${String(scoreLastDay).padStart(2, "0")}`;
+      const scoreMonthStart = new Date(`${scoreStartStr}T00:00:00.000Z`);
+      const scoreMonthEnd = new Date(`${scoreEndStr}T23:59:59.999Z`);
+
+      const currentMonthConds = [
+        gte(attendanceRecords.checkIn, scoreMonthStart),
+        lte(attendanceRecords.checkIn, scoreMonthEnd),
+        isNotNull(attendanceRecords.checkOut),
+      ];
+      if (!scope.aggregateAllTenants) currentMonthConds.push(eq(attendanceRecords.companyId, scope.companyId));
+
+      const monthlyRecords = await db
+        .select({
+          checkIn: attendanceRecords.checkIn,
+          checkOut: attendanceRecords.checkOut,
+          scheduleId: attendanceRecords.scheduleId,
+        })
+        .from(attendanceRecords)
+        .where(and(...currentMonthConds));
+
+      let overtimeDays = 0;
+      if (monthlyRecords.length > 0) {
+        const scoreScheduleIds = [
+          ...new Set(monthlyRecords.map((r) => r.scheduleId).filter((id): id is number => id != null)),
+        ];
+        const scoreSchedules = scoreScheduleIds.length
+          ? await db
+              .select({ id: employeeSchedules.id, shiftTemplateId: employeeSchedules.shiftTemplateId })
+              .from(employeeSchedules)
+              .where(inArray(employeeSchedules.id, scoreScheduleIds))
+          : [];
+        const scoreTemplateIds = [...new Set(scoreSchedules.map((s) => s.shiftTemplateId))];
+        const scoreShiftRows = scoreTemplateIds.length
+          ? await db
+              .select({ id: shiftTemplates.id, breakMinutes: shiftTemplates.breakMinutes })
+              .from(shiftTemplates)
+              .where(inArray(shiftTemplates.id, scoreTemplateIds))
+          : [];
+        const scoreBreakByTemplateId = new Map(scoreShiftRows.map((s) => [s.id, s.breakMinutes ?? 0]));
+        const scoreTemplateByScheduleId = new Map(scoreSchedules.map((s) => [s.id, s.shiftTemplateId]));
+
+        for (const r of monthlyRecords) {
+          if (!r.checkOut) continue;
+          const gross = Math.round(
+            (new Date(r.checkOut).getTime() - new Date(r.checkIn).getTime()) / 60000,
+          );
+          const templateId = r.scheduleId != null ? scoreTemplateByScheduleId.get(r.scheduleId) : null;
+          const breakMins = templateId != null ? (scoreBreakByTemplateId.get(templateId) ?? 0) : 0;
+          const net = Math.max(0, gross - breakMins);
+          if (net > OVERTIME_THRESHOLD_MINUTES) overtimeDays++;
+        }
+      }
+
+      checks.push({
+        id: "daily_hours_cap",
+        name: "Daily Hours Cap (Art. 68)",
+        status: overtimeDays === 0 ? "pass" : overtimeDays <= 3 ? "warn" : "fail",
+        detail:
+          overtimeDays === 0
+            ? "No employees exceeded 9 hours/day this month"
+            : `${overtimeDays} day(s) exceeded the 9-hour daily limit this month`,
+        weight: 15,
+        meta: { count: overtimeDays, threshold: OMAN_MAX_DAILY_HOURS },
       });
 
       // Calculate overall score

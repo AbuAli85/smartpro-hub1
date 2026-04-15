@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
@@ -5,9 +6,11 @@ import { seesPlatformOperatorNav } from "@shared/clientNav";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 import {
   Shield, CheckCircle2, AlertTriangle, XCircle, Users, FileText,
-  DollarSign, Globe, ChevronRight, RefreshCw, ArrowRight,
+  DollarSign, Globe, ChevronRight, RefreshCw, ArrowRight, Clock,
 } from "lucide-react";
 import { Link } from "wouter";
 import { format } from "date-fns";
@@ -82,6 +85,13 @@ export default function ComplianceDashboardPage() {
     { enabled: scopeEnabled },
   );
   const { data: permitMatrix } = trpc.compliance.getPermitMatrix.useQuery(companyScope, { enabled: scopeEnabled });
+  const [overtimeMonth, setOvertimeMonth] = useState(
+    `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`,
+  );
+  const { data: overtimeData } = trpc.compliance.getOvertimeFlags.useQuery(
+    { companyId: activeCompanyId ?? undefined, month: overtimeMonth },
+    { enabled: scopeEnabled },
+  );
   const { data: opsSnapshot } = trpc.operations.getDailySnapshot.useQuery(companyScope, { enabled: scopeEnabled && !isPlatform });
 
   const failedChecks = score?.checks?.filter((c) => c.status === "fail").length ?? 0;
@@ -396,6 +406,86 @@ export default function ComplianceDashboardPage() {
           </Card>
         </div>
       </div>
+
+      {/* Overtime / Daily Hours Cap */}
+      <section aria-label="Overtime compliance">
+        <h2 className="text-sm font-semibold flex items-center gap-2 mb-3">
+          <Clock className="h-4 w-4 text-[var(--smartpro-orange)]" />
+          {t("overtime.title", "Daily Hours Cap — Oman Labour Law Art. 68")}
+        </h2>
+
+        <div className="flex items-center gap-3 mb-3">
+          <Input
+            type="month"
+            value={overtimeMonth}
+            onChange={(e) => setOvertimeMonth(e.target.value)}
+            className="w-36 h-8 text-sm"
+          />
+          {overtimeData && (
+            <span
+              className={cn(
+                "text-sm font-medium",
+                overtimeData.summary.totalViolationDays === 0
+                  ? "text-emerald-700 dark:text-emerald-400"
+                  : "text-red-700 dark:text-red-400",
+              )}
+            >
+              {overtimeData.summary.totalViolationDays === 0
+                ? "✓ No violations"
+                : `${overtimeData.summary.totalViolationDays} violation day(s) · ${overtimeData.summary.affectedEmployees} employee(s)`}
+            </span>
+          )}
+        </div>
+
+        {overtimeData && overtimeData.flags.length > 0 && (
+          <div className="rounded-lg border border-red-200 dark:border-red-800 overflow-hidden">
+            <table className="w-full text-sm">
+              <thead className="bg-red-50 dark:bg-red-950/40">
+                <tr className="text-[11px] text-muted-foreground">
+                  <th className="text-left px-3 py-2 font-medium">Employee</th>
+                  <th className="text-left px-3 py-2 font-medium">Date</th>
+                  <th className="text-right px-3 py-2 font-medium">Worked</th>
+                  <th className="text-right px-3 py-2 font-medium">Break</th>
+                  <th className="text-right px-3 py-2 font-medium">Net</th>
+                  <th className="text-right px-3 py-2 font-medium text-red-700 dark:text-red-400">Overtime</th>
+                </tr>
+              </thead>
+              <tbody>
+                {overtimeData.flags.map((f, i) => {
+                  const fmtMins = (m: number) => `${Math.floor(m / 60)}h ${m % 60}m`;
+                  return (
+                    <tr
+                      key={`${f.employeeId}-${f.date}-${i}`}
+                      className="border-t border-red-100 dark:border-red-900/40"
+                    >
+                      <td className="px-3 py-2 font-medium">{f.employeeName}</td>
+                      <td className="px-3 py-2 text-muted-foreground">{f.date}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{fmtMins(f.grossMinutes)}</td>
+                      <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
+                        {f.breakMinutes > 0 ? fmtMins(f.breakMinutes) : "—"}
+                      </td>
+                      <td className="px-3 py-2 text-right tabular-nums">{fmtMins(f.netMinutes)}</td>
+                      <td className="px-3 py-2 text-right tabular-nums font-semibold text-red-700 dark:text-red-400">
+                        +{fmtMins(f.overtimeMinutes)}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+            <div className="px-3 py-2 bg-muted/30 text-[11px] text-muted-foreground border-t border-red-100 dark:border-red-900/40">
+              Maximum 9 working hours/day excluding breaks (Oman Labour Law Art. 68).
+              Overtime requires employee consent and 125% pay on normal days, 150% on Fridays/holidays.
+            </div>
+          </div>
+        )}
+
+        {overtimeData && overtimeData.flags.length === 0 && (
+          <div className="rounded-lg border border-emerald-200 dark:border-emerald-800 bg-emerald-50/50 dark:bg-emerald-950/20 px-4 py-3 text-sm text-emerald-700 dark:text-emerald-400">
+            No employees exceeded the 9-hour daily limit in {overtimeMonth}. Compliant.
+          </div>
+        )}
+      </section>
 
       {/* Permit Matrix */}
       <Card className="shadow-sm">

@@ -194,6 +194,27 @@ export const customerAccountMembers = mysqlTable(
 export type CustomerAccountMember = typeof customerAccountMembers.$inferSelect;
 export type InsertCustomerAccountMember = typeof customerAccountMembers.$inferInsert;
 
+/** Links PRO billing cycle invoices (`pro_billing_cycles.id`) to a buyer customer account. */
+export const customerInvoiceLinks = mysqlTable(
+  "customer_invoice_links",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    customerAccountId: int("customer_account_id").notNull(),
+    /** `pro_billing_cycles.id` — provider invoice row scoped by `pro_billing_cycles.company_id`. */
+    invoiceId: int("invoice_id").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  },
+  (t) => [
+    index("idx_cil_account").on(t.customerAccountId),
+    index("idx_cil_invoice").on(t.invoiceId),
+    unique("uq_cil_account_invoice").on(t.customerAccountId, t.invoiceId),
+  ],
+);
+
+export type CustomerInvoiceLink = typeof customerInvoiceLinks.$inferSelect;
+export type InsertCustomerInvoiceLink = typeof customerInvoiceLinks.$inferInsert;
+
 // ─── AUDIT LOGS ───────────────────────────────────────────────────────────────
 
 export const auditLogs = mysqlTable(

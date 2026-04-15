@@ -126,23 +126,15 @@ import AttractPage from "./pages/AttractPage";
 import ConvertPage from "./pages/ConvertPage";
 import RetainPage from "./pages/RetainPage";
 import NavigationProgress from "./components/NavigationProgress";
-import BuyerPortalLayout from "./components/BuyerPortalLayout";
-import BuyerPortalPlaceholderPage from "./pages/BuyerPortalPlaceholderPage";
+import BuyerPortalRoutes from "./pages/BuyerPortalRoutes";
 import { isBuyerPortalUiEnabled } from "./lib/buyerPortalEnv";
-
-function BuyerPortalRoute() {
-  return (
-    <BuyerPortalLayout>
-      <BuyerPortalPlaceholderPage />
-    </BuyerPortalLayout>
-  );
-}
 
 function PublicRoutes() {
   const buyerPortalUi = isBuyerPortalUiEnabled();
   return (
     <Switch>
-      {buyerPortalUi ? <Route path="/buyer" component={BuyerPortalRoute} /> : null}
+      {buyerPortalUi ? <Route path="/buyer/invoices" component={BuyerPortalRoutes} /> : null}
+      {buyerPortalUi ? <Route path="/buyer" component={BuyerPortalRoutes} /> : null}
       <Route path="/jobs" component={PublicJobBoardPage} />
       <Route path="/contracts/:id/sign" component={ContractSignPage} />
       <Route path="/attend/:token" component={AttendCheckInPage} />

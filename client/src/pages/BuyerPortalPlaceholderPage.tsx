@@ -1,5 +1,5 @@
 import { trpc } from "@/lib/trpc";
-import { useLocation } from "wouter";
+import { useLocation, Link } from "wouter";
 
 /**
  * Foundation placeholder — pass `?account=<customerAccountId>` to call stub `getOverview`.
@@ -34,9 +34,16 @@ export default function BuyerPortalPlaceholderPage() {
         <p className="text-sm text-destructive">{overview.error.message}</p>
       )}
       {validId && overview.data && (
-        <pre className="text-xs bg-muted p-3 rounded-md overflow-auto border">
-          {JSON.stringify(overview.data, null, 2)}
-        </pre>
+        <>
+          <p className="text-sm">
+            <Link href={`/buyer/invoices?account=${customerAccountId}`} className="text-primary font-medium hover:underline">
+              View invoices →
+            </Link>
+          </p>
+          <pre className="text-xs bg-muted p-3 rounded-md overflow-auto border">
+            {JSON.stringify(overview.data, null, 2)}
+          </pre>
+        </>
       )}
     </div>
   );

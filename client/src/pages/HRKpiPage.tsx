@@ -688,8 +688,6 @@ export default function HRKpiPage() {
                 });
               }}
             >
-              Confirm
-            >
               {t("common:actions.confirm", { ns: "common" })}
             </AlertDialogAction>
           </AlertDialogFooter>

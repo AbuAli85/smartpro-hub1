@@ -174,10 +174,26 @@ function branch(
  * - **complianceWorkforce**: government workforce compliance (`/workforce/*` except profile-change queue grouped under People for HR workflow)
  * - **access**: membership access & roles
  * - **proShared**: Omani PRO pillar
+ * - **getStarted**: create / learn paths for users with no company yet (filtered like other groups)
  * - **clientWorkspace**: customer-facing aggregate (`/client-portal`) — not platform operator tooling
  * - **platform**: internal / global admin
  */
 export const PLATFORM_NAV_GROUP_DEFS: readonly NavGroupDef[] = [
+  /* A0 — Get started (create workspace; visible when allowed by clientNav) */
+  {
+    id: "getStarted",
+    labelKey: "getStartedGroup",
+    defaultGroupLabel: "Get started",
+    tier: "primary",
+    items: [
+      leaf("getStarted.create", "createCompanyWorkspace", "Create company workspace", "/company/create", Building2, {
+        intent: "workspace",
+      }),
+      leaf("getStarted.guide", "learnSmartPRO", "Learn SmartPRO", "/onboarding-guide", BookOpen, {
+        intent: "overview",
+      }),
+    ],
+  },
   /* A — Control */
   {
     id: "control",
@@ -238,15 +254,15 @@ export const PLATFORM_NAV_GROUP_DEFS: readonly NavGroupDef[] = [
       leaf("co.emailTemplates", "emailTemplates", "Email Templates", "/company/email-preview", Mail, { intent: "workspace" }),
     ],
   },
-  /* C2 — Client workspace (customer-facing aggregate; route `/client-portal`) */
+  /* C2 — Personal / client portal (customer-facing aggregate; route `/client-portal`) */
   {
     id: "clientWorkspace",
     labelKey: "clientWorkspaceGroup",
-    defaultGroupLabel: "Client workspace",
+    defaultGroupLabel: "My workspace",
     tier: "primary",
     collapsible: false,
     items: [
-      leaf("cw.clientPortal", "clientPortal", "Client workspace", "/client-portal", UserCircle, {
+      leaf("cw.clientPortal", "clientPortal", "My workspace", "/client-portal", UserCircle, {
         intent: "workspace",
       }),
     ],

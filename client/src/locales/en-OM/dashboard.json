@@ -74,5 +74,34 @@
   "prioritizeFor": "Prioritize for",
   "hrTodayBoardShort": "HR today’s board",
   "metricsAndTrends": "Metrics & trends:",
-  "analytics": "Analytics"
+  "analytics": "Analytics",
+  "preCompany": {
+    "subtitle": "Set up your business workspace — create a company or join a team to unlock SmartPRO’s business tools.",
+    "heroTitle": "Create or join a company workspace",
+    "heroBody": "Create a company workspace or join an existing team. Until then, this is your personal setup area — not a live tenant dashboard.",
+    "chips": {
+      "teamHr": "Team & HR tools",
+      "contracts": "Contracts & documents",
+      "compliance": "Compliance & expiry alerts",
+      "tasks": "Tasks & operations"
+    },
+    "ctaCreate": "Create company workspace",
+    "ctaJoin": "Join existing company",
+    "ctaExplore": "Explore services",
+    "joinHint": "Have an invite? Open the link from your email to join. You can also explore the guide below while you wait.",
+    "nextSteps": "Next steps",
+    "activityTitle": "Workspace activity",
+    "activityEmpty": "No activity yet.",
+    "activityHint": "Your workspace activity will appear here after you create or join a company.",
+    "cards": {
+      "profileTitle": "Complete your profile",
+      "profileDesc": "Add your details so teammates and providers recognize your account.",
+      "guideTitle": "Learn what SmartPRO can do",
+      "guideDesc": "Walk through modules and recommended setup order.",
+      "inviteTitle": "Join via invitation",
+      "inviteDesc": "Use the secure invite link from your organization’s admin to join their workspace.",
+      "marketplaceTitle": "Explore SmartPRO services",
+      "marketplaceDesc": "Browse the marketplace for PRO and government-related services."
+    }
+  }
 }

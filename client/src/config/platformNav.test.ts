@@ -40,6 +40,7 @@ describe("platformNav IA & routing", () => {
 
   it("uses the final canonical section order (A→K)", () => {
     expect(PLATFORM_NAV_GROUP_IDS).toEqual([
+      "getStarted",
       "control",
       "govPartner",
       "company",
@@ -148,6 +149,18 @@ describe("platformNav IA & routing", () => {
     const groups = filterVisibleNavGroups(hrSynced, opts);
     const allLeaves = groups.flatMap((g) => walkLeaves(g.items));
     expect(allLeaves.some((l) => l.href === "/payroll")).toBe(false);
+  });
+
+  it("pre-company shell shows get-started + essentials only (no tenant OS tree)", () => {
+    const pre = { role: "user" as const, platformRole: "company_member" as const };
+    const groups = filterVisibleNavGroups(pre, { hasCompanyMembership: false });
+    const hrefs = groups.flatMap((g) => walkLeaves(g.items)).map((l) => l.href);
+    expect(hrefs).toContain("/dashboard");
+    expect(hrefs).toContain("/company/create");
+    expect(hrefs).toContain("/marketplace");
+    expect(hrefs).not.toContain("/control-tower");
+    expect(hrefs).not.toContain("/operations");
+    expect(hrefs).not.toContain("/hr/employees");
   });
 });
 

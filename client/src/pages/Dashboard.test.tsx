@@ -19,8 +19,10 @@ vi.mock("@/_core/hooks/useAuth", () => ({
 vi.mock("@/contexts/ActiveCompanyContext", () => ({
   useActiveCompany: () => ({
     activeCompanyId: 1,
-    activeCompany: { id: 1, role: "company_admin", name: "Test Co" },
-    companies: [],
+    activeCompany: { id: 1, role: "company_admin", name: "Test Co", nameAr: null, country: null, industry: null },
+    companies: [
+      { id: 1, name: "Test Co", nameAr: null, country: null, industry: null, role: "company_admin" },
+    ],
     loading: false,
     switchCompany: vi.fn(),
     expiryWarningDays: 30,
@@ -57,12 +59,16 @@ vi.mock("@/lib/trpc", () => ({
   })(),
 }));
 
-vi.mock("@shared/clientNav", () => ({
-  getHiddenNavHrefs: () => new Set<string>(),
-  shouldHideBottomNav: () => false,
-  seesPlatformOperatorNav: () => false,
-  clientNavItemVisible: () => true,
-}));
+vi.mock("@shared/clientNav", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@shared/clientNav")>();
+  return {
+    ...actual,
+    getHiddenNavHrefs: () => new Set<string>(),
+    shouldHideBottomNav: () => false,
+    seesPlatformOperatorNav: () => false,
+    clientNavItemVisible: () => true,
+  };
+});
 
 vi.mock("wouter", () => ({
   Link: ({ children, href }: { children: React.ReactNode; href: string }) => <a href={href}>{children}</a>,

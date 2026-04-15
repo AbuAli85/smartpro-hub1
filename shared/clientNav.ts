@@ -481,18 +481,22 @@ export type ClientNavOptions = {
 };
 
 /**
- * Routes allowed for logged-in users who are not yet in any company (non-platform, non-portal-client).
- * Declared before `companyNavExtensionAllows` so prereq checks can reference it.
+ * Routes + sidebar entries for logged-in users who are not yet in any company
+ * (non-platform, non-portal-client). Intentionally excludes `/control-tower` and other
+ * tenant “operating system” surfaces until a workspace exists.
  */
-export const NO_COMPANY_SHELL_HREFS = new Set<string>([
+export const PRE_COMPANY_NAV_HREFS = new Set<string>([
   "/",
   "/dashboard",
-  "/control-tower",
   "/onboarding",
   "/onboarding-guide",
   "/preferences",
   "/company/create",
+  "/marketplace",
 ]);
+
+/** @deprecated Use {@link PRE_COMPANY_NAV_HREFS} */
+export const NO_COMPANY_SHELL_HREFS = PRE_COMPANY_NAV_HREFS;
 
 /**
  * Company-configured extra nav paths for the active role. Still respects portal/prereg shells,
@@ -537,7 +541,7 @@ export function companyNavExtensionAllows(
   }
   if (shouldUsePreRegistrationShell(user, options)) {
     const preOk =
-      NO_COMPANY_SHELL_HREFS.has(path) || path.startsWith("/onboarding") || path.startsWith("/invite/");
+      PRE_COMPANY_NAV_HREFS.has(path) || path.startsWith("/onboarding") || path.startsWith("/invite/");
     if (!preOk) return false;
   }
   return true;
@@ -611,7 +615,14 @@ export function clientNavItemVisible(
   }
 
   if (shouldUsePreRegistrationShell(user, options)) {
-    return NO_COMPANY_SHELL_HREFS.has(href);
+    return PRE_COMPANY_NAV_HREFS.has(href);
+  }
+
+  /** Create company — pre-company users, or admins adding another workspace (not basic staff). */
+  if (normalizeClientPath(href) === "/company/create") {
+    if (seesPlatformOperatorNav(user) || canAccessGlobalAdminProcedures(user ?? {})) return true;
+    if (isCompanyAdminMember(options?.memberRole)) return true;
+    return false;
   }
 
   // Company admin — optional extra routes for this role (before role shells below)
@@ -741,7 +752,7 @@ function portalShellPathAllowed(path: string): boolean {
 
 /** Deep links allowed before the user has any company membership */
 function preRegistrationPathAllowed(path: string): boolean {
-  if (NO_COMPANY_SHELL_HREFS.has(path)) return true;
+  if (PRE_COMPANY_NAV_HREFS.has(path)) return true;
   if (path.startsWith("/onboarding")) return true;
   if (path.startsWith("/invite/")) return true;
   return false;
@@ -898,6 +909,12 @@ export function clientRouteAccessible(
 
   if (membershipScopedNavDenies(path, user, options)) {
     if (companyNavExtensionAllows(path, user, options)) return true;
+    return false;
+  }
+
+  if (path === "/company/create" || path.startsWith("/company/create/")) {
+    if (seesPlatformOperatorNav(user) || canAccessGlobalAdminProcedures(user ?? {})) return true;
+    if (isCompanyAdminMember(options?.memberRole)) return true;
     return false;
   }
 

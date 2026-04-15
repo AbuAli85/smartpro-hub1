@@ -124,6 +124,26 @@ describe("clientNavItemVisible", () => {
     expect(clientNavItemVisible("/operations", owner, new Set(), { hasCompanyMembership: false })).toBe(false);
     expect(clientNavItemVisible("/dashboard", owner, new Set(), { hasCompanyMembership: false })).toBe(true);
     expect(clientNavItemVisible("/onboarding", owner, new Set(), { hasCompanyMembership: false })).toBe(true);
+    expect(clientNavItemVisible("/control-tower", owner, new Set(), { hasCompanyMembership: false })).toBe(false);
+    expect(clientNavItemVisible("/marketplace", owner, new Set(), { hasCompanyMembership: false })).toBe(true);
+    expect(clientNavItemVisible("/company/create", owner, new Set(), { hasCompanyMembership: false })).toBe(true);
+  });
+
+  it("limits /company/create nav to admins and pre-company users (not basic staff)", () => {
+    expect(
+      clientNavItemVisible("/company/create", member, new Set(), {
+        hasCompanyMembership: true,
+        hasCompanyWorkspace: true,
+        memberRole: "company_member",
+      }),
+    ).toBe(false);
+    expect(
+      clientNavItemVisible("/company/create", owner, new Set(), {
+        hasCompanyMembership: true,
+        hasCompanyWorkspace: true,
+        memberRole: "company_admin",
+      }),
+    ).toBe(true);
   });
 
   it("hides payroll from HR managers even when platformRole is company_admin (synced)", () => {

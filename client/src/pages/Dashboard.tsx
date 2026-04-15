@@ -25,7 +25,9 @@ import { WorkforceHealthWidget } from "@/components/WorkforceHealthWidget";
 import { ContractKpiWidget } from "@/components/contracts/ContractKpiWidget";
 import { OwnerSetupChecklist } from "@/components/OwnerSetupChecklist";
 import { ExecutiveControlTower } from "@/components/dashboard/ExecutiveControlTower";
+import PreCompanyDashboard from "@/components/dashboard/PreCompanyDashboard";
 import { ManagementCadencePanel } from "@/components/dashboard/ManagementCadencePanel";
+import { isPreCompanyWorkspaceUser } from "@/lib/workspaceMode";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
@@ -172,7 +174,9 @@ export default function Dashboard() {
     { enabled: activeCompanyId != null },
   );
   const { data: hrStats } = trpc.hr.getDashboardStats.useQuery({ companyId: activeCompanyId ?? undefined }, { enabled: activeCompanyId != null });
-  const { data: platformStats } = trpc.analytics.platformStats.useQuery();
+  const { data: platformStats } = trpc.analytics.platformStats.useQuery(undefined, {
+    enabled: seesPlatformOperatorNav(user),
+  });
   const { data: alertBadge } = trpc.alerts.getAlertBadgeCount.useQuery(
     { companyId: activeCompanyId ?? undefined },
     { enabled: activeCompanyId != null },
@@ -480,6 +484,10 @@ export default function Dashboard() {
   }, [showHref, t]);
 
   const showPlatformOverview = seesPlatformOperatorNav(user);
+  const isPreCompanyWorkspace = isPreCompanyWorkspaceUser(user, {
+    companyLoading,
+    companiesCount: companies.length,
+  });
   /** Lighter dashboard when owner workspace (control tower) is shown — same info lives there + sidebar nav. */
   const streamlinedExecDash =
     !showPlatformOverview && activeCompanyId != null && Boolean(businessPulse?.controlTower);
@@ -496,6 +504,23 @@ export default function Dashboard() {
   const dateStr = new Date().toLocaleDateString(i18n.language === "ar-OM" ? "ar-OM" : "en-GB", {
     weekday: "long", year: "numeric", month: "long", day: "numeric",
   });
+
+  if (!showPlatformOverview && companyLoading) {
+    return (
+      <div className="p-5 md:p-6 max-w-7xl mx-auto space-y-4">
+        <Skeleton className="h-10 w-72 max-w-full rounded-lg" />
+        <Skeleton className="h-52 w-full rounded-xl" />
+        <div className="grid sm:grid-cols-2 gap-3">
+          <Skeleton className="h-32 rounded-xl" />
+          <Skeleton className="h-32 rounded-xl" />
+        </div>
+      </div>
+    );
+  }
+
+  if (!showPlatformOverview && isPreCompanyWorkspace) {
+    return <PreCompanyDashboard />;
+  }
 
   return (
     <div className="p-5 md:p-6 space-y-6 max-w-7xl mx-auto">

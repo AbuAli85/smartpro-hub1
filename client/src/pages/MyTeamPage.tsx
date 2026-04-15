@@ -868,6 +868,19 @@ function StaffCard({
             : t("myTeam.card.docExpiringSoon")}
         </div>
       )}
+
+      {/* View Profile button — always visible at the bottom of the card */}
+      <div className="mt-3 pt-3 border-t border-border" onClick={(e) => e.stopPropagation()}>
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-full h-7 text-xs gap-1.5 text-[var(--smartpro-orange)] border-[var(--smartpro-orange)]/40 hover:bg-orange-50 hover:border-[var(--smartpro-orange)]"
+          onClick={onViewProfile}
+        >
+          <ChevronRight size={12} />
+          {t("myTeam.card.viewFullProfile")}
+        </Button>
+      </div>
     </div>
   );
 }

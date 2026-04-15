@@ -618,7 +618,10 @@ export function clientNavItemVisible(
     return PRE_COMPANY_NAV_HREFS.has(href);
   }
 
-  /** Create company — pre-company users, or admins adding another workspace (not basic staff). */
+  /**
+   * Create company — pre-company users, or `company_admin` adding another workspace (product:
+   * confirm multi-company creation is intended for tenant admins). Not shown to basic staff.
+   */
   if (normalizeClientPath(href) === "/company/create") {
     if (seesPlatformOperatorNav(user) || canAccessGlobalAdminProcedures(user ?? {})) return true;
     if (isCompanyAdminMember(options?.memberRole)) return true;

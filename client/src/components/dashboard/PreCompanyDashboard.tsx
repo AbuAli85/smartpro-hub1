@@ -6,8 +6,8 @@ import {
   Building2,
   Calendar,
   CheckCircle2,
+  Circle,
   Compass,
-  FileText,
   MapPin,
   Sparkles,
   User,
@@ -21,6 +21,9 @@ import { Badge } from "@/components/ui/badge";
 /**
  * Dedicated dashboard for users with no company membership — setup-first UX
  * (not the business “command center” shell).
+ *
+ * Join CTA: routes to `/onboarding-guide` as an interim step; replace with a dedicated
+ * `/company/join` (or similar) when invite/code entry and pending-invite flows exist.
  */
 export default function PreCompanyDashboard() {
   const { t, i18n } = useTranslation(["dashboard", "common"]);
@@ -98,12 +101,50 @@ export default function PreCompanyDashboard() {
         </div>
       </div>
 
+      <Card className="border-border/70 bg-card/80">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+            {t("dashboard:preCompany.checklist.title")}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="pt-0">
+          <ul className="space-y-2.5 text-sm">
+            <li className="flex gap-2.5 items-start">
+              <Circle className="size-4 shrink-0 text-muted-foreground mt-0.5" aria-hidden />
+              <Link href="/preferences" className="text-foreground hover:underline underline-offset-2">
+                {t("dashboard:preCompany.checklist.profile")}
+              </Link>
+            </li>
+            <li className="flex gap-2.5 items-start">
+              <Circle className="size-4 shrink-0 text-muted-foreground mt-0.5" aria-hidden />
+              <span className="text-foreground">{t("dashboard:preCompany.checklist.company")}</span>
+            </li>
+            <li className="flex gap-2.5 items-start">
+              <Circle className="size-4 shrink-0 text-muted-foreground mt-0.5" aria-hidden />
+              <Link href="/marketplace" className="text-foreground hover:underline underline-offset-2">
+                {t("dashboard:preCompany.checklist.explore")}
+              </Link>
+            </li>
+            <li className="flex gap-2.5 items-start">
+              <Circle className="size-4 shrink-0 text-muted-foreground mt-0.5" aria-hidden />
+              <Link href="/onboarding-guide" className="text-foreground hover:underline underline-offset-2">
+                {t("dashboard:preCompany.checklist.invite")}
+              </Link>
+            </li>
+          </ul>
+        </CardContent>
+      </Card>
+
       <Card className="border-[var(--smartpro-orange)]/25 bg-gradient-to-br from-card to-muted/30">
         <CardHeader className="pb-2">
           <CardTitle className="text-lg font-bold">{t("dashboard:preCompany.heroTitle")}</CardTitle>
           <p className="text-sm text-muted-foreground font-normal">{t("dashboard:preCompany.heroBody")}</p>
+          <p className="text-sm text-foreground/90 font-medium pt-1 leading-snug">{t("dashboard:preCompany.heroValueLine")}</p>
         </CardHeader>
         <CardContent className="space-y-4">
+          <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+            {t("dashboard:preCompany.chipsUnlockNote")}
+          </p>
           <div className="flex flex-wrap gap-2">
             <Badge variant="secondary" className="font-normal">
               {t("dashboard:preCompany.chips.teamHr")}
@@ -125,6 +166,7 @@ export default function PreCompanyDashboard() {
                 {t("dashboard:preCompany.ctaCreate")}
               </Link>
             </Button>
+            {/* Interim join path — see file-level TODO for dedicated join flow */}
             <Button asChild variant="outline" className="gap-2">
               <Link href="/onboarding-guide">
                 <Users size={16} />

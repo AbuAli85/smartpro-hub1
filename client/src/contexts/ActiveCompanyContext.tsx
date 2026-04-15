@@ -30,7 +30,10 @@ interface ActiveCompanyContextValue {
   activeCompanyId: number | null;
   /** Switch to a different company */
   switchCompany: (companyId: number) => void;
-  /** True while the companies list is loading */
+  /**
+   * True while `trpc.companies.myCompanies` is loading (membership list not settled yet).
+   * Consumers should not infer “no company” from an empty list until this is false.
+   */
   loading: boolean;
   /** Expiry warning threshold in days (default 30, configurable per company) */
   expiryWarningDays: number;

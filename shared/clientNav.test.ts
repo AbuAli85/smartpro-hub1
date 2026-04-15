@@ -284,4 +284,16 @@ describe("clientRouteAccessible", () => {
       clientRouteAccessible("/dashboard", member, new Set(), { hasCompanyMembership: false }),
     ).toBe(true);
   });
+
+  it("blocks control-tower deep link for pre-registration users (redirects to dashboard via gate)", () => {
+    expect(
+      clientRouteAccessible("/control-tower", member, new Set(), { hasCompanyMembership: false }),
+    ).toBe(false);
+  });
+
+  it("allows marketplace browsing for pre-registration users", () => {
+    expect(
+      clientRouteAccessible("/marketplace", member, new Set(), { hasCompanyMembership: false }),
+    ).toBe(true);
+  });
 });

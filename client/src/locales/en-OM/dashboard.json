@@ -76,9 +76,18 @@
   "metricsAndTrends": "Metrics & trends:",
   "analytics": "Analytics",
   "preCompany": {
-    "subtitle": "Set up your business workspace — create a company or join a team to unlock SmartPRO’s business tools.",
+    "subtitle": "Set up your workspace to unlock SmartPRO for your business.",
     "heroTitle": "Create or join a company workspace",
     "heroBody": "Create a company workspace or join an existing team. Until then, this is your personal setup area — not a live tenant dashboard.",
+    "heroValueLine": "Bring HR, contracts, compliance, and day-to-day operations together in one place — once your company workspace is active.",
+    "chipsUnlockNote": "Unlocked after you create or join a company workspace",
+    "checklist": {
+      "title": "Getting started",
+      "profile": "Complete your profile",
+      "company": "Create or join a company workspace",
+      "explore": "Explore services on the marketplace",
+      "invite": "Invite your team or accept an invite"
+    },
     "chips": {
       "teamHr": "Team & HR tools",
       "contracts": "Contracts & documents",

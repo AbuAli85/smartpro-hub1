@@ -14,8 +14,9 @@ import {
   caseTasks, workPermits, employees, employeeGovernmentProfiles,
   proBillingCycles, companySubscriptions, subscriptionPlans,
   sanadApplications, sanadOffices,
+  attendanceSites, attendanceRecords, promoterAssignments,
 } from "../../drizzle/schema";
-import { eq, and, desc, asc, lte, gte, or, isNotNull } from "drizzle-orm";
+import { eq, and, desc, asc, lte, gte, or, isNotNull, inArray } from "drizzle-orm";
 import { requireActiveCompanyId } from "../_core/tenant";
 import { optionalActiveWorkspace } from "../_core/workspaceInput";
 import type { User } from "../../drizzle/schema";
@@ -182,6 +183,211 @@ export const clientPortalRouter = router({
       });
 
       return { items: enriched, total: enriched.length };
+    }),
+
+  /**
+   * Promoter staffing invoice summary for the portal user's own company.
+   *
+   * Finds attendance sites linked to this company via promoter_assignments
+   * (secondPartyCompanyId = portalCompanyId), then groups closed punches
+   * at those sites into a per-promoter, per-site monthly summary.
+   *
+   * Returns the same shape as hr.getClientInvoiceSummary but scoped to
+   * the calling client company, not the staffing company.
+   */
+  getMyStaffingInvoice: protectedProcedure
+    .input(
+      z.object({
+        month: z.string().regex(/^\d{4}-\d{2}$/), // YYYY-MM
+      }).merge(optionalActiveWorkspace),
+    )
+    .query(async ({ ctx, input }) => {
+      const portalCompanyId = await requirePortalCompanyId(ctx.user as User, input.companyId);
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      const [yStr, mStr] = input.month.split("-");
+      const year = Number(yStr);
+      const month = Number(mStr);
+      const mm = String(month).padStart(2, "0");
+      const startDate = `${year}-${mm}-01`;
+      const lastDay = new Date(year, month, 0).getDate();
+      const endDate = `${year}-${mm}-${String(lastDay).padStart(2, "0")}`;
+      const monthStart = new Date(`${startDate}T00:00:00.000Z`);
+      const monthEnd = new Date(`${endDate}T23:59:59.999Z`);
+
+      // 1. Find which attendance sites belong to this client company via promoter assignments
+      const assignments = await db
+        .select({ clientSiteId: promoterAssignments.clientSiteId })
+        .from(promoterAssignments)
+        .where(
+          and(
+            eq(promoterAssignments.secondPartyCompanyId, portalCompanyId),
+            isNotNull(promoterAssignments.clientSiteId),
+            eq(promoterAssignments.status, "active"),
+          ),
+        );
+
+      const clientSiteIds = [
+        ...new Set(
+          assignments.map((a) => a.clientSiteId).filter((id): id is number => id != null),
+        ),
+      ];
+
+      if (clientSiteIds.length === 0) {
+        return { month: input.month, groups: [], grandTotalOmr: 0, hasNoSites: true };
+      }
+
+      // 2. Load site details (name, clientName, dailyRateOmr)
+      const sites = await db
+        .select({
+          id: attendanceSites.id,
+          name: attendanceSites.name,
+          clientName: attendanceSites.clientName,
+          dailyRateOmr: attendanceSites.dailyRateOmr,
+        })
+        .from(attendanceSites)
+        .where(inArray(attendanceSites.id, clientSiteIds));
+      const siteById = new Map(sites.map((s) => [s.id, s]));
+
+      // 3. Load closed punches at client sites for the month
+      // Note: attendanceRecords.companyId is the STAFFING company, not the client.
+      // We filter by siteId instead — the punch happened at the client's site.
+      const records = await db
+        .select({
+          id: attendanceRecords.id,
+          employeeId: attendanceRecords.employeeId,
+          checkIn: attendanceRecords.checkIn,
+          checkOut: attendanceRecords.checkOut,
+          siteId: attendanceRecords.siteId,
+          companyId: attendanceRecords.companyId,
+        })
+        .from(attendanceRecords)
+        .where(
+          and(
+            inArray(attendanceRecords.siteId, clientSiteIds),
+            gte(attendanceRecords.checkIn, monthStart),
+            lte(attendanceRecords.checkIn, monthEnd),
+            isNotNull(attendanceRecords.checkOut),
+          ),
+        );
+
+      if (records.length === 0) {
+        return { month: input.month, groups: [], grandTotalOmr: 0, hasNoSites: false };
+      }
+
+      // 4. Load employee names (from the staffing company's employee records)
+      const empIds = [...new Set(records.map((r) => r.employeeId))];
+      const empRows = empIds.length
+        ? await db
+            .select({
+              id: employees.id,
+              firstName: employees.firstName,
+              lastName: employees.lastName,
+            })
+            .from(employees)
+            .where(inArray(employees.id, empIds))
+        : [];
+      const empById = new Map(empRows.map((e) => [e.id, e]));
+
+      // 5. Group: site → employee → distinct Muscat calendar dates
+      const { muscatCalendarYmdFromUtcInstant } = await import("@shared/attendanceMuscatTime");
+
+      type EmpEntry = {
+        employeeId: number;
+        employeeName: string;
+        dates: Set<string>;
+        totalWorkedMinutes: number;
+      };
+      type SiteGroup = {
+        siteId: number;
+        siteName: string;
+        clientName: string | null;
+        dailyRateOmr: number;
+        employees: Map<number, EmpEntry>;
+      };
+
+      const groupBySite = new Map<number, SiteGroup>();
+
+      for (const rec of records) {
+        if (rec.siteId == null) continue;
+        const site = siteById.get(rec.siteId);
+        if (!site) continue;
+
+        const dateYmd = muscatCalendarYmdFromUtcInstant(new Date(rec.checkIn));
+
+        if (!groupBySite.has(rec.siteId)) {
+          groupBySite.set(rec.siteId, {
+            siteId: rec.siteId,
+            siteName: site.name,
+            clientName: site.clientName ?? null,
+            dailyRateOmr: Number(site.dailyRateOmr ?? 0),
+            employees: new Map(),
+          });
+        }
+        const sg = groupBySite.get(rec.siteId)!;
+
+        if (!sg.employees.has(rec.employeeId)) {
+          const emp = empById.get(rec.employeeId);
+          sg.employees.set(rec.employeeId, {
+            employeeId: rec.employeeId,
+            employeeName: emp
+              ? `${emp.firstName} ${emp.lastName}`.trim()
+              : `Promoter #${rec.employeeId}`,
+            dates: new Set(),
+            totalWorkedMinutes: 0,
+          });
+        }
+        const entry = sg.employees.get(rec.employeeId)!;
+        entry.dates.add(dateYmd);
+        if (rec.checkOut) {
+          entry.totalWorkedMinutes += Math.max(
+            0,
+            Math.round(
+              (new Date(rec.checkOut).getTime() - new Date(rec.checkIn).getTime()) / 60000,
+            ),
+          );
+        }
+      }
+
+      // 6. Build output
+      const groups = Array.from(groupBySite.values())
+        .map((sg) => {
+          const promoters = Array.from(sg.employees.values())
+            .map((e) => ({
+              employeeId: e.employeeId,
+              employeeName: e.employeeName,
+              billableDays: e.dates.size,
+              billableHours: Math.round((e.totalWorkedMinutes / 60) * 10) / 10,
+              amountOmr: Math.round(e.dates.size * sg.dailyRateOmr * 1000) / 1000,
+            }))
+            .filter((p) => p.billableDays > 0)
+            .sort((a, b) => a.employeeName.localeCompare(b.employeeName));
+
+          if (promoters.length === 0) return null;
+
+          const totalBillableDays = promoters.reduce((s, p) => s + p.billableDays, 0);
+          const totalBillableHours =
+            Math.round(promoters.reduce((s, p) => s + p.billableHours, 0) * 10) / 10;
+          const totalAmountOmr = Math.round(totalBillableDays * sg.dailyRateOmr * 1000) / 1000;
+
+          return {
+            siteId: sg.siteId,
+            siteName: sg.siteName,
+            clientName: sg.clientName,
+            dailyRateOmr: sg.dailyRateOmr,
+            totalBillableDays,
+            totalBillableHours,
+            totalAmountOmr,
+            promoters,
+          };
+        })
+        .filter((g): g is NonNullable<typeof g> => g !== null)
+        .sort((a, b) => (a.siteName ?? "").localeCompare(b.siteName ?? ""));
+
+      const grandTotalOmr = Math.round(groups.reduce((s, g) => s + g.totalAmountOmr, 0) * 1000) / 1000;
+
+      return { month: input.month, groups, grandTotalOmr, hasNoSites: false };
     }),
 
   /**

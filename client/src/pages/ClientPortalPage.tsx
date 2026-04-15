@@ -1,17 +1,18 @@
 import { useState, useEffect } from "react";
-import { trpc } from "@/lib/trpc";
+import { trpc, type RouterOutputs } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import {
   FileText, CreditCard, Shield, Building2, ShoppingBag,
   Bell, MessageSquare, LayoutDashboard, AlertTriangle, CheckCircle2,
   Clock, XCircle, Download, Send, ChevronRight, Star, Eye, User,
-  PlusCircle, FolderOpen, CalendarClock, Zap,
+  PlusCircle, FolderOpen, CalendarClock, Zap, Users2,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -318,6 +319,192 @@ function UpcomingRenewalsTab() {
   );
 }
 
+type StaffingInvoice = RouterOutputs["clientPortal"]["getMyStaffingInvoice"];
+
+function StaffingInvoiceTab({
+  data,
+  isLoading,
+  month,
+  onMonthChange,
+}: {
+  data: StaffingInvoice | undefined;
+  isLoading: boolean;
+  month: string;
+  onMonthChange: (m: string) => void;
+}) {
+  const fmt = (n: number) =>
+    `OMR ${n.toLocaleString("en-OM", { minimumFractionDigits: 3, maximumFractionDigits: 3 })}`;
+
+  const handleExportCsv = () => {
+    if (!data?.groups?.length) return;
+    const rows: string[][] = [
+      ["Site", "Promoter", "Billable Days", "Billable Hours", "Daily Rate (OMR)", "Amount (OMR)"],
+    ];
+    for (const g of data.groups) {
+      for (const p of g.promoters) {
+        rows.push([
+          g.siteName,
+          p.employeeName,
+          String(p.billableDays),
+          String(p.billableHours),
+          g.dailyRateOmr.toFixed(3),
+          p.amountOmr.toFixed(3),
+        ]);
+      }
+      rows.push([
+        g.siteName,
+        "SUBTOTAL",
+        String(g.totalBillableDays),
+        String(g.totalBillableHours),
+        g.dailyRateOmr.toFixed(3),
+        g.totalAmountOmr.toFixed(3),
+      ]);
+    }
+    rows.push(["GRAND TOTAL", "", "", "", "", (data.grandTotalOmr ?? 0).toFixed(3)]);
+    const csv = rows.map((r) => r.map((c) => `"${c.replace(/"/g, "\"\"")}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `staffing-invoice-${month}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  if (isLoading) {
+    return (
+      <div className="space-y-3">
+        {[1, 2].map((i) => <Skeleton key={i} className="h-32 w-full" />)}
+      </div>
+    );
+  }
+
+  if (data?.hasNoSites) {
+    return (
+      <Card className="border-0 shadow-sm">
+        <CardContent className="py-12 text-center text-muted-foreground">
+          <Users2 className="w-10 h-10 mx-auto mb-3 opacity-30" />
+          <p className="font-medium">No promoter deployments found</p>
+          <p className="text-sm mt-1">
+            Contact your account manager to set up staffing assignments for your locations.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div className="flex items-center gap-3">
+          <Input
+            type="month"
+            value={month}
+            onChange={(e) => onMonthChange(e.target.value)}
+            className="w-40 h-8 text-sm"
+          />
+          <span className="text-sm text-muted-foreground">
+            {data?.groups?.length ?? 0} site{(data?.groups?.length ?? 0) !== 1 ? "s" : ""}
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          {(data?.grandTotalOmr ?? 0) > 0 && (
+            <span className="text-sm font-semibold">{fmt(data?.grandTotalOmr ?? 0)}</span>
+          )}
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleExportCsv}
+            disabled={!data?.groups?.length}
+            className="gap-1.5"
+          >
+            <Download className="h-3.5 w-3.5" />
+            Export CSV
+          </Button>
+        </div>
+      </div>
+
+      {/* Empty month */}
+      {!data?.groups?.length && !data?.hasNoSites && (
+        <Card className="border-0 shadow-sm">
+          <CardContent className="py-10 text-center text-muted-foreground">
+            <p>No staffing records for {month}.</p>
+            <p className="text-xs mt-1">Try a different month or contact your account manager.</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Invoice groups */}
+      {data?.groups?.map((g) => (
+        <Card key={g.siteId} className="border-0 shadow-sm">
+          <CardHeader className="pb-2 pt-4 px-5">
+            <div className="flex items-start justify-between">
+              <div>
+                <CardTitle className="text-sm font-semibold">{g.siteName}</CardTitle>
+                {g.clientName && (
+                  <p className="text-xs text-muted-foreground mt-0.5">{g.clientName}</p>
+                )}
+              </div>
+              <div className="text-right">
+                <p className="text-sm font-bold">{fmt(g.totalAmountOmr)}</p>
+                <p className="text-[11px] text-muted-foreground">
+                  {g.totalBillableDays} days × {fmt(g.dailyRateOmr)}/day
+                </p>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="px-5 pb-4">
+            {g.dailyRateOmr === 0 && (
+              <p className="text-xs text-amber-600 mb-2">
+                Daily rate pending — contact your account manager for the contracted rate.
+              </p>
+            )}
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-[11px] text-muted-foreground border-b">
+                  <th className="text-left py-1.5 font-medium">Promoter</th>
+                  <th className="text-right py-1.5 font-medium">Days</th>
+                  <th className="text-right py-1.5 font-medium">Hours</th>
+                  <th className="text-right py-1.5 font-medium">Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {g.promoters.map((p) => (
+                  <tr key={p.employeeId} className="border-b border-muted/40">
+                    <td className="py-1.5">{p.employeeName}</td>
+                    <td className="text-right py-1.5 tabular-nums">{p.billableDays}</td>
+                    <td className="text-right py-1.5 tabular-nums text-muted-foreground">{p.billableHours}h</td>
+                    <td className="text-right py-1.5 tabular-nums font-medium">{fmt(p.amountOmr)}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="font-semibold">
+                  <td className="pt-2">Subtotal</td>
+                  <td className="text-right pt-2 tabular-nums">{g.totalBillableDays}</td>
+                  <td className="text-right pt-2 tabular-nums text-muted-foreground">{g.totalBillableHours}h</td>
+                  <td className="text-right pt-2 tabular-nums">{fmt(g.totalAmountOmr)}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </CardContent>
+        </Card>
+      ))}
+
+      {/* Grand total footer */}
+      {(data?.groups?.length ?? 0) > 1 && (
+        <div className="flex justify-end">
+          <div className="text-right bg-muted/40 rounded-lg px-4 py-2.5">
+            <p className="text-[11px] text-muted-foreground uppercase tracking-wide">Grand total</p>
+            <p className="text-lg font-bold">{fmt(data?.grandTotalOmr ?? 0)}</p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function ClientPortalPage() {
@@ -325,12 +512,14 @@ export default function ClientPortalPage() {
   const { user } = useAuth();
   const [location, navigate] = useLocation();
   const [activeTab, setActiveTab] = useState("dashboard");
+  const currentMonth = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`;
+  const [staffingMonth, setStaffingMonth] = useState(currentMonth);
 
   useEffect(() => {
     const q = new URLSearchParams(location.split("?")[1] ?? "");
     const tab = q.get("tab");
     const allowed = new Set([
-      "dashboard", "contracts", "invoices", "pro-services", "gov-cases", "bookings",
+      "dashboard", "contracts", "invoices", "staffing", "pro-services", "gov-cases", "bookings",
       "alerts", "messages", "service-request", "my-documents", "renewals",
     ]);
     if (tab && allowed.has(tab)) setActiveTab(tab);
@@ -342,6 +531,11 @@ export default function ClientPortalPage() {
   const { data: dashboard, isLoading: dashLoading } = trpc.clientPortal.getDashboard.useQuery();
   const { data: contractsData } = trpc.clientPortal.listContracts.useQuery({ pageSize: 50 });
   const { data: invoicesData } = trpc.clientPortal.listInvoices.useQuery({ pageSize: 50 });
+  const { data: staffingInvoice, isLoading: staffingLoading } =
+    trpc.clientPortal.getMyStaffingInvoice.useQuery(
+      { month: staffingMonth },
+      { retry: false },
+    );
   const { data: proServicesData } = trpc.clientPortal.listProServices.useQuery({ pageSize: 50 });
   const { data: govCasesData } = trpc.clientPortal.listGovernmentCases.useQuery({ pageSize: 50 });
   const [ratingBooking, setRatingBooking] = useState<any | null>(null);
@@ -383,6 +577,7 @@ export default function ClientPortalPage() {
     { id: "dashboard", label: t("nav.dashboard"), icon: LayoutDashboard },
     { id: "contracts", label: t("nav.contracts"), icon: FileText, badge: pendingSig },
     { id: "invoices", label: t("nav.invoices"), icon: CreditCard, badge: overdueInvoices },
+    { id: "staffing", label: t("nav.staffing", "Staffing"), icon: Users2 },
     { id: "pro-services", label: t("nav.proServices"), icon: Shield },
     { id: "gov-cases", label: t("nav.govCases"), icon: Building2 },
     { id: "bookings", label: t("nav.bookings"), icon: ShoppingBag },
@@ -636,6 +831,15 @@ export default function ClientPortalPage() {
                 ))}
               </div>
             )}
+          </TabsContent>
+
+          <TabsContent value="staffing" className="space-y-4">
+            <StaffingInvoiceTab
+              data={staffingInvoice}
+              isLoading={staffingLoading}
+              month={staffingMonth}
+              onMonthChange={setStaffingMonth}
+            />
           </TabsContent>
 
           {/* ─── PRO Services ─── */}

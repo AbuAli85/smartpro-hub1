@@ -29,7 +29,7 @@ function templateLanguageCode(): string {
   return trimEnv("WHATSAPP_TEMPLATE_LANGUAGE_CODE") || "ar";
 }
 
-type SendResult = { ok: true; messageId?: string } | { ok: false; error: string };
+export type SendResult = { ok: true; messageId?: string } | { ok: false; error: string };
 
 async function sendTemplateMessage(params: {
   toDigits: string;
@@ -124,6 +124,60 @@ export async function sendSurveyOfficeInviteTemplateAr(params: {
     toDigits: params.toDigits,
     templateName: name,
     bodyTexts: [params.officeLabelAr, params.surveyUrl],
+  });
+}
+
+// ── Attendance: late check-in alert to manager ────────────────────────────────
+/**
+ * Sends a WhatsApp alert when an employee checks in late.
+ * Template: WHATSAPP_TEMPLATE_ATTENDANCE_LATE_AR
+ * Body params: {{1}} employee name, {{2}} site name, {{3}} minutes late
+ */
+export async function sendAttendanceLateAlert(params: {
+  managerPhone: string;
+  employeeName: string;
+  siteName: string;
+  minutesLate: number;
+}): Promise<SendResult> {
+  const templateName = trimEnv("WHATSAPP_TEMPLATE_ATTENDANCE_LATE_AR");
+  if (!isWhatsAppCloudCoreConfigured() || !templateName) {
+    return { ok: false, error: "WhatsApp late-alert template not configured" };
+  }
+  const toDigits = toWhatsAppPhoneDigits(params.managerPhone);
+  if (!toDigits) {
+    return { ok: false, error: "Invalid manager phone for WhatsApp" };
+  }
+  return sendTemplateMessage({
+    toDigits,
+    templateName,
+    bodyTexts: [params.employeeName, params.siteName, String(params.minutesLate)],
+  });
+}
+
+// ── Attendance: missed shift alert to manager ─────────────────────────────────
+/**
+ * Sends a WhatsApp alert when an employee misses their shift entirely.
+ * Template: WHATSAPP_TEMPLATE_ATTENDANCE_ABSENT_AR
+ * Body params: {{1}} employee name, {{2}} site name, {{3}} shift name
+ */
+export async function sendAttendanceAbsentAlert(params: {
+  managerPhone: string;
+  employeeName: string;
+  siteName: string;
+  shiftName: string;
+}): Promise<SendResult> {
+  const templateName = trimEnv("WHATSAPP_TEMPLATE_ATTENDANCE_ABSENT_AR");
+  if (!isWhatsAppCloudCoreConfigured() || !templateName) {
+    return { ok: false, error: "WhatsApp absent-alert template not configured" };
+  }
+  const toDigits = toWhatsAppPhoneDigits(params.managerPhone);
+  if (!toDigits) {
+    return { ok: false, error: "Invalid manager phone for WhatsApp" };
+  }
+  return sendTemplateMessage({
+    toDigits,
+    templateName,
+    bodyTexts: [params.employeeName, params.siteName, params.shiftName],
   });
 }
 

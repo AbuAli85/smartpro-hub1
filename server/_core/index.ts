@@ -17,6 +17,7 @@ import { runPendingMigrations } from "../runPendingMigrations";
 import { runEmployeeTaskOverdueNotifications } from "../jobs/employeeTaskOverdue";
 import { runSyncExpiredContracts } from "../jobs/syncExpiredContracts";
 import { runSurveyNurtureEmails } from "../jobs/surveyNurture";
+import { runMarkMissedShiftsAbsent } from "../jobs/markMissedShiftsAbsent";
 import { registerSentryExpressErrorHandler } from "./sentry";
 
 function isPortAvailable(port: number): Promise<boolean> {
@@ -156,6 +157,38 @@ async function startServer() {
         })
         .catch((e) => console.error("[survey-nurture] daily error:", e));
     }, DAY_MS);
+  }
+
+  // ── Auto-absent marking (every 30 min) ───────────────────────────────────────
+  // Persists 'absent' rows to the legacy `attendance` table for shifts that
+  // ended with no check-in.  Complements syncCheckoutToLegacyAttendanceTx
+  // which handles the 'present' side.
+  //
+  // Disable with: DISABLE_ABSENT_MARK_JOB=1
+  if (process.env.DISABLE_ABSENT_MARK_JOB !== "1") {
+    void runMarkMissedShiftsAbsent()
+      .then((r) => {
+        if (r.marked > 0 || r.errors > 0) {
+          console.log(
+            `[absent-job] startup — scanned: ${r.scanned}, marked: ${r.marked}, ` +
+              `skipped: ${r.skipped}, errors: ${r.errors}`,
+          );
+        }
+      })
+      .catch((e) => console.error("[absent-job] startup error:", e));
+
+    setInterval(() => {
+      void runMarkMissedShiftsAbsent()
+        .then((r) => {
+          if (r.marked > 0 || r.errors > 0) {
+            console.log(
+              `[absent-job] run — scanned: ${r.scanned}, marked: ${r.marked}, ` +
+                `skipped: ${r.skipped}, errors: ${r.errors}`,
+            );
+          }
+        })
+        .catch((e) => console.error("[absent-job] run error:", e));
+    }, 30 * 60 * 1000); // every 30 minutes
   }
 }
 

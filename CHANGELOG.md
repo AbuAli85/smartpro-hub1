@@ -8,7 +8,9 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) co
 
 ## [Unreleased]
 
-No unreleased changes at this time.
+### Deployment notes
+
+- Apply `drizzle/0049_shift_template_break_minutes.sql` before enabling the **auto-absent marking** background job (`server/jobs/markMissedShiftsAbsent.ts`). The job is gated with `DISABLE_ABSENT_MARK_JOB=1` for local opt-out.
 
 ---
 

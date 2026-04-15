@@ -898,7 +898,46 @@ export const attendanceRouter = router({
           source: ATTENDANCE_AUDIT_SOURCE.EMPLOYEE_PORTAL,
         });
       });
+
+      // ── Non-fatal: WhatsApp late alert ────────────────────────────────────────────
+      try {
+        if (dayCtx.shiftStart) {
+          const { arrivalDelayMinutesAfterGrace } = await import("@shared/attendanceBoardStatus");
+          const shiftStartUtc = muscatWallDateTimeToUtc(dayCtx.businessDate, dayCtx.shiftStart);
+          const lateMin = arrivalDelayMinutesAfterGrace(
+            checkInTime,
+            shiftStartUtc,
+            dayCtx.gracePeriodMinutes ?? 15,
+          );
+          if (lateMin > 0) {
+            const { sendAttendanceLateAlert } = await import("../whatsappCloud");
+            const managerPhone = process.env.ATTENDANCE_ALERT_MANAGER_PHONE ?? "";
+            if (managerPhone) {
+              void sendAttendanceLateAlert({
+                managerPhone,
+                employeeName: `${emp.firstName ?? ""} ${emp.lastName ?? ""}`.trim(),
+                siteName: site.name,
+                minutesLate: lateMin,
+              }).catch((e) => console.warn("[whatsapp] late alert failed:", e));
+            }
+          }
+        }
+      } catch {
+        /* non-fatal */
+      }
+
       return record!;
+    }),
+
+  // ─── Admin: manually trigger the absent-marking job ──────────────────────────
+  triggerAbsentMarkJob: protectedProcedure
+    .input(z.object({ companyId: z.number().optional() }))
+    .mutation(async ({ ctx }) => {
+      if (ctx.user.platformRole !== "super_admin" && ctx.user.platformRole !== "platform_admin") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Platform admin required" });
+      }
+      const { runMarkMissedShiftsAbsent } = await import("../jobs/markMissedShiftsAbsent");
+      return runMarkMissedShiftsAbsent();
     }),
 
   // ─── Employee: Check out ──────────────────────────────────────────────────

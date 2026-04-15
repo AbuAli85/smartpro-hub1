@@ -1358,7 +1358,9 @@
         "late": "Late",
         "remote": "Remote",
         "half_day": "Half day"
-      }
+      },
+      "prevMonth": "Previous month",
+      "nextMonth": "Next month"
     },
     "documents": {
       "title": "Employee Documents",
@@ -1369,7 +1371,14 @@
       "civilId": "Civil ID",
       "passportNote": "Passport number on file",
       "civilIdNote": "National ID on file",
-      "notRecorded": "Not recorded"
+      "notRecorded": "Not recorded",
+      "vaultList": "Files in document vault",
+      "docType": "Type",
+      "fileName": "File",
+      "expiry": "Expiry",
+      "verification": "Status",
+      "noUploadsYet": "No files uploaded yet. Use Document Vault to add passport, visa, civil ID, and other documents.",
+      "openVaultHint": "Upload and manage files in the full vault."
     },
     "editDialog": {
       "title": "Edit Employee Record",

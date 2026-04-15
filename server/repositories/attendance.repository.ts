@@ -1,11 +1,12 @@
-import { and, eq, gte, lte } from "drizzle-orm";
+import { and, desc, eq, gte, lte } from "drizzle-orm";
 import { attendance } from "../../drizzle/schema";
 import { getDb } from "../db.client";
 
-export async function getAttendance(companyId: number, month?: string) {
+export async function getAttendance(companyId: number, month?: string, employeeId?: number) {
   const db = await getDb();
   if (!db) return [];
   const conditions = [eq(attendance.companyId, companyId)];
+  if (employeeId != null) conditions.push(eq(attendance.employeeId, employeeId));
   if (month) {
     const [year, mon] = month.split("-").map(Number);
     const start = new Date(year, mon - 1, 1, 0, 0, 0, 0);
@@ -13,7 +14,11 @@ export async function getAttendance(companyId: number, month?: string) {
     conditions.push(gte(attendance.date, start));
     conditions.push(lte(attendance.date, end));
   }
-  return db.select().from(attendance).where(and(...conditions));
+  return db
+    .select()
+    .from(attendance)
+    .where(and(...conditions))
+    .orderBy(desc(attendance.date));
 }
 
 export type AttendanceLegacyInsert = {

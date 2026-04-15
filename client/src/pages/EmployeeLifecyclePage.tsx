@@ -14,12 +14,12 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import {
-  ArrowLeft, User, FileText, DollarSign, Calendar, Building2,
+  ArrowLeft, ChevronLeft, ChevronRight, User, FileText, DollarSign, Calendar, Building2,
   Phone, Mail, Globe, CreditCard, Briefcase, AlertTriangle,
   CheckCircle2, Clock, Edit2, UserX, TrendingUp, Shield,
   Hash,
 } from "lucide-react";
-import { fmtDate, expiryStatus, expiryLabel, EXPIRY_BADGE } from "@/lib/dateUtils";
+import { fmtDate, fmtTime, expiryStatus, expiryLabel, EXPIRY_BADGE } from "@/lib/dateUtils";
 import { useActiveCompany } from "@/contexts/ActiveCompanyContext";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -88,6 +88,14 @@ function displayMarital(m: string | null | undefined, t: Translate) {
 }
 function formatMonthYear(year: number, month: number, locale: string) {
   return new Intl.DateTimeFormat(locale, { month: "long", year: "numeric" }).format(new Date(year, month - 1, 1));
+}
+
+function hoursBetween(checkIn: unknown, checkOut: unknown): string | null {
+  if (!checkIn || !checkOut) return null;
+  const a = new Date(checkIn as Date).getTime();
+  const b = new Date(checkOut as Date).getTime();
+  if (!Number.isFinite(a) || !Number.isFinite(b) || b <= a) return null;
+  return `${((b - a) / 3600000).toFixed(1)}h`;
 }
 
 // ─── Status Timeline ──────────────────────────────────────────────────────────
@@ -168,6 +176,7 @@ function EditDialog({ employee, onClose }: { employee: any; onClose: () => void 
       utils.hr.getEmployeeWithPermit.invalidate({ id: employee.id });
       utils.team.listMembers.invalidate();
       void utils.hr.listEmployees.invalidate();
+      void utils.documents.listEmployeeDocs.invalidate({ employeeId: employee.id });
       toast.success(t("lifecycle.editDialog.saved"));
       onClose();
     },
@@ -258,29 +267,43 @@ export default function EmployeeLifecyclePage() {
     { id: employeeId },
     { enabled: employeeId > 0 }
   );
-  const [attendanceYear] = useState(() => new Date().getFullYear());
-  const [attendanceMonth] = useState(() => new Date().getMonth() + 1);
-  const attendanceMonthStr = `${attendanceYear}-${String(attendanceMonth).padStart(2, "0")}`;
+  const [attView, setAttView] = useState(() => {
+    const d = new Date();
+    return { y: d.getFullYear(), m: d.getMonth() + 1 };
+  });
+  const attendanceMonthStr = `${attView.y}-${String(attView.m).padStart(2, "0")}`;
+  const bumpAttendanceMonth = (delta: number) => {
+    setAttView((v) => {
+      const dt = new Date(v.y, v.m - 1 + delta, 1);
+      return { y: dt.getFullYear(), m: dt.getMonth() + 1 };
+    });
+  };
 
   const { data: leaveData } = trpc.hr.listLeave.useQuery(
     { employeeId },
     { enabled: employeeId > 0 }
   );
+  /** All payroll periods for this employee (any year). */
   const { data: payrollData } = trpc.hr.listPayroll.useQuery(
-    { year: new Date().getFullYear() },
+    { employeeId },
     { enabled: employeeId > 0 }
   );
+  /** Legacy HR attendance rows for this employee + month (scoped; any company member can view). */
   const { data: attendanceData } = trpc.hr.listAttendance.useQuery(
-    { month: attendanceMonthStr },
+    { month: attendanceMonthStr, employeeId },
+    { enabled: employeeId > 0 }
+  );
+  const { data: uploadedDocs = [], isLoading: docsLoading } = trpc.documents.listEmployeeDocs.useQuery(
+    { employeeId },
     { enabled: employeeId > 0 }
   );
 
-  const empPayroll = payrollData?.filter((p: any) => p.employeeId === employeeId) ?? [];
-  const empAttendance = (attendanceData ?? []).filter((a: any) => a.employeeId === employeeId);
+  const empPayroll = payrollData ?? [];
+  const empAttendance = attendanceData ?? [];
 
   const attendanceMonthLabel = useMemo(
-    () => formatMonthYear(attendanceYear, attendanceMonth, i18n.language),
-    [attendanceYear, attendanceMonth, i18n.language]
+    () => formatMonthYear(attView.y, attView.m, i18n.language),
+    [attView.y, attView.m, i18n.language]
   );
 
   if (isLoading) {
@@ -568,12 +591,14 @@ export default function EmployeeLifecyclePage() {
           <TabsContent value="leave" className="mt-4">
             <Card>
               <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <CardTitle className="text-sm">{t("lifecycle.leave.title")}</CardTitle>
-                  <Button variant="outline" size="sm" className="text-xs h-7 gap-1"
-                    onClick={() => navigate("/hr/leave")}>
-                    {t("lifecycle.leave.manage")}
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" className="text-xs h-7 gap-1"
+                      onClick={() => navigate("/hr/leave")}>
+                      {t("lifecycle.leave.manage")}
+                    </Button>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent className="pt-0">
@@ -631,10 +656,10 @@ export default function EmployeeLifecyclePage() {
                     <p className="text-sm text-muted-foreground">{t("lifecycle.payroll.empty")}</p>
                   </div>
                 ) : (
-                  <div className="overflow-x-auto">
+                  <div className="overflow-x-auto max-h-[min(24rem,70vh)] overflow-y-auto">
                     <table className="w-full text-sm">
                       <thead>
-                        <tr className="border-b border-border">
+                        <tr className="border-b border-border sticky top-0 bg-card z-[1]">
                           <th className="text-start py-2 text-xs font-medium text-muted-foreground">{t("lifecycle.payroll.period")}</th>
                           <th className="text-end py-2 text-xs font-medium text-muted-foreground">{t("lifecycle.payroll.basic")}</th>
                           <th className="text-end py-2 text-xs font-medium text-muted-foreground">{t("lifecycle.payroll.deductions")}</th>
@@ -670,11 +695,19 @@ export default function EmployeeLifecyclePage() {
           <TabsContent value="attendance" className="mt-4">
             <Card>
               <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-sm">
-                    {t("lifecycle.attendance.title")} — {attendanceMonthLabel}
-                  </CardTitle>
-                  <Button variant="outline" size="sm" className="text-xs h-7 gap-1"
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-1 min-w-0">
+                    <Button type="button" variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => bumpAttendanceMonth(-1)} aria-label={t("lifecycle.attendance.prevMonth")}>
+                      <ChevronLeft size={16} className="rtl:rotate-180" />
+                    </Button>
+                    <CardTitle className="text-sm font-semibold truncate">
+                      {t("lifecycle.attendance.title")} — {attendanceMonthLabel}
+                    </CardTitle>
+                    <Button type="button" variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => bumpAttendanceMonth(1)} aria-label={t("lifecycle.attendance.nextMonth")}>
+                      <ChevronRight size={16} className="rtl:rotate-180" />
+                    </Button>
+                  </div>
+                  <Button variant="outline" size="sm" className="text-xs h-7 gap-1 shrink-0"
                     onClick={() => navigate("/hr/attendance")}>
                     {t("lifecycle.attendance.fullAttendance")}
                   </Button>
@@ -731,9 +764,9 @@ export default function EmployeeLifecyclePage() {
                                   {t(`lifecycle.attendance.statusValue.${a.status}` as "lifecycle.attendance.statusValue.present", { defaultValue: a.status })}
                                 </Badge>
                               </td>
-                              <td className="py-2.5 text-muted-foreground">{a.clockIn ?? "—"}</td>
-                              <td className="py-2.5 text-muted-foreground">{a.clockOut ?? "—"}</td>
-                              <td className="py-2.5 text-muted-foreground">{a.hoursWorked ? `${Number(a.hoursWorked).toFixed(1)}h` : "—"}</td>
+                              <td className="py-2.5 text-muted-foreground">{a.checkIn ? fmtTime(new Date(a.checkIn)) : "—"}</td>
+                              <td className="py-2.5 text-muted-foreground">{a.checkOut ? fmtTime(new Date(a.checkOut)) : "—"}</td>
+                              <td className="py-2.5 text-muted-foreground">{hoursBetween(a.checkIn, a.checkOut) ?? "—"}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -749,7 +782,7 @@ export default function EmployeeLifecyclePage() {
           <TabsContent value="documents" className="mt-4">
             <Card>
               <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-2">
                   <CardTitle className="text-sm">{t("lifecycle.documents.title")}</CardTitle>
                   <Button variant="outline" size="sm" className="text-xs h-7 gap-1"
                     onClick={() => navigate(`/employee/${employeeId}/documents`)}>
@@ -757,8 +790,8 @@ export default function EmployeeLifecyclePage() {
                   </Button>
                 </div>
               </CardHeader>
-              <CardContent className="pt-0">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+              <CardContent className="pt-0 space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {[
                     { label: t("lifecycle.documents.passport"), value: employee.passportNumber, icon: CreditCard, note: t("lifecycle.documents.passportNote") },
                     { label: t("lifecycle.documents.civilId"),  value: employee.nationalId,     icon: Shield,     note: t("lifecycle.documents.civilIdNote") },
@@ -769,18 +802,62 @@ export default function EmployeeLifecyclePage() {
                       <div className={`p-2 rounded-md ${value ? "bg-emerald-100 dark:bg-emerald-900/40" : "bg-muted"}`}>
                         <Icon size={14} className={value ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"} />
                       </div>
-                      <div>
+                      <div className="min-w-0">
                         <p className="text-sm font-medium text-foreground">{label}</p>
                         <p className="text-xs text-muted-foreground">{value ? note : t("lifecycle.documents.notRecorded")}</p>
                       </div>
-                      {value && <CheckCircle2 size={14} className="text-emerald-500 ms-auto" />}
+                      {value ? <CheckCircle2 size={14} className="text-emerald-500 ms-auto shrink-0" /> : null}
                     </div>
                   ))}
                 </div>
-                <div className="text-center py-4 border border-dashed border-border rounded-lg">
-                  <FileText size={20} className="text-muted-foreground mx-auto mb-2" />
-                  <p className="text-sm text-muted-foreground">{t("lifecycle.documents.uploadNote")}</p>
-                  <Button variant="outline" size="sm" className="mt-2 gap-1.5" onClick={() => navigate(`/employee/${employeeId}/documents`)}>
+
+                <div>
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">{t("lifecycle.documents.vaultList")}</p>
+                  {docsLoading ? (
+                    <div className="space-y-2">
+                      <Skeleton className="h-10 w-full" />
+                      <Skeleton className="h-10 w-full" />
+                    </div>
+                  ) : uploadedDocs.length === 0 ? (
+                    <div className="text-center py-6 border border-dashed border-border rounded-lg px-3">
+                      <FileText size={20} className="text-muted-foreground mx-auto mb-2" />
+                      <p className="text-sm text-muted-foreground mb-3">{t("lifecycle.documents.noUploadsYet")}</p>
+                      <Button variant="outline" size="sm" className="gap-1.5" onClick={() => navigate(`/employee/${employeeId}/documents`)}>
+                        <FileText size={12} /> {t("lifecycle.documents.openVault")}
+                      </Button>
+                      <p className="text-xs text-muted-foreground mt-3">{t("lifecycle.documents.openVaultHint")}</p>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-border">
+                            <th className="text-start py-2 text-xs font-medium text-muted-foreground">{t("lifecycle.documents.docType")}</th>
+                            <th className="text-start py-2 text-xs font-medium text-muted-foreground">{t("lifecycle.documents.fileName")}</th>
+                            <th className="text-start py-2 text-xs font-medium text-muted-foreground">{t("lifecycle.documents.expiry")}</th>
+                            <th className="text-start py-2 text-xs font-medium text-muted-foreground">{t("lifecycle.documents.verification")}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {uploadedDocs.map((doc: any) => (
+                            <tr key={doc.id} className="border-b border-muted/50 last:border-0">
+                              <td className="py-2.5 text-foreground capitalize">{String(doc.documentType ?? "").replace(/_/g, " ")}</td>
+                              <td className="py-2.5 text-muted-foreground max-w-[200px] truncate">{doc.fileName ?? "—"}</td>
+                              <td className="py-2.5 text-muted-foreground">{doc.expiresAt ? fmtDate(doc.expiresAt) : "—"}</td>
+                              <td className="py-2.5">
+                                <Badge variant="outline" className="text-xs h-5 capitalize">{doc.verificationStatus ?? "—"}</Badge>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+
+                <div className="text-center py-3 border border-dashed border-border rounded-lg">
+                  <p className="text-sm text-muted-foreground mb-2">{t("lifecycle.documents.uploadNote")}</p>
+                  <Button variant="outline" size="sm" className="gap-1.5" onClick={() => navigate(`/employee/${employeeId}/documents`)}>
                     <FileText size={12} /> {t("lifecycle.documents.openVault")}
                   </Button>
                 </div>

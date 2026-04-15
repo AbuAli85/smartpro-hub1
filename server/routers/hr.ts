@@ -576,10 +576,21 @@ export const hrRouter = router({
 
   // Payroll
   listPayroll: protectedProcedure
-    .input(z.object({ year: z.number().optional(), month: z.number().optional(), companyId: z.number().optional() }))
+    .input(
+      z.object({
+        year: z.number().optional(),
+        month: z.number().optional(),
+        companyId: z.number().optional(),
+        employeeId: z.number().optional(),
+      }),
+    )
     .query(async ({ input, ctx }) => {
       const cid = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
-      return getPayrollRecords(cid, input.year, input.month);
+      if (input.employeeId != null) {
+        const emp = await getEmployeeById(input.employeeId);
+        if (!emp || emp.companyId !== cid) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
+      }
+      return getPayrollRecords(cid, input.year, input.month, input.employeeId);
     }),
 
   createPayroll: protectedProcedure
@@ -694,8 +705,14 @@ export const hrRouter = router({
 
   // ── Attendance ──────────────────────────────────────────────────────────────
   listAttendance: protectedProcedure
-    .input(z.object({ month: z.string().optional(), companyId: z.number().optional() }))
+    .input(z.object({ month: z.string().optional(), companyId: z.number().optional(), employeeId: z.number().optional() }))
     .query(async ({ input, ctx }) => {
+      if (input.employeeId != null) {
+        const cid = await requireActiveCompanyId(ctx.user.id, input.companyId, ctx.user);
+        const emp = await getEmployeeById(input.employeeId);
+        if (!emp || emp.companyId !== cid) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
+        return getAttendance(cid, input.month, input.employeeId);
+      }
       const cid = await requireHrAdminOrDelegatedReports(ctx.user as User, input.companyId);
       return getAttendance(cid, input.month);
     }),

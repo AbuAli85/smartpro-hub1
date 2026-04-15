@@ -145,13 +145,18 @@ export async function getLeaveRequestById(id: number) {
 
 // ─── Payroll ──────────────────────────────────────────────────────────────────
 
-export async function getPayrollRecords(companyId: number, year?: number, month?: number) {
+export async function getPayrollRecords(companyId: number, year?: number, month?: number, employeeId?: number) {
   const db = await getDb();
   if (!db) return [];
   const conditions = [eq(payrollRecords.companyId, companyId)];
-  if (year) conditions.push(eq(payrollRecords.periodYear, year));
-  if (month) conditions.push(eq(payrollRecords.periodMonth, month));
-  return db.select().from(payrollRecords).where(and(...conditions)).orderBy(desc(payrollRecords.createdAt));
+  if (year != null) conditions.push(eq(payrollRecords.periodYear, year));
+  if (month != null) conditions.push(eq(payrollRecords.periodMonth, month));
+  if (employeeId != null) conditions.push(eq(payrollRecords.employeeId, employeeId));
+  return db
+    .select()
+    .from(payrollRecords)
+    .where(and(...conditions))
+    .orderBy(desc(payrollRecords.periodYear), desc(payrollRecords.periodMonth));
 }
 
 export async function createPayrollRecord(data: typeof payrollRecords.$inferInsert) {
